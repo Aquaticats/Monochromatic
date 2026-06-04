@@ -1,1 +1,1 @@
-export { default, } from '@monochromatic-dev/config-tsdown/.node.ts';
+export { default, } from '@monochromatic-dev/config-tsdown/.node.unbundled-dts.ts';

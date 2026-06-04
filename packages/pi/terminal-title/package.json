@@ -11,7 +11,7 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/final/node/index.d.mts",
+      "types": "./dist/final/node/src/index.d.ts",
       "default": "./dist/final/node/index.mjs"
     },
     "./ts": "./src/index.ts"

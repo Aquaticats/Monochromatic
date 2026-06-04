@@ -129,6 +129,47 @@ typed library. Acceptable for CLI tools and applications;
 unacceptable for `module-*` library packages where types are
 the public API.
 
+### Use tsdown's own rolldown copy for builtin plugins
+
+When replacing bundled DTS with rolldown's builtin isolated declaration
+emitter, resolve `rolldown/experimental` from `tsdown/package.json`
+instead of adding a direct `rolldown` dependency to the shared config
+package. Rolldown detects builtin plugins with `instanceof BuiltinPlugin`,
+so a direct import can create a second `BuiltinPlugin` class identity
+that tsdown's bundled rolldown does not recognise.
+
+Source trace, rolldown commit `35054a128a8425d211830f659e9857e3a8ec4a68`
+constructs isolated declaration plugins as `BuiltinPlugin` instances:
+
+```ts
+// packages/rolldown/src/builtin-plugin/constructors.ts:78-81
+export function isolatedDeclarationPlugin(
+  config?: BindingIsolatedDeclarationPluginConfig,
+): BuiltinPlugin {
+  return new BuiltinPlugin('builtin:isolated-declaration', config);
+}
+```
+
+Rolldown only serialises builtin plugins when the object is an instance
+of its own imported class:
+
+```ts
+// packages/rolldown/src/utils/bindingify-input-options.ts:50-58
+if (plugin instanceof BuiltinPlugin) {
+  switch (plugin.name) {
+    case 'builtin:vite-manifest':
+      return bindingifyManifestPlugin(plugin, pluginContextData);
+    default:
+      return bindingifyBuiltInPlugin(plugin);
+  }
+}
+```
+
+Tradeoff: the workaround relies on tsdown keeping `rolldown` as a
+resolvable dependency and on `rolldown/experimental` continuing to
+export `isolatedDeclarationPlugin`. The helper validates that export at
+module load and fails fast if the upstream shape changes.
+
 ### Reduce the number of source files that need DTS bundling
 
 Cost scales with file count and import-graph depth. Flatter
@@ -151,6 +192,11 @@ builds still pay the full cost.
 - **Setting `dts: { oxc: true }` explicitly**: redundant;
   `rolldown-plugin-dts` auto-detects `isolatedDeclarations:
   true` from tsconfig.
+- **Importing `isolatedDeclarationPlugin` from a direct rolldown
+  dependency**: can silently produce only JS output in tsdown builds.
+  The plugin object comes from a different `BuiltinPlugin` class than
+  the one tsdown's rolldown copy checks with `instanceof`, so rolldown
+  treats it as an ordinary plugin object without hooks.
 - **Disabling minification**: saves ~1 ms, irrelevant.
 - **Running with `DEBUG='rolldown-plugin-dts:*'` or
   `DEBUG='tsdown:*'` to measure**: debug logging adds

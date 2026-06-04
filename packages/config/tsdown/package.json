@@ -37,8 +37,14 @@
     "./.ts": {
       "default": "./src/index.ts"
     },
+    "./.unbundled-dts.ts": {
+      "default": "./src/index.unbundled-dts.ts"
+    },
     "./.node.ts": {
       "default": "./src/index.node.ts"
+    },
+    "./.node.unbundled-dts.ts": {
+      "default": "./src/index.node.unbundled-dts.ts"
     },
     "./.client.ts": {
       "default": "./src/index.client.ts"
