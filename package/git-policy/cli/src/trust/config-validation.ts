@@ -265,9 +265,9 @@ type MutablePolicySchema = {
  *
  * @param rawOptions - unvalidated plugin option value
  *
- * @mutates optionsSchema - plugin callback may mutate retained schema state
+ * @mutates optionsSchema - v.safeParse plugin callback may mutate retained schema state
  *
- * @mutates rawOptions - plugin callback may mutate supplied option value
+ * @mutates rawOptions - v.safeParse plugin callback may mutate supplied option value
  *
  * @returns Valibot safe parse result
  *
@@ -300,9 +300,9 @@ function parsePolicyOptions({
  *
  * @param setting - explicit setting or declaration default
  *
- * @mutates optionsSchema - plugin-defined Valibot callback may mutate retained schema state
+ * @mutates optionsSchema - v.safeParse plugin callback may mutate retained schema state
  *
- * @mutates setting - plugin-defined Valibot callback may mutate supplied option value
+ * @mutates setting - v.safeParse plugin callback may mutate supplied option value
  *
  * @returns active severity and parsed options
  */

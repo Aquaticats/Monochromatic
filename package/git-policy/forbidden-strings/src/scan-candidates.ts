@@ -142,7 +142,7 @@ type ScannerAbortRelay = Readonly<{
  *
  * @param signal - borrowed engine cancellation signal
  *
- * @mutates signal - installs and removes one abort listener during scanner lifetime
+ * @mutates signal - signal.addEventListener installs and signal.removeEventListener removes one abort listener
  *
  * @returns owned scanner signal with deterministic listener cleanup
  *
@@ -199,7 +199,7 @@ function createScannerAbortRelay(
  *
  * @param signal - engine cancellation signal
  *
- * @mutates signal - abort relay installs and removes one listener while scanner runs
+ * @mutates signal - signal.addEventListener installs and signal.removeEventListener removes abort relay listener
  *
  * @returns redacted policy findings
  *
