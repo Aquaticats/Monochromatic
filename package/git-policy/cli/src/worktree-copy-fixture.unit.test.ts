@@ -23,7 +23,7 @@ const REAL_GIT_PATH = '/usr/bin/git';
 /**
  * Built cli-git artifact exercised at consumer boundary.
  */
-export const WRAPPER_PATH = join(
+export const WRAPPER_PATH: string = join(
   import.meta.dirname,
   '..',
   'dist',
