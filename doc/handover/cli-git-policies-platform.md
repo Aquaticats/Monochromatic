@@ -2116,6 +2116,46 @@ a later phase does not wait to record an earlier phase's work.
   CI checks,
   and clean npm install after removal.
 
+## Authorized linked-worktree follow-up
+
+A later authorized follow-up adds fixed lifecycle infrastructure that copies the invoking worktree's complete
+Git-ignored filesystem state into every newly registered linked worktree.
+Outcome-based administrative identity comparison covers ordinary aliases,
+`--no-checkout`,
+and worktrees retained after Git or hook failure.
+The settled contract is now canonical in
+`doc/decision/cli-git-policies-platform.md` and
+`package/git-policy/cli/SPEC.md`.
+
+The implementation uses destination-sibling private staging,
+copy-on-write with full-copy fallback,
+exact final source equivalence,
+non-overwriting installation,
+registered nested-worktree exclusion,
+ownership-checked rollback,
+and validated common-directory journal recovery.
+Bare repositories contribute an empty source set.
+Copy-only failure exits `2`;
+a concurrent Git failure retains its numeric status or signal fallback `1`.
+
+Built-wrapper fixtures cover the standard ignore stack,
+permissions,
+symlinks,
+alias and no-checkout registration,
+source-only ignore state,
+exact and differing collisions,
+hook failure,
+signaled Git failure,
+nested and stale registered worktrees,
+bare repositories,
+special files,
+journal recovery,
+and malicious journal containment.
+Issue [#393](https://github.com/Aquaticat/Monochromatic/issues/393)
+separately tracks Rolldown's TypeScript trust bootstrap dependency;
+`doc/troubleshooting/rolldown-1-2-typescript-trust-tsconfig-discovery.md`
+records the source trace and verified `tsconfig: false` boundary.
+
 ## Remaining work
 
 The earlier evidence gaps and issues `#356` and `#357` are closed.
