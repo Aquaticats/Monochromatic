@@ -46,12 +46,13 @@ export const NANO_SPAWN_PACKAGE_EFFECTS: readonly IntrinsicEffectEntry[] = [{
       index: 2,
       callArgumentCount: 3,
       propertyNames: [
-        'cwd',
-        'env',
         'signal',
+        'stderr',
+        'stdin',
         'stdio',
+        'stdout',
       ],
     },
   ],
-  evidence: `${NANO_SPAWN_EVIDENCE}; spawn copies argument and option containers, then forwards cwd, environment, AbortSignal, and stream capabilities to node:child_process.spawn`,
+  evidence: `${NANO_SPAWN_EVIDENCE}; spawn copies argument and option containers, then forwards retained AbortSignal and stream capabilities to node:child_process.spawn`,
 },];

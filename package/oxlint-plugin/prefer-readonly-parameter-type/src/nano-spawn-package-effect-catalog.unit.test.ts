@@ -71,10 +71,11 @@ await describe({
             index: 2,
             callArgumentCount: 3,
             propertyNames: [
-              'cwd',
-              'env',
               'signal',
+              'stderr',
+              'stdin',
               'stdio',
+              'stdout',
             ],
           },
         ],);
