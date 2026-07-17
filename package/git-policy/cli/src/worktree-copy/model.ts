@@ -83,7 +83,9 @@ export type CreatedWorktree = Readonly<{
  * ```ts
  * const snapshot: StagedWorktreeSnapshot = {
  *   entries: [],
+ *   selectedRoots: [],
  *   sourceRoot: '/repo',
+ *   stageContainer: '/worktrees/.cli-git-worktree-copy-abc',
  *   stageRoot: '/worktrees/.cli-git-worktree-copy-abc/payload',
  * };
  * ```
@@ -91,8 +93,12 @@ export type CreatedWorktree = Readonly<{
 export type StagedWorktreeSnapshot = Readonly<{
   /** Complete staged entries sorted parent before child by repository path. */
   entries: readonly WorktreeCopyEntry[];
+  /** Git-selected ignored roots represented by staged entries. */
+  selectedRoots: readonly string[];
   /** Source worktree root used for final-equivalence validation. */
   sourceRoot: string;
+  /** Private sibling directory owning payload and journal scratch files. */
+  stageContainer: string;
   /** Private payload root on destination filesystem. */
   stageRoot: string;
 }>;
