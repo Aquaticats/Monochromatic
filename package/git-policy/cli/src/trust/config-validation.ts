@@ -3,6 +3,7 @@
  *
  * @module
  */
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import * as v from 'valibot';
 import type {
   PolicySeverity,
@@ -258,18 +259,14 @@ function validatePolicy({
  *
  * @param setting - explicit setting or declaration default
  *
- * @mutates policy - plugin-defined Valibot schema may mutate its own retained schema state
- *
- * @mutates setting - plugin-defined Valibot schema may mutate supplied option value
- *
  * @returns active severity and parsed options
  */
 function parsePolicySetting({
   policy,
   setting,
 }: Readonly<{
-  policy: RuntimePolicyDefinition;
-  setting: unknown;
+  policy: ForeignBorrowed<RuntimePolicyDefinition>;
+  setting: ForeignBorrowed<unknown>;
 }>,): Readonly<{
   severity: PolicySeverity;
   options: unknown
@@ -420,8 +417,6 @@ export function validateConfig(value: unknown,): ValidatedConfig {
      * Parses one registered policy setting.
      *
      * @param policy - Registered runtime policy definition.
-     *
-     * @mutates policy - plugin-defined Valibot schema may mutate its own retained schema state
      *
      * @returns Policy ID and effective severity pair.
      */
