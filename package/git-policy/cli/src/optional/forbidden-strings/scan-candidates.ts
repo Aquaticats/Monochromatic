@@ -118,6 +118,64 @@ function scannerEligibleCandidates({
 }
 
 /**
+ * Owned cancellation signal and listener cleanup for scanner subprocess.
+ */
+type ScannerAbortRelay = Readonly<{
+  /**
+   * Owned signal safe to pass into external subprocess adapter.
+   */
+  signal: AbortSignal;
+  /**
+   * Removes forwarding listener from borrowed engine signal.
+   */
+  [Symbol.dispose]: () => void;
+}>;
+
+/**
+ * Relays borrowed engine cancellation into owned scanner signal.
+ *
+ * @param signal - borrowed engine cancellation signal
+ *
+ * @returns owned scanner signal with deterministic listener cleanup
+ *
+ * @example
+ * ```ts
+ * using relay = createScannerAbortRelay(new AbortController().signal);
+ * ```
+ */
+function createScannerAbortRelay(
+  signal: ForeignBorrowed<AbortSignal>,
+): ScannerAbortRelay {
+  /**
+   * Scanner-owned cancellation controller.
+   */
+  const controller = new AbortController();
+  /**
+   * One-way cancellation callback retaining no borrowed abort reason.
+   */
+  const forwardAbort = (): void => {
+    controller.abort();
+  };
+  if (signal.aborted)
+    controller.abort();
+  else
+    signal.addEventListener(
+      'abort',
+      forwardAbort,
+      { once: true, },
+    );
+  return {
+    signal: controller.signal,
+    [Symbol.dispose](): void {
+      signal.removeEventListener(
+        'abort',
+        forwardAbort,
+      );
+    },
+  };
+}
+
+/**
  * Runs external scanner over exact candidate bytes.
  *
  * @param executable - PATH-resolved command or configured executable path
@@ -147,14 +205,18 @@ export async function scanCandidates({
   environment = process.env,
   candidates,
   signal,
-}: ForeignBorrowed<Readonly<{
+}: Readonly<{
   executable: string;
   builtinRules: boolean;
   repositoryRoot: string;
   environment?: NodeJS.ProcessEnv;
   candidates: readonly CandidateFile[];
-  signal: AbortSignal;
-}>>): Promise<readonly PolicyFinding[]> {
+  signal: ForeignBorrowed<AbortSignal>;
+}>): Promise<readonly PolicyFinding[]> {
+  /**
+   * Scanner-owned cancellation signal detached from borrowed engine signal.
+   */
+  using abortRelay = createScannerAbortRelay(signal,);
   /**
    * Disposable exact scanner inputs.
    */
@@ -183,7 +245,7 @@ export async function scanCandidates({
       [...scannerArguments,],
       {
         cwd: repositoryRoot,
-        signal,
+        signal: abortRelay.signal,
       },
     );
     return [];

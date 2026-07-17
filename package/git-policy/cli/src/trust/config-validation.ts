@@ -259,15 +259,19 @@ function validatePolicy({
  *
  * @param setting - explicit setting or declaration default
  *
+ * @mutates policy - plugin-defined Valibot schema may mutate its own retained schema state
+ *
+ * @mutates setting - plugin-defined Valibot schema may mutate supplied option value
+ *
  * @returns active severity and parsed options
  */
 function parsePolicySetting({
   policy,
   setting,
-}: ForeignBorrowed<Readonly<{
+}: {
   policy: RuntimePolicyDefinition;
   setting: unknown;
-}>>,): Readonly<{
+},): Readonly<{
   severity: PolicySeverity;
   options: unknown
 }> {
@@ -420,7 +424,7 @@ export function validateConfig(value: unknown,): ValidatedConfig {
      *
      * @returns Policy ID and effective severity pair.
      */
-    function preparePolicy(policy,) {
+    function preparePolicy(policy: ForeignBorrowed<RuntimePolicyDefinition>,) {
       /**
        * Parsed setting for current policy.
        */
