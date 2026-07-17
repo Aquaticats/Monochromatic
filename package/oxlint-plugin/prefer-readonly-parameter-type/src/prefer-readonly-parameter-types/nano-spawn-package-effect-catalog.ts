@@ -26,7 +26,7 @@ const NANO_SPAWN_EVIDENCE = 'nano-spawn 2.1.0 source/index.js sha256 f0e98f616b0
 export const NANO_SPAWN_PACKAGE_EFFECTS: readonly IntrinsicEffectEntry[] = [{
   provenance: NANO_SPAWN_PROVENANCE,
   ownerType: 'globalThis',
-  member: 'spawn',
+  member: 'default',
   targets: [{
     kind: 'argument',
     index: 2,
