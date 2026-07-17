@@ -52,18 +52,30 @@ await describe({
         closeSemanticBridge();
         if (effect === NO_INTRINSIC_EFFECT)
           throw new Error('Expected nano-spawn effect.',);
-        expect(effect.targets,).toEqual([{
-          kind: 'argument',
-          index: 2,
-        },],);
+        expect(effect.targets,).toEqual([],);
         expect(effect.opaqueTargets,).toEqual([
           {
             kind: 'argument',
             index: 1,
+            callArgumentCount: 3,
+            freshContainerShieldsContents: true,
           },
           {
             kind: 'argument',
             index: 2,
+            callArgumentCount: 3,
+            freshContainerShieldsContents: true,
+          },
+          {
+            kind: 'argument',
+            index: 2,
+            callArgumentCount: 3,
+            propertyNames: [
+              'cwd',
+              'env',
+              'signal',
+              'stdio',
+            ],
           },
         ],);
       },

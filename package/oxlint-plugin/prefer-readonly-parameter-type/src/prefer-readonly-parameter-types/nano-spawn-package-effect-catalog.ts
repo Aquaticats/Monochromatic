@@ -27,19 +27,31 @@ export const NANO_SPAWN_PACKAGE_EFFECTS: readonly IntrinsicEffectEntry[] = [{
   provenance: NANO_SPAWN_PROVENANCE,
   ownerType: 'globalThis',
   member: 'default',
-  targets: [{
-    kind: 'argument',
-    index: 2,
-  },],
+  targets: [],
   opaqueTargets: [
     {
       kind: 'argument',
       index: 1,
+      callArgumentCount: 3,
+      freshContainerShieldsContents: true,
     },
     {
       kind: 'argument',
       index: 2,
+      callArgumentCount: 3,
+      freshContainerShieldsContents: true,
+    },
+    {
+      kind: 'argument',
+      index: 2,
+      callArgumentCount: 3,
+      propertyNames: [
+        'cwd',
+        'env',
+        'signal',
+        'stdio',
+      ],
     },
   ],
-  evidence: `${NANO_SPAWN_EVIDENCE}; spawn reads iterable arguments and option properties, copies their containers, then forwards retained AbortSignal and stream capabilities to node:child_process.spawn`,
+  evidence: `${NANO_SPAWN_EVIDENCE}; spawn copies argument and option containers, then forwards cwd, environment, AbortSignal, and stream capabilities to node:child_process.spawn`,
 },];
