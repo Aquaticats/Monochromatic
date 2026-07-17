@@ -134,7 +134,8 @@ async function canonicalRegisteredRoot(
     return await realpath(root,);
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return REGISTERED_ROOT_MISSING;
     throw error;
   }

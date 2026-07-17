@@ -143,7 +143,9 @@ export async function writeJournal({
        */
       await using handle = await open(
         temporaryPath,
-        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+        constants.O_CREAT | constants.O_EXCL
+          | constants.O_WRONLY
+          | constants.O_NOFOLLOW,
         PRIVATE_FILE_MODE,
       );
       await handle.writeFile(
@@ -348,7 +350,9 @@ export async function removeWorktreeCopyJournal(
     ...pending.record,
     phase: 'complete',
   };
-  if (pending.record.phase !== 'complete') {
+  if (pending.record
+    .phase
+    !== 'complete') {
     await writeJournal({
       path: pending.path,
       record: completeRecord,

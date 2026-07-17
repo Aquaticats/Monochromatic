@@ -85,11 +85,17 @@ async function readLockOwner(ownerPath: string,): Promise<LockOwner> {
     'utf8',
   ),);
   if (((typeof value) !== 'object') || (value === null)
-    || (!('schemaVersion' in value)) || (value.schemaVersion !== 1)
-    || (!('ownerPid' in value)) || ((typeof value.ownerPid) !== 'number')
-    || (!Number.isInteger(value.ownerPid,)) || (value.ownerPid < 1)
-    || (!('ownerBirthIdentity' in value)) || ((typeof value.ownerBirthIdentity) !== 'string')
-    || (value.ownerBirthIdentity.length === 0)) {
+    || (!('schemaVersion' in value))
+    || (value.schemaVersion !== 1)
+    || (!('ownerPid' in value))
+    || ((typeof value.ownerPid) !== 'number')
+    || (!Number.isInteger(value.ownerPid,))
+    || (value.ownerPid < 1)
+    || (!('ownerBirthIdentity' in value))
+    || ((typeof value.ownerBirthIdentity) !== 'string')
+    || (value.ownerBirthIdentity
+      .length
+      === 0)) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy lock owner is corrupt: ${JSON.stringify(ownerPath,)}.`,
     );
@@ -134,8 +140,13 @@ async function writeCandidateOwner({
        * Exclusive no-follow owner file handle.
        */
       await using handle = await open(
-        join(candidateDirectory, 'owner.json',),
-        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+        join(
+          candidateDirectory,
+          'owner.json',
+        ),
+        constants.O_CREAT | constants.O_EXCL
+          | constants.O_WRONLY
+          | constants.O_NOFOLLOW,
         PRIVATE_FILE_MODE,
       );
       await handle.writeFile(
@@ -148,7 +159,10 @@ async function writeCandidateOwner({
   catch (error: unknown) {
     await rm(
       candidateDirectory,
-      { recursive: true, force: true, },
+      {
+        recursive: true,
+        force: true,
+      },
     );
     throw error;
   }
@@ -198,14 +212,18 @@ async function retireStaleLock(
   }
   catch (error: unknown) {
     if (isExistingLockError(error,)
-      || (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))) {
+      || (Error.isError(error,) && ('code' in error)
+        && (error.code === 'ENOENT'))) {
       return LOCK_BUSY;
     }
     throw error;
   }
   await rm(
     staleDirectory,
-    { recursive: true, force: true, },
+    {
+      recursive: true,
+      force: true,
+    },
   );
   return LOCK_BUSY;
 }
@@ -248,7 +266,10 @@ function ownedLock({
       }
       await rm(
         lockDirectory,
-        { recursive: true, force: true, },
+        {
+          recursive: true,
+          force: true,
+        },
       );
     },
   };
@@ -296,7 +317,10 @@ async function attemptAcquire({
   catch (error: unknown) {
     await rm(
       candidateDirectory,
-      { recursive: true, force: true, },
+      {
+        recursive: true,
+        force: true,
+      },
     );
     if (!isExistingLockError(error,))
       throw error;
@@ -342,7 +366,10 @@ export async function acquireWorktreeCopyLock(
   const root = worktreeCopyJournalRoot(commonDir,);
   await mkdir(
     root,
-    { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
+    {
+      recursive: true,
+      mode: PRIVATE_DIRECTORY_MODE,
+    },
   );
   await chmod(
     root,

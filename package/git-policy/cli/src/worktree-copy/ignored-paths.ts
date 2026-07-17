@@ -209,7 +209,7 @@ async function isIgnoredSpecialPath({
     return true;
   }
   catch (error: unknown) {
-    if (error instanceof SubprocessError && (error.exitCode === 1))
+    if ((error instanceof SubprocessError) && (error.exitCode === 1))
       return false;
     throw error;
   }
@@ -264,7 +264,10 @@ async function readIgnoredSpecialPaths({
      */
     const directoryPath = current === '.'
       ? sourceRoot
-      : filesystemPath({ root: sourceRoot, repositoryPath: current, },);
+      : filesystemPath({
+        root: sourceRoot,
+        repositoryPath: current,
+      },);
     // oxlint-disable-next-line no-await-in-loop -- structural filesystem walk remains sequential and no-follow
     const entries = await readdir(
       directoryPath,
@@ -311,23 +314,20 @@ async function readIgnoredSpecialPaths({
     }
   }
   /**
-   * Ignore decisions aligned with discovered special paths.
+   * Special paths Git confirms as ignored without unbounded subprocess fan-out.
    */
-  const ignored = await Promise.all(specialPaths.map(function ignoredSpecialPath(
-    repositoryPath,
-  ): Promise<boolean> {
-    return isIgnoredSpecialPath({
+  const ignoredSpecialPaths: string[] = [];
+  for (const repositoryPath of specialPaths) {
+    // oxlint-disable-next-line no-await-in-loop -- special path classification uses one bounded Git process at a time
+    if (await isIgnoredSpecialPath({
       sourceRoot,
       repositoryPath,
       gitPath,
-    },);
-  },),);
-  return specialPaths.filter(function ignoredSpecial(
-    _repositoryPath,
-    index,
-  ): boolean {
-    return ignored[index] === true;
-  },);
+    },)) {
+      ignoredSpecialPaths.push(repositoryPath,);
+    }
+  }
+  return ignoredSpecialPaths;
 }
 
 /**

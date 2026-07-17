@@ -69,7 +69,10 @@ export async function recordEntryIntent({
   state: JournalState;
   relativePath: string;
 }>,): Promise<void> {
-  if (state.pending.record.intendedEntries.includes(relativePath,))
+  if (state.pending
+    .record
+    .intendedEntries
+    .includes(relativePath,))
     return;
   /**
    * Updated durable installation-intent list.

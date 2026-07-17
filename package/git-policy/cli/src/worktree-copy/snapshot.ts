@@ -164,14 +164,20 @@ async function copyManifestEntries({
       // oxlint-disable-next-line no-await-in-loop -- parent-first manifest materializes one deterministic directory at a time
       await mkdir(
         stagePath,
-        { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
+        {
+          recursive: true,
+          mode: PRIVATE_DIRECTORY_MODE,
+        },
       );
       continue;
     }
     // oxlint-disable-next-line no-await-in-loop -- selected nested files can require unselected private scaffold parents
     await mkdir(
       dirname(stagePath,),
-      { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
+      {
+        recursive: true,
+        mode: PRIVATE_DIRECTORY_MODE,
+      },
     );
     if (entry.kind === 'file') {
       // oxlint-disable-next-line no-await-in-loop -- file staging remains deterministic and bounded by manifest
@@ -260,7 +266,10 @@ export async function stageIgnoredSnapshot({
   catch (error: unknown) {
     await rm(
       stageContainer,
-      { recursive: true, force: true, },
+      {
+        recursive: true,
+        force: true,
+      },
     );
     throw error;
   }

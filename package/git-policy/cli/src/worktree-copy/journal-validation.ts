@@ -126,7 +126,8 @@ export function validateJournalValue({
 }>,): WorktreeCopyJournal {
   if (!(isRecord(value,)
     && (value.version === 1)
-    && ((value.phase === 'staged') || (value.phase === 'installing') || (value.phase === 'complete'))
+    && ((value.phase === 'staged') || (value.phase === 'installing')
+      || (value.phase === 'complete'))
     && isStringArray(value.intendedEntries,)
     && isStringArray(value.selectedRoots,)
     && ((typeof value.destinationRoot) === 'string')
@@ -142,21 +143,43 @@ export function validateJournalValue({
       `cli-git: worktree-copy journal escaped private root: ${JSON.stringify(path,)}.`,
     );
   }
-  assertCanonicalAbsolutePath({ value: value.destinationRoot, field: 'destinationRoot', },);
-  assertCanonicalAbsolutePath({ value: value.sourceRoot, field: 'sourceRoot', },);
-  assertCanonicalAbsolutePath({ value: value.stageContainer, field: 'stageContainer', },);
-  assertCanonicalAbsolutePath({ value: value.stageRoot, field: 'stageRoot', },);
+  assertCanonicalAbsolutePath({
+    value: value.destinationRoot,
+    field: 'destinationRoot',
+  },);
+  assertCanonicalAbsolutePath({
+    value: value.sourceRoot,
+    field: 'sourceRoot',
+  },);
+  assertCanonicalAbsolutePath({
+    value: value.stageContainer,
+    field: 'stageContainer',
+  },);
+  assertCanonicalAbsolutePath({
+    value: value.stageRoot,
+    field: 'stageRoot',
+  },);
   if ((dirname(value.stageContainer,) !== dirname(value.destinationRoot,))
-    || (!basename(value.stageContainer,).startsWith(STAGE_PREFIX,))
-    || (value.stageRoot !== join(value.stageContainer, 'payload',))) {
+    || (!basename(value.stageContainer,)
+      .startsWith(STAGE_PREFIX,))
+    || (value.stageRoot !== join(
+      value.stageContainer,
+      'payload',
+    ))) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal has unsafe private stage relation: ${JSON.stringify(path,)}.`,
     );
   }
-  value.selectedRoots.forEach(assertSafeRepositoryPath,);
-  value.intendedEntries.forEach(assertSafeRepositoryPath,);
-  if ((new Set(value.selectedRoots,).size !== value.selectedRoots.length)
-    || (new Set(value.intendedEntries,).size !== value.intendedEntries.length)) {
+  value.selectedRoots
+    .forEach(assertSafeRepositoryPath,);
+  value.intendedEntries
+    .forEach(assertSafeRepositoryPath,);
+  if ((new Set(value.selectedRoots,).size
+    !== value.selectedRoots
+    .length)
+    || (new Set(value.intendedEntries,).size
+      !== value.intendedEntries
+      .length)) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal contains duplicate repository paths: ${JSON.stringify(path,)}.`,
     );
@@ -190,7 +213,8 @@ async function lstatOrAbsent(path: string,): Promise<Readonly<Stats> | typeof PA
     return await lstat(path,);
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return PATH_ABSENT;
     throw error;
   }
@@ -257,7 +281,10 @@ async function assertRegisteredDestination({
    * Linked-worktree Git-file pointer.
    */
   const pointer = (await readFile(
-    join(destinationRoot, '.git',),
+    join(
+      destinationRoot,
+      '.git',
+    ),
     'utf8',
   ))
     .trimEnd();

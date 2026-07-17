@@ -188,8 +188,9 @@ async function resolveCommonDir({
     return await realpath(commonPath,);
   }
   catch (error: unknown) {
-    if (error instanceof SubprocessError
-      || (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT')))
+    if ((error instanceof SubprocessError)
+      || (Error.isError(error,) && ('code' in error)
+        && (error.code === 'ENOENT')))
       return WORKTREE_COPY_NOT_APPLICABLE;
     throw error;
   }

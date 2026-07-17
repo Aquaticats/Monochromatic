@@ -54,13 +54,16 @@ async function snapshotFromJournal(
     const entryPaths = new Set(entries.map(function entryPath(entry,): string {
       return entry.relativePath;
     },),);
-    if (!journal.record.intendedEntries.every(function representedIntent(
+    if (!journal.record
+      .intendedEntries
+      .every(function representedIntent(
       relativePath,
     ): boolean {
       return entryPaths.has(relativePath,);
     },)) {
       throw new WorktreeCopyError(
-        `cli-git: worktree-copy journal intent is absent from private stage ${JSON.stringify(journal.record.stageRoot,)}.`,
+        `cli-git: worktree-copy journal intent is absent from private stage ${JSON.stringify(journal.record
+          .stageRoot,)}.`,
       );
     }
     return {
@@ -160,7 +163,9 @@ export async function recoverWorktreeCopyTransactions(
       commonDir,
       record: journal.record,
     },);
-    if (journal.record.phase === 'complete') {
+    if (journal.record
+      .phase
+      === 'complete') {
       // oxlint-disable-next-line no-await-in-loop -- completed cleanup must settle before later journal recovery
       await removeWorktreeCopyJournal(journal,);
       continue;

@@ -4,7 +4,6 @@ import {
   copyFile,
   mkdir,
   readlink,
-  rmdir,
   symlink,
   unlink,
 } from 'node:fs/promises';
@@ -13,6 +12,7 @@ import {
   entryMatches,
   lstatOrAbsent,
 } from './entry-compare.ts';
+import { applyEntryModes, } from './entry-manifest.ts';
 import { WorktreeCopyError, } from './errors.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import { rollbackCreated, } from './install-rollback.ts';
@@ -30,6 +30,11 @@ import type {
  * Exclusive copy-on-write request with full-copy fallback.
  */
 const EXCLUSIVE_COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE;
+
+/**
+ * Temporary writable mode for newly installed selected directories.
+ */
+const PRIVATE_DIRECTORY_MODE = 0o700;
 
 /**
  * Asserts every existing destination entry is identical before mutation.
@@ -198,19 +203,9 @@ async function createSelectedEntry({
   if (entry.kind === 'directory') {
     await mkdir(
       destinationPath,
-      { mode: entry.mode, },
+      { mode: PRIVATE_DIRECTORY_MODE, },
     );
-    try {
-      await chmod(
-        destinationPath,
-        entry.mode,
-      );
-      return;
-    }
-    catch (error: unknown) {
-      await rmdir(destinationPath,);
-      throw error;
-    }
+    return;
   }
   if (entry.kind === 'file') {
     await copyFile(
@@ -272,7 +267,9 @@ export async function installSnapshot({
   /**
    * Prior selected intents conservatively owned only when they still equal stage.
    */
-  const created: InstalledWorktreePath[] = journalState.pending.record.intendedEntries
+  const created: InstalledWorktreePath[] = journalState.pending
+    .record
+    .intendedEntries
     .map(function priorIntent(relativePath,): InstalledWorktreePath {
       return {
         relativePath,
@@ -321,6 +318,10 @@ export async function installSnapshot({
         entry,
       },);
     }
+    await applyEntryModes({
+      root: destinationRoot,
+      entries: snapshot.entries,
+    },);
     return created.filter(function selectedEntry(installed,): boolean {
       return installed.selected;
     },)
