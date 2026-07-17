@@ -322,6 +322,8 @@ function parsePolicySetting({
  *
  * @param value - imported default export
  *
+ * @mutates value - plugin-defined Valibot schemas may mutate their schema or option state
+ *
  * @returns validated config plus ordered policy registry and parsed settings
  *
  * @example
@@ -413,10 +415,20 @@ export function validateConfig(value: unknown,): ValidatedConfig {
   /**
    * Effective severity map prepared alongside options.
    */
-  const policySeverities = Object.fromEntries(registeredPolicies.map(function preparePolicy(policy,) {
+  const policySeverities = Object.fromEntries(registeredPolicies.map(
     /**
-     * Parsed setting for current policy.
+     * Parses one registered policy setting.
+     *
+     * @param policy - Registered runtime policy definition.
+     *
+     * @mutates policy - plugin-defined Valibot schema may mutate its own retained schema state
+     *
+     * @returns Policy ID and effective severity pair.
      */
+    function preparePolicy(policy,) {
+      /**
+       * Parsed setting for current policy.
+       */
     const parsed = parsePolicySetting({
       policy,
       setting: settingsValue[policy.name] ?? policy.defaultSeverity,
@@ -428,8 +440,9 @@ export function validateConfig(value: unknown,): ValidatedConfig {
     return [
       policy.name,
       parsed.severity,
-    ] as const;
-  },),);
+      ] as const;
+    },
+  ),);
 
   if (value.trust !== undefined) {
     assertRecord(value.trust,);
