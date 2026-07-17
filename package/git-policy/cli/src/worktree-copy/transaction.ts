@@ -18,7 +18,6 @@ import { stageIgnoredSnapshot, } from './snapshot.ts';
 import {
   beginInstalling,
   type JournalState,
-  recordCreatedEntry,
 } from './transaction-journal.ts';
 
 /**
@@ -101,12 +100,7 @@ async function completeJournal({
     snapshot,
     destinationRoot: pending.record
       .destinationRoot,
-    async onEntryCreated(relativePath,): Promise<void> {
-      await recordCreatedEntry({
-        state,
-        relativePath,
-      },);
-    },
+    journalState: state,
   },);
   await removeWorktreeCopyJournal(state.pending,);
   return copiedEntries;
@@ -134,8 +128,12 @@ export async function recoverWorktreeCopyTransactions(
    */
   const pending = await readPendingWorktreeCopyJournals(commonDir,);
   for (const journal of pending) {
-    // oxlint-disable-next-line no-await-in-loop -- recovery order is deterministic and stops at first retained conflict
+    /* oxlint-disable no-await-in-loop -- recovery order is deterministic and stops at first retained conflict */
+    /**
+     * Deterministic staged snapshot reconstructed for current journal.
+     */
     const snapshot = await snapshotFromJournal(journal,);
+    /* oxlint-enable no-await-in-loop */
     // oxlint-disable-next-line no-await-in-loop -- one journal must settle before later transaction uses same destinations
     await completeJournal({
       pending: journal,
@@ -180,7 +178,10 @@ async function createJournalOrCleanup({
   catch (error: unknown) {
     await rm(
       snapshot.stageContainer,
-      { recursive: true, force: true, },
+      {
+        recursive: true,
+        force: true,
+      },
     );
     throw error;
   }
@@ -298,9 +299,15 @@ export async function synchronizeCreatedWorktrees({
   /**
    * Aggregate newly installed selected entry count.
    */
-  const copiedEntries = copiedCounts.reduce(function addCount(total, count,): number {
+  const copiedEntries = copiedCounts.reduce(
+    function addCount(
+      total,
+      count,
+    ): number {
     return total + count;
-  }, 0,);
+  },
+    0,
+  );
   return {
     copiedEntries,
     destinationCount: created.length,

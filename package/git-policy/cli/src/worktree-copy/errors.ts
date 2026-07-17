@@ -1,4 +1,4 @@
-import type { SubprocessError, } from 'nano-spawn';
+import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 
 /**
  * Renders caught cause without retaining mutable foreign object.
@@ -16,9 +16,7 @@ import type { SubprocessError, } from 'nano-spawn';
 function causeSuffix(cause?: unknown,): string {
   if (cause === undefined)
     return '';
-  if (Error.isError(cause,))
-    return ` Cause: ${cause.message}`;
-  return ` Cause: ${String(cause,)}`;
+  return ` Cause: ${caughtValueText(cause,)}`;
 }
 
 /**
@@ -52,8 +50,8 @@ export class WorktreeCopyError extends Error {
  * @example
  * ```ts
  * throw new ForwardedGitWorktreeCopyError({
- *   copyFailure: new WorktreeCopyError('copy failed'),
- *   gitFailure,
+ *   copyFailureMessage: 'copy failed',
+ *   gitFailure: { exitCode: 1 },
  * });
  * ```
  */
@@ -76,20 +74,22 @@ export class ForwardedGitWorktreeCopyError extends Error {
   /**
    * Creates combined lifecycle failure without retaining mutable subprocess errors.
    *
-   * @param copyFailure - ignored-state synchronization failure
+   * @param copyFailureMessage - ignored-state synchronization diagnostic
    *
-   * @param gitFailure - optional real-Git subprocess failure
+   * @param gitFailure - optional primitive real-Git failure details
    */
   public constructor({
-    copyFailure,
+    copyFailureMessage,
     gitFailure,
   }: Readonly<{
-    copyFailure: WorktreeCopyError;
-    gitFailure?: SubprocessError;
+    copyFailureMessage: string;
+    gitFailure?: Readonly<{
+      exitCode?: number;
+    }>;
   }>,) {
-    super(copyFailure.message,);
+    super(copyFailureMessage,);
     this.name = 'ForwardedGitWorktreeCopyError';
-    this.copyFailureMessage = copyFailure.message;
+    this.copyFailureMessage = copyFailureMessage;
     this.gitFailed = gitFailure !== undefined;
     if (gitFailure?.exitCode !== undefined)
       this.gitFailureExitCode = gitFailure.exitCode;

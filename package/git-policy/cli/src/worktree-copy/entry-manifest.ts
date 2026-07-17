@@ -66,7 +66,10 @@ function isFilesystemPathWithin({
   /**
    * Native path from parent to candidate.
    */
-  const local = relative(parent, candidate,);
+  const local = relative(
+    parent,
+    candidate,
+  );
   return (local === '') || ((!local.startsWith('..',)) && (!isAbsolute(local,)));
 }
 
@@ -137,7 +140,10 @@ export async function collectEntryManifest({
     .toReversed()
     .map(function rootItem(relativePath,): WalkItem {
       return {
-        filesystemPath: filesystemPath({ root, repositoryPath: relativePath, },),
+        filesystemPath: filesystemPath({
+          root,
+          repositoryPath: relativePath,
+        },),
         relativePath,
       };
     },);
@@ -158,7 +164,10 @@ export async function collectEntryManifest({
      */
     const normalizedPath = resolve(item.filesystemPath,);
     if (excludedRoots.some(function excludesPath(excludedRoot,): boolean {
-      return isFilesystemPathWithin({ candidate: normalizedPath, parent: excludedRoot, },);
+      return isFilesystemPathWithin({
+        candidate: normalizedPath,
+        parent: excludedRoot,
+      },);
     },)) {
       continue;
     }
@@ -195,7 +204,10 @@ export async function collectEntryManifest({
          */
         const childRelativePath = `${item.relativePath}/${childName}`;
         pending.push({
-          filesystemPath: filesystemPath({ root, repositoryPath: childRelativePath, },),
+          filesystemPath: filesystemPath({
+            root,
+            repositoryPath: childRelativePath,
+          },),
           relativePath: childRelativePath,
         },);
       },);
@@ -239,10 +251,16 @@ export async function applyEntryModes({
       return entry.kind === 'directory';
     },)
     .toReversed();
-  for (const entry of files.concat(directories,)) {
+  for (const entry of [
+    ...files,
+    ...directories,
+  ]) {
     // oxlint-disable-next-line no-await-in-loop -- mode order preserves access through restrictive parent directories
     await chmod(
-      filesystemPath({ root, repositoryPath: entry.relativePath, },),
+      filesystemPath({
+        root,
+        repositoryPath: entry.relativePath,
+      },),
       entry.mode,
     );
   }

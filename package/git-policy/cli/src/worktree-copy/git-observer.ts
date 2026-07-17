@@ -128,15 +128,64 @@ export async function runMetadataGit({
    * Captured metadata subprocess result.
    */
   const result = await nanoSpawn(
-    String(gitPath,),
+    gitPath,
     [...args,],
     {
-      cwd: String(cwd,),
+      cwd,
       stderr: 'pipe',
       stdout: 'pipe',
     },
   );
   return result.stdout;
+}
+
+/**
+ * Resolves common directory or repository absence from original global options.
+ *
+ * @param gitPath - absolute real-Git executable
+ *
+ * @param preSubcommandArgs - original Git global option region
+ *
+ * @param invocationCwd - wrapper process working directory
+ *
+ * @returns canonical common directory, or not-applicable sentinel
+ *
+ * @example
+ * ```ts
+ * await resolveCommonDir({ gitPath: '/usr/bin/git', preSubcommandArgs: [], invocationCwd: '/repo' });
+ * // => '/repo/.git'
+ * ```
+ */
+async function resolveCommonDir({
+  gitPath,
+  preSubcommandArgs,
+  invocationCwd,
+}: Readonly<{
+  gitPath: string;
+  preSubcommandArgs: readonly string[];
+  invocationCwd: string;
+}>,): Promise<string | typeof WORKTREE_COPY_NOT_APPLICABLE> {
+  try {
+    /**
+     * Git-reported absolute common directory.
+     */
+    const commonOutput = await runMetadataGit({
+      gitPath,
+      args: [
+        ...preSubcommandArgs,
+        'rev-parse',
+        '--path-format=absolute',
+        '--git-common-dir',
+      ],
+      cwd: invocationCwd,
+    },);
+    return await realpath(stripGitLine(commonOutput,),);
+  }
+  catch (error: unknown) {
+    if (error instanceof SubprocessError)
+      return WORKTREE_COPY_NOT_APPLICABLE;
+    throw error;
+  }
 }
 
 /**
@@ -165,27 +214,34 @@ async function resolveSourceRoot({
   preSubcommandArgs: readonly string[];
   invocationCwd: string;
 }>,): Promise<string | typeof BARE_REPOSITORY_SOURCE> {
-  try {
-    /**
-     * Git-reported absolute worktree root.
-     */
-    const output = await runMetadataGit({
-      gitPath,
-      args: [
-        ...preSubcommandArgs,
-        'rev-parse',
-        '--path-format=absolute',
-        '--show-toplevel',
-      ],
-      cwd: invocationCwd,
-    },);
-    return await realpath(stripGitLine(output,),);
-  }
-  catch (error: unknown) {
-    if (error instanceof SubprocessError)
-      return BARE_REPOSITORY_SOURCE;
-    throw error;
-  }
+  /**
+   * Git-reported bare-repository state.
+   */
+  const bareOutput = await runMetadataGit({
+    gitPath,
+    args: [
+      ...preSubcommandArgs,
+      'rev-parse',
+      '--is-bare-repository',
+    ],
+    cwd: invocationCwd,
+  },);
+  if (stripGitLine(bareOutput,) === 'true')
+    return BARE_REPOSITORY_SOURCE;
+  /**
+   * Git-reported absolute worktree root.
+   */
+  const output = await runMetadataGit({
+    gitPath,
+    args: [
+      ...preSubcommandArgs,
+      'rev-parse',
+      '--path-format=absolute',
+      '--show-toplevel',
+    ],
+    cwd: invocationCwd,
+  },);
+  return realpath(stripGitLine(output,),);
 }
 
 /**
@@ -235,61 +291,47 @@ export async function observeWorktreeRepository({
     l,
   },);
 
-  try {
-    /**
-     * Git-reported absolute common directory.
-     */
-    const commonOutput = await runMetadataGit({
-      gitPath,
-      args: [
-        ...preSubcommandArgs,
-        'rev-parse',
-        '--path-format=absolute',
-        '--git-common-dir',
-      ],
-      cwd: invocationCwd,
-    },);
-    /**
-     * Canonical common directory anchoring administrative identity.
-     */
-    const commonDir = await realpath(stripGitLine(commonOutput,),);
-    /**
-     * Common linked-worktree administrative root.
-     */
-    const adminRoot = join(
-      commonDir,
-      'worktrees',
-    );
-    /**
-     * Existing linked-worktree identities.
-     */
-    const beforeAdminIds = await readAdminIds(adminRoot,);
-    /**
-     * Canonical source root or bare-repository sentinel.
-     */
-    const sourceRoot = await resolveSourceRoot({
-      gitPath,
-      preSubcommandArgs,
-      invocationCwd,
-    },);
-    rl.debug(
-      `captured ${String(beforeAdminIds.size,)} linked-worktree identities under ${commonDir}`,
-    );
-    return {
-      adminRoot,
-      beforeAdminIds,
-      commonDir,
-      effectiveCwd,
-      ...((typeof sourceRoot) === 'symbol'
-        ? {}
-        : { sourceRoot, }),
-    };
+  /**
+   * Canonical common directory anchoring administrative identity.
+   */
+  const commonDir = await resolveCommonDir({
+    gitPath,
+    preSubcommandArgs,
+    invocationCwd,
+  },);
+  if ((typeof commonDir) === 'symbol') {
+    rl.debug('effective invocation has no repository; worktree copy observation is not applicable',);
+    return WORKTREE_COPY_NOT_APPLICABLE;
   }
-  catch (error: unknown) {
-    if (error instanceof SubprocessError) {
-      rl.debug('effective invocation has no repository; worktree copy observation is not applicable',);
-      return WORKTREE_COPY_NOT_APPLICABLE;
-    }
-    throw error;
-  }
+  /**
+   * Common linked-worktree administrative root.
+   */
+  const adminRoot = join(
+    commonDir,
+    'worktrees',
+  );
+  /**
+   * Existing linked-worktree identities.
+   */
+  const beforeAdminIds = await readAdminIds(adminRoot,);
+  /**
+   * Canonical source root or bare-repository sentinel.
+   */
+  const sourceRoot = await resolveSourceRoot({
+    gitPath,
+    preSubcommandArgs,
+    invocationCwd,
+  },);
+  rl.debug(
+    `captured ${String(beforeAdminIds.size,)} linked-worktree identities under ${commonDir}`,
+  );
+  return {
+    adminRoot,
+    beforeAdminIds,
+    commonDir,
+    effectiveCwd,
+    ...((typeof sourceRoot) === 'symbol'
+      ? {}
+      : { sourceRoot, }),
+  };
 }

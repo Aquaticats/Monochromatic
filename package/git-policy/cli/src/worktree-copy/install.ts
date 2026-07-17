@@ -16,6 +16,10 @@ import {
 import { WorktreeCopyError, } from './errors.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import { rollbackCreated, } from './install-rollback.ts';
+import {
+  type JournalState,
+  recordCreatedEntry,
+} from './transaction-journal.ts';
 import type {
   InstalledWorktreePath,
   StagedWorktreeSnapshot,
@@ -56,8 +60,12 @@ async function preflightDestination({
       root: destinationRoot,
       repositoryPath: entry.relativePath,
     },);
-    // oxlint-disable-next-line no-await-in-loop -- fail-fast collision order must follow deterministic manifest
+    /* oxlint-disable no-await-in-loop -- fail-fast collision order must follow deterministic manifest */
+    /**
+     * Current destination no-follow metadata or absence.
+     */
     const stats = await lstatOrAbsent(destinationPath,);
+    /* oxlint-enable no-await-in-loop */
     if ((typeof stats) === 'symbol')
       continue;
     // oxlint-disable-next-line no-await-in-loop -- exact comparison is required before any destination mutation
@@ -82,26 +90,33 @@ async function preflightDestination({
  *
  * @param created - mutable transaction-owned creation list
  *
+ * @param journalState - mutable durable transaction state
+ *
  * @example
  * ```ts
- * await ensureParents({ destinationRoot: '/wt', entry, created: [] });
+ * await ensureParents({ destinationRoot: '/wt', entry, created: [], journalState });
  * ```
  */
 async function ensureParents({
   destinationRoot,
   entry,
   created,
+  journalState,
 }: Readonly<{
   destinationRoot: string;
   entry: WorktreeCopyEntry;
   created: InstalledWorktreePath[];
+  journalState: JournalState;
 }>,): Promise<void> {
   /**
    * Selected path components excluding selected entry itself.
    */
   const parentComponents = entry.relativePath
     .split('/')
-    .slice(0, -1,);
+    .slice(
+      0,
+      -1,
+    );
   /**
    * Ordered parent repository paths from shallow to deep.
    */
@@ -110,7 +125,10 @@ async function ensureParents({
     index,
   ): string {
     return parentComponents
-      .slice(0, index + 1,)
+      .slice(
+        0,
+        index + 1,
+      )
       .join('/');
   },);
   for (const current of parentPaths) {
@@ -121,8 +139,12 @@ async function ensureParents({
       root: destinationRoot,
       repositoryPath: current,
     },);
-    // oxlint-disable-next-line no-await-in-loop -- parent chain is ordered and each child depends on prior directory
+    /* oxlint-disable no-await-in-loop -- parent chain is ordered and each child depends on prior directory */
+    /**
+     * Current parent no-follow metadata or absence.
+     */
     const stats = await lstatOrAbsent(destinationPath,);
+    /* oxlint-enable no-await-in-loop */
     if ((typeof stats) !== 'symbol') {
       if (!stats.isDirectory()) {
         throw new WorktreeCopyError(
@@ -136,6 +158,11 @@ async function ensureParents({
     created.push({
       relativePath: current,
       selected: false,
+    },);
+    // oxlint-disable-next-line no-await-in-loop -- journal durably follows each scaffold creation
+    await recordCreatedEntry({
+      state: journalState,
+      relativePath: current,
     },);
   }
 }
@@ -229,7 +256,7 @@ async function createSelectedEntry({
  *
  * @param destinationRoot - newly registered worktree root
  *
- * @param onEntryCreated - durable callback after each selected or scaffold path
+ * @param journalState - mutable durable transaction state
  *
  * @returns count of newly installed selected entries
  *
@@ -237,17 +264,17 @@ async function createSelectedEntry({
  *
  * @example
  * ```ts
- * await installSnapshot({ snapshot, destinationRoot: '/wt', onEntryCreated: async () => {} });
+ * await installSnapshot({ snapshot, destinationRoot: '/wt', journalState });
  * ```
  */
 export async function installSnapshot({
   snapshot,
   destinationRoot,
-  onEntryCreated,
+  journalState,
 }: Readonly<{
   snapshot: StagedWorktreeSnapshot;
   destinationRoot: string;
-  onEntryCreated: (path: string) => Promise<void>;
+  journalState: JournalState;
 }>,): Promise<number> {
   await preflightDestination({
     snapshot,
@@ -264,6 +291,7 @@ export async function installSnapshot({
         destinationRoot,
         entry,
         created,
+        journalState,
       },);
       /**
        * Current destination path after parent creation.
@@ -286,11 +314,15 @@ export async function installSnapshot({
         selected: true,
       },);
       // oxlint-disable-next-line no-await-in-loop -- journal must durably follow each installed selected entry
-      await onEntryCreated(entry.relativePath,);
+      await recordCreatedEntry({
+        state: journalState,
+        relativePath: entry.relativePath,
+      },);
     }
     return created.filter(function selectedEntry(installed,): boolean {
       return installed.selected;
-    },).length;
+    },)
+      .length;
   }
   catch (error: unknown) {
     /**

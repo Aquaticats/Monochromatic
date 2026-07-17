@@ -40,8 +40,12 @@ export async function rollbackCreated({
   /**
    * Selected expected entries indexed for exact comparison.
    */
-  const selectedByPath = new Map(snapshot.entries.map(function indexEntry(entry,) {
-    return [entry.relativePath, entry,] as const;
+  const selectedByPath = new Map(snapshot.entries
+    .map(function indexEntry(entry,) {
+    return [
+      entry.relativePath,
+      entry,
+    ] as const;
   },),);
   /**
    * Paths retained after conservative rollback.
@@ -76,14 +80,10 @@ export async function rollbackCreated({
           continue;
         }
       }
-      if ((expected?.kind === 'directory') || (!installed.selected)) {
-        // oxlint-disable-next-line no-await-in-loop -- child-first rollback requires sequential directory removal
-        await rmdir(destinationPath,);
-      }
-      else {
-        // oxlint-disable-next-line no-await-in-loop -- child-first rollback requires sequential path removal
-        await unlink(destinationPath,);
-      }
+      // oxlint-disable-next-line no-await-in-loop -- child-first rollback requires sequential path removal
+      await ((expected?.kind === 'directory') || (!installed.selected)
+        ? rmdir(destinationPath,)
+        : unlink(destinationPath,));
     }
     catch (error: unknown) {
       retained.push(`${installed.relativePath}: ${caughtValueText(error,)}`,);

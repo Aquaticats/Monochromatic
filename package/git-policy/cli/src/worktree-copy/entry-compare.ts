@@ -134,17 +134,29 @@ async function regularFileBytesEqual({
     const [leftRead, rightRead,] = await Promise.all([
       left.read(
         leftBuffer,
-        { length, position, },
+        {
+          length,
+          position,
+        },
       ),
       right.read(
         rightBuffer,
-        { length, position, },
+        {
+          length,
+          position,
+        },
       ),
     ],);
     if ((leftRead.bytesRead !== length)
       || (rightRead.bytesRead !== length)
-      || (!leftBuffer.subarray(0, length,)
-        .equals(rightBuffer.subarray(0, length,),))) {
+      || (!leftBuffer.subarray(
+        0,
+        length,
+      )
+        .equals(rightBuffer.subarray(
+          0,
+          length,
+        ),))) {
       return false;
     }
     position += BigInt(length,);

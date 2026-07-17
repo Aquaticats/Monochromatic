@@ -314,7 +314,10 @@ export async function stageIgnoredSnapshot({
   catch (error: unknown) {
     await rm(
       stageContainer,
-      { recursive: true, force: true, },
+      {
+        recursive: true,
+        force: true,
+      },
     );
     if (error instanceof WorktreeCopyError)
       throw error;

@@ -47,7 +47,7 @@ async function executeRealGit({
 }>,): Promise<ForwardedGitExecution> {
   try {
     await nanoSpawn(
-      String(gitPath,),
+      gitPath,
       [...args,],
       { stdio: 'inherit', },
     );
@@ -217,11 +217,25 @@ export async function runGitWithWorktreeCopy({
     }
   }
   catch (error: unknown) {
+    /**
+     * User-facing normalized copy failure.
+     */
+    const copyFailure = asWorktreeCopyError(error,);
+    /**
+     * Primitive forwarded-Git failure details, when Git failed.
+     */
+    const gitFailure = 'failure' in execution
+      ? {
+          ...(execution.failure.exitCode === undefined
+            ? {}
+            : { exitCode: execution.failure.exitCode, }),
+        }
+      : undefined;
     throw new ForwardedGitWorktreeCopyError({
-      copyFailure: asWorktreeCopyError(error,),
-      ...('failure' in execution
-        ? { gitFailure: execution.failure, }
-        : {}),
+      copyFailureMessage: copyFailure.message,
+      ...(gitFailure === undefined
+        ? {}
+        : { gitFailure, }),
     },);
   }
 

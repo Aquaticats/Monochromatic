@@ -235,7 +235,10 @@ export async function createWorktreeCopyJournal({
   );
   await mkdir(
     root,
-    { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
+    {
+      recursive: true,
+      mode: PRIVATE_DIRECTORY_MODE,
+    },
   );
   /**
    * Unique final journal path.
@@ -379,7 +382,11 @@ export async function removeWorktreeCopyJournal(
     { force: true, },
   );
   await rm(
-    pending.record.stageContainer,
-    { recursive: true, force: true, },
+    pending.record
+      .stageContainer,
+    {
+      recursive: true,
+      force: true,
+    },
   );
 }

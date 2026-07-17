@@ -74,7 +74,10 @@ async function readLinkedAdminId(
      * Linked-worktree `.git` pointer text.
      */
     const pointer = stripGitLine(await readFile(
-      join(root, '.git',),
+      join(
+        root,
+        '.git',
+      ),
       'utf8',
     ),);
     if (!pointer.startsWith(GITDIR_PREFIX,))
@@ -150,7 +153,7 @@ export async function readRegisteredWorktrees({
    * Canonical roots still present on filesystem.
    */
   const roots = await Promise.all(parseWorktreeRoots(output,)
-    .map(async function canonicalRoot(root,): Promise<string> {
+    .map(function canonicalRoot(root,): Promise<string> {
       return realpath(root,);
     },),);
   /**
