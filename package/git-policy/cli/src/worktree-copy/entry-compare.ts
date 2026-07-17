@@ -1,3 +1,4 @@
+import type { Stats, } from 'node:fs';
 import {
   lstat,
   open,
@@ -9,10 +10,29 @@ import { collectEntryManifest, } from './entry-manifest.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import type { WorktreeCopyEntry, } from './model.ts';
 
-/** Byte comparison buffer size balancing allocation and read syscall count. */
-const COMPARE_BUFFER_BYTES = 64 * 1024;
+/**
+ * Bytes in one kibibyte.
+ */
+const KIBIBYTE_BYTES = 1_024;
 
-/** Missing filesystem entry sentinel distinct from unsupported entry kinds. */
+/**
+ * Kibibytes in one comparison buffer.
+ */
+const COMPARE_BUFFER_KIBIBYTES = 64;
+
+/**
+ * Byte comparison buffer size balancing allocation and read syscall count.
+ */
+const COMPARE_BUFFER_BYTES = COMPARE_BUFFER_KIBIBYTES * KIBIBYTE_BYTES;
+
+/**
+ * Portable permission and special-mode bits retained by copy contract.
+ */
+const PERMISSION_BITS = 0o7777;
+
+/**
+ * Missing filesystem entry sentinel distinct from unsupported entry kinds.
+ */
 export const WORKTREE_COPY_ENTRY_ABSENT: unique symbol = Symbol('worktree copy entry absent',);
 
 /**
@@ -30,7 +50,7 @@ export const WORKTREE_COPY_ENTRY_ABSENT: unique symbol = Symbol('worktree copy e
  */
 export async function lstatOrAbsent(
   path: string,
-): Promise<Awaited<ReturnType<typeof lstat>> | typeof WORKTREE_COPY_ENTRY_ABSENT> {
+): Promise<Readonly<Stats> | typeof WORKTREE_COPY_ENTRY_ABSENT> {
   try {
     return await lstat(path,);
   }
@@ -65,36 +85,66 @@ async function regularFileBytesEqual({
   leftPath: string;
   rightPath: string;
 }>,): Promise<boolean> {
-  await using left = await open(leftPath, 'r',);
-  await using right = await open(rightPath, 'r',);
-  /** Stable initial file sizes from open handles. */
+  /**
+   * Open left file handle disposed after comparison.
+   */
+  await using left = await open(
+    leftPath,
+    'r',
+  );
+  /**
+   * Open right file handle disposed after comparison.
+   */
+  await using right = await open(
+    rightPath,
+    'r',
+  );
+  /**
+   * Stable initial file sizes from open handles.
+   */
   const [leftStats, rightStats,] = await Promise.all([
     left.stat({ bigint: true, },),
     right.stat({ bigint: true, },),
   ],);
   if (leftStats.size !== rightStats.size)
     return false;
-  /** Reusable independent read buffers. */
+  /**
+   * Reusable independent read buffers.
+   */
   const leftBuffer = Buffer.allocUnsafe(COMPARE_BUFFER_BYTES,);
-  /** Reusable right-side read buffer. */
+  /**
+   * Reusable right-side read buffer.
+   */
   const rightBuffer = Buffer.allocUnsafe(COMPARE_BUFFER_BYTES,);
-  /** Current exact byte offset. */
-  let position = 0n;
-  while (position < leftStats.size) {
-    /** Remaining byte count capped to buffer capacity. */
+  for (let position = 0n; position < leftStats.size;) {
+    /**
+     * Remaining byte count capped to buffer capacity.
+     */
     const remaining = leftStats.size - position;
-    /** Current read length. */
+    /**
+     * Current read length.
+     */
     const length = Number(remaining < BigInt(COMPARE_BUFFER_BYTES,)
       ? remaining
       : BigInt(COMPARE_BUFFER_BYTES,));
-    /** Concurrent reads at identical offset. */
+    /**
+     * Concurrent reads at identical offset.
+     */
+    // oxlint-disable-next-line no-await-in-loop -- bounded streaming comparison advances one exact chunk at a time
     const [leftRead, rightRead,] = await Promise.all([
-      left.read(leftBuffer, { length, position, },),
-      right.read(rightBuffer, { length, position, },),
+      left.read(
+        leftBuffer,
+        { length, position, },
+      ),
+      right.read(
+        rightBuffer,
+        { length, position, },
+      ),
     ],);
     if ((leftRead.bytesRead !== length)
       || (rightRead.bytesRead !== length)
-      || (!leftBuffer.subarray(0, length,).equals(rightBuffer.subarray(0, length,),))) {
+      || (!leftBuffer.subarray(0, length,)
+        .equals(rightBuffer.subarray(0, length,),))) {
       return false;
     }
     position += BigInt(length,);
@@ -127,22 +177,30 @@ export async function entryMatches({
   actualRoot: string;
   entry: WorktreeCopyEntry;
 }>,): Promise<boolean> {
-  /** Expected staged filesystem path. */
+  /**
+   * Expected staged filesystem path.
+   */
   const expectedPath = filesystemPath({
     root: expectedRoot,
     repositoryPath: entry.relativePath,
   },);
-  /** Actual compared filesystem path. */
+  /**
+   * Actual compared filesystem path.
+   */
   const actualPath = filesystemPath({
     root: actualRoot,
     repositoryPath: entry.relativePath,
   },);
-  /** Actual no-follow metadata or absence. */
+  /**
+   * Actual no-follow metadata or absence.
+   */
   const actualStats = await lstatOrAbsent(actualPath,);
   if ((typeof actualStats) === 'symbol')
     return false;
-  /** Portable actual permission bits. */
-  const actualMode = actualStats.mode & 0o7777;
+  /**
+   * Portable actual permission bits.
+   */
+  const actualMode = actualStats.mode & PERMISSION_BITS;
   if (actualMode !== entry.mode)
     return false;
   if (entry.kind === 'directory')
@@ -171,8 +229,6 @@ export async function entryMatches({
  *
  * @param stagedEntries - initial source entries materialized in staging
  *
- * @returns nothing when exact final equivalence holds
- *
  * @throws {@link WorktreeCopyError} when source changed during transfer
  *
  * @example
@@ -193,13 +249,17 @@ export async function assertFinalSourceEquivalence({
   excludedSourceRoots: readonly string[];
   stagedEntries: readonly WorktreeCopyEntry[];
 }>,): Promise<void> {
-  /** Final source manifest after staging. */
+  /**
+   * Final source manifest after staging.
+   */
   const finalSourceEntries = await collectEntryManifest({
     root: sourceRoot,
     selectedRoots,
     excludedRoots: excludedSourceRoots,
   },);
-  /** Manifest materialized in private stage. */
+  /**
+   * Manifest materialized in private stage.
+   */
   const finalStageEntries = await collectEntryManifest({
     root: stageRoot,
     selectedRoots,
@@ -210,9 +270,13 @@ export async function assertFinalSourceEquivalence({
     throw new WorktreeCopyError('cli-git: ignored source paths changed while snapshot was staged.',);
   }
   for (const [index, stagedEntry,] of stagedEntries.entries()) {
-    /** Final source entry aligned with initial staged manifest. */
+    /**
+     * Final source entry aligned with initial staged manifest.
+     */
     const sourceEntry = finalSourceEntries[index];
-    /** Final stage entry aligned with initial staged manifest. */
+    /**
+     * Final stage entry aligned with initial staged manifest.
+     */
     const stageEntry = finalStageEntries[index];
     if ((sourceEntry === undefined)
       || (stageEntry === undefined)
@@ -222,6 +286,7 @@ export async function assertFinalSourceEquivalence({
       || (stageEntry.kind !== stagedEntry.kind)
       || (stageEntry.mode !== stagedEntry.mode)
       || (stageEntry.relativePath !== stagedEntry.relativePath)
+      // oxlint-disable-next-line no-await-in-loop -- deterministic fail-fast validation avoids reading later large files
       || (!(await entryMatches({
         expectedRoot: stageRoot,
         actualRoot: sourceRoot,

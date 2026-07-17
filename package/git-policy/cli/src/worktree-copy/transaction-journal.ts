@@ -13,7 +13,9 @@ import type { WorktreeCopyJournal, } from './model.ts';
  * ```
  */
 export type JournalState = {
-  /** Latest journal path and record. */
+  /**
+   * Latest journal path and record.
+   */
   pending: PendingWorktreeCopyJournal;
 };
 
@@ -22,21 +24,30 @@ export type JournalState = {
  *
  * @param state - mutable latest journal state
  *
- * @returns nothing after journal update
- *
  * @example
  * ```ts
  * await beginInstalling(state);
  * ```
  */
 export async function beginInstalling(state: JournalState,): Promise<void> {
-  /** Installing record replacing staged phase. */
+  /**
+   * Installing record replacing staged phase.
+   */
   const record: WorktreeCopyJournal = {
-    ...state.pending.record,
+    ...state.pending
+      .record,
     phase: 'installing',
   };
-  await writeJournal({ path: state.pending.path, record, },);
-  state.pending = { path: state.pending.path, record, };
+  await writeJournal({
+    path: state.pending
+      .path,
+    record,
+  },);
+  state.pending = {
+    path: state.pending
+      .path,
+    record,
+  };
 }
 
 /**
@@ -45,8 +56,6 @@ export async function beginInstalling(state: JournalState,): Promise<void> {
  * @param state - mutable latest journal state
  *
  * @param relativePath - newly installed repository path
- *
- * @returns nothing after durable update
  *
  * @example
  * ```ts
@@ -60,15 +69,28 @@ export async function recordCreatedEntry({
   state: JournalState;
   relativePath: string;
 }>,): Promise<void> {
-  /** Updated durable creation list. */
+  /**
+   * Updated durable creation list.
+   */
   const record: WorktreeCopyJournal = {
-    ...state.pending.record,
+    ...state.pending
+      .record,
     createdEntries: [
-      ...state.pending.record.createdEntries,
+      ...state.pending
+        .record
+        .createdEntries,
       relativePath,
     ],
     phase: 'installing',
   };
-  await writeJournal({ path: state.pending.path, record, },);
-  state.pending = { path: state.pending.path, record, };
+  await writeJournal({
+    path: state.pending
+      .path,
+    record,
+  },);
+  state.pending = {
+    path: state.pending
+      .path,
+    record,
+  };
 }

@@ -4,7 +4,9 @@ import {
   copyFile,
   mkdir,
   readlink,
+  rmdir,
   symlink,
+  unlink,
 } from 'node:fs/promises';
 
 import {
@@ -20,7 +22,9 @@ import type {
   WorktreeCopyEntry,
 } from './model.ts';
 
-/** Exclusive copy-on-write request with full-copy fallback. */
+/**
+ * Exclusive copy-on-write request with full-copy fallback.
+ */
 const EXCLUSIVE_COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE;
 
 /**
@@ -29,8 +33,6 @@ const EXCLUSIVE_COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE
  * @param snapshot - validated staged source state
  *
  * @param destinationRoot - newly registered worktree root
- *
- * @returns nothing when every collision is identical
  *
  * @throws {@link WorktreeCopyError} on first differing collision
  *
@@ -47,7 +49,9 @@ async function preflightDestination({
   destinationRoot: string;
 }>,): Promise<void> {
   for (const entry of snapshot.entries) {
-    /** Destination path aligned with staged entry. */
+    /**
+     * Destination path aligned with staged entry.
+     */
     const destinationPath = filesystemPath({
       root: destinationRoot,
       repositoryPath: entry.relativePath,
@@ -78,8 +82,6 @@ async function preflightDestination({
  *
  * @param created - mutable transaction-owned creation list
  *
- * @returns nothing after all parents are directories
- *
  * @example
  * ```ts
  * await ensureParents({ destinationRoot: '/wt', entry, created: [] });
@@ -94,13 +96,27 @@ async function ensureParents({
   entry: WorktreeCopyEntry;
   created: InstalledWorktreePath[];
 }>,): Promise<void> {
-  /** Selected path components excluding selected entry itself. */
-  const parentComponents = entry.relativePath.split('/').slice(0, -1,);
-  /** Current parent repository path. */
-  let current = '';
-  for (const component of parentComponents) {
-    current = current === '' ? component : `${current}/${component}`;
-    /** Current native destination parent. */
+  /**
+   * Selected path components excluding selected entry itself.
+   */
+  const parentComponents = entry.relativePath
+    .split('/')
+    .slice(0, -1,);
+  /**
+   * Ordered parent repository paths from shallow to deep.
+   */
+  const parentPaths = parentComponents.map(function parentPath(
+    _component,
+    index,
+  ): string {
+    return parentComponents
+      .slice(0, index + 1,)
+      .join('/');
+  },);
+  for (const current of parentPaths) {
+    /**
+     * Current native destination parent.
+     */
     const destinationPath = filesystemPath({
       root: destinationRoot,
       repositoryPath: current,
@@ -117,7 +133,10 @@ async function ensureParents({
     }
     // oxlint-disable-next-line no-await-in-loop -- parent chain creation is necessarily sequential
     await mkdir(destinationPath,);
-    created.push({ relativePath: current, selected: false, },);
+    created.push({
+      relativePath: current,
+      selected: false,
+    },);
   }
 }
 
@@ -129,8 +148,6 @@ async function ensureParents({
  * @param destinationRoot - newly registered worktree root
  *
  * @param entry - absent selected entry
- *
- * @returns nothing after exact entry exists
  *
  * @example
  * ```ts
@@ -146,29 +163,63 @@ async function createSelectedEntry({
   destinationRoot: string;
   entry: WorktreeCopyEntry;
 }>,): Promise<void> {
-  /** Staged expected filesystem path. */
+  /**
+   * Staged expected filesystem path.
+   */
   const stagePath = filesystemPath({
     root: snapshot.stageRoot,
     repositoryPath: entry.relativePath,
   },);
-  /** Destination filesystem path. */
+  /**
+   * Destination filesystem path.
+   */
   const destinationPath = filesystemPath({
     root: destinationRoot,
     repositoryPath: entry.relativePath,
   },);
   if (entry.kind === 'directory') {
-    await mkdir(destinationPath, { mode: entry.mode, },);
-    await chmod(destinationPath, entry.mode,);
-    return;
+    await mkdir(
+      destinationPath,
+      { mode: entry.mode, },
+    );
+    try {
+      await chmod(
+        destinationPath,
+        entry.mode,
+      );
+      return;
+    }
+    catch (error: unknown) {
+      await rmdir(destinationPath,);
+      throw error;
+    }
   }
   if (entry.kind === 'file') {
-    await copyFile(stagePath, destinationPath, EXCLUSIVE_COPY_MODE,);
-    await chmod(destinationPath, entry.mode,);
-    return;
+    await copyFile(
+      stagePath,
+      destinationPath,
+      EXCLUSIVE_COPY_MODE,
+    );
+    try {
+      await chmod(
+        destinationPath,
+        entry.mode,
+      );
+      return;
+    }
+    catch (error: unknown) {
+      await unlink(destinationPath,);
+      throw error;
+    }
   }
-  /** Exact staged symbolic-link target text. */
+  /**
+   * Exact staged symbolic-link target text.
+   */
   const target = await readlink(stagePath,);
-  await symlink(target, destinationPath,);
+  await symlink(
+    target,
+    destinationPath,
+  );
 }
 
 /**
@@ -198,16 +249,25 @@ export async function installSnapshot({
   destinationRoot: string;
   onEntryCreated: (path: string) => Promise<void>;
 }>,): Promise<number> {
-  await preflightDestination({ snapshot, destinationRoot, },);
-  /** Transaction-owned destination paths in creation order. */
+  await preflightDestination({
+    snapshot,
+    destinationRoot,
+  },);
+  /**
+   * Transaction-owned destination paths in creation order.
+   */
   const created: InstalledWorktreePath[] = [];
-  /** Newly installed selected entry count. */
-  let copiedEntries = 0;
   try {
     for (const entry of snapshot.entries) {
       // oxlint-disable-next-line no-await-in-loop -- manifest parent order and rollback ownership require sequential install
-      await ensureParents({ destinationRoot, entry, created, },);
-      /** Current destination path after parent creation. */
+      await ensureParents({
+        destinationRoot,
+        entry,
+        created,
+      },);
+      /**
+       * Current destination path after parent creation.
+       */
       const destinationPath = filesystemPath({
         root: destinationRoot,
         repositoryPath: entry.relativePath,
@@ -216,21 +276,40 @@ export async function installSnapshot({
       if ((typeof await lstatOrAbsent(destinationPath,)) !== 'symbol')
         continue;
       // oxlint-disable-next-line no-await-in-loop -- deterministic parent-before-child installation
-      await createSelectedEntry({ snapshot, destinationRoot, entry, },);
-      created.push({ relativePath: entry.relativePath, selected: true, },);
-      copiedEntries += 1;
+      await createSelectedEntry({
+        snapshot,
+        destinationRoot,
+        entry,
+      },);
+      created.push({
+        relativePath: entry.relativePath,
+        selected: true,
+      },);
       // oxlint-disable-next-line no-await-in-loop -- journal must durably follow each installed selected entry
       await onEntryCreated(entry.relativePath,);
     }
-    return copiedEntries;
+    return created.filter(function selectedEntry(installed,): boolean {
+      return installed.selected;
+    },).length;
   }
   catch (error: unknown) {
-    /** Paths that rollback could not safely remove. */
-    const retained = await rollbackCreated({ snapshot, destinationRoot, created, },);
-    /** Incomplete rollback suffix retaining exact paths. */
+    /**
+     * Paths that rollback could not safely remove.
+     */
+    const retained = await rollbackCreated({
+      snapshot,
+      destinationRoot,
+      created,
+    },);
+    /**
+     * Incomplete rollback suffix retaining exact paths.
+     */
     const suffix = retained.length === 0
       ? ''
-      : ` Rollback retained: ${retained.map(JSON.stringify,).join(', ',)}.`;
+      : ` Rollback retained: ${retained.map(function quotedPath(path,): string {
+          return JSON.stringify(path,);
+        },)
+        .join(', ',)}.`;
     throw new WorktreeCopyError(
       `cli-git: ignored-state installation failed for ${JSON.stringify(destinationRoot,)}.${suffix}`,
       error,

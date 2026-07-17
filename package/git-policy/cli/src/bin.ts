@@ -413,9 +413,11 @@ catch (error) {
   else if (error instanceof PolicyDecisionError)
     process.exitCode = error.exitCode;
   else if (error instanceof ForwardedGitWorktreeCopyError) {
-    console.error(error.copyFailure.message,);
-    process.exitCode = error.gitFailure?.exitCode
-      ?? 2;
+    console.error(error.copyFailureMessage,);
+    process.exitCode = error.gitFailed
+      ? error.gitFailureExitCode
+        ?? 1
+      : 2;
   }
   else if (error instanceof SubprocessError)
     process.exitCode = error.exitCode

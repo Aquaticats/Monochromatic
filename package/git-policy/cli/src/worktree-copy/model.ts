@@ -1,6 +1,11 @@
 import type { SubprocessError, } from 'nano-spawn';
 
 /**
+ * Bare repository has no source worktree filesystem.
+ */
+export const BARE_REPOSITORY_SOURCE: unique symbol = Symbol('bare repository has no source worktree',);
+
+/**
  * Supported copied filesystem entry kinds.
  *
  * @example
@@ -19,9 +24,13 @@ export type WorktreeCopyEntryKind = 'directory' | 'file' | 'symlink';
  * ```
  */
 export type InstalledWorktreePath = Readonly<{
-  /** Repository-relative path created by cli-git. */
+  /**
+   * Repository-relative path created by cli-git.
+   */
   relativePath: string;
-  /** Whether path is selected ignored entry rather than scaffolding directory. */
+  /**
+   * Whether path is selected ignored entry rather than scaffolding directory.
+   */
   selected: boolean;
 }>;
 
@@ -38,11 +47,17 @@ export type InstalledWorktreePath = Readonly<{
  * ```
  */
 export type WorktreeCopyEntry = Readonly<{
-  /** Entry kind used for copying and collision comparison. */
+  /**
+   * Entry kind used for copying and collision comparison.
+   */
   kind: WorktreeCopyEntryKind;
-  /** Permission bits retained for files and directories. */
+  /**
+   * Permission bits retained for files and directories.
+   */
   mode: number;
-  /** Slash-separated path relative to source and destination worktree roots. */
+  /**
+   * Slash-separated path relative to source and destination worktree roots.
+   */
   relativePath: string;
 }>;
 
@@ -61,16 +76,26 @@ export type WorktreeCopyEntry = Readonly<{
  * ```
  */
 export type WorktreeCopyObservation = Readonly<{
-  /** Common-Git-directory location containing linked-worktree administration. */
+  /**
+   * Common-Git-directory location containing linked-worktree administration.
+   */
   adminRoot: string;
-  /** Linked-worktree administrative identities present before real Git ran. */
+  /**
+   * Linked-worktree administrative identities present before real Git ran.
+   */
   beforeAdminIds: ReadonlySet<string>;
-  /** Canonical common Git directory for journal ownership. */
+  /**
+   * Canonical common Git directory for journal ownership.
+   */
   commonDir: string;
-  /** Effective working directory after pre-subcommand `-C` chaining. */
+  /**
+   * Effective working directory after pre-subcommand `-C` chaining.
+   */
   effectiveCwd: string;
-  /** Canonical source worktree root, absent for bare repositories. */
-  sourceRoot: string | undefined;
+  /**
+   * Canonical source worktree root, absent for bare repositories.
+   */
+  sourceRoot?: string;
 }>;
 
 /**
@@ -85,9 +110,13 @@ export type WorktreeCopyObservation = Readonly<{
  * ```
  */
 export type CreatedWorktree = Readonly<{
-  /** Stable linked-worktree administrative directory basename. */
+  /**
+   * Stable linked-worktree administrative directory basename.
+   */
   adminId: string;
-  /** Canonical created worktree root. */
+  /**
+   * Canonical created worktree root.
+   */
   root: string;
 }>;
 
@@ -106,15 +135,25 @@ export type CreatedWorktree = Readonly<{
  * ```
  */
 export type StagedWorktreeSnapshot = Readonly<{
-  /** Complete staged entries sorted parent before child by repository path. */
+  /**
+   * Complete staged entries sorted parent before child by repository path.
+   */
   entries: readonly WorktreeCopyEntry[];
-  /** Git-selected ignored roots represented by staged entries. */
+  /**
+   * Git-selected ignored roots represented by staged entries.
+   */
   selectedRoots: readonly string[];
-  /** Source worktree root used for final-equivalence validation. */
+  /**
+   * Source worktree root used for final-equivalence validation.
+   */
   sourceRoot: string;
-  /** Private sibling directory owning payload and journal scratch files. */
+  /**
+   * Private sibling directory owning payload and journal scratch files.
+   */
   stageContainer: string;
-  /** Private payload root on destination filesystem. */
+  /**
+   * Private payload root on destination filesystem.
+   */
   stageRoot: string;
 }>;
 
@@ -131,12 +170,18 @@ export type StagedWorktreeSnapshot = Readonly<{
  * ```
  */
 export type WorktreeCopySummary = Readonly<{
-  /** Filesystem entries newly installed across every destination. */
+  /**
+   * Filesystem entries newly installed across every destination.
+   */
   copiedEntries: number;
-  /** Newly registered worktrees receiving source state. */
+  /**
+   * Newly registered worktrees receiving source state.
+   */
   destinationCount: number;
-  /** Source worktree root, absent for bare repositories. */
-  sourceRoot: string | undefined;
+  /**
+   * Source worktree root, absent for bare repositories.
+   */
+  sourceRoot?: string;
 }>;
 
 /**
@@ -144,12 +189,14 @@ export type WorktreeCopySummary = Readonly<{
  *
  * @example
  * ```ts
- * const execution: ForwardedGitExecution = { failure: undefined };
+ * const execution: ForwardedGitExecution = {};
  * ```
  */
 export type ForwardedGitExecution = Readonly<{
-  /** Real-Git subprocess failure, absent after exit zero. */
-  failure: SubprocessError | undefined;
+  /**
+   * Real-Git subprocess failure, absent after exit zero.
+   */
+  failure?: SubprocessError;
 }>;
 
 /**
@@ -180,20 +227,36 @@ export type WorktreeCopyJournalPhase = 'installing' | 'staged';
  * ```
  */
 export type WorktreeCopyJournal = Readonly<{
-  /** Paths installed by cli-git before current journal write. */
+  /**
+   * Paths installed by cli-git before current journal write.
+   */
   createdEntries: readonly string[];
-  /** Created worktree receiving ignored state. */
+  /**
+   * Created worktree receiving ignored state.
+   */
   destinationRoot: string;
-  /** Current durable transaction phase. */
+  /**
+   * Current durable transaction phase.
+   */
   phase: WorktreeCopyJournalPhase;
-  /** Git-selected ignored roots represented by staged payload. */
+  /**
+   * Git-selected ignored roots represented by staged payload.
+   */
   selectedRoots: readonly string[];
-  /** Source worktree supplying ignored state. */
+  /**
+   * Source worktree supplying ignored state.
+   */
   sourceRoot: string;
-  /** Private sibling directory containing journal-owned temporary state. */
+  /**
+   * Private sibling directory containing journal-owned temporary state.
+   */
   stageContainer: string;
-  /** Validated snapshot payload within stage container. */
+  /**
+   * Validated snapshot payload within stage container.
+   */
   stageRoot: string;
-  /** Journal schema version. */
+  /**
+   * Journal schema version.
+   */
   version: 1;
 }>;

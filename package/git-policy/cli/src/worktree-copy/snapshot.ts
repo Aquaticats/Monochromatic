@@ -25,13 +25,19 @@ import {
 } from './ignored-paths.ts';
 import type { StagedWorktreeSnapshot, } from './model.ts';
 
-/** Private staging directory prefix beside destination worktree. */
+/**
+ * Private staging directory prefix beside destination worktree.
+ */
 const STAGE_PREFIX = '.cli-git-worktree-copy-';
 
-/** Private staging directory mode. */
+/**
+ * Private staging directory mode.
+ */
 const PRIVATE_DIRECTORY_MODE = 0o700;
 
-/** Copy-on-write request with documented full-copy fallback. */
+/**
+ * Copy-on-write request with documented full-copy fallback.
+ */
 const COPY_MODE = constants.COPYFILE_FICLONE;
 
 /**
@@ -56,8 +62,13 @@ function pathWithin({
   candidate: string;
   parent: string;
 }>,): boolean {
-  /** Native relative path from parent. */
-  const local = relative(parent, candidate,);
+  /**
+   * Native relative path from parent.
+   */
+  const local = relative(
+    parent,
+    candidate,
+  );
   return (local === '') || ((!local.startsWith('..',)) && (!isAbsolute(local,)));
 }
 
@@ -87,12 +98,18 @@ function sourceExclusions({
   registeredRoots: readonly string[];
   stageContainer: string;
 }>,): readonly string[] {
-  return [...registeredRoots, stageContainer,]
+  return [
+    ...registeredRoots,
+    stageContainer,
+  ]
     .map(function normalizeRoot(root,): string {
       return resolve(root,);
     },)
     .filter(function nestedRoot(root,): boolean {
-      return (root !== sourceRoot) && pathWithin({ candidate: root, parent: sourceRoot, },);
+      return (root !== sourceRoot) && pathWithin({
+        candidate: root,
+        parent: sourceRoot,
+      },);
     },);
 }
 
@@ -106,8 +123,6 @@ function sourceExclusions({
  * @param selectedRoots - Git-selected ignored roots
  *
  * @param excludedSourceRoots - nested registered worktrees and stage
- *
- * @returns nothing after private copy completes
  *
  * @example
  * ```ts
@@ -126,15 +141,28 @@ async function copySelectedRoots({
   excludedSourceRoots: readonly string[];
 }>,): Promise<void> {
   for (const repositoryPath of selectedRoots) {
-    /** Source selected root path. */
-    const sourcePath = filesystemPath({ root: sourceRoot, repositoryPath, },);
-    /** Staged selected root path. */
-    const stagePath = filesystemPath({ root: stageRoot, repositoryPath, },);
+    /**
+     * Source selected root path.
+     */
+    const sourcePath = filesystemPath({
+      root: sourceRoot,
+      repositoryPath,
+    },);
+    /**
+     * Staged selected root path.
+     */
+    const stagePath = filesystemPath({
+      root: stageRoot,
+      repositoryPath,
+    },);
     // oxlint-disable-next-line no-await-in-loop -- selected roots may share ancestors and must materialize deterministically
-    await mkdir(dirname(stagePath,), {
+    await mkdir(
+      dirname(stagePath,),
+      {
       recursive: true,
       mode: PRIVATE_DIRECTORY_MODE,
-    },);
+    },
+    );
     // oxlint-disable-next-line no-await-in-loop -- deterministic staging avoids overlapping root writes
     await cp(
       sourcePath,
@@ -148,10 +176,15 @@ async function copySelectedRoots({
         preserveTimestamps: false,
         mode: COPY_MODE,
         filter(source,): boolean {
-          /** Normalized source candidate supplied by Node copy traversal. */
+          /**
+           * Normalized source candidate supplied by Node copy traversal.
+           */
           const normalizedSource = resolve(source,);
           return !excludedSourceRoots.some(function excludesSource(excludedRoot,): boolean {
-            return pathWithin({ candidate: normalizedSource, parent: excludedRoot, },);
+            return pathWithin({
+              candidate: normalizedSource,
+              parent: excludedRoot,
+            },);
           },);
         },
       },
@@ -190,25 +223,64 @@ export async function stageIgnoredSnapshot({
   registeredRoots: readonly string[];
   gitPath: string;
 }>,): Promise<StagedWorktreeSnapshot> {
-  /** Git-selected ignored roots before private staging begins. */
-  const selectedRoots = await readIgnoredRoots({ sourceRoot, gitPath, },);
-  /** Private stage on destination filesystem for copy-on-write and local install. */
+  /**
+   * Git-selected ignored roots before private staging begins.
+   */
+  const gitSelectedRoots = await readIgnoredRoots({
+    sourceRoot,
+    gitPath,
+  },);
+  /**
+   * Private stage on destination filesystem for copy-on-write and local install.
+   */
   const stageContainer = await mkdtemp(join(
     dirname(destinationRoot,),
     STAGE_PREFIX,
   ),);
-  /** Private payload root mirroring source repository paths. */
-  const stageRoot = join(stageContainer, 'payload',);
-  await mkdir(stageRoot, { mode: PRIVATE_DIRECTORY_MODE, },);
-  /** Source subtrees omitted from recursive ignored roots. */
+  /**
+   * Private payload root mirroring source repository paths.
+   */
+  const stageRoot = join(
+    stageContainer,
+    'payload',
+  );
+  await mkdir(
+    stageRoot,
+    { mode: PRIVATE_DIRECTORY_MODE, },
+  );
+  /**
+   * Source subtrees omitted from recursive ignored roots.
+   */
   const excludedSourceRoots = sourceExclusions({
     sourceRoot,
     registeredRoots,
     stageContainer,
   },);
+  /**
+   * Selected roots not themselves registered worktrees or private staging.
+   */
+  const selectedRoots = gitSelectedRoots.filter(function retainedRoot(
+    repositoryPath,
+  ): boolean {
+    /**
+     * Native selected source root.
+     */
+    const sourcePath = resolve(filesystemPath({
+      root: sourceRoot,
+      repositoryPath,
+    },),);
+    return !excludedSourceRoots.some(function excludesRoot(excludedRoot,): boolean {
+      return pathWithin({
+        candidate: sourcePath,
+        parent: excludedRoot,
+      },);
+    },);
+  },);
 
   try {
-    /** Initial exact source manifest before content copy. */
+    /**
+     * Initial exact source manifest before content copy.
+     */
     const entries = await collectEntryManifest({
       root: sourceRoot,
       selectedRoots,
@@ -220,7 +292,10 @@ export async function stageIgnoredSnapshot({
       selectedRoots,
       excludedSourceRoots,
     },);
-    await applyEntryModes({ root: stageRoot, entries, },);
+    await applyEntryModes({
+      root: stageRoot,
+      entries,
+    },);
     await assertFinalSourceEquivalence({
       sourceRoot,
       stageRoot,
@@ -237,7 +312,10 @@ export async function stageIgnoredSnapshot({
     };
   }
   catch (error: unknown) {
-    await rm(stageContainer, { recursive: true, force: true, },);
+    await rm(
+      stageContainer,
+      { recursive: true, force: true, },
+    );
     if (error instanceof WorktreeCopyError)
       throw error;
     throw new WorktreeCopyError(

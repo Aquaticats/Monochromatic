@@ -1,3 +1,4 @@
+import type { Dirent, } from 'node:fs';
 import {
   readdir,
   realpath,
@@ -9,12 +10,19 @@ import nanoSpawn, { SubprocessError, } from 'nano-spawn';
 
 import { parseGlobalOptions, } from '../parse-global-options.ts';
 import { WorktreeCopyError, } from './errors.ts';
-import type { WorktreeCopyObservation, } from './model.ts';
+import {
+  BARE_REPOSITORY_SOURCE,
+  type WorktreeCopyObservation,
+} from './model.ts';
 
-/** Logger root for linked-worktree registration observation. */
+/**
+ * Logger root for linked-worktree registration observation.
+ */
 const l = tagged({ tag: 'cli-git', },);
 
-/** No effective repository existed before real Git ran. */
+/**
+ * No effective repository existed before real Git ran.
+ */
 export const WORKTREE_COPY_NOT_APPLICABLE: unique symbol = Symbol(
   'worktree copy has no effective repository',
 );
@@ -34,9 +42,15 @@ export const WORKTREE_COPY_NOT_APPLICABLE: unique symbol = Symbol(
  */
 export function stripGitLine(output: string,): string {
   if (output.endsWith('\r\n',))
-    return output.slice(0, -2,);
+    return output.slice(
+      0,
+      -2,
+    );
   if (output.endsWith('\n',))
-    return output.slice(0, -1,);
+    return output.slice(
+      0,
+      -1,
+    );
   return output;
 }
 
@@ -57,13 +71,18 @@ export function stripGitLine(output: string,): string {
  */
 export async function readAdminIds(adminRoot: string,): Promise<ReadonlySet<string>> {
   try {
-    /** Directory entries beneath common worktree administration. */
-    const entries = await readdir(adminRoot, { withFileTypes: true, },);
+    /**
+     * Directory entries beneath common worktree administration.
+     */
+    const entries = await readdir(
+      adminRoot,
+      { withFileTypes: true, },
+    );
     return new Set(entries
-      .filter(function isDirectory(entry,): boolean {
+      .filter(function isDirectory(entry: Readonly<Dirent>,): boolean {
         return entry.isDirectory();
       },)
-      .map(function entryName(entry,): string {
+      .map(function entryName(entry: Readonly<Dirent>,): string {
         return entry.name;
       },),);
   }
@@ -105,12 +124,14 @@ export async function runMetadataGit({
   args: readonly string[];
   cwd: string;
 }>,): Promise<string> {
-  /** Captured metadata subprocess result. */
+  /**
+   * Captured metadata subprocess result.
+   */
   const result = await nanoSpawn(
-    gitPath,
-    args,
+    String(gitPath,),
+    [...args,],
     {
-      cwd,
+      cwd: String(cwd,),
       stderr: 'pipe',
       stdout: 'pipe',
     },
@@ -127,7 +148,7 @@ export async function runMetadataGit({
  *
  * @param invocationCwd - wrapper process working directory
  *
- * @returns canonical worktree root, or undefined for bare repository
+ * @returns canonical worktree root, or bare-repository sentinel
  *
  * @example
  * ```ts
@@ -143,9 +164,11 @@ async function resolveSourceRoot({
   gitPath: string;
   preSubcommandArgs: readonly string[];
   invocationCwd: string;
-}>,): Promise<string | undefined> {
+}>,): Promise<string | typeof BARE_REPOSITORY_SOURCE> {
   try {
-    /** Git-reported absolute worktree root. */
+    /**
+     * Git-reported absolute worktree root.
+     */
     const output = await runMetadataGit({
       gitPath,
       args: [
@@ -160,7 +183,7 @@ async function resolveSourceRoot({
   }
   catch (error: unknown) {
     if (error instanceof SubprocessError)
-      return undefined;
+      return BARE_REPOSITORY_SOURCE;
     throw error;
   }
 }
@@ -186,20 +209,36 @@ export async function observeWorktreeRepository({
   args: readonly string[];
   gitPath: string;
 }>,): Promise<WorktreeCopyObservation | typeof WORKTREE_COPY_NOT_APPLICABLE> {
-  /** Effective cwd and subcommand position for original invocation. */
+  /**
+   * Effective cwd and subcommand position for original invocation.
+   */
   const {
     effectiveCwd,
     subcommandIndex,
   } = parseGlobalOptions(args,);
-  /** Exact original global option region selecting effective repository. */
-  const preSubcommandArgs = args.slice(0, subcommandIndex,);
-  /** Wrapper process cwd from which Git applies original `-C` options. */
+  /**
+   * Exact original global option region selecting effective repository.
+   */
+  const preSubcommandArgs = args.slice(
+    0,
+    subcommandIndex,
+  );
+  /**
+   * Wrapper process cwd from which Git applies original `-C` options.
+   */
   const invocationCwd = process.cwd();
-  /** Tagged observer logger. */
-  const rl = tagged({ tag: observeWorktreeRepository.name, l, },);
+  /**
+   * Tagged observer logger.
+   */
+  const rl = tagged({
+    tag: observeWorktreeRepository.name,
+    l,
+  },);
 
   try {
-    /** Git-reported absolute common directory. */
+    /**
+     * Git-reported absolute common directory.
+     */
     const commonOutput = await runMetadataGit({
       gitPath,
       args: [
@@ -210,13 +249,24 @@ export async function observeWorktreeRepository({
       ],
       cwd: invocationCwd,
     },);
-    /** Canonical common directory anchoring administrative identity. */
+    /**
+     * Canonical common directory anchoring administrative identity.
+     */
     const commonDir = await realpath(stripGitLine(commonOutput,),);
-    /** Common linked-worktree administrative root. */
-    const adminRoot = join(commonDir, 'worktrees',);
-    /** Existing linked-worktree identities. */
+    /**
+     * Common linked-worktree administrative root.
+     */
+    const adminRoot = join(
+      commonDir,
+      'worktrees',
+    );
+    /**
+     * Existing linked-worktree identities.
+     */
     const beforeAdminIds = await readAdminIds(adminRoot,);
-    /** Canonical source root, absent for bare repositories. */
+    /**
+     * Canonical source root or bare-repository sentinel.
+     */
     const sourceRoot = await resolveSourceRoot({
       gitPath,
       preSubcommandArgs,
@@ -230,7 +280,9 @@ export async function observeWorktreeRepository({
       beforeAdminIds,
       commonDir,
       effectiveCwd,
-      sourceRoot,
+      ...((typeof sourceRoot) === 'symbol'
+        ? {}
+        : { sourceRoot, }),
     };
   }
   catch (error: unknown) {

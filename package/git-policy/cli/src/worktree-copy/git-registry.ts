@@ -20,8 +20,15 @@ import type {
   WorktreeCopyObservation,
 } from './model.ts';
 
-/** Git-file prefix introducing linked-worktree administrative path. */
+/**
+ * Git-file prefix introducing linked-worktree administrative path.
+ */
 const GITDIR_PREFIX = 'gitdir: ';
+
+/**
+ * Main worktree has no linked administrative identity.
+ */
+const MAIN_WORKTREE_ADMIN_ID: unique symbol = Symbol('main worktree has no linked admin identity',);
 
 /**
  * Parses NUL-delimited porcelain output into canonical worktree roots.
@@ -51,7 +58,7 @@ function parseWorktreeRoots(output: string,): readonly string[] {
  *
  * @param root - canonical linked-worktree root
  *
- * @returns canonical admin directory basename, or undefined for main worktree
+ * @returns canonical admin directory basename, or main-worktree sentinel
  *
  * @example
  * ```ts
@@ -59,25 +66,39 @@ function parseWorktreeRoots(output: string,): readonly string[] {
  * // => 'topic'
  * ```
  */
-async function readLinkedAdminId(root: string,): Promise<string | undefined> {
+async function readLinkedAdminId(
+  root: string,
+): Promise<string | typeof MAIN_WORKTREE_ADMIN_ID> {
   try {
-    /** Linked-worktree `.git` pointer text. */
-    const pointer = stripGitLine(await readFile(join(root, '.git',), 'utf8',),);
+    /**
+     * Linked-worktree `.git` pointer text.
+     */
+    const pointer = stripGitLine(await readFile(
+      join(root, '.git',),
+      'utf8',
+    ),);
     if (!pointer.startsWith(GITDIR_PREFIX,))
-      return undefined;
-    /** Raw absolute or root-relative administrative path. */
+      return MAIN_WORKTREE_ADMIN_ID;
+    /**
+     * Raw absolute or root-relative administrative path.
+     */
     const rawAdminPath = pointer.slice(GITDIR_PREFIX.length,);
-    /** Canonical linked-worktree administrative path. */
+    /**
+     * Canonical linked-worktree administrative path.
+     */
     const adminPath = await realpath(isAbsolute(rawAdminPath,)
       ? rawAdminPath
-      : resolve(root, rawAdminPath,),);
+      : resolve(
+        root,
+        rawAdminPath,
+      ),);
     return basename(adminPath,);
   }
   catch (error: unknown) {
     if (Error.isError(error,)
       && ('code' in error)
-      && ((error.code === 'EISDIR') || (error.code === 'ENOENT'))) {
-      return undefined;
+      && (error.code === 'EISDIR')) {
+      return MAIN_WORKTREE_ADMIN_ID;
     }
     throw new WorktreeCopyError(
       `cli-git: could not resolve worktree identity for ${JSON.stringify(root,)}.`,
@@ -110,7 +131,9 @@ export async function readRegisteredWorktrees({
   rootsByAdminId: ReadonlyMap<string, string>;
   roots: readonly string[];
 }>> {
-  /** NUL-delimited stable worktree inventory. */
+  /**
+   * NUL-delimited stable worktree inventory.
+   */
   const output = await runMetadataGit({
     gitPath,
     args: [
@@ -123,23 +146,37 @@ export async function readRegisteredWorktrees({
     ],
     cwd: observation.effectiveCwd,
   },);
-  /** Canonical roots still present on filesystem. */
+  /**
+   * Canonical roots still present on filesystem.
+   */
   const roots = await Promise.all(parseWorktreeRoots(output,)
     .map(async function canonicalRoot(root,): Promise<string> {
       return realpath(root,);
     },),);
-  /** Optional linked admin identities aligned with roots. */
+  /**
+   * Optional linked admin identities aligned with roots.
+   */
   const adminIds = await Promise.all(roots.map(readLinkedAdminId,),);
-  /** Linked-worktree identity map excluding main worktree. */
+  /**
+   * Linked-worktree identity map excluding main worktree.
+   */
   const rootsByAdminId = new Map(adminIds.flatMap(function indexedRoot(
     adminId,
     index,
-  ): readonly (readonly [string, string])[] {
-    /** Root aligned with current admin identity. */
+  ): readonly (readonly [
+    string,
+    string
+  ])[] {
+    /**
+     * Root aligned with current admin identity.
+     */
     const root = roots[index];
-    return (adminId === undefined) || (root === undefined)
+    return ((typeof adminId) === 'symbol') || (root === undefined)
       ? []
-      : [[adminId, root,],];
+      : [[
+        adminId,
+        root,
+      ],];
   },),);
   return {
     rootsByAdminId,
@@ -171,32 +208,50 @@ export async function findCreatedWorktrees({
   created: readonly CreatedWorktree[];
   registeredRoots: readonly string[];
 }>> {
-  /** Linked-worktree identities after real Git returned. */
+  /**
+   * Linked-worktree identities after real Git returned.
+   */
   const afterAdminIds = await readAdminIds(observation.adminRoot,);
-  /** Newly present administrative identities. */
+  /**
+   * Newly present administrative identities.
+   */
   const createdAdminIds = [...afterAdminIds,]
     .filter(function wasAbsent(adminId,): boolean {
-      return !observation.beforeAdminIds.has(adminId,);
+      return !observation.beforeAdminIds
+        .has(adminId,);
     },)
-    .sort();
+    .toSorted();
   if (createdAdminIds.length === 0) {
     return {
       created: [],
       registeredRoots: [],
     };
   }
-  /** Registered worktree paths after creation. */
-  const registered = await readRegisteredWorktrees({ observation, gitPath, },);
-  /** Created roots resolved from stable admin identities. */
+  /**
+   * Registered worktree paths after creation.
+   */
+  const registered = await readRegisteredWorktrees({
+    observation,
+    gitPath,
+  },);
+  /**
+   * Created roots resolved from stable admin identities.
+   */
   const created = createdAdminIds.map(function createdWorktree(adminId,): CreatedWorktree {
-    /** Created root associated with new admin directory. */
-    const root = registered.rootsByAdminId.get(adminId,);
+    /**
+     * Created root associated with new admin directory.
+     */
+    const root = registered.rootsByAdminId
+      .get(adminId,);
     if (root === undefined) {
       throw new WorktreeCopyError(
         `cli-git: linked worktree ${JSON.stringify(adminId,)} was registered but its root could not be resolved.`,
       );
     }
-    return { adminId, root, };
+    return {
+      adminId,
+      root,
+    };
   },);
   return {
     created,

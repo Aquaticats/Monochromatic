@@ -19,7 +19,9 @@ import {
   synchronizeCreatedWorktrees,
 } from './transaction.ts';
 
-/** Logger root for real-Git worktree-copy lifecycle. */
+/**
+ * Logger root for real-Git worktree-copy lifecycle.
+ */
 const l = tagged({ tag: 'cli-git', },);
 
 /**
@@ -45,11 +47,11 @@ async function executeRealGit({
 }>,): Promise<ForwardedGitExecution> {
   try {
     await nanoSpawn(
-      gitPath,
+      String(gitPath,),
       [...args,],
       { stdio: 'inherit', },
     );
-    return { failure: undefined, };
+    return {};
   }
   catch (error: unknown) {
     if (error instanceof SubprocessError)
@@ -72,15 +74,21 @@ async function executeRealGit({
  * ```
  */
 function renderSummary(summary: WorktreeCopySummary,): string {
-  /** Human source description for worktree or bare repository. */
+  /**
+   * Human source description for worktree or bare repository.
+   */
   const source = summary.sourceRoot === undefined
     ? 'bare repository with an empty source set'
     : JSON.stringify(summary.sourceRoot,);
-  /** Destination noun matching exact count. */
+  /**
+   * Destination noun matching exact count.
+   */
   const worktreeNoun = summary.destinationCount === 1
     ? 'worktree'
     : 'worktrees';
-  /** Entry noun matching exact count. */
+  /**
+   * Entry noun matching exact count.
+   */
   const entryNoun = summary.copiedEntries === 1
     ? 'entry'
     : 'entries';
@@ -102,7 +110,10 @@ function renderSummary(summary: WorktreeCopySummary,): string {
 function asWorktreeCopyError(error: unknown,): WorktreeCopyError {
   return error instanceof WorktreeCopyError
     ? error
-    : new WorktreeCopyError('cli-git: automatic ignored-state worktree copy failed.', error,);
+    : new WorktreeCopyError(
+      'cli-git: automatic ignored-state worktree copy failed.',
+      error,
+    );
 }
 
 /**
@@ -114,8 +125,6 @@ function asWorktreeCopyError(error: unknown,): WorktreeCopyError {
  * @param args - final transformed Git argv
  *
  * @param gitPath - absolute real-Git executable
- *
- * @returns nothing after Git and any created-worktree copies settle
  *
  * @throws {@link SubprocessError} when Git failed but copying succeeded
  *
@@ -133,54 +142,89 @@ export async function runGitWithWorktreeCopy({
   args: readonly string[];
   gitPath: string;
 }>,): Promise<void> {
-  /** Tagged lifecycle logger. */
-  const rl = tagged({ tag: runGitWithWorktreeCopy.name, l, },);
-  /** Effective repository observation before real Git. */
-  const observation = await observeWorktreeRepository({ args, gitPath, },);
+  /**
+   * Tagged lifecycle logger.
+   */
+  const rl = tagged({
+    tag: runGitWithWorktreeCopy.name,
+    l,
+  },);
+  /**
+   * Effective repository observation before real Git.
+   */
+  const observation = await observeWorktreeRepository({
+    args,
+    gitPath,
+  },);
   if (observation === WORKTREE_COPY_NOT_APPLICABLE) {
-    /** Real-Git execution outside effective repository. */
-    const execution = await executeRealGit({ args, gitPath, },);
-    if (execution.failure !== undefined)
+    /**
+     * Real-Git execution outside effective repository.
+     */
+    const execution = await executeRealGit({
+      args,
+      gitPath,
+    },);
+    if ('failure' in execution)
       throw execution.failure;
     return;
   }
 
-  /** Recovered interrupted transactions before allowing another Git command. */
+  /**
+   * Recovered interrupted transactions before allowing another Git command.
+   */
   const recovered = await recoverWorktreeCopyTransactions(observation.commonDir,);
   if (recovered > 0) {
-    process.stderr.write(
+    process.stderr
+      .write(
       `cli-git: recovered ignored-state copies for ${String(recovered,)} worktree transaction${recovered === 1 ? '' : 's'}.\n`,
     );
   }
-  /** Real-Git result retained while post-command worktree state settles. */
-  const execution = await executeRealGit({ args, gitPath, },);
+  /**
+   * Real-Git result retained while post-command worktree state settles.
+   */
+  const execution = await executeRealGit({
+    args,
+    gitPath,
+  },);
 
   try {
-    /** Newly registered worktrees and recursive exclusion roots. */
+    /**
+     * Newly registered worktrees and recursive exclusion roots.
+     */
     const {
       created,
       registeredRoots,
-    } = await findCreatedWorktrees({ observation, gitPath, },);
+    } = await findCreatedWorktrees({
+      observation,
+      gitPath,
+    },);
     if (created.length > 0) {
-      /** Aggregate successful synchronization facts. */
+      /**
+       * Aggregate successful synchronization facts.
+       */
       const summary = await synchronizeCreatedWorktrees({
         commonDir: observation.commonDir,
-        sourceRoot: observation.sourceRoot,
+        ...(observation.sourceRoot === undefined
+          ? {}
+          : { sourceRoot: observation.sourceRoot, }),
         created,
         registeredRoots,
         gitPath,
       },);
-      process.stderr.write(renderSummary(summary,),);
+      process.stderr
+        .write(renderSummary(summary,),);
       rl.debug(`synchronized ignored state into ${String(created.length,)} newly registered worktree(s)`,);
     }
   }
   catch (error: unknown) {
     throw new ForwardedGitWorktreeCopyError({
       copyFailure: asWorktreeCopyError(error,),
-      gitFailure: execution.failure,
+      ...('failure' in execution
+        ? { gitFailure: execution.failure, }
+        : {}),
     },);
   }
 
-  if (execution.failure !== undefined)
+  if ('failure' in execution)
     throw execution.failure;
 }

@@ -3,6 +3,8 @@ import {
   unlink,
 } from 'node:fs/promises';
 
+import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+
 import { entryMatches, } from './entry-compare.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import type {
@@ -35,28 +37,40 @@ export async function rollbackCreated({
   destinationRoot: string;
   created: readonly InstalledWorktreePath[];
 }>,): Promise<readonly string[]> {
-  /** Selected expected entries indexed for exact comparison. */
+  /**
+   * Selected expected entries indexed for exact comparison.
+   */
   const selectedByPath = new Map(snapshot.entries.map(function indexEntry(entry,) {
     return [entry.relativePath, entry,] as const;
   },),);
-  /** Paths retained after conservative rollback. */
+  /**
+   * Paths retained after conservative rollback.
+   */
   const retained: string[] = [];
   for (const installed of created.toReversed()) {
-    /** Native installed destination path. */
+    /**
+     * Native installed destination path.
+     */
     const destinationPath = filesystemPath({
       root: destinationRoot,
       repositoryPath: installed.relativePath,
     },);
-    /** Selected expected entry, absent for scaffolding directory. */
+    /**
+     * Selected expected entry, absent for scaffolding directory.
+     */
     const expected = selectedByPath.get(installed.relativePath,);
     try {
       if (expected !== undefined) {
-        // oxlint-disable-next-line no-await-in-loop -- ownership proof precedes each destructive rollback step
+        /* oxlint-disable no-await-in-loop -- ownership proof precedes each destructive rollback step */
+        /**
+         * Whether installed selected entry still equals private snapshot.
+         */
         const unchanged = await entryMatches({
           expectedRoot: snapshot.stageRoot,
           actualRoot: destinationRoot,
           entry: expected,
         },);
+        /* oxlint-enable no-await-in-loop */
         if (!unchanged) {
           retained.push(installed.relativePath,);
           continue;
@@ -72,7 +86,7 @@ export async function rollbackCreated({
       }
     }
     catch (error: unknown) {
-      retained.push(`${installed.relativePath}: ${Error.isError(error,) ? error.message : String(error,)}`,);
+      retained.push(`${installed.relativePath}: ${caughtValueText(error,)}`,);
     }
   }
   return retained;

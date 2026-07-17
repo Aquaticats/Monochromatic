@@ -37,23 +37,32 @@ async function snapshotFromJournal(
   journal: PendingWorktreeCopyJournal,
 ): Promise<StagedWorktreeSnapshot> {
   try {
-    /** Deterministic entries currently retained in staged payload. */
+    /**
+     * Deterministic entries currently retained in staged payload.
+     */
     const entries = await collectEntryManifest({
-      root: journal.record.stageRoot,
-      selectedRoots: journal.record.selectedRoots,
+      root: journal.record
+        .stageRoot,
+      selectedRoots: journal.record
+        .selectedRoots,
       excludedRoots: [],
     },);
     return {
       entries,
-      selectedRoots: journal.record.selectedRoots,
-      sourceRoot: journal.record.sourceRoot,
-      stageContainer: journal.record.stageContainer,
-      stageRoot: journal.record.stageRoot,
+      selectedRoots: journal.record
+        .selectedRoots,
+      sourceRoot: journal.record
+        .sourceRoot,
+      stageContainer: journal.record
+        .stageContainer,
+      stageRoot: journal.record
+        .stageRoot,
     };
   }
   catch (error: unknown) {
     throw new WorktreeCopyError(
-      `cli-git: could not recover staged ignored state at ${JSON.stringify(journal.record.stageRoot,)}.`,
+      `cli-git: could not recover staged ignored state at ${JSON.stringify(journal.record
+        .stageRoot,)}.`,
       error,
     );
   }
@@ -80,15 +89,23 @@ async function completeJournal({
   pending: PendingWorktreeCopyJournal;
   snapshot: StagedWorktreeSnapshot;
 }>,): Promise<number> {
-  /** Mutable current journal record for callbacks. */
+  /**
+   * Mutable current journal record for callbacks.
+   */
   const state: JournalState = { pending, };
   await beginInstalling(state,);
-  /** Newly installed selected entry count. */
+  /**
+   * Newly installed selected entry count.
+   */
   const copiedEntries = await installSnapshot({
     snapshot,
-    destinationRoot: pending.record.destinationRoot,
+    destinationRoot: pending.record
+      .destinationRoot,
     async onEntryCreated(relativePath,): Promise<void> {
-      await recordCreatedEntry({ state, relativePath, },);
+      await recordCreatedEntry({
+        state,
+        relativePath,
+      },);
     },
   },);
   await removeWorktreeCopyJournal(state.pending,);
@@ -112,15 +129,61 @@ async function completeJournal({
 export async function recoverWorktreeCopyTransactions(
   commonDir: string,
 ): Promise<number> {
-  /** Pending journals in deterministic filename order. */
+  /**
+   * Pending journals in deterministic filename order.
+   */
   const pending = await readPendingWorktreeCopyJournals(commonDir,);
   for (const journal of pending) {
     // oxlint-disable-next-line no-await-in-loop -- recovery order is deterministic and stops at first retained conflict
     const snapshot = await snapshotFromJournal(journal,);
     // oxlint-disable-next-line no-await-in-loop -- one journal must settle before later transaction uses same destinations
-    await completeJournal({ pending: journal, snapshot, },);
+    await completeJournal({
+      pending: journal,
+      snapshot,
+    },);
   }
   return pending.length;
+}
+
+/**
+ * Creates transaction journal or removes unowned stage after journal failure.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @param destinationRoot - newly created worktree root
+ *
+ * @param snapshot - validated staged snapshot
+ *
+ * @returns durable transaction journal
+ *
+ * @example
+ * ```ts
+ * await createJournalOrCleanup({ commonDir, destinationRoot, snapshot });
+ * ```
+ */
+async function createJournalOrCleanup({
+  commonDir,
+  destinationRoot,
+  snapshot,
+}: Readonly<{
+  commonDir: string;
+  destinationRoot: string;
+  snapshot: StagedWorktreeSnapshot;
+}>,): Promise<PendingWorktreeCopyJournal> {
+  try {
+    return await createWorktreeCopyJournal({
+      commonDir,
+      destinationRoot,
+      snapshot,
+    },);
+  }
+  catch (error: unknown) {
+    await rm(
+      snapshot.stageContainer,
+      { recursive: true, force: true, },
+    );
+    throw error;
+  }
 }
 
 /**
@@ -156,26 +219,27 @@ async function synchronizeCreatedWorktree({
   registeredRoots: readonly string[];
   gitPath: string;
 }>,): Promise<number> {
-  /** Validated private ignored-state snapshot. */
+  /**
+   * Validated private ignored-state snapshot.
+   */
   const snapshot = await stageIgnoredSnapshot({
     sourceRoot,
     destinationRoot,
     registeredRoots,
     gitPath,
   },);
-  let pending: PendingWorktreeCopyJournal;
-  try {
-    pending = await createWorktreeCopyJournal({
-      commonDir,
-      destinationRoot,
-      snapshot,
-    },);
-  }
-  catch (error: unknown) {
-    await rm(snapshot.stageContainer, { recursive: true, force: true, },);
-    throw error;
-  }
-  return completeJournal({ pending, snapshot, },);
+  /**
+   * Durable staged transaction journal.
+   */
+  const pending = await createJournalOrCleanup({
+    commonDir,
+    destinationRoot,
+    snapshot,
+  },);
+  return completeJournal({
+    pending,
+    snapshot,
+  },);
 }
 
 /**
@@ -206,7 +270,7 @@ export async function synchronizeCreatedWorktrees({
   gitPath,
 }: Readonly<{
   commonDir: string;
-  sourceRoot: string | undefined;
+  sourceRoot?: string;
   created: readonly CreatedWorktree[];
   registeredRoots: readonly string[];
   gitPath: string;
@@ -215,21 +279,28 @@ export async function synchronizeCreatedWorktrees({
     return {
       copiedEntries: 0,
       destinationCount: created.length,
-      sourceRoot,
     };
   }
-  /** Aggregate newly installed selected entry count. */
-  let copiedEntries = 0;
+  /**
+   * Newly installed selected entry counts per destination.
+   */
+  const copiedCounts: number[] = [];
   for (const destination of created) {
     // oxlint-disable-next-line no-await-in-loop -- destination transactions remain isolated and deterministic
-    copiedEntries += await synchronizeCreatedWorktree({
+    copiedCounts.push(await synchronizeCreatedWorktree({
       commonDir,
       sourceRoot,
       destinationRoot: destination.root,
       registeredRoots,
       gitPath,
-    },);
+    },),);
   }
+  /**
+   * Aggregate newly installed selected entry count.
+   */
+  const copiedEntries = copiedCounts.reduce(function addCount(total, count,): number {
+    return total + count;
+  }, 0,);
   return {
     copiedEntries,
     destinationCount: created.length,

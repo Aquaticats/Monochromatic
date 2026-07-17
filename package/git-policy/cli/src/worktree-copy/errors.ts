@@ -1,6 +1,27 @@
 import type { SubprocessError, } from 'nano-spawn';
 
 /**
+ * Renders caught cause without retaining mutable foreign object.
+ *
+ * @param cause - optional underlying failure
+ *
+ * @returns empty suffix or plain caught message
+ *
+ * @example
+ * ```ts
+ * causeSuffix(new Error('failure'));
+ * // => ' Cause: failure'
+ * ```
+ */
+function causeSuffix(cause?: unknown,): string {
+  if (cause === undefined)
+    return '';
+  if (Error.isError(cause,))
+    return ` Cause: ${cause.message}`;
+  return ` Cause: ${String(cause,)}`;
+}
+
+/**
  * Filesystem or repository failure while synchronizing ignored worktree state.
  *
  * @example
@@ -16,8 +37,11 @@ export class WorktreeCopyError extends Error {
    *
    * @param cause - underlying filesystem or Git failure
    */
-  public constructor(message: string, cause?: unknown,) {
-    super(message, { cause, },);
+  public constructor(
+    message: string,
+    cause?: unknown,
+  ) {
+    super(`${message}${causeSuffix(cause,)}`,);
     this.name = 'WorktreeCopyError';
   }
 }
@@ -34,14 +58,23 @@ export class WorktreeCopyError extends Error {
  * ```
  */
 export class ForwardedGitWorktreeCopyError extends Error {
-  /** Worktree copy failure requiring an explicit diagnostic. */
-  public readonly copyFailure: WorktreeCopyError;
-
-  /** Real-Git failure whose exit status remains authoritative. */
-  public readonly gitFailure: SubprocessError | undefined;
+  /**
+   * User-facing copy failure diagnostic.
+   */
+  public readonly copyFailureMessage: string;
 
   /**
-   * Creates combined lifecycle failure without discarding real-Git status.
+   * Real Git failed before copy settlement.
+   */
+  public readonly gitFailed: boolean;
+
+  /**
+   * Real-Git numeric exit status when process exited normally.
+   */
+  public readonly gitFailureExitCode?: number;
+
+  /**
+   * Creates combined lifecycle failure without retaining mutable subprocess errors.
    *
    * @param copyFailure - ignored-state synchronization failure
    *
@@ -52,11 +85,13 @@ export class ForwardedGitWorktreeCopyError extends Error {
     gitFailure,
   }: Readonly<{
     copyFailure: WorktreeCopyError;
-    gitFailure: SubprocessError | undefined;
+    gitFailure?: SubprocessError;
   }>,) {
-    super(copyFailure.message, { cause: copyFailure, },);
+    super(copyFailure.message,);
     this.name = 'ForwardedGitWorktreeCopyError';
-    this.copyFailure = copyFailure;
-    this.gitFailure = gitFailure;
+    this.copyFailureMessage = copyFailure.message;
+    this.gitFailed = gitFailure !== undefined;
+    if (gitFailure?.exitCode !== undefined)
+      this.gitFailureExitCode = gitFailure.exitCode;
   }
 }

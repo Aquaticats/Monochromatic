@@ -6,7 +6,9 @@ import {
 import { WorktreeCopyError, } from './errors.ts';
 import { runMetadataGit, } from './git-observer.ts';
 
-/** Git directory marker appended by `ls-files --directory`. */
+/**
+ * Git directory marker appended by `ls-files --directory`.
+ */
 const DIRECTORY_SUFFIX = '/';
 
 /**
@@ -47,12 +49,15 @@ export function isRepositoryPathWithin({
  * ```
  */
 export function assertSafeRepositoryPath(repositoryPath: string,): void {
-  /** Slash-delimited path components. */
+  /**
+   * Slash-delimited path components.
+   */
   const components = repositoryPath.split('/',);
   if ((repositoryPath === '')
     || isAbsolute(repositoryPath,)
     || components.some(function unsafeComponent(component,): boolean {
-      return (component === '') || (component === '.') || (component === '..');
+      return (component === '') || (component === '.')
+        || (component === '..');
     },)) {
     throw new WorktreeCopyError(
       `cli-git: Git returned unsafe ignored path ${JSON.stringify(repositoryPath,)}.`,
@@ -103,15 +108,26 @@ export function filesystemPath({
  * ```
  */
 function collapseIgnoredRoots(paths: readonly string[],): readonly string[] {
-  return [...new Set(paths,),]
-    .sort()
-    .reduce<readonly string[]>(function retainRoot(roots, candidate,) {
-      return roots.some(function ownsCandidate(root,): boolean {
-        return isRepositoryPathWithin({ candidate, parent: root, },);
-      },)
-        ? roots
-        : [...roots, candidate,];
-    }, []);
+  /**
+   * Sorted unique candidate paths.
+   */
+  const candidates = [...new Set(paths,),]
+    .toSorted();
+  /**
+   * Retained roots without descendants.
+   */
+  const roots: string[] = [];
+  for (const candidate of candidates) {
+    if (!roots.some(function ownsCandidate(root,): boolean {
+      return isRepositoryPathWithin({
+        candidate,
+        parent: root,
+      },);
+    },)) {
+      roots.push(candidate,);
+    }
+  }
+  return roots;
 }
 
 /**
@@ -136,7 +152,9 @@ export async function readIgnoredRoots({
   sourceRoot: string;
   gitPath: string;
 }>,): Promise<readonly string[]> {
-  /** NUL-delimited ignored untracked path output. */
+  /**
+   * NUL-delimited ignored untracked path output.
+   */
   const output = await runMetadataGit({
     gitPath,
     args: [
@@ -151,7 +169,9 @@ export async function readIgnoredRoots({
     ],
     cwd: sourceRoot,
   },);
-  /** Safe ignored roots with Git directory markers removed. */
+  /**
+   * Safe ignored roots with Git directory markers removed.
+   */
   const paths = output
     .split('\0',)
     .filter(function nonempty(path,): boolean {
@@ -159,7 +179,10 @@ export async function readIgnoredRoots({
     },)
     .map(function removeDirectoryMarker(path,): string {
       return path.endsWith(DIRECTORY_SUFFIX,)
-        ? path.slice(0, -DIRECTORY_SUFFIX.length,)
+        ? path.slice(
+          0,
+          -DIRECTORY_SUFFIX.length,
+        )
         : path;
     },);
   paths.forEach(assertSafeRepositoryPath,);
