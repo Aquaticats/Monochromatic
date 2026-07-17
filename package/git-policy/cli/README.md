@@ -28,6 +28,54 @@ but registry publication is deliberately deferred to issue #358.
 The tarball contains one `dist/final/node/index.mjs` artifact.
 That self-contained static bundle is both the executable and the inert package-root import.
 
+## Automatic linked-worktree state
+
+Every forwarded Git invocation inside an effective repository observes linked-worktree administrative identities
+before and after real Git runs.
+This outcome-based comparison detects ordinary Git aliases and worktrees that Git retains after a command or
+`post-checkout` hook returns nonzero.
+When new linked worktrees exist,
+cli-git snapshots the invoking worktree's paths selected by Git's standard ignore stack after real Git and its hooks
+settle,
+then installs that state into every new worktree.
+A bare repository has an empty source set.
+No repository-specific copy configuration exists.
+
+The snapshot preserves regular files,
+directories,
+symbolic-link target text,
+and portable permission bits.
+File copies request copy-on-write and use Node's full-copy fallback when the filesystem cannot clone extents.
+Registered worktree roots nested beneath an ignored source tree are excluded,
+as are cli-git's private staging paths.
+Source paths remain selected even when the destination branch does not ignore them.
+Sockets,
+FIFOs,
+and device nodes fail the copy without being opened.
+
+Existing destination entries are never overwritten.
+An exact type,
+mode,
+link target,
+and byte match is accepted;
+a difference fails after retaining the Git-created worktree.
+Cli-git compares the completed private stage back to the source before installation,
+so source instability fails unless exact final equivalence remains.
+A successful copy emits one summary line on stderr.
+Copy-only failure exits `2`.
+When real Git also failed,
+cli-git preserves Git's numeric status,
+or uses `1` when Git ended by signal without a numeric status.
+
+Private stages live beside their destination for same-filesystem copy-on-write.
+Durable journals and a recoverable process-identity lock live under
+`<git-common-dir>/cli-git-worktree-copy/v1`.
+A later cli-git invocation validates destination registration,
+stage ownership,
+permissions,
+and path containment before resuming an interrupted installation.
+Malformed or conflicting recovery state fails closed and remains available for diagnosis.
+
 ## Policy authoring API
 
 Importing the package root does not inspect process arguments,

@@ -605,6 +605,94 @@ Plugin policies run against the predicted candidate set for the transformed comm
 Applicable normalizer patches run through whole-sequence convergence.
 Remaining errors block before real Git.
 
+### Linked-worktree ignored-state synchronization
+
+Before forwarding any Git invocation whose effective global options select a repository,
+cli-git captures the common Git directory and linked-worktree administrative identity set.
+After real Git and its hooks return,
+cli-git compares the administrative set again.
+Every new identity is a synchronization destination,
+regardless of whether argv named `worktree add`,
+an ordinary Git alias expanded to it,
+or real Git returned nonzero after retaining registration.
+A missing or stale pre-existing worktree root does not hide a newly created identity.
+
+For a non-bare invocation,
+the source is the invoking effective worktree root after Git and `post-checkout` settle.
+Git's standard exclusion stack selects the source paths:
+per-directory `.gitignore`,
+repository exclude state,
+and configured excludes files.
+The source set includes ignored regular files,
+directories,
+and symbolic links.
+Ignored sockets,
+FIFOs,
+and device nodes are selected only to produce a copy failure without opening them.
+A bare repository has no source root and synchronizes an empty set.
+There is no repository configuration for this behavior.
+
+Before staging,
+exclude every registered worktree root strictly nested under the source.
+Private stage names are reserved and excluded at every path component.
+Stage each destination separately in a mode-`0700` sibling directory so file cloning stays on the destination filesystem.
+Copy regular files with an exclusive copy-on-write request whose unsupported-filesystem behavior falls back to a full
+copy.
+Preserve directory and regular-file permission bits plus exact symbolic-link target text.
+Never follow a symbolic link while classifying source or destination entries.
+
+Build a deterministic parent-first manifest before copying.
+After the private stage is complete and modes are applied,
+rebuild the source and staged manifests and require exact final equality of selected roots,
+entry paths,
+types,
+modes,
+regular-file bytes,
+and symbolic-link targets.
+Transient source mutations that revert before final comparison are outside the guarantee.
+Any remaining difference is source instability and blocks destination mutation.
+
+Preflight every existing destination manifest entry before creating any path.
+Accept an exact match even when the destination does not ignore that path.
+Never overwrite or remove a differing destination entry.
+Create absent entries exclusively and retain the Git-created worktree on any failure.
+Immediate rollback visits only transaction-owned paths in child-first order;
+it removes a selected path only when it still exactly matches the private stage,
+and removes an unselected scaffold only when it remains empty.
+Every path whose ownership cannot be proved remains in place and is named in the diagnostic.
+
+Each destination uses a schema-versioned journal under
+`<git-common-dir>/cli-git-worktree-copy/v1`.
+Journal writes use a private no-follow temporary file,
+file synchronization,
+atomic rename,
+and parent-directory synchronization where supported.
+Persist selected-entry intent before destination mutation.
+A completion phase makes stage removal and journal removal recoverable in either crash order.
+A process-birth-identity lock serializes installation and recovery,
+rejects live contention after bounded acquisition,
+and reclaims stale PID reuse safely.
+
+Every later repository invocation checks for pending journals before forwarding.
+Recovery validates that journal paths remain canonical,
+the stage is a private owned directory beside the destination,
+the destination still resolves to a linked registration under the same common directory,
+and every intended entry exists in the private manifest.
+Malformed,
+replaced,
+missing,
+or conflicting state fails closed without deleting the journal or a path outside the validated private stage.
+Completed cleanup is resumed without reinstalling entries.
+
+After all newly registered destinations settle successfully,
+write exactly one human summary line to stderr.
+Copy-only failure exits `2`.
+If real Git returned nonzero and synchronization also fails,
+preserve Git's numeric status;
+use `1` when Git ended by signal without a numeric status.
+If Git failed but synchronization succeeds,
+preserve its status after writing the successful copy summary.
+
 ### Post-commit
 
 After a successful non-dry-run commit,

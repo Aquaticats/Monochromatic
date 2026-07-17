@@ -40,6 +40,7 @@ and management commands therefore cannot assume mise is installed.
 - Keep ordinary real-Git stdout intact.
 - Fail closed when an enabled policy cannot complete.
 - Apply commit normalizers without staging unrelated worktree bytes.
+- Bootstrap every newly registered linked worktree with the invoking worktree's ignored filesystem state.
 - Execute only explicitly trusted,
   exact stored config artifacts.
 - Provide an npm-ready Node package and shadowing `git` bin.
@@ -72,6 +73,47 @@ Native hooks have different bypasses,
 including `--no-verify` and missing installation.
 Local enforcement remains best-effort fast feedback;
 CI remains authoritative.
+
+## Linked-worktree ignored state
+
+Use the PATH wrapper's complete real-Git lifecycle to synchronize local ignored state into every newly registered linked
+worktree.
+Do not classify only literal `worktree add` argv.
+Compare the effective repository's linked administrative identities before and after forwarding so ordinary aliases and
+worktrees retained after Git or hook failure are covered.
+Snapshot after real Git and `post-checkout` settle.
+
+Git's standard ignore stack is the sole source selector.
+Do not add repository-specific configuration.
+Bare repositories contribute an empty source set.
+Exclude nested registered worktree roots and cli-git's reserved private stages from recursive source traversal.
+Copy regular files,
+directories,
+and symbolic links while preserving permission bits and link target text.
+Request same-filesystem copy-on-write with full-copy fallback.
+Reject special filesystem entries without opening them.
+
+Never overwrite destination state.
+Accept exact existing entries,
+including source-selected paths the destination branch does not ignore.
+A differing destination entry fails after retaining the new worktree.
+Require exact final source-to-stage equivalence before installation;
+perfectly reverted transient mutations are outside the portable guarantee.
+
+Use private sibling staging,
+a common-directory journal,
+a recoverable process-identity lock,
+and ownership-checked rollback.
+Recovery must validate path containment,
+private ownership,
+and linked registration before resuming or deleting state.
+Copy-only failure is exit `2`.
+When Git also failed,
+preserve its numeric status or use `1` for a signal without a numeric status.
+Write one stderr summary after every successful new-worktree synchronization.
+
+This behavior is fixed lifecycle infrastructure rather than a configurable policy.
+It must work before trusted repository code and without mise.
 
 ## Policy module
 
