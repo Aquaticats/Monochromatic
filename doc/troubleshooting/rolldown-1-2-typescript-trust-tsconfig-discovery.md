@@ -91,9 +91,11 @@ tsconfig: match tsconfig {
   TsConfig::Manual(config_file) => {
 ```
 
-The trust entry is inside the consumer repository, so discovery finds the
+The trust entry is inside the consumer repository,
+ so discovery finds the
 consumer's `tsconfig.json` and follows its `extends` relation.
-When that relation cannot resolve, Rolldown formats the observed diagnostic at
+When that relation cannot resolve,
+ Rolldown formats the observed diagnostic at
 `crates/rolldown_error/src/build_diagnostic/events/tsconfig_error.rs:37-39`:
 
 ```rust
@@ -128,7 +130,9 @@ match tsconfig {
 
 Cli-git config trust already requires ordinary relative or package imports to
 resolve through the bundle graph.
-It does not promise to inherit consumer path aliases, JSX settings, or decorator
+It does not promise to inherit consumer path aliases,
+ JSX settings,
+ or decorator
 semantics from an ambient TypeScript project.
 The accidental auto-discovery therefore belongs at cli-git's Rolldown call,
 not in the consumer dependency contract.
@@ -193,15 +197,19 @@ node --experimental-strip-types /tmp/rolldown-tsconfig-catalog/reproduce.mts
 
 ### Clean catalog
 
-- Omitted `tsconfig` with no discovered `tsconfig.json`: success.
-- Omitted `tsconfig` with an empty valid `tsconfig.json`: success.
-- Explicit `tsconfig: false` with an unresolvable `extends`: success.
+- Omitted `tsconfig` with no discovered `tsconfig.json`:
+   success.
+- Omitted `tsconfig` with an empty valid `tsconfig.json`:
+   success.
+- Explicit `tsconfig: false` with an unresolvable `extends`:
+   success.
 
 ### Failing catalog
 
 - Omitted `tsconfig` with `extends: "@missing/config/dom"`:
   `[TSCONFIG_ERROR] Failed to load tsconfig '@missing/config/dom': Tsconfig not found`.
-- Explicit `tsconfig: true` with the same `extends`: the same diagnostic.
+- Explicit `tsconfig: true` with the same `extends`:
+   the same diagnostic.
 
 ## Verified workarounds
 
@@ -220,22 +228,28 @@ await using build = await rolldown({
 
 The verification catalog proves this setting succeeds while the discovered
 config still has an unresolvable `extends`.
-The tradeoff is intentional: trusted cli-git config cannot rely on ambient
-`paths`, JSX, decorator, or class-field settings from the consumer tsconfig.
+The tradeoff is intentional:
+ trusted cli-git config cannot rely on ambient
+`paths`,
+ JSX,
+ decorator,
+ or class-field settings from the consumer tsconfig.
 Issue #393 must add a built packed-consumer regression before landing this fix.
 
 ### Make the consumer's extended package available
 
 Installing every package named by the consumer tsconfig lets Rolldown complete
 auto-discovery.
-The tradeoff is an inverted bootstrap contract: cli-git trust then depends on
+The tradeoff is an inverted bootstrap contract:
+ cli-git trust then depends on
 project type-check dependencies that the trusted config does not import.
 It also leaves trust behavior sensitive to unrelated tsconfig edits.
 
 ### Use a self-contained MJS config
 
 A repository can bundle its config independently and trust
-`cli-git.config.mjs`, which takes precedence over the TypeScript form.
+`cli-git.config.mjs`,
+ which takes precedence over the TypeScript form.
 The tradeoff is that the repository must own and keep another generated artifact
 synchronized.
 
@@ -244,19 +258,23 @@ synchronized.
 ### Treat omitted `tsconfig` as disabled
 
 Rolldown 1.2.0 changed the default to `true`.
-The type declaration, Rust default, and reproduced default failure all reject
+The type declaration,
+ Rust default,
+ and reproduced default failure all reject
 this reading.
 
 ### Change Rolldown's `cwd` to cli-git's package directory
 
-That can avoid the consumer tsconfig by changing discovery location, but it also
+That can avoid the consumer tsconfig by changing discovery location,
+ but it also
 changes the base for resolution and violates the trust build's consumer-root
 module graph.
 It fixes the symptom by moving the build out of its intended repository.
 
 ### Report the diagnostic as a missing cli-git runtime dependency
 
-The named package comes from the consumer's ambient tsconfig `extends`, not from
+The named package comes from the consumer's ambient tsconfig `extends`,
+ not from
 the trusted config's import graph.
 Adding that package to cli-git would solve only one repository-specific spelling
 and contradict the no-repository-specific-configuration requirement.
@@ -269,28 +287,39 @@ No `.out-of-scope/` entry names Rolldown or this tsconfig behavior.
 Open and closed Rolldown issue searches for `tsconfig extends Tsconfig not found`
 found no matching defect.
 The merged [Rolldown PR #7817](https://github.com/rolldown/rolldown/pull/7817),
-`feat(tsconfig)!: enable auto-discovery by default`, is the deciding existing
+`feat(tsconfig)!: enable auto-discovery by default`,
+ is the deciding existing
 thread.
 Its migration guide explicitly says consumers that need the previous no-config
 behavior must set `tsconfig: false`.
 
-1. **Is it really upstream's fault?** No.
+1. **Is it really upstream's fault?
+   ** No.
    Rolldown documents automatic discovery as the default and provides the exact
    opt-out cli-git needs.
-2. **Can upstream fix it?** No upstream defect was identified.
+2. **Can upstream fix it?
+   ** No upstream defect was identified.
    Changing the default again would reverse PR #7817 rather than correct this
    consumer call.
-3. **Are they supporting this use case?** Yes.
+3. **Are they supporting this use case?
+   ** Yes.
    The public `boolean | string` option and PR #7817 migration guide support
    disabling project config explicitly.
-4. **Would the repository welcome our contribution?** Not applicable because
+4. **Would the repository welcome our contribution?
+   ** Not applicable because
    no change is requested.
-   `CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/`, and
-   `.github/PULL_REQUEST_TEMPLATE.md` contain no AI-assistance ban, but that does
+   `CONTRIBUTING.md`,
+    `.github/ISSUE_TEMPLATE/`,
+    and
+   `.github/PULL_REQUEST_TEMPLATE.md` contain no AI-assistance ban,
+    but that does
    not turn expected behavior into a reportable defect.
-5. **Will they likely fix it?** No fix should be requested.
+5. **Will they likely fix it?
+   ** No fix should be requested.
    The merged default-change PR explicitly chose this behavior.
-6. **Have we prototyped a compatible minimal fix?** Yes, at the consumer
+6. **Have we prototyped a compatible minimal fix?
+   ** Yes,
+    at the consumer
    boundary.
    The `tsconfig: false` catalog case succeeds without modifying Rolldown.
 
