@@ -728,6 +728,39 @@ await describe({
     },),
 
     it({
+      name: 'uses fallback status one when signaled Git and copy both fail',
+      skip: process.platform === 'win32',
+      fn: async () => {
+        await using fixture = await createTempDirectory();
+        const repositoryRoot = join(fixture.path, 'repository',);
+        const destinationRoot = join(fixture.path, 'signaled-collision',);
+        await initializeRepository(repositoryRoot,);
+        await writeFile(join(repositoryRoot, '.gitignore',), 'state.txt\n',);
+        await commitPaths({ repositoryRoot, message: 'ignore state', paths: ['.gitignore',], },);
+        await writeFile(join(repositoryRoot, 'state.txt',), 'source\n',);
+        await writePostCheckoutHook({
+          repositoryRoot,
+          body: "require('node:fs').writeFileSync('state.txt', 'hook\\n'); process.kill(process.ppid, 'SIGTERM');",
+        },);
+
+        const error = requireFailure(await captureWrapper({
+          cwd: repositoryRoot,
+          args: [
+            'worktree',
+            'add',
+            '-b',
+            'signaled-collision',
+            destinationRoot,
+          ],
+        },),);
+
+        expect(error.exitCode,).toBe(1,);
+        expect(error.stderr,).toContain('would overwrite differing destination entry',);
+        expect(await readFile(join(destinationRoot, 'state.txt',), 'utf8',),).toBe('hook\n',);
+      },
+    },),
+
+    it({
       name: 'excludes a nested registered worktree while copying its ignored parent tree',
       fn: async () => {
         await using fixture = await createTempDirectory();

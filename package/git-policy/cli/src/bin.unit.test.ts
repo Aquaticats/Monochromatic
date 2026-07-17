@@ -470,10 +470,13 @@ appendFileSync(capturePath, JSON.stringify(process.argv.slice(2)) + '\\n');
         },);
         expect(await readFile(capturePath, 'utf8',),).toBe(
           '["rev-parse","--is-inside-work-tree"]\n'
+          + '["rev-parse","--path-format=absolute","--git-common-dir"]\n'
           + '["push","--atomic","origin","main"]\n'
           + '["rev-parse","--is-inside-work-tree"]\n'
+          + '["-c","advice.statusHints=false","rev-parse","--path-format=absolute","--git-common-dir"]\n'
           + '["-c","advice.statusHints=false","status","--porcelain=v1"]\n'
           + '["rev-parse","--is-inside-work-tree"]\n'
+          + '["rev-parse","--path-format=absolute","--git-common-dir"]\n'
           + '["commit","-o","--dry-run","-m","message","file.txt"]\n',
         );
       },
