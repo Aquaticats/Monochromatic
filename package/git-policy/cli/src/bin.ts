@@ -29,7 +29,10 @@ import {
   resolveRuntimeConfig,
   RUNTIME_CONFIG_ABSENT,
 } from './trust/runtime-config.ts';
-import { ForwardedGitWorktreeCopyError, } from './worktree-copy/errors.ts';
+import {
+  ForwardedGitWorktreeCopyError,
+  WorktreeCopyError,
+} from './worktree-copy/errors.ts';
 import { runGitWithWorktreeCopy, } from './worktree-copy/lifecycle.ts';
 
 /**
@@ -418,6 +421,10 @@ catch (error) {
       ? error.gitFailureExitCode
         ?? 1
       : 2;
+  }
+  else if (error instanceof WorktreeCopyError) {
+    console.error(error.message,);
+    process.exitCode = 2;
   }
   else if (error instanceof SubprocessError)
     process.exitCode = error.exitCode
