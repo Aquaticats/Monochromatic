@@ -162,9 +162,9 @@ function createScannerAbortRelay(
   /**
    * One-way cancellation callback retaining no borrowed abort reason.
    */
-  const forwardAbort = (): void => {
+  function forwardAbort(): void {
     controller.abort();
-  };
+  }
   if (signal.aborted)
     controller.abort();
   else
