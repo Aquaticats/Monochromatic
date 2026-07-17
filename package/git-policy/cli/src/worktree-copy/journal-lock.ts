@@ -2,11 +2,9 @@ import { randomUUID, } from 'node:crypto';
 import { constants, } from 'node:fs';
 import {
   chmod,
-  lstat,
   mkdir,
   open,
   readFile,
-  realpath,
   rename,
   rm,
 } from 'node:fs/promises';
@@ -19,7 +17,7 @@ import {
   resolveProcessBirthIdentity,
 } from '../policy-engine/commit-transaction-process-identity.ts';
 import { WorktreeCopyError, } from './errors.ts';
-import { worktreeCopyJournalRoot, } from './journal.ts';
+import { ensureWorktreeCopyJournalRoot, } from './journal.ts';
 
 /**
  * Delay between bounded worktree-copy lock acquisition attempts.
@@ -105,6 +103,31 @@ async function readLockOwner(ownerPath: string,): Promise<LockOwner> {
     ownerBirthIdentity: value.ownerBirthIdentity,
     schemaVersion: 1,
   };
+}
+
+/**
+ * Reads published owner or reports concurrent lock replacement.
+ *
+ * @param ownerPath - expected published owner file
+ *
+ * @returns validated owner or busy sentinel
+ *
+ * @example
+ * ```ts
+ * await readPublishedOwner('/repo/.git/cli-git-worktree-copy/v1/settlement.lock/owner.json');
+ * ```
+ */
+async function readPublishedOwner(
+  ownerPath: string,
+): Promise<LockOwner | typeof LOCK_BUSY> {
+  try {
+    return await readLockOwner(ownerPath,);
+  }
+  catch (error: unknown) {
+    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+      return LOCK_BUSY;
+    throw error;
+  }
 }
 
 /**
@@ -328,10 +351,12 @@ async function attemptAcquire({
   /**
    * Identity currently published by competing or stale owner.
    */
-  const publishedOwner = await readLockOwner(join(
+  const publishedOwner = await readPublishedOwner(join(
     lockDirectory,
     'owner.json',
   ),);
+  if (publishedOwner === LOCK_BUSY)
+    return LOCK_BUSY;
   /**
    * Current birth identity for published PID.
    */
@@ -363,23 +388,7 @@ export async function acquireWorktreeCopyLock(
   /**
    * Private journal and lock root.
    */
-  const root = worktreeCopyJournalRoot(commonDir,);
-  await mkdir(
-    root,
-    {
-      recursive: true,
-      mode: PRIVATE_DIRECTORY_MODE,
-    },
-  );
-  await chmod(
-    root,
-    PRIVATE_DIRECTORY_MODE,
-  );
-  if (((await realpath(root,)) !== root) || (!(await lstat(root,)).isDirectory())) {
-    throw new WorktreeCopyError(
-      `cli-git: worktree-copy lock root is unsafe: ${JSON.stringify(root,)}.`,
-    );
-  }
+  const root = await ensureWorktreeCopyJournalRoot(commonDir,);
   /**
    * Current process birth identity.
    */

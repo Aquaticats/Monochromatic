@@ -1,10 +1,12 @@
 import { randomUUID, } from 'node:crypto';
 import { constants, } from 'node:fs';
 import {
+  lstat,
   mkdir,
   open,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
 } from 'node:fs/promises';
@@ -21,17 +23,29 @@ import type {
 } from './model.ts';
 
 /**
- * Worktree-copy journal subtree beneath common Git directory.
+ * Worktree-copy journal parent beneath common Git directory.
  */
-const JOURNAL_RELATIVE_ROOT = join(
-  'cli-git-worktree-copy',
-  'v1',
-);
+const JOURNAL_PARENT_NAME = 'cli-git-worktree-copy';
+
+/**
+ * Worktree-copy journal schema directory.
+ */
+const JOURNAL_VERSION_NAME = 'v1';
 
 /**
  * Private journal directory mode.
  */
 const PRIVATE_DIRECTORY_MODE = 0o700;
+
+/**
+ * Group and other mode bits forbidden on journal directories.
+ */
+const NON_PRIVATE_MODE_BITS = 0o077;
+
+/**
+ * Private journal root does not exist.
+ */
+export const JOURNAL_ROOT_ABSENT: unique symbol = Symbol('worktree-copy journal root is absent',);
 
 /**
  * Private journal file mode.
@@ -59,8 +73,167 @@ const JOURNAL_SUFFIX = '.json';
 export function worktreeCopyJournalRoot(commonDir: string,): string {
   return join(
     commonDir,
-    JOURNAL_RELATIVE_ROOT,
+    JOURNAL_PARENT_NAME,
+    JOURNAL_VERSION_NAME,
   );
+}
+
+/**
+ * Asserts existing journal directory is canonical and private.
+ *
+ * @param path - exact journal directory path
+ *
+ * @throws {@link WorktreeCopyError} when ownership, mode, or identity is unsafe
+ *
+ * @example
+ * ```ts
+ * await assertPrivateJournalDirectory('/repo/.git/cli-git-worktree-copy/v1');
+ * ```
+ */
+async function assertPrivateJournalDirectory(path: string,): Promise<void> {
+  /**
+   * No-follow journal-directory metadata.
+   */
+  const stats = await lstat(path,);
+  /**
+   * Effective account owner when platform exposes POSIX identity.
+   */
+  const effectiveUserId = process.geteuid?.();
+  if ((!stats.isDirectory())
+    || ((stats.mode & NON_PRIVATE_MODE_BITS) !== 0)
+    || ((effectiveUserId !== undefined) && (stats.uid !== effectiveUserId))
+    || ((await realpath(path,)) !== path)) {
+    throw new WorktreeCopyError(
+      `cli-git: worktree-copy journal directory is unsafe: ${JSON.stringify(path,)}.`,
+    );
+  }
+}
+
+/**
+ * Asserts journal record is canonical private ordinary file.
+ *
+ * @param path - exact journal record path
+ *
+ * @throws {@link WorktreeCopyError} when ownership, mode, links, or identity is unsafe
+ *
+ * @example
+ * ```ts
+ * await assertPrivateJournalFile('/repo/.git/cli-git-worktree-copy/v1/id.json');
+ * ```
+ */
+async function assertPrivateJournalFile(path: string,): Promise<void> {
+  /**
+   * No-follow journal-file metadata.
+   */
+  const stats = await lstat(path,);
+  /**
+   * Effective account owner when platform exposes POSIX identity.
+   */
+  const effectiveUserId = process.geteuid?.();
+  if ((!stats.isFile())
+    || (stats.nlink !== 1)
+    || ((stats.mode & NON_PRIVATE_MODE_BITS) !== 0)
+    || ((effectiveUserId !== undefined) && (stats.uid !== effectiveUserId))
+    || ((await realpath(path,)) !== path)) {
+    throw new WorktreeCopyError(
+      `cli-git: worktree-copy journal file is unsafe: ${JSON.stringify(path,)}.`,
+    );
+  }
+}
+
+/**
+ * Creates one private journal directory or validates exact existing directory.
+ *
+ * @param path - exact journal directory path
+ *
+ * @example
+ * ```ts
+ * await ensurePrivateJournalDirectory('/repo/.git/cli-git-worktree-copy');
+ * ```
+ */
+async function ensurePrivateJournalDirectory(path: string,): Promise<void> {
+  try {
+    await mkdir(
+      path,
+      { mode: PRIVATE_DIRECTORY_MODE, },
+    );
+  }
+  catch (error: unknown) {
+    if (!(Error.isError(error,) && ('code' in error) && (error.code === 'EEXIST')))
+      throw error;
+  }
+  await assertPrivateJournalDirectory(path,);
+}
+
+/**
+ * Creates and validates complete private journal root component by component.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @returns validated private journal root
+ *
+ * @example
+ * ```ts
+ * await ensureWorktreeCopyJournalRoot('/repo/.git');
+ * ```
+ */
+export async function ensureWorktreeCopyJournalRoot(
+  commonDir: string,
+): Promise<string> {
+  /**
+   * Private journal parent.
+   */
+  const parent = join(
+    commonDir,
+    JOURNAL_PARENT_NAME,
+  );
+  await ensurePrivateJournalDirectory(parent,);
+  /**
+   * Versioned private journal root.
+   */
+  const root = worktreeCopyJournalRoot(commonDir,);
+  await ensurePrivateJournalDirectory(root,);
+  return root;
+}
+
+/**
+ * Validates existing private journal root without creating state.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @returns validated root or absence sentinel
+ *
+ * @example
+ * ```ts
+ * await existingWorktreeCopyJournalRoot('/repo/.git');
+ * ```
+ */
+export async function existingWorktreeCopyJournalRoot(
+  commonDir: string,
+): Promise<string | typeof JOURNAL_ROOT_ABSENT> {
+  /**
+   * Expected private journal parent.
+   */
+  const parent = join(
+    commonDir,
+    JOURNAL_PARENT_NAME,
+  );
+  /**
+   * Expected versioned journal root.
+   */
+  const root = worktreeCopyJournalRoot(commonDir,);
+  try {
+    await Promise.all([
+      assertPrivateJournalDirectory(parent,),
+      assertPrivateJournalDirectory(root,),
+    ],);
+    return root;
+  }
+  catch (error: unknown) {
+    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+      return JOURNAL_ROOT_ABSENT;
+    throw error;
+  }
 }
 
 /**
@@ -200,14 +373,7 @@ export async function createWorktreeCopyJournal({
   /**
    * Private journal directory.
    */
-  const root = worktreeCopyJournalRoot(commonDir,);
-  await mkdir(
-    root,
-    {
-      recursive: true,
-      mode: PRIVATE_DIRECTORY_MODE,
-    },
-  );
+  const root = await ensureWorktreeCopyJournalRoot(commonDir,);
   /**
    * Unique final journal path.
    */
@@ -289,7 +455,9 @@ export async function readPendingWorktreeCopyJournals(
   /**
    * Private journal directory.
    */
-  const root = worktreeCopyJournalRoot(commonDir,);
+  const root = await existingWorktreeCopyJournalRoot(commonDir,);
+  if ((typeof root) === 'symbol')
+    return [];
   /**
    * Existing final journal filenames.
    */
@@ -303,6 +471,7 @@ export async function readPendingWorktreeCopyJournals(
       name,
     );
     try {
+      await assertPrivateJournalFile(path,);
       /**
        * Untrusted parsed journal JSON.
        */
