@@ -1,4 +1,4 @@
-import nanoSpawn, { SubprocessError, } from 'nano-spawn';
+import { SubprocessError, } from 'nano-spawn';
 import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
@@ -29,6 +29,8 @@ import {
   resolveRuntimeConfig,
   RUNTIME_CONFIG_ABSENT,
 } from './trust/runtime-config.ts';
+import { ForwardedGitWorktreeCopyError, } from './worktree-copy/errors.ts';
+import { runGitWithWorktreeCopy, } from './worktree-copy/lifecycle.ts';
 
 /**
  * Logger root for cli-git after removing the package log shim.
@@ -333,12 +335,12 @@ try {
    */
   const transactionCommitted = ((typeof commitTransaction) !== 'symbol')
     && commitTransaction.committed;
-  if (!transactionCommitted)
-    await nanoSpawn(
+  if (!transactionCommitted) {
+    await runGitWithWorktreeCopy({
+      args: processedArgs,
       gitPath,
-      [...processedArgs,],
-      { stdio: 'inherit', },
-    );
+    },);
+  }
 
   /**
    * True when a real commit just landed (the spawn above succeeded and this
@@ -410,6 +412,11 @@ catch (error) {
   }
   else if (error instanceof PolicyDecisionError)
     process.exitCode = error.exitCode;
+  else if (error instanceof ForwardedGitWorktreeCopyError) {
+    console.error(error.copyFailure.message,);
+    process.exitCode = error.gitFailure?.exitCode
+      ?? 2;
+  }
   else if (error instanceof SubprocessError)
     process.exitCode = error.exitCode
       ?? 1;

@@ -11,6 +11,21 @@ import type { SubprocessError, } from 'nano-spawn';
 export type WorktreeCopyEntryKind = 'directory' | 'file' | 'symlink';
 
 /**
+ * One path created during destination installation.
+ *
+ * @example
+ * ```ts
+ * const created: InstalledWorktreePath = { relativePath: 'cache', selected: true };
+ * ```
+ */
+export type InstalledWorktreePath = Readonly<{
+  /** Repository-relative path created by cli-git. */
+  relativePath: string;
+  /** Whether path is selected ignored entry rather than scaffolding directory. */
+  selected: boolean;
+}>;
+
+/**
  * Stable filesystem entry retained in a staged ignored-state snapshot.
  *
  * @example
@@ -156,6 +171,7 @@ export type WorktreeCopyJournalPhase = 'installing' | 'staged';
  *   createdEntries: [],
  *   destinationRoot: '/worktrees/topic',
  *   phase: 'staged',
+ *   selectedRoots: [],
  *   sourceRoot: '/repo',
  *   stageContainer: '/worktrees/.cli-git-worktree-copy-abc',
  *   stageRoot: '/worktrees/.cli-git-worktree-copy-abc/payload',
@@ -170,6 +186,8 @@ export type WorktreeCopyJournal = Readonly<{
   destinationRoot: string;
   /** Current durable transaction phase. */
   phase: WorktreeCopyJournalPhase;
+  /** Git-selected ignored roots represented by staged payload. */
+  selectedRoots: readonly string[];
   /** Source worktree supplying ignored state. */
   sourceRoot: string;
   /** Private sibling directory containing journal-owned temporary state. */

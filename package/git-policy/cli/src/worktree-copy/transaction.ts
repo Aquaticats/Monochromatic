@@ -1,0 +1,238 @@
+import { rm, } from 'node:fs/promises';
+
+import { collectEntryManifest, } from './entry-manifest.ts';
+import { WorktreeCopyError, } from './errors.ts';
+import { installSnapshot, } from './install.ts';
+import {
+  createWorktreeCopyJournal,
+  type PendingWorktreeCopyJournal,
+  readPendingWorktreeCopyJournals,
+  removeWorktreeCopyJournal,
+} from './journal.ts';
+import type {
+  CreatedWorktree,
+  StagedWorktreeSnapshot,
+  WorktreeCopySummary,
+} from './model.ts';
+import { stageIgnoredSnapshot, } from './snapshot.ts';
+import {
+  beginInstalling,
+  type JournalState,
+  recordCreatedEntry,
+} from './transaction-journal.ts';
+
+/**
+ * Reconstructs staged snapshot from validated durable journal.
+ *
+ * @param journal - pending durable worktree-copy transaction
+ *
+ * @returns staged payload and deterministic manifest
+ *
+ * @example
+ * ```ts
+ * await snapshotFromJournal(pending);
+ * ```
+ */
+async function snapshotFromJournal(
+  journal: PendingWorktreeCopyJournal,
+): Promise<StagedWorktreeSnapshot> {
+  try {
+    /** Deterministic entries currently retained in staged payload. */
+    const entries = await collectEntryManifest({
+      root: journal.record.stageRoot,
+      selectedRoots: journal.record.selectedRoots,
+      excludedRoots: [],
+    },);
+    return {
+      entries,
+      selectedRoots: journal.record.selectedRoots,
+      sourceRoot: journal.record.sourceRoot,
+      stageContainer: journal.record.stageContainer,
+      stageRoot: journal.record.stageRoot,
+    };
+  }
+  catch (error: unknown) {
+    throw new WorktreeCopyError(
+      `cli-git: could not recover staged ignored state at ${JSON.stringify(journal.record.stageRoot,)}.`,
+      error,
+    );
+  }
+}
+
+/**
+ * Completes one staged or interrupted destination installation.
+ *
+ * @param pending - durable transaction
+ *
+ * @param snapshot - validated staged payload
+ *
+ * @returns newly installed selected entry count
+ *
+ * @example
+ * ```ts
+ * await completeJournal({ pending, snapshot });
+ * ```
+ */
+async function completeJournal({
+  pending,
+  snapshot,
+}: Readonly<{
+  pending: PendingWorktreeCopyJournal;
+  snapshot: StagedWorktreeSnapshot;
+}>,): Promise<number> {
+  /** Mutable current journal record for callbacks. */
+  const state: JournalState = { pending, };
+  await beginInstalling(state,);
+  /** Newly installed selected entry count. */
+  const copiedEntries = await installSnapshot({
+    snapshot,
+    destinationRoot: pending.record.destinationRoot,
+    async onEntryCreated(relativePath,): Promise<void> {
+      await recordCreatedEntry({ state, relativePath, },);
+    },
+  },);
+  await removeWorktreeCopyJournal(state.pending,);
+  return copiedEntries;
+}
+
+/**
+ * Recovers every durable interrupted worktree-copy transaction.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @returns recovered destination count
+ *
+ * @throws {@link WorktreeCopyError} while retaining conflicting evidence
+ *
+ * @example
+ * ```ts
+ * await recoverWorktreeCopyTransactions('/repo/.git');
+ * ```
+ */
+export async function recoverWorktreeCopyTransactions(
+  commonDir: string,
+): Promise<number> {
+  /** Pending journals in deterministic filename order. */
+  const pending = await readPendingWorktreeCopyJournals(commonDir,);
+  for (const journal of pending) {
+    // oxlint-disable-next-line no-await-in-loop -- recovery order is deterministic and stops at first retained conflict
+    const snapshot = await snapshotFromJournal(journal,);
+    // oxlint-disable-next-line no-await-in-loop -- one journal must settle before later transaction uses same destinations
+    await completeJournal({ pending: journal, snapshot, },);
+  }
+  return pending.length;
+}
+
+/**
+ * Synchronizes ignored source state into one newly registered worktree.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @param sourceRoot - canonical source worktree
+ *
+ * @param destinationRoot - canonical created worktree
+ *
+ * @param registeredRoots - every registered root excluded from recursive copy
+ *
+ * @param gitPath - absolute real-Git executable
+ *
+ * @returns newly installed selected entry count
+ *
+ * @example
+ * ```ts
+ * await synchronizeCreatedWorktree({ commonDir, sourceRoot, destinationRoot, registeredRoots, gitPath });
+ * ```
+ */
+async function synchronizeCreatedWorktree({
+  commonDir,
+  sourceRoot,
+  destinationRoot,
+  registeredRoots,
+  gitPath,
+}: Readonly<{
+  commonDir: string;
+  sourceRoot: string;
+  destinationRoot: string;
+  registeredRoots: readonly string[];
+  gitPath: string;
+}>,): Promise<number> {
+  /** Validated private ignored-state snapshot. */
+  const snapshot = await stageIgnoredSnapshot({
+    sourceRoot,
+    destinationRoot,
+    registeredRoots,
+    gitPath,
+  },);
+  let pending: PendingWorktreeCopyJournal;
+  try {
+    pending = await createWorktreeCopyJournal({
+      commonDir,
+      destinationRoot,
+      snapshot,
+    },);
+  }
+  catch (error: unknown) {
+    await rm(snapshot.stageContainer, { recursive: true, force: true, },);
+    throw error;
+  }
+  return completeJournal({ pending, snapshot, },);
+}
+
+/**
+ * Synchronizes ignored source state into every created worktree.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @param sourceRoot - canonical source worktree, absent for bare repository
+ *
+ * @param created - newly registered linked worktrees
+ *
+ * @param registeredRoots - all registered roots excluded from source recursion
+ *
+ * @param gitPath - absolute real-Git executable
+ *
+ * @returns aggregate success summary
+ *
+ * @example
+ * ```ts
+ * await synchronizeCreatedWorktrees({ commonDir, sourceRoot: '/repo', created, registeredRoots, gitPath });
+ * ```
+ */
+export async function synchronizeCreatedWorktrees({
+  commonDir,
+  sourceRoot,
+  created,
+  registeredRoots,
+  gitPath,
+}: Readonly<{
+  commonDir: string;
+  sourceRoot: string | undefined;
+  created: readonly CreatedWorktree[];
+  registeredRoots: readonly string[];
+  gitPath: string;
+}>,): Promise<WorktreeCopySummary> {
+  if (sourceRoot === undefined) {
+    return {
+      copiedEntries: 0,
+      destinationCount: created.length,
+      sourceRoot,
+    };
+  }
+  /** Aggregate newly installed selected entry count. */
+  let copiedEntries = 0;
+  for (const destination of created) {
+    // oxlint-disable-next-line no-await-in-loop -- destination transactions remain isolated and deterministic
+    copiedEntries += await synchronizeCreatedWorktree({
+      commonDir,
+      sourceRoot,
+      destinationRoot: destination.root,
+      registeredRoots,
+      gitPath,
+    },);
+  }
+  return {
+    copiedEntries,
+    destinationCount: created.length,
+    sourceRoot,
+  };
+}
