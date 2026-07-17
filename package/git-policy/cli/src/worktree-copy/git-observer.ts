@@ -179,10 +179,17 @@ async function resolveCommonDir({
       ],
       cwd: invocationCwd,
     },);
-    return await realpath(stripGitLine(commonOutput,),);
+    /**
+     * Git-reported common path without line terminator.
+     */
+    const commonPath = stripGitLine(commonOutput,);
+    if (commonPath === '')
+      return WORKTREE_COPY_NOT_APPLICABLE;
+    return await realpath(commonPath,);
   }
   catch (error: unknown) {
-    if (error instanceof SubprocessError)
+    if (error instanceof SubprocessError
+      || (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT')))
       return WORKTREE_COPY_NOT_APPLICABLE;
     throw error;
   }

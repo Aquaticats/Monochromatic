@@ -721,7 +721,7 @@ await describe({
           ],
         },),);
 
-        expect(error.exitCode,).toBe(1,);
+        expect(error.exitCode,).toBe(7,);
         expect(await readFile(join(destinationRoot, 'state.txt',), 'utf8',),).toBe('copied after failure\n',);
         expect(copySummaryLines(error.stderr,),).toHaveLength(1,);
       },

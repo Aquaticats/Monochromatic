@@ -1,10 +1,12 @@
 import { constants, } from 'node:fs';
 import {
   chmod,
-  cp,
+  copyFile,
   mkdir,
   mkdtemp,
+  readlink,
   rm,
+  symlink,
 } from 'node:fs/promises';
 import {
   dirname,
@@ -24,7 +26,10 @@ import {
   filesystemPath,
   readIgnoredRoots,
 } from './ignored-paths.ts';
-import type { StagedWorktreeSnapshot, } from './model.ts';
+import type {
+  StagedWorktreeSnapshot,
+  WorktreeCopyEntry,
+} from './model.ts';
 
 /**
  * Private staging directory prefix beside destination worktree.
@@ -39,7 +44,7 @@ const PRIVATE_DIRECTORY_MODE = 0o700;
 /**
  * Copy-on-write request with documented full-copy fallback.
  */
-const COPY_MODE = constants.COPYFILE_FICLONE;
+const COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE;
 
 /**
  * Reports component-aware native path containment.
@@ -115,80 +120,74 @@ function sourceExclusions({
 }
 
 /**
- * Copies selected roots into private destination-filesystem stage.
+ * Copies validated manifest entries into private destination-filesystem stage.
+ *
+ * Entry-wise copying remains valid when private stage is nested beneath a
+ * selected source directory.
  *
  * @param sourceRoot - canonical source worktree
  *
  * @param stageRoot - private payload root
  *
- * @param selectedRoots - Git-selected ignored roots
- *
- * @param excludedSourceRoots - nested registered worktrees and stage
+ * @param entries - parent-first no-follow source manifest
  *
  * @example
  * ```ts
- * await copySelectedRoots({ sourceRoot: '/repo', stageRoot: '/stage', selectedRoots: ['cache'], excludedSourceRoots: [] });
+ * await copyManifestEntries({ sourceRoot: '/repo', stageRoot: '/stage', entries });
  * ```
  */
-async function copySelectedRoots({
+async function copyManifestEntries({
   sourceRoot,
   stageRoot,
-  selectedRoots,
-  excludedSourceRoots,
+  entries,
 }: Readonly<{
   sourceRoot: string;
   stageRoot: string;
-  selectedRoots: readonly string[];
-  excludedSourceRoots: readonly string[];
+  entries: readonly WorktreeCopyEntry[];
 }>,): Promise<void> {
-  for (const repositoryPath of selectedRoots) {
+  for (const entry of entries) {
     /**
-     * Source selected root path.
+     * Source manifest entry path.
      */
     const sourcePath = filesystemPath({
       root: sourceRoot,
-      repositoryPath,
+      repositoryPath: entry.relativePath,
     },);
     /**
-     * Staged selected root path.
+     * Staged manifest entry path.
      */
     const stagePath = filesystemPath({
       root: stageRoot,
-      repositoryPath,
+      repositoryPath: entry.relativePath,
     },);
-    // oxlint-disable-next-line no-await-in-loop -- selected roots may share ancestors and must materialize deterministically
+    if (entry.kind === 'directory') {
+      // oxlint-disable-next-line no-await-in-loop -- parent-first manifest materializes one deterministic directory at a time
+      await mkdir(
+        stagePath,
+        { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
+      );
+      continue;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- selected nested files can require unselected private scaffold parents
     await mkdir(
       dirname(stagePath,),
-      {
-      recursive: true,
-      mode: PRIVATE_DIRECTORY_MODE,
-    },
+      { recursive: true, mode: PRIVATE_DIRECTORY_MODE, },
     );
-    // oxlint-disable-next-line no-await-in-loop -- deterministic staging avoids overlapping root writes
-    await cp(
-      sourcePath,
+    if (entry.kind === 'file') {
+      // oxlint-disable-next-line no-await-in-loop -- file staging remains deterministic and bounded by manifest
+      await copyFile(
+        sourcePath,
+        stagePath,
+        COPY_MODE,
+      );
+      continue;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- no-follow symbolic-link target must be captured from source entry
+    const target = await readlink(sourcePath,);
+    // oxlint-disable-next-line no-await-in-loop -- symbolic-link creation follows deterministic manifest order
+    await symlink(
+      target,
       stagePath,
-      {
-        recursive: true,
-        force: false,
-        errorOnExist: true,
-        dereference: false,
-        verbatimSymlinks: true,
-        preserveTimestamps: false,
-        mode: COPY_MODE,
-        filter(source,): boolean {
-          /**
-           * Normalized source candidate supplied by Node copy traversal.
-           */
-          const normalizedSource = resolve(source,);
-          return !excludedSourceRoots.some(function excludesSource(excludedRoot,): boolean {
-            return pathWithin({
-              candidate: normalizedSource,
-              parent: excludedRoot,
-            },);
-          },);
-        },
-      },
     );
   }
 }
@@ -225,11 +224,25 @@ export async function stageIgnoredSnapshot({
   gitPath: string;
 }>,): Promise<StagedWorktreeSnapshot> {
   /**
+   * Existing registered roots nested strictly beneath source worktree.
+   */
+  const nestedRegisteredRoots = registeredRoots
+    .map(function normalizedRegisteredRoot(root,): string {
+      return resolve(root,);
+    },)
+    .filter(function nestedRegisteredRoot(root,): boolean {
+      return (root !== sourceRoot) && pathWithin({
+        candidate: root,
+        parent: sourceRoot,
+      },);
+    },);
+  /**
    * Git-selected ignored roots before private staging begins.
    */
   const gitSelectedRoots = await readIgnoredRoots({
     sourceRoot,
     gitPath,
+    excludedRoots: nestedRegisteredRoots,
   },);
   /**
    * Private stage on destination filesystem for copy-on-write and local install.
@@ -306,11 +319,10 @@ export async function stageIgnoredSnapshot({
       selectedRoots,
       excludedRoots: excludedSourceRoots,
     },);
-    await copySelectedRoots({
+    await copyManifestEntries({
       sourceRoot,
       stageRoot,
-      selectedRoots,
-      excludedSourceRoots,
+      entries,
     },);
     await applyEntryModes({
       root: stageRoot,

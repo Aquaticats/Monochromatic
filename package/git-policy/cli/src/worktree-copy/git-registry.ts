@@ -195,7 +195,13 @@ export async function readRegisteredWorktrees({
   /**
    * Optional linked admin identities aligned with existing roots.
    */
-  const adminIds = await Promise.all(roots.map(readLinkedAdminId,),);
+  const adminIds = await Promise.all(roots.map(function linkedAdminId(
+    root,
+  ): Promise<string | typeof MAIN_WORKTREE_ADMIN_ID> {
+    return (observation.sourceRoot === undefined) && (root === observation.commonDir)
+      ? Promise.resolve(MAIN_WORKTREE_ADMIN_ID,)
+      : readLinkedAdminId(root,);
+  },),);
   /**
    * Linked-worktree identity map excluding main worktree.
    */
