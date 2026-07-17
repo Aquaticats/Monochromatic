@@ -20,7 +20,7 @@ import { isIdentifier, } from 'typescript/unstable/ast/is';
  * cli-git source containing three-argument nano-spawn call.
  */
 const CALL_SITE_PATH = fileURLToPath(new URL(
-  '../../git-policy/cli/src/optional/forbidden-strings/scan-candidates.ts',
+  '../../../git-policy/cli/src/optional/forbidden-strings/scan-candidates.ts',
   import.meta.url,
 ),);
 
