@@ -3,6 +3,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -89,6 +90,50 @@ type WrapperOutcome = Readonly<{
 }>;
 
 /**
+ * Restores owner access on fixture directories before recursive cleanup.
+ *
+ * @param root - disposable fixture root
+ *
+ * @example
+ * ```ts
+ * await prepareFixtureCleanup('/tmp/fixture');
+ * ```
+ */
+async function prepareFixtureCleanup(root: string,): Promise<void> {
+  /**
+   * Pending fixture directories.
+   */
+  const pending: string[] = [root,];
+  while (pending.length > 0) {
+    /**
+     * Current fixture directory.
+     */
+    const directory = pending.pop();
+    if (directory === undefined)
+      throw new Error('Fixture cleanup lost pending directory.',);
+    // oxlint-disable-next-line no-await-in-loop -- cleanup restores each bounded fixture directory before traversal
+    await chmod(
+      directory,
+      0o700,
+    );
+    // oxlint-disable-next-line no-await-in-loop -- directory traversal follows restored owner mode
+    const entries = await readdir(
+      directory,
+      { withFileTypes: true, },
+    );
+    entries.filter(function childDirectory(entry,): boolean {
+      return entry.isDirectory();
+    },)
+      .forEach(function queueDirectory(entry,): void {
+        pending.push(join(
+          directory,
+          entry.name,
+        ),);
+      },);
+  }
+}
+
+/**
  * Creates one disposable filesystem root.
  *
  * @returns asynchronously disposable temporary directory
@@ -109,6 +154,7 @@ export async function createTempDirectory(): Promise<TempDirectory> {
   return {
     path,
     async [Symbol.asyncDispose](): Promise<void> {
+      await prepareFixtureCleanup(path,);
       await rm(
         path,
         { recursive: true, force: true, },
