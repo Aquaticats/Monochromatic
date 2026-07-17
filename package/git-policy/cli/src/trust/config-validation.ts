@@ -258,6 +258,10 @@ function validatePolicy({
  *
  * @param setting - explicit setting or declaration default
  *
+ * @mutates policy - plugin-defined Valibot schema may mutate its own retained schema state
+ *
+ * @mutates setting - plugin-defined Valibot schema may mutate supplied option value
+ *
  * @returns active severity and parsed options
  */
 function parsePolicySetting({

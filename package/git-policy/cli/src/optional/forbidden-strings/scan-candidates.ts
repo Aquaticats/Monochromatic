@@ -133,6 +133,8 @@ function scannerEligibleCandidates({
  *
  * @param signal - engine cancellation signal
  *
+ * @mutates signal - nano-spawn may attach abort lifecycle listeners while scanner runs
+ *
  * @returns redacted policy findings
  *
  * @example
@@ -180,7 +182,7 @@ export async function scanCandidates({
   try {
     await nanoSpawn(
       executable,
-      scannerArguments,
+      [...scannerArguments,],
       {
         cwd: repositoryRoot,
         signal,

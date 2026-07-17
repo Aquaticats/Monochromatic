@@ -41,7 +41,7 @@ export async function execute(request: CommandRequest,): Promise<string> {
      */
     const result = await nanoSpawn(
       request.command,
-      request.args,
+      [...request.args,],
       {
         cwd: request.cwd,
         env: {

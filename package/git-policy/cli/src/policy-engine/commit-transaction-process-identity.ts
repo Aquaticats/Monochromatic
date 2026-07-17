@@ -82,7 +82,7 @@ async function resolveCommandIdentity({
      */
     const result = await nanoSpawn(
       command,
-      args,
+      [...args,],
       { env: { LC_ALL: 'C', }, },
     );
     /**

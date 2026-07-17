@@ -44,14 +44,14 @@ export async function execute({
    */
   const result = await spawn(
     command,
-    args,
+    [...args,],
     {
-    cwd: options.cwd,
+      cwd: options.cwd,
     env: COMMAND_ENV,
     stdin: 'ignore',
     stdout: options.discardOutput === true ? 'ignore' : 'pipe',
-    stderr: options.discardOutput === true ? 'ignore' : 'pipe',
-  }
+      stderr: options.discardOutput === true ? 'ignore' : 'pipe',
+    },
   );
   return result.stdout
     .trim();
