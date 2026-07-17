@@ -6,6 +6,7 @@
 
 import type { IntrinsicEffectEntry, } from './intrinsic-effect-catalog.ts';
 import { LEZER_PACKAGE_EFFECTS, } from './lezer-package-effect-catalog.ts';
+import { NANO_SPAWN_PACKAGE_EFFECTS, } from './nano-spawn-package-effect-catalog.ts';
 import { OPTIQUE_PACKAGE_EFFECTS, } from './optique-package-effect-catalog.ts';
 import { receiverEffect, } from './package-receiver-effect.ts';
 import { PI_PACKAGE_EFFECTS, } from './pi-package-effect-catalog.ts';
@@ -17,6 +18,7 @@ import { TURSO_PACKAGE_EFFECTS, } from './turso-package-effect-catalog.ts';
  */
 export const PACKAGE_EFFECTS: readonly IntrinsicEffectEntry[] = [
   ...LEZER_PACKAGE_EFFECTS,
+  ...NANO_SPAWN_PACKAGE_EFFECTS,
   ...OPTIQUE_PACKAGE_EFFECTS,
   ...PI_PACKAGE_EFFECTS,
   ...POSTCSS_PACKAGE_EFFECTS,
