@@ -225,11 +225,12 @@ export async function runGitWithWorktreeCopy({
      * Primitive forwarded-Git failure details, when Git failed.
      */
     const gitFailure = 'failure' in execution
-      ? {
-          ...(execution.failure.exitCode === undefined
+      ? (execution.failure
+        .exitCode
+        === undefined
             ? {}
-            : { exitCode: execution.failure.exitCode, }),
-        }
+            : { exitCode: execution.failure
+              .exitCode, })
       : undefined;
     throw new ForwardedGitWorktreeCopyError({
       copyFailureMessage: copyFailure.message,

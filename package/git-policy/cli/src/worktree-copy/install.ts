@@ -258,6 +258,8 @@ async function createSelectedEntry({
  *
  * @param journalState - mutable durable transaction state
  *
+ * @mutates journalState - records every created destination path through {@link recordCreatedEntry}
+ *
  * @returns count of newly installed selected entries
  *
  * @throws {@link WorktreeCopyError} after ownership-checked rollback on failure
