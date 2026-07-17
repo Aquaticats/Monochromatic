@@ -124,7 +124,8 @@ async function readPublishedOwner(
     return await readLockOwner(ownerPath,);
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return LOCK_BUSY;
     throw error;
   }
@@ -149,6 +150,14 @@ async function writeCandidateOwner({
   candidateDirectory: string;
   owner: LockOwner;
 }>,): Promise<void> {
+  /**
+   * Plain owner JSON detached from caller-owned record.
+   */
+  const ownerJson = JSON.stringify({
+    ownerBirthIdentity: owner.ownerBirthIdentity,
+    ownerPid: owner.ownerPid,
+    schemaVersion: owner.schemaVersion,
+  },);
   try {
     await mkdir(
       candidateDirectory,
@@ -173,7 +182,7 @@ async function writeCandidateOwner({
         PRIVATE_FILE_MODE,
       );
       await handle.writeFile(
-        `${JSON.stringify(owner,)}\n`,
+        `${ownerJson}\n`,
         'utf8',
       );
       await handle.sync();
@@ -412,11 +421,16 @@ export async function acquireWorktreeCopyLock(
     'settlement.lock',
   );
   for (const _attempt of Array.from({ length: LOCK_RETRY_ATTEMPTS, },)) {
-    // oxlint-disable-next-line no-await-in-loop -- lock attempts must remain ordered and bounded
+    /* oxlint-disable no-await-in-loop -- lock attempts must remain ordered and bounded */
+    /**
+     * Current bounded lock-publication result.
+     */
     const result = await attemptAcquire({
+
       lockDirectory,
       owner,
     },);
+    /* oxlint-enable no-await-in-loop */
     if (result !== LOCK_BUSY)
       return result;
     // oxlint-disable-next-line no-await-in-loop -- retry delay prevents active-owner spin

@@ -14,7 +14,10 @@ import {
 
 import { WorktreeCopyError, } from './errors.ts';
 import { assertSafeRepositoryPath, } from './ignored-paths.ts';
-import type { WorktreeCopyJournal, } from './model.ts';
+import type {
+  InstalledWorktreePath,
+  WorktreeCopyJournal,
+} from './model.ts';
 import { STAGE_PREFIX, } from './snapshot.ts';
 
 /**
@@ -67,6 +70,76 @@ function isStringArray(value: unknown,): value is readonly string[] {
     && value.every(function stringMember(item,): item is string {
       return (typeof item) === 'string';
     },);
+}
+
+/**
+ * Reports whether string is canonical nonnegative decimal identity.
+ *
+ * @param value - untrusted device or inode text
+ *
+ * @returns whether text has canonical decimal form
+ *
+ * @example
+ * ```ts
+ * isDecimalIdentity('42');
+ * // => true
+ * ```
+ */
+function isDecimalIdentity(value: unknown,): value is string {
+  if (((typeof value) !== 'string') || (value === '')
+    || ((value.length > 1) && value.startsWith('0',))) {
+    return false;
+  }
+  for (let index = 0; index < value.length; index += 1) {
+    /**
+     * Current decimal candidate character.
+     */
+    const character = value.charAt(index,);
+    if ((character < '0') || (character > '9'))
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Reports whether unknown value is durable created-entry identity.
+ *
+ * @param value - untrusted created-entry record
+ *
+ * @returns whether every required primitive field is valid
+ *
+ * @example
+ * ```ts
+ * isInstalledEntry({ device: '1', inode: '2', relativePath: 'cache', selected: true });
+ * // => true
+ * ```
+ */
+function isInstalledEntry(value: unknown,): value is InstalledWorktreePath {
+  return isRecord(value,)
+    && isDecimalIdentity(value.device,)
+    && isDecimalIdentity(value.inode,)
+    && ((typeof value.relativePath) === 'string')
+    && ((typeof value.selected) === 'boolean');
+}
+
+/**
+ * Reports whether unknown value is array of durable created-entry identities.
+ *
+ * @param value - untrusted created-entry array
+ *
+ * @returns whether every entry has valid primitive fields
+ *
+ * @example
+ * ```ts
+ * isInstalledEntryArray([]);
+ * // => true
+ * ```
+ */
+function isInstalledEntryArray(
+  value: unknown,
+): value is readonly InstalledWorktreePath[] {
+  return Array.isArray(value,)
+    && value.every(isInstalledEntry,);
 }
 
 /**
@@ -128,6 +201,7 @@ export function validateJournalValue({
     && (value.version === 1)
     && ((value.phase === 'staged') || (value.phase === 'installing')
       || (value.phase === 'complete'))
+    && isInstalledEntryArray(value.createdEntries,)
     && isStringArray(value.intendedEntries,)
     && isStringArray(value.selectedRoots,)
     && ((typeof value.destinationRoot) === 'string')
@@ -138,62 +212,75 @@ export function validateJournalValue({
       `cli-git: worktree-copy journal is corrupt: ${JSON.stringify(path,)}.`,
     );
   }
+  /**
+   * Plain immutable journal detached from untrusted parsed object.
+   */
+  const record: WorktreeCopyJournal = {
+    createdEntries: value.createdEntries.map(function createdEntry(
+      entry,
+    ): InstalledWorktreePath {
+      return { ...entry, };
+    },),
+    destinationRoot: value.destinationRoot,
+    intendedEntries: [...value.intendedEntries,],
+    phase: value.phase,
+    selectedRoots: [...value.selectedRoots,],
+    sourceRoot: value.sourceRoot,
+    stageContainer: value.stageContainer,
+    stageRoot: value.stageRoot,
+    version: 1,
+  };
   if (dirname(path,) !== journalRoot) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal escaped private root: ${JSON.stringify(path,)}.`,
     );
   }
   assertCanonicalAbsolutePath({
-    value: value.destinationRoot,
+    value: record.destinationRoot,
     field: 'destinationRoot',
   },);
   assertCanonicalAbsolutePath({
-    value: value.sourceRoot,
+    value: record.sourceRoot,
     field: 'sourceRoot',
   },);
   assertCanonicalAbsolutePath({
-    value: value.stageContainer,
+    value: record.stageContainer,
     field: 'stageContainer',
   },);
   assertCanonicalAbsolutePath({
-    value: value.stageRoot,
+    value: record.stageRoot,
     field: 'stageRoot',
   },);
-  if ((dirname(value.stageContainer,) !== dirname(value.destinationRoot,))
-    || (!basename(value.stageContainer,)
+  if ((dirname(record.stageContainer,) !== dirname(record.destinationRoot,))
+    || (!basename(record.stageContainer,)
       .startsWith(STAGE_PREFIX,))
-    || (value.stageRoot !== join(
-      value.stageContainer,
+    || (record.stageRoot !== join(
+      record.stageContainer,
       'payload',
     ))) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal has unsafe private stage relation: ${JSON.stringify(path,)}.`,
     );
   }
-  value.selectedRoots
-    .forEach(assertSafeRepositoryPath,);
-  value.intendedEntries
-    .forEach(assertSafeRepositoryPath,);
-  if ((new Set(value.selectedRoots,).size
-    !== value.selectedRoots
-    .length)
-    || (new Set(value.intendedEntries,).size
-      !== value.intendedEntries
-      .length)) {
+  record.selectedRoots.forEach(assertSafeRepositoryPath,);
+  record.intendedEntries.forEach(assertSafeRepositoryPath,);
+  record.createdEntries.forEach(function safeCreatedEntry(entry,): void {
+    assertSafeRepositoryPath(entry.relativePath,);
+  },);
+  /**
+   * Created paths used to reject duplicate ownership claims.
+   */
+  const createdPaths = record.createdEntries.map(function createdPath(entry,): string {
+    return entry.relativePath;
+  },);
+  if ((new Set(record.selectedRoots,).size !== record.selectedRoots.length)
+    || (new Set(record.intendedEntries,).size !== record.intendedEntries.length)
+    || (new Set(createdPaths,).size !== createdPaths.length)) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal contains duplicate repository paths: ${JSON.stringify(path,)}.`,
     );
   }
-  return {
-    destinationRoot: value.destinationRoot,
-    intendedEntries: value.intendedEntries,
-    phase: value.phase,
-    selectedRoots: value.selectedRoots,
-    sourceRoot: value.sourceRoot,
-    stageContainer: value.stageContainer,
-    stageRoot: value.stageRoot,
-    version: 1,
-  };
+  return record;
 }
 
 /**
@@ -340,21 +427,30 @@ export async function validateJournalFilesystem({
       commonDir,
       destinationRoot: record.destinationRoot,
     },);
-    if (record.phase === 'complete')
-      return;
     /**
-     * Private stage-container metadata or unexpected absence.
+     * Private stage-container metadata or completed-cleanup absence.
      */
     const containerStats = await lstatOrAbsent(record.stageContainer,);
     if ((typeof containerStats) === 'symbol') {
+      if (record.phase === 'complete')
+        return;
       throw new WorktreeCopyError(
         `cli-git: incomplete worktree-copy stage is missing: ${JSON.stringify(record.stageContainer,)}.`,
       );
     }
-    await Promise.all([
-      assertPrivateDirectory(record.stageContainer,),
-      assertPrivateDirectory(record.stageRoot,),
-    ],);
+    await assertPrivateDirectory(record.stageContainer,);
+    /**
+     * Private payload metadata or partial completed cleanup absence.
+     */
+    const stageStats = await lstatOrAbsent(record.stageRoot,);
+    if ((typeof stageStats) === 'symbol') {
+      if (record.phase === 'complete')
+        return;
+      throw new WorktreeCopyError(
+        `cli-git: incomplete worktree-copy payload is missing: ${JSON.stringify(record.stageRoot,)}.`,
+      );
+    }
+    await assertPrivateDirectory(record.stageRoot,);
   }
   catch (error: unknown) {
     if (error instanceof WorktreeCopyError)

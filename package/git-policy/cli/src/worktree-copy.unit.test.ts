@@ -536,6 +536,7 @@ await describe({
         await writeFile(
           journalPath,
           `${JSON.stringify({
+            createdEntries: [],
             destinationRoot,
             intendedEntries: [],
             phase: 'staged',
@@ -598,6 +599,7 @@ await describe({
         await writeFile(
           journalPath,
           `${JSON.stringify({
+            createdEntries: [],
             destinationRoot,
             intendedEntries: [],
             phase: 'complete',

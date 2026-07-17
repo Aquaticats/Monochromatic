@@ -20,10 +20,18 @@ export type WorktreeCopyEntryKind = 'directory' | 'file' | 'symlink';
  *
  * @example
  * ```ts
- * const created: InstalledWorktreePath = { relativePath: 'cache', selected: true };
+ * const created: InstalledWorktreePath = { device: '1', inode: '2', relativePath: 'cache', selected: true };
  * ```
  */
 export type InstalledWorktreePath = Readonly<{
+  /**
+   * Filesystem device identity captured after exclusive creation.
+   */
+  device: string;
+  /**
+   * Filesystem inode identity captured after exclusive creation.
+   */
+  inode: string;
   /**
    * Repository-relative path created by cli-git.
    */
@@ -215,6 +223,7 @@ export type WorktreeCopyJournalPhase = 'complete' | 'installing' | 'staged';
  * @example
  * ```ts
  * const journal: WorktreeCopyJournal = {
+ *   createdEntries: [],
  *   intendedEntries: [],
  *   destinationRoot: '/worktrees/topic',
  *   phase: 'staged',
@@ -228,7 +237,11 @@ export type WorktreeCopyJournalPhase = 'complete' | 'installing' | 'staged';
  */
 export type WorktreeCopyJournal = Readonly<{
   /**
-   * Destination paths claimed before installation in parent-first order.
+   * Paths proven created with exact post-creation filesystem identities.
+   */
+  createdEntries: readonly InstalledWorktreePath[];
+  /**
+   * Selected destination paths claimed before installation in parent-first order.
    */
   intendedEntries: readonly string[];
   /**

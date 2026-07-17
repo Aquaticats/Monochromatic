@@ -10,6 +10,7 @@ import {
   WORKTREE_COPY_NOT_APPLICABLE,
 } from './git-observer.ts';
 import { findCreatedWorktrees, } from './git-registry.ts';
+import { acquireWorktreeCopyLock, } from './journal-lock.ts';
 import type {
   ForwardedGitExecution,
   WorktreeCopySummary,
@@ -152,11 +153,11 @@ export async function runGitWithWorktreeCopy({
   /**
    * Effective repository observation before real Git.
    */
-  const observation = await observeWorktreeRepository({
+  const initialObservation = await observeWorktreeRepository({
     args,
     gitPath,
   },);
-  if (observation === WORKTREE_COPY_NOT_APPLICABLE) {
+  if (initialObservation === WORKTREE_COPY_NOT_APPLICABLE) {
     /**
      * Real-Git execution outside effective repository.
      */
@@ -169,6 +170,23 @@ export async function runGitWithWorktreeCopy({
     return;
   }
 
+  /**
+   * Exclusive lease covering refreshed observation, real Git, and synchronization.
+   */
+  await using settlementLock = await acquireWorktreeCopyLock(initialObservation.commonDir,);
+  /**
+   * Repository observation refreshed after acquiring exclusive lease.
+   */
+  const observation = await observeWorktreeRepository({
+    args,
+    gitPath,
+  },);
+  if ((observation === WORKTREE_COPY_NOT_APPLICABLE)
+    || (observation.commonDir !== initialObservation.commonDir)) {
+    throw new WorktreeCopyError(
+      'cli-git: effective repository changed while acquiring worktree-copy settlement lock.',
+    );
+  }
   /**
    * Recovered interrupted transactions before allowing another Git command.
    */

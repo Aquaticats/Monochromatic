@@ -268,11 +268,15 @@ async function readIgnoredSpecialPaths({
         root: sourceRoot,
         repositoryPath: current,
       },);
-    // oxlint-disable-next-line no-await-in-loop -- structural filesystem walk remains sequential and no-follow
+    /* oxlint-disable no-await-in-loop -- structural filesystem walk remains sequential and no-follow */
+    /**
+     * Immediate no-follow directory entries.
+     */
     const entries = await readdir(
       directoryPath,
       { withFileTypes: true, },
     );
+    /* oxlint-enable no-await-in-loop */
     for (const entry of entries) {
       /**
        * Child repository path.

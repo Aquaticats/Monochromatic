@@ -1,10 +1,6 @@
 import { randomUUID, } from 'node:crypto';
+import { constants, } from 'node:fs';
 import {
-  constants,
-  type Stats,
-} from 'node:fs';
-import {
-  chmod,
   lstat,
   mkdir,
   open,
@@ -20,6 +16,7 @@ import {
 } from 'node:path';
 
 import { WorktreeCopyError, } from './errors.ts';
+import { prepareStageRemoval, } from './journal-cleanup.ts';
 import { validateJournalValue, } from './journal-validation.ts';
 import type {
   StagedWorktreeSnapshot,
@@ -50,11 +47,6 @@ const NON_PRIVATE_MODE_BITS = 0o077;
  * Private journal root does not exist.
  */
 export const JOURNAL_ROOT_ABSENT: unique symbol = Symbol('worktree-copy journal root is absent',);
-
-/**
- * Private stage cleanup path is already absent.
- */
-const STAGE_PATH_ABSENT: unique symbol = Symbol('worktree-copy stage path is absent',);
 
 /**
  * Private journal file mode.
@@ -168,7 +160,8 @@ async function ensurePrivateJournalDirectory(path: string,): Promise<void> {
     );
   }
   catch (error: unknown) {
-    if (!(Error.isError(error,) && ('code' in error) && (error.code === 'EEXIST')))
+    if (!(Error.isError(error,) && ('code' in error)
+      && (error.code === 'EEXIST')))
       throw error;
   }
   await assertPrivateJournalDirectory(path,);
@@ -239,7 +232,8 @@ export async function existingWorktreeCopyJournalRoot(
     return root;
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return JOURNAL_ROOT_ABSENT;
     throw error;
   }
@@ -315,6 +309,9 @@ export async function writeJournal({
    */
   const serializedRecord: WorktreeCopyJournal = {
     ...record,
+    createdEntries: record.createdEntries.map(function createdEntry(entry,) {
+      return { ...entry, };
+    },),
     intendedEntries: [...record.intendedEntries,],
     selectedRoots: [...record.selectedRoots,],
   };
@@ -394,6 +391,7 @@ export async function createWorktreeCopyJournal({
    * Initial staged journal record.
    */
   const record: WorktreeCopyJournal = {
+    createdEntries: [],
     intendedEntries: [],
     destinationRoot,
     phase: 'staged',
@@ -506,88 +504,6 @@ export async function readPendingWorktreeCopyJournals(
       );
     }
   },),);
-}
-
-/**
- * Reads no-follow stage metadata or completed-cleanup absence.
- *
- * @param path - private stage path
- *
- * @returns no-follow metadata or stage-path absence sentinel
- *
- * @example
- * ```ts
- * await lstatStageOrAbsent('/worktrees/.cli-git-worktree-copy-id');
- * ```
- */
-async function lstatStageOrAbsent(
-  path: string,
-): Promise<Readonly<Stats> | typeof STAGE_PATH_ABSENT> {
-  try {
-    return await lstat(path,);
-  }
-  catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
-      return STAGE_PATH_ABSENT;
-    throw error;
-  }
-}
-
-/**
- * Restores owner traversal and mutation on staged directories before removal.
- *
- * Source directory modes can intentionally omit owner write permission.
- * The private stage is transaction-owned,
- * so cleanup may make only its directories private and writable before removal.
- *
- * @param stageContainer - validated private stage root
- *
- * @example
- * ```ts
- * await prepareStageRemoval('/worktrees/.cli-git-worktree-copy-id');
- * ```
- */
-async function prepareStageRemoval(stageContainer: string,): Promise<void> {
-  /**
-   * Pending no-follow private directories.
-   */
-  const pending: string[] = [stageContainer,];
-  while (pending.length > 0) {
-    /**
-     * Current private directory candidate.
-     */
-    const directory = pending.pop();
-    if (directory === undefined)
-      throw new WorktreeCopyError('cli-git: private stage cleanup lost pending directory.',);
-    /**
-     * Current no-follow metadata or completed-cleanup absence.
-     */
-    // oxlint-disable-next-line no-await-in-loop -- no-follow cleanup walk remains bounded by private stage
-    const stats = await lstatStageOrAbsent(directory,);
-    if ((typeof stats) === 'symbol')
-      continue;
-    if (!stats.isDirectory())
-      continue;
-    // oxlint-disable-next-line no-await-in-loop -- owner mode restoration is required before child enumeration
-    await chmod(
-      directory,
-      PRIVATE_DIRECTORY_MODE,
-    );
-    // oxlint-disable-next-line no-await-in-loop -- child discovery follows restored private directory mode
-    const entries = await readdir(
-      directory,
-      { withFileTypes: true, },
-    );
-    entries.filter(function childDirectory(entry,): boolean {
-      return entry.isDirectory();
-    },)
-      .forEach(function queueDirectory(entry,): void {
-        pending.push(join(
-          directory,
-          entry.name,
-        ),);
-      },);
-  }
 }
 
 /**

@@ -1,19 +1,58 @@
 import {
+  lstat,
   rmdir,
   unlink,
 } from 'node:fs/promises';
 
 import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 
-import {
-  entryMatches,
-  lstatOrAbsent,
-} from './entry-compare.ts';
+import { entryMatches, } from './entry-compare.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import type {
   InstalledWorktreePath,
   StagedWorktreeSnapshot,
 } from './model.ts';
+
+/**
+ * Reports current relation to exact post-creation filesystem identity.
+ *
+ * @param path - current destination path
+ *
+ * @param installed - durable post-creation identity
+ *
+ * @returns absent, exact identity match, or changed identity
+ *
+ * @example
+ * ```ts
+ * await installedIdentityState({ path: '/wt/cache', installed });
+ * ```
+ */
+async function installedIdentityState({
+  path,
+  installed,
+}: Readonly<{
+  path: string;
+  installed: InstalledWorktreePath;
+}>,): Promise<'absent' | 'changed' | 'match'> {
+  try {
+    /**
+     * Current no-follow destination identity.
+     */
+    const stats = await lstat(
+      path,
+      { bigint: true, },
+    );
+    return (stats.dev.toString() === installed.device)
+      && (stats.ino.toString() === installed.inode)
+      ? 'match'
+      : 'changed';
+  }
+  catch (error: unknown) {
+    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+      return 'absent';
+    throw error;
+  }
+}
 
 /**
  * Removes unchanged entries created by failed installation.
@@ -67,9 +106,20 @@ export async function rollbackCreated({
      */
     const expected = selectedByPath.get(installed.relativePath,);
     try {
-      // oxlint-disable-next-line no-await-in-loop -- absent intended entries require no rollback
-      if ((typeof await lstatOrAbsent(destinationPath,)) === 'symbol')
+      /**
+       * Current relation to proven post-creation identity.
+       */
+      // oxlint-disable-next-line no-await-in-loop -- exact identity gates every destructive rollback candidate
+      const initialIdentity = await installedIdentityState({
+        path: destinationPath,
+        installed,
+      },);
+      if (initialIdentity === 'absent')
         continue;
+      if (initialIdentity === 'changed') {
+        retained.push(`${installed.relativePath}: filesystem identity changed`,);
+        continue;
+      }
       if (expected !== undefined) {
         /* oxlint-disable no-await-in-loop -- ownership proof precedes each destructive rollback step */
         /**
@@ -85,6 +135,19 @@ export async function rollbackCreated({
           retained.push(installed.relativePath,);
           continue;
         }
+      }
+      /**
+       * Identity recheck narrowing replacement race before removal.
+       */
+      // oxlint-disable-next-line no-await-in-loop -- replacement check must immediately precede destructive rollback
+      const finalIdentity = await installedIdentityState({
+        path: destinationPath,
+        installed,
+      },);
+      if (finalIdentity !== 'match') {
+        if (finalIdentity === 'changed')
+          retained.push(`${installed.relativePath}: filesystem identity changed`,);
+        continue;
       }
       // oxlint-disable-next-line no-await-in-loop -- child-first rollback requires sequential path removal
       await ((expected?.kind === 'directory') || (!installed.selected)

@@ -3,7 +3,6 @@ import { rm, } from 'node:fs/promises';
 import { collectEntryManifest, } from './entry-manifest.ts';
 import { WorktreeCopyError, } from './errors.ts';
 import { installSnapshot, } from './install.ts';
-import { acquireWorktreeCopyLock, } from './journal-lock.ts';
 import { validateJournalFilesystem, } from './journal-validation.ts';
 import {
   createWorktreeCopyJournal,
@@ -144,17 +143,7 @@ export async function recoverWorktreeCopyTransactions(
   commonDir: string,
 ): Promise<number> {
   /**
-   * Pending journals observed before lock acquisition.
-   */
-  const initiallyPending = await readPendingWorktreeCopyJournals(commonDir,);
-  if (initiallyPending.length === 0)
-    return 0;
-  /**
-   * Exclusive settlement lease preventing concurrent recovery or installation.
-   */
-  await using settlementLock = await acquireWorktreeCopyLock(commonDir,);
-  /**
-   * Pending journals re-read after exclusive lock acquisition.
+   * Pending journals read while caller holds repository settlement lease.
    */
   const pending = await readPendingWorktreeCopyJournals(commonDir,);
   for (const journal of pending) {
@@ -324,10 +313,6 @@ export async function synchronizeCreatedWorktrees({
       destinationCount: created.length,
     };
   }
-  /**
-   * Exclusive settlement lease preventing concurrent recovery or installation.
-   */
-  await using settlementLock = await acquireWorktreeCopyLock(commonDir,);
   /**
    * Newly installed selected entry counts per destination.
    */

@@ -2,6 +2,7 @@ import { constants, } from 'node:fs';
 import {
   chmod,
   copyFile,
+  lstat,
   mkdir,
   readlink,
   symlink,
@@ -18,6 +19,7 @@ import { filesystemPath, } from './ignored-paths.ts';
 import { rollbackCreated, } from './install-rollback.ts';
 import {
   type JournalState,
+  recordCreatedEntry,
   recordEntryIntent,
 } from './transaction-journal.ts';
 import type {
@@ -35,6 +37,46 @@ const EXCLUSIVE_COPY_MODE = constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE
  * Temporary writable mode for newly installed selected directories.
  */
 const PRIVATE_DIRECTORY_MODE = 0o700;
+
+/**
+ * Captures exact no-follow identity after successful exclusive creation.
+ *
+ * @param destinationPath - newly created native filesystem path
+ *
+ * @param relativePath - repository path for durable ownership
+ *
+ * @param selected - whether path came from selected source manifest
+ *
+ * @returns exact created-path identity
+ *
+ * @example
+ * ```ts
+ * await captureInstalledPath({ destinationPath: '/wt/cache', relativePath: 'cache', selected: true });
+ * ```
+ */
+async function captureInstalledPath({
+  destinationPath,
+  relativePath,
+  selected,
+}: Readonly<{
+  destinationPath: string;
+  relativePath: string;
+  selected: boolean;
+}>,): Promise<InstalledWorktreePath> {
+  /**
+   * Exact no-follow post-creation filesystem identity.
+   */
+  const stats = await lstat(
+    destinationPath,
+    { bigint: true, },
+  );
+  return {
+    device: stats.dev.toString(),
+    inode: stats.ino.toString(),
+    relativePath,
+    selected,
+  };
+}
 
 /**
  * Asserts every existing destination entry is identical before mutation.
@@ -95,19 +137,25 @@ async function preflightDestination({
  *
  * @param created - mutable transaction-owned creation list
  *
+ * @param journalState - mutable durable transaction state
+ *
+ * @mutates journalState - records proven scaffold identities through {@link recordCreatedEntry}
+ *
  * @example
  * ```ts
- * await ensureParents({ destinationRoot: '/wt', entry, created: [] });
+ * await ensureParents({ destinationRoot: '/wt', entry, created: [], journalState });
  * ```
  */
 async function ensureParents({
   destinationRoot,
   entry,
   created,
+  journalState,
 }: Readonly<{
   destinationRoot: string;
   entry: WorktreeCopyEntry;
   created: InstalledWorktreePath[];
+  journalState: JournalState;
 }>,): Promise<void> {
   /**
    * Selected path components excluding selected entry itself.
@@ -156,9 +204,20 @@ async function ensureParents({
     }
     // oxlint-disable-next-line no-await-in-loop -- parent chain creation is necessarily sequential
     await mkdir(destinationPath,);
-    created.push({
+    /**
+     * Proven scaffold identity captured after exclusive creation.
+     */
+    // oxlint-disable-next-line no-await-in-loop -- ownership identity must follow successful scaffold creation
+    const installed = await captureInstalledPath({
+      destinationPath,
       relativePath: current,
       selected: false,
+    },);
+    created.push(installed,);
+    // oxlint-disable-next-line no-await-in-loop -- durable ownership must follow each proven scaffold creation
+    await recordCreatedEntry({
+      state: journalState,
+      entry: installed,
     },);
   }
 }
@@ -244,7 +303,7 @@ async function createSelectedEntry({
  *
  * @param journalState - mutable durable transaction state
  *
- * @mutates journalState - records each selected path intent through {@link recordEntryIntent}
+ * @mutates journalState - records selected intents and proven identities through journal helpers
  *
  * @returns count of newly installed selected entries
  *
@@ -265,16 +324,11 @@ export async function installSnapshot({
   journalState: JournalState;
 }>,): Promise<number> {
   /**
-   * Prior selected intents conservatively owned only when they still equal stage.
+   * Prior paths with durable post-creation identities.
    */
-  const created: InstalledWorktreePath[] = journalState.pending
-    .record
-    .intendedEntries
-    .map(function priorIntent(relativePath,): InstalledWorktreePath {
-      return {
-        relativePath,
-        selected: true,
-      };
+  const created: InstalledWorktreePath[] = journalState.pending.record.createdEntries
+    .map(function priorCreation(entry,): InstalledWorktreePath {
+      return { ...entry, };
     },);
   try {
     await preflightDestination({
@@ -287,6 +341,7 @@ export async function installSnapshot({
         destinationRoot,
         entry,
         created,
+        journalState,
       },);
       /**
        * Current destination path after parent creation.
@@ -303,19 +358,26 @@ export async function installSnapshot({
         state: journalState,
         relativePath: entry.relativePath,
       },);
-      if (!created.some(function sameIntent(installed,): boolean {
-        return installed.selected && (installed.relativePath === entry.relativePath);
-      },)) {
-        created.push({
-          relativePath: entry.relativePath,
-          selected: true,
-        },);
-      }
       // oxlint-disable-next-line no-await-in-loop -- deterministic parent-before-child installation
       await createSelectedEntry({
         snapshot,
         destinationRoot,
         entry,
+      },);
+      /**
+       * Proven selected identity captured after exclusive creation.
+       */
+      // oxlint-disable-next-line no-await-in-loop -- ownership identity must follow successful selected creation
+      const installed = await captureInstalledPath({
+        destinationPath,
+        relativePath: entry.relativePath,
+        selected: true,
+      },);
+      created.push(installed,);
+      // oxlint-disable-next-line no-await-in-loop -- durable ownership must follow each proven selected creation
+      await recordCreatedEntry({
+        state: journalState,
+        entry: installed,
       },);
     }
     await applyEntryModes({

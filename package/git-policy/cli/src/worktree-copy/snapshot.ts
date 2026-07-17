@@ -188,8 +188,12 @@ async function copyManifestEntries({
       );
       continue;
     }
-    // oxlint-disable-next-line no-await-in-loop -- no-follow symbolic-link target must be captured from source entry
+    /* oxlint-disable no-await-in-loop -- no-follow symbolic-link target must be captured from source entry */
+    /**
+     * Exact no-follow symbolic-link target text.
+     */
     const target = await readlink(sourcePath,);
+    /* oxlint-enable no-await-in-loop */
     // oxlint-disable-next-line no-await-in-loop -- symbolic-link creation follows deterministic manifest order
     await symlink(
       target,
