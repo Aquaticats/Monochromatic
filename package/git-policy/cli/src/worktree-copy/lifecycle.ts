@@ -187,20 +187,26 @@ export async function runGitWithWorktreeCopy({
       throw execution.failure;
     return;
   }
-  if (await validatesInheritedWorktreeCopyLease({
-    commonDir: initialObservation.commonDir,
-    leaseToken: process.env[WORKTREE_COPY_LEASE_ENV],
-  },)) {
-    /**
-     * Nested hook Git execution settled by outer invocation holding validated lease.
-     */
-    const execution = await executeRealGit({
-      args,
-      gitPath,
-    },);
-    if ('failure' in execution)
-      throw execution.failure;
-    return;
+  /**
+   * Optional descendant capability inherited from active outer real Git.
+   */
+  const inheritedLeaseToken = process.env[WORKTREE_COPY_LEASE_ENV];
+  if (inheritedLeaseToken !== undefined) {
+    if (await validatesInheritedWorktreeCopyLease({
+      commonDir: initialObservation.commonDir,
+      leaseToken: inheritedLeaseToken,
+    },)) {
+      /**
+       * Nested hook Git execution settled by outer invocation holding validated lease.
+       */
+      const execution = await executeRealGit({
+        args,
+        gitPath,
+      },);
+      if ('failure' in execution)
+        throw execution.failure;
+      return;
+    }
   }
 
   /**

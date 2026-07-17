@@ -424,9 +424,9 @@ export async function validatesInheritedWorktreeCopyLease({
   leaseToken,
 }: Readonly<{
   commonDir: string;
-  leaseToken?: string;
+  leaseToken: string;
 }>,): Promise<boolean> {
-  if ((leaseToken === undefined) || (leaseToken.length === 0))
+  if (leaseToken.length === 0)
     return false;
   /**
    * Validated private root expected to contain active outer lock.

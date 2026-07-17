@@ -264,10 +264,10 @@ function validatePolicy({
 function parsePolicySetting({
   policy,
   setting,
-}: Readonly<{
-  policy: ForeignBorrowed<RuntimePolicyDefinition>;
-  setting: ForeignBorrowed<unknown>;
-}>,): Readonly<{
+}: ForeignBorrowed<Readonly<{
+  policy: RuntimePolicyDefinition;
+  setting: unknown;
+}>>,): Readonly<{
   severity: PolicySeverity;
   options: unknown
 }> {

@@ -132,8 +132,6 @@ function scannerEligibleCandidates({
  *
  * @param signal - engine cancellation signal
  *
- * @mutates signal - nano-spawn may attach abort lifecycle listeners while scanner runs
- *
  * @returns redacted policy findings
  *
  * @example
@@ -148,14 +146,14 @@ export async function scanCandidates({
   environment = process.env,
   candidates,
   signal,
-}: Readonly<{
+}: ForeignBorrowed<Readonly<{
   executable: string;
   builtinRules: boolean;
   repositoryRoot: string;
   environment?: NodeJS.ProcessEnv;
   candidates: readonly CandidateFile[];
   signal: AbortSignal;
-}>): Promise<readonly PolicyFinding[]> {
+}>>): Promise<readonly PolicyFinding[]> {
   /**
    * Disposable exact scanner inputs.
    */
