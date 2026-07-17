@@ -118,6 +118,13 @@ function scannerEligibleCandidates({
 }
 
 /**
+ * Mutable view at EventTarget listener boundary.
+ */
+type MutableAbortSignal = {
+  -readonly [Key in keyof AbortSignal]: AbortSignal[Key]
+};
+
+/**
  * Owned cancellation signal and listener cleanup for scanner subprocess.
  */
 type ScannerAbortRelay = Readonly<{
@@ -146,7 +153,7 @@ type ScannerAbortRelay = Readonly<{
  * ```
  */
 function createScannerAbortRelay(
-  signal: ForeignBorrowed<AbortSignal>,
+  signal: MutableAbortSignal,
 ): ScannerAbortRelay {
   /**
    * Scanner-owned cancellation controller.
@@ -215,7 +222,7 @@ export async function scanCandidates({
   repositoryRoot: string;
   environment?: NodeJS.ProcessEnv;
   candidates: readonly CandidateFile[];
-  signal: ForeignBorrowed<AbortSignal>;
+  signal: MutableAbortSignal;
 }>): Promise<readonly PolicyFinding[]> {
   /**
    * Scanner-owned cancellation signal detached from borrowed engine signal.

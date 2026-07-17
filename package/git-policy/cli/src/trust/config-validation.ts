@@ -259,6 +259,37 @@ type MutablePolicySchema = {
 };
 
 /**
+ * Invokes plugin-defined schema at mutable validation boundary.
+ *
+ * @param optionsSchema - plugin-defined Valibot schema
+ *
+ * @param rawOptions - unvalidated plugin option value
+ *
+ * @mutates optionsSchema - plugin callback may mutate retained schema state
+ *
+ * @mutates rawOptions - plugin callback may mutate supplied option value
+ *
+ * @returns Valibot safe parse result
+ *
+ * @example
+ * ```ts
+ * parsePolicyOptions({ optionsSchema: v.unknown(), rawOptions: 'value' });
+ * ```
+ */
+function parsePolicyOptions({
+  optionsSchema,
+  rawOptions,
+}: {
+  optionsSchema: MutablePolicySchema;
+  rawOptions: unknown;
+},): v.SafeParseResult<MutablePolicySchema> {
+  return v.safeParse(
+    optionsSchema,
+    rawOptions,
+  );
+}
+
+/**
  * Parses one policy setting and options through declared schema.
  *
  * @param policyName - effective registered policy ID
@@ -324,10 +355,10 @@ function parsePolicySetting({
   /**
    * Valibot runtime options result.
    */
-  const parsed = v.safeParse(
+  const parsed = parsePolicyOptions({
     optionsSchema,
     rawOptions,
-  );
+  },);
   if (!parsed.success)
     throw new ConfigValidationError(`Policy ${policyName} options failed Valibot validation.`,);
   return {
