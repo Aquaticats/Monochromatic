@@ -10,7 +10,11 @@ import {
   WORKTREE_COPY_NOT_APPLICABLE,
 } from './git-observer.ts';
 import { findCreatedWorktrees, } from './git-registry.ts';
-import { acquireWorktreeCopyLock, } from './journal-lock.ts';
+import {
+  acquireWorktreeCopyLock,
+  validatesInheritedWorktreeCopyLease,
+  WORKTREE_COPY_LEASE_ENV,
+} from './journal-lock.ts';
 import type {
   ForwardedGitExecution,
   WorktreeCopySummary,
@@ -32,6 +36,8 @@ const l = tagged({ tag: 'cli-git', },);
  *
  * @param gitPath - absolute real-Git executable
  *
+ * @param leaseToken - optional descendant reentrancy capability
+ *
  * @returns optional real-Git subprocess failure
  *
  * @example
@@ -42,15 +48,27 @@ const l = tagged({ tag: 'cli-git', },);
 async function executeRealGit({
   args,
   gitPath,
+  leaseToken,
 }: Readonly<{
   args: readonly string[];
   gitPath: string;
+  leaseToken?: string;
 }>,): Promise<ForwardedGitExecution> {
   try {
     await nanoSpawn(
       gitPath,
       [...args,],
-      { stdio: 'inherit', },
+      {
+        ...(leaseToken === undefined
+          ? {}
+          : {
+            env: {
+              ...process.env,
+              [WORKTREE_COPY_LEASE_ENV]: leaseToken,
+            },
+          }),
+        stdio: 'inherit',
+      },
     );
     return {};
   }
@@ -169,6 +187,21 @@ export async function runGitWithWorktreeCopy({
       throw execution.failure;
     return;
   }
+  if (await validatesInheritedWorktreeCopyLease({
+    commonDir: initialObservation.commonDir,
+    leaseToken: process.env[WORKTREE_COPY_LEASE_ENV],
+  },)) {
+    /**
+     * Nested hook Git execution settled by outer invocation holding validated lease.
+     */
+    const execution = await executeRealGit({
+      args,
+      gitPath,
+    },);
+    if ('failure' in execution)
+      throw execution.failure;
+    return;
+  }
 
   /**
    * Exclusive lease covering refreshed observation, real Git, and synchronization.
@@ -203,6 +236,7 @@ export async function runGitWithWorktreeCopy({
   const execution = await executeRealGit({
     args,
     gitPath,
+    leaseToken: settlementLock.leaseToken,
   },);
 
   try {

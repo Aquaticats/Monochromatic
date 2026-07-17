@@ -30,6 +30,7 @@ import {
   requireFailure,
   requireSuccess,
   runRealGit,
+  WRAPPER_PATH,
   writePostCheckoutHook,
 } from './worktree-copy-fixture.unit.test.ts';
 
@@ -281,6 +282,47 @@ await describe({
         },),);
 
         expect(await readFile(join(destinationRoot, 'state.txt',), 'utf8',),).toBe('same\n',);
+        expect(copySummaryLines(result.stderr,),).toHaveLength(1,);
+      },
+    },),
+
+    it({
+      name: 'settles recursive hook worktree creation through inherited outer lease',
+      fn: async () => {
+        await using fixture = await createTempDirectory();
+        const repositoryRoot = join(fixture.path, 'repository',);
+        const destinationRoot = join(fixture.path, 'outer-topic',);
+        const nestedRoot = join(fixture.path, 'nested-topic',);
+        await initializeRepository(repositoryRoot,);
+        await writeFile(join(repositoryRoot, '.gitignore',), 'state.txt\n',);
+        await commitPaths({ repositoryRoot, message: 'ignore recursive hook state', paths: ['.gitignore',], },);
+        await writeFile(join(repositoryRoot, 'state.txt',), 'outer source\n',);
+        await writePostCheckoutHook({
+          repositoryRoot,
+          body: `if (process.env.CLI_GIT_RECURSIVE_HOOK !== '1') {
+  const { spawnSync } = require('node:child_process');
+  const result = spawnSync(process.execPath, [${JSON.stringify(WRAPPER_PATH,)}, 'worktree', 'add', '-b', 'nested-topic', ${JSON.stringify(nestedRoot,)}], {
+    cwd: process.cwd(),
+    env: { ...process.env, CLI_GIT_RECURSIVE_HOOK: '1' },
+    stdio: 'inherit',
+  });
+  if (result.status !== 0) process.exitCode = result.status ?? 1;
+}`,
+        },);
+
+        const result = requireSuccess(await captureWrapper({
+          cwd: repositoryRoot,
+          args: [
+            'worktree',
+            'add',
+            '-b',
+            'outer-topic',
+            destinationRoot,
+          ],
+        },),);
+
+        expect(await readFile(join(destinationRoot, 'state.txt',), 'utf8',),).toBe('outer source\n',);
+        expect(await readFile(join(nestedRoot, 'state.txt',), 'utf8',),).toBe('outer source\n',);
         expect(copySummaryLines(result.stderr,),).toHaveLength(1,);
       },
     },),

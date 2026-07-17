@@ -30,6 +30,11 @@ const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_RETRY_ATTEMPTS = 100;
 
 /**
+ * Inherited environment capability for reentrant same-repository Git calls.
+ */
+export const WORKTREE_COPY_LEASE_ENV = 'CLI_GIT_WORKTREE_COPY_LEASE';
+
+/**
  * Private lock directory mode.
  */
 const PRIVATE_DIRECTORY_MODE = 0o700;
@@ -49,6 +54,10 @@ const LOCK_BUSY: unique symbol = Symbol('worktree-copy lock belongs to live proc
  */
 type LockOwner = Readonly<{
   /**
+   * Unguessable capability inherited only by descendants of real Git.
+   */
+  leaseToken: string;
+  /**
    * Operating-system process identifier.
    */
   ownerPid: number;
@@ -60,6 +69,16 @@ type LockOwner = Readonly<{
    * Lock schema version.
    */
   schemaVersion: 1;
+}>;
+
+/**
+ * Ownership-checking lock and descendant reentrancy capability.
+ */
+export type WorktreeCopyLease = AsyncDisposable & Readonly<{
+  /**
+   * Capability passed only to real-Git descendants.
+   */
+  leaseToken: string;
 }>;
 
 /**
@@ -85,6 +104,9 @@ async function readLockOwner(ownerPath: string,): Promise<LockOwner> {
   if (((typeof value) !== 'object') || (value === null)
     || (!('schemaVersion' in value))
     || (value.schemaVersion !== 1)
+    || (!('leaseToken' in value))
+    || ((typeof value.leaseToken) !== 'string')
+    || (value.leaseToken.length === 0)
     || (!('ownerPid' in value))
     || ((typeof value.ownerPid) !== 'number')
     || (!Number.isInteger(value.ownerPid,))
@@ -99,6 +121,7 @@ async function readLockOwner(ownerPath: string,): Promise<LockOwner> {
     );
   }
   return {
+    leaseToken: value.leaseToken,
     ownerPid: value.ownerPid,
     ownerBirthIdentity: value.ownerBirthIdentity,
     schemaVersion: 1,
@@ -154,6 +177,7 @@ async function writeCandidateOwner({
    * Plain owner JSON detached from caller-owned record.
    */
   const ownerJson = JSON.stringify({
+    leaseToken: owner.leaseToken,
     ownerBirthIdentity: owner.ownerBirthIdentity,
     ownerPid: owner.ownerPid,
     schemaVersion: owner.schemaVersion,
@@ -280,8 +304,9 @@ function ownedLock({
 }: Readonly<{
   lockDirectory: string;
   owner: LockOwner;
-}>,): AsyncDisposable {
+}>,): WorktreeCopyLease {
   return {
+    leaseToken: owner.leaseToken,
     async [Symbol.asyncDispose](): Promise<void> {
       /**
        * Live owner immediately before lock removal.
@@ -290,7 +315,8 @@ function ownedLock({
         lockDirectory,
         'owner.json',
       ),);
-      if ((liveOwner.ownerPid !== owner.ownerPid)
+      if ((liveOwner.leaseToken !== owner.leaseToken)
+        || (liveOwner.ownerPid !== owner.ownerPid)
         || (liveOwner.ownerBirthIdentity !== owner.ownerBirthIdentity)) {
         throw new WorktreeCopyError(
           `cli-git: worktree-copy lock ownership changed: ${JSON.stringify(lockDirectory,)}.`,
@@ -327,7 +353,7 @@ async function attemptAcquire({
 }: Readonly<{
   lockDirectory: string;
   owner: LockOwner;
-}>,): Promise<AsyncDisposable | typeof LOCK_BUSY> {
+}>,): Promise<WorktreeCopyLease | typeof LOCK_BUSY> {
   /**
    * Unpublished complete lock candidate.
    */
@@ -378,6 +404,51 @@ async function attemptAcquire({
 }
 
 /**
+ * Validates inherited reentrancy capability against live repository lock.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @param leaseToken - environment capability inherited from parent real Git
+ *
+ * @returns whether current invocation belongs to active outer settlement
+ *
+ * @example
+ * ```ts
+ * await validatesInheritedWorktreeCopyLease({ commonDir: '/repo/.git', leaseToken: process.env.CLI_GIT_WORKTREE_COPY_LEASE });
+ * ```
+ */
+export async function validatesInheritedWorktreeCopyLease({
+  commonDir,
+  leaseToken,
+}: Readonly<{
+  commonDir: string;
+  leaseToken: string | undefined;
+}>,): Promise<boolean> {
+  if ((leaseToken === undefined) || (leaseToken.length === 0))
+    return false;
+  /**
+   * Validated private root expected to contain active outer lock.
+   */
+  const root = await ensureWorktreeCopyJournalRoot(commonDir,);
+  /**
+   * Published outer owner or replacement-race sentinel.
+   */
+  const owner = await readPublishedOwner(join(
+    root,
+    'settlement.lock',
+    'owner.json',
+  ),);
+  if ((owner === LOCK_BUSY) || (owner.leaseToken !== leaseToken))
+    return false;
+  /**
+   * Current birth identity proving owner PID still names original process.
+   */
+  const liveBirthIdentity = await resolveProcessBirthIdentity(owner.ownerPid,);
+  return (liveBirthIdentity !== PROCESS_IDENTITY_ABSENT)
+    && (liveBirthIdentity === owner.ownerBirthIdentity);
+}
+
+/**
  * Acquires recoverable exclusive worktree-copy settlement lock.
  *
  * @param commonDir - canonical common Git directory
@@ -393,7 +464,7 @@ async function attemptAcquire({
  */
 export async function acquireWorktreeCopyLock(
   commonDir: string,
-): Promise<AsyncDisposable> {
+): Promise<WorktreeCopyLease> {
   /**
    * Private journal and lock root.
    */
@@ -409,6 +480,7 @@ export async function acquireWorktreeCopyLock(
    * Complete current lock owner.
    */
   const owner: LockOwner = {
+    leaseToken: randomUUID(),
     ownerPid: process.pid,
     ownerBirthIdentity,
     schemaVersion: 1,
