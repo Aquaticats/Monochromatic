@@ -207,7 +207,7 @@ export type ForwardedGitExecution = Readonly<{
  * const phase: WorktreeCopyJournalPhase = 'installing';
  * ```
  */
-export type WorktreeCopyJournalPhase = 'installing' | 'staged';
+export type WorktreeCopyJournalPhase = 'complete' | 'installing' | 'staged';
 
 /**
  * Durable recovery record for one destination worktree copy.
@@ -215,7 +215,7 @@ export type WorktreeCopyJournalPhase = 'installing' | 'staged';
  * @example
  * ```ts
  * const journal: WorktreeCopyJournal = {
- *   createdEntries: [],
+ *   intendedEntries: [],
  *   destinationRoot: '/worktrees/topic',
  *   phase: 'staged',
  *   selectedRoots: [],
@@ -228,9 +228,9 @@ export type WorktreeCopyJournalPhase = 'installing' | 'staged';
  */
 export type WorktreeCopyJournal = Readonly<{
   /**
-   * Paths installed by cli-git before current journal write.
+   * Destination paths claimed before installation in parent-first order.
    */
-  createdEntries: readonly string[];
+  intendedEntries: readonly string[];
   /**
    * Created worktree receiving ignored state.
    */

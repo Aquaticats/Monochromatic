@@ -3,6 +3,8 @@ import { rm, } from 'node:fs/promises';
 import { collectEntryManifest, } from './entry-manifest.ts';
 import { WorktreeCopyError, } from './errors.ts';
 import { installSnapshot, } from './install.ts';
+import { acquireWorktreeCopyLock, } from './journal-lock.ts';
+import { validateJournalFilesystem, } from './journal-validation.ts';
 import {
   createWorktreeCopyJournal,
   type PendingWorktreeCopyJournal,
@@ -46,6 +48,21 @@ async function snapshotFromJournal(
         .selectedRoots,
       excludedRoots: [],
     },);
+    /**
+     * Reconstructed selected paths represented by private stage.
+     */
+    const entryPaths = new Set(entries.map(function entryPath(entry,): string {
+      return entry.relativePath;
+    },),);
+    if (!journal.record.intendedEntries.every(function representedIntent(
+      relativePath,
+    ): boolean {
+      return entryPaths.has(relativePath,);
+    },)) {
+      throw new WorktreeCopyError(
+        `cli-git: worktree-copy journal intent is absent from private stage ${JSON.stringify(journal.record.stageRoot,)}.`,
+      );
+    }
     return {
       entries,
       selectedRoots: journal.record
@@ -124,10 +141,30 @@ export async function recoverWorktreeCopyTransactions(
   commonDir: string,
 ): Promise<number> {
   /**
-   * Pending journals in deterministic filename order.
+   * Pending journals observed before lock acquisition.
+   */
+  const initiallyPending = await readPendingWorktreeCopyJournals(commonDir,);
+  if (initiallyPending.length === 0)
+    return 0;
+  /**
+   * Exclusive settlement lease preventing concurrent recovery or installation.
+   */
+  await using settlementLock = await acquireWorktreeCopyLock(commonDir,);
+  /**
+   * Pending journals re-read after exclusive lock acquisition.
    */
   const pending = await readPendingWorktreeCopyJournals(commonDir,);
   for (const journal of pending) {
+    // oxlint-disable-next-line no-await-in-loop -- every journal identity is revalidated immediately before recovery
+    await validateJournalFilesystem({
+      commonDir,
+      record: journal.record,
+    },);
+    if (journal.record.phase === 'complete') {
+      // oxlint-disable-next-line no-await-in-loop -- completed cleanup must settle before later journal recovery
+      await removeWorktreeCopyJournal(journal,);
+      continue;
+    }
     /* oxlint-disable no-await-in-loop -- recovery order is deterministic and stops at first retained conflict */
     /**
      * Deterministic staged snapshot reconstructed for current journal.
@@ -282,6 +319,10 @@ export async function synchronizeCreatedWorktrees({
       destinationCount: created.length,
     };
   }
+  /**
+   * Exclusive settlement lease preventing concurrent recovery or installation.
+   */
+  await using settlementLock = await acquireWorktreeCopyLock(commonDir,);
   /**
    * Newly installed selected entry counts per destination.
    */

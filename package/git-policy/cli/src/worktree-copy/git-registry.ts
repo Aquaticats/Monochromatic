@@ -31,6 +31,11 @@ const GITDIR_PREFIX = 'gitdir: ';
 const MAIN_WORKTREE_ADMIN_ID: unique symbol = Symbol('main worktree has no linked admin identity',);
 
 /**
+ * Registered worktree root is currently absent from filesystem.
+ */
+const REGISTERED_ROOT_MISSING: unique symbol = Symbol('registered worktree root is absent',);
+
+/**
  * Parses NUL-delimited porcelain output into canonical worktree roots.
  *
  * @param output - `git worktree list --porcelain -z` stdout
@@ -111,6 +116,31 @@ async function readLinkedAdminId(
 }
 
 /**
+ * Canonicalizes registered root while tolerating Git-retained missing worktrees.
+ *
+ * @param root - Git-reported registered worktree path
+ *
+ * @returns canonical root or missing-root sentinel
+ *
+ * @example
+ * ```ts
+ * await canonicalRegisteredRoot('/worktrees/topic');
+ * ```
+ */
+async function canonicalRegisteredRoot(
+  root: string,
+): Promise<string | typeof REGISTERED_ROOT_MISSING> {
+  try {
+    return await realpath(root,);
+  }
+  catch (error: unknown) {
+    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+      return REGISTERED_ROOT_MISSING;
+    throw error;
+  }
+}
+
+/**
  * Reads canonical registered worktree roots keyed by linked admin identity.
  *
  * @param observation - effective repository captured before forwarding
@@ -152,12 +182,18 @@ export async function readRegisteredWorktrees({
   /**
    * Canonical roots still present on filesystem.
    */
-  const roots = await Promise.all(parseWorktreeRoots(output,)
-    .map(function canonicalRoot(root,): Promise<string> {
-      return realpath(root,);
-    },),);
+  const rootResults = await Promise.all(parseWorktreeRoots(output,)
+    .map(canonicalRegisteredRoot,),);
   /**
-   * Optional linked admin identities aligned with roots.
+   * Existing canonical roots, omitting Git-retained missing registrations.
+   */
+  const roots = rootResults.filter(function existingRoot(
+    root,
+  ): root is string {
+    return (typeof root) === 'string';
+  },);
+  /**
+   * Optional linked admin identities aligned with existing roots.
    */
   const adminIds = await Promise.all(roots.map(readLinkedAdminId,),);
   /**

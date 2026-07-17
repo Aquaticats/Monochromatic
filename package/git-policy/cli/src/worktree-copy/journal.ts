@@ -1,15 +1,20 @@
 import { randomUUID, } from 'node:crypto';
+import { constants, } from 'node:fs';
 import {
   mkdir,
+  open,
   readFile,
   readdir,
   rename,
   rm,
-  writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { WorktreeCopyError, } from './errors.ts';
+import { validateJournalValue, } from './journal-validation.ts';
 import type {
   StagedWorktreeSnapshot,
   WorktreeCopyJournal,
@@ -39,6 +44,26 @@ const PRIVATE_FILE_MODE = 0o600;
 const JOURNAL_SUFFIX = '.json';
 
 /**
+ * Resolves private journal root beneath canonical common Git directory.
+ *
+ * @param commonDir - canonical common Git directory
+ *
+ * @returns private versioned journal root
+ *
+ * @example
+ * ```ts
+ * worktreeCopyJournalRoot('/repo/.git');
+ * // => '/repo/.git/cli-git-worktree-copy/v1'
+ * ```
+ */
+export function worktreeCopyJournalRoot(commonDir: string,): string {
+  return join(
+    commonDir,
+    JOURNAL_RELATIVE_ROOT,
+  );
+}
+
+/**
  * Durable journal file paired with validated record.
  *
  * @example
@@ -58,89 +83,26 @@ export type PendingWorktreeCopyJournal = Readonly<{
 }>;
 
 /**
- * Reports unknown value is ordinary object record.
+ * Flushes directory metadata where host supports directory handles.
  *
- * @param value - parsed JSON value
- *
- * @returns whether value is non-null object and not array
+ * @param path - directory containing durable journal mutation
  *
  * @example
  * ```ts
- * isRecord({});
- * // => true
+ * await syncDirectory('/repo/.git/cli-git-worktree-copy/v1');
  * ```
  */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
-
-/**
- * Reports unknown value is readonly string array.
- *
- * @param value - parsed JSON field
- *
- * @returns whether every array member is string
- *
- * @example
- * ```ts
- * isStringArray(['a']);
- * // => true
- * ```
- */
-function isStringArray(value: unknown,): value is readonly string[] {
-  return Array.isArray(value,)
-    && value.every(function isString(item,): item is string {
-      return (typeof item) === 'string';
-    },);
-}
-
-/**
- * Validates durable JSON record before recovery uses filesystem paths.
- *
- * @param value - parsed unknown JSON value
- *
- * @param path - journal path used in diagnostics
- *
- * @returns validated schema-version-one journal
- *
- * @throws {@link WorktreeCopyError} when record is malformed
- *
- * @example
- * ```ts
- * validateJournal({ value: parsed, path: '/journal.json' });
- * ```
- */
-function validateJournal({
-  value,
-  path,
-}: Readonly<{
-  value: unknown;
-  path: string;
-}>,): WorktreeCopyJournal {
-  if (isRecord(value,)
-    && (value.version === 1)
-    && ((value.phase === 'staged') || (value.phase === 'installing'))
-    && isStringArray(value.createdEntries,)
-    && isStringArray(value.selectedRoots,)
-    && ((typeof value.destinationRoot) === 'string')
-    && ((typeof value.sourceRoot) === 'string')
-    && ((typeof value.stageContainer) === 'string')
-    && ((typeof value.stageRoot) === 'string')) {
-    return {
-      createdEntries: value.createdEntries,
-      destinationRoot: value.destinationRoot,
-      phase: value.phase,
-      selectedRoots: value.selectedRoots,
-      sourceRoot: value.sourceRoot,
-      stageContainer: value.stageContainer,
-      stageRoot: value.stageRoot,
-      version: 1,
-    };
-  }
-  throw new WorktreeCopyError(
-    `cli-git: worktree-copy journal is corrupt: ${JSON.stringify(path,)}.`,
+async function syncDirectory(path: string,): Promise<void> {
+  if (process.platform === 'win32')
+    return;
+  /**
+   * Read-only directory handle used for metadata fsync.
+   */
+  await using handle = await open(
+    path,
+    constants.O_RDONLY,
   );
+  await handle.sync();
 }
 
 /**
@@ -171,23 +133,30 @@ export async function writeJournal({
    */
   const serializedRecord: WorktreeCopyJournal = {
     ...record,
-    createdEntries: [...record.createdEntries,],
+    intendedEntries: [...record.intendedEntries,],
     selectedRoots: [...record.selectedRoots,],
   };
   try {
-    await writeFile(
-      temporaryPath,
-      `${JSON.stringify(serializedRecord,)}\n`,
-      {
-        encoding: 'utf8',
-        flag: 'wx',
-        mode: PRIVATE_FILE_MODE,
-      },
-    );
+    {
+      /**
+       * Exclusive no-follow temporary journal handle.
+       */
+      await using handle = await open(
+        temporaryPath,
+        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+        PRIVATE_FILE_MODE,
+      );
+      await handle.writeFile(
+        `${JSON.stringify(serializedRecord,)}\n`,
+        'utf8',
+      );
+      await handle.sync();
+    }
     await rename(
       temporaryPath,
       path,
     );
+    await syncDirectory(dirname(path,),);
   }
   catch (error: unknown) {
     await rm(
@@ -229,10 +198,7 @@ export async function createWorktreeCopyJournal({
   /**
    * Private journal directory.
    */
-  const root = join(
-    commonDir,
-    JOURNAL_RELATIVE_ROOT,
-  );
+  const root = worktreeCopyJournalRoot(commonDir,);
   await mkdir(
     root,
     {
@@ -251,7 +217,7 @@ export async function createWorktreeCopyJournal({
    * Initial staged journal record.
    */
   const record: WorktreeCopyJournal = {
-    createdEntries: [],
+    intendedEntries: [],
     destinationRoot,
     phase: 'staged',
     selectedRoots: snapshot.selectedRoots,
@@ -321,10 +287,7 @@ export async function readPendingWorktreeCopyJournals(
   /**
    * Private journal directory.
    */
-  const root = join(
-    commonDir,
-    JOURNAL_RELATIVE_ROOT,
-  );
+  const root = worktreeCopyJournalRoot(commonDir,);
   /**
    * Existing final journal filenames.
    */
@@ -347,9 +310,10 @@ export async function readPendingWorktreeCopyJournals(
       ),);
       return {
         path,
-        record: validateJournal({
+        record: validateJournalValue({
           value: parsed,
           path,
+          journalRoot: root,
         },),
       };
     }
@@ -377,16 +341,29 @@ export async function readPendingWorktreeCopyJournals(
 export async function removeWorktreeCopyJournal(
   pending: PendingWorktreeCopyJournal,
 ): Promise<void> {
+  /**
+   * Durable completion marker making stage cleanup resumable.
+   */
+  const completeRecord: WorktreeCopyJournal = {
+    ...pending.record,
+    phase: 'complete',
+  };
+  if (pending.record.phase !== 'complete') {
+    await writeJournal({
+      path: pending.path,
+      record: completeRecord,
+    },);
+  }
   await rm(
-    pending.path,
-    { force: true, },
-  );
-  await rm(
-    pending.record
-      .stageContainer,
+    completeRecord.stageContainer,
     {
       recursive: true,
       force: true,
     },
   );
+  await rm(
+    pending.path,
+    { force: true, },
+  );
+  await syncDirectory(dirname(pending.path,),);
 }

@@ -5,7 +5,10 @@ import {
 
 import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 
-import { entryMatches, } from './entry-compare.ts';
+import {
+  entryMatches,
+  lstatOrAbsent,
+} from './entry-compare.ts';
 import { filesystemPath, } from './ignored-paths.ts';
 import type {
   InstalledWorktreePath,
@@ -64,6 +67,9 @@ export async function rollbackCreated({
      */
     const expected = selectedByPath.get(installed.relativePath,);
     try {
+      // oxlint-disable-next-line no-await-in-loop -- absent intended entries require no rollback
+      if ((typeof await lstatOrAbsent(destinationPath,)) === 'symbol')
+        continue;
       if (expected !== undefined) {
         /* oxlint-disable no-await-in-loop -- ownership proof precedes each destructive rollback step */
         /**

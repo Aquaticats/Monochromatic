@@ -51,34 +51,36 @@ export async function beginInstalling(state: JournalState,): Promise<void> {
 }
 
 /**
- * Records one selected entry after destination creation.
+ * Persists one destination-path intent before filesystem mutation.
  *
  * @param state - mutable latest journal state
  *
- * @param relativePath - newly installed repository path
+ * @param relativePath - repository path about to be installed
  *
  * @example
  * ```ts
- * await recordCreatedEntry({ state, relativePath: 'cache/data' });
+ * await recordEntryIntent({ state, relativePath: 'cache/data' });
  * ```
  */
-export async function recordCreatedEntry({
+export async function recordEntryIntent({
   state,
   relativePath,
 }: Readonly<{
   state: JournalState;
   relativePath: string;
 }>,): Promise<void> {
+  if (state.pending.record.intendedEntries.includes(relativePath,))
+    return;
   /**
-   * Updated durable creation list.
+   * Updated durable installation-intent list.
    */
   const record: WorktreeCopyJournal = {
     ...state.pending
       .record,
-    createdEntries: [
+    intendedEntries: [
       ...state.pending
         .record
-        .createdEntries,
+        .intendedEntries,
       relativePath,
     ],
     phase: 'installing',

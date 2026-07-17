@@ -18,7 +18,7 @@ import { filesystemPath, } from './ignored-paths.ts';
 import { rollbackCreated, } from './install-rollback.ts';
 import {
   type JournalState,
-  recordCreatedEntry,
+  recordEntryIntent,
 } from './transaction-journal.ts';
 import type {
   InstalledWorktreePath,
@@ -90,23 +90,19 @@ async function preflightDestination({
  *
  * @param created - mutable transaction-owned creation list
  *
- * @param journalState - mutable durable transaction state
- *
  * @example
  * ```ts
- * await ensureParents({ destinationRoot: '/wt', entry, created: [], journalState });
+ * await ensureParents({ destinationRoot: '/wt', entry, created: [] });
  * ```
  */
 async function ensureParents({
   destinationRoot,
   entry,
   created,
-  journalState,
 }: Readonly<{
   destinationRoot: string;
   entry: WorktreeCopyEntry;
   created: InstalledWorktreePath[];
-  journalState: JournalState;
 }>,): Promise<void> {
   /**
    * Selected path components excluding selected entry itself.
@@ -158,11 +154,6 @@ async function ensureParents({
     created.push({
       relativePath: current,
       selected: false,
-    },);
-    // oxlint-disable-next-line no-await-in-loop -- journal durably follows each scaffold creation
-    await recordCreatedEntry({
-      state: journalState,
-      relativePath: current,
     },);
   }
 }
@@ -258,7 +249,7 @@ async function createSelectedEntry({
  *
  * @param journalState - mutable durable transaction state
  *
- * @mutates journalState - records every created destination path through {@link recordCreatedEntry}
+ * @mutates journalState - records each selected path intent through {@link recordEntryIntent}
  *
  * @returns count of newly installed selected entries
  *
@@ -278,22 +269,27 @@ export async function installSnapshot({
   destinationRoot: string;
   journalState: JournalState;
 }>,): Promise<number> {
-  await preflightDestination({
-    snapshot,
-    destinationRoot,
-  },);
   /**
-   * Transaction-owned destination paths in creation order.
+   * Prior selected intents conservatively owned only when they still equal stage.
    */
-  const created: InstalledWorktreePath[] = [];
+  const created: InstalledWorktreePath[] = journalState.pending.record.intendedEntries
+    .map(function priorIntent(relativePath,): InstalledWorktreePath {
+      return {
+        relativePath,
+        selected: true,
+      };
+    },);
   try {
+    await preflightDestination({
+      snapshot,
+      destinationRoot,
+    },);
     for (const entry of snapshot.entries) {
       // oxlint-disable-next-line no-await-in-loop -- manifest parent order and rollback ownership require sequential install
       await ensureParents({
         destinationRoot,
         entry,
         created,
-        journalState,
       },);
       /**
        * Current destination path after parent creation.
@@ -305,20 +301,24 @@ export async function installSnapshot({
       // oxlint-disable-next-line no-await-in-loop -- destination can change between preflight and exact exclusive creation
       if ((typeof await lstatOrAbsent(destinationPath,)) !== 'symbol')
         continue;
+      // oxlint-disable-next-line no-await-in-loop -- intent must be durable before selected destination mutation
+      await recordEntryIntent({
+        state: journalState,
+        relativePath: entry.relativePath,
+      },);
+      if (!created.some(function sameIntent(installed,): boolean {
+        return installed.selected && (installed.relativePath === entry.relativePath);
+      },)) {
+        created.push({
+          relativePath: entry.relativePath,
+          selected: true,
+        },);
+      }
       // oxlint-disable-next-line no-await-in-loop -- deterministic parent-before-child installation
       await createSelectedEntry({
         snapshot,
         destinationRoot,
         entry,
-      },);
-      created.push({
-        relativePath: entry.relativePath,
-        selected: true,
-      },);
-      // oxlint-disable-next-line no-await-in-loop -- journal must durably follow each installed selected entry
-      await recordCreatedEntry({
-        state: journalState,
-        relativePath: entry.relativePath,
       },);
     }
     return created.filter(function selectedEntry(installed,): boolean {

@@ -1,5 +1,6 @@
 import { constants, } from 'node:fs';
 import {
+  chmod,
   cp,
   mkdir,
   mkdtemp,
@@ -28,7 +29,7 @@ import type { StagedWorktreeSnapshot, } from './model.ts';
 /**
  * Private staging directory prefix beside destination worktree.
  */
-const STAGE_PREFIX = '.cli-git-worktree-copy-';
+export const STAGE_PREFIX = '.cli-git-worktree-copy-';
 
 /**
  * Private staging directory mode.
@@ -237,6 +238,19 @@ export async function stageIgnoredSnapshot({
     dirname(destinationRoot,),
     STAGE_PREFIX,
   ),);
+  try {
+    await chmod(
+      stageContainer,
+      PRIVATE_DIRECTORY_MODE,
+    );
+  }
+  catch (error: unknown) {
+    await rm(
+      stageContainer,
+      { recursive: true, force: true, },
+    );
+    throw error;
+  }
   /**
    * Private payload root mirroring source repository paths.
    */
@@ -262,6 +276,12 @@ export async function stageIgnoredSnapshot({
   const selectedRoots = gitSelectedRoots.filter(function retainedRoot(
     repositoryPath,
   ): boolean {
+    if (repositoryPath.split('/')
+      .some(function privateStageComponent(component,): boolean {
+        return component.startsWith(STAGE_PREFIX,);
+      },)) {
+      return false;
+    }
     /**
      * Native selected source root.
      */
