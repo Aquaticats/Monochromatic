@@ -106,7 +106,9 @@ async function readLockOwner(ownerPath: string,): Promise<LockOwner> {
     || (value.schemaVersion !== 1)
     || (!('leaseToken' in value))
     || ((typeof value.leaseToken) !== 'string')
-    || (value.leaseToken.length === 0)
+    || (value.leaseToken
+      .length
+      === 0)
     || (!('ownerPid' in value))
     || ((typeof value.ownerPid) !== 'number')
     || (!Number.isInteger(value.ownerPid,))
@@ -422,7 +424,7 @@ export async function validatesInheritedWorktreeCopyLease({
   leaseToken,
 }: Readonly<{
   commonDir: string;
-  leaseToken: string | undefined;
+  leaseToken?: string;
 }>,): Promise<boolean> {
   if ((leaseToken === undefined) || (leaseToken.length === 0))
     return false;
