@@ -40,7 +40,8 @@ async function lstatStageOrAbsent(
     return await lstat(path,);
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return STAGE_PATH_ABSENT;
     throw error;
   }

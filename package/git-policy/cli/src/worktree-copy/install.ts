@@ -71,8 +71,10 @@ async function captureInstalledPath({
     { bigint: true, },
   );
   return {
-    device: stats.dev.toString(),
-    inode: stats.ino.toString(),
+    device: stats.dev
+      .toString(),
+    inode: stats.ino
+      .toString(),
     relativePath,
     selected,
   };
@@ -326,7 +328,9 @@ export async function installSnapshot({
   /**
    * Prior paths with durable post-creation identities.
    */
-  const created: InstalledWorktreePath[] = journalState.pending.record.createdEntries
+  const created: InstalledWorktreePath[] = journalState.pending
+    .record
+    .createdEntries
     .map(function priorCreation(entry,): InstalledWorktreePath {
       return { ...entry, };
     },);

@@ -309,7 +309,8 @@ export async function writeJournal({
    */
   const serializedRecord: WorktreeCopyJournal = {
     ...record,
-    createdEntries: record.createdEntries.map(function createdEntry(entry,) {
+    createdEntries: record.createdEntries
+      .map(function createdEntry(entry,) {
       return { ...entry, };
     },),
     intendedEntries: [...record.intendedEntries,],

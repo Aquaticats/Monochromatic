@@ -39,15 +39,18 @@ export async function beginInstalling(state: JournalState,): Promise<void> {
    * Installing record replacing staged phase.
    */
   const record: WorktreeCopyJournal = {
-    ...state.pending.record,
+    ...state.pending
+      .record,
     phase: 'installing',
   };
   await writeJournal({
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   },);
   state.pending = {
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   };
 }
@@ -73,25 +76,33 @@ export async function recordEntryIntent({
   state: JournalState;
   relativePath: string;
 }>,): Promise<void> {
-  if (state.pending.record.intendedEntries.includes(relativePath,))
+  if (state.pending
+    .record
+    .intendedEntries
+    .includes(relativePath,))
     return;
   /**
    * Updated durable installation-intent list.
    */
   const record: WorktreeCopyJournal = {
-    ...state.pending.record,
+    ...state.pending
+      .record,
     intendedEntries: [
-      ...state.pending.record.intendedEntries,
+      ...state.pending
+        .record
+        .intendedEntries,
       relativePath,
     ],
     phase: 'installing',
   };
   await writeJournal({
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   },);
   state.pending = {
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   };
 }
@@ -117,7 +128,10 @@ export async function recordCreatedEntry({
   state: JournalState;
   entry: InstalledWorktreePath;
 }>,): Promise<void> {
-  if (state.pending.record.createdEntries.some(function samePath(
+  if (state.pending
+    .record
+    .createdEntries
+    .some(function samePath(
     created,
   ): boolean {
     return created.relativePath === entry.relativePath;
@@ -128,19 +142,24 @@ export async function recordCreatedEntry({
    * Updated durable proven-creation list.
    */
   const record: WorktreeCopyJournal = {
-    ...state.pending.record,
+    ...state.pending
+      .record,
     createdEntries: [
-      ...state.pending.record.createdEntries,
+      ...state.pending
+        .record
+        .createdEntries,
       { ...entry, },
     ],
     phase: 'installing',
   };
   await writeJournal({
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   },);
   state.pending = {
-    path: state.pending.path,
+    path: state.pending
+      .path,
     record,
   };
 }

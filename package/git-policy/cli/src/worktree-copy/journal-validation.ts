@@ -216,7 +216,8 @@ export function validateJournalValue({
    * Plain immutable journal detached from untrusted parsed object.
    */
   const record: WorktreeCopyJournal = {
-    createdEntries: value.createdEntries.map(function createdEntry(
+    createdEntries: value.createdEntries
+      .map(function createdEntry(
       entry,
     ): InstalledWorktreePath {
       return { ...entry, };
@@ -262,19 +263,27 @@ export function validateJournalValue({
       `cli-git: worktree-copy journal has unsafe private stage relation: ${JSON.stringify(path,)}.`,
     );
   }
-  record.selectedRoots.forEach(assertSafeRepositoryPath,);
-  record.intendedEntries.forEach(assertSafeRepositoryPath,);
-  record.createdEntries.forEach(function safeCreatedEntry(entry,): void {
+  record.selectedRoots
+    .forEach(assertSafeRepositoryPath,);
+  record.intendedEntries
+    .forEach(assertSafeRepositoryPath,);
+  record.createdEntries
+    .forEach(function safeCreatedEntry(entry,): void {
     assertSafeRepositoryPath(entry.relativePath,);
   },);
   /**
    * Created paths used to reject duplicate ownership claims.
    */
-  const createdPaths = record.createdEntries.map(function createdPath(entry,): string {
+  const createdPaths = record.createdEntries
+    .map(function createdPath(entry,): string {
     return entry.relativePath;
   },);
-  if ((new Set(record.selectedRoots,).size !== record.selectedRoots.length)
-    || (new Set(record.intendedEntries,).size !== record.intendedEntries.length)
+  if ((new Set(record.selectedRoots,).size
+    !== record.selectedRoots
+    .length)
+    || (new Set(record.intendedEntries,).size
+      !== record.intendedEntries
+      .length)
     || (new Set(createdPaths,).size !== createdPaths.length)) {
     throw new WorktreeCopyError(
       `cli-git: worktree-copy journal contains duplicate repository paths: ${JSON.stringify(path,)}.`,

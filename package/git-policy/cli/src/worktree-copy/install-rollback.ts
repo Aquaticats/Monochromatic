@@ -42,13 +42,18 @@ async function installedIdentityState({
       path,
       { bigint: true, },
     );
-    return (stats.dev.toString() === installed.device)
-      && (stats.ino.toString() === installed.inode)
+    return (stats.dev
+      .toString()
+      === installed.device)
+      && (stats.ino
+        .toString()
+        === installed.inode)
       ? 'match'
       : 'changed';
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return 'absent';
     throw error;
   }
