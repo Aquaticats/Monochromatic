@@ -1,0 +1,26 @@
+{
+  "sourceRevision": "ef01490f5e960f8ca0b424c12242caeb3c5a2b5e",
+  "catalogOrigin": "Configured extension catalog retained by the 2026-10-14 isolated native consumer; public package versions read on 2026-10-16",
+  "expectedEntries": 22,
+  "repositoryPackages": [
+    "ask-user-question",
+    "spawn",
+    "advisor",
+    "terminal-title",
+    "agent-settled-notification",
+    "statusline",
+    "thinking-default",
+    "search-fetch",
+    "goal",
+    "bash-poke",
+    "openai-fast",
+    "model-retirement"
+  ],
+  "externalPackages": [
+    { "name": "@narumitw/pi-btw", "version": "0.61.1", "entries": ["dist/index.ts"] },
+    { "name": "@aliou/pi-processes", "version": "0.13.2", "entries": ["extensions/processes/index.ts", "extensions/processes-logs/index.ts", "extensions/processes-dock/index.ts"] },
+    { "name": "@benvargas/pi-synthetic-provider", "version": "1.2.6", "entries": ["extensions/index.ts"] },
+    { "name": "@charmland/pi-hyper-provider", "version": "0.4.2", "entries": ["src/index.ts"] },
+    { "name": "@earendil-works/pi-radius", "version": "0.1.19", "entries": ["extensions/radius-routing.ts", "extensions/radius-notices.ts", "extensions/radius-web-search.ts", "extensions/radius-mcp-migration.ts"] }
+  ]
+}

@@ -38,3 +38,62 @@ run = "node src/mise.verify-extension.ts"
 [tasks."verify:pi-runtime"]
 depends = ["build"]
 run = "node src/mise.verify-pi-runtime.ts"
+
+[tasks."trial:depot:pi:prepare"]
+description = "Prepare exact-source artifacts and the retained public extension catalog for isolated offline host checks"
+dir = "{{config_root}}/../../.."
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { execFileSync } = await import('node:child_process')
+const { createHash } = await import('node:crypto')
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = await import('node:fs')
+const { homedir } = await import('node:os')
+const { join } = await import('node:path')
+const { strict: assert } = await import('node:assert')
+const source = join(process.env.GITHUB_WORKSPACE, 'source')
+const harness = join(process.env.GITHUB_WORKSPACE, 'harness')
+const catalog = JSON.parse(readFileSync(join(harness, '.depot/manifests/pi-extensions.json'), 'utf8'))
+const directory = join(homedir(), 'temp/agent/depot-complete-ci/pi-host')
+mkdirSync(directory, { recursive: true, mode: 0o700 })
+assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), catalog.sourceRevision)
+assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), '')
+const startedAt = new Date().toISOString()
+const systemPackages = ['dbus', 'dunst', 'libnotify-bin', 'tmux', 'xterm', 'xvfb', 'x11-utils', 'fonts-dejavu-core']
+execFileSync('sudo', ['--non-interactive', 'apt-get', 'update'], { stdio: 'inherit', timeout: 120000 })
+execFileSync('sudo', ['--non-interactive', 'apt-get', 'install', '--yes', '--no-install-recommends', ...systemPackages], { stdio: 'inherit', timeout: 180000 })
+const systemVersions = execFileSync('dpkg-query', ['--show', '--showformat=${Package}\t${Version}\n', ...systemPackages], { encoding: 'utf8' })
+const externalRoot = join(directory, 'extensions')
+mkdirSync(externalRoot, { recursive: true, mode: 0o700 })
+const dependencies = Object.fromEntries(catalog.externalPackages.map(function externalVersion(item) { return [item.name, item.version] }))
+for (const name of ['@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui', 'typebox']) {
+  const candidates = [join(source, 'package/pi-plugin/auto-mode/node_modules', name, 'package.json'), join(source, 'node_modules', name, 'package.json'), join(source, 'package/pi-plugin/bash-poke/node_modules', name, 'package.json')]
+  const path = candidates.find(function installed(candidate) { return existsSync(candidate) })
+  assert(path, `The source dependency graph must provide ${name}`)
+  dependencies[name] = JSON.parse(readFileSync(path, 'utf8')).version
+}
+writeFileSync(join(externalRoot, 'package.json'), JSON.stringify({ name: 'depot-pi-host-configured-extensions', private: true, type: 'module', dependencies }, null, 2))
+execFileSync('pnpm', ['install', '--ignore-scripts', '--ignore-workspace'], { cwd: externalRoot, stdio: 'inherit', timeout: 180000 })
+const lock = readFileSync(join(externalRoot, 'pnpm-lock.yaml'))
+const extensions = []
+for (const name of catalog.repositoryPackages) {
+  const root = join(source, 'package/pi-plugin', name)
+  execFileSync('mise', ['run', `//package/pi-plugin/${name}:build`], { cwd: source, stdio: 'inherit', timeout: 180000 })
+  const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  for (const entry of metadata.pi.extensions) extensions.push({ path: join(root, entry), enabled: true, metadata: { source: `package/pi-plugin/${name}`, packageRoot: root } })
+}
+execFileSync('mise', ['run', '//package/pi-plugin/auto-mode:build'], { cwd: source, stdio: 'inherit', timeout: 300000 })
+for (const item of catalog.externalPackages) {
+  const root = join(externalRoot, 'node_modules', item.name)
+  const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  assert.equal(metadata.version, item.version)
+  assert.deepEqual(metadata.pi.extensions.map(function normalized(entry) { return entry.startsWith('./') ? entry.slice(2) : entry }), item.entries)
+  for (const entry of item.entries) extensions.push({ path: join(root, entry), enabled: true, metadata: { source: `npm:${item.name}`, packageRoot: root } })
+}
+assert.equal(extensions.length, catalog.expectedEntries)
+for (const extension of extensions) assert(existsSync(extension.path), `Missing configured extension: ${extension.path}`)
+writeFileSync(join(directory, 'extensions.json'), JSON.stringify(extensions, null, 2))
+assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), '')
+const record = { event: 'pi-host-prepared', sourceRevision: catalog.sourceRevision, startedAt, finishedAt: new Date().toISOString(), systemVersions, extensions: extensions.length, catalogOrigin: catalog.catalogOrigin, externalDependencies: dependencies, externalLockSha256: createHash('sha256').update(lock).digest('hex'), providerRequests: 0 }
+writeFileSync(join(directory, 'preparation.json'), JSON.stringify(record, null, 2))
+console.log(JSON.stringify(record))
+'''
