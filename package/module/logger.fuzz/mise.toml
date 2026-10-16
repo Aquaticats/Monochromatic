@@ -175,14 +175,17 @@ assert(['containers', 'fuzz', 'mutation', 'native-mutation', 'pi-regression', 'r
 const directory = join(homedir(), 'temp/agent/depot-complete-ci')
 mkdirSync(directory, { recursive: true, mode: 0o700 })
 const records = []
-const env = { ...process.env, MISE_LOCKED: '0', MISE_RUST_VERSION: versions.get('rust'), CARGO_NET_OFFLINE: 'false' }
+const env = { ...process.env, MISE_LOCKED: '1', MISE_RUST_VERSION: versions.get('rust'), CARGO_NET_OFFLINE: 'false' }
 function run({ name, command, args, cwd = source, limit = 300000 }) {
   const startedAt = new Date().toISOString()
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', timeout: limit, maxBuffer: 16 * 1024 * 1024 })
+  const installing = command === 'mise' && args[0] === 'install'
+  const invocation = command === 'mise' ? args : ['exec', '--', command, ...args]
+  const result = spawnSync('mise', invocation, { cwd: installing ? join(process.env.GITHUB_WORKSPACE, 'harness') : cwd, env: installing ? { ...env, MISE_LOCKED: '0' } : env, encoding: 'utf8', timeout: limit, maxBuffer: 16 * 1024 * 1024 })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
   writeFileSync(join(directory, `prepare-${name}.log`), output, { mode: 0o600 })
   const record = { name, command, args, status: result.status === 0 ? 'passed' : 'failed', exitCode: result.status, signal: result.signal, error: result.error?.message, startedAt, finishedAt: new Date().toISOString(), outputSha256: createHash('sha256').update(output).digest('hex') }
   records.push(record)
+  writeFileSync(join(directory, 'logger-remainder-preparation-results.json'), JSON.stringify({ sourceRevision, partition, records, providerJobUrl: process.env.DEPOT_JOB_URL }, null, 2))
   console.log(JSON.stringify(record))
   if (result.status !== 0) console.error(output.slice(-8000))
   return result
