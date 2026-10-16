@@ -152,3 +152,82 @@ if (partition.name !== 'fuzz') {
   assert.equal(suite?.status, 0, 'Fuzz partition checks failed; see retained per-check records')
 }
 '''
+
+[tasks."trial:depot:remainder:prepare"]
+description = "Prepare explicit historical executables, offline Cargo inputs and disposable OpenTofu fixtures for logger remainder checks"
+dir = "{{config_root}}/../../.."
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { spawnSync, execFileSync } = await import('node:child_process')
+const { readFileSync, writeFileSync, mkdirSync, existsSync, appendFileSync, statSync } = await import('node:fs')
+const { createHash } = await import('node:crypto')
+const { homedir } = await import('node:os')
+const { join } = await import('node:path')
+const { strict: assert } = await import('node:assert')
+assert(process.env.GITHUB_WORKSPACE)
+const source = join(process.env.GITHUB_WORKSPACE, 'source')
+const sourceRevision = 'ef01490f5e960f8ca0b424c12242caeb3c5a2b5e'
+assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), sourceRevision)
+const lock = readFileSync(join(source, 'mise.lock'), 'utf8')
+const versions = new Map([...lock.matchAll(/^\[\[tools\.(?:"([^"]+)"|([^\]]+))\]\]\nversion = "([^"]+)"/gm)].map(match => [match[1] ?? match[2], match[3]]))
+const partition = process.env.DEPOT_CI_PARTITION
+assert(['containers', 'fuzz', 'mutation', 'native-mutation', 'pi-regression', 'regular', 'rust'].includes(partition))
+const directory = join(homedir(), 'temp/agent/depot-complete-ci')
+mkdirSync(directory, { recursive: true, mode: 0o700 })
+const records = []
+const env = { ...process.env, MISE_LOCKED: '0', MISE_RUST_VERSION: versions.get('rust'), CARGO_NET_OFFLINE: 'false' }
+function run({ name, command, args, cwd = source, limit = 300000 }) {
+  const startedAt = new Date().toISOString()
+  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', timeout: limit, maxBuffer: 16 * 1024 * 1024 })
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+  writeFileSync(join(directory, `prepare-${name}.log`), output, { mode: 0o600 })
+  const record = { name, command, args, status: result.status === 0 ? 'passed' : 'failed', exitCode: result.status, signal: result.signal, error: result.error?.message, startedAt, finishedAt: new Date().toISOString(), outputSha256: createHash('sha256').update(output).digest('hex') }
+  records.push(record)
+  console.log(JSON.stringify(record))
+  if (result.status !== 0) console.error(output.slice(-8000))
+  return result
+}
+const requested = partition === 'regular' ? ['opentofu', 'npm:wrangler'] : partition === 'containers' ? ['cargo:cargo-fuzz'] : []
+for (const name of requested) {
+  assert(versions.has(name))
+  run({ name: name.replaceAll(':', '-'), command: 'mise', args: ['install', `${name}@${versions.get(name)}`] })
+}
+if (['containers', 'native-mutation', 'rust'].includes(partition)) {
+  for (const owner of ['package/git-policy/cli', 'package/git-policy/cli.fuzz', 'package/linter/monochromatic-lint']) run({ name: `cargo-fetch-${owner.split('/').slice(1).join('-')}`, command: 'cargo', args: ['fetch', '--locked', '--manifest-path', join(source, owner, 'Cargo.toml')] })
+}
+if (partition === 'containers') run({ name: 'rust-src', command: 'rustup', args: ['component', 'add', '--toolchain', versions.get('rust'), 'rust-src'] })
+if (partition === 'rust') run({ name: 'windows-gnu-target', command: 'rustup', args: ['target', 'add', '--toolchain', versions.get('rust'), 'x86_64-pc-windows-gnu'] })
+if (partition === 'native-mutation') {
+  // Historical native mutation documentation and the measured host both use 27.1.0; the source lockfile does not own this executable.
+  const version = '27.1.0'
+  const cargoHome = process.env.CARGO_HOME ?? join(homedir(), '.cargo')
+  run({ name: 'cargo-mutants-install', command: 'cargo-binstall', args: ['--no-confirm', '--strategies', 'crate-meta-data,quick-install', '--root', cargoHome, `cargo-mutants@${version}`] })
+  const binary = join(cargoHome, 'bin/cargo-mutants')
+  if (existsSync(binary)) {
+    const result = run({ name: 'cargo-mutants-version', command: binary, args: ['mutants', '--version'] })
+    assert.equal(result.stdout.trim(), `cargo-mutants ${version}`)
+    records.push({ name: 'cargo-mutants-identity', version, sha256: createHash('sha256').update(readFileSync(binary)).digest('hex'), bytes: statSync(binary).size, sourceLockfileOwned: false })
+  }
+}
+if (partition === 'regular') {
+  run({ name: 'tofu-init', command: 'tofu', args: ['init', '-backend=false', '-input=false', '-no-color'], cwd: join(source, 'package/config/tofu') })
+  const providerLock = join(source, 'package/config/tofu/.terraform.lock.hcl')
+  if (existsSync(providerLock)) {
+    const bytes = readFileSync(providerLock)
+    writeFileSync(join(directory, 'tofu-providers.lock.hcl'), bytes)
+    records.push({ name: 'tofu-provider-identity', sha256: createHash('sha256').update(bytes).digest('hex'), sourceLockfileOwned: false })
+  }
+  const fixtures = { 'cache_AS41231.txt': '192.0.2.0/24\n', 'cache_tor_relays.txt': '192.0.2.1/32', 'cache_resolved_hosts.json': '{"fixture.example.invalid":"192.0.2.2"}\n' }
+  for (const [name, value] of Object.entries(fixtures)) {
+    const path = join(source, 'package/config/tofu/src', name)
+    if (existsSync(path)) assert.equal(readFileSync(path, 'utf8'), value, 'Only disposable known cache fixtures may be reused')
+    else writeFileSync(path, value, { mode: 0o600, flag: 'wx' })
+    records.push({ name: `tofu-fixture-${name}`, sha256: createHash('sha256').update(value).digest('hex'), bytes: Buffer.byteLength(value) })
+  }
+  appendFileSync(process.env.GITHUB_ENV, 'IPINFO_TOKEN=\n')
+}
+assert.equal(readFileSync(join(source, 'mise.lock'), 'utf8'), lock)
+assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), '', 'Preparation must preserve tracked source files')
+writeFileSync(join(directory, 'logger-remainder-preparation-results.json'), JSON.stringify({ sourceRevision, partition, records, providerJobUrl: process.env.DEPOT_JOB_URL }, null, 2))
+if (records.some(record => record.status === 'failed')) throw new Error('Remainder preparation failed; retained logs identify infrastructure prerequisites')
+'''
