@@ -147,7 +147,7 @@ const before = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, 
 assert.equal(before.status, 0)
 assert.equal(before.stdout.trim(), '')
 const records = []
-function check({ id, task, args = [], limit = 180000, verify, packages }) {
+async function check({ id, task, args = [], limit = 180000, verify, packages }) {
   const missing = packages.filter(function failedBuild(name) { return !preparation.builds.some(function successful(build) { return build.package === name && build.status === 'passed' }) })
   if (missing.length > 0 || (packages.includes('auto-mode') && preparation.externalFailure)) {
     failHostCheck({ id, task, failure: `Required fresh artifact preparation failed: ${JSON.stringify({ missing, externalFailure: packages.includes('auto-mode') ? preparation.externalFailure : undefined })}` })
@@ -164,7 +164,7 @@ function check({ id, task, args = [], limit = 180000, verify, packages }) {
   let failure = result.error?.message
   try {
     assert.equal(result.status, 0, `${task} failed; see ${path}`)
-    if (verify) evidence = verify(output)
+    if (verify) evidence = await verify(output)
   } catch (error) { failure = String(error) }
   const record = { schemaVersion: 1, event: 'check-finished', caseId: 'logger', sourceRevision: catalog.sourceRevision, manifestSha256, checkId: id, task, args, startedAt, finishedAt: new Date().toISOString(), elapsedMs: performance.now() - started, exitCode: result.status, signal: result.signal, status: failure ? 'failed' : 'passed', failure, evidence, resources: { cpus: 2, memoryGiB: 2 }, providerJobUrl: process.env.DEPOT_JOB_URL }
   records.push(record)
@@ -178,7 +178,7 @@ function failHostCheck({ id, task, failure }) {
   writeFileSync(join(directory, 'pi-host-results.json'), JSON.stringify(records, null, 2))
   console.log(JSON.stringify(record))
 }
-check({
+await check({
   id: 'package.pi-plugin.auto-mode.test.native.configured-extensions',
   task: '//package/pi-plugin/auto-mode:test:native:configured-extensions',
   packages: [...catalog.repositoryPackages, 'auto-mode'],
@@ -218,7 +218,7 @@ try {
     await wait(100)
   }
   assert(displayReady, 'Private X display must answer before native host consumers run')
-  check({
+  await check({
     id: 'package.pi-plugin.ask-user-question.verify.terminal',
     task: '//package/pi-plugin/ask-user-question:verify:terminal',
     packages: ['ask-user-question'],
@@ -241,16 +241,23 @@ try {
   await wait(150)
   const positive = spawnSync('notify-send', ['--app-name=Depot positive control', 'Notification observer positive control', 'A real D-Bus Notify must be observable.'], { encoding: 'utf8', timeout: 3000 })
   assert.equal(positive.status, 0, positive.stderr)
-  await wait(150)
   const monitorPath = join(directory, 'notifications.log')
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (readFileSync(monitorPath, 'utf8').includes('Notification observer positive control')) break
+    await wait(100)
+  }
   assert(readFileSync(monitorPath, 'utf8').includes('Notification observer positive control'), 'Observer must prove it can see a real notification before absence is trusted')
   const beforeNotification = readFileSync(monitorPath, 'utf8').length
-  check({
+  await check({
     id: 'package.pi-plugin.agent-settled-notification.verify.pi-runtime',
     task: '//package/pi-plugin/agent-settled-notification:verify:pi-runtime',
     packages: ['agent-settled-notification'],
-    verify: function actualNotification(output) {
+    verify: async function actualNotification(output) {
       assert(output.includes('agent-settled-notification Pi-loader verification passed'))
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (readFileSync(monitorPath, 'utf8').slice(beforeNotification).includes('Agent is idle and ready for input.')) break
+        await wait(100)
+      }
       const delivery = readFileSync(monitorPath, 'utf8').slice(beforeNotification)
       assert.equal(delivery.split('member=Notify').length - 1, 1, 'Settlement must deliver exactly one real notification')
       for (const value of ['string "Pi"', 'string "Pi agent finished"', 'string "Agent is idle and ready for input."']) assert(delivery.includes(value), `Notification payload is missing ${value}`)
@@ -267,7 +274,7 @@ try {
   for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
   for (const descriptor of descriptors) closeSync(descriptor)
 }
-check({
+await check({
   id: 'special.package.pi-plugin.bash-poke.src.tui.expensive.unit.test.ts',
   task: '//package/pi-plugin/bash-poke:test:unit',
   packages: ['bash-poke'],
