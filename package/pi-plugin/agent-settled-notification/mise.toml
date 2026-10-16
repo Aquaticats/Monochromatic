@@ -97,3 +97,210 @@ const record = { event: 'pi-host-prepared', sourceRevision: catalog.sourceRevisi
 writeFileSync(join(directory, 'preparation.json'), JSON.stringify(record, null, 2))
 console.log(JSON.stringify(record))
 '''
+
+[tasks."trial:depot:pi:inside"]
+description = "Exercise the configured native consumer and real notification, terminal, and offline TUI boundaries in a private container"
+dir = "{{config_root}}/../../.."
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { spawn, spawnSync } = await import('node:child_process')
+const { createHash } = await import('node:crypto')
+const { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } = await import('node:fs')
+const { createRequire } = await import('node:module')
+const { homedir, networkInterfaces } = await import('node:os')
+const { join } = await import('node:path')
+const { strict: assert } = await import('node:assert')
+const source = join(process.env.GITHUB_WORKSPACE, 'source')
+const require = createRequire(join(source, 'package/pi-plugin/bash-poke/package.json'))
+const { wait } = await import(require.resolve('@monochromatic-dev/module-async-time/ts'))
+const directory = process.env.DEPOT_PI_EVIDENCE
+const manifestBytes = readFileSync(join(process.env.GITHUB_WORKSPACE, 'harness/.depot/manifests/logger.json'))
+const manifest = JSON.parse(manifestBytes)
+const manifestSha256 = createHash('sha256').update(manifestBytes).digest('hex')
+const catalog = JSON.parse(readFileSync(join(process.env.GITHUB_WORKSPACE, 'harness/.depot/manifests/pi-extensions.json'), 'utf8'))
+assert.equal(manifest.sourceRevision, catalog.sourceRevision)
+assert.deepEqual(Object.keys(networkInterfaces()).filter(function external(name) { return name !== 'lo' }), [])
+assert.equal(process.env.PI_OFFLINE, '1')
+assert.equal(process.env.DEPOT_PI_ISOLATED, '1')
+assert(homedir().startsWith(directory), 'Pi must use the disposable home')
+for (const name of Object.keys(process.env)) assert(!/(API_KEY|AUTH_TOKEN|GITHUB_TOKEN|OPENAI|ANTHROPIC)/u.test(name), `Unexpected credential variable ${name}`)
+const before = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' })
+assert.equal(before.status, 0)
+assert.equal(before.stdout.trim(), '')
+const records = []
+function check({ id, task, args = [], limit = 180000, verify }) {
+  const path = join(directory, `${id}.log`)
+  const fd = openSync(path, 'w', 0o600)
+  const startedAt = new Date().toISOString()
+  const started = performance.now()
+  const result = spawnSync('mise', ['run', task, ...(args.length > 0 ? ['--', ...args] : [])], { cwd: source, stdio: ['ignore', fd, fd], timeout: limit, killSignal: 'SIGKILL', env: { ...process.env, BASH_POKE_TUI_VERIFY: '1' } })
+  closeSync(fd)
+  const output = readFileSync(path, 'utf8')
+  let evidence
+  let failure = result.error?.message
+  try {
+    assert.equal(result.status, 0, `${task} failed; see ${path}`)
+    if (verify) evidence = verify(output)
+  } catch (error) { failure = String(error) }
+  const record = { schemaVersion: 1, event: 'check-finished', caseId: 'logger', sourceRevision: catalog.sourceRevision, manifestSha256, checkId: id, task, args, startedAt, finishedAt: new Date().toISOString(), elapsedMs: performance.now() - started, exitCode: result.status, signal: result.signal, status: failure ? 'failed' : 'passed', failure, evidence, resources: { cpus: 2, memoryGiB: 2 }, providerJobUrl: process.env.DEPOT_JOB_URL }
+  records.push(record)
+  writeFileSync(join(directory, 'pi-host-results.json'), JSON.stringify(records, null, 2))
+  console.log(JSON.stringify(record))
+  console.log(output)
+}
+function failHostCheck({ id, task, failure }) {
+  const record = { schemaVersion: 1, event: 'check-finished', caseId: 'logger', sourceRevision: catalog.sourceRevision, manifestSha256, checkId: id, task, args: [], status: 'failed', exitCode: null, failure, providerJobUrl: process.env.DEPOT_JOB_URL }
+  records.push(record)
+  writeFileSync(join(directory, 'pi-host-results.json'), JSON.stringify(records, null, 2))
+  console.log(JSON.stringify(record))
+}
+check({
+  id: 'package.pi-plugin.auto-mode.test.native.configured-extensions',
+  task: '//package/pi-plugin/auto-mode:test:native:configured-extensions',
+  args: [join(directory, 'extensions.json')],
+  verify: function completeConfiguredCatalog(output) {
+    const lines = output.split('\n').filter(function jsonLine(line) { return line.startsWith('{') }).map(function parse(line) { try { return JSON.parse(line) } catch { return {} } })
+    const loaded = lines.find(function loadedCatalog(line) { return line.configuredExtensionsLoaded === catalog.expectedEntries })
+    assert(loaded, 'The exact configured catalog must load')
+    assert(loaded.eventKinds.length > 0, 'Loaded extensions must register actual event boundaries')
+    return { configuredExtensionsLoaded: loaded.configuredExtensionsLoaded, eventKinds: loaded.eventKinds, providerRequests: 0, networkNamespace: 'loopback-only', expectedBlockedCatalogUrl: 'https://api.synthetic.new/openai/v1/models' }
+  }
+})
+const children = []
+const descriptors = []
+function daemon({ executable, args, name }) {
+  const descriptor = openSync(join(directory, `${name}.log`), 'w', 0o600)
+  descriptors.push(descriptor)
+  const child = spawn(executable, args, { stdio: ['ignore', descriptor, descriptor], env: process.env })
+  children.push(child)
+  child.on('error', function daemonError(error) { console.error(JSON.stringify({ daemon: name, error: String(error) })) })
+  return child
+}
+try {
+  process.env.DISPLAY = ':88'
+  process.env.XDG_CONFIG_HOME = join(homedir(), '.config')
+  process.env.XDG_DATA_HOME = join(homedir(), '.local/share')
+  process.env.XDG_CONFIG_DIRS = join(homedir(), 'system-config')
+  process.env.XDG_DATA_DIRS = '/usr/share'
+  process.env.XDG_RUNTIME_DIR = join(homedir(), 'runtime')
+  for (const path of [process.env.XDG_CONFIG_HOME, join(process.env.XDG_DATA_HOME, 'applications'), process.env.XDG_RUNTIME_DIR]) mkdirSync(path, { recursive: true, mode: 0o700 })
+  writeFileSync(join(process.env.XDG_CONFIG_HOME, 'xdg-terminals.list'), 'depot-fixture-xterm.desktop\n')
+  writeFileSync(join(process.env.XDG_DATA_HOME, 'applications/depot-fixture-xterm.desktop'), '[Desktop Entry]\nType=Application\nName=Disposable Pi host terminal\nExec=/usr/bin/xterm\nTryExec=/usr/bin/xterm\nTerminal=false\nCategories=TerminalEmulator;\nX-TerminalArgExec=-e\nX-TerminalArgTitle=-T\n')
+  daemon({ executable: 'Xvfb', args: [':88', '-screen', '0', '1280x800x24', '-nolisten', 'tcp', '-ac'], name: 'xvfb' })
+  let displayReady = false
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (spawnSync('xdpyinfo', [], { stdio: 'ignore', timeout: 1000 }).status === 0) { displayReady = true; break }
+    await wait(100)
+  }
+  assert(displayReady, 'Private X display must answer before native host consumers run')
+  daemon({ executable: 'dunst', args: [], name: 'dunst' })
+  let notificationReady = false
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const probe = spawnSync('dbus-send', ['--session', '--print-reply', '--dest=org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus.NameHasOwner', 'string:org.freedesktop.Notifications'], { encoding: 'utf8', timeout: 1000 })
+    if (probe.status === 0 && probe.stdout.includes('boolean true')) { notificationReady = true; break }
+    await wait(100)
+  }
+  assert(notificationReady, 'Real notification daemon must own the private D-Bus name')
+  daemon({ executable: 'dbus-monitor', args: ['--session', "type='method_call',interface='org.freedesktop.Notifications',member='Notify'"], name: 'notifications' })
+  await wait(150)
+  const positive = spawnSync('notify-send', ['--app-name=Depot positive control', 'Notification observer positive control', 'A real D-Bus Notify must be observable.'], { encoding: 'utf8', timeout: 3000 })
+  assert.equal(positive.status, 0, positive.stderr)
+  await wait(150)
+  const monitorPath = join(directory, 'notifications.log')
+  assert(readFileSync(monitorPath, 'utf8').includes('Notification observer positive control'), 'Observer must prove it can see a real notification before absence is trusted')
+  const beforeNotification = readFileSync(monitorPath, 'utf8').length
+  check({
+    id: 'package.pi-plugin.agent-settled-notification.verify.pi-runtime',
+    task: '//package/pi-plugin/agent-settled-notification:verify:pi-runtime',
+    verify: function actualNotification(output) {
+      assert(output.includes('agent-settled-notification Pi-loader verification passed'))
+      const delivery = readFileSync(monitorPath, 'utf8').slice(beforeNotification)
+      assert.equal(delivery.split('member=Notify').length - 1, 1, 'Settlement must deliver exactly one real notification')
+      for (const value of ['string "Pi"', 'string "Pi agent finished"', 'string "Agent is idle and ready for input."']) assert(delivery.includes(value), `Notification payload is missing ${value}`)
+      return { notificationCount: 1, appName: 'Pi', summary: 'Pi agent finished', body: 'Agent is idle and ready for input.', positiveControlObserved: true, transport: 'Freedesktop Notifications over private D-Bus' }
+    }
+  })
+  check({
+    id: 'package.pi-plugin.ask-user-question.verify.terminal',
+    task: '//package/pi-plugin/ask-user-question:verify:terminal',
+    limit: 90000,
+    verify: function realTerminalOutcomes(output) {
+      assert(output.includes('Detached terminal verified: answered'))
+      assert(output.includes('Detached terminal verified: cancelled'))
+      return { terminal: '/usr/bin/xterm', privateDisplay: ':88', outcomes: ['answered', 'cancelled'] }
+    }
+  })
+} catch (error) {
+  for (const [id, task] of [['package.pi-plugin.agent-settled-notification.verify.pi-runtime', '//package/pi-plugin/agent-settled-notification:verify:pi-runtime'], ['package.pi-plugin.ask-user-question.verify.terminal', '//package/pi-plugin/ask-user-question:verify:terminal']]) {
+    if (!records.some(function alreadyRecorded(record) { return record.checkId === id })) failHostCheck({ id, task, failure: String(error) })
+  }
+} finally {
+  for (const child of children.reverse()) child.kill('SIGTERM')
+  await wait(200)
+  for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+  for (const descriptor of descriptors) closeSync(descriptor)
+}
+check({
+  id: 'special.package.pi-plugin.bash-poke.src.tui.expensive.unit.test.ts',
+  task: '//package/pi-plugin/bash-poke:test:unit',
+  args: ['package/pi-plugin/bash-poke/src/tui.expensive.unit.test.ts'],
+  limit: 180000,
+  verify: function offlineTuiCases(output) {
+    for (const name of ['hands the editor back with a placeholder and pokes when the command exits', 'leaves a hidden command to Pi without a poke', 'shows a live progress row and cancels the job on a lone escape']) assert(output.includes(name), `The full offline TUI case must report ${name}`)
+    assert(!output.includes('skipped inside a Pi session'))
+    return { cases: 3, terminalBroker: 'tmux', providerRequests: 0, networkNamespace: 'loopback-only', forcedRun: true }
+  }
+})
+const after = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' })
+assert.equal(after.status, 0)
+assert.equal(after.stdout.trim(), '', 'Pi host consumers must retain tracked source identity')
+assert.equal(records.length, 4)
+assert(records.every(function passed(record) { return record.status === 'passed' }), 'Every selected Pi host consumer must pass')
+'''
+
+[tasks."trial:depot:pi:run"]
+description = "Bound offline Pi consumers in a disposable root filesystem and preserve logs plus transport evidence"
+dir = "{{config_root}}/../../.."
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { spawnSync } = await import('node:child_process')
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = await import('node:fs')
+const { homedir } = await import('node:os')
+const { join } = await import('node:path')
+const { strict: assert } = await import('node:assert')
+const directory = join(homedir(), 'temp/agent/depot-complete-ci/pi-host')
+const source = join(process.env.GITHUB_WORKSPACE, 'source')
+const harness = join(process.env.GITHUB_WORKSPACE, 'harness')
+const home = join(directory, 'disposable-home')
+const marker = join(directory, 'private-overlay-marker')
+assert(existsSync(join(directory, 'preparation.json')), 'Preparation must finish before offline execution')
+assert(!existsSync(marker), 'Private overlay marker must not exist on the runner')
+const name = `depot-pi-host-${process.pid}`
+const podman = ['--non-interactive', 'podman', '--cgroup-manager=cgroupfs']
+function run({ args, required = true, inherit = false, limit = 45000 }) {
+  const result = spawnSync('sudo', [...podman, ...args], { encoding: 'utf8', timeout: limit, ...(inherit ? { stdio: 'inherit' } : {}) })
+  console.log(JSON.stringify({ event: 'pi-host-container-operation', operation: args[0], status: result.status, signal: result.signal, error: result.error?.message, stdout: result.stdout, stderr: result.stderr }))
+  if (required && result.status !== 0) throw new Error(`Pi host container operation failed: ${args[0]}`)
+  return result
+}
+let suite
+let cleanupVerified = false
+try {
+  run({ args: ['run', '--detach', '--name', name, '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=512', '--timeout=900', '--rootfs', '/:O', '/usr/bin/sleep', '850'] })
+  run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'mkdir', '--parents', home] })
+  run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'touch', marker] })
+  const env = ['env', '-i', `HOME=${home}`, `PATH=${process.env.PATH}`, 'LANG=C.UTF-8', 'TERM=xterm-256color', 'PI_OFFLINE=1', 'DEPOT_PI_ISOLATED=1', `DEPOT_PI_EVIDENCE=${directory}`, `GITHUB_WORKSPACE=${process.env.GITHUB_WORKSPACE}`, `DEPOT_JOB_URL=${process.env.DEPOT_JOB_URL ?? ''}`, `MISE_DATA_DIR=${process.env.MISE_DATA_DIR ?? join(homedir(), '.local/share/mise')}`, `MISE_CONFIG_DIR=${join(home, '.config/mise')}`, `MISE_STATE_DIR=${join(home, '.local/state/mise')}`, 'MISE_AUTO_INSTALL=false', 'MISE_LOCKED=1', `MISE_TRUSTED_CONFIG_PATHS=${process.env.GITHUB_WORKSPACE}`, `MISE_NODE_VERSION=${process.env.MISE_NODE_VERSION}`, `MISE_PNPM_VERSION=${process.env.MISE_PNPM_VERSION}`, 'CI=true']
+  suite = run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, ...env, 'dbus-run-session', '--', 'mise', 'run', '//package/pi-plugin/agent-settled-notification:trial:depot:pi:inside'], required: false, inherit: true, limit: 780000 })
+  run({ args: ['cp', `${name}:${directory}/.`, directory] })
+} finally {
+  run({ args: ['logs', name], required: false })
+  run({ args: ['stop', '--time=10', name], required: false })
+  run({ args: ['rm', name], required: false })
+  cleanupVerified = run({ args: ['container', 'exists', name], required: false }).status === 1
+  const record = { event: 'pi-host-container-finished', exitCode: suite?.status ?? null, signal: suite?.signal ?? null, cleanupVerified, network: 'none', resources: { cpus: 2, memoryGiB: 2 }, providerJobUrl: process.env.DEPOT_JOB_URL }
+  writeFileSync(join(directory, 'container-results.json'), JSON.stringify(record, null, 2))
+  console.log(JSON.stringify(record))
+}
+assert(cleanupVerified)
+assert.equal(suite?.status, 0, 'All offline Pi host consumers must pass')
+'''
