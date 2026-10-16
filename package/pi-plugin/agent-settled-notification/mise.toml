@@ -254,6 +254,7 @@ check({
 const after = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' })
 assert.equal(after.status, 0)
 assert.equal(after.stdout.trim(), '', 'Pi host consumers must retain tracked source identity')
+assert.equal(spawnSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).stdout.trim(), catalog.sourceRevision)
 assert.equal(records.length, 4)
 assert(records.every(function passed(record) { return record.status === 'passed' }), 'Every selected Pi host consumer must pass')
 '''
@@ -272,7 +273,7 @@ const directory = join(homedir(), 'temp/agent/depot-complete-ci/pi-host')
 const source = join(process.env.GITHUB_WORKSPACE, 'source')
 const harness = join(process.env.GITHUB_WORKSPACE, 'harness')
 const home = join(directory, 'disposable-home')
-const marker = join(directory, 'private-overlay-marker')
+const marker = join(homedir(), `temp/agent/pi-private-overlay-${process.pid}`)
 assert(existsSync(join(directory, 'preparation.json')), 'Preparation must finish before offline execution')
 assert(!existsSync(marker), 'Private overlay marker must not exist on the runner')
 const name = `depot-pi-host-${process.pid}`
@@ -291,12 +292,12 @@ try {
   run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'touch', marker] })
   const env = ['env', '-i', `HOME=${home}`, `PATH=${process.env.PATH}`, 'LANG=C.UTF-8', 'TERM=xterm-256color', 'PI_OFFLINE=1', 'DEPOT_PI_ISOLATED=1', `DEPOT_PI_EVIDENCE=${directory}`, `GITHUB_WORKSPACE=${process.env.GITHUB_WORKSPACE}`, `DEPOT_JOB_URL=${process.env.DEPOT_JOB_URL ?? ''}`, `MISE_DATA_DIR=${process.env.MISE_DATA_DIR ?? join(homedir(), '.local/share/mise')}`, `MISE_CONFIG_DIR=${join(home, '.config/mise')}`, `MISE_STATE_DIR=${join(home, '.local/state/mise')}`, 'MISE_AUTO_INSTALL=false', 'MISE_LOCKED=1', `MISE_TRUSTED_CONFIG_PATHS=${process.env.GITHUB_WORKSPACE}`, `MISE_NODE_VERSION=${process.env.MISE_NODE_VERSION}`, `MISE_PNPM_VERSION=${process.env.MISE_PNPM_VERSION}`, 'CI=true']
   suite = run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, ...env, 'dbus-run-session', '--', 'mise', 'run', '//package/pi-plugin/agent-settled-notification:trial:depot:pi:inside'], required: false, inherit: true, limit: 780000 })
-  run({ args: ['cp', `${name}:${directory}/.`, directory] })
+  for (const file of ['pi-host-results.json', 'notifications.log', 'dunst.log', 'xvfb.log', 'package.pi-plugin.auto-mode.test.native.configured-extensions.log', 'package.pi-plugin.agent-settled-notification.verify.pi-runtime.log', 'package.pi-plugin.ask-user-question.verify.terminal.log', 'special.package.pi-plugin.bash-poke.src.tui.expensive.unit.test.ts.log']) run({ args: ['cp', `${name}:${directory}/${file}`, join(directory, file)], required: false })
 } finally {
   run({ args: ['logs', name], required: false })
   run({ args: ['stop', '--time=10', name], required: false })
   run({ args: ['rm', name], required: false })
-  cleanupVerified = run({ args: ['container', 'exists', name], required: false }).status === 1
+  cleanupVerified = run({ args: ['container', 'exists', name], required: false }).status === 1 && !existsSync(marker)
   const record = { event: 'pi-host-container-finished', exitCode: suite?.status ?? null, signal: suite?.signal ?? null, cleanupVerified, network: 'none', resources: { cpus: 2, memoryGiB: 2 }, providerJobUrl: process.env.DEPOT_JOB_URL }
   writeFileSync(join(directory, 'container-results.json'), JSON.stringify(record, null, 2))
   console.log(JSON.stringify(record))
