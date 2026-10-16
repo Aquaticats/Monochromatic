@@ -71,3 +71,78 @@ try {
   rmSync(dir, { recursive: true, force: true })
 }
 """
+
+[tasks."trial:depot:remainder"]
+description = "Run one explicit logger remainder partition against immutable source with retained prerequisite evidence"
+dir = "{{config_root}}/../../.."
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { execFileSync, spawnSync } = await import('node:child_process')
+const { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } = await import('node:fs')
+const { createHash } = await import('node:crypto')
+const { homedir } = await import('node:os')
+const { join } = await import('node:path')
+const { strict: assert } = await import('node:assert')
+assert(process.env.GITHUB_WORKSPACE)
+const harness = join(process.env.GITHUB_WORKSPACE, 'harness')
+const source = join(process.env.GITHUB_WORKSPACE, 'source')
+const manifestBytes = readFileSync(join(harness, '.depot/manifests/logger.json'))
+const manifest = JSON.parse(manifestBytes)
+const partitions = JSON.parse(readFileSync(join(harness, '.depot/manifests/logger-partitions.json'), 'utf8'))
+assert.equal(partitions.manifestSha256, createHash('sha256').update(manifestBytes).digest('hex'))
+assert.equal(partitions.sourceRevision, manifest.sourceRevision)
+assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), manifest.sourceRevision)
+const partition = partitions.partitions.find(item => item.name === process.env.DEPOT_CI_PARTITION)
+assert(partition, 'Unknown logger remainder partition')
+assert.equal(new Set(partition.selectedCheckIds).size, partition.selectedCheckIds.length)
+assert(partition.selectedCheckIds.every(id => manifest.checks.some(check => check.id === id)))
+const active = new Set(partition.selectedCheckIds)
+const pending = [...active]
+for (let index = 0; index < pending.length; index += 1) {
+  const check = manifest.checks.find(item => item.id === pending[index])
+  for (const id of check.prerequisites ?? []) {
+    assert(manifest.checks.some(item => item.id === id), `Unknown prerequisite: ${id}`)
+    if (active.has(id)) continue
+    active.add(id)
+    pending.push(id)
+  }
+}
+assert.deepEqual([...active].sort(), [...partition.activeCheckIds].sort())
+const directory = join(homedir(), 'temp/agent/depot-complete-ci')
+mkdirSync(directory, { recursive: true, mode: 0o700 })
+chmodSync(directory, 0o700)
+writeFileSync(join(directory, 'logger-partition.json'), JSON.stringify({ ...partition, manifestSha256: partitions.manifestSha256, sourceRevision: partitions.sourceRevision, providerJobUrl: process.env.DEPOT_JOB_URL }, null, 2))
+const suiteEnv = { ...process.env, DEPOT_CI_CASE: 'logger', DEPOT_CI_CHECK_IDS: JSON.stringify(partition.selectedCheckIds), DEPOT_CI_WORKERS: '1', DEPOT_CI_WAVE: 'all' }
+const task = '//package/dev-script/task-util:trial:depot:ci:execute'
+if (partition.name !== 'fuzz') {
+  execFileSync('mise', ['run', task], { cwd: harness, env: suiteEnv, stdio: 'inherit', timeout: 3600000 })
+} else {
+  const name = `depot-logger-fuzz-${process.pid}`
+  const marker = join(homedir(), `temp/agent/depot-fuzz-overlay-${process.pid}`)
+  assert(!existsSync(marker))
+  function podman({ args, required = true, inherit = false, limit = 60000 }) {
+    const result = spawnSync('sudo', ['--non-interactive', 'podman', '--cgroup-manager=cgroupfs', ...args], { encoding: 'utf8', timeout: limit, ...(inherit ? { stdio: 'inherit' } : {}) })
+    console.log(JSON.stringify({ event: 'fuzz-container-operation', operation: args[0], status: result.status, signal: result.signal, error: result.error?.message, stdout: result.stdout, stderr: result.stderr }))
+    if (required) assert.equal(result.status, 0, `Container operation failed: ${args[0]}`)
+    return result
+  }
+  let suite
+  let cleanupVerified = false
+  try {
+    podman({ args: ['run', '--detach', '--name', name, '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=512', '--timeout=3900', '--rootfs', '/:O', '/usr/bin/sleep', '3800'] })
+    podman({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'touch', marker] })
+    const allowedKeys = ['HOME', 'PATH', 'MISE_DATA_DIR', 'MISE_CONFIG_DIR', 'MISE_STATE_DIR', 'MISE_NODE_VERSION', 'MISE_PNPM_VERSION', 'MISE_BUN_VERSION', 'MISE_DENO_VERSION', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'MISE_TRUSTED_CONFIG_PATHS', 'GITHUB_WORKSPACE', 'DEPOT_JOB_URL', 'DEPOT_CI_CASE', 'DEPOT_CI_CHECK_IDS', 'DEPOT_CI_WORKERS', 'DEPOT_CI_WAVE', 'OXLINT_THREADS', 'TSC_SINGLE_THREADED']
+    const environment = allowedKeys.filter(key => suiteEnv[key] !== undefined).map(key => `${key}=${suiteEnv[key]}`)
+    suite = podman({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, 'env', '-i', ...environment, 'DEPOT_CI_CPUS=2', 'DEPOT_CI_MEMORY_GIB=2', 'CI=true', 'LANG=C.UTF-8', 'mise', 'run', task], required: false, inherit: true, limit: 3600000 })
+    for (const file of ['logger-results.json', 'check-logs']) podman({ args: ['cp', `${name}:${directory}/${file}`, join(directory, file)], required: false })
+  } finally {
+    podman({ args: ['logs', name], required: false })
+    podman({ args: ['stop', '--time=10', name], required: false })
+    podman({ args: ['rm', name], required: false })
+    cleanupVerified = podman({ args: ['container', 'exists', name], required: false }).status === 1 && !existsSync(marker)
+    writeFileSync(join(directory, 'fuzz-container-results.json'), JSON.stringify({ exitCode: suite?.status ?? null, signal: suite?.signal ?? null, cleanupVerified, resources: { cpus: 2, memoryGiB: 2 }, network: 'none' }, null, 2))
+  }
+  assert(cleanupVerified, 'Fuzz overlay must be removed without modifying the host marker')
+  assert.equal(suite?.status, 0, 'Fuzz partition checks failed; see retained per-check records')
+}
+'''

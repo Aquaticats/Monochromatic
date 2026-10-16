@@ -1,0 +1,84 @@
+name: depot-complete-logger-remainder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remainder:
+    name: Logger ${{ matrix.partition }}
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [containers, fuzz, mutation, native-mutation, pi-regression, regular, rust]
+    runs-on:
+      size: 16x64
+      image: monochromatic-trial-native-bases:20261016-v1
+    timeout-minutes: 75
+    env:
+      MISE_AUTO_INSTALL: 'false'
+      MISE_LOCKED: '1'
+      CI: 'true'
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      DEPOT_CI_CASE: logger
+      DEPOT_CI_PARTITION: ${{ matrix.partition }}
+      DEPOT_CI_WORKERS: '1'
+      OXLINT_THREADS: '1'
+      TSC_SINGLE_THREADED: '1'
+      DEPOT_CI_WAVE: all
+      DEPOT_CI_CPUS: '16'
+      DEPOT_CI_MEMORY_GIB: '64'
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        path: harness
+        persist-credentials: false
+        clean: false
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        path: source
+        ref: ef01490f5e960f8ca0b424c12242caeb3c5a2b5e
+        fetch-depth: 2
+        persist-credentials: false
+        clean: false
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      with:
+        version: 2026.10.9
+        working_directory: harness
+        install: false
+        env: false
+        export_path: false
+        cache: false
+    - name: Install exact source tool versions
+      working-directory: harness
+      env:
+        MISE_LOCKED: '0'
+      run: mise run //package/dev-script/task-util:trial:depot:ci:native-tools
+    - name: Verify source tools and frozen dependency inputs
+      working-directory: harness
+      run: mise run //package/dev-script/task-util:trial:depot:ci:native-tool-gate
+    - name: Install frozen dependencies
+      working-directory: source
+      run: mise run prepare:pnpm:install -- --frozen-lockfile
+    - name: Activate bounded container execution
+      if: matrix.partition == 'containers' || matrix.partition == 'mutation' || matrix.partition == 'native-mutation'
+      working-directory: harness
+      run: mise run //package/dev-script/task-util:trial:depot:ci:containers
+    - name: Execute selected checks and prerequisite closure
+      working-directory: harness
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: mise run //package/module/logger.fuzz:trial:depot:remainder
+    - name: Preserve each check log and identity record
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: logger-${{ matrix.partition }}-evidence
+        path: |
+          ~/temp/agent/depot-complete-ci/*-results.json
+          ~/temp/agent/depot-complete-ci/native-tools.json
+          ~/temp/agent/depot-complete-ci/logger-partition.json
+          ~/temp/agent/depot-complete-ci/check-logs/
+        if-no-files-found: ignore
