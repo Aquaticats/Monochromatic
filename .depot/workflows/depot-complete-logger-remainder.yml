@@ -16,7 +16,7 @@ jobs:
     runs-on:
       size: 16x64
       image: monochromatic-trial-native-bases:20261016-v1
-    timeout-minutes: 75
+    timeout-minutes: 30
     env:
       MISE_AUTO_INSTALL: 'false'
       MISE_LOCKED: '1'

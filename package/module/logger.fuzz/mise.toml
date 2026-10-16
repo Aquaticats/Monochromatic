@@ -115,7 +115,7 @@ writeFileSync(join(directory, 'logger-partition.json'), JSON.stringify({ ...part
 const suiteEnv = { ...process.env, DEPOT_CI_CASE: 'logger', DEPOT_CI_CHECK_IDS: JSON.stringify(partition.selectedCheckIds), DEPOT_CI_WORKERS: '1', DEPOT_CI_WAVE: 'all' }
 const task = '//package/dev-script/task-util:trial:depot:ci:execute'
 if (partition.name !== 'fuzz') {
-  execFileSync('mise', ['run', task], { cwd: harness, env: suiteEnv, stdio: 'inherit', timeout: 3600000 })
+  execFileSync('mise', ['run', task], { cwd: harness, env: suiteEnv, stdio: 'inherit', timeout: 1440000 })
 } else {
   const name = `depot-logger-fuzz-${process.pid}`
   const marker = join(homedir(), `temp/agent/depot-fuzz-overlay-${process.pid}`)
@@ -128,21 +128,27 @@ if (partition.name !== 'fuzz') {
   }
   let suite
   let cleanupVerified = false
+  let evidenceCopied = true
   try {
-    podman({ args: ['run', '--detach', '--name', name, '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=512', '--timeout=3900', '--rootfs', '/:O', '/usr/bin/sleep', '3800'] })
+    podman({ args: ['run', '--detach', '--init', '--name', name, '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=512', '--timeout=1560', '--rootfs', '/:O', '/usr/bin/sleep', '1500'] })
     podman({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'touch', marker] })
     const allowedKeys = ['HOME', 'PATH', 'MISE_DATA_DIR', 'MISE_CONFIG_DIR', 'MISE_STATE_DIR', 'MISE_NODE_VERSION', 'MISE_PNPM_VERSION', 'MISE_BUN_VERSION', 'MISE_DENO_VERSION', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'MISE_TRUSTED_CONFIG_PATHS', 'GITHUB_WORKSPACE', 'DEPOT_JOB_URL', 'DEPOT_CI_CASE', 'DEPOT_CI_CHECK_IDS', 'DEPOT_CI_WORKERS', 'DEPOT_CI_WAVE', 'OXLINT_THREADS', 'TSC_SINGLE_THREADED']
     const environment = allowedKeys.filter(key => suiteEnv[key] !== undefined).map(key => `${key}=${suiteEnv[key]}`)
-    suite = podman({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, 'env', '-i', ...environment, 'DEPOT_CI_CPUS=2', 'DEPOT_CI_MEMORY_GIB=2', 'CI=true', 'LANG=C.UTF-8', 'mise', 'run', task], required: false, inherit: true, limit: 3600000 })
-    for (const file of ['logger-results.json', 'check-logs']) podman({ args: ['cp', `${name}:${directory}/${file}`, join(directory, file)], required: false })
+    suite = podman({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, 'env', '-i', ...environment, 'DEPOT_CI_CPUS=2', 'DEPOT_CI_MEMORY_GIB=2', 'CI=true', 'LANG=C.UTF-8', 'mise', 'run', task], required: false, inherit: true, limit: 1440000 })
+    for (const file of ['logger-results.json', 'check-logs']) {
+      const copied = podman({ args: ['cp', `${name}:${directory}/${file}`, join(directory, file)], required: false })
+      if (copied.status !== 0) evidenceCopied = false
+    }
+    execFileSync('sudo', ['--non-interactive', 'chown', '--recursive', `${process.getuid()}:${process.getgid()}`, directory], { stdio: 'inherit', timeout: 60000 })
   } finally {
     podman({ args: ['logs', name], required: false })
     podman({ args: ['stop', '--time=10', name], required: false })
     podman({ args: ['rm', name], required: false })
     cleanupVerified = podman({ args: ['container', 'exists', name], required: false }).status === 1 && !existsSync(marker)
-    writeFileSync(join(directory, 'fuzz-container-results.json'), JSON.stringify({ exitCode: suite?.status ?? null, signal: suite?.signal ?? null, cleanupVerified, resources: { cpus: 2, memoryGiB: 2 }, network: 'none' }, null, 2))
+    writeFileSync(join(directory, 'fuzz-container-results.json'), JSON.stringify({ exitCode: suite?.status ?? null, signal: suite?.signal ?? null, cleanupVerified, evidenceCopied, resources: { cpus: 2, memoryGiB: 2 }, network: 'none' }, null, 2))
   }
   assert(cleanupVerified, 'Fuzz overlay must be removed without modifying the host marker')
+  assert(evidenceCopied, 'Fuzz records and logs must be copied before removing the overlay')
   assert.equal(suite?.status, 0, 'Fuzz partition checks failed; see retained per-check records')
 }
 '''
