@@ -58,6 +58,13 @@ mkdirSync(directory, { recursive: true, mode: 0o700 })
 assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), catalog.sourceRevision)
 assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), '')
 const startedAt = new Date().toISOString()
+const sourceLock = readFileSync(join(source, 'mise.lock'), 'utf8')
+const sourceTools = Object.fromEntries(['node', 'pnpm'].map(function lockedVersion(name) {
+  const version = new RegExp(`\\[\\[tools\\.${name}\\]\\]\\s+version = "([^"]+)"`, 'u').exec(sourceLock)?.[1]
+  assert(version, `Missing locked ${name} version`)
+  return [name, version]
+}))
+const builds = []
 const systemPackages = ['dbus', 'dunst', 'libnotify-bin', 'tmux', 'xterm', 'xvfb', 'x11-utils', 'fonts-dejavu-core']
 execFileSync('sudo', ['--non-interactive', 'apt-get', 'update'], { stdio: 'inherit', timeout: 120000 })
 execFileSync('sudo', ['--non-interactive', 'apt-get', 'install', '--yes', '--no-install-recommends', ...systemPackages], { stdio: 'inherit', timeout: 180000 })
@@ -72,28 +79,39 @@ for (const name of ['@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', 
   dependencies[name] = JSON.parse(readFileSync(path, 'utf8')).version
 }
 writeFileSync(join(externalRoot, 'package.json'), JSON.stringify({ name: 'depot-pi-host-configured-extensions', private: true, type: 'module', dependencies }, null, 2))
-execFileSync('pnpm', ['install', '--ignore-scripts', '--ignore-workspace'], { cwd: externalRoot, stdio: 'inherit', timeout: 180000 })
-const lock = readFileSync(join(externalRoot, 'pnpm-lock.yaml'))
+let externalFailure
+try { execFileSync('pnpm', ['install', '--ignore-scripts', '--ignore-workspace'], { cwd: externalRoot, stdio: 'inherit', timeout: 180000 }) }
+catch (error) { externalFailure = String(error); console.error(error) }
+const lockPath = join(externalRoot, 'pnpm-lock.yaml')
+const lock = existsSync(lockPath) ? readFileSync(lockPath) : undefined
 const extensions = []
-for (const name of catalog.repositoryPackages) {
+for (const name of [...catalog.repositoryPackages, 'auto-mode']) {
   const root = join(source, 'package/pi-plugin', name)
-  execFileSync('mise', ['run', `//package/pi-plugin/${name}:build`], { cwd: source, stdio: 'inherit', timeout: 180000 })
+  const buildStartedAt = new Date().toISOString()
+  try {
+    execFileSync('mise', ['run', `//package/pi-plugin/${name}:build`], { cwd: source, stdio: 'inherit', timeout: name === 'auto-mode' ? 300000 : 180000 })
+    builds.push({ package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'passed' })
+  } catch (error) {
+    console.error(error)
+    builds.push({ package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'failed', failure: String(error) })
+  }
+  if (name === 'auto-mode') continue
   const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   for (const entry of metadata.pi.extensions) extensions.push({ path: join(root, entry), enabled: true, metadata: { source: `package/pi-plugin/${name}`, packageRoot: root } })
 }
-execFileSync('mise', ['run', '//package/pi-plugin/auto-mode:build'], { cwd: source, stdio: 'inherit', timeout: 300000 })
 for (const item of catalog.externalPackages) {
   const root = join(externalRoot, 'node_modules', item.name)
-  const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  assert.equal(metadata.version, item.version)
-  assert.deepEqual(metadata.pi.extensions.map(function normalized(entry) { return entry.startsWith('./') ? entry.slice(2) : entry }), item.entries)
+  if (!externalFailure) {
+    const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+    assert.equal(metadata.version, item.version)
+    assert.deepEqual(metadata.pi.extensions.map(function normalized(entry) { return entry.startsWith('./') ? entry.slice(2) : entry }), item.entries)
+  }
   for (const entry of item.entries) extensions.push({ path: join(root, entry), enabled: true, metadata: { source: `npm:${item.name}`, packageRoot: root } })
 }
 assert.equal(extensions.length, catalog.expectedEntries)
-for (const extension of extensions) assert(existsSync(extension.path), `Missing configured extension: ${extension.path}`)
 writeFileSync(join(directory, 'extensions.json'), JSON.stringify(extensions, null, 2))
 assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), '')
-const record = { event: 'pi-host-prepared', sourceRevision: catalog.sourceRevision, startedAt, finishedAt: new Date().toISOString(), systemVersions, extensions: extensions.length, catalogOrigin: catalog.catalogOrigin, externalDependencies: dependencies, externalLockSha256: createHash('sha256').update(lock).digest('hex'), providerRequests: 0 }
+const record = { event: 'pi-host-prepared', sourceRevision: catalog.sourceRevision, startedAt, finishedAt: new Date().toISOString(), sourceTools, systemVersions, builds, externalFailure, extensions: extensions.length, catalogOrigin: catalog.catalogOrigin, externalDependencies: dependencies, externalLockSha256: lock ? createHash('sha256').update(lock).digest('hex') : null, providerRequests: 0 }
 writeFileSync(join(directory, 'preparation.json'), JSON.stringify(record, null, 2))
 console.log(JSON.stringify(record))
 '''
@@ -118,6 +136,7 @@ const manifestBytes = readFileSync(join(process.env.GITHUB_WORKSPACE, 'harness/.
 const manifest = JSON.parse(manifestBytes)
 const manifestSha256 = createHash('sha256').update(manifestBytes).digest('hex')
 const catalog = JSON.parse(readFileSync(join(process.env.GITHUB_WORKSPACE, 'harness/.depot/manifests/pi-extensions.json'), 'utf8'))
+const preparation = JSON.parse(readFileSync(join(directory, 'preparation.json'), 'utf8'))
 assert.equal(manifest.sourceRevision, catalog.sourceRevision)
 assert.deepEqual(Object.keys(networkInterfaces()).filter(function external(name) { return name !== 'lo' }), [])
 assert.equal(process.env.PI_OFFLINE, '1')
@@ -128,7 +147,12 @@ const before = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: source, 
 assert.equal(before.status, 0)
 assert.equal(before.stdout.trim(), '')
 const records = []
-function check({ id, task, args = [], limit = 180000, verify }) {
+function check({ id, task, args = [], limit = 180000, verify, packages }) {
+  const missing = packages.filter(function failedBuild(name) { return !preparation.builds.some(function successful(build) { return build.package === name && build.status === 'passed' }) })
+  if (missing.length > 0 || (packages.includes('auto-mode') && preparation.externalFailure)) {
+    failHostCheck({ id, task, failure: `Required fresh artifact preparation failed: ${JSON.stringify({ missing, externalFailure: packages.includes('auto-mode') ? preparation.externalFailure : undefined })}` })
+    return
+  }
   const path = join(directory, `${id}.log`)
   const fd = openSync(path, 'w', 0o600)
   const startedAt = new Date().toISOString()
@@ -157,6 +181,7 @@ function failHostCheck({ id, task, failure }) {
 check({
   id: 'package.pi-plugin.auto-mode.test.native.configured-extensions',
   task: '//package/pi-plugin/auto-mode:test:native:configured-extensions',
+  packages: [...catalog.repositoryPackages, 'auto-mode'],
   args: [join(directory, 'extensions.json')],
   verify: function completeConfiguredCatalog(output) {
     const lines = output.split('\n').filter(function jsonLine(line) { return line.startsWith('{') }).map(function parse(line) { try { return JSON.parse(line) } catch { return {} } })
@@ -193,6 +218,17 @@ try {
     await wait(100)
   }
   assert(displayReady, 'Private X display must answer before native host consumers run')
+  check({
+    id: 'package.pi-plugin.ask-user-question.verify.terminal',
+    task: '//package/pi-plugin/ask-user-question:verify:terminal',
+    packages: ['ask-user-question'],
+    limit: 90000,
+    verify: function realTerminalOutcomes(output) {
+      assert(output.includes('Detached terminal verified: answered'))
+      assert(output.includes('Detached terminal verified: cancelled'))
+      return { terminal: '/usr/bin/xterm', privateDisplay: ':88', outcomes: ['answered', 'cancelled'] }
+    }
+  })
   daemon({ executable: 'dunst', args: [], name: 'dunst' })
   let notificationReady = false
   for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -212,22 +248,13 @@ try {
   check({
     id: 'package.pi-plugin.agent-settled-notification.verify.pi-runtime',
     task: '//package/pi-plugin/agent-settled-notification:verify:pi-runtime',
+    packages: ['agent-settled-notification'],
     verify: function actualNotification(output) {
       assert(output.includes('agent-settled-notification Pi-loader verification passed'))
       const delivery = readFileSync(monitorPath, 'utf8').slice(beforeNotification)
       assert.equal(delivery.split('member=Notify').length - 1, 1, 'Settlement must deliver exactly one real notification')
       for (const value of ['string "Pi"', 'string "Pi agent finished"', 'string "Agent is idle and ready for input."']) assert(delivery.includes(value), `Notification payload is missing ${value}`)
       return { notificationCount: 1, appName: 'Pi', summary: 'Pi agent finished', body: 'Agent is idle and ready for input.', positiveControlObserved: true, transport: 'Freedesktop Notifications over private D-Bus' }
-    }
-  })
-  check({
-    id: 'package.pi-plugin.ask-user-question.verify.terminal',
-    task: '//package/pi-plugin/ask-user-question:verify:terminal',
-    limit: 90000,
-    verify: function realTerminalOutcomes(output) {
-      assert(output.includes('Detached terminal verified: answered'))
-      assert(output.includes('Detached terminal verified: cancelled'))
-      return { terminal: '/usr/bin/xterm', privateDisplay: ':88', outcomes: ['answered', 'cancelled'] }
     }
   })
 } catch (error) {
@@ -243,6 +270,7 @@ try {
 check({
   id: 'special.package.pi-plugin.bash-poke.src.tui.expensive.unit.test.ts',
   task: '//package/pi-plugin/bash-poke:test:unit',
+  packages: ['bash-poke'],
   args: ['package/pi-plugin/bash-poke/src/tui.expensive.unit.test.ts'],
   limit: 180000,
   verify: function offlineTuiCases(output) {
@@ -275,6 +303,9 @@ const harness = join(process.env.GITHUB_WORKSPACE, 'harness')
 const home = join(directory, 'disposable-home')
 const marker = join(homedir(), `temp/agent/pi-private-overlay-${process.pid}`)
 assert(existsSync(join(directory, 'preparation.json')), 'Preparation must finish before offline execution')
+const preparation = JSON.parse(readFileSync(join(directory, 'preparation.json'), 'utf8'))
+assert.match(preparation.sourceTools.node, /^\d+\.\d+\.\d+$/u)
+assert.match(preparation.sourceTools.pnpm, /^\d+\.\d+\.\d+$/u)
 assert(!existsSync(marker), 'Private overlay marker must not exist on the runner')
 const name = `depot-pi-host-${process.pid}`
 const podman = ['--non-interactive', 'podman', '--cgroup-manager=cgroupfs']
@@ -290,7 +321,7 @@ try {
   run({ args: ['run', '--detach', '--name', name, '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=512', '--timeout=900', '--rootfs', '/:O', '/usr/bin/sleep', '850'] })
   run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'mkdir', '--parents', home] })
   run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, name, 'touch', marker] })
-  const env = ['env', '-i', `HOME=${home}`, `PATH=${process.env.PATH}`, 'LANG=C.UTF-8', 'TERM=xterm-256color', 'PI_OFFLINE=1', 'DEPOT_PI_ISOLATED=1', `DEPOT_PI_EVIDENCE=${directory}`, `GITHUB_WORKSPACE=${process.env.GITHUB_WORKSPACE}`, `DEPOT_JOB_URL=${process.env.DEPOT_JOB_URL ?? ''}`, `MISE_DATA_DIR=${process.env.MISE_DATA_DIR ?? join(homedir(), '.local/share/mise')}`, `MISE_CONFIG_DIR=${join(home, '.config/mise')}`, `MISE_STATE_DIR=${join(home, '.local/state/mise')}`, 'MISE_AUTO_INSTALL=false', 'MISE_LOCKED=1', `MISE_TRUSTED_CONFIG_PATHS=${process.env.GITHUB_WORKSPACE}`, `MISE_NODE_VERSION=${process.env.MISE_NODE_VERSION}`, `MISE_PNPM_VERSION=${process.env.MISE_PNPM_VERSION}`, 'CI=true']
+  const env = ['env', '-i', `HOME=${home}`, `PATH=${process.env.PATH}`, 'LANG=C.UTF-8', 'TERM=xterm-256color', 'PI_OFFLINE=1', 'DEPOT_PI_ISOLATED=1', `DEPOT_PI_EVIDENCE=${directory}`, `GITHUB_WORKSPACE=${process.env.GITHUB_WORKSPACE}`, `DEPOT_JOB_URL=${process.env.DEPOT_JOB_URL ?? ''}`, `MISE_DATA_DIR=${process.env.MISE_DATA_DIR ?? join(homedir(), '.local/share/mise')}`, `MISE_CONFIG_DIR=${join(home, '.config/mise')}`, `MISE_STATE_DIR=${join(home, '.local/state/mise')}`, 'MISE_AUTO_INSTALL=false', 'MISE_LOCKED=1', `MISE_TRUSTED_CONFIG_PATHS=${process.env.GITHUB_WORKSPACE}`, `MISE_NODE_VERSION=${preparation.sourceTools.node}`, `MISE_PNPM_VERSION=${preparation.sourceTools.pnpm}`, 'CI=true']
   suite = run({ args: ['exec', '--user', `${process.getuid()}:${process.getgid()}`, '--workdir', harness, name, ...env, 'dbus-run-session', '--', 'mise', 'run', '//package/pi-plugin/agent-settled-notification:trial:depot:pi:inside'], required: false, inherit: true, limit: 780000 })
   for (const file of ['pi-host-results.json', 'notifications.log', 'dunst.log', 'xvfb.log', 'package.pi-plugin.auto-mode.test.native.configured-extensions.log', 'package.pi-plugin.agent-settled-notification.verify.pi-runtime.log', 'package.pi-plugin.ask-user-question.verify.terminal.log', 'special.package.pi-plugin.bash-poke.src.tui.expensive.unit.test.ts.log']) run({ args: ['cp', `${name}:${directory}/${file}`, join(directory, file)], required: false })
 } finally {
