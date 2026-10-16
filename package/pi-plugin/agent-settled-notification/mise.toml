@@ -85,17 +85,45 @@ catch (error) { externalFailure = String(error); console.error(error) }
 const lockPath = join(externalRoot, 'pnpm-lock.yaml')
 const lock = existsSync(lockPath) ? readFileSync(lockPath) : undefined
 const extensions = []
+const manifest = JSON.parse(readFileSync(join(harness, '.depot/manifests/logger.json'), 'utf8'))
+const buildChecks = new Map(manifest.checks.filter(function build(check) { return check.family === 'build' }).map(function keyed(check) { return [check.id, check] }))
+// An unchanged configured plugin can be a consumer fixture prerequisite without becoming an affected validation owner.
 for (const name of [...catalog.repositoryPackages, 'auto-mode']) {
-  const root = join(source, 'package/pi-plugin', name)
+  const id = `package.pi-plugin.${name}.build`
+  if (!buildChecks.has(id)) buildChecks.set(id, { id, task: `//package/pi-plugin/${name}:build`, prerequisites: [], packages: [`package/pi-plugin/${name}`] })
+}
+const pending = [...catalog.repositoryPackages, 'auto-mode'].map(function identifier(name) { return `package.pi-plugin.${name}.build` })
+const selected = new Set()
+while (pending.length > 0) {
+  const id = pending.pop()
+  if (selected.has(id)) continue
+  const check = buildChecks.get(id)
+  assert(check, `Missing recorded build prerequisite ${id}`)
+  selected.add(id)
+  pending.push(...check.prerequisites)
+}
+while (selected.size > 0) {
+  const ready = [...selected].filter(function dependenciesFinished(id) { return buildChecks.get(id).prerequisites.every(function completed(dependency) { return builds.some(function result(build) { return build.checkId === dependency }) }) })
+  assert(ready.length > 0, 'The retained build prerequisite graph must be acyclic')
+  for (const id of ready) {
+  const check = buildChecks.get(id)
+  const owner = check.packages[0]
+  const name = owner.startsWith('package/pi-plugin/') ? owner.slice('package/pi-plugin/'.length) : owner
   const buildStartedAt = new Date().toISOString()
   try {
-    execFileSync('mise', ['run', `//package/pi-plugin/${name}:build`], { cwd: source, stdio: 'inherit', timeout: name === 'auto-mode' ? 300000 : 180000 })
-    builds.push({ package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'passed' })
+    const failed = check.prerequisites.filter(function failure(dependency) { return builds.find(function result(build) { return build.checkId === dependency }).status !== 'passed' })
+    assert.equal(failed.length, 0, `Fresh artifact prerequisite failed: ${failed.join(', ')}`)
+    execFileSync('mise', ['run', check.task], { cwd: source, stdio: 'inherit', timeout: name === 'auto-mode' ? 300000 : 180000 })
+    builds.push({ checkId: id, task: check.task, package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'passed' })
   } catch (error) {
     console.error(error)
-    builds.push({ package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'failed', failure: String(error) })
+    builds.push({ checkId: id, task: check.task, package: name, startedAt: buildStartedAt, finishedAt: new Date().toISOString(), status: 'failed', failure: String(error) })
   }
-  if (name === 'auto-mode') continue
+  selected.delete(id)
+  }
+}
+for (const name of catalog.repositoryPackages) {
+  const root = join(source, 'package/pi-plugin', name)
   const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   for (const entry of metadata.pi.extensions) extensions.push({ path: join(root, entry), enabled: true, metadata: { source: `package/pi-plugin/${name}`, packageRoot: root } })
 }
