@@ -1,0 +1,32 @@
+{
+  "purpose": "Nondefault Depot thin-image runtime, actual tool identity, detached logs and terminal SDK cleanup",
+  "repositoryBase": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
+  "sdkVersion": "0.1.0-beta.7",
+  "versionRationale": "Reuse the exact installed beta and integrity-locked dependencies from prior SDK controls",
+  "imageReference": "l4zncjjbj5.registry.depot.dev/research-reuse-20261018:tools-r2-git256",
+  "imageManifestDigest": "sha256:fb197837831d438592d9455b3a31d808a20ad8bdc2ae76b05d8b36f6656419cd",
+  "imageConfigDigest": "sha256:7ae93edd81e0ffa79a135d92f96813abe198516f098fd424ce3eb26483cf686b",
+  "imageDiskSizeBytes": 161061273600,
+  "imageOwnerReadOnlyUseConfirmed": true,
+  "imageOwnerDeletionOrRetagForbidden": true,
+  "request": {
+    "resources": { "vcpus": 2, "memoryMb": 4096, "diskGb": 150 },
+    "timeoutMinutes": 2,
+    "architecture": "amd64",
+    "disableTailnet": true,
+    "disableDepotCache": true,
+    "configuration": { "secrets": {} }
+  },
+  "maximumCreateCalls": 1,
+  "clientWorkDeadlineMilliseconds": 75000,
+  "clientCleanupDeadlineMilliseconds": 30000,
+  "forecast": {
+    "priorBuildkitTimestampProxyUsd": 0.538584,
+    "publicTwoCpuCiRateUsdPerMinute": 0.006,
+    "maximumRequestedSandboxMinutes": 2,
+    "maximumAdditionalComputeProxyUsd": 0.012,
+    "cumulativeProxyUsd": 0.550584,
+    "admittedCumulativeCeilingUsd": 2,
+    "accountOrInvoiceCapProven": false
+  }
+}
