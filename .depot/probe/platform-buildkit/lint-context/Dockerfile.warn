@@ -1,0 +1,4 @@
+FROM scratch
+USER root
+COPY probe.json /probe.json
+CMD ["fixture-not-executed"]

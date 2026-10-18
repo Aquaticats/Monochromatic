@@ -172,5 +172,19 @@
       "localCollisionPositiveControl": true
     },
     "maximumClientMilliseconds": 120000
+  },
+  "builtinLintCampaign": {
+    "dockerfileOnly": true,
+    "hadolintTag": "2.12.0",
+    "semgrepTag": "1.34.1",
+    "remoteRules": "p/dockerfile",
+    "controls": {
+      "warn": "Explicit USER root: Hadolint DL3002 and Semgrep last-user-is-root",
+      "clean": "Explicit non-root USER and exec-form CMD",
+      "semgrep": "No USER before CMD: current missing-user rule, no Hadolint counterpart in this fixture"
+    },
+    "failureThreshold": "warn",
+    "maximumMilliseconds": 120000,
+    "productionPolicyChanged": false
   }
 }
