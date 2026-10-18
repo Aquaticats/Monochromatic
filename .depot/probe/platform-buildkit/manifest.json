@@ -185,6 +185,19 @@
     },
     "failureThreshold": "warn",
     "maximumMilliseconds": 120000,
-    "productionPolicyChanged": false
+    "productionPolicyChanged": false,
+    "diagnosis": {
+      "reason": "Semgrep-specific positive returned exit0 without a finding",
+      "canonicalFilenameControl": true,
+      "localPinnedImage": "docker.io/returntocorp/semgrep@sha256:618103ec3ac38c28cc8fa3df3d2df92845d5fc5d74c2cede2f6bbb906e274064",
+      "localResources": {
+        "cpus": 2,
+        "memoryGiB": 2,
+        "pids": 128,
+        "mountFree": true
+      },
+      "localScannerJobs": 2,
+      "noNewCloudProducts": true
+    }
   }
 }
