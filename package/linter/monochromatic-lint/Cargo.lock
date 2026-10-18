@@ -874,6 +874,7 @@ dependencies = [
  "globset",
  "ignore",
  "monochromatic-jsonc-edit",
+ "ra_ap_cfg",
  "ra_ap_hir",
  "ra_ap_hir_ty",
  "ra_ap_ide_db",

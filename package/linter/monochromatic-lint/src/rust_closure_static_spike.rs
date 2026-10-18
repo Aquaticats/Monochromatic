@@ -54,6 +54,15 @@ pub static LAST_SYNTAX_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::
 /// Nanoseconds the last `inspect` spent on the closure classification.
 pub static LAST_CLASSIFY_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Nanoseconds the last `apply_change` took.
+pub static LAST_APPLY_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Nanoseconds the last `attach_first_edition_opt` took.
+pub static LAST_ATTACH_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Nanoseconds the last `Semantics::parse` took.
+pub static LAST_PARSE_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// True when the named environment switch is set to anything.
 pub fn flag(name: &str) -> bool {
     return std::env::var_os(name).is_some();

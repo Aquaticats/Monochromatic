@@ -103,7 +103,26 @@ pub fn discover_manifest(input: &Path) -> Result<PathBuf, SemanticError> {
 /// function cargoConfig(toolchain: RustToolchain): CargoConfig;
 /// ```
 pub(crate) fn cargo_config(toolchain: RustToolchain) -> CargoConfig {
+    // THROWAWAY SPIKE: selective cfg overrides for one package and RUSTFLAGS through the backend's own `extra_env`.
+    let mut cfg_overrides: ra_ap_project_model::CfgOverrides = ra_ap_project_model::CfgOverrides::default();
+    if let (Some(package), Some(atoms)) = (
+        std::env::var_os("MONOCHROMATIC_LINT_SPIKE_CFG_PACKAGE"),
+        std::env::var_os("MONOCHROMATIC_LINT_SPIKE_CFG_ATOMS"),
+    ) {
+        let enable: Vec<ra_ap_cfg::CfgAtom> = atoms
+            .to_string_lossy()
+            .split(',')
+            .map(|name| ra_ap_cfg::CfgAtom::Flag(ra_ap_hir::Symbol::intern(name)))
+            .collect();
+        cfg_overrides.selective.insert(package.to_string_lossy().into_owned(), ra_ap_cfg::CfgDiff::new(enable, Vec::new()));
+    }
+    let mut extra_env: ra_ap_project_model::CargoConfig = CargoConfig::default();
+    if let Some(flags) = std::env::var_os("MONOCHROMATIC_LINT_SPIKE_EXTRA_ENV_RUSTFLAGS") {
+        extra_env.extra_env.insert(String::from("RUSTFLAGS"), Some(flags.to_string_lossy().into_owned()));
+    }
     return CargoConfig {
+        cfg_overrides,
+        extra_env: extra_env.extra_env,
         sysroot: Some(RustLibSource::Path(toolchain.sysroot)),
         sysroot_src: Some(toolchain.library),
         metadata_extra_args: vec![String::from("--offline"), String::from("--locked")],

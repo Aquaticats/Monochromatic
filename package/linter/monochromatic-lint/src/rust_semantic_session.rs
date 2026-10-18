@@ -77,13 +77,18 @@ fn inspect(database: &dyn HirDatabase) -> Result<Vec<Diagnostic>, SemanticError>
         ));
     };
     let semantics: Semantics<'_, dyn HirDatabase> = Semantics::new_dyn(database);
-    let Some(file): Option<EditionedFileId> = semantics.attach_first_edition_opt(selected.file)
+    let attach_started: std::time::Instant = std::time::Instant::now();
+    let attached: Option<EditionedFileId> = semantics.attach_first_edition_opt(selected.file);
+    crate::rust_closure_static_spike::LAST_ATTACH_NANOS.store(attach_started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+    let Some(file): Option<EditionedFileId> = attached
     else {
         return Err(SemanticError::new(
             format!("Rust input {} is not part of a loaded Cargo target. Include it in the intended target, load the appropriate target configuration, or configure this semantic rule off for an intentional standalone snippet.", selected.filename).as_str(),
         ));
     };
+    let parse_started: std::time::Instant = std::time::Instant::now();
     let root: ast::SourceFile = semantics.parse(file);
+    crate::rust_closure_static_spike::LAST_PARSE_NANOS.store(parse_started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
     let source: RustSource = RustSource::from_syntax(selected.filename, root.syntax().clone());
     let syntax_started: std::time::Instant = std::time::Instant::now();
     let mut findings: Vec<Diagnostic> = check_syntax_rules(&source, &selected.settings);
@@ -244,7 +249,9 @@ impl RustSemanticSession {
         // The source overlay changes the database only; the on-disk snapshot remains untouched.
         let mut change: ChangeWithProcMacros = ChangeWithProcMacros::default();
         change.change_file(file, Some(String::from(source)));
+        let apply_started: std::time::Instant = std::time::Instant::now();
         self.database.apply_change(change);
+        crate::rust_closure_static_spike::LAST_APPLY_NANOS.store(apply_started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
         self.request
             .set_selected(&mut self.database)
             .to(Some(SelectedFile {

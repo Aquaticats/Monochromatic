@@ -116,15 +116,27 @@ impl RustFileEngine {
             .workspaces
             .get_mut(&manifest)
             .expect("inserted workspace exists");
+        for stale in [
+            &crate::rust_closure_static_spike::LAST_APPLY_NANOS,
+            &crate::rust_closure_static_spike::LAST_ATTACH_NANOS,
+            &crate::rust_closure_static_spike::LAST_PARSE_NANOS,
+            &crate::rust_closure_static_spike::LAST_SYNTAX_NANOS,
+            &crate::rust_closure_static_spike::LAST_CLASSIFY_NANOS,
+        ] {
+            stale.store(0, std::sync::atomic::Ordering::Relaxed);
+        }
         let check_started: std::time::Instant = std::time::Instant::now();
         let result = workspace.check_rules(&physical, source.as_str(), filename.as_str(), settings);
         if crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_TIMING") {
             eprintln!(
-                "SPIKE-FILE check_ms={:.3} syntax_ms={:.3} classify_ms={:.3} lookup_ms={:.3} ok={} file={}",
+                "SPIKE-FILE check_ms={:.3} syntax_ms={:.3} classify_ms={:.3} lookup_ms={:.3} apply_ms={:.3} attach_ms={:.3} parse_ms={:.3} ok={} file={}",
                 check_started.elapsed().as_secs_f64() * 1000.0,
                 crate::rust_closure_static_spike::LAST_SYNTAX_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
                 crate::rust_closure_static_spike::LAST_CLASSIFY_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
                 (check_started - file_started).as_secs_f64() * 1000.0,
+                crate::rust_closure_static_spike::LAST_APPLY_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
+                crate::rust_closure_static_spike::LAST_ATTACH_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
+                crate::rust_closure_static_spike::LAST_PARSE_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
                 result.is_ok(),
                 filename
             );
