@@ -1,0 +1,3 @@
+FROM docker.io/semgrep/semgrep@sha256:81474464c1f07483ba0682a44787fd93c91397419762a04abe2bafaae396304b
+COPY Dockerfile Dockerfile.semgrep dockerfile-rules.json /work/
+WORKDIR /work
