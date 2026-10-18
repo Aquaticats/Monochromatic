@@ -200,6 +200,16 @@ fn callee_of(
 
 /// Find the call whose argument list holds `node` directly.
 fn enclosing_call(node: &SyntaxNode) -> Option<(SyntaxNode, usize)> {
+    // Parentheses, including the invisible ones around macro expression fragments, do not change directness.
+    let mut node: SyntaxNode = node.clone();
+    while let Some(parent) = node.parent() {
+        if ast::ParenExpr::can_cast(parent.kind()) {
+            node = parent;
+        } else {
+            break;
+        }
+    }
+    let node: &SyntaxNode = &node;
     let list = ast::ArgList::cast(node.parent()?)?;
     let position = list.args().position(|argument| argument.syntax() == node)?;
     let call = list.syntax().parent()?;
