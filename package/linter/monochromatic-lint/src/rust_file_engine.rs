@@ -81,24 +81,54 @@ impl RustFileEngine {
         filename: String,
         settings: RustRuleSettings,
     ) -> Result<Vec<Diagnostic>, SemanticError> {
+        crate::rust_closure_static_spike::mark("engine.check enter");
         if settings.explicit_types.is_none() && !crate::rust_closure_static_spike::enabled() {
             let context: RustSource = RustSource::new(filename, source);
             return Ok(check_syntax_rules(&context, &settings));
         }
+        if settings.explicit_types.is_none()
+            && crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_PREFILTER")
+        {
+            let prefilter_started: std::time::Instant = std::time::Instant::now();
+            let context: RustSource = RustSource::new(filename.clone(), source.clone());
+            let needs: bool = crate::rust_closure_static_spike::has_direct_argument_closure(&context);
+            if crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_TIMING") {
+                eprintln!("SPIKE-PREFILTER needs_hir={needs} prefilter_ms={:.3} file={}", prefilter_started.elapsed().as_secs_f64() * 1000.0, filename);
+            }
+            if !needs {
+                return Ok(check_syntax_rules(&context, &settings));
+            }
+        }
+        let file_started: std::time::Instant = std::time::Instant::now();
         let physical: PathBuf = match std::fs::canonicalize(path) {
             Ok(value) => value,
             Err(error) => return Err(SemanticError::new(format!("Cannot locate Rust input {} in a Cargo workspace: {error}. Semantic checking needs an existing workspace file; configure this rule off for an intentional virtual or standalone input.", path.display()).as_str())),
         };
         let manifest: PathBuf = discover_manifest(&physical)?;
         if !self.workspaces.contains_key(&manifest) {
+            crate::rust_closure_static_spike::mark("engine: workspace load begins");
             let workspace: RustSemanticSession =
                 load_cargo_workspace(&manifest, self.preparation, self.progress)?;
+            crate::rust_closure_static_spike::mark("engine: workspace load ends");
             self.workspaces.insert(manifest.clone(), workspace);
         }
         let workspace: &mut RustSemanticSession = self
             .workspaces
             .get_mut(&manifest)
             .expect("inserted workspace exists");
-        return workspace.check_rules(&physical, source.as_str(), filename.as_str(), settings);
+        let check_started: std::time::Instant = std::time::Instant::now();
+        let result = workspace.check_rules(&physical, source.as_str(), filename.as_str(), settings);
+        if crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_TIMING") {
+            eprintln!(
+                "SPIKE-FILE check_ms={:.3} syntax_ms={:.3} classify_ms={:.3} lookup_ms={:.3} ok={} file={}",
+                check_started.elapsed().as_secs_f64() * 1000.0,
+                crate::rust_closure_static_spike::LAST_SYNTAX_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
+                crate::rust_closure_static_spike::LAST_CLASSIFY_NANOS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1e6,
+                (check_started - file_started).as_secs_f64() * 1000.0,
+                result.is_ok(),
+                filename
+            );
+        }
+        return result;
     }
 }

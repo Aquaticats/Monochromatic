@@ -37,5 +37,6 @@ use std::process::ExitCode;
 /// function main(): number { return runProcess(); }
 /// ```
 fn main() -> ExitCode {
+    monochromatic_lint::rust_closure_static_spike::mark("main start");
     return ExitCode::from(monochromatic_lint::run_process::run_process());
 }

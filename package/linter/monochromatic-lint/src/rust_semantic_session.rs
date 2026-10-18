@@ -85,12 +85,17 @@ fn inspect(database: &dyn HirDatabase) -> Result<Vec<Diagnostic>, SemanticError>
     };
     let root: ast::SourceFile = semantics.parse(file);
     let source: RustSource = RustSource::from_syntax(selected.filename, root.syntax().clone());
+    let syntax_started: std::time::Instant = std::time::Instant::now();
     let mut findings: Vec<Diagnostic> = check_syntax_rules(&source, &selected.settings);
+    crate::rust_closure_static_spike::LAST_SYNTAX_NANOS.store(syntax_started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+    crate::rust_closure_static_spike::LAST_CLASSIFY_NANOS.store(0, std::sync::atomic::Ordering::Relaxed);
     if let Some(severity) = selected.settings.explicit_types {
         findings.extend(check_explicit_types(&semantics, &source, severity));
     }
     if crate::rust_closure_static_spike::enabled() {
+        let classify_started: std::time::Instant = std::time::Instant::now();
         findings.extend(crate::rust_closure_static_spike::classify_closures(&semantics, &source));
+        crate::rust_closure_static_spike::LAST_CLASSIFY_NANOS.store(classify_started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
     }
     return Ok(findings);
 }

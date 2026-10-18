@@ -109,6 +109,9 @@ pub(crate) fn cargo_config(toolchain: RustToolchain) -> CargoConfig {
         metadata_extra_args: vec![String::from("--offline"), String::from("--locked")],
         extra_args: vec![String::from("--offline"), String::from("--locked")],
         target_dir_config: TargetDirectoryConfig::UseSubdirectory,
+        set_test: crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_SET_TEST"),
+        no_deps: crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_NO_DEPS"),
+        all_targets: crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_ALL_TARGETS"),
         ..CargoConfig::default()
     };
 }
@@ -119,6 +122,12 @@ pub fn load_cargo_workspace(
     preparation: WorkspacePreparation,
     progress: fn(String),
 ) -> Result<RustSemanticSession, SemanticError> {
+    let preparation: WorkspacePreparation = if crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_BUILD_GENERATED") {
+        WorkspacePreparation::BuildGenerated
+    } else {
+        preparation
+    };
+    crate::rust_closure_static_spike::mark(&format!("load: begin preparation={preparation:?}"));
     let absolute: AbsPathBuf = absolute_utf8(manifest_path)?;
     if manifest_path.file_name() != Some(std::ffi::OsStr::new("Cargo.toml")) {
         return Err(SemanticError::new(format!("Rust workspace input {} must name Cargo.toml; alternate project-command descriptors are not loaded.", manifest_path.display()).as_str()));
@@ -127,6 +136,7 @@ pub fn load_cargo_workspace(
         return Err(SemanticError::new("Cargo.toml has no parent directory."));
     };
     let config: CargoConfig = cargo_config(discover_toolchain(directory)?);
+    crate::rust_closure_static_spike::mark("load: toolchain discovered, config built");
     let manifest: ProjectManifest = match ProjectManifest::from_manifest_file(absolute) {
         Ok(value) => value,
         Err(error) => {
@@ -143,6 +153,7 @@ pub fn load_cargo_workspace(
         Ok(value) => value,
         Err(error) => return Err(SemanticError::new(format!("Cannot load Cargo metadata for {}: {error:#}. Prepare its lockfile and dependencies before retrying; semantic checking does not fetch packages.", manifest_path.display()).as_str())),
     };
+    crate::rust_closure_static_spike::mark("load: ProjectWorkspace::load done (cargo metadata, sysroot, rustc cfg)");
     if preparation == WorkspacePreparation::BuildGenerated {
         let scripts: WorkspaceBuildScripts = match workspace.run_build_scripts(&config, &progress) {
             Ok(value) => value,
@@ -160,6 +171,7 @@ pub fn load_cargo_workspace(
             return Err(SemanticError::new(format!("Cargo checking failed while preparing generated Rust inputs for {}: {error}. This workspace was not semantically verified.", manifest_path.display()).as_str()));
         }
         workspace.set_build_scripts(scripts);
+        crate::rust_closure_static_spike::mark("load: run_build_scripts done");
     }
     let macro_server: ProcMacroServerChoice = if preparation == WorkspacePreparation::BuildGenerated
     {
@@ -187,5 +199,11 @@ pub fn load_cargo_workspace(
                 ));
             }
         };
+    crate::rust_closure_static_spike::mark("load: load_workspace done (vfs read, crate graph, proc macros)");
+    if crate::rust_closure_static_spike::flag("MONOCHROMATIC_LINT_SPIKE_TIMING") {
+        let crates: usize = ra_ap_hir::Crate::all(&database).len();
+        let vfs_files: usize = files.iter().count();
+        eprintln!("SPIKE-GRAPH crates={crates} vfs_files={vfs_files} proc_macro_client={}", client.is_some());
+    }
     return Ok(RustSemanticSession::from_workspace(database, files, client));
 }

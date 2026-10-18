@@ -43,6 +43,51 @@ pub fn enabled() -> bool {
         || std::env::var_os("MONOCHROMATIC_LINT_SPIKE_CLOSURE_STATIC").is_some();
 }
 
+//region Round two probes: phase timing and experiment switches (throwaway, all env-gated).
+
+/// Process-wide origin of the phase clock, set at the first mark.
+static ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Nanoseconds the last `inspect` spent on the syntax rules.
+pub static LAST_SYNTAX_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Nanoseconds the last `inspect` spent on the closure classification.
+pub static LAST_CLASSIFY_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// True when the named environment switch is set to anything.
+pub fn flag(name: &str) -> bool {
+    return std::env::var_os(name).is_some();
+}
+
+/// Print one phase line with seconds since the first mark, when `MONOCHROMATIC_LINT_SPIKE_TIMING` is set.
+pub fn mark(label: &str) {
+    let origin: &std::time::Instant = ORIGIN.get_or_init(std::time::Instant::now);
+    if flag("MONOCHROMATIC_LINT_SPIKE_TIMING") {
+        eprintln!("SPIKE-PHASE t={:.4} {label}", origin.elapsed().as_secs_f64());
+    }
+}
+
+/// Does the file hold a closure that sits directly in an argument list (parentheses peeled),
+///  or a macro call whose tokens contain a closure bar? Used by the prefilter variant.
+pub fn has_direct_argument_closure(context: &RustSource) -> bool {
+    for node in context.syntax().descendants() {
+        if let Some(closure) = ast::ClosureExpr::cast(node.clone()) {
+            if enclosing_call(closure.syntax()).is_some() {
+                return true;
+            }
+        }
+        if let Some(call) = ast::MacroCall::cast(node) {
+            let text = call.syntax().text().to_string();
+            if text.contains('|') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+//endregion
+
 /// The verdict and its evidence trail for one closure.
 pub struct Verdict {
     /// True when the proposed criterion lets the closure pass.
