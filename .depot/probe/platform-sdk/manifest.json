@@ -18,6 +18,7 @@
     "configuration": { "secrets": {} }
   },
   "maximumCreateCalls": 1,
+  "recoveryOfSandboxId": "6m8d0p0pvnrqlb8",
   "clientWorkDeadlineMilliseconds": 75000,
   "clientCleanupDeadlineMilliseconds": 30000,
   "forecast": {
@@ -25,7 +26,8 @@
     "publicTwoCpuCiRateUsdPerMinute": 0.006,
     "maximumRequestedSandboxMinutes": 2,
     "maximumAdditionalComputeProxyUsd": 0.012,
-    "cumulativeProxyUsd": 0.550584,
+    "previousSandboxReservedComputeProxyUsd": 0.012,
+    "cumulativeProxyUsd": 0.562584,
     "admittedCumulativeCeilingUsd": 2,
     "accountOrInvoiceCapProven": false
   }
