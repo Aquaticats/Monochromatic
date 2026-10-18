@@ -89,6 +89,9 @@ fn inspect(database: &dyn HirDatabase) -> Result<Vec<Diagnostic>, SemanticError>
     if let Some(severity) = selected.settings.explicit_types {
         findings.extend(check_explicit_types(&semantics, &source, severity));
     }
+    if crate::rust_closure_static_spike::enabled() {
+        findings.extend(crate::rust_closure_static_spike::classify_closures(&semantics, &source));
+    }
     return Ok(findings);
 }
 

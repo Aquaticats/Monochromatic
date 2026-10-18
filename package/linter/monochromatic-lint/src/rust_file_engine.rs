@@ -81,7 +81,7 @@ impl RustFileEngine {
         filename: String,
         settings: RustRuleSettings,
     ) -> Result<Vec<Diagnostic>, SemanticError> {
-        if settings.explicit_types.is_none() {
+        if settings.explicit_types.is_none() && !crate::rust_closure_static_spike::enabled() {
             let context: RustSource = RustSource::new(filename, source);
             return Ok(check_syntax_rules(&context, &settings));
         }

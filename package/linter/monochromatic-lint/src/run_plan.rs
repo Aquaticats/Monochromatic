@@ -104,7 +104,7 @@ impl FilePlan {
     /// True only for a Rust host whose own rules select `rust/require-explicit-types`.
     pub fn needs_semantic_engine(&self) -> bool {
         if let RootRules::Rust { settings } = &self.root {
-            return settings.explicit_types.is_some();
+            return settings.explicit_types.is_some() || crate::rust_closure_static_spike::enabled();
         }
         return false;
     }

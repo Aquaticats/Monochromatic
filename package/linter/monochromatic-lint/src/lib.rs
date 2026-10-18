@@ -209,6 +209,9 @@ pub mod rust_file_engine;
 mod rust_generic_arguments;
 /// Semantic disambiguation of type-shaped generic constant placeholders.
 mod rust_inferred_constants;
+/// THROWAWAY SPIKE: closure `'static` bound classification (env-gated).
+#[doc(hidden)]
+pub mod rust_closure_static_spike;
 /// Internal syntax-only rejection of anonymous Rust functions.
 #[doc(hidden)]
 pub mod rust_no_anonymous_functions;

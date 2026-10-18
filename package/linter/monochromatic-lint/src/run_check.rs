@@ -117,7 +117,7 @@ impl<'run> HostChecker<'run> {
         settings: &RustRuleSettings,
         findings: &mut Vec<Diagnostic>,
     ) {
-        if settings.explicit_types.is_some() {
+        if settings.explicit_types.is_some() || crate::rust_closure_static_spike::enabled() {
             let outcome: Result<Vec<Diagnostic>, String> = match self.engine.as_mut() {
                 Some(engine) => match engine.check(
                     &self.plan.absolute,
