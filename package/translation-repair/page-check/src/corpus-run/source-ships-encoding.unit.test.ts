@@ -161,6 +161,21 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '她[^1]说\n\n[^1]: 注\n[b]: https://example.net/a{b\n',
   ],
   ['a definition line after a footnote definition and a blank line', '她[^1]说\n\n[^1]: 注\n\n[b]: u{ "t"\n'],
+  ['a definition line right after a block quote holding a footnote definition', '> [^1]: 注\n[b]: u{ "t"\n'],
+  [
+    'a definition line right after a block quote holding a footnote definition after two spaces',
+    '>  [^1]: 注\n[b]: u{ "t"\n',
+  ],
+  ['a definition line in a block quote right after a footnote definition', '> [^1]: 注\n> [b]: u{ "t"\n'],
+  ['a definition line right after a list item holding a footnote definition', '- [^1]: 注\n[b]: u{ "t"\n'],
+  [
+    'a definition line right after a footnote definition indented in a list item',
+    '- a\n\n  [^1]: 注\n  [b]: u{ "t"\n',
+  ],
+  [
+    'two definition lines right after a footnote definition in a block quote',
+    '> [^1]: 注\n[b]: u{\n[c]: v{ "t"\n',
+  ],
   ['a bare address after a bracket nothing closes', '[ https://example.net/b{c\n'],
   ['a bare address after text and a bracket nothing closes', 'x [ y https://example.net/b{c\n'],
   ['a bare address after an image opener nothing closes', 'x ![ https://example.net/b{c\n'],
@@ -589,6 +604,19 @@ https://example.net/b{c`,);
 `,);
             // A blank line ends the footnote, so the definition after it is a definition.
             expect(encoded({ text: '[^1]: 注\n\n[b]: u{ "t"\n', },),).toBe('[^1]: 注\n\n[b]: u{ "t"\n',);
+          },
+        },),
+
+        it({
+          name: 'READS A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION IN A BLOCK QUOTE OR A LIST ITEM AS A LINE '
+            + 'OF THE FOOTNOTE too, since the strict grammar continues the paragraph of the footnote there as well',
+          fn: async () => {
+            expect(encoded({ text: '> [^1]: 注\n[b]: u{ "t"\n', },),).toBe('> [^1]: 注\n[b]: u\\{ "t"\n',);
+            expect(encoded({ text: '- [^1]: 注\n[b]: u{ "t"\n', },),).toBe('- [^1]: 注\n[b]: u\\{ "t"\n',);
+            expect(encoded({ text: '- a\n\n  [^1]: 注\n  [b]: u{ "t"\n', },),)
+              .toBe('- a\n\n  [^1]: 注\n  [b]: u\\{ "t"\n',);
+            // A blank line ends the footnote in the container, so the definition after it is a definition.
+            expect(encoded({ text: '> [^1]: 注\n>\n> [b]: u{ "t"\n', },),).toBe('> [^1]: 注\n>\n> [b]: u{ "t"\n',);
           },
         },),
 
