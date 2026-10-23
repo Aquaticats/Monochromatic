@@ -256,6 +256,15 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a code span across a line that is a fence mark indented four spaces', 'a `x\n    ```\n    y` b\n'],
   ['inline math across a line that is a fence mark indented four spaces', '$a\n    ```\n    b$ c\n'],
   ['a link title across a line that is a fence mark indented four spaces', '[a](u "t\n    ```\n    t") b\n'],
+  [
+    'an indented block after a tag whose first line starts with a fence mark and holds a brace',
+    '<details>\n\n    ```js\n    const a = {};\n    ```\n',
+  ],
+  [
+    'an indented block after a line of English with a brace whose first line starts with a fence mark',
+    '她说 {\n\n    ```js\n    const a = {};\n    ```\n',
+  ],
+  ['an indented block of tildes whose first line starts with a fence mark', '<b>\n\n    ~~~\n    {a}\n    ~~~\n'],
 ];
 
 /**
