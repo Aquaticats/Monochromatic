@@ -121,6 +121,8 @@ type Reading = {
 
  @param meters - what the meters say, every one wet when absent
 
+ @param refusalHold - whether NeuralWatt's hold is a refusal's and not its day start, the day start being the default
+
  @returns What the reading logged and the dryness reads it took (1 without a wait, 2 with one)
 
  @example
@@ -134,11 +136,13 @@ async function readingOf(
     view,
     held,
     meters = METERS_WET,
+    refusalHold = false,
   }: {
     readonly phase: JudgeSeatPhase;
     readonly view: BudgetView;
     readonly held?: ProviderName;
     readonly meters?: Readonly<Record<keyof BudgetView, MeterState>>;
+    readonly refusalHold?: boolean;
   },
 ): Promise<Reading> {
   /**
@@ -156,6 +160,7 @@ async function readingOf(
         return view;
       },
       providerMeterStates: () => Promise.resolve(meters,),
+      neuralwattHeldByReturn: () => !refusalHold,
       providerHolds: () => {
         counted.asks += 1;
         return ((counted.asks === 1) && (held !== undefined))
@@ -336,15 +341,16 @@ await describe({
     },),
 
     it({
-      name: 'DOES NOT COUNT A PROVIDER DRY BY ITS METER AS COMING BACK: NeuralWatt is held and its meter reads dry, the '
-        + 'translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if its hold ended in a '
-        + 'return, which a dry meter keeps dry, so no wait is taken and the line brings back no seat',
+      name: 'DOES NOT COUNT A PROVIDER DRY BY ITS METER AS COMING BACK: NeuralWatt is held by a refusal and its meter '
+        + 'reads dry, the translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if the '
+        + 'hold ending brought it back, which a dry meter does not, so no wait is taken and the line brings back no seat',
       fn: async () => {
         const { lines, reads, } = await readingOf({
           phase: 'translate lane',
           view: BEDROCK_ALONE,
           held: 'neuralwatt',
           meters: { ...METERS_WET, neuralwatt: 'dry', },
+          refusalHold: true,
         },);
         expect(reads,).toBe(1,);
         const warning = shortBenchWarningOf({ lines, },);
@@ -356,8 +362,9 @@ await describe({
     },),
 
     it({
-      name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK: the same view and hold wait, '
-        + 'and the line names the seats of the return',
+      name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK, and NeuralWatt whose hold is '
+        + 'its day start although its meter reads dry: the same view and hold wait, and the line names the seats of the '
+        + 'return',
       fn: async () => {
         const wet = await readingOf({ phase: 'translate lane', view: BEDROCK_ALONE, held: 'neuralwatt', },);
         expect(wet.reads,).toBe(2,);
@@ -369,6 +376,13 @@ await describe({
           meters: { ...METERS_WET, neuralwatt: 'unreadable', },
         },);
         expect(unreadable.reads,).toBe(2,);
+        const dayStart = await readingOf({
+          phase: 'translate lane',
+          view: BEDROCK_ALONE,
+          held: 'neuralwatt',
+          meters: { ...METERS_WET, neuralwatt: 'dry', },
+        },);
+        expect(dayStart.reads,).toBe(2,);
       },
     },),
   ],
