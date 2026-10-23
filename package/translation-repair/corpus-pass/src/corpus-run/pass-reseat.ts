@@ -8,6 +8,7 @@ import type {
   TranslateModels,
   TranslateSliceSeating,
 } from '@monochromatic-dev/translation-repair-translate-lane/ts';
+import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import {
   type Reseated,
   reseatHookFor,
@@ -42,7 +43,7 @@ import {
 // the provider out), hands the driver the roster read, and keeps handing it
 // over once the hold has ended, so the chunks after the dry-out never fall
 // back to the roster read before it. It still costs nothing while nothing is
-// held: one synchronous read of the holds.
+// held and the select reach it hands is at the floor or above: one synchronous read of the holds.
 
 /**
  Builds the re-seating the lanes driver calls when the translate lane is
@@ -159,6 +160,27 @@ export function selectReachOf(
 }
 
 /**
+ Whether the seating last handed over states a select reach below the floor.
+
+ READ AGAIN EVEN WHEN NO HOLD RUNS, as the lane contest's and the consolidation's hooks do, since a provider whose
+ hold ended is wet again and the reach handed over would otherwise stay the one read before it. A passage the archive
+ never translated is bought no candidate at a reach under the floor, so a stale reach would keep skipping it after the
+ bench had recovered.
+
+ @param seating - seating the hook last handed over
+
+ @returns True when a passage with no archive wording would be bought no candidate on it
+
+ @example
+ ```ts
+ const stale = selectReachBelowFloor({ selectReachable: 1, },);
+ ```
+ */
+function selectReachBelowFloor(seating: TranslateSliceSeating,): boolean {
+  return (seating.selectReachable !== undefined) && (seating.selectReachable < MIN_SELECTION_BALLOTS);
+}
+
+/**
  What the translate lane takes from a seat reading: its writers and judges,
  whose writers the line names.
 
@@ -268,6 +290,7 @@ export function lanesHooksFor(
       signal,
       phase: 'translate lane',
       unseated: (startedSelectReachable === undefined) ? {} : { selectReachable: startedSelectReachable, },
+      staleWhen: selectReachBelowFloor,
       seatingOf: translateSeatingOf,
       l,
     },),
