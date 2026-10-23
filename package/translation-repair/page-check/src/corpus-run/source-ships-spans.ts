@@ -10,7 +10,11 @@ import {
   withoutIndentation,
 } from './source-ships-footnote.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
-import { startsEsModule, } from './source-ships-module-line.ts';
+import {
+  laterModuleLines,
+  moduleLetterEdit,
+  startsEsModule,
+} from './source-ships-module-line.ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -432,13 +436,21 @@ export function spansOf(
       node,
       isTopLevel: isRootChild && (!isNested),
       range,
-    },)) {
-      edits.push({
-        start: range.start,
-        end: range.start + 1,
-        replacement: `&#${String(source.codePointAt(range.start,),)};`,
-      },);
-    }
+    },))
+      edits.push(moduleLetterEdit({
+        source,
+        at: range.start,
+      },),);
+    for (const at of laterModuleLines({
+      source,
+      node,
+      isTopLevel: isRootChild && (!isNested),
+      range,
+    },))
+      edits.push(moduleLetterEdit({
+        source,
+        at,
+      },),);
     if ('children' in node) {
       /**
        The node's children, the last first so they come out in order.

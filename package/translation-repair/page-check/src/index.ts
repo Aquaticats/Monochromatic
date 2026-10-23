@@ -185,7 +185,11 @@ export {
   explicitLink,
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';
-export { startsEsModule, } from './corpus-run/source-ships-module-line.ts';
+export {
+  laterModuleLines,
+  moduleLetterEdit,
+  startsEsModule,
+} from './corpus-run/source-ships-module-line.ts';
 export {
   closingBracket,
   indicesOf,
