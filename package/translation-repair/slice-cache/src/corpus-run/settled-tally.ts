@@ -116,7 +116,11 @@ function standingsKeptUnendorsed(
     },),);
   return consolidation.slices
     .filter(function keptUnendorsed(slice,): boolean {
-      if ((slice.terminal === 'consolidated') || (slice.shipped.kind === 'archive'))
+      /**
+       What the consolidation shipped here.
+       */
+      const { kind: shippedKind, } = slice.shipped;
+      if ((slice.terminal === 'consolidated') || (shippedKind === 'archive'))
         return false;
       /**
        What the contest recorded here, absent for a slice it never ran over.
