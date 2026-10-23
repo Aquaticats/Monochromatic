@@ -285,7 +285,11 @@ function trimmedArtifact({ trimmedText, }: { readonly trimmedText: string; },): 
 
  @example
  ```ts
- const artifact = consolidatedArtifact({ firstTerminal: 'slate-declined-standing', firstShipped: { kind: 'unchanged', }, firstVerdict: { kind: 'quorum-not-met', }, },);
+ const artifact = consolidatedArtifact({
+   firstTerminal: 'slate-declined-standing',
+   firstShipped: { kind: 'unchanged', },
+   firstVerdict: { kind: 'quorum-not-met', },
+ },);
  ```
  */
 function consolidatedArtifact(
@@ -573,7 +577,8 @@ await describe({
           },),
         },).standingUnendorsed,).toBe('0',);
 
-        // The settled-neither verdict that declined the archive is unendorsed, the positive control for the endorsed-standing case.
+        // The settled-neither verdict that declined the archive is unendorsed, the positive control for the
+        // endorsed-standing case.
         expect(fieldsOf({
           artifact: consolidatedArtifact({
             firstTerminal: 'slate-declined-standing',
@@ -605,6 +610,23 @@ await describe({
             firstVerdict: { kind: 'quorum-not-met', },
           },),
         },).standingUnendorsed,).toBe('0',);
+      },
+    },),
+    it({
+      name: 'COUNTS A SLICE WHOSE SHIPPED KIND IS INCUMBENT, since the artifact does not say whether the standing it '
+        + 'stood in for was ineligible (no line) or valid under an archive dispute (the line), so the count can exceed '
+        + 'the stage lines by the first kind',
+      fn: async () => {
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'slate-declined-standing',
+            firstShipped: {
+              kind: 'incumbent',
+              text: ARCHIVE_NAP,
+            },
+            firstVerdict: { kind: 'quorum-not-met', },
+          },),
+        },).standingUnendorsed,).toBe('1',);
       },
     },),
     it({

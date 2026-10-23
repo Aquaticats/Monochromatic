@@ -80,7 +80,10 @@ function changedSlices(
  wording is the defects line's, and is left out. The stage's log lines are a
  little more than this count, since the standing verdict warns before the
  slate is judged and a slice the slate then rewrote has been warned about too
- (XingZ6020: 58 lines, 56 slices in this count).
+ (XingZ6020: 58 lines, 56 slices in this count). Where a standing failed the
+ deterministic rule and the incumbent stood in, the stage writes another line
+ and this count still includes the slice, because the artifact does not record
+ which standing was valid.
 
  @param artifact - settled entry whose contest and consolidation records are read
 
@@ -129,11 +132,16 @@ function standingsKeptUnendorsed(
       if (verdict === undefined)
         return false;
       return !contestStandingMayShip({
-        // A LANE BACKED BY THE CONTEST IS ENDORSED; the choice is the verdict's lane or neither, as the driver reads it.
+        // A LANE BACKED BY THE CONTEST IS ENDORSED; the choice is the verdict's lane or neither, as the driver
+        // reads it.
         choice: ((verdict.kind === 'lane-won') || (verdict.kind === 'sole-lane')) ? verdict.lane : 'neither',
         verdict,
-        // THE LOG LINE IS WRITTEN ONLY FOR A VALID STANDING (`consolidate-standing-verdict.ts`), so the count asks the
-        // same question the line did.
+        // THE ARTIFACT KEEPS NO RECORD OF WHETHER THE STANDING PASSED THE DETERMINISTIC RULE: the stage's findings
+        // are not projected per slice (`describeConsolidateSlice`), and a shipped kind `incumbent` is written both
+        // where an ineligible standing was replaced by the incumbent (no "remains retryable" line, a different
+        // warn) and where an archive dispute made the incumbent stand in over a valid standing (the line is
+        // written). So every kept standing is read as valid here, and the count can exceed the lines by the first
+        // kind.
         standingValid: true,
       },);
     },)
