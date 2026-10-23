@@ -34,12 +34,11 @@ import {
   holdEndsNever,
   noLevelBeforeReading,
   notHeldOut,
-  type PaymentMark,
   spendableBeforeReading,
   systemClock,
-  unmarkedPayment,
   unreadBeforeReading,
 } from './provider-budget-defaults.ts';
+import { createPaymentMarks, } from './provider-budget-payment-marks.ts';
 
 //region Provider budget
 // ASKS FOR METERS, NOT CLIENTS. Every parameter is narrowed to the one method
@@ -397,61 +396,13 @@ export function createProviderBudgets(
   };
 
   /**
-   Which providers last refused us for payment and have not moved since,
-   beside the meter level each read at that refusal; a provider reads dry
-   while it is marked and its meter still reads that level.
+   The payment refusals of this layer: which providers last refused us for payment and have not moved since, and
+   whether the meter of each still reads the level it read then.
    */
-  const paidOutAt: Record<ProviderName, PaymentMark> = providerRecord({ of: unmarkedPayment, },);
-
-  /**
-   Whether a payment refusal still holds a provider dry: its meter has not
-   moved since. A meter that has moved clears the mark, whichever way it
-   moved, since the refusal was about the balance it read then.
-
-   DOWNWARD IS A CLEARING MOVE, NOT A MISTAKE (checked for the ledger's P13,
-   2026-09-28). Of 230 payment refusals in the run logs, 198 came from
-   OpenRouter while its meter read wet, at 0.01 to 1.94 USD, and they refuse
-   what the balance leaves once the calls in flight have reserved their
-   share: 8 bodies name `in_flight_budget_exhausted` ("Retry after in-flight
-   requests settle"), and the rest ask for up to 131,072 tokens and are told
-   1,844 to 84,651 are affordable. A settling call lowers the balance by what
-   it cost and frees the larger reservation it held, so holding the mark
-   until the balance rises would keep OpenRouter dry for the rest of a run
-   that can still afford smaller calls. The cost measured the same day: 28
-   refusals came back after a downward move, each a refused call that bought
-   nothing.
-
-   @param provider - provider to check
-
-   @param levels - what every meter reads now
-
-   @returns Whether the provider reads dry for payment
-
-   @example
-   ```ts
-   const dry = paidOut({ provider: 'openrouter', levels, },);
-   ```
-   */
-  function paidOut(
-    {
-      provider,
-      levels,
-    }: {
-      readonly provider: ProviderName;
-      readonly levels: ProviderRecord<string>;
-    },
-  ): boolean {
-    /**
-     The mark and the level at the refusal.
-     */
-    const refused = paidOutAt[provider];
-    if (!refused.marked)
-      return false;
-    if (refused.level === levels[provider])
-      return true;
-    refused.marked = false;
-    return false;
-  }
+  const {
+    paidOut,
+    markPaid,
+  } = createPaymentMarks();
 
   /**
    Until when each provider is held out by a refusal, zero for never.
@@ -855,10 +806,10 @@ export function createProviderBudgets(
        */
       const state = states[provider];
       if (paymentRequired) {
-        paidOutAt[provider] = {
-          marked: true,
+        markPaid({
+          provider,
           level: levels[provider],
-        };
+        },);
         heldUntil[provider] = now() + statedWaitMs;
         rl.info(
           `${provider}: refused us for payment while its meter reads ${state} (${levels[provider]}); `
