@@ -188,7 +188,10 @@ which lists every file of these commitments.
   first it writes,
   as literal text,
   only the runs that do not parse as a fragment of their own,
-  and any run that opens an HTML comment which never closes
+  any run that opens an HTML comment which never closes,
+  and any run that parses alone and cannot stand beside another
+  (a fence mark indented four spaces or more,
+  a name an earlier run still declares)
   (a backslash before each `{`,
   `}` and `<` the CommonMark parse of the run reads as text;
   a fence,
@@ -203,14 +206,15 @@ which lists every file of these commitments.
   Each step taken writes one warn line naming the slices and the step,
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
-  A seeded search of forty thousand pairs of runs under the real grammar took the second step for 838 pairs,
-  and it made the page parse for 32 of them (a fence mark indented four spaces in both runs,
-  and two runs that import the same name).
+  Two seeded searches of forty thousand pairs of runs each under the real grammar took the second step for 486 and 467
+  pairs,
+  almost all of them a run nested past the bound beside a run holding a character that step escapes,
+  and it made the page parse for 1 pair and for none.
   The third step is taken when no writing makes the page parse:
   a run nested past the bound of the plain reading,
   a `$$` flow or a fence that one run opens and a later run closes with the English between them,
-  a raw HTML block that runs to a closing marker,
-  a fence mark indented four spaces or more,
+  a comment opener that never closes beside a line the plain reading takes for a definition,
+  a run that starts with a byte order mark and whose first line starts a block,
   and the shapes the module comment of `page-check/src/corpus-run/source-ships-encoding.ts` names (ledger B832).
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records

@@ -14,7 +14,11 @@ which is a flagged choice.
 The rulings of this entry are the lead's,
 open to the owner's veto.
 Follow-ups of 2026-10-23 (UTC) close the holes between the plain parse and the strict grammar that the encoder left,
-add the wiring tests and settle the style findings (see the headings that start "Follow-up").
+add the wiring tests and settle the style findings (see the headings that start "Follow-up"),
+and a second round closes the limits the first follow-up recorded and the shapes a new search found
+(see "Follow-up:
+the limits of the first follow-up closed,
+and what the search found next").
 
 Commits that let the page ship over an original the grammar refuses:
 reds `a024fdf1d0` (the default of the helper),
@@ -156,7 +160,7 @@ the control that parses ships as written;
 a page with one parsing run and one failing run takes step 1 and encodes only the failing run's slice;
 a `<details>` pair split across two slices of one run ships as written.
 
-A seeded search of forty thousand pairs of runs,
+At the first follow-up a seeded search of forty thousand pairs of runs,
 built from a pool of fragments
 (braces,
 tags,
@@ -172,7 +176,12 @@ reference labels with a brace,
 and block quote,
 list and bracket markers nested 260 and 300 deep),
 with English between the runs that parses,
-gave these counts:
+gave these counts,
+which the fixes of the second round changed
+(the counts after them are under
+"Follow-up:
+the limits of the first follow-up closed,
+and what the search found next"):
 
 - 6887 pairs shipped as written;
 - step 1 was taken for 31868 pairs and made the page parse for 26457 of them;
@@ -197,9 +206,9 @@ it was taken for 838 pairs,
 for the most part a run nested past the bound beside a run holding a character that step 2 escapes,
 and for the rest a fence mark indented four spaces,
 a raw HTML block that runs to a closing marker,
-a `$$` flow and the shapes named under "Shapes the encoder does not make parse".
+a `$$` flow and the shapes named under "Shapes the encoder did not make parse at the first follow-up".
 
-Step 3 is taken for these causes,
+At the first follow-up step 3 was taken for these causes,
 the counts being the pairs of the search that name each cause by the fragments they hold:
 
 - a run nested past the bound of 256 that the plain reading keeps:
@@ -219,13 +228,17 @@ the counts being the pairs of the search that name each cause by the fragments t
   the search found no pair of that shape among the fences,
   which is a finding about its pool and not about the shape;
 - the remaining 85 pairs,
-  which come down to the shapes the encoder does not meet,
+  which come down to the shapes the encoder did not meet then,
   named in the next heading.
 
-#### Shapes the encoder does not make parse
+#### Shapes the encoder did not make parse at the first follow-up
 
 Found by encoding each run of the remaining pairs alone and reading what stayed refused.
-Each is a limit of the module comment of `source-ships-encoding.ts` and is not fixed:
+Each was a limit of the module comment of `source-ships-encoding.ts` then,
+and the second round closed each of them
+(see "Follow-up:
+the limits of the first follow-up closed,
+and what the search found next"):
 
 - A raw HTML block or indented code that holds `[https://example.net/a{ b](u)`:
   the plain parse reads one text and takes the address in it for a bare one,
@@ -472,6 +485,218 @@ a spelling,
 a hand-written silent logger in `source-ships-tiling.ts` (now the no-op sink of `module-logger`),
 and statements in this ledger that pointed to a round or a time were corrected.
 The checks that found them were run over the added lines of the whole branch.
+
+### Follow-up: the limits of the first follow-up closed, and what the search found next
+
+The lead's ruling for this round asked that each limit the first follow-up recorded be closed,
+red first,
+with reader cases under the real grammar,
+and that the two shapes only step 2 made parse be closed at step 1 if they could be.
+The goal of the ruling stays what it was:
+a reader of the shipped page sees the recorded source text and the page parses,
+and dropping a run is the last resort.
+Five more shapes,
+found by the search of this round and listed under "What the search found next",
+go beyond the limits the ruling named;
+they were taken under its clause that the goal stays,
+and they are open to the owner's veto like the rest of the ruling.
+
+Commits,
+oldest first,
+each red before its fix:
+`dc7fd7dca1` (main merged at `e8ba946aed`;
+one conflict,
+in `audit-ledger-entries-by-id.md`,
+kept both added lines);
+`c46bd5315f` and `02cae5f93f` (a byte order mark line before a setext heading that starts `import`);
+`1ae0f45a05` and `57f9d8c7ea` (a definition line after a footnote definition);
+`08258dbbd0`,
+`da0ac7a655` and `f841a1bb88` (a bare address after a bracket nothing closes;
+`da0ac7a655` gives a new module its own unit test,
+which `57f9d8c7ea` had left out);
+`3f26bce66d` and `bdebc89412` (a code span,
+inline math or a title across lines);
+`de2594974c` and `847031ae5e` (a raw HTML block or indented code);
+`66e3a059f2` and `bc1487032f` (a fence mark indented four spaces and a repeated import,
+at step 1);
+`1b260ba2a7` and `22e6cc8ca2`,
+`c39d91d454` and `e5dcfe7c0c`,
+`9ee315816d` and `c513e15b29`,
+`04e3e9b32e` and `96be3fb8f8`,
+`a55189e20c` and `964a8f733c` (the five shapes of the search);
+`fcfa656d64` (the comments that state the causes).
+The body of `66e3a059f2` says the fence pair ships without its runs;
+it took step 2,
+as the repeated import did,
+and the body of `bc1487032f` corrects it.
+The body of `57f9d8c7ea` says the source-scan suite passed;
+it failed on the new module's missing test until `da0ac7a655`.
+Neither commit is amended;
+this paragraph and the bodies named are the corrective comment.
+
+#### The five limits, closed
+
+Each has reader cases in `page-check/src/corpus-run/source-ships-encoding.unit.test.ts`:
+the page parses under the real grammar and a reader of it sees the source text.
+
+- A raw HTML block or indented code holding `[https://example.net/a{ b](u)`:
+  both are paragraphs to the strict grammar,
+  so every character Markdown reads as syntax in them is escaped and the reader sees the characters of the source
+  (`source-ships-lines.ts`,
+  `contentStretches`).
+  The cases of the literal group,
+  the first of which is "a raw HTML block holding a link whose text is an address with a brace",
+  compare with the targets of links left out,
+  since the strict grammar's autolink transform links an address in that text.
+- A line CommonMark reads as a definition right after a footnote definition:
+  a lazy line of the footnote's paragraph,
+  written as text (`isLazyDefinition` in `source-ships-footnote.ts`).
+  The cases of the reader group named "a definition line ... after a footnote definition" cover one line,
+  two lines,
+  a line holding an address and a line after a blank line.
+- A bare address after a bracket nothing closes:
+  the tokenizer reads none after an unbalanced `[` or `![` of the same run of inline content,
+  so the brace in it is escaped (`source-ships-addresses.ts`).
+  An address that a less-than sign ends is still written as a link.
+  The cases of the reader group that name a bracket nothing closes cover text,
+  an image opener,
+  a www address,
+  an address ended by a tag,
+  brackets that hold a link or a pair of brackets,
+  a bracket a later one closes and a later paragraph.
+- A code span or inline math across lines whose later line starts with `{` or `<`:
+  the line ending and the marks before that line are written as one space,
+  which a code span and math already read as a space (`source-ships-lines.ts`,
+  `joinedLines`).
+  The same is done for the destination and the title of a link,
+  an image and a definition.
+- A byte order mark line before a setext heading that starts `import`:
+  the line after a line of invisible characters is written with its first letter as a character reference
+  (`source-ships-module-line.ts`).
+  The measurement is the one the module comment records:
+  a byte order mark,
+  a no-break space,
+  an ideographic space,
+  a zero-width space,
+  a word joiner and a zero-width joiner end the paragraph for the package's reading,
+  and a soft hyphen,
+  a left-to-right mark and a variation selector do not.
+
+#### The two shapes that only step 2 made parse, closed at step 1
+
+A fence mark indented four spaces or more is a fence in the strict grammar and text in the plain reading.
+The closing fence of micromark takes its line prefix with no bound where indented code is off
+(`micromark-core-commonmark@2.0.4`,
+`lib/code-fenced.js`,
+the closing fence reads its prefix with `codeIndented` disabled);
+the opening and the interruption of a paragraph were measured by the reader cases.
+So a mark that the plain reading keeps as text opens a code block in the page,
+which swallows what follows up to a mark in the page that closes it.
+`source-ships-fence.ts` finds such a mark,
+the encoder escapes each character of one in text,
+`joinedLines` joins a code span,
+math or a title across a line that starts with one,
+and a fenced block that holds one is written with a longer fence (see "What the search found next").
+
+Two runs that each import one name parse alone and not in one page.
+`source-ships-declared.ts` reads the declared names from the `estree` of each module block of the strict parse,
+with comments and lines of format characters blanked as the package does for a page,
+and `source-ships-company.ts` takes the runs that hold such a mark
+and the runs that repeat a name an earlier run keeps as written.
+The first step writes those runs as literal text with the runs that do not parse alone,
+so the first run keeps its module and the later ones show their text.
+The page-level cases are in `source-shipped-page.unit.test.ts`:
+the fence pair and the repeated import take step 1 of 3,
+and two different imports take no step.
+
+#### What the search found next
+
+The search of this round (the pool extended by every shape of this follow-up,
+two seeds,
+forty thousand pairs each)
+found texts that reached step 3 for five more reasons.
+Each became red cases and a fix,
+and each is beyond the limits the ruling named.
+
+- An `import` or `export` line after a blank line or a line of format characters in a list item,
+  a block quote or a raw HTML block:
+  a line at the first column ends every container,
+  and the plain reading keeps a raw HTML block whole across blank lines.
+  `laterModuleLines` reads any paragraph,
+  setext heading or raw HTML block at any depth (`1b260ba2a7`,
+  `22e6cc8ca2`).
+- A definition line right after a block quote or a list whose last block is a raw HTML block,
+  or right after indented code:
+  to the strict grammar the block is a paragraph and the line is its lazy line (`c39d91d454`,
+  `e5dcfe7c0c`;
+  `source-ships-literal-end.ts`).
+- A fenced block holding a mark indented four spaces:
+  the fence and its closing are written one character longer than the longest such mark,
+  so the strict grammar cannot close it there and the code is unchanged (`9ee315816d`,
+  `c513e15b29`;
+  `source-ships-fenced.ts`).
+- A raw HTML block that follows a paragraph with a bracket nothing closes:
+  the strict grammar keeps its lines in the paragraph,
+  so no address is read in them either,
+  and a blank line before the block starts a paragraph of its own (`04e3e9b32e`,
+  `96be3fb8f8`).
+- The names a run declares,
+  read with comments and lines of format characters blanked:
+  a second run holding a comment was refused for it and read no name,
+  so a repeated import fell through to step 2 (`a55189e20c`,
+  `964a8f733c`).
+
+The counts after the fixes,
+the same script and pool for both seeds
+(the pool of the first follow-up was extended by these shapes,
+and the sample cap changed,
+so the counts are not those of the first follow-up):
+
+- Seed 20261023:
+  8102 pairs shipped as written;
+  step 1 was taken for 31160 and made the page parse for 26404;
+  step 2 was taken for 486 and made the page parse for 1;
+  step 3 was taken for 5493.
+- Seed 20270101:
+  8112 pairs shipped as written;
+  step 1 was taken for 31140 and made the page parse for 26361;
+  step 2 was taken for 467 and made the page parse for none;
+  step 3 was taken for 5527.
+
+Of the pairs that took step 3,
+5440 and 5471 hold a run nested past the bound of the plain reading,
+which the pool holds on purpose and the 300-deep case pins.
+The other 53 and 56 are the limits that stay:
+
+- A `$$` flow that one run opens and a later run closes
+  (41 and 40 pairs that took step 3,
+  and one pair of the first seed that step 2 made parse;
+  a fence does the same,
+  1 and 1;
+  each of the 5 and 7 pairs that also hold a fence mark indented four spaces holds such a flow):
+  an unclosed flow runs to the end of the page in the strict grammar,
+  taking the English between the runs,
+  and closing it would take a line the original does not hold.
+  The fence case in `source-shipped-page.unit.test.ts` pins the behaviour.
+- A comment that never closes beside a line the plain reading takes for a definition
+  (2 and 3 pairs):
+  the opener is written as a character reference,
+  and the line after it is then a line of a paragraph where the reading blanked the opener and saw a definition.
+- A run that starts with a byte order mark and whose first line then starts a block
+  (3 and 3 pairs):
+  the encoder reads the run as a document start,
+  where the mark is dropped,
+  and in the page the mark stands in the middle of a line.
+- A definition line right after a block quote that holds a footnote definition
+  (1 and 1 pair).
+- A footnote definition followed by a line of `*` (1 pair of the second seed),
+  which was not diagnosed.
+
+No cache version moved:
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' dc7fd7dca1..HEAD` names no commit,
+and the same form with `fenceLengthEdits` names `c513e15b29`.
+The encoder's output lives only in the pages on disk,
+and no stage keyed by a prompt or a sheet changed.
 
 ## Corrections to A8, B827, B830 and B831
 

@@ -119,6 +119,7 @@ named for that subject and listed here.
   a page the grammar refuses with the original on it,
   a page shipped without the runs no writing makes parse and how a page on disk is judged (B832),
   the holes between the plain parse and the strict grammar that followed it,
+  the limits of that follow-up closed and the shapes a second search found (B832 follow-ups),
   the wiring tests of the page on disk (B832 follow-ups),
   and the corrections it made to A8,
   B827,

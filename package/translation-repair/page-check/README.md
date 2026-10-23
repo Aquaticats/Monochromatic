@@ -59,8 +59,10 @@ The groups that follow name the main ones.
   Declared in `corpus-run/source-ships.ts`.
 - Page composition under the grammar:
   ship each source run as recorded whenever the page parses,
-  and otherwise write the runs that do not parse alone (and any run holding a comment that never closes) as literal
-  text,
+  and otherwise write the runs that do not parse alone (and any run holding a comment that never closes,
+  a fence mark
+  indented four spaces or more,
+  or a name an earlier run still declares) as literal text,
   then every run,
   then ship the page without the runs no writing makes parse (without every run where that does not help)
   and report `page-source-unparseable` naming the slices.
