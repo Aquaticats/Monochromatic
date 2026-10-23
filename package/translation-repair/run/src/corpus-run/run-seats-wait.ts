@@ -196,6 +196,83 @@ export function reachableSeats(
 }
 
 /**
+ What one bench reads in a view: the seats a wet provider would serve against the quorum the bench needs to settle.
+
+ @example
+ ```ts
+ const reading: BenchReading = { name: 'wide', seats, quorum: 4, reachable: seats.slice(0, 3), };
+ ```
+ */
+export type BenchReading = {
+  /**
+   Bench read.
+   */
+  readonly name: BenchName;
+
+  /**
+   Seats the bench holds in this view.
+   */
+  readonly seats: readonly RosterModelId[];
+
+  /**
+   Voices the bench needs to settle: a pair for the readers, a majority for a bench that votes.
+   */
+  readonly quorum: number;
+
+  /**
+   Seats a wet provider would serve in this view, in bench order.
+   */
+  readonly reachable: readonly RosterModelId[];
+};
+
+/**
+ Reads each named bench in a view, short of its quorum or not.
+
+ @param benches - each bench the phase leans on, keyed by name
+
+ @param names - benches to read, in the order the lines print them
+
+ @param dry - dryness per provider, holds folded in
+
+ @returns One reading per named bench
+
+ @example
+ ```ts
+ const readings = benchReadings({ benches, names: phaseBenches({ phase, },), dry, },);
+ ```
+ */
+export function benchReadings(
+  {
+    benches,
+    names,
+    dry,
+  }: {
+    readonly benches: Readonly<Record<BenchName, readonly RosterModelId[]>>;
+    readonly names: readonly BenchName[];
+    readonly dry: BudgetView;
+  },
+): readonly BenchReading[] {
+  return names.map(function readingOf(name,): BenchReading {
+    /**
+     Seats this bench holds.
+     */
+    const seats = benches[name];
+    return {
+      name,
+      seats,
+      quorum: (name === 'readers')
+        ? READER_QUORUM
+        : rosterQuorumSize({ rosterSize: seats.length, },),
+      reachable: reachableSeats({
+        seats,
+        dry,
+        reach: (name === 'readers') ? 'vision' : 'text',
+      },),
+    };
+  },);
+}
+
+/**
  A bench that cannot reach quorum among the seats a wet provider serves, with the count behind the clause.
  */
 export type BenchShortfall = {
@@ -242,36 +319,27 @@ export function benchShortfalls(
     readonly dry: BudgetView;
   },
 ): readonly BenchShortfall[] {
-  return names.flatMap(function shortfallOf(name,): readonly BenchShortfall[] {
-    /**
-     Seats this bench holds.
-     */
-    const seats = benches[name];
-    /**
-     Voices the bench needs to settle: a pair for the readers, a majority
-     for a bench that votes.
-     */
-    const quorum = (name === 'readers')
-      ? READER_QUORUM
-      : rosterQuorumSize({ rosterSize: seats.length, },);
-    /**
-     Seats a wet provider would serve.
-     */
-    const reachable = reachableSeats({
+  return benchReadings({
+    benches,
+    names,
+    dry,
+  },)
+    .flatMap(function shortfallOf({
+      name,
       seats,
-      dry,
-      reach: (name === 'readers') ? 'vision' : 'text',
+      quorum,
+      reachable,
+    },): readonly BenchShortfall[] {
+      if (reachable.length >= quorum)
+        return [];
+      return [
+        {
+          name,
+          seats,
+          clause: `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${String(quorum,)}`,
+        },
+      ];
     },);
-    if (reachable.length >= quorum)
-      return [];
-    return [
-      {
-        name,
-        seats,
-        clause: `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${String(quorum,)}`,
-      },
-    ];
-  },);
 }
 
 /**

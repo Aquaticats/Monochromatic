@@ -1,3 +1,5 @@
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+
 import {
   type BudgetView,
   durationWordsOf,
@@ -16,6 +18,7 @@ import {
 import { judgeSeatsFor, } from './run-seats.ts';
 import {
   type BenchName,
+  benchReadings,
   benchShortfalls,
   reachableSeats,
 } from './run-seats-wait.ts';
@@ -331,6 +334,108 @@ export function noWaitWordsOf(
     },)
       .join(', ',)
   }; ${why}${neuralwatt}`;
+}
+
+/**
+ What each bench that stands short could read once every running hold had ended: the seats the return of the held
+ providers would bring back, the count they would lift the bench to against its quorum, and whether that reaches it.
+
+ THE CEILING OF A BENCH IS WHAT IT READS WITH THE HELD PROVIDERS BACK AND EVERY OTHER PROVIDER AS IT IS NOW, so a
+ provider dry by its meter stays dry. `wide 3 of 7, quorum 4` under a Synthetic hold means Synthetic's return cannot
+ lift the wide bench however long it is waited for, which is what the corpus pass `XingZ6020` waited 228 times to
+ find out.
+
+ @param running - how long each provider's refusal still holds it out, as the reader read it
+
+ @param dry - dryness per provider, holds folded in
+
+ @param names - benches the clauses are for
+
+ @returns One clause per short bench, in the order the benches are named; none when no hold runs, since a bench's
+ ceiling is then what it reads
+
+ @example
+ ```ts
+ const said = ceilingWordsOf({ running, dry, names: phaseBenches({ phase, },), },);
+ // => ['wide ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it (the return brings back hf:moonshotai/Kimi-K3, hf:Qwen/Qwen3.8-27B)',]
+ ```
+ */
+export function ceilingWordsOf(
+  {
+    running,
+    dry,
+    names,
+  }: {
+    readonly running: ProviderRecord<number>;
+    readonly dry: BudgetView;
+    readonly names: readonly BenchName[];
+  },
+): readonly string[] {
+  /**
+   Providers held out for some time.
+   */
+  const held = PROVIDER_ORDER.filter(function isHeld(provider,): boolean {
+    return running[provider] > 0;
+  },);
+  // NO HOLD RUNNING, NO CEILING TO STATE: a bench's ceiling is then what it reads, which its own clause already says.
+  if (held.length === 0)
+    return [];
+  /**
+   The view once every held provider is back.
+   */
+  const after = viewWithBack({
+    dry,
+    back: held,
+  },);
+  /**
+   Each bench as it reads once they are back.
+   */
+  const ceilings = benchReadings({
+    benches: benchesOf({ seats: judgeSeatsFor({ dry: after, }), },),
+    names,
+    dry: after,
+  },);
+  return benchReadings({
+    benches: benchesOf({ seats: judgeSeatsFor({ dry, }), },),
+    names,
+    dry,
+  },)
+    .filter(function isShort({
+      quorum,
+      reachable,
+    },): boolean {
+      return reachable.length < quorum;
+    },)
+    .map(function ceilingWordsOfBench({
+      name,
+      reachable,
+    },): string {
+      /**
+       The same bench with the held providers back: its seats, the quorum it needs and the seats a wet provider serves.
+       */
+      const {
+        seats: benchSeats,
+        quorum: needed,
+        reachable: reached,
+      } = nonNullishOrThrow(ceilings.find(function isThisBench(candidate,): boolean {
+        return candidate.name === name;
+      },),);
+      /**
+       Seats the return would bring back.
+       */
+      const brought = reached.filter(function isNotReachableNow(modelId,): boolean {
+        return !reachable.includes(modelId,);
+      },);
+      /**
+       Whether the return lifts the bench to its quorum.
+       */
+      const lifted = reached.length >= needed;
+      return `${name} ceiling ${String(reached.length,)} of ${String(benchSeats.length,)} with ${
+        held.join(', ',)
+      } back, quorum ${String(needed,)}, so ${
+        lifted ? 'the return lifts it' : 'no return lifts it'
+      } (the return brings back ${(brought.length === 0) ? 'no seat' : brought.join(', ',)})`;
+    },);
 }
 
 /**

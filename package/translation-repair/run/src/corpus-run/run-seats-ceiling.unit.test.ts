@@ -199,12 +199,12 @@ await describe({
 
     it({
       name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and neither can be '
-        + 'lifted by the hold',
+        + 'lifted by the hold (the slate to 2 of 7, since Qwen sits on the wide bench only, ledger B815)',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
         },);
-        expect(warning,).toContain('slate ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it',);
+        expect(warning,).toContain('slate ceiling 2 of 7 with synthetic back, quorum 4, so no return lifts it',);
         expect(warning,).toContain('wide ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it',);
       },
     },),
@@ -224,12 +224,15 @@ await describe({
     },),
 
     it({
-      name: 'SAYS NO HOLD RUNS WHEN NONE DOES: the ceiling of a short bench is what it reads, with no seat to bring back',
+      name: 'STATES NO CEILING WHEN NO HOLD RUNS: the ceiling of a short bench is then what it reads, which its clause '
+        + 'already says, so the line keeps its words about no named return',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, },)).lines,
         },);
-        expect(warning,).toContain('wide ceiling 1 of 7 with no hold running, quorum 4, so no return lifts it',);
+        expect(warning,).toContain('wide 1 of 7 reachable, quorum 4',);
+        expect(warning,).toContain('no provider has named a return the pass can wait for',);
+        expect(warning,).not.toContain('ceiling',);
       },
     },),
   ],
