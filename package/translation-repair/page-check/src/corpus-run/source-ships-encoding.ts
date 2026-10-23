@@ -116,6 +116,14 @@ const BYTE_ORDER_MARK = String.fromCodePoint(BYTE_ORDER_MARK_CODE_POINT,);
 const COMMENT_OPEN = '<!--';
 
 /**
+ What the parse is given in place of an opener of a comment that never closes: the page carries `&lt;!--`, text that
+ starts with an ampersand, which a line starting with it makes a paragraph and which keeps the class of the less-than
+ sign among emphasis marks. Four spaces would make the line a blank one, or indented code, and a definition on the next
+ line would stay a definition to the parse where it is a line of the paragraph to the strict grammar.
+ */
+const COMMENT_OPENER_STAND_IN = '&!--';
+
+/**
  Characters a backslash goes before when the strict grammar reads them as syntax.
  */
 const SYNTAX = '{}<';
@@ -203,6 +211,51 @@ function blanking(
       },),
     );
     copied.upTo = range.end;
+  }
+  pieces.push(text.slice(copied.upTo,),);
+  return pieces.join('',);
+}
+
+/**
+ Writes the stand-in of an opener over each place an opener stands.
+
+ @param text - the text
+
+ @param starts - index of the `<` of each opener, in text order
+
+ @returns Text of the same length
+
+ @example
+ ```ts
+ const readable = standingIn({ text: 'a <!-- b', starts: [2,], },);
+ ```
+ */
+function standingIn(
+  {
+    text,
+    starts,
+  }: {
+    readonly text: string;
+    readonly starts: readonly number[];
+  },
+): string {
+  /**
+   Pieces of the result, joined at the end.
+   */
+  const pieces: string[] = [];
+  /**
+   Where the text not yet copied starts.
+   */
+  const copied = { upTo: 0, };
+  for (const start of starts) {
+    pieces.push(
+      text.slice(
+        copied.upTo,
+        start,
+      ),
+      COMMENT_OPENER_STAND_IN,
+    );
+    copied.upTo = start + COMMENT_OPEN.length;
   }
   pieces.push(text.slice(copied.upTo,),);
   return pieces.join('',);
@@ -308,23 +361,16 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       };
     },);
   /**
-   The text as the parse reads it: comments and the openers blanked, so what stands inside them is not parsed.
+   The text as the parse reads it: comments that close blanked, so what stands inside them is not parsed, and the
+   openers of comments that never close written as text.
    */
-  const readable = blanking({
-    text,
-    ranges: [
-      ...closedComments,
-      ...openers.map(function toBlank({ end, },): TextRange {
-        return {
-          start: end - 1,
-          end: (end - 1) + COMMENT_OPEN.length,
-        };
-      },),
-    ].toSorted(function byStart(
-      left,
-      right,
-    ): number {
-      return left.start - right.start;
+  const readable = standingIn({
+    text: blanking({
+      text,
+      ranges: closedComments,
+    },),
+    starts: openers.map(function toStart({ end, },): number {
+      return end - 1;
     },),
   },);
   // A TEXT NESTED PAST THE BOUND OF THE PLAIN READING IS NOT PARSED, since the reading refuses it before it reads it;
