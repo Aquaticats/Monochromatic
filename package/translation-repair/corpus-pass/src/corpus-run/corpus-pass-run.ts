@@ -209,14 +209,39 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     console.log(offLine,);
 
   /**
-   Gate ending the pass when the router finds every provider dry (`pass-dry-stop.ts`).
+   When the processing loop began, on the monotonic clock, set once the loop starts: a refusal cannot reach the gate
+   before it, and the gate counts the pass unbounded until then.
    */
-  const dryStop = createPassDryStop();
+  const loopClock: { began?: number; } = {};
+
+  /**
+   Milliseconds the pass has left before its soft budget or hard cap, whichever is shorter; unbounded before the loop
+   starts. The gate parks only for a return inside it, and the seat reader waits only for one inside it.
+
+   @returns Milliseconds left
+   */
+  function passLeftMs(): number {
+    return (loopClock.began === undefined)
+      ? Number.POSITIVE_INFINITY
+      : Math.min(
+        SOFT_BUDGET_MS - (now() - loopClock.began),
+        hardCapMs,
+      );
+  }
+
+  /**
+   Gate ending the pass when the router finds every provider dry, or parking it until NeuralWatt's energy returns when
+   that fits what the pass has left (`pass-dry-stop.ts`).
+   */
+  const dryStop = createPassDryStop({ passLeftMs, },);
 
   /**
    Shared client using measured production provider concurrency, guarded so a dry refusal stops the pass.
    */
-  const client = dryStop.guard({ client: input.newClient({ promptPayloadDir, },), },);
+  const client = dryStop.guard({ client: input.newClient({
+    promptPayloadDir,
+    passLeftMs,
+  },), },);
 
   if (line.switched('plan',)) {
     console.log(passPlanLine({
@@ -248,6 +273,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    Start of the processing loop on the monotonic clock (ledger B78).
    */
   const start = now();
+  loopClock.began = start;
 
   await runPassQueue({
     pending,
@@ -280,6 +306,8 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
         stageSettings: input.stageSettings,
         // The refusal that ended an entry reaches the gate even where no guarded call carried it.
         endRun: dryStop.trip,
+        // Asked after the trip with the entry's own failure, so its TALLY line says parked and not failed.
+        parked: dryStop.parkedFor,
       },);
     },
   },);

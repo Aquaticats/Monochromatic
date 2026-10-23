@@ -351,10 +351,16 @@ const NAMED_PARTS: Record<string, string> = {
   'measured': 'meter states and hold durations, composed by the caller from two booleans and two numbers',
   'xiaomiCause': 'one of two fixed sentences, chosen by whether Xiaomi was counted dry for serving nothing here',
   'xiaomiRefill': 'a fixed sentence about Xiaomi\'s recovery, or nothing',
-  'openingClauseOf({ day: neuralwatt, },)': 'one of three fixed openers about NeuralWatt\'s energy or its day start, '
-    + 'naming no figure, or nothing for an off provider',
-  'returnClauseOf({ day: neuralwatt, },)': 'one of three fixed sentences about NeuralWatt\'s return, naming at most the '
-    + 'UTC time of day the run decided or learned its day starts at, composed from a number of milliseconds',
+  'openingClauseOf({ day: neuralwatt, ...named, },)': 'one of five fixed openers about NeuralWatt\'s energy, its key '
+    + 'or its day start, naming no figure, or nothing for an off provider',
+  'providerClausesOf({ idle, },)': 'fixed sentences naming each provider and whether it is out of budget or reads wet '
+    + 'but serves no seat that writes',
+  '(idle.length === 0) ? \'Nothing further can be bought\' : \'Nothing further that writes a page can be bought\'':
+    'one of two fixed sentences, chosen by whether a provider reads wet but serves no seat that writes',
+  'returnClauseOf({ day: neuralwatt, ...named, afterWaiting, },)': 'one fixed sentence about NeuralWatt\'s return, '
+    + 'naming at most the UTC time of day its day starts at, a distance composed from a number of milliseconds, and '
+    + 'for a blocked key the instant it lifts, read as an instant and spelled in UTC (keyUnblockTextOf), never the '
+    + 'reply\'s own text',
   'dir': 'directory path',
   'endpoint': 'upstream display name as the gateway spelled it, the same field the SPEND line prints, or the word unnamed',
   'errorType': 'gateway failure kind read off its metadata, or the word unnamed; in StreamErrorEventError, a documented '
@@ -434,6 +440,8 @@ const NAMED_PARTS: Record<string, string> = {
   'overlapping.join(\', \',)': 'model ids from the catalog',
   'path': 'file path',
   'phase': 'name of the stream phase this package defines',
+  'returnSentence': 'one of two fixed sentences about NeuralWatt\'s return, naming at most the UTC time of day its day '
+    + 'starts at (the run composes it from the day start, never from a provider\'s text)',
   'producerModelIds.join(\', \',)': 'model ids from the catalog',
   'provider': 'member of a closed provider union',
   'reason': 'authored phrase, or a member of a closed union, at every throw site; or a marked class\'s sentence '
@@ -506,6 +514,9 @@ const WITHHELD: Record<string, string> = {
   ReasonOrderError: 'a test fixture\'s refusal (`reason-order.test-fixture.ts`) that quotes the field names and the '
     + 'instruction phrases the case handed it, which are the case\'s own strings; no boundary prints it, so the marker '
     + 'would mean nothing',
+  ReturnTimeNotUtcError: 'quotes the return time text a NeuralWatt failure carried when its only writer was expected '
+    + 'to give a time ending in UTC; the text is that of a broken invariant, so nothing proves it holds only a time, '
+    + 'and the marker would claim a safety the message cannot show',
   SweepOptionRefusalError: 'the rotation sweep\'s own refusal of a command line, printed by `rotationSweepMain` '
     + 'and never through the boundary; its sentence names the option and value the operator typed, which is all it '
     + 'carries, so the marker would mean nothing where no boundary reads it',

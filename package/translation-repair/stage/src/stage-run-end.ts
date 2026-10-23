@@ -1,3 +1,4 @@
+import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider/ts';
 
 //region Stage run end
@@ -44,6 +45,26 @@ export function isDryRefusal(error: unknown,): error is EveryProviderDryError {
  */
 export function endsTheRun({ error, }: { readonly error: unknown; },): boolean {
   return isDryRefusal(error,);
+}
+
+/**
+ Whether a failure carries the distance to a NeuralWatt return, which the pass may park on: the router's refusal that
+ names one, or a writing bench error whose bench the return would lift. Read by shape, since this package cannot import
+ the run package that makes the bench error; the shape is the field the gate reads.
+
+ @param error - what the call raised
+
+ @returns Whether the failure names a return the pass may wait for
+
+ @example
+ ```ts
+ if (parksTheRun({ error, },))
+   throw error;
+ ```
+ */
+export function parksTheRun({ error, }: { readonly error: unknown; },): boolean {
+  return isJsonRecord(error,) && ('neuralwattReturnsInMs' in error)
+    && ((typeof error.neuralwattReturnsInMs) === 'number');
 }
 
 //endregion Stage run end

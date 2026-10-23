@@ -46,6 +46,7 @@ import {
   readImagePair,
 } from '../dist/final/node/index.mjs';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
 import {
   refusedClient,
@@ -708,6 +709,38 @@ await describe({
             expect(lines.filter(function failedOutright(line,): boolean {
               return line.includes('failed outright',);
             },),).toStrictEqual([],);
+          },
+        },),
+
+        it({
+          name: 'CONTAINS BOTH READERS MEETING A MODEL-DARK REFUSAL, for a client built without the pass guard, and '
+            + 'reports a picture nobody could read, since a reader whose own providers are dry is a lost voice and '
+            + 'the dry refusal that ends the run is a different class',
+          fn: async () => {
+            /**
+             What the pair did when every reader's own providers were dry.
+             */
+            const paired = await readImagePair({
+              client: {
+                chatText: async () => {
+                  throw modelDarkRefusal({ modelId: SEAT_SYNTHETIC_VISION_WITHHELD, },);
+                },
+                chatJson: async () => {
+                  throw new Error('chatJson unused by the reading stage',);
+                },
+                quotas: async () => {
+                  throw new Error('quotas unused by the reading stage',);
+                },
+              },
+              readOcr: found,
+              readerModelIds: READERS,
+              bytes: bytesOf({ length: 64, },),
+              assetName: 'noticeboard.webp',
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              perCallTimeoutMs: HANG_STOP_MS,
+              l,
+            },);
+            expect(paired.kind,).toBe('unavailable',);
           },
         },),
 

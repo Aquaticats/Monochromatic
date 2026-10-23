@@ -129,6 +129,7 @@ named for that subject and listed here.
   - [Records of more than one round](mistake-prevention-sheets-quorums-and-outcome-rules.md#records-of-more-than-one-round)
   - [Work no floor can check](mistake-prevention-sheets-quorums-and-outcome-rules.md#work-no-floor-can-check)
   - [A refusal that ends the run](mistake-prevention-sheets-quorums-and-outcome-rules.md#a-refusal-that-ends-the-run)
+  - [A test fleet models every provider shape of the live roster][fleet-shape]
 - [Preventing mistakes: inputs, defaults and values read from text](mistake-prevention-inputs-defaults-and-values-read-from-text.md):
   Rules for what the code takes in:
   defaults,
@@ -314,3 +315,6 @@ not a memory of having done it.
     on 2026-10-21 (UTC)),
     and its report states the number of test files and the salts it ran,
     so a run narrowed by `-- --package` or `-- --salt` is read as a narrowed run and not as the sweep.
+
+[fleet-shape]:
+  mistake-prevention-sheets-quorums-and-outcome-rules.md#a-test-fleet-models-every-provider-shape-of-the-live-roster

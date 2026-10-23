@@ -49,6 +49,7 @@ import {
 import { quotingFailure, } from '@monochromatic-dev/translation-repair-test-fixture/ts/quoting-failure.test-fixture.ts';
 import {
   SEAT_HYPER_ONLY,
+  SEAT_OPENROUTER_ONLY_CHECKER,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { withFreshRunSeats, } from '@monochromatic-dev/translation-repair-stage/ts/corpus-run/fresh-run-seats.test-fixture.ts';
@@ -174,6 +175,8 @@ const ALL_METERS_WET: Readonly<Record<keyof BudgetView, MeterState>> = {
 
  @param providerHolds - scripted holds, none when absent
 
+ @param writingProviders - providers that serve a writing-bench seat, the run's roster when absent
+
  @returns Client with only the seat reader's surface
 
  @example
@@ -187,19 +190,48 @@ function viewClient(
     providerMeterStates = async () => ALL_METERS_WET,
     providerHolds = () => NO_HOLDS,
     neuralwattReturn,
+    writingProviders,
   }: {
     readonly providerDryness: () => Promise<BudgetView>;
     readonly providerMeterStates?: () => Promise<Readonly<Record<keyof BudgetView, MeterState>>>;
     readonly providerHolds?: () => typeof NO_HOLDS;
     readonly neuralwattReturn?: () => NeuralWattReturn;
+    readonly writingProviders?: Readonly<Record<keyof BudgetView, boolean>>;
   },
 ) {
   return {
     providerDryness,
     providerMeterStates,
     providerHolds,
+    // Conditional spread keeps the record absent on a client that carries none, which reads the roster's.
+    ...((writingProviders === undefined) ? {} : { writingProviders, }),
     // Conditional spread keeps the accessor absent on a client that carries none.
     ...((neuralwattReturn === undefined) ? {} : { neuralwattReturn, }),
+  };
+}
+
+/**
+ Holds that end once they have been waited out: the scripted holds on the first ask, none on any later one.
+
+ @param first - holds the first ask reads
+
+ @returns Accessor shaped as the run client's holds
+
+ @example
+ ```ts
+ const providerHolds = holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },);
+ ```
+ */
+function holdsThatEnd(
+  { first, }: { readonly first: typeof NO_HOLDS; },
+): () => typeof NO_HOLDS {
+  /**
+   Asks made so far.
+   */
+  const asks = { count: 0, };
+  return function holdsNow(): typeof NO_HOLDS {
+    asks.count += 1;
+    return (asks.count === 1) ? first : NO_HOLDS;
   };
 }
 
@@ -456,8 +488,8 @@ await describe({
           },
         },),
         it({
-          name: 'DOES NOT WAIT when no provider has named its return, seating what it read, nor when every '
-            + 'bench can reach quorum however long a provider is held',
+          name: 'DOES NOT WAIT when no provider has named a return the pass can wait for, seating what it read, nor '
+            + 'when every bench can reach quorum however long a provider is held',
           fn: async () => {
             const noHold = scriptedViews({
               views: [
@@ -521,7 +553,7 @@ await describe({
           } reachable, quorum ${String(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),)}`,);
             },);
             expect(said === undefined,).toBe(false,);
-            expect(said?.includes('no provider has named its return',),).toBe(true,);
+            expect(said?.includes('no provider has named a return the pass can wait for',),).toBe(true,);
 
             const whole = scriptedViews({ views: [ALL_WET,], },);
             const quiet = capturingLoggerPair();
@@ -621,10 +653,12 @@ await describe({
             await expect(readJudgeSeats({
               client: viewClient({
                 providerDryness: stays.read,
-                providerHolds: () => ({
-                  ...NO_HOLDS,
-                  hyper: 40,
-                }),
+                providerHolds: holdsThatEnd({
+                  first: {
+                    ...NO_HOLDS,
+                    hyper: 40,
+                  },
+                },),
               },),
               phase: 'lanes',
               signal: new AbortController().signal,
@@ -770,12 +804,13 @@ await describe({
               translators: RUN_TRANSLATORS,
               errors: [
                 'error JUDGE SEATS phase=page consistency writing bench unreachable: translators 0 of 8 reachable, floor 2; '
-                  + 'no provider has named its return, so the phase goes on without its writers',
+                  + 'no provider has named a return the pass can wait for, so the phase goes on without its writers',
               ],
               stops: [],
               warned: [
-                'warn JUDGE SEATS phase=page consistency short of quorum: wide 0 of 7 reachable, quorum 4; '
-                  + 'no provider has named its return, so the phase runs on what is reachable',
+                'warn JUDGE SEATS phase=page consistency short of quorum: wide 0 of 7 reachable, quorum 4 '
+                  + '(reached again with the return of hyper, openrouter); '
+                  + 'no provider has named a return the pass can wait for, so the phase runs on what is reachable',
               ],
             },);
           },
@@ -809,7 +844,7 @@ await describe({
             const { unreachableWriters, } = await readPhaseSeats({
               client: viewClient({
                 providerDryness: stays.read,
-                providerHolds: () => ({ ...NO_HOLDS, hyper: 40, }),
+                providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
               },),
               phase: 'page consistency',
               signal: new AbortController().signal,
@@ -862,6 +897,63 @@ await describe({
           },
         },),
         it({
+          name: 'KEEPS WAITING WHILE A HOLD STILL RUNS: a rate-limit hold that ends first leaves the editors bench '
+            + 'short, and the lanes wait goes on for the hold behind it (the NeuralWatt return) instead of stopping '
+            + 'the entry short of it',
+          fn: async () => {
+            const script = scriptedViews({
+              views: [
+                BEDROCK_ALONE,
+                BEDROCK_ALONE,
+                ALL_WET,
+              ],
+            },);
+            /**
+             Holds asked so far.
+             */
+            const asks = { count: 0, };
+            /**
+             The holds each ask reads: the rate-limit hold and the return, then the return alone, then none.
+             */
+            const holdsByAsk = [
+              {
+                ...NO_HOLDS,
+                synthetic: 10,
+                neuralwatt: 30,
+              },
+              {
+                ...NO_HOLDS,
+                neuralwatt: 20,
+              },
+              NO_HOLDS,
+            ];
+            const lines: string[] = [];
+            const seats = await readJudgeSeats({
+              client: viewClient({
+                providerDryness: script.read,
+                providerHolds: () => {
+                  const asked = holdsByAsk[Math.min(
+                    asks.count,
+                    holdsByAsk.length - 1,
+                  )] ?? NO_HOLDS;
+                  asks.count += 1;
+                  return asked;
+                },
+              },),
+              phase: 'lanes',
+              signal: new AbortController().signal,
+              l: levelCapturingLogger({ lines, },),
+              pollMs: 5,
+            },);
+            expect(script.counter.reads,).toBe(3,);
+            expect(seats.translators,).toEqual(RUN_TRANSLATORS,);
+            expect(lines.filter(function isError(line,): boolean {
+              return line.startsWith('error ',);
+            },),).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'STOPS A PHASE THAT DOES NOT GO ON WITHOUT ITS WRITERS exactly as before when the cause is not every '
             + 'provider dry, so the lanes on Bedrock alone still refuse with the bench error and still say the entry stops',
           fn: async () => {
@@ -910,6 +1002,63 @@ await describe({
           },
         },),
         it({
+          name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL when every provider reads dry but Xiaomi, whose wet '
+            + 'meter serves only the checker seat pinned here and no seat that writes, since a wet provider counts '
+            + 'only if a writing bench could still reach its floor from it; with a writer seat on Xiaomi the cause '
+            + 'stays the bench error and the entry stops',
+          fn: async () => {
+            /**
+             Every provider dry but Xiaomi, whose meter can never read dry by itself.
+             */
+            const xiaomiWet: BudgetView = { ...ALL_DRY, xiaomi: false, };
+            // THE ROSTER PIN: the seats a Xiaomi-only fleet reaches, among the roster and the checkers. The case
+            // means "a fleet with one wet provider that serves one checker seat", and this line says which seat that
+            // is today; the refusal that follows reads the roster's writing benches and not this seat.
+            const { seats, } = await readPhaseSeats({
+              client: viewClient({ providerDryness: scriptedViews({ views: [xiaomiWet,], },).read, },),
+              phase: 'page consistency',
+              signal: new AbortController().signal,
+              l: levelCapturingLogger({ lines: [], },),
+              pollMs: 5,
+            },);
+            expect([...seats.roster, ...seats.checkers,].filter(function isServed(modelId,): boolean {
+              return !seats.unserved.includes(modelId,);
+            },),).toEqual([SEAT_OPENROUTER_ONLY_CHECKER,],);
+            /**
+             What the seat reading stopped with on the roster's own writing providers.
+             */
+            const refusal = await rejectionOf({
+              promise: readPhaseSeats({
+                client: viewClient({ providerDryness: scriptedViews({ views: [xiaomiWet,], },).read, },),
+                phase: 'lanes',
+                signal: new AbortController().signal,
+                l: levelCapturingLogger({ lines: [], },),
+                pollMs: 5,
+              },),
+            },);
+            expect(refusal,).toBeInstanceOf(EveryProviderDryError,);
+            expect(caughtValueText(refusal,),).toContain('xiaomi wet (serves no seat that writes)',);
+            /**
+             What it stopped with when a writer seat sits on Xiaomi.
+             */
+            const withWriter = await rejectionOf({
+              promise: readPhaseSeats({
+                client: viewClient({
+                  providerDryness: scriptedViews({ views: [xiaomiWet,], },).read,
+                  writingProviders: { ...ALL_DRY, },
+                },),
+                phase: 'lanes',
+                signal: new AbortController().signal,
+                l: levelCapturingLogger({ lines: [], },),
+                pollMs: 5,
+              },),
+            },);
+            expect(withWriter,).toBeInstanceOf(WritingBenchUnreachableError,);
+            expect(withWriter,).not.toBeInstanceOf(EveryProviderDryError,);
+          },
+        },),
+
+        it({
           name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL when every provider still reads dry after the one wait '
             + 'for the shortest hold, as it does when none was held',
           fn: async () => {
@@ -920,7 +1069,7 @@ await describe({
               promise: readPhaseSeats({
                 client: viewClient({
                   providerDryness: scriptedViews({ views: [ALL_DRY, ALL_DRY,], },).read,
-                  providerHolds: () => ({ ...NO_HOLDS, hyper: 40, }),
+                  providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
                 },),
                 phase: 'lanes',
                 signal: new AbortController().signal,

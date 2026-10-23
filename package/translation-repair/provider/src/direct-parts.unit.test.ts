@@ -146,15 +146,20 @@ await describe({
           },
         },),
         it({
-          name: 'ENDS THE RUN from the policy itself when only Xiaomi reads wet and the model is not Xiaomi\'s, and '
-            + 'still sends Xiaomi\'s own model to Xiaomi',
+          name: 'LOSES THE SEAT, NOT THE RUN, when only Xiaomi reads wet and the model is not Xiaomi\'s, still ends the '
+            + 'run when Xiaomi reads dry too, and still sends Xiaomi\'s own model to Xiaomi',
           fn: async () => {
             const dryButXiaomi = { ...NONE_DRY, neuralwatt: true, synthetic: true, bedrock: true, deepseek: true,
               hyper: true, openrouter: true, };
-            expect(function otherModel(): unknown {
+            expect(routeProviderFor({
+              reach: reachOf({ modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, }),
+              dry: dryButXiaomi,
+              saturated: NONE_DRY,
+            },).kind,).toBe('unreachable',);
+            expect(function everyProviderDry(): unknown {
               return routeProviderFor({
                 reach: reachOf({ modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, }),
-                dry: dryButXiaomi,
+                dry: { ...dryButXiaomi, xiaomi: true, },
                 saturated: NONE_DRY,
               },);
             },).toThrow(EveryProviderDryError,);

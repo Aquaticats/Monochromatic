@@ -233,7 +233,10 @@ await describe({
           fn: async () => {
             const scene = carryScene({
               behave: writtenAndChosen({ choice: WRITTEN, }),
-              writers: { kind: 'not-asked', why: 'translators 0 of 8 reachable, floor 2; no provider has named its return', },
+              writers: {
+                kind: 'not-asked',
+                why: 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for',
+              },
             },);
             const { carries, edits, findings, } = await carriedIn({
               scene,
@@ -246,7 +249,7 @@ await describe({
               edits: [],
               findings: [
                 'consistency-writers-not-asked (OCCURRENCE 2): the translators bench was not asked: '
-                  + 'translators 0 of 8 reachable, floor 2; no provider has named its return',
+                  + 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for',
               ],
               asked: [],
             },);
@@ -257,7 +260,10 @@ await describe({
           fn: async () => {
             const scene = carryScene({
               behave: writtenAndChosen({ choice: SPLICED_PARAGRAPH, }),
-              writers: { kind: 'not-asked', why: 'translators 0 of 8 reachable, floor 2; no provider has named its return', },
+              writers: {
+                kind: 'not-asked',
+                why: 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for',
+              },
             },);
             const { carries, edits, findings, } = await carriedIn({ scene, },);
             expect({
@@ -274,7 +280,7 @@ await describe({
               edits: [{ kind: 'splice', placePositions: [1,], sliceIndex: 1, start: 6, end: 21, text: 'the cat naps', },],
               findings: [
                 'consistency-writers-not-asked (OCCURRENCE 2): the translators bench was not asked: '
-                  + 'translators 0 of 8 reachable, floor 2; no provider has named its return',
+                  + 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for',
               ],
               kindsAsked: ['choice',],
             },);

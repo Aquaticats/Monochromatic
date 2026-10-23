@@ -24,6 +24,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
   mapOverlapped,
@@ -418,6 +419,37 @@ await describe({
     },),
 
     it({
+      name: 'THROWS THE EARLIEST POSITION\'S FAILURE when a later position raised a model-dark refusal first, since '
+        + 'a model whose own providers are dry costs one item its voice and does not end the run, so it outranks nothing',
+      fn: async () => {
+        const run = gatedRun({ count: 3, },);
+        const failure = collected({
+          run: mapOverlapped({
+            items: ITEMS.slice(
+              0,
+              3,
+            ),
+            overlap: 3,
+            oneItem: run.oneItem,
+            signal: NEVER_STOPPED,
+            l: QUIET,
+            nameOf: catName,
+          },),
+        },);
+        await settle();
+        nonNullishOrThrow(run.gates[2],).reject(modelDarkRefusal({ modelId: 'glm-5.3', },),);
+        await settle();
+        /**
+         What the earlier item throws, second in time.
+         */
+        const earlier = new Error('the first item broke after it',);
+        nonNullishOrThrow(run.gates[0],).reject(earlier,);
+        nonNullishOrThrow(run.gates[1],).resolve('fine',);
+        expect(await failure,).toBe(earlier,);
+      },
+    },),
+
+    it({
       name: 'THROWS THE EVERY-PROVIDER-DRY REFUSAL although an earlier position failed for another reason, since the '
         + 'dry refusal ends the run and the other failure is one item\'s, and writes the earlier failure it does not throw',
       fn: async () => {
@@ -453,6 +485,123 @@ await describe({
           'warn [mapOverlapped] cat a failed (refused by Error), and the failure thrown is cat c\'s, '
             + 'which ends the run',
         ],);
+      },
+    },),
+
+    it({
+      name: 'THROWS A FAILURE THAT CARRIES A NEURALWATT RETURN although an earlier position failed for another reason, '
+        + 'since the pass may park on it, and says only that it names a return the run\'s gate may park on',
+      fn: async () => {
+        const run = gatedRun({ count: 3, },);
+        /**
+         Every line the helper wrote, behind its level.
+         */
+        const lines: string[] = [];
+        /**
+         A bench error standing in for the run package's, which this package cannot import: it names the distance to the
+         NeuralWatt return that would lift the bench.
+         */
+        class BenchWithReturnError extends Error {
+          public override readonly name: string = 'BenchWithReturnError';
+
+          public readonly neuralwattReturnsInMs: number = 301_000;
+        }
+        /**
+         What the later item raised, first in time.
+         */
+        const bench = new BenchWithReturnError('writing bench unreachable',);
+        const failure = collected({
+          run: mapOverlapped({
+            items: ITEMS.slice(
+              0,
+              3,
+            ),
+            overlap: 3,
+            oneItem: run.oneItem,
+            signal: NEVER_STOPPED,
+            l: levelCapturingLogger({ lines, },),
+            nameOf: catName,
+          },),
+        },);
+        await settle();
+        nonNullishOrThrow(run.gates[2],).reject(bench,);
+        await settle();
+        nonNullishOrThrow(run.gates[0],).reject(new Error('the first item broke after it',),);
+        nonNullishOrThrow(run.gates[1],).resolve('fine',);
+        expect(await failure,).toBe(bench,);
+        expect(lines,).toEqual([
+          'warn [mapOverlapped] cat a failed (refused by Error), and the failure thrown is cat c\'s, '
+            + 'which names a NeuralWatt return the run\'s gate may park on',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'THROWS THE EVERY-PROVIDER-DRY REFUSAL OVER A BENCH ERROR THAT CARRIES A RETURN in either arrival order: '
+        + 'the refusal ends the run and the bench error only may be parked on, so what arrived first does not '
+        + 'decide it',
+      fn: async () => {
+        /**
+         A bench error standing in for the run package's, which this package cannot import.
+         */
+        class BenchWithReturnError extends Error {
+          public override readonly name: string = 'BenchWithReturnError';
+
+          public readonly neuralwattReturnsInMs: number = 301_000;
+        }
+        /**
+         What the router raised.
+         */
+        const dry = new EveryProviderDryError({ measured: 'meters read every provider dry', },);
+        /**
+         What the thrown failure is when the bench error arrives first and the refusal second.
+         */
+        const benchFirst = gatedRun({ count: 3, },);
+        const first = collected({
+          run: mapOverlapped({
+            items: ITEMS.slice(
+              0,
+              3,
+            ),
+            overlap: 3,
+            oneItem: benchFirst.oneItem,
+            signal: NEVER_STOPPED,
+            l: QUIET,
+            nameOf: catName,
+          },),
+        },);
+        await settle();
+        nonNullishOrThrow(benchFirst.gates[1],).reject(new BenchWithReturnError('writing bench unreachable',),);
+        await settle();
+        nonNullishOrThrow(benchFirst.gates[2],).reject(dry,);
+        await settle();
+        nonNullishOrThrow(benchFirst.gates[0],).resolve('fine',);
+        expect(await first,).toBe(dry,);
+
+        /**
+         The same two failures with the refusal arriving first.
+         */
+        const dryFirst = gatedRun({ count: 3, },);
+        const second = collected({
+          run: mapOverlapped({
+            items: ITEMS.slice(
+              0,
+              3,
+            ),
+            overlap: 3,
+            oneItem: dryFirst.oneItem,
+            signal: NEVER_STOPPED,
+            l: QUIET,
+            nameOf: catName,
+          },),
+        },);
+        await settle();
+        nonNullishOrThrow(dryFirst.gates[2],).reject(dry,);
+        await settle();
+        nonNullishOrThrow(dryFirst.gates[1],).reject(new BenchWithReturnError('writing bench unreachable',),);
+        await settle();
+        nonNullishOrThrow(dryFirst.gates[0],).resolve('fine',);
+        expect(await second,).toBe(dry,);
       },
     },),
 

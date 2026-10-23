@@ -18,6 +18,7 @@ import {
   isDryRefusal,
   endsTheRun,
 } from '../dist/final/node/index.mjs';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 
 await describe({
   name: '',
@@ -29,6 +30,20 @@ await describe({
           name: 'ANSWERS YES FOR THE ROUTER\'S EVERY-PROVIDER-DRY REFUSAL, which the owner ruled ends the run',
           fn: async () => {
             expect(endsTheRun({ error: new EveryProviderDryError({ measured: 'every meter dry', },), },),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'ANSWERS NO FOR A MODEL WHOSE OWN PROVIDERS ARE ALL OUT OF BUDGET while another provider reads wet, '
+            + 'which the router raises with a reason naming the dry providers and costs one seat its voice',
+          fn: async () => {
+            /**
+             The refusal the router raises for a model only Hyper serves, Hyper being dry.
+             */
+            const dark = modelDarkRefusal({ modelId: 'glm-5.3', },);
+            expect(dark.message,).toContain('every provider serving this model is out of budget (hyper dry)',);
+            expect(endsTheRun({ error: dark, },),).toBe(false,);
+            expect(isDryRefusal(dark,),).toBe(false,);
           },
         },),
 

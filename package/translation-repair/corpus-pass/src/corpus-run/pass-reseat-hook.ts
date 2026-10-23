@@ -4,8 +4,10 @@ import { shortestHold, } from '@monochromatic-dev/translation-repair-provider/ts
 import {
   type JudgeSeatPhase,
   type JudgeSeats,
+  holdsWithinPass,
   readJudgeSeats,
   type SeatReadingClient,
+  type WarnedState,
 } from '@monochromatic-dev/translation-repair-run/ts';
 
 //region Per-slice re-seating under a hold
@@ -22,6 +24,21 @@ import {
 // no dryness read. Under a hold the reading itself waits out the shortest hold
 // once when a bench the phase leans on cannot reach quorum
 // (`run-seats-read.ts`).
+//
+// A WARNING IS WRITTEN ONCE PER STATE (rounds 5 and 6). A hold that cannot cure a short bench is not waited for, so
+// every slice under it reads the same short bench and the reading warns of it each time; a Xiaomi or DeepSeek hold of
+// hours over hundreds of slices wrote hundreds of identical lines. The hook still reads the seats for every slice,
+// since a provider going dry changes the seating a slice must run on whether or not its hold would cure anything. It
+// cannot skip the read on "no running hold would cure": that is also the state of a hold with no short bench at all,
+// which is the state the seating is for.
+//
+// THE MEMORY IS WHAT THE WARNING IS ABOUT, NEVER ITS TEXT. The reading keeps one signature, the providers held and the
+// benches unmet (`WarnedState` in `run-seats-short-bench.ts`), and writes its no-wait line only when that changes. The
+// text carries the time each skipped hold has left and, with NeuralWatt dry, the distance to its return and the
+// figure past what the pass has left, all of which shrink between slices, so a memory of text writes a line per
+// slice. The signature is forgotten when no hold runs (the hook does it), when a reading finds no unmet bench, and when
+// a reading has waited (the reading does it), so a hold that comes back, or a bench that recovers and falls short
+// again, is said again.
 
 /**
  What a phase takes from one seat reading: the seating its slices run on, and
@@ -81,9 +98,15 @@ export function reseatHookFor<SeatingT,>(
    Seating as last read under a hold, handed to every slice after it.
    */
   const latest: { seating: SeatingT; } = { seating: unseated, };
+  /**
+   The state the last no-wait line was about, which the reading updates; empty when no hold has run since.
+   */
+  const warned: WarnedState = { signature: '', };
   return async function reseatBeforeSlice(): Promise<SeatingT> {
-    if (shortestHold({ holds: client.providerHolds(), },) === 0)
+    if (shortestHold({ holds: holdsWithinPass({ client, },), },) === 0) {
+      warned.signature = '';
       return latest.seating;
+    }
     /**
      Benches as of this slice, the reading waiting out a named hold when a
      bench the phase leans on cannot reach quorum.
@@ -93,6 +116,7 @@ export function reseatHookFor<SeatingT,>(
       phase,
       signal,
       l,
+      warned,
     },);
     /**
      What this phase takes from that reading.

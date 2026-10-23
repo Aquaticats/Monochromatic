@@ -23,6 +23,10 @@ import type { HyperClient, } from './hyper-client.ts';
 import type { XiaomiClient, } from './xiaomi-client.ts';
 import type { NeuralWattClient, } from './neuralwatt-client.ts';
 import {
+  neuralWattDrynessOf,
+  type NeuralWattDryness,
+} from './neuralwatt-return-hold.ts';
+import {
   neuralWattIsDry,
   neuralWattMeterLevel,
 } from './neuralwatt-meter.ts';
@@ -104,6 +108,12 @@ export type MeterLevel = {
    `key=value` tokens naming what was read, no value carrying a space.
    */
   readonly fields: readonly string[];
+
+  /**
+   Why a dry reading is dry, and for NeuralWatt's spent day when it is over (`neuralWattDrynessOf`). Absent for every
+   other provider's reading.
+   */
+  readonly dryness?: NeuralWattDryness;
 };
 
 /**
@@ -125,6 +135,11 @@ export type MeterRecord = {
    so nothing is being encoded twice and nothing is lost.
    */
   readonly fields: readonly string[];
+
+  /**
+   Why a dry reading is dry, when the meter said so (`MeterLevel.dryness`).
+   */
+  readonly dryness?: NeuralWattDryness;
 };
 
 /**
@@ -178,6 +193,8 @@ export async function meterRecordOf(
         ? 'dry'
         : 'wet',
       fields: level.fields,
+      // Conditional spread keeps an absent cause absent instead of undefined.
+      ...((level.dryness === undefined) ? {} : { dryness: level.dryness, }),
     };
   } catch (error) {
     // A monitoring failure must not become an outage: the router's failover
@@ -240,6 +257,9 @@ export const UNCONFIGURED_METER: MeterRecord = {
 
  @param openrouter - fourth provider's credits reader, absent when unconfigured
 
+ @param wall - wall clock and the margin a spent NeuralWatt day's return carries, absent
+ where the cause is not asked for
+
  @param signal - abort signal of whichever call started this reading
 
  @returns Every provider's meter record, keyed by name
@@ -258,6 +278,7 @@ export async function readEveryMeter(
     deepseek,
     xiaomi,
     openrouter,
+    wall,
     signal,
   }: {
     readonly neuralwatt?: Pick<NeuralWattClient, 'energy'>;
@@ -267,6 +288,10 @@ export async function readEveryMeter(
     readonly deepseek?: Pick<DeepSeekClient, 'credits'>;
     readonly xiaomi?: Pick<XiaomiClient, 'spend'>;
     readonly openrouter?: Pick<OpenRouterClient, 'credits'>;
+    readonly wall?: {
+      readonly now: () => Date;
+      readonly marginMs: number
+    };
     readonly signal: AbortSignal;
   },
 ): Promise<ProviderRecord<MeterRecord>> {
@@ -293,10 +318,22 @@ export async function readEveryMeter(
            Ledger reading the verdict and the numbers are both drawn from.
            */
           const energy = await neuralwatt.energy({ signal, },);
+          /**
+           Why the reading is dry, and for a spent day how long until it starts again.
+           */
+          const dryness = (wall === undefined)
+            ? undefined
+            : neuralWattDrynessOf({
+              energy,
+              now: wall.now(),
+              marginMs: wall.marginMs,
+            },);
 
           return {
             dry: neuralWattIsDry({ energy, },),
             fields: neuralWattMeterLevel({ energy, },),
+            // Conditional spread keeps an absent cause absent instead of undefined.
+            ...((dryness === undefined) ? {} : { dryness, }),
           };
         },
       },),

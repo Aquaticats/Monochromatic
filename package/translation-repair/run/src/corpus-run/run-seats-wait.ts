@@ -196,6 +196,85 @@ export function reachableSeats(
 }
 
 /**
+ A bench that cannot reach quorum among the seats a wet provider serves, with the count behind the clause.
+ */
+export type BenchShortfall = {
+  /**
+   Bench that stands short.
+   */
+  readonly name: BenchName;
+
+  /**
+   Seats the bench holds.
+   */
+  readonly seats: readonly RosterModelId[];
+
+  /**
+   Clause naming the reachable seats against the quorum.
+   */
+  readonly clause: string;
+};
+
+/**
+ Benches that cannot reach quorum among the seats a wet provider serves.
+
+ @param benches - each bench the phase leans on, keyed by name
+
+ @param names - benches to read, in the order the shortfall line prints them
+
+ @param dry - dryness per provider, holds folded in
+
+ @returns One entry per short bench, empty when every bench can settle
+
+ @example
+ ```ts
+ const shortfalls = benchShortfalls({ benches, names: phaseBenches({ phase, },), dry, },);
+ ```
+ */
+export function benchShortfalls(
+  {
+    benches,
+    names,
+    dry,
+  }: {
+    readonly benches: Readonly<Record<BenchName, readonly RosterModelId[]>>;
+    readonly names: readonly BenchName[];
+    readonly dry: BudgetView;
+  },
+): readonly BenchShortfall[] {
+  return names.flatMap(function shortfallOf(name,): readonly BenchShortfall[] {
+    /**
+     Seats this bench holds.
+     */
+    const seats = benches[name];
+    /**
+     Voices the bench needs to settle: a pair for the readers, a majority
+     for a bench that votes.
+     */
+    const quorum = (name === 'readers')
+      ? READER_QUORUM
+      : rosterQuorumSize({ rosterSize: seats.length, },);
+    /**
+     Seats a wet provider would serve.
+     */
+    const reachable = reachableSeats({
+      seats,
+      dry,
+      reach: (name === 'readers') ? 'vision' : 'text',
+    },);
+    if (reachable.length >= quorum)
+      return [];
+    return [
+      {
+        name,
+        seats,
+        clause: `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${String(quorum,)}`,
+      },
+    ];
+  },);
+}
+
+/**
  Benches that cannot reach quorum among the seats a wet provider serves.
 
  @param benches - each bench the phase leans on, keyed by name
@@ -224,32 +303,14 @@ export function shortBenches(
     readonly dry: BudgetView;
   },
 ): readonly string[] {
-  return names.flatMap(function clauseOf(name,): readonly string[] {
-    /**
-     Seats this bench holds.
-     */
-    const seats = benches[name];
-    /**
-     Voices the bench needs to settle: a pair for the readers, a majority
-     for a bench that votes.
-     */
-    const quorum = (name === 'readers')
-      ? READER_QUORUM
-      : rosterQuorumSize({ rosterSize: seats.length, },);
-    /**
-     Seats a wet provider would serve.
-     */
-    const reachable = reachableSeats({
-      seats,
-      dry,
-      reach: (name === 'readers') ? 'vision' : 'text',
+  return benchShortfalls({
+    benches,
+    names,
+    dry,
+  },)
+    .map(function clauseOf({ clause, },): string {
+      return clause;
     },);
-    if (reachable.length >= quorum)
-      return [];
-    return [
-      `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${String(quorum,)}`,
-    ];
-  },);
 }
 
 //endregion Bench quorum under a named hold

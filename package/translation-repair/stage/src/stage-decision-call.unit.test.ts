@@ -21,6 +21,7 @@ import {
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import {
   attemptStageCall,
   type StageDecision,
@@ -328,6 +329,22 @@ await describe({
           },),
           decision: DECISION,
         },),).rejects.toThrow('cat nap',);
+      },
+    },),
+
+    it({
+      name: 'CONTAINS A MODEL-DARK REFUSAL FROM THE DECISIONS ROUTE as an unreachable voice, since a dry decisions '
+        + 'endpoint costs the decision seat its voice while other providers are wet',
+      fn: async () => {
+        expect(await attemptStageCall({
+          ...SHARED,
+          client: clientWith({
+            decide: async () => {
+              throw modelDarkRefusal({ modelId: SHARED.modelId, },);
+            },
+          },),
+          decision: DECISION,
+        },),).toMatchObject({ heard: false, answered: false, unreachable: true, },);
       },
     },),
 

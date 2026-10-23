@@ -26,6 +26,7 @@ import {
   type NeuralWattReturn,
 } from '../dist/final/node/index.mjs';
 import { textCallOutcome, } from './provider-router-text-call.test-fixture.ts';
+import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_HYPER_ONLY,
   SEAT_HYPER_OPENROUTER_UNMEASURED,
@@ -795,8 +796,9 @@ await describe({
     },),
 
     it({
-      name: 'ENDS THE RUN when every provider reads dry but Xiaomi, whose always-wet meter serves one model, and the '
-        + 'model asked is one Xiaomi does not serve: its wet reading buys nothing for this call',
+      name: 'LOSES THE SEAT, NOT THE RUN, when every provider reads dry but Xiaomi, whose always-wet meter serves one '
+        + 'model, and the model asked is one Xiaomi does not serve: a wet provider is left, so the refusal is the '
+        + 'seat\'s and the log names the model that went dark and the providers that were dry',
       fn: async () => {
         const { callers, called, } = stubProviders({},);
         const { budgets, } = stubBudgets({
@@ -810,10 +812,12 @@ await describe({
             openrouter: true,
           },
         },);
+        const lines: string[] = [];
         const client = createRoutingClient({
           callers,
           budgets,
           holdPollMs: 1,
+          l: levelCapturingLogger({ lines, },),
         },);
 
         const outcome = await ask({
@@ -821,8 +825,111 @@ await describe({
           modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE,
         },);
         if (!('thrown' in outcome))
-          throw new Error('a fleet dry for this model must end the call with a refusal',);
-        expect(outcome.thrown,).toBeInstanceOf(EveryProviderDryError,);
+          throw new Error('a model that lost its providers must be refused',);
+        expect(outcome.thrown,).toBeInstanceOf(NoProviderForModelError,);
+        expect(outcome.thrown,).not.toBeInstanceOf(EveryProviderDryError,);
+        expect(called,).toEqual([],);
+        expect(lines.filter(function wentDark(line,): boolean {
+          return line.startsWith('warn ',) && line.includes(`${SEAT_SYNTHETIC_TEXT_EVERYWHERE} went dark`,)
+            && line.includes('synthetic dry',) && line.includes('xiaomi wet',);
+        },).length,).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'LOGS A DARK MODEL ONCE PER COOLDOWN and not once per refused call: a fleet with a dark model repeated the '
+        + 'warn every round, so a read of the run found the same line hundreds of times',
+      fn: async () => {
+        const { callers, } = stubProviders({},);
+        const { budgets, } = stubBudgets({
+          dry: {
+            neuralwatt: true,
+            synthetic: true,
+            hyper: true,
+            bedrock: true,
+            deepseek: true,
+            xiaomi: false,
+            openrouter: true,
+          },
+        },);
+        const lines: string[] = [];
+        const clock = { now: 0, };
+        const client = createRoutingClient({
+          callers,
+          budgets,
+          holdPollMs: 1,
+          l: levelCapturingLogger({ lines, },),
+          now: () => clock.now,
+        },);
+        /**
+         Warn lines about the model going dark.
+         */
+        const darkLines = (): number => lines.filter(function wentDark(line,): boolean {
+          return line.startsWith('warn ',) && line.includes(`${SEAT_SYNTHETIC_TEXT_EVERYWHERE} went dark`,);
+        },).length;
+
+        await ask({ client, modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, },);
+        await ask({ client, modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, },);
+        await ask({ client, modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, },);
+        expect(darkLines(),).toBe(1,);
+        clock.now += 300_000;
+        await ask({ client, modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, },);
+        expect(darkLines(),).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'ENDS THE RUN, with the stop line naming Xiaomi, when every provider reads dry but Xiaomi and Xiaomi '
+        + 'serves only checker seats in the run\'s roster, and loses the seat as before when Xiaomi serves '
+        + 'a writer seat',
+      fn: async () => {
+        /**
+         Providers that serve a model seated in a writing bench, Xiaomi not among them.
+         */
+        const checkerOnly = {
+          neuralwatt: true,
+          synthetic: true,
+          hyper: true,
+          bedrock: true,
+          deepseek: true,
+          xiaomi: false,
+          openrouter: true,
+        };
+        const dry = {
+          neuralwatt: true,
+          synthetic: true,
+          hyper: true,
+          bedrock: true,
+          deepseek: true,
+          xiaomi: false,
+          openrouter: true,
+        };
+        const { callers, called, } = stubProviders({},);
+        const endsTheRun = await ask({
+          client: createRoutingClient({
+            callers,
+            budgets: stubBudgets({ dry, },).budgets,
+            holdPollMs: 1,
+            writing: checkerOnly,
+          },),
+          modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+        },);
+        if (!('thrown' in endsTheRun))
+          throw new Error('a run with nothing that writes must end with a refusal',);
+        expect(endsTheRun.thrown,).toBeInstanceOf(EveryProviderDryError,);
+        expect((endsTheRun.thrown as Error).message,).toContain('Xiaomi reads wet but serves no seat that writes',);
+        const losesTheSeat = await ask({
+          client: createRoutingClient({
+            callers,
+            budgets: stubBudgets({ dry, },).budgets,
+            holdPollMs: 1,
+            writing: { ...checkerOnly, xiaomi: true, },
+          },),
+          modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+        },);
+        if (!('thrown' in losesTheSeat))
+          throw new Error('a model that lost its providers must be refused',);
+        expect(losesTheSeat.thrown,).toBeInstanceOf(NoProviderForModelError,);
         expect(called,).toEqual([],);
       },
     },),
@@ -879,7 +986,8 @@ await describe({
         expect(outcome.thrown,).toBeInstanceOf(NoProviderForModelError,);
         expect(String(outcome.thrown,),).toBe(
           'NoProviderForModelError: no provider can take deepseek-v4.1-flash: every provider serving this model '
-            + 'is out of budget',
+            + 'is out of budget (neuralwatt dry, deepseek dry, hyper dry, openrouter dry); the providers that do not '
+            + 'serve it read synthetic wet, bedrock dry, xiaomi dry',
         );
         expect(called,).toEqual([],);
       },

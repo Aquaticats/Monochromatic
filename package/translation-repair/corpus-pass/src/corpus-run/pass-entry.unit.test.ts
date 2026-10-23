@@ -2414,6 +2414,47 @@ await describe({
       },
     },),
     it({
+      name: 'BOUNDS THE SEAT READER INSIDE AN ENTRY BY THE ENTRY\'S OWN HARD CAP: a pass with hours left hands the '
+        + 'entry a bound no larger than the cap, so a wait for a return never outlasts the entry\'s timer',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        /**
+         The bound each seat reading asked the holds for.
+         */
+        const asked: number[] = [];
+        const base = entryClient({ served: [], },);
+        await settleEntry({
+          client: {
+            ...base,
+            // A pass with a year left, far past the entry's cap.
+            passLeftMs: () => Number.MAX_SAFE_INTEGER,
+            providerHolds: function recordBound(bound,) {
+              asked.push(bound?.returnBoundMs ?? Number.POSITIVE_INFINITY,);
+              return base.providerHolds();
+            },
+          },
+          entry: LINK_RECOVERY_ENTRY,
+          artifactsDir: dirs.artifactsDir,
+          publishDir: dirs.publishDir,
+          declinedDir: dirs.declinedDir,
+          sliceCacheDir: dirs.sliceCacheDir,
+          tip: 'a'.repeat(40,),
+          pipelineDigest: DIGEST,
+          pin: ENTRY_PIN,
+          outsideReads: NO_OUTSIDE_READS,
+          pictureSources: NO_PICTURE_SOURCES,
+          hardCapMs: HANG_STOP_MS,
+          baseSignal: new AbortController().signal,
+          overlap: PASS_FALLBACK_OVERLAP,
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        expect(asked.length,).toBeGreaterThan(0,);
+        expect(asked.every(function isWithinCap(bound,): boolean {
+          return bound <= HANG_STOP_MS;
+        },),).toBe(true,);
+      },
+    },),
+    it({
       name: 'PUBLISHES SOURCE-ALIGNED FRONT MATTER THROUGH LANES, CONTEST, ARTIFACT READBACK, AND PAGE WRITE',
       fn: async () => {
         await using dirs = await throwawayDirs();
@@ -3357,6 +3398,60 @@ await describe({
         }
         expect(told.dry,).toEqual([dry,],);
         expect(told.other,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE RUN WHETHER IT PARKED FOR THE FAILURE THAT ENDED THE ENTRY, through the real settle chain, and '
+        + 'prints the entry PARKED when it did, naming the failure it asks about',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        /**
+         The refusal the entry's critic call meets, naming a return.
+         */
+        const dry = new EveryProviderDryError({
+          measured: 'meters read every provider dry',
+          neuralwatt: { kind: 'at', msOfDay: 69_308_000, },
+          neuralwattReturnsInMs: 301_000,
+        },);
+        /**
+         What the run was asked about.
+         */
+        const asked: unknown[] = [];
+        const lines = await capturedLines({
+          body: async () => {
+            await settleEntry({
+              client: entryClient({ served: [], failOnSchema: 'critic_report', failWith: dry, },),
+              entry: ENTRY,
+              artifactsDir: dirs.artifactsDir,
+              publishDir: dirs.publishDir,
+              declinedDir: dirs.declinedDir,
+              sliceCacheDir: dirs.sliceCacheDir,
+              tip: 'a'.repeat(40,),
+              pipelineDigest: DIGEST,
+              pin: ENTRY_PIN,
+              outsideReads: NO_OUTSIDE_READS,
+              pictureSources: NO_PICTURE_SOURCES,
+              hardCapMs: HANG_STOP_MS,
+              baseSignal: new AbortController().signal,
+              overlap: PASS_FALLBACK_OVERLAP,
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+              endRun: function endRun(): void {},
+              parked: function parked({ error, },): boolean {
+                asked.push(error,);
+                return true;
+              },
+            },);
+          },
+          method: 'log',
+        },);
+        expect(asked,).toEqual([dry,],);
+        expect(lines.some(function parkedLine(line,): boolean {
+          return line.startsWith('TALLY CatEntry1 status=PARKED ',);
+        },),).toBe(true,);
+        expect(lines.some(function incompleteLine(line,): boolean {
+          return line.startsWith('TALLY CatEntry1 status=INCOMPLETE',);
+        },),).toBe(false,);
       },
     },),
   ],

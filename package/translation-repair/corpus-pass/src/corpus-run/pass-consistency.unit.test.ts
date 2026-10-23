@@ -3716,7 +3716,7 @@ await describe({
               lines,
             },);
             const why = 'the translators bench was not asked: translators 0 of 8 reachable, floor 2; '
-              + 'no provider has named its return';
+              + 'no provider has named a return the pass can wait for';
             expect({
               errors: lines.filter(function isError(line,): boolean {
                 return line.startsWith('error ',);
@@ -3742,8 +3742,8 @@ await describe({
             },).toEqual({
               errors: [
                 'error [runPassConsistency] JUDGE SEATS phase=page consistency writing bench unreachable: '
-                  + 'translators 0 of 8 reachable, floor 2; no provider has named its return, so the phase goes on '
-                  + 'without its writers',
+                  + 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for, so '
+                  + 'the phase goes on without its writers',
               ],
               stops: [],
               writerSheets: 0,

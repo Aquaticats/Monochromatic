@@ -31,7 +31,7 @@ import {
 } from './corpus-pass-limits.ts';
 import { runCorpusPassOver, } from './corpus-pass-run.ts';
 import { readDriftOptIn, } from '@monochromatic-dev/translation-repair-slice-cache/ts';
-import { settleEntry, } from './pass-entry.ts';
+import { settleEntry, } from './pass-entry-settle.ts';
 import { outsideReadsFrom, } from './pass-outside-reads.ts';
 import { readPassOverlap, } from './pass-overlap.ts';
 import { RUN_PICTURE_SOURCES, } from './pass-visual-evidence.ts';

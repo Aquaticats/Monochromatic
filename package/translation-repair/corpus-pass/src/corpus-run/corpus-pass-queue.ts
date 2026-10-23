@@ -49,7 +49,8 @@ function announceDryStop({ dryStop, }: { readonly dryStop: PassDryStop; },): voi
 
  @param pipelineDigest - generation every log line of an attempt carries
 
- @param dryStop - gate the pass's client trips when every provider reads dry; once tripped no further entry starts,
+ @param dryStop - gate the pass's client trips when every provider reads dry, or parks when the return of NeuralWatt's
+ energy fits what the pass has left; once tripped no further entry starts,
  no REATTEMPT or STALLED line is printed for the entry that tripped it, and the reason is printed once, also when the
  queue ends with the entry that tripped it
 
@@ -123,6 +124,16 @@ export async function runPassQueue(
 
     runHasStopped: function runHasStopped(): boolean {
       return dryStop.tripped();
+    },
+
+    // A PARKED PASS WAITS BETWEEN ENTRIES, before the budget is asked whether the pass goes on: the wait spends the
+    // budget, and a pass whose budget ran out while it waited ends without starting the entry again.
+    beforeNext: async function beforeNext(): Promise<void> {
+      await dryStop.awaitPark();
+    },
+
+    interrupted: function interrupted(): boolean {
+      return dryStop.parked();
     },
 
     attempt: async function attempt({ entry, },): Promise<EntryOutcome> {

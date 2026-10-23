@@ -61,6 +61,7 @@ export {
   RUN_ROSTER,
   RUN_SELECT_JUDGES,
   RUN_TRANSLATORS,
+  RUN_WRITING_PROVIDERS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
   runCallConfigOf,
@@ -82,8 +83,11 @@ export {
   readJudgeSeats,
   readPhaseSeats,
   type SeatReadingClient,
+  type WarnedState,
 } from './corpus-run/run-seats-read.ts';
 export { writtenRefusal, } from './corpus-run/run-seats-refusal.ts';
+export { holdsWithinPass, } from './corpus-run/run-seats-pass-bound.ts';
+export { writingProvidersOf, } from './corpus-run/run-writing-providers.ts';
 export {
   type BenchName,
   type JudgeSeatPhase,

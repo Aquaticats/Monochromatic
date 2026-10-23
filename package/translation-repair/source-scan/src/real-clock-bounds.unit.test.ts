@@ -359,6 +359,20 @@ const CHUNK_PACING = 'the pause between two chunks of a scripted body, so a stre
   + 'load only lengthens it';
 
 /**
+ Why a hold of the reason cases keeps its value: the pure reason reader is handed a record of holds and names the
+ shortest, and it sleeps nothing.
+ */
+const HOLD_REASON_INPUT = 'a hold handed to the pure reader of the reason a wait is taken for, which names the shortest and '
+  + 'sleeps nothing';
+
+/**
+ Why the cache window of the NeuralWatt return budget cases keeps its value: the window is on the case\'s own scripted
+ clock, which the case moves by hand.
+ */
+const RETURN_CACHE_WINDOW = 'the cache window of budgets read on the case\'s own scripted wall clock and monotonic clock, '
+  + 'which the case moves by hand';
+
+/**
  Bounds that keep a value of their own, keyed `path#site: form value`.
  */
 const LISTED: Readonly<Record<string, ListedBound>> = {
@@ -372,6 +386,85 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     count: 2,
     bound: 'read back',
     reason: 'a record `shortestHold` is asked the shortest of, which only reads the numbers and sleeps nothing',
+  },
+  'provider/budget-hold-wait.unit.test.ts#<module>: hold hyper: 1_000_000': {
+    count: 1,
+    bound: 'other',
+    reason: 'a hold that outlasts the case: the wait polls every millisecond and the case\'s own abort ends it, so no '
+      + 'bound on the clock decides the verdict',
+  },
+  'provider/budget-hold-wait.unit.test.ts#<module>: setTimeout 30': {
+    count: 1,
+    bound: 'reached',
+    reason: 'the caller abort, armed before a wait on a hold of a million milliseconds, so it fires first on any '
+      + 'machine and the case asserts its own reason',
+  },
+  'provider/hold-reason.unit.test.ts#<module>: hold hyper: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/hold-reason.unit.test.ts#<module>: hold hyper: 900_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/hold-reason.unit.test.ts#<module>: hold neuralwatt: 60_000': {
+    count: 1,
+    bound: 'read back',
+    reason: HOLD_REASON_INPUT,
+  },
+  'provider/hold-reason.unit.test.ts#<module>: hold neuralwatt: 48_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/hold-reason.unit.test.ts#<module>: hold openrouter: 9_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/hold-reason.unit.test.ts#<module>: hold synthetic: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: freshForMs: FRESH_MS': { count: 1, bound: 'other', reason: RETURN_CACHE_WINDOW, },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: freshForMs: FRESH_MS': {
+    count: 1,
+    bound: 'other',
+    reason: RETURN_CACHE_WINDOW,
+  },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: cooldownMs: hyperCooldownMs': {
+    count: 1,
+    bound: 'reached',
+    reason: 'how long a refusal holds a dry Hyper meter out for a case that waits that hold out for real, handed in by '
+      + 'the case (40 ms), so the wait cannot end before it on any machine',
+  },
+  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: 600_000': {
+    count: 2,
+    bound: 'other',
+    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
+  },
+  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: 0': {
+    count: 1,
+    bound: 'other',
+    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
+  },
+  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: -5': {
+    count: 1,
+    bound: 'other',
+    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
+  },
+  'corpus-pass/corpus-run/pass-entry-bound.unit.test.ts#<module>: hardCapMs: 7 * HOUR_MS': {
+    count: 2,
+    bound: 'other',
+    reason: 'an entry\'s hard cap read against a monotonic clock the case moves by hand; nothing sleeps and '
+      + 'no timer is armed',
+  },
+  'corpus-pass/corpus-run/pass-entry-bound.unit.test.ts#<module>: hardCapMs: 1_000': {
+    count: 1,
+    bound: 'other',
+    reason: 'an entry\'s hard cap read against a monotonic clock the case moves by hand; nothing sleeps and '
+      + 'no timer is armed',
+  },
+  'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: cooldownMs: 40': {
+    count: 1,
+    bound: 'reached',
+    reason: 'how long a refusal holds a dry Hyper meter out, which the router\'s wait sleeps out for real before it '
+      + 'refuses with the NeuralWatt distance, so the refusal cannot come before it on any machine',
+  },
+  'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: freshForMs: 600_000': {
+    count: 1,
+    bound: 'other',
+    reason: 'the cache window of a budget reading, longer than the case runs so the one reading stands; the '
+      + 'case moves no clock',
+  },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: statedWaitMs: 120_000': {
+    count: 1,
+    bound: 'read back',
+    reason: 'a refusal\'s stated wait handed to the budget layer on the case\'s own scripted clock, '
+      + 'which sleeps nothing',
   },
   'run/corpus-run/run-seats-read.unit.test.ts#<module>: hold openrouter: 60_000': {
     count: 1,

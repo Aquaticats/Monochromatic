@@ -31,6 +31,7 @@ import {
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { attemptStageCall, } from '../dist/final/node/index.mjs';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import { warningRecordingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { quotingFailure, } from '@monochromatic-dev/translation-repair-test-fixture/ts/quoting-failure.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -501,6 +502,24 @@ await describe({
             signal: new AbortController().signal,
           },),
         ).rejects.toBe(dry,);
+      },
+    },),
+
+    it({
+      name: 'CONTAINS A MODEL-DARK REFUSAL as an unreachable voice although nobody aborted, since a model whose own '
+        + 'providers are all out of budget is a lost seat and the run goes on, and the log names the dry provider',
+      fn: async () => {
+        const warnings: string[] = [];
+        const voice = await callWith({
+          client: scriptedClient({ thrown: modelDarkRefusal({ modelId: MODEL_ID, },), },),
+          signal: new AbortController().signal,
+          logger: warningRecordingLogger({ base: l, warnings, },),
+        },);
+
+        expect(voice,).toMatchObject({ heard: false, answered: false, unreachable: true, },);
+        expect(warnings.length,).toBe(1,);
+        expect(warnings[0],).toContain('every provider serving this model is out of budget (hyper dry)',);
+        expect(warnings[0],).toContain('seat unreachable',);
       },
     },),
 

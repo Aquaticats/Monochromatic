@@ -16,8 +16,10 @@ import {
   readBudgetsPastHolds,
 } from './budget-hold-wait.ts';
 import {
+  EVERY_PROVIDER_COUNTS,
   type ModelReach,
   routeProviderFor,
+  type WritingReach,
 } from './budget-routing.ts';
 import {
   callHoldingRefusedCredential,
@@ -25,6 +27,10 @@ import {
   createCredentialHolds,
   reachPastCredentialHolds,
 } from './credential-hold.ts';
+import {
+  createDarkWarnings,
+  refuseDarkModel,
+} from './model-dark-reason.ts';
 import { routedDecide, } from './provider-router-decide.ts';
 import {
   reachOfRequest,
@@ -63,10 +69,8 @@ import {
   routedTextElsewhere,
 } from './provider-router-reask.ts';
 import type { RoutedReply, } from './provider-router-reply.ts';
-import { DEEPSEEK_PER_MODEL_CONCURRENCY, } from './deepseek-client.ts';
-import { NEURALWATT_PER_MODEL_CONCURRENCY, } from './neuralwatt-client.ts';
+import { DEFAULT_SLOT_LIMITS, } from './default-slot-limits.ts';
 import type { ProviderCallers, } from './provider-callers.ts';
-import { SYNTHETIC_PER_MODEL_CONCURRENCY, } from './synthetic-client.ts';
 import { isStreamBoundCut, } from './stream-bound.ts';
 import { createStreamBoundHolds, } from './stream-bound-hold.ts';
 import {
@@ -120,27 +124,6 @@ const routerRoot = contextRoot({ tag: 'translation-repair', },);
 // import cycle; it is re-exported here, where every importer found it.
 
 /**
- Per-model slots the providers grant by default: no ceiling on any of them.
- Synthetic had a measured five until 2026-10-19, when its rate-limit page stopped
- naming a concurrency limit; the entry still reads the client's own default, so
- the router's count and the client's limiter cannot drift apart.
- */
-const DEFAULT_SLOT_LIMITS: SlotLimits = {
-  // NeuralWatt publishes no per-model ceiling that was found (2026-10-20); the
-  // energy ledger's in-flight hold is what bounds what is risked at once.
-  neuralwatt: NEURALWATT_PER_MODEL_CONCURRENCY,
-  synthetic: SYNTHETIC_PER_MODEL_CONCURRENCY,
-  hyper: Number.POSITIVE_INFINITY,
-  bedrock: Number.POSITIVE_INFINITY,
-  // DeepSeek states 2,500 concurrent requests for its one model (2026-10-22,
-  // `deepseek-client.ts`), the only real ceiling in this table; Xiaomi states
-  // a request rate instead, which its pacer meets (`paces`).
-  deepseek: DEEPSEEK_PER_MODEL_CONCURRENCY,
-  xiaomi: Number.POSITIVE_INFINITY,
-  openrouter: Number.POSITIVE_INFINITY,
-};
-
-/**
  Builds the client that routes each call to whichever provider can serve it.
 
  @param callers - each configured provider's text call, which is all this
@@ -177,6 +160,9 @@ const DEFAULT_SLOT_LIMITS: SlotLimits = {
  learned once, and reads the same set for the view its seat readers use
  (`foldCredentialHolds`)
 
+ @param writing - providers whose wet reading keeps the run going, because they serve a model seated in a writing
+ bench; the run derives it from its roster, and every provider counts where none is given (`WritingReach`)
+
  @returns Client surface a stage calls without naming a provider
 
  @example
@@ -196,6 +182,7 @@ export function createRoutingClient(
     paces = {},
     l = routerRoot,
     credentialHolds = createCredentialHolds(),
+    writing = EVERY_PROVIDER_COUNTS,
   }: {
     readonly callers: ProviderCallers;
     readonly budgets: ProviderBudgets;
@@ -207,6 +194,7 @@ export function createRoutingClient(
     readonly paces?: ProviderPaces;
     readonly l?: Logger;
     readonly credentialHolds?: CredentialHolds;
+    readonly writing?: WritingReach;
   },
 ): ModelCaller {
   /**
@@ -221,6 +209,11 @@ export function createRoutingClient(
     holdMs: modelHoldMs,
     now,
   },);
+
+  /**
+   Whether the warn for a dark model is due, once per model per cooldown.
+   */
+  const darkWarnDue = createDarkWarnings({ now, },);
 
   /**
    Providers held out for one model after a call there ran past the card's
@@ -328,10 +321,10 @@ export function createRoutingClient(
     const dry = await readBudgetsPastHolds({
       budgets,
       modelId: request.modelId,
-      reach,
       signal: request.signal,
       refused,
       pollMs: holdPollMs,
+      writing,
     },);
 
     /**
@@ -357,6 +350,7 @@ export function createRoutingClient(
         saturated: ledger.saturated({ modelId: request.modelId, },),
         waits,
       },),
+      writing,
       // Conditional spread keeps the day absent on budgets that report none.
       ...((neuralwatt === undefined) ? {} : { neuralwatt, }),
     },);
@@ -369,11 +363,16 @@ export function createRoutingClient(
       chosen: choice.kind,
     },);
 
-    if (choice.kind === 'unreachable')
-      throw new NoProviderForModelError({
+    // A LOST SEAT, NOT THE RUN'S END: this model alone has no provider, and the log line names the model and how each
+    // provider read so a read of the run can tell the two apart.
+    if (choice.kind === 'unreachable') {
+      refuseDarkModel({
         modelId: request.modelId,
         reason: choice.reason,
+        l,
+        warn: darkWarnDue({ modelId: request.modelId, },),
       },);
+    }
 
     // THE SLOT IS TAKEN HERE, NOT AT DISPATCH, and there must be no `await`
     // between reading `ledger.saturated` and this line. Two calls choosing at

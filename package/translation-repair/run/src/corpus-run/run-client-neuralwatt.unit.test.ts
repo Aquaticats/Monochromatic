@@ -28,6 +28,7 @@ import {
 } from '@monochromatic-dev/translation-repair-provider';
 import type { TransportExchange, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
+  RUN_WRITING_PROVIDERS,
   runClientFrom,
   RunConfigError,
   runEndReports,
@@ -180,6 +181,9 @@ await describe({
           signal: new AbortController().signal,
         },);
         expect(reply.text,).toBe('sunbeam',);
+        // THE ROSTER'S WRITING PROVIDERS ARE ON THE CLIENT, so the router and the seat reader count a wet provider by
+        // one record.
+        expect(client.writingProviders,).toEqual(RUN_WRITING_PROVIDERS,);
         expect(exchanges.map(function urlOf(exchange,): string {
           return `${exchange.method} ${exchange.url.split('?',)[0] ?? ''}`;
         },),).toEqual([

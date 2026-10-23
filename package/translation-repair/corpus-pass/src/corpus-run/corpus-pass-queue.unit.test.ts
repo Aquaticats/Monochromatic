@@ -28,6 +28,7 @@ import {
   EveryProviderDryError,
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
+import { WritingBenchUnreachableError, } from '@monochromatic-dev/translation-repair-run';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -98,6 +99,38 @@ function clockReading({ instants, }: { readonly instants: readonly number[]; },)
   return function now(): number {
     return remaining.shift() ?? last;
   };
+}
+
+/**
+ Makes one chat call through a guarded client and returns the failure it raises.
+
+ @param client - guarded client
+
+ @param signal - call's abort handle
+
+ @returns Failure the call raised
+
+ @example
+ ```ts
+ const failure = await dryCallOf({ client: dryClient, signal: dryStop.signal, },);
+ ```
+ */
+async function dryCallOf(
+  {
+    client,
+    signal,
+  }: {
+    readonly client: ModelClient;
+    readonly signal: AbortSignal;
+  },
+): Promise<unknown> {
+  return await rejectionOf(async function dryCall(): Promise<unknown> {
+    return await client.chatText({
+      modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+      messages: [],
+      signal,
+    },);
+  },);
 }
 
 /**
@@ -513,13 +546,7 @@ await describe({
           now: clockReading({ instants: [0,], },),
           settle: async function settle({ entry, },) {
             made.push(entry.id,);
-            await rejectionOf(async function dryCall(): Promise<unknown> {
-              return await dryClient.chatText({
-                modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-                messages: [],
-                signal: dryStop.signal,
-              },);
-            },);
+            await dryCallOf({ client: dryClient, signal: dryStop.signal, },);
             return { kind: 'stopped', };
           },
         },);
@@ -533,6 +560,151 @@ await describe({
         },),).toBe(false,);
         expect(printed.lines.at(-1,),).toContain('every provider',);
         expect(printed.lines.at(-1,),).toContain('meters read synthetic dry, openrouter dry',);
+      },
+    },),
+    it({
+      name: 'PARKS UNTIL NEURALWATT\'S RETURN AND RESUMES THE INTERRUPTED ENTRY when every provider read dry and the '
+        + 'return is 301 s away, inside what the pass has left: no STOP line, no INCOMPLETE, REATTEMPT or STALLED '
+        + 'line for the interrupted attempt, and the entries behind it keep their order',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         Milliseconds the park waited for.
+         */
+        const waits: number[] = [];
+        const dryStop = createPassDryStop({
+          passLeftMs: () => 3_600_000,
+          // A frozen gate clock: the park waits the whole 301 s the refusal named.
+          now: () => 1_000,
+          waitMs: async function waitMs({ ms, },): Promise<void> {
+            waits.push(ms,);
+          },
+        },);
+        /**
+         Client whose every call meets the dry router, naming NeuralWatt's return 301 s away.
+         */
+        async function refuseDryNamingReturn(): Promise<never> {
+          throw new EveryProviderDryError({
+            measured: 'meters read every provider dry',
+            neuralwatt: { kind: 'at', msOfDay: 69_308_000, },
+            neuralwattReturnsInMs: 301_000,
+          },);
+        }
+        const dryClient = dryStop.guard<ModelClient>({
+          client: {
+            chatText: refuseDryNamingReturn,
+            chatJson: refuseDryNamingReturn,
+            quotas: async () => {
+              throw new Error('quotas unused',);
+            },
+          },
+        },);
+        /**
+         Entries attempted.
+         */
+        const made: string[] = [];
+        await runPassQueue({
+          pending: [pairOf({ id: 'tabby', },), pairOf({ id: 'mittens', },),],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop,
+          softBudgetMs: HANG_STOP_MS,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          settle: async function settle({ entry, },) {
+            made.push(entry.id,);
+            if (made.length === 1) {
+              await dryCallOf({ client: dryClient, signal: dryStop.signal, },);
+              return { kind: 'stopped', };
+            }
+            return { kind: 'settled', };
+          },
+        },);
+
+        expect(made,).toEqual(['tabby', 'tabby', 'mittens',],);
+        expect(waits,).toEqual([301_000,],);
+        expect(dryStop.tripped(),).toBe(false,);
+        expect(printed.lines.some(function isStopOrVerdict(line,): boolean {
+          return line.startsWith('STOP ',) || line.startsWith('REATTEMPT',) || line.startsWith('STALLED',)
+            || line.startsWith('INCOMPLETE',);
+        },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'PARKS AND REQUEUES THE ENTRY A WRITING BENCH ERROR ENDED when the error carries NeuralWatt\'s return '
+        + 'inside what the pass has left: the entry is attempted again after the wait with no verdict printed for '
+        + 'the first attempt, and an error without a return ends the entry as before',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         Milliseconds the park waited for.
+         */
+        const waits: number[] = [];
+        const dryStop = createPassDryStop({
+          passLeftMs: () => 3_600_000,
+          now: () => 1_000,
+          waitMs: async function waitMs({ ms, },): Promise<void> {
+            waits.push(ms,);
+          },
+        },);
+        /**
+         Entries attempted.
+         */
+        const made: string[] = [];
+        await runPassQueue({
+          pending: [pairOf({ id: 'tabby', },), pairOf({ id: 'mittens', },),],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop,
+          softBudgetMs: HANG_STOP_MS,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          settle: async function settle({ entry, },) {
+            made.push(entry.id,);
+            if (made.length === 1) {
+              dryStop.trip({
+                error: new WritingBenchUnreachableError({
+                  phase: 'lanes',
+                  clauses: ['editors 0 of 3 reachable, floor 2',],
+                  neuralwattReturnsInMs: 301_000,
+                  neuralwattReturnsAt: '19:15:08 UTC',
+                  neuralwattDryness: { kind: 'spent-day', dayStart: '2026-10-22T19:15:08.000Z', returnsInMs: 301_000, },
+                },),
+              },);
+              return { kind: 'resumable-failure', };
+            }
+            return { kind: 'settled', };
+          },
+        },);
+
+        expect(made,).toEqual(['tabby', 'tabby', 'mittens',],);
+        expect(waits,).toEqual([301_000,],);
+        expect(dryStop.tripped(),).toBe(false,);
+        expect(printed.lines.some(function isStopOrVerdict(line,): boolean {
+          return line.startsWith('STOP ',) || line.startsWith('REATTEMPT',) || line.startsWith('STALLED',);
+        },),).toBe(false,);
       },
     },),
     it({

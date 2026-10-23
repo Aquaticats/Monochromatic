@@ -276,7 +276,7 @@ export function writersOf(
   if (unreachableWriters.length > 0) {
     return {
       kind: 'not-asked',
-      why: `${unreachableWriters.join('; ',)}; no provider has named its return`,
+      why: `${unreachableWriters.join('; ',)}; no provider has named a return the pass can wait for`,
     };
   }
   if (translators.length === 0) {

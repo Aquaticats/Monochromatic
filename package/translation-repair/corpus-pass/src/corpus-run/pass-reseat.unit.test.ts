@@ -120,6 +120,9 @@ const l = tagged({ tag: 'pass-reseat-test', },);
 
  @param view - dryness every read answers
 
+ @param holdEndsAtRead - read at which every running hold has ended, for a case whose bench stays short and whose
+ wait would otherwise last as long as the hold does; a hold that never ends is not a hold
+
  @returns Client beside its read counter and its hold setter
 
  @example
@@ -129,7 +132,13 @@ const l = tagged({ tag: 'pass-reseat-test', },);
  ```
  */
 function viewClient(
-  { view, }: { readonly view: BudgetView; },
+  {
+    view,
+    holdEndsAtRead,
+  }: {
+    readonly view: BudgetView;
+    readonly holdEndsAtRead?: number;
+  },
 ) {
   /**
    Reads taken so far.
@@ -145,6 +154,8 @@ function viewClient(
     client: {
       providerDryness: async (): Promise<BudgetView> => {
         counter.reads += 1;
+        if (counter.reads === holdEndsAtRead)
+          Object.assign(holds, NO_HOLDS,);
         return view;
       },
       providerMeterStates: metersAllWet,
@@ -202,7 +213,7 @@ await describe({
             + 'Synthetic ran dry and neither line said so)',
           fn: async () => {
             /** Rig whose NeuralWatt and Bedrock alone are wet, under a running hold. */
-            const padded = viewClient({ view: NEURALWATT_AND_BEDROCK, },);
+            const padded = viewClient({ view: NEURALWATT_AND_BEDROCK, holdEndsAtRead: 2, },);
             padded.holds.synthetic = SHORT_HOLD_MS;
             /** Lines the padded rig's hook wrote. */
             const paddedLines: string[] = [];
@@ -380,7 +391,7 @@ await describe({
             + 'judges are not, so the translate lane seats on one read and the repair lane waits the hold out '
             + 'and stops the entry',
           fn: async () => {
-            const rig = viewClient({ view: HYPER_AND_OPENROUTER_DRY, },);
+            const rig = viewClient({ view: HYPER_AND_OPENROUTER_DRY, holdEndsAtRead: 3, },);
             rig.holds.hyper = SHORT_HOLD_MS;
             const hooks = lanesHooksFor({
               client: rig.client,

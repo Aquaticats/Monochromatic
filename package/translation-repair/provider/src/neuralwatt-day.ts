@@ -296,6 +296,36 @@ export function neuralWattTimeOfDayUtc({ msOfDay, }: { readonly msOfDay: number;
 }
 
 /**
+ The milliseconds of a time of day that starts on a whole second.
+ */
+const WHOLE_SECOND_MILLIS = '.000';
+
+/**
+ The time of day an anchor places the NeuralWatt day's start at, in UTC, in whole seconds where it falls on one.
+
+ @param msOfDay - milliseconds after 00:00 UTC
+
+ @returns The time as `HH:MM:SS`, or `HH:MM:SS.sss` where it has milliseconds
+
+ @example
+ ```ts
+ neuralWattTimeOfDayShort({ msOfDay: 69_308_000, },); // '19:15:08'
+ ```
+ */
+export function neuralWattTimeOfDayShort({ msOfDay, }: { readonly msOfDay: number; },): string {
+  /**
+   The time of day with its milliseconds.
+   */
+  const withMillis = neuralWattTimeOfDayUtc({ msOfDay, },);
+  return withMillis.endsWith(WHOLE_SECOND_MILLIS,)
+    ? withMillis.slice(
+      0,
+      -WHOLE_SECOND_MILLIS.length,
+    )
+    : withMillis;
+}
+
+/**
  Seconds between a failed read of the quota and the next attempt to read it for the same purpose: the cadence of the
  budget layer's meter readings, shared by the day anchor keeper and the quota session's starting reading.
  */

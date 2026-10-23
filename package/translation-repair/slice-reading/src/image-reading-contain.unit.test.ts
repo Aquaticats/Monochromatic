@@ -14,6 +14,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
+import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
@@ -131,6 +132,28 @@ await describe({
           l: levelCapturingLogger({ lines, },),
         },),).toThrow(EveryProviderDryError,);
         expect(lines,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'CONTAINS A MODEL-DARK REFUSAL like any other failed reader, writing its failed-reader line and raising '
+        + 'nothing, since a reader whose own providers are dry costs the picture one reading and not the run',
+      fn: async () => {
+        /**
+         Lines the contain step wrote.
+         */
+        const lines: string[] = [];
+        expect(() => containFailedReaders({
+          settled: [
+            { status: 'rejected', reason: new Error('refused',), },
+            { status: 'rejected', reason: modelDarkRefusal({ modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, },), },
+          ],
+          readerModelIds: READERS,
+          assetName: 'noticeboard.webp',
+          signal: new AbortController().signal,
+          l: levelCapturingLogger({ lines, },),
+        },),).not.toThrow();
+        expect(lines.length,).toBe(2,);
       },
     },),
 

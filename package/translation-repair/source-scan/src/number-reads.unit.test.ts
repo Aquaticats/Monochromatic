@@ -264,6 +264,15 @@ const HELD_READS: Readonly<Record<string, {
     calls: 1,
     why: WHOLE_NUMBER,
   },
+  'provider/neuralwatt-return-words.ts#keyUnblockTextOf: new Date': {
+    calls: 1,
+    why: EPOCH_MILLISECONDS,
+  },
+  'provider/neuralwatt-return-words.ts#keyUnblockTextOf: Date.parse': {
+    calls: 1,
+    why: 'reads the instant a quota reply gives for a blocked key so the refusal spells it in UTC, and a text that is '
+      + 'no instant is not echoed',
+  },
   'provider/neuralwatt-ledger-config.ts#neuralWattDailyWhFrom: Number': {
     calls: 1,
     why: PLAIN_DECIMAL,

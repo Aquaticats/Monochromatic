@@ -249,7 +249,28 @@ await describe({
             expect(error.clauses.length,).toBe(2,);
             expect(error.message,).toBe(
               'writing bench unreachable at lanes: editors 0 of 3 reachable, floor 2; translators 1 of 7 reachable, '
-                + 'floor 2; no provider has named its return, so the entry stops for a pass that has the bench',
+                + 'floor 2; no provider has named a return the pass can wait for, so the entry stops for a pass that '
+                + 'has the bench',
+            );
+          },
+        },),
+
+        it({
+          name: 'SAYS THE PASS MAY PARK FOR THE RETURN, and names the other outcome: the gate parks only where the '
+            + 'return fits what the pass has left and its spent day was not already waited out, and otherwise the '
+            + 'entry ends as a failure a later pass resumes',
+          fn: async () => {
+            const error = new WritingBenchUnreachableError({
+              phase: 'lanes',
+              clauses: ['editors 0 of 3 reachable, floor 2',],
+              neuralwattReturnsInMs: 301_000,
+              neuralwattReturnsAt: '19:15:08 UTC',
+            },);
+            expect(error.message,).toBe(
+              'writing bench unreachable at lanes: editors 0 of 3 reachable, floor 2; NeuralWatt\'s energy returns '
+                + 'at 19:15:08 UTC, which would reach the floor, so the entry stops; the pass may park for it where '
+                + 'the return fits what the pass has left, and otherwise the entry ends as a failure a later pass '
+                + 'resumes',
             );
           },
         },),

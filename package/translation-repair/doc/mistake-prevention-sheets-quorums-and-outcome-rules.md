@@ -787,3 +787,52 @@ and `run-seats-refusal.unit.test.ts` for the seat reading.
 The ruling on the entry in flight and the ruling on model-level dryness are in
 `design-commitments-rulings-of-2026-10-22.md`;
 each is open to the owner's veto.
+
+## A test fleet models every provider shape of the live roster
+
+What happened:
+the seat reader waited out a hold on any provider while a bench stood short.
+The tests that pinned the wait used fleets with one wet provider and one held provider,
+where the held provider was always one that cured the shortfall,
+so a hold on a provider that cannot cure it
+(DeepSeek,
+whose one wide seat is a seat the wet providers already reach,
+or Xiaomi,
+which serves no wide seat)
+was waited out in full and the bench was seated short all the same.
+The second review of the Claude route found it with a fleet whose Claude key read dry
+and the wide bench stood one seat short of its quorum;
+the review of the seat bound found the same defect from the other side
+(a hold on a provider that serves no seat of a short bench).
+
+The rule:
+a test fleet models every provider shape of the live roster,
+not the shapes the case happens to need:
+a provider that cures a short bench,
+one that serves seats of it and cannot cure it,
+one that serves none of its seats,
+a dry key that is a meter reading and holds `0`,
+and two or more holds that each cure the bench alone
+(a necessity test,
+"the bench stays short without this provider",
+counts neither of them,
+so the reader seated the bench short with two curing holds running;
+round 5 found it).
+The shapes come from the roster through `reachOf`,
+and a case that asserts a wait asserts the control (a hold that must be waited for)
+beside the hold that must not be.
+A new provider joins the fleet of these cases when its route lands.
+
+What enforces it:
+habit and review;
+`run-seats-cure.unit.test.ts` pins the shape on this tree's roster
+(NeuralWatt and Bedrock wet,
+the wide bench 3 of 7 against a quorum of 4,
+with Synthetic and Hyper held,
+Synthetic and OpenRouter held,
+and,
+with NeuralWatt wet,
+Synthetic,
+Bedrock and Hyper held),
+and `run-seats-hold-need.unit.test.ts` pins it for the translate lane.
+The ruling is the lead's and is open to the owner's veto.

@@ -5,7 +5,7 @@ import type {
   RunClient,
 } from '@monochromatic-dev/translation-repair-run/ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
-import type { settleEntry, } from './pass-entry.ts';
+import type { settleEntry, } from './pass-entry-settle.ts';
 import type { PassOutsideReads, } from './pass-outside-reads.ts';
 import type { PassPictureSources, } from './pass-visual-evidence.ts';
 import type { OverlapSetting, } from '@monochromatic-dev/translation-repair-slice-cache/ts';
@@ -83,9 +83,13 @@ export type CorpusPassInput = {
   readonly transport: ModelTransport;
 
   /**
-   Builds the one client the run asks models through, given where its prompt payloads are kept.
+   Builds the one client the run asks models through, given where its prompt payloads are kept and how much the pass has
+   left, which bounds the seat reader's wait for NeuralWatt's return.
    */
-  readonly newClient: (input: { readonly promptPayloadDir: string; },) => RunClient;
+  readonly newClient: (input: {
+    readonly promptPayloadDir: string;
+    readonly passLeftMs: () => number
+  },) => RunClient;
 
   /**
    Settles one entry; the pass's whole per-entry procedure.
