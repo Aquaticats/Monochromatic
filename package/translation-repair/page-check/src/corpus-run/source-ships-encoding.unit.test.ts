@@ -153,6 +153,8 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a definition title whose second line starts with a brace', '[r]: u "t\n{b"\n\n{c\n'],
   ['a code span whose second line starts with a closed brace', '`a\n{b}` {c\n'],
   ['a code span whose second line holds a brace after a word', '`a\nb {c` {d\n'],
+  ['a lazy import line after a line of format characters in a list item', '1. 项\n\uFEFF\nimport q\n===\n'],
+  ['a lazy export line after a line of format characters in a block quote', '> a\n\uFEFF\nexport to PDF\n'],
   ['a fence mark indented four spaces after a paragraph line', 'abc\n    ```\n'],
   ['a tilde fence mark indented four spaces after a paragraph line', 'abc\n    ~~~\n'],
   ['a fence mark after a tab after a paragraph line', 'abc\n\t```\n'],
@@ -184,6 +186,10 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['indented code holding block marks', '猫\n\n    - a {\n    # b {\n    > c {\n    1. d {\n'],
   ['indented code holding a setext underline and a table', '猫\n\n    a {\n    ===\n    | b | c |\n    | - | - |\n'],
   ['a raw HTML block holding emphasis and a code span', '<div>\n*a* _b_ `{c}`\n</div>\n'],
+  ['a raw HTML block holding an import line after a blank line', '<script>\n\nimport data from the old system\n===\n'],
+  ['a raw HTML block holding an export line after a blank line', '<script>\n\nexport to PDF\n'],
+  ['a raw HTML block holding an import line after a line of format characters', '<details>\n\uFEFF\nimport q\n===\n'],
+  ['a raw HTML block holding an import line after a blank line, then more text', '<script>\n\nimport a\n\nb {\n'],
 ];
 
 await describe({
