@@ -736,7 +736,10 @@ await describe({
           name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
             + 'short of its floor of two',
           fn: async () => {
-            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            // THE HOLD ENDS WITH THE FIRST WAIT: Synthetic's return lifts the wide bench from 1 to 3, over the floor of two
+            // voices, so the reading waits for it, and a hold that never ends is not a hold. The view stays the same
+            // after it, which is the XingZ6020 pass where Synthetic was refused again as soon as it returned.
+            const rig = viewClient({ view: XINGZ6020_VIEW, holdEndsAtRead: 2, },);
             rig.holds.synthetic = SHORT_HOLD_MS;
             const hooks = contestHooksFor({
               client: rig.client,
