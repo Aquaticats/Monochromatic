@@ -634,6 +634,7 @@ which lists every file of this record.
 - [M289 to M292, process mistakes, lint, edits and tests](audit-ledger-process-lint-edits-and-tests.md)
 - [M293 to M294, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
+- [T8, code no unit test runs, with the areas of the audit](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md)
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
 - [X1, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
 - [X2 to X3, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)

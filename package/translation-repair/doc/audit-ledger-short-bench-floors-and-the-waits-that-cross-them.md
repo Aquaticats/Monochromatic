@@ -95,8 +95,8 @@ counted in the code:
   `ceilingWordsOf` and `seatWithoutWaiting`:
   a payment-refused provider now leaves the returning set,
   so the reader takes no wait for its stated hold,
-  and the ceiling clause says the provider "reads dry by its meter",
-  which for this provider means the refusal that keeps it dry until its meter moves.
+  and the ceiling clause said the provider "reads dry by its meter",
+  which was false for this provider until fix round 4 (its second correction is the clause's new wording).
 - `providerMeterStates` in `run-config.ts` hands `readStates` to the run client,
   and the budget cases,
   `run-providers-held.unit.test.ts` and the fixtures that call `readStates` read the same record.
@@ -108,6 +108,36 @@ counted in the code:
   not the states,
   and are unchanged.
 No cached record holds the states and no cache key covers them,
+so no cache version moved.
+
+Later,
+fix round 4:
+two corrections to the payment-refusal follow-up of this entry.
+The control of `run-seats-payment-hold.unit.test.ts`,
+a refusal that is not for payment,
+waited out a hold of a minute on the real clock,
+the rate-limit backoff,
+so the suite `the seat reader and a provider refused for payment` took 62.7 s in the run package's `test:unit`,
+and the raise of the stated wait to 250 ms that fix round 3 made did not shorten it.
+The payment case could also pass without observing anything when a stalled machine let its 250 ms hold end
+before the reader first asked for the holds.
+Both cases now run on a fake clock (timers and `performance`,
+which the budgets count holds down on) and state a wait of 90 s:
+each reads the hold running (equal to the stated wait) before the reading starts,
+then ticks the clock past the hold's end while the reading runs,
+so a reader that waits for the hold reads twice in either case.
+The suite takes 91 ms (`b0953ecf75`).
+A scratch copy that sent the payment case a refusal without the payment flag failed with `expected 2 to equal 1`.
+The second correction is the ceiling clause:
+it said a held provider "reads dry by its meter",
+which is false for a provider refused for payment whose meter reads wet,
+and now says "by its meter or by a payment refusal that stands until the meter moves,
+which a hold ending does not change".
+The payment case reads the warning of a real payment refusal on a wet Hyper meter and pins the words,
+beside the two cases of `run-seats-ceiling.unit.test.ts` that name a meter-dry NeuralWatt;
+all three failed before the wording (`a301305cac`,
+fix `bdea8b354e`).
+No cached record holds the clause and no key covers it,
 so no cache version moved.
 
 ## B838: a wait judged a return against the quorum alone
@@ -311,6 +341,30 @@ Cache account:
 no sheet or schema changed,
 so no cache version moved.
 
+Later,
+fix round 4:
+the restored Claude-key case.
+The second merge of origin/main took the phase-table version of `run-seats-cure.unit.test.ts` whole
+and dropped the two Claude-key cases written for it.
+The floor-lift case still applies:
+in the lanes phase,
+with only NeuralWatt wet,
+the wide bench reads 1 of 8,
+and a hold on the Claude key is waited out because its return makes the bench 2,
+the floor of two voices (`69480f5560`;
+a guard,
+since it passes on the merged code,
+and it fails when the wide bench's floor is raised by one).
+The crosses-neither case does not apply:
+in the merged phase table the Claude key serves the wide bench only,
+the lanes phase is the only one that seats it,
+and a scan of every wetness of the seven other providers
+with only the Claude key's hold running finds the wide bench at 1,
+at 3,
+or at its quorum already,
+and never at 2 of 8 without a writing bench stopping the phase first.
+No cache version moved.
+
 ## B839: the translate lane bought candidates for a passage its select bench could not back
 
 Status:
@@ -411,6 +465,27 @@ so no version moves.
 The rule for next time:
 a purchase whose every outcome is already known is not made,
 and the stage that would have made it says so once per slice and keeps the outcome it would have ended with.
+
+Later,
+fix round 4:
+the tagged line of `notAskedAgain` had no test.
+The helper was reachable only through `translateDocument`,
+where every record held at a reach under the floor is already told,
+so the branch that writes its line never ran in a test and a change back to the untagged logger failed nothing.
+The package now exports `notAskedAgain` and its decision type,
+and a case seeds the memory with `rememberFloorLimited` without `toldWhy`,
+calls the helper at the recorded reach and expects the kept unfilled outcome,
+one line tagged `[notAskedAgain]` with its counts,
+the told mark set,
+no line on a second call,
+and an ask without a line once the bench has grown (`cf57d99088`,
+export `098cc14015`).
+The red is the missing export only,
+which stops the file from loading;
+the case fails on the untagged logger at `translate-floor-limited.unit.test.ts:684`.
+The branch stays,
+since it is reachable through the helper's own contract.
+No cache version moved.
 
 ## B840: the artifact did not say that a slice was kept for want of a bench
 

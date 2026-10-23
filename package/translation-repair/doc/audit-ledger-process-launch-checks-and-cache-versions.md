@@ -599,3 +599,29 @@ in one code span,
 and says what a `WARNING:` line beside a non-zero count means.
 The audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+fix round 4:
+the warning compared spellings and ignored the depth of the walk.
+The home directory of the process and its real place are two spellings of one directory (`HOME=/home/user`
+and `/var/home/user` both exist on the lead's machine),
+and the comparison read a link as an uncovered root,
+which fails safe.
+The converse did not fail safe:
+a searched directory more than four levels up from the runs,
+where the walk of runs directories stops,
+read as covering them.
+`cache-account-search-reach.ts` now decides it.
+Both paths are resolved through their real path,
+an absent path through its nearest existing ancestor,
+and a root reaches a directory only when the directory is the root or lies below it,
+no name between them is one the search never enters (hidden,
+`node_modules`),
+and the runs two levels below the directory sit within the four levels the walk reads.
+The warning says so in its words ("is not reached by the roots searched").
+Red `b93b20ef45` (two cases fail at the parent:
+the link case warns where it must not,
+and the deep case does not warn where it must),
+fix `6d4f2cd78b`.
+The audit reads versions and writes none,
+so no cache version moved.

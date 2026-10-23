@@ -1,7 +1,7 @@
 # Preventing this package's mistakes
 
 The audit of 2026-09-27 and 2026-09-28 recorded every mistake made while fixing this package
-as an M entry in [the audit ledger](audit-ledger.md#process-mistakes-in-this-audit),
+as an M entry in [the audit ledger](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit),
 and every defect found while fixing as an X entry.
 The ledger is the record,
 in the order things happened.
