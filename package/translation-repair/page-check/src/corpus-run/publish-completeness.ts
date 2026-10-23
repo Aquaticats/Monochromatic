@@ -2,8 +2,12 @@ import type { UnfilledSlice, } from '@monochromatic-dev/translation-repair-trans
 
 //region Publication completeness
 // A corpus artifact may retain evidence about a missing passage, and a published
-// memorial page never omits such a passage silently: it carries the passage's
-// original text under a note, and the finding records it.
+// memorial page does not omit such a passage silently: it carries the passage's
+// original text under a note, and the finding records it. The exceptions are a
+// passage whose recorded original renders as nothing, which has nothing to carry,
+// an artifact that records no original, and a page the grammar refuses with the
+// original on it, which ships without it under the defect `page-source-unparseable`
+// (`source-ships-compose.ts`).
 //
 // THE SILENT GAP IS GONE FOR A SLICE WITH NO ARCHIVE TEXT AND NO BACKED WORDING.
 // The owner, 2026-10-23, asked what a shipped page carries for such a slice,
@@ -32,7 +36,12 @@ import type { UnfilledSlice, } from '@monochromatic-dev/translation-repair-trans
 // footnote definition, off the page with nothing on it to say so (ledger B827).
 
 /**
- Findings that record each unfilled source passage a page ships without.
+ Findings that record each source passage no rendering was produced for, and what the page carries for it.
+
+ The text is true for every case the caller can be in. The page carries the passage's source text under a note where
+ the artifact records that text and it renders as something; where the recorded text renders as nothing, or the artifact
+ keeps no record of it, the page carries nothing for the passage. The caller reads the artifact and this function does
+ not, so the finding says both and leaves the page check to say which one happened.
 
  @param unfilled - source passages with no shipped rendering
 
@@ -41,7 +50,9 @@ import type { UnfilledSlice, } from '@monochromatic-dev/translation-repair-trans
  @example
  ```ts
  unfilledPageFindings({ unfilled: [{ sliceIndex: 15, reason: 'no-candidate-backed', findings: [], }], },);
- // => ['source-passage-unfilled (slice 15, no-candidate-backed): the page carries the source text of this passage under a note that it has not been translated yet']
+ // => ['source-passage-unfilled (slice 15, no-candidate-backed): the page carries the source text of this passage
+ //     under a note that it has not been translated yet, unless the source recorded for the slice renders as nothing
+ //     or the artifact records none, in which case the page carries nothing for it']
  ```
  */
 export function unfilledPageFindings(
@@ -49,7 +60,9 @@ export function unfilledPageFindings(
 ): readonly string[] {
   return unfilled.map(function toFinding(passage,): string {
     return `source-passage-unfilled (slice ${String(passage.sliceIndex,)}, ${passage.reason}): `
-      + 'the page carries the source text of this passage under a note that it has not been translated yet';
+      + 'the page carries the source text of this passage under a note that it has not been translated yet, unless '
+      + 'the source recorded for the slice renders as nothing or the artifact records none, in which case the page '
+      + 'carries nothing for it';
   },);
 }
 
