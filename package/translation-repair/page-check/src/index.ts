@@ -177,6 +177,10 @@ export {
   type SourcePageStep,
 } from './corpus-run/source-ships-compose.ts';
 export {
+  composeOverTiling,
+  tilingOf,
+} from './corpus-run/source-ships-tiling.ts';
+export {
   droppedRunSets,
   type GrammarReader,
   namedSlices,

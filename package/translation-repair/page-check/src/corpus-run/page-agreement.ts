@@ -1,10 +1,7 @@
 import type { ParsedArchiveText, } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { withoutSourceRecordAt, } from './source-ships.ts';
-import {
-  droppedRunSets,
-  type GrammarReader,
-  slicesRefusedAsLiteral,
-} from './source-ships-runs.ts';
+import type { GrammarReader, } from './source-ships-runs.ts';
+import { composeOverTiling, } from './source-ships-tiling.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 import {
   type PageLengthCheck,
@@ -164,11 +161,15 @@ function judgeAgainst(
 /**
  Judges one page against its artifact.
 
- A PAGE SHIPPED WITHOUT A SOURCE RUN IS JUDGED AGAINST THE ARTIFACT WITHOUT THAT RUN'S ORIGINAL. The composition ships
- such a page (`source-ships-compose.ts`) when no writing of the run makes the grammar accept it, and it names the sets
- it leaves off through `droppedRunSets`, the function asked here. The sets are tried only for a page that disagrees as
- recorded, so a page agreeing with every original costs no grammar read, and a page that lost text elsewhere still
- disagrees under each of them.
+ A PAGE SHIPPED WITHOUT SOURCE RUNS IS JUDGED AGAINST THE ARTIFACT WITHOUT THEIR ORIGINALS, when the composition says
+ it would be. The composition ships such a page (`source-ships-compose.ts`) when no writing of the originals makes the
+ grammar accept it. This function runs that composition over what the artifact records (`source-ships-tiling.ts`), and
+ only a page that disagrees as recorded is judged again, so a page agreeing with every original costs no grammar read.
+ A page that never carried originals, as the pages shipped before they were carried, still disagrees wherever the
+ composition keeps them. THE RESIDUAL: the composition runs over the archive the slices tile and not over the archive
+ itself, so a page whose archive text between slices matters to the grammar can be judged by a composition that
+ differs from the one that wrote it; and a page that lost every original it should carry, where the composition would
+ also ship without them, reads as shipped without them (the report names the slices) and not as lost.
 
  @param artifact - settled artifact, read for what each slice ships and the
  archive text it stored
@@ -205,42 +206,30 @@ export function pageAgreement(
   if (asRecorded.agreement !== 'disagreed')
     return asRecorded;
   /**
-   What the grammar says of each run, handed on only where a case stands in for it.
+   The composition of the page the artifact says would ship.
    */
-  const grammar = (readGrammar === undefined) ? {} : { readGrammar, };
-  // ONLY AN ARTIFACT WITH A RUN NO WRITING MAKES PARSE can have been shipped without one, so a page lacking runs the
-  // grammar accepts is a page that lost them.
-  /**
-   Slices of the runs no writing makes parse.
-   */
-  const unwritable = slicesRefusedAsLiteral({
+  const composed = composeOverTiling({
     artifact,
-    ...grammar,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
   },);
-  if (unwritable.length === 0)
+  if (composed.step !== 'dropped')
     return asRecorded;
-  for (const dropped of droppedRunSets({
-    artifact,
-    ...grammar,
-  },)) {
-    /**
-     The page against the artifact without the originals of these slices.
-     */
-    const judged = judgeAgainst({
-      artifact: withoutSourceRecordAt({
-        artifact,
-        slices: dropped,
-      },),
-      pageText,
-    },);
-    if (judged.agreement !== 'disagreed') {
-      return {
-        ...judged,
-        sourceDropped: dropped,
-      };
-    }
-  }
-  return asRecorded;
+  /**
+   The page against the artifact without the originals the composition leaves off.
+   */
+  const judged = judgeAgainst({
+    artifact: withoutSourceRecordAt({
+      artifact,
+      slices: composed.slices,
+    },),
+    pageText,
+  },);
+  return (judged.agreement === 'disagreed')
+    ? asRecorded
+    : {
+      ...judged,
+      sourceDropped: composed.slices,
+    };
 }
 
 //endregion Page agreement

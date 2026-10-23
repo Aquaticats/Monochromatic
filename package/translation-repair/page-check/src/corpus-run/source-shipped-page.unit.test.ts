@@ -843,6 +843,29 @@ await describe({
         },),
 
         it({
+          name: 'STILL REPORTS A PAGE THAT NEVER CARRIED ORIGINALS THE GRAMMAR ACCEPTS, the control for the pages shipped '
+            + 'without a run: the archive alone, as a page shipped before the originals were carried is, disagrees with '
+            + 'an artifact whose runs parse, so a pass publishes it again with them',
+          fn: async () => {
+            const { artifact, } = await publishRows({ rows: TWO_RUNS, },);
+            const judged = pageAgreement({
+              artifact: {
+                ...artifact,
+                preparation: {
+                  archiveText: {
+                    kind: 'stored',
+                    text: sourceShippedArchive({ rows: TWO_RUNS, },),
+                  },
+                },
+              },
+              pageText: sourceShippedArchive({ rows: TWO_RUNS, },),
+            },);
+            expect(judged.agreement,).toBe('disagreed',);
+            expect(judged.sourceDropped,).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'STILL REPORTS TEXT LOST ELSEWHERE ON A PAGE SHIPPED WITHOUT A RUN, the positive control for the page '
             + 'that agrees: the sentence of a paragraph the archive covers is gone, and so the page disagrees',
           fn: async () => {
