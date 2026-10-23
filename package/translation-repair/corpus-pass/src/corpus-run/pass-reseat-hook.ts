@@ -20,12 +20,15 @@ import {
 // to the roster read before it. Three copies of that memo had grown before
 // this one; a fourth phase takes this instead of a fifth copy.
 //
-// IT COSTS NOTHING WHILE NOTHING IS HELD: one synchronous read of the holds,
-// no dryness read. Under a hold the reading itself waits out the shortest hold
-// once when a bench the phase leans on cannot reach quorum
-// (`run-seats-read.ts`).
+// IT COSTS NOTHING WHILE NOTHING IS HELD AND THE REACH IS AT OR ABOVE THE FLOOR: one synchronous read of the holds,
+// no dryness read. A phase that passes `staleWhen` (the lane contest, the translate lane and the consolidation) also
+// reads again with no hold running while the seating it last handed over states a reach under the floor, since a
+// provider returning after its hold ended would lift it; that read costs a cached budget reading, trusted for 60
+// seconds (`BUDGET_FRESH_MS` in `provider-budget.ts`), and the reading's own `JUDGE SEATS` line, for every slice the
+// shortfall lasts. Under a hold the reading itself waits out the shortest hold once when its return would lift a bench
+// the phase leans on over its floor or to its quorum (`run-seats-read.ts`).
 //
-// A WARNING IS WRITTEN ONCE PER STATE (rounds 5 and 6). A hold that cannot cure a short bench is not waited for, so
+// A WARNING IS WRITTEN ONCE PER STATE. A hold whose return would change no bench is not waited for, so
 // every slice under it reads the same short bench and the reading warns of it each time; a Xiaomi or DeepSeek hold of
 // hours over hundreds of slices wrote hundreds of identical lines. The hook still reads the seats for every slice,
 // since a provider going dry changes the seating a slice must run on whether or not its hold would cure anything. It

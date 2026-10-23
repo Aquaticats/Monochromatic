@@ -28,8 +28,10 @@ import {
 // hold runs it reads the seats again, which waits out the hold where the bench
 // cannot reach quorum, builds the roster `pass-consolidate.ts` builds from that
 // reading, and keeps handing it over once the hold has ended
-// (`pass-reseat-hook.ts`). While nothing is held it costs one synchronous read
-// of the holds.
+// (`pass-reseat-hook.ts`). While nothing is held and the slate reach is at or above the floor it costs one synchronous
+// read of the holds; with the reach under the floor it also reads the seats again for every slice, on a budget reading
+// trusted for 60 seconds (`BUDGET_FRESH_MS` in `provider-budget.ts`), since a provider returning after its hold ended
+// would lift it.
 
 /**
  Hook the consolidation driver calls before each slice.
