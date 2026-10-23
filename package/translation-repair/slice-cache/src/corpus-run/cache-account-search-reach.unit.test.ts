@@ -10,10 +10,15 @@
  */
 
 import {
+  chmod,
   mkdir,
   symlink,
+  writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  join,
+  sep,
+} from 'node:path';
 
 import {
   describe,
@@ -21,8 +26,31 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { searchReaches, } from '../../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+
+/**
+ The code a failed attempt raised, or that it returned an answer.
+
+ @param attempt - call expected to fail
+
+ @returns Filesystem code of the failure, the failure's class name where it has no code, or `returned`
+
+ @example
+ ```ts
+ const code = await codeOfFailure({ attempt: async () => await searchReaches({ root, directory, runsLevels: 0, },), },);
+ ```
+ */
+async function codeOfFailure({ attempt, }: { readonly attempt: () => Promise<boolean>; },): Promise<string> {
+  try {
+    await attempt();
+    return 'returned';
+  }
+  catch (error) {
+    return failureName({ error, },);
+  }
+}
 
 await describe({
   name: searchReaches.name,
@@ -160,6 +188,180 @@ await describe({
           absentThroughLink: true,
           absentThroughReal: true,
           neitherExists: true,
+        },);
+      },
+    },),
+    it({
+      name: 'STILL RAISES THE FILESYSTEM\'S REFUSAL FOR A PATH IT CANNOT RESOLVE: ENOTDIR for a path through a file '
+        + 'and ELOOP for a loop of links, as root and as directory, so the caller decides what an unreadable root '
+        + 'means: the report catches it per root',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-reach-refused-', },);
+        /**
+         A file, and a path that goes on below it.
+         */
+        const file = join(
+          base.path,
+          'file',
+        );
+        await writeFile(
+          file,
+          'meow',
+          'utf8',
+        );
+        const belowFile = join(
+          file,
+          'below',
+        );
+        /**
+         Two links that point at each other.
+         */
+        const loopA = join(
+          base.path,
+          'loop-a',
+        );
+        const loopB = join(
+          base.path,
+          'loop-b',
+        );
+        await symlink(
+          loopB,
+          loopA,
+        );
+        await symlink(
+          loopA,
+          loopB,
+        );
+
+        expect({
+          fileRoot: await codeOfFailure({
+            attempt: async () => await searchReaches({ root: belowFile, directory: base.path, runsLevels: 0, },),
+          },),
+          fileDirectory: await codeOfFailure({
+            attempt: async () => await searchReaches({ root: base.path, directory: belowFile, runsLevels: 0, },),
+          },),
+          loopRoot: await codeOfFailure({
+            attempt: async () => await searchReaches({ root: loopA, directory: base.path, runsLevels: 0, },),
+          },),
+          loopDirectory: await codeOfFailure({
+            attempt: async () => await searchReaches({ root: base.path, directory: loopA, runsLevels: 0, },),
+          },),
+        },).toEqual({
+          fileRoot: 'ENOTDIR',
+          fileDirectory: 'ENOTDIR',
+          loopRoot: 'ELOOP',
+          loopDirectory: 'ELOOP',
+        },);
+      },
+    },),
+    it({
+      name: 'STILL RAISES THE FILESYSTEM\'S REFUSAL FOR A PATH BEHIND A DIRECTORY NOBODY MAY ENTER (EACCES)',
+      skip: (process.getuid?.() === 0)
+        ? 'the process is root, and no mode refuses root a directory'
+        : false,
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-reach-sealed-', },);
+        /**
+         A directory with no permission bits, and a path below it.
+         */
+        const sealed = join(
+          base.path,
+          'sealed',
+        );
+        await mkdir(sealed,);
+        await chmod(
+          sealed,
+          0,
+        );
+        await using _reopened = {
+          [Symbol.asyncDispose]: async function reopen(): Promise<void> {
+            await chmod(
+              sealed,
+              0o700,
+            );
+          },
+        };
+
+        expect(await codeOfFailure({
+          attempt: async () =>
+            await searchReaches({
+              root: join(
+                sealed,
+                'below',
+              ),
+              directory: base.path,
+              runsLevels: 0,
+            },),
+        },),).toEqual('EACCES',);
+      },
+    },),
+    it({
+      name: 'RESOLVES .. AFTER THE LINKS BEFORE IT, as the kernel does: base/lnk/../d is the d beside the link\'s '
+        + 'target, not the d beside the link',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-reach-dotdot-', },);
+        /**
+         A directory the link will point into, two levels below the base.
+         */
+        const home = join(
+          base.path,
+          'h',
+        );
+        const inner = join(
+          home,
+          'sub',
+        );
+        await mkdir(
+          inner,
+          { recursive: true, },
+        );
+        await mkdir(join(
+          base.path,
+          'd',
+        ),);
+        await mkdir(join(
+          home,
+          'd',
+        ),);
+        await symlink(
+          inner,
+          join(
+            base.path,
+            'lnk',
+          ),
+          'dir',
+        );
+        // The string is built whole: join() would fold the dot-dot into the base before any link was read.
+        const through = `${base.path}${sep}lnk${sep}..${sep}d`;
+
+        expect({
+          rootIsLinkTargetsParent: await searchReaches({ root: home, directory: through, runsLevels: 0, },),
+          rootIsLinksParent: await searchReaches({
+            root: join(
+              base.path,
+              'd',
+            ),
+            directory: through,
+            runsLevels: 0,
+          },),
+        },).toEqual({
+          rootIsLinkTargetsParent: true,
+          rootIsLinksParent: false,
+        },);
+      },
+    },),
+    it({
+      name: 'APPLIES THE DEPTH RULE WHERE THE ROOT IS THE DIRECTORY: runs four levels below it are the last the walk '
+        + 'reads, runs five levels below are not',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'cache-account-reach-equal-', },);
+
+        expect({
+          fourLevels: await searchReaches({ root: root.path, directory: root.path, runsLevels: 4, },),
+          fiveLevels: await searchReaches({ root: root.path, directory: root.path, runsLevels: 5, },),
+        },).toEqual({
+          fourLevels: true,
+          fiveLevels: false,
         },);
       },
     },),

@@ -16,6 +16,7 @@ import {
   chmod,
   mkdir,
   symlink,
+  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
@@ -97,12 +98,86 @@ function noRecordWarning({ roots, }: { readonly roots: readonly string[]; },): s
 }
 
 /**
+ A searched root whose real path could not be resolved, and the filesystem's code.
+
+ @example
+ ```ts
+ const failure: RootFailure = { root: '/cats/file/below', code: 'ENOTDIR', };
+ ```
+ */
+type RootFailure = {
+  /**
+   The root as it was given.
+   */
+  readonly root: string;
+
+  /**
+   Filesystem code, such as `ENOTDIR`.
+   */
+  readonly code: string;
+};
+
+/**
+ The clause that names the roots the check could not resolve, which the warning ends with.
+
+ @param failures - roots whose real path could not be resolved, each with the code
+
+ @returns Clause with its leading space, or nothing where every root resolved
+
+ @example
+ ```ts
+ const words = unresolvedRootsWords({ failures: [{ root: '/cats/file/below', code: 'ENOTDIR', },], },);
+ ```
+ */
+function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootFailure[]; },): string {
+  if (failures.length === 0)
+    return '';
+  return ' Roots the check could not resolve, and so counted as not reaching it: '
+    + `${failures.map(function named({ root, code, },): string {
+      return `${root} (${code})`;
+    },).join(', ',)}.`;
+}
+
+/**
+ The line the audit logs for a root it could not resolve.
+
+ @param root - the root as it was given
+
+ @param code - filesystem code of the failure
+
+ @param home - home directory the runbook's runs root sits under
+
+ @returns Warning line, without its level, with the tags of the functions that wrote it
+
+ @example
+ ```ts
+ const line = unresolvedRootLine({ root: '/cats/file/below', code: 'ENOTDIR', home: '/cats/home', },);
+ ```
+ */
+function unresolvedRootLine(
+  {
+    root,
+    code,
+    home,
+  }: {
+    readonly root: string;
+    readonly code: string;
+    readonly home: string;
+  },
+): string {
+  return `[warningWordsOf] [reachOfRoot] ${root} could not be compared with the runbook's runs root `
+    + `${join(home, 'temp', 'agent',)} (${code}); it counts as not reaching it`;
+}
+
+/**
  What the audit says when it read records and no root it searched reaches the runbook's runs root: by its real path,
  within the depth the search walks and through no directory it skips.
 
  @param roots - every root it searched, in the order it printed them
 
  @param home - home directory the runbook's runs root sits under
+
+ @param failures - roots whose real path could not be resolved, each with the code, none where every root resolved
 
  @returns Sentence, without the stdout prefix
 
@@ -115,9 +190,11 @@ function unreachedRootWarning(
   {
     roots,
     home,
+    failures = [],
   }: {
     readonly roots: readonly string[];
     readonly home: string;
+    readonly failures?: readonly RootFailure[];
   },
 ): string {
   /**
@@ -132,7 +209,8 @@ function unreachedRootWarning(
     + 'reaches runs directories at most 4 levels below a root, and the runbook\'s runs sit up to 2 levels below its '
     + 'root; it enters no hidden directory or node_modules, and a directory counts by its real path. The newest record '
     + 'and the versions set after it speak only for those roots, and a launch that follows the runbook writes its '
-    + `runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+    + `runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`
+    + unresolvedRootsWords({ failures, },);
 }
 
 /**
@@ -665,6 +743,237 @@ await describe({
           'directories the search could not list, whose runs the count leaves out: 1',
           `  ${sealed} (EACCES)`,
         ],);
+      },
+    },),
+    it({
+      name: 'KEEPS GOING AND WARNS WHERE A SEARCHED ROOT RUNS THROUGH A FILE (ENOTDIR): the root counts as not '
+        + 'reaching the runbook\'s runs root, the warning says why, one line is logged with the root, and the newest '
+        + 'record and the versions set after it are still printed',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const file = join(
+          under.path,
+          'file',
+        );
+        await writeFile(
+          file,
+          'meow',
+          'utf8',
+        );
+        const belowFile = join(
+          file,
+          'below',
+        );
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [belowFile,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          printedWarnings: printed.lines.filter(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+          lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
+        },).toEqual({
+          logged: [
+            unresolvedRootLine({ root: belowFile, code: 'ENOTDIR', home: HOME, },),
+            unreachedRootWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                belowFile,
+              ],
+              home: HOME,
+              failures: [{ root: belowFile, code: 'ENOTDIR', },],
+            },),
+          ],
+          printedWarnings: [
+            `WARNING: ${unreachedRootWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                belowFile,
+              ],
+              home: HOME,
+              failures: [{ root: belowFile, code: 'ENOTDIR', },],
+            },)}`,
+          ],
+          lastPrinted: true,
+        },);
+      },
+    },),
+    it({
+      name: 'KEEPS GOING AND WARNS WHERE A SEARCHED ROOT IS A LOOP OF LINKS (ELOOP), with the same account of why',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const loopA = join(
+          under.path,
+          'loop-a',
+        );
+        const loopB = join(
+          under.path,
+          'loop-b',
+        );
+        await symlink(
+          loopB,
+          loopA,
+        );
+        await symlink(
+          loopA,
+          loopB,
+        );
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [loopA,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
+        },).toEqual({
+          logged: [
+            unresolvedRootLine({ root: loopA, code: 'ELOOP', home: HOME, },),
+            unreachedRootWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                loopA,
+              ],
+              home: HOME,
+              failures: [{ root: loopA, code: 'ELOOP', },],
+            },),
+          ],
+          lastPrinted: true,
+        },);
+      },
+    },),
+    it({
+      name: 'KEEPS GOING AND WARNS WHERE A SEARCHED ROOT SITS BEHIND A DIRECTORY NOBODY MAY ENTER (EACCES), with the '
+        + 'same account of why',
+      skip: (process.getuid?.() === 0)
+        ? 'the process is root, and no mode refuses root a directory'
+        : false,
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const sealed = join(
+          under.path,
+          'sealed',
+        );
+        await mkdir(sealed,);
+        await chmod(
+          sealed,
+          0,
+        );
+        await using _reopened = {
+          [Symbol.asyncDispose]: async function reopen(): Promise<void> {
+            await chmod(
+              sealed,
+              0o700,
+            );
+          },
+        };
+        const behindSealed = join(
+          sealed,
+          'below',
+        );
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [behindSealed,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
+        },).toEqual({
+          logged: [
+            unresolvedRootLine({ root: behindSealed, code: 'EACCES', home: HOME, },),
+            unreachedRootWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                behindSealed,
+              ],
+              home: HOME,
+              failures: [{ root: behindSealed, code: 'EACCES', },],
+            },),
+          ],
+          lastPrinted: true,
+        },);
+      },
+    },),
+    it({
+      name: 'LOGS BUT DOES NOT WARN WHERE A ROOT THE CHECK COULD NOT RESOLVE STANDS BESIDE ONE THAT REACHES THE '
+        + 'RUNBOOK\'S RUNS ROOT: the reaching root decides, and the unresolved one leaves its line in the log',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const file = join(
+          under.path,
+          'file',
+        );
+        await writeFile(
+          file,
+          'meow',
+          'utf8',
+        );
+        const belowFile = join(
+          file,
+          'below',
+        );
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [belowFile, RUNBOOK_ROOT,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          warned: warningsIn({ lines: logged, },),
+          printedWarning: printed.lines.some(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+        },).toEqual({
+          warned: [unresolvedRootLine({ root: belowFile, code: 'ENOTDIR', home: HOME, },),],
+          printedWarning: false,
+        },);
       },
     },),
   ],
