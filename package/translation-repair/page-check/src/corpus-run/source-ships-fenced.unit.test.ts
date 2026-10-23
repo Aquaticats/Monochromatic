@@ -116,6 +116,55 @@ await describe({
     },),
 
     it({
+      name: 'LEAVES ALONE A FENCE IN A NESTED LIST ITEM WHOSE CLOSING STANDS AT THE COLUMN OF ITS OPENING, since four '
+        + 'columns or more there are the item\'s own indentation and the closing is no mark of the code',
+      fn: async () => {
+        /**
+         A fence in a list item inside a list item, opened and closed at column four.
+         */
+        const source = '- a\n  - b\n\n    ```js\n    code {\n    ```\n';
+        expect(editsOf({
+          source,
+          start: source.indexOf('```',),
+        },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'LENGTHENS THE CLOSING OF A FENCE IN A NESTED LIST ITEM AS WELL AS ITS OPENING when the code holds a mark '
+        + 'four columns past the opening, the closing standing at the column of the opening',
+      fn: async () => {
+        /**
+         A fence in a nested list item holding a mark indented four spaces more than its opening.
+         */
+        const source = '- a\n  - b\n\n    ```js\n        ```\n    code {\n    ```\n';
+        /**
+         Index of the opening mark.
+         */
+        const opening = source.indexOf('```',);
+        /**
+         Index of the closing mark.
+         */
+        const closing = source.lastIndexOf('```',);
+        expect(editsOf({
+          source,
+          start: opening,
+        },),).toEqual([
+          {
+            start: opening,
+            end: opening + 3,
+            replacement: '````',
+          },
+          {
+            start: closing,
+            end: closing + 3,
+            replacement: '````',
+          },
+        ],);
+      },
+    },),
+
+    it({
       name: 'LEAVES A FENCE ALONE THAT HOLDS NO SUCH MARK, one shorter than its opening, or one of the other kind',
       fn: async () => {
         expect(editsOf({ source: '```\na\n```\n', },),).toEqual([],);

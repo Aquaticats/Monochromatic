@@ -162,6 +162,15 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a fence holding a longer mark indented four spaces', '```\n     ````\n{\n```\n'],
   ['a fence holding a mark indented four spaces, then a paragraph with a brace', '```\n    ```\n```\n\n{x}\n'],
   ['a fence holding a mark of the other kind indented four spaces', '```\n    ~~~\n{\n```\n'],
+  ['a fence in a nested list item, closed at the column of its opening', '- a\n  - ```\n    {\n    ```\n\n{x\n'],
+  [
+    'a fence in a nested list item after a blank line, closed at the column of its opening',
+    '- a\n  - b\n\n    ```js\n    code {\n    ```\n\n{\n',
+  ],
+  [
+    'a fence in a nested list item holding a mark indented four spaces more than its opening',
+    '- a\n  - ```\n        ```\n    {\n    ```\n\n{x\n',
+  ],
   ['a lazy import line after a line of format characters in a list item', '1. 项\n\uFEFF\nimport q\n===\n'],
   ['a lazy export line after a line of format characters in a block quote', '> a\n\uFEFF\nexport to PDF\n'],
   ['a fence mark indented four spaces after a paragraph line', 'abc\n    ```\n'],
