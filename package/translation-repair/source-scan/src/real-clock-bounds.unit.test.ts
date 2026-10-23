@@ -806,6 +806,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'read back',
     reason: CALL_CONFIG,
   },
+  'artifact/corpus-run/settled-artifact.test-fixture.ts#settledArtifactWithGap: perCallTimeoutMs: 600_000': {
+    count: 1,
+    bound: 'read back',
+    reason: CALL_CONFIG,
+  },
   'slice-cache/corpus-run/settled-carve.unit.test.ts#writeArtifact: perCallTimeoutMs: 600_000': {
     count: 1,
     bound: 'read back',
