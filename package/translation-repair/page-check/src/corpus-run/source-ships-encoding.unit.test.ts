@@ -313,6 +313,42 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ],
   ['an angle autolink holding an entity, in the text of a link', '[<https://example.net/a&amp;b>](u)\n'],
   ['an angle autolink in the text of a link in a block quote', '> [<https://example.net/a>](u) {\n'],
+  [
+    'a footnote definition inside a paragraph, then a bullet alone and an export line',
+    'x\n[^1]: 注\n*\nexport to PDF\n',
+  ],
+  [
+    'a footnote definition inside a paragraph, then an ordered marker alone and an import line',
+    'x\n[^1]: 注\n2.\nimport a\n',
+  ],
+  [
+    'a footnote definition after a line of code, then an ordered marker and an import line',
+    '`{`\n[^1]: 注\n2.\nimport a\n[\n',
+  ],
+  [
+    'a footnote definition indented three spaces inside a paragraph, then a marker and an import line',
+    'x\n   [^1]: 注\n2.\nimport a\n',
+  ],
+  [
+    'a footnote definition indented four spaces inside a paragraph, then a marker and an export line',
+    'x\n    [^1]: 注\n*\nexport to PDF\n',
+  ],
+  [
+    'a footnote definition inside a paragraph, a line of text, a marker and an export line',
+    'x\n[^1]: 注\nfoo\n*\nexport to PDF\n',
+  ],
+  [
+    'two footnote definitions inside a paragraph, then a dash alone and an import line',
+    'x\n[^1]: 注\n[^2]: 注\n-\nimport a\n',
+  ],
+  [
+    'a footnote definition inside a setext heading, then a marker and an export line',
+    'x\n[^1]: 注\n*\nexport to PDF\n===\n',
+  ],
+  [
+    'a footnote definition with a brace inside a paragraph, then a marker and an export line',
+    'x\n[^1]: 注 {\n*\nexport to PDF\n',
+  ],
 ];
 
 /**

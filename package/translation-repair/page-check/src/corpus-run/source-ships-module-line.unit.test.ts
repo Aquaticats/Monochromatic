@@ -20,6 +20,7 @@ import {
   moduleLetterEdit,
   rangeOf,
   startsEsModule,
+  startsFootnoteLine,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -146,6 +147,30 @@ await describe({
               source: '[^1]: 注\n*\n*\nexport to PDF\n',
               afterFootnote: true,
             },),).toEqual([12,],);
+          },
+        },),
+
+        it({
+          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LIST MARKER ALONE AFTER A LINE THAT STARTS A FOOTNOTE '
+            + 'DEFINITION INSIDE THE PARAGRAPH, at any indentation, since the strict grammar lets a definition '
+            + 'interrupt a paragraph and keeps it open for the line after it',
+          fn: async () => {
+            expect(laterLinesOf({ source: 'x\n[^1]: 注\n*\nexport to PDF\n', },),).toEqual([12,],);
+            expect(laterLinesOf({ source: 'x\n   [^1]: 注\n2.\nimport a\n', },),).toEqual([16,],);
+            expect(laterLinesOf({ source: 'x\n    [^1]: 注\n*\nexport to PDF\n', },),).toEqual([16,],);
+            expect(laterLinesOf({ source: 'x\n[^1]: 注\nfoo\n*\nexport to PDF\n', },),).toEqual([16,],);
+            expect(laterLinesOf({ source: 'x\n[^1]: 注\n[^2]: 注\n-\nimport a\n', },),).toEqual([21,],);
+          },
+        },),
+
+        it({
+          name: 'FINDS NOTHING AFTER A LIST MARKER THAT STANDS BEFORE THE LINE STARTING A FOOTNOTE DEFINITION, or '
+            + 'after a line that only looks like the start of one',
+          fn: async () => {
+            expect(laterLinesOf({ source: 'x\n*\n[^1]: 注\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'x\n[^1 ]: 注\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'x\n[^1] 注\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'x\n[1]: 注\n*\nexport to PDF\n', },),).toEqual([],);
           },
         },),
 
@@ -280,8 +305,8 @@ await describe({
         },),
 
         it({
-          name: 'READS NOTHING ELSE AS ONE: an empty line, a marker with text, a rule, indentation of four columns or a '
-            + 'tab, ten digits, a number with no end, a lone digit, and a marker with a no-break space beside it',
+          name: 'READS NOTHING ELSE AS ONE: an empty line, a marker with text, a rule, indentation of four columns or '
+            + 'a tab, ten digits, a number with no end, a lone digit, and a marker with a no-break space beside it',
           fn: async () => {
             for (
               const line of [
@@ -304,6 +329,33 @@ await describe({
               ]
             ) {
               expect(isEmptyMarkerLine({ line, },),).toBe(false,);
+            }
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: startsFootnoteLine.name,
+      children: [
+        it({
+          name: 'READS A LABEL OF A CARET AND NON-SPACE CHARACTERS AND A COLON AS THE START OF A DEFINITION, at any '
+            + 'indentation, with a body or none',
+          fn: async () => {
+            for (const line of ['[^1]: 注', '[^1]:', '   [^note]: x', '    [^1]: x', '\t[^猫]: x', '[^a^b]: x',]) {
+              expect(startsFootnoteLine({ line, },),).toBe(true,);
+            }
+          },
+        },),
+
+        it({
+          name: 'READS NOTHING ELSE AS ONE: an empty line, a label with nothing in it, a space in the label, no colon, '
+            + 'no caret, an unclosed label, and a bracket inside the label',
+          fn: async () => {
+            for (
+              const line of ['', '[^]: x', '[^1 2]: x', '[^1] x', '[^1]x', '[1]: x', '[^1', 'a [^1]: x', '[^a[b]: x',]
+            ) {
+              expect(startsFootnoteLine({ line, },),).toBe(false,);
             }
           },
         },),
