@@ -205,6 +205,20 @@ it was 2 until the first keyed runs were read.
   holds the counts and the per-entry means.
   The other buckets keep the matrix's figures;
   the rotation held at most 15 calls in any of them and none in two.
+  On 2026-10-23 (UTC) the four means were replaced again,
+  in ledger B830
+  (same file),
+  by those of the settled calls of `XingZ6020`
+  (1,779 calls,
+  451.711 Wh),
+  the first pass on a build that sends the GLM seat at `low` effort (B807):
+  0.3044 and 0.3237 Wh for DeepSeek V4.1 Flash in the two main buckets (817 and 539 calls),
+  and 0.0714 and 0.0556 Wh for GLM-5.3-Flash (358 and 43 calls).
+  The DeepSeek means are those of that run alone,
+  above the pooled 0.2603 and 0.3224 Wh,
+  which keeps the hold on the safe side for DeepSeek;
+  the GLM means are not pooled with the earlier ones because the effort differs.
+  The figures of the margin in this section are the record of 2026-10-22.
 - **The spread is in the output.**
   The largest single calls were 0.840 Wh for DeepSeek,
   eleven times its mean,

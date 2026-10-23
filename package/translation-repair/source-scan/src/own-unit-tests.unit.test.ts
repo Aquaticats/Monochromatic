@@ -786,6 +786,7 @@ const ALLOWLIST: readonly string[] = [
   'provider/provider-meters.ts',
   'provider/default-slot-limits.ts',
   'run/corpus-run/run-seats-short-bench.ts',
+  'run/corpus-run/run-seats-no-wait.ts',
   'run/corpus-run/run-seats-states.ts',
   'provider/provider-router-reask.ts',
   'slice-reading/queried-block-pairing-details.ts',

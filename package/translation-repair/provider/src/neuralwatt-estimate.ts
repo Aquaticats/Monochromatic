@@ -62,13 +62,14 @@ import { PROMPT_BYTES_PER_TOKEN, } from './openrouter-abandoned-spend.ts';
 // one GLM picture read of the run (0.0221 Wh at 8,188 prompt tokens) fell in
 // the 4,096 to 16,384 token bucket too and is held at the same mean, a single
 // call that says nothing of a picture's cost. Were the `low` effort lifted,
-// the GLM hold would be too small by the factor above until a run measured it
-// again, and the settlement would correct each call. The other buckets keep the
-// matrix's figures: this run held at most 9 calls of either model in each of
-// them (DeepSeek 3 and 8 calls from 256 to 4,096 tokens, GLM 2 and 9), too few
-// for a mean (the matrix's own minimum is 30), and their measured means sit
-// under the matrix's except DeepSeek's from 1,024 to 4,096 tokens (0.0665 Wh
-// over 8 calls against 0.0233), which is too few calls to move.
+// the GLM hold would be too small, by about 13 and 22 times in the two main
+// buckets, until a run measured it again, and the settlement would correct
+// each call. The other buckets keep the matrix's figures: this run held at
+// most 9 calls of either model in each of them (DeepSeek 3 and 8 calls from
+// 256 to 4,096 tokens, GLM 2 and 9), too few for a mean (the matrix's own
+// minimum is 30), and their measured means sit under the matrix's except
+// DeepSeek's from 1,024 to 4,096 tokens (0.0665 Wh over 8 calls against
+// 0.0233), which is too few calls to move.
 // Every settled call prints its measured figure beside its estimate
 // (`neuralwatt-settlement.ts`), so a later run can replace them the same way.
 //

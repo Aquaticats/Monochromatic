@@ -423,7 +423,13 @@ export async function contestLaneSlice(
   // such round still bought its calls. The slice keeps its incumbent, as an unheard roster does, and the findings say why.
   if ((reachable !== undefined) && (reachable < LANE_CONTEST_QUORUM)) {
     cl.warn(
-      `lane contest: ${String(reachable,)} of ${String(modelIds.length,)} seats reachable, below the floor of ${
+      `lane contest: ${String(reachable,)} of ${String(modelIds.length,)} ${
+        wordForCount({
+          count: modelIds.length,
+          one: 'seat',
+          many: 'seats',
+        },)
+      } reachable, below the floor of ${
         String(LANE_CONTEST_QUORUM,)
       }; no round is opened and the slice keeps its incumbent`,
     );

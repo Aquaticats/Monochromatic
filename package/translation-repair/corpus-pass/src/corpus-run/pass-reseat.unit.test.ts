@@ -734,7 +734,7 @@ await describe({
         },),
         it({
           name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
-            + 'below its floor of two',
+            + 'short of its floor of two',
           fn: async () => {
             const rig = viewClient({ view: XINGZ6020_VIEW, },);
             rig.holds.synthetic = SHORT_HOLD_MS;

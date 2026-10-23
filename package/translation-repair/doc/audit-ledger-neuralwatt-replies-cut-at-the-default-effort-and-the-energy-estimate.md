@@ -3,7 +3,8 @@
 Calls to NeuralWatt that ran at the provider's default reasoning effort and were cut at the length cap,
 the owner's lift of 2026-10-21 that sets the effort for the pictures and then the text of the GLM seat,
 the energy estimate that counted a picture as base64 text,
-and the energy hold recalibrated from the settled calls of a rotation of entries (B808).
+the energy hold recalibrated from the settled calls of a rotation of entries (B808),
+and the hold recalibrated again from the first pass on a build that sends the GLM seat at low effort (B830).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -588,3 +589,121 @@ Recurrence:
 "Provider fields read by their documentation":
 a published per-request figure is a placeholder until the pipeline's own settled calls replace it (P19),
 and a single run's means are a placeholder for a workload that is a rotation of entries.
+
+Later note of 2026-10-23 (UTC):
+B830 replaced the four means of the two main buckets with those of `XingZ6020`,
+the first settled pass on a build that holds the `low` effort of B807.
+The figures this entry names
+(0.1958 and 0.9577 Wh in the 4,096 to 16,384 token bucket,
+0.3205 and 1.2239 Wh in the 16,384 to 65,536 token bucket)
+are the record of what the table held from 2026-10-22 to 2026-10-23.
+
+## B830: the NeuralWatt hold after the lift to low effort
+
+The hold read GLM-5.3-Flash at fourteen times its use and DeepSeek at 79 percent.
+
+Status:
+fixed on 2026-10-23 (UTC) in `tr-w323`,
+red `f5fb8027be`,
+fix `898445b025`,
+cache versions none.
+Found in the read of the settled calls of the corpus pass `XingZ6020`.
+Numbering:
+the ids B827 to B830 were taken from the ledger on main (last id B826) when this round started;
+the branches `tr-w317` and `tr-w322` may have taken the same ids,
+and the merge renumbers whichever lands second.
+
+What the run showed:
+`XingZ6020` (build `1d462324574c`) settled 1,779 NeuralWatt calls
+that measured 451.711 Wh against 728.779 Wh held at the table of B808,
+a ratio of 0.62:
+`glm-5.3-flash` 412 calls at 28.006 Wh against 395.852 Wh held (0.07),
+and `deepseek-v4.1-flash` 1,367 calls at 423.705 Wh against 332.926 Wh held (1.27).
+B808 had held GLM-5.3-Flash at 0.9577 Wh in the 4,096 to 16,384 token bucket,
+the mean of runs that sent its text calls at the provider's default reasoning effort.
+B807 (`109f1b7a7e`,
+2026-10-21) sends them at `low`,
+and `XingZ6020` is the first settled pass on a build that holds it.
+The rotation tip `2a336603bf` does not,
+so the GLM figures of B808 and of this entry belong to different efforts and are not pooled.
+
+What was measured,
+keyless,
+from the per-call settlement line
+(`NeuralWatt energy <model>: <measured> Wh measured against <estimate> Wh estimated for <n> prompt tokens`),
+by `settle-table.ts` outside the repository,
+the way B808 did:
+- DeepSeek,
+  4,096 to 16,384 tokens:
+  817 calls,
+  248.687 Wh,
+  mean 0.3044,
+  standard error 0.0130,
+  90th percentile 0.7516;
+  held 0.1958 (ratio 1.55).
+- DeepSeek,
+  16,384 to 65,536 tokens:
+  539 calls,
+  174.478 Wh,
+  mean 0.3237,
+  standard error 0.0196;
+  held 0.3205 (ratio 1.01).
+- GLM-5.3-Flash,
+  4,096 to 16,384 tokens:
+  358 calls,
+  25.577 Wh,
+  mean 0.0714,
+  90th percentile 0.1616;
+  held 0.9577 (ratio 0.07).
+- GLM-5.3-Flash,
+  16,384 to 65,536 tokens:
+  43 calls,
+  2.392 Wh,
+  mean 0.0556;
+  held 1.2239 (ratio 0.05).
+- Every smaller bucket holds at most nine calls and keeps the matrix's figure.
+
+The fix:
+the four buckets with enough calls hold the `XingZ6020` means:
+DeepSeek 0.3044 and 0.3237 Wh,
+GLM-5.3-Flash 0.0714 and 0.0556 Wh.
+Replayed on `XingZ6020`,
+the new table holds 451.697 Wh against 451.711 measured.
+`neuralwatt-estimate.unit.test.ts` and `neuralwatt-picture-estimate.unit.test.ts` pin the new means.
+
+Kept on the safe side for DeepSeek,
+as ruled:
+the DeepSeek means are those of `XingZ6020` alone,
+which are above the pooled means of the rotation and this run (0.2603 and 0.3224 Wh).
+The hold only matters at the day's end,
+where a call is refused if the remainder is under its hold,
+and a hold above the pooled mean refuses the last few calls a little early rather than overspending the day.
+The module note bounds the overrun at the 90th percentile:
+about 2.7 Wh for 30 GLM calls and 13.4 Wh for 30 DeepSeek calls.
+
+Limits,
+stated in the module note:
+- The GLM means rest on a run on a build with the `low` effort.
+  A run on a build without it would under-hold:
+  replayed on `XingZ6017` (1,033 calls,
+  the pre-B807 rotation),
+  the new table holds GLM-5.3-Flash at 0.065 of its use (18.285 Wh against 281.721 measured),
+  and DeepSeek at 1.13 times its use (238.852 Wh against 211.445).
+- One entry supplies all of it.
+  The next run on a rotation of entries should replace the means,
+  as `zheermao19` replaced the matrix and B808 replaced `zheermao19`.
+- One GLM picture read (0.0221 Wh at 8,188 tokens) is held at the same bucket mean,
+  which is far above it.
+- A reversion of the `low` effort would hold GLM-5.3-Flash at a seventh of its use until a run replaced the means.
+
+Cache versions:
+none moves.
+The estimate feeds the in-flight hold and the ledger line only,
+and no text a model is shown changed.
+
+Recurrence:
+B808,
+`mistake-prevention-inputs-defaults-and-values-read-from-text.md`,
+"Provider fields read by their documentation":
+a hold is taken from the build that sends the calls,
+and a mean from a run on one effort is not pooled with a run on another.

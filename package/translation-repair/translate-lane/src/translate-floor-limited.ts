@@ -206,12 +206,12 @@ export function notAskedAgain(
     readonly l: Logger;
   },
 ): AskDecision {
+  if (memory === undefined)
+    return { kind: 'ask', };
   /**
    What an earlier attempt of this pass left for the slice.
    */
-  const remembered = memory?.get(key,);
-  if (memory === undefined)
-    return { kind: 'ask', };
+  const remembered = memory.get(key,);
   if (remembered === undefined)
     return { kind: 'ask', };
   if (reachable === undefined)
