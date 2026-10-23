@@ -302,6 +302,17 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['a raw HTML block holding an export line after a blank line', '<script>\n\nexport to PDF\n'],
   ['a raw HTML block holding an import line after a line of format characters', '<details>\n\uFEFF\nimport q\n===\n'],
   ['a raw HTML block holding an import line after a blank line, then more text', '<script>\n\nimport a\n\nb {\n'],
+  ['an angle autolink alone in the text of a link', '[<https://example.net/a>](u)\n'],
+  ['an angle autolink among words in the text of a link, then a brace', '她[说 <https://example.net/a> 好](u) {\n'],
+  ['an angle autolink in the text of a link with a title', '[<https://example.net/a>](u "t")\n'],
+  ['an angle autolink in the text of a reference link', '[<https://example.net/a>][r]\n\n[r]: u\n'],
+  ['an email autolink in the text of a link', '[<tabby@example.net>](u)\n'],
+  [
+    'an angle autolink holding characters Markdown reads, in the text of a link',
+    '[<https://example.net/a_b*c(d){e}[f]>](u)\n',
+  ],
+  ['an angle autolink holding an entity, in the text of a link', '[<https://example.net/a&amp;b>](u)\n'],
+  ['an angle autolink in the text of a link in a block quote', '> [<https://example.net/a>](u) {\n'],
 ];
 
 /**
@@ -718,14 +729,14 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'KEEPS THE LINK AROUND AN ANGLE AUTOLINK INSIDE LINK TEXT and writes the angle autolink as text, '
-            + 'since a link cannot hold a link and MDX reads the autolink as a tag: the reader sees the outer link '
-            + 'and the address as typed (a limit the module comment names)',
+          name: 'KEEPS THE LINK AROUND AN ANGLE AUTOLINK INSIDE LINK TEXT and writes the address as text without '
+            + 'the angle brackets, since a link cannot hold a link and MDX reads the autolink as a tag: the reader '
+            + 'sees the outer link and the address, as the source shows them',
           fn: async () => {
             expect(encoded({ text: '[<https://example.net/a>](u) {', },),)
-              .toBe(String.raw`[\<https://example.net/a>](u) \{`,);
+              .toBe(String.raw`[https://example.net/a](u) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '[<https://example.net/a>](u) {', },), },),)
-              .toBe('⟦u⟧<https://example.net/a> {',);
+              .toBe('⟦u⟧https://example.net/a {',);
           },
         },),
 
