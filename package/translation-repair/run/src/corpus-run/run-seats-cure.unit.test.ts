@@ -11,8 +11,9 @@
  seat is one Bedrock or NeuralWatt already reach, and Haiku is on the wide bench only). The Claude key is dry in
  every view here, so its own hold is the one held in the cases that name it: skipped in the lane contest, where its
  return leaves the late bench short, and waited out in the lanes phase, whose critics and panel are the wide bench and
- where its return takes the wide bench from 3 of 8 to 4 of 8 (a view where the wide bench is the only one short); the
- rule is the same, and what differs is the bench the phase seats.
+ where its return takes the wide bench from 3 of 8 to 4 of 8 (a view where the wide bench is the only one short) or
+ from 1 of 8 to 2, the floor of two voices the stages decide on; the rule is the same, and what differs is the bench the
+ phase seats.
 
  TWO HOLDS THAT EACH CURE ALONE (round 5): a hold counts when the held set cures the bench between them and that
  provider's return adds a reachable seat to it. A rule asking that the bench stay short without the provider counted
@@ -319,6 +320,17 @@ await describe({
           return line.includes('waiting ',);
         },);
         expect(waiting,).toContain('anthropic 40ms',);
+      },
+    },),
+
+    it({
+      name: 'WAITS OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LIFTS THE WIDE BENCH OVER ITS FLOOR THOUGH NOT TO ITS '
+        + 'QUORUM: in the lanes phase, with only NeuralWatt wet, the wide bench reads 1 of 8 and the Claude key back '
+        + 'makes it 2, the floor of 2 voices the stages decide on, so the wait buys a decision and not the quorum',
+      fn: async () => {
+        expect(
+          await readsUnderHolds({ held: ['anthropic',], lines: [], view: WIDE_THREE_SHORT, phase: 'lanes', },),
+        ).toBe(2,);
       },
     },),
 
