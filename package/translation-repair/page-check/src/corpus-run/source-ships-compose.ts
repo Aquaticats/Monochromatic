@@ -14,6 +14,7 @@ import {
 import type { PublishDefect, } from './publish-defects.ts';
 import { shippableReplacements, } from './shippable-replacements.ts';
 import { withoutSourceRecordAt, } from './source-ships.ts';
+import { runsUnfitForCompany, } from './source-ships-company.ts';
 import {
   droppedRunSets,
   type GrammarReader,
@@ -322,11 +323,20 @@ export function composeSourcePage(
   }
 
   /**
-   Slices of the runs that do not parse as a text of their own or hold a comment that never closes.
+   Runs that parse alone and cannot stand beside another: those with a fence mark indented four spaces or more and
+   those redeclaring a name.
+   */
+  const unfit = runsUnfitForCompany({
+    runs,
+    slices: readings,
+  },);
+  /**
+   Slices of the runs that do not parse as a text of their own, hold a comment that never closes, or cannot stand beside
+   another.
    */
   const failingAlone = runs
     .filter(function refusedAlone(run,): boolean {
-      return holdsOpenComment({
+      return unfit.includes(run,) || holdsOpenComment({
         run,
         slices: readings,
       },)
@@ -347,8 +357,9 @@ export function composeSourcePage(
     {
       step: 'encoded-failing-runs',
       number: 1,
-      does: 'writing the source runs that do not parse alone as literal text',
-      makes: 'the page with the source runs that do not parse alone written as literal text',
+      does: 'writing the source runs that do not parse alone, or cannot stand beside another, as literal text',
+      makes: 'the page with the source runs that do not parse alone, or cannot stand beside another, written as '
+        + 'literal text',
       encoded: failingAlone,
     },
     {

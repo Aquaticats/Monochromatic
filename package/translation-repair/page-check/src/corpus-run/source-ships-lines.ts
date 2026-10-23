@@ -1,4 +1,5 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import {
   closingBracket,
   type TextEdit,
@@ -7,11 +8,12 @@ import {
 
 //region Source ships lines
 // LINE ENDINGS THE STRICT GRAMMAR READS A BLOCK AT. MDX starts a flow expression at a `{` and a flow tag at a `<`
-// that stand first on a line (after the indentation and the marks of the containers), and either ends the paragraph
-// the line would continue. The plain reading keeps such a line in the paragraph, so a code span, inline math or the
-// title of a link that runs over the line stays whole there, and its brace or tag is no syntax. The strict grammar cuts
-// the span at the line, and the brace or tag is read as syntax there with no way to escape it, since a backslash
-// written into code or math shows. What is written instead is the line ending, and the indentation and container marks
+// that stand first on a line (after the indentation and the marks of the containers), and a fence at a mark indented
+// four spaces or more (`source-ships-fence.ts`), and each ends the paragraph the line would continue. The plain
+// reading keeps such a line in the paragraph, so a code span, inline math or the title of a link that runs over the
+// line stays whole there, and its brace, tag or mark is no syntax. The strict grammar cuts the span at the line, and
+// the brace, tag or mark is read as syntax there with no way to escape it, since a backslash written into code or math
+// shows. What is written instead is the line ending, and the indentation and container marks
 // after it, as one space: a line ending in a code span or in math is read as a space already, and in a title it is
 // white space.
 
@@ -34,14 +36,15 @@ const CONTAINER_PREFIX = ' \t>';
 const FLOW_STARTS = '{<';
 
 /**
- Edits that join the lines of a stretch whose later line starts with a brace or a less-than sign.
+ Edits that join the lines of a stretch whose later line starts with a brace, a less-than sign or an indented fence
+ mark.
 
  @param source - the text
 
  @param range - stretch to look in, whose first character no line ending joins to
 
- @returns One edit for each line ending followed, after the container marks, by a brace or a less-than sign inside the
- stretch, replacing the ending and the marks with a space
+ @returns One edit for each line ending followed, after the container marks, by a brace, a less-than sign or an indented
+ fence mark inside the stretch, replacing the ending and the marks with a space
 
  @example
  ```ts
@@ -70,7 +73,17 @@ export function joinedLines(
     const content = { at: at + 1, };
     while ((content.at < range.end) && CONTAINER_PREFIX.includes(source.charAt(content.at,),))
       content.at += 1;
-    if ((content.at >= range.end) || (!FLOW_STARTS.includes(source.charAt(content.at,),)))
+    if (content.at >= range.end)
+      continue;
+    /**
+     Whether the strict grammar starts a block at this line.
+     */
+    const startsBlock = FLOW_STARTS.includes(source.charAt(content.at,),)
+      || (indentedFenceMarkEnd({
+        source,
+        at: content.at,
+      },) > content.at);
+    if (!startsBlock)
       continue;
     edits.push({
       start: ((at > range.start) && (source.charAt(at - 1,) === '\r')) ? (at - 1) : at,

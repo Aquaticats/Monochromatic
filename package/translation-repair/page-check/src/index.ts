@@ -183,6 +183,12 @@ export {
   opensFootnote,
   withoutIndentation,
 } from './corpus-run/source-ships-footnote.ts';
+export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
+export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
+export {
+  holdsIndentedFenceMark,
+  indentedFenceMarkEnd,
+} from './corpus-run/source-ships-fence.ts';
 export {
   contentStretches,
   joinedLines,

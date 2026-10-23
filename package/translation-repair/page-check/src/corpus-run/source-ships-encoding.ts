@@ -7,6 +7,7 @@ import {
   addressAsLink,
   bareAddresses,
 } from './source-ships-addresses.ts';
+import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import {
   ESCAPABLE,
   type SourceSpans,
@@ -473,6 +474,28 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     // IN A RAW HTML BLOCK OR INDENTED CODE a backslash is a character of the source, and is escaped as any other.
     if (literal[at] === 1) {
       pieces.push(LITERAL_SYNTAX.includes(character,) ? `\\${character}` : character,);
+      continue;
+    }
+    // A FENCE MARK INDENTED FOUR SPACES OR MORE opens a code block in the page and is text in the source, so each of
+    // its characters is escaped.
+    /**
+     Index after the indented fence mark that starts here, `at` when none does.
+     */
+    const markEnd = indentedFenceMarkEnd({
+      source: text,
+      at,
+    },);
+    if ((markEnd > at) && (touchable[markEnd - 1] === 1)) {
+      /**
+       Characters of the mark.
+       */
+      const marks = text.slice(
+        at,
+        markEnd,
+      );
+      for (const mark of marks)
+        pieces.push(`\\${mark}`,);
+      at = markEnd - 1;
       continue;
     }
     // A BACKSLASH BEFORE PUNCTUATION IS AN ESCAPE ALREADY, and is stepped over as the pair it is.
