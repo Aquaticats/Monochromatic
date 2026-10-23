@@ -27,40 +27,71 @@ import { PROMPT_BYTES_PER_TOKEN, } from './openrouter-abandoned-spend.ts';
 // the bucket edges are the matrix's `min_prompt_tokens` and `max_prompt_tokens`.
 //
 // TWO BUCKETS ARE THE PIPELINE'S OWN, the 4,096 to 16,384 and the 16,384 to
-// 65,536 token buckets, measured over the settled calls of the three-run
-// rotation `zheermao22`, `CuspariaKLSY22` and `XingZ6017` (2026-10-21T21:05Z to
-// 2026-10-22T03:34Z, all in the NeuralWatt day that began 2026-10-21T19:15Z; the
-// 1,297 settled calls measured 555.188 Wh, the day's account on the last meter
-// line of `XingZ6017`). Each bucket's mean is the measured sum over its calls:
-// 4,096 to 16,384 tokens, DeepSeek V4.1 Flash 109.253 Wh over 558 calls
-// (0.1958 Wh) and GLM-5.3-Flash 285.402 Wh over 298 calls (0.9577 Wh);
-// 16,384 to 65,536 tokens, DeepSeek 123.392 Wh over 385 calls (0.3205 Wh) and
-// GLM 36.716 Wh over 30 calls (1.2239 Wh). Before 2026-10-22 the first of these
-// held the means of run `zheermao19` (build `5b5dca49a9`, 2026-10-20): 0.0758
-// Wh over 140 DeepSeek calls and 0.3725 Wh over 48 GLM calls, against the
-// matrix's 0.0696 and 0.1015, and the second held the matrix's 0.1395 and
-// 0.2009. The rotation measured those at 2.6 and 2.6 times (DeepSeek and GLM,
-// 4,096 to 16,384 tokens) and 2.3 and 6.1 times (16,384 to 65,536 tokens).
-// Matrix means come from production traffic whose prompts were largely served
-// from the prefix cache, and this pipeline's sheets are fresh. The other
-// buckets keep the matrix's figures: the rotation held at most 15 calls in any
-// of them, and none in two, too few for a mean (the matrix's own minimum is 30), and their
-// measured means (DeepSeek 0.0126 Wh over 7 calls from 1,024 to 4,096 tokens,
-// GLM 0.0210 Wh over 15) sit under the matrix's, which holds a little more
-// than the use. The 16,384 to 65,536 GLM mean rests on 30 calls from one entry
-// (standard error 0.29 Wh against its 1.22 Wh mean), at the matrix's own
-// minimum of 30; even two standard errors under it, 0.64 Wh, is three times the
-// matrix's 0.2009.
+// 65,536 token buckets, measured over the 1,779 settled calls of the corpus
+// pass `XingZ6020` (build `1d46232457`, 2026-10-22T19:32Z to 2026-10-23T06:05Z,
+// all in the NeuralWatt day that began 2026-10-22T19:15Z; the calls measured
+// 451.711 Wh, the 451.712 Wh of the day's account on the last meter line). Each bucket's mean is
+// the measured sum over its calls: 4,096 to 16,384 tokens, DeepSeek V4.1 Flash
+// 248.687 Wh over 817 calls (0.3044 Wh) and GLM-5.3-Flash 25.577 Wh over 358
+// calls (0.0714 Wh); 16,384 to 65,536 tokens, DeepSeek 174.478 Wh over 539
+// calls (0.3237 Wh) and GLM 2.392 Wh over 43 calls (0.0556 Wh). Replayed over
+// that run the table holds 451.697 Wh against 451.711 measured, which is a
+// check that the means were computed and typed correctly and not evidence the
+// next run will match.
+//
+// THE TWO MODELS MOVED IN OPPOSITE DIRECTIONS, and for different reasons.
+// GLM-5.3-Flash text calls run at the `low` reasoning effort since ledger B807
+// (2026-10-21), so their reasoning, which the energy follows, is a fraction of
+// what the earlier rotation measured at the default `max`: the rotation's
+// 0.9577 Wh mean was 13 times the XingZ6020 mean, and the old table held 395.852
+// Wh against 28.006 Wh used over the run's 412 GLM calls. The rotation's build
+// (`2a336603bf`) does not contain the effort change, so its GLM figures are not
+// pooled: they describe a configuration that no longer runs. DeepSeek V4.1
+// Flash sends no effort in either, so its calls are comparable, and its
+// measured energy sat above the old hold (552 of 1,367 calls, the largest
+// 21.27 times the hold). THE HOLD STAYS ON THE SAFE SIDE FOR DEEPSEEK: its
+// means are those of XingZ6020 alone, the higher of that run and the call-
+// weighted pool with the rotation (4,096 to 16,384 tokens, 0.3044 against
+// 0.2603; 16,384 to 65,536 tokens, 0.3237 against 0.3224). A larger hold
+// refuses the last calls of a day a little earlier, the cost B808 accepted for
+// a hold right on average.
+//
+// THE LIMITS OF THIS RUN'S MEASUREMENT. It is one entry, so the per-entry
+// spread seen in the rotation (0.0936 to 0.2347 Wh across entries for
+// DeepSeek) applies to it as well. The GLM means describe text at `low`: the
+// one GLM picture read of the run (0.0221 Wh at 8,188 prompt tokens) fell in
+// the 4,096 to 16,384 token bucket too and is held at the same mean, a single
+// call that says nothing of a picture's cost. Were the `low` effort lifted,
+// the GLM hold would be too small by the factor above until a run measured it
+// again, and the settlement would correct each call. The other buckets keep the
+// matrix's figures: this run held at most 9 calls of either model in each of
+// them (DeepSeek 3 and 8 calls from 256 to 4,096 tokens, GLM 2 and 9), too few
+// for a mean (the matrix's own minimum is 30), and their measured means sit
+// under the matrix's except DeepSeek's from 1,024 to 4,096 tokens (0.0665 Wh
+// over 8 calls against 0.0233), which is too few calls to move.
 // Every settled call prints its measured figure beside its estimate
 // (`neuralwatt-settlement.ts`), so a later run can replace them the same way.
 //
-// THE ENTRIES DIFFER IN COST, AND THE POOL IS CALL-WEIGHTED. Per-entry means in
+// WHAT THE TABLE HELD BEFORE 2026-10-23 (ledger B808), kept for the record.
+// The two buckets held the means of the three-run rotation `zheermao22`,
+// `CuspariaKLSY22` and `XingZ6017` (2026-10-21T21:05Z to 2026-10-22T03:34Z, all
+// in the NeuralWatt day that began 2026-10-21T19:15Z; the 1,297 settled calls
+// measured 555.188 Wh, the day's account on the last meter line of
+// `XingZ6017`): 4,096 to 16,384 tokens, DeepSeek 109.253 Wh over 558 calls
+// (0.1958 Wh) and GLM 285.402 Wh over 298 calls (0.9577 Wh); 16,384 to 65,536
+// tokens, DeepSeek 123.392 Wh over 385 calls (0.3205 Wh) and GLM 36.716 Wh over
+// 30 calls (1.2239 Wh). Before 2026-10-22 they held the means of run
+// `zheermao19` (build `5b5dca49a9`, 2026-10-20) and the matrix's 0.1395 and
+// 0.2009. Matrix means come from production traffic whose prompts were largely
+// served from the prefix cache, and this pipeline's sheets are fresh.
+//
+// THE ENTRIES DIFFER IN COST, AND THE POOL WAS CALL-WEIGHTED. Per-entry means in
 // the 4,096 to 16,384 token bucket, DeepSeek then GLM (calls in brackets):
 // `zheermao22` 0.0936 (129) and 0.5528 (52); `CuspariaKLSY22` 0.1699 (54) and
 // 0.6626 (18); `XingZ6017` 0.2347 (375) and 1.0734 (228). `XingZ6017` supplies
 // most of the pool, and the whole of the 16,384 to 65,536 token buckets. Held
-// at the new table, `zheermao22` is held at 1.8 times its use, `CuspariaKLSY22`
-// at 1.3 times and `XingZ6017` at 0.92 times; weighted by calls the rotation is
+// at that table, `zheermao22` was held at 1.8 times its use, `CuspariaKLSY22`
+// at 1.3 times and `XingZ6017` at 0.92 times; weighted by calls the rotation was
 // held at its use. A pass that runs lighter entries over-holds a little, which
 // refuses the last calls of a day a little early, and a pass of heavy entries
 // under-holds a little, which the settlement corrects call by call.
@@ -109,7 +140,11 @@ import { PROMPT_BYTES_PER_TOKEN, } from './openrouter-abandoned-spend.ts';
 // measured minute came near; calls spread about their mean add as the square
 // root of their number, about 5 Wh for 30 GLM calls. The day of the rotation
 // ended 5.188 Wh past zero (0.94 percent) with the old holds at about a third
-// of the use. The old margin of 2 was a start and not a measurement, and a
+// of the use. At the XingZ6020 means the same bound reads smaller for GLM and
+// near the same for DeepSeek: 30 GLM calls each at the 90th percentile (0.16 Wh
+// against 0.07 held) would overrun by about 2.7 Wh, and 30 DeepSeek calls each
+// at theirs (0.75 Wh against 0.30) by about 13.4 Wh (2.4 percent of the 550
+// Wh). The old margin of 2 was a start and not a measurement, and a
 // larger margin sends the last calls of every day to a paid provider while
 // the free energy still covers them. What the margin cannot do is stop plan
 // spend by itself: a cost a stream reports is nominal on free-energy requests
@@ -180,20 +215,20 @@ const ENERGY_BUCKETS: readonly EnergyBucket[] = [
   },
   {
     belowTokens: 16_384,
-    // MEASURED, NOT THE MATRIX'S: the pipeline's own means over the rotation
-    // `zheermao22`, `CuspariaKLSY22` and `XingZ6017` (the module note has the
-    // counts and the matrix figures).
+    // MEASURED, NOT THE MATRIX'S: the pipeline's own means over the settled
+    // calls of `XingZ6020` (the module note has the counts, the earlier table
+    // and why the GLM figure fell).
     meanWh: {
-      'deepseek-v4.1-flash': 0.1958,
-      'glm-5.3-flash': 0.9577,
+      'deepseek-v4.1-flash': 0.3044,
+      'glm-5.3-flash': 0.0714,
     },
   },
   {
     belowTokens: 65_536,
-    // MEASURED, NOT THE MATRIX'S: the same rotation, `XingZ6017` alone.
+    // MEASURED, NOT THE MATRIX'S: the same run.
     meanWh: {
-      'deepseek-v4.1-flash': 0.3205,
-      'glm-5.3-flash': 1.2239,
+      'deepseek-v4.1-flash': 0.3237,
+      'glm-5.3-flash': 0.0556,
     },
   },
   {
