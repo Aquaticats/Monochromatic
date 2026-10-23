@@ -43,10 +43,12 @@ await describe({
         },),).toEqual([
           'source-passage-unfilled (slice 15, no-candidate-backed): the page carries the source text of this '
             + 'passage under a note that it has not been translated yet, unless the source recorded for the slice '
-            + 'renders as nothing or the artifact records none, in which case the page carries nothing for it',
+            + 'renders as nothing or the artifact records none, or the page had to ship without the original (defect '
+            + 'page-source-unparseable), in which case the page carries nothing for it',
           'source-passage-unfilled (slice 13, not-corroborated): the page carries the source text of this '
             + 'passage under a note that it has not been translated yet, unless the source recorded for the slice '
-            + 'renders as nothing or the artifact records none, in which case the page carries nothing for it',
+            + 'renders as nothing or the artifact records none, or the page had to ship without the original (defect '
+            + 'page-source-unparseable), in which case the page carries nothing for it',
         ],);
         expect(unfilledPageFindings({ unfilled: [], },),).toEqual([],);
       },
