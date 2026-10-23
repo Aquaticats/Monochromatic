@@ -23,7 +23,10 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
-import { judgeSeatsFor, } from '@monochromatic-dev/translation-repair-run';
+import {
+  judgeSeatsFor,
+  reachableSeats,
+} from '@monochromatic-dev/translation-repair-run';
 import { configuredConsolidationPolish, } from '@monochromatic-dev/translation-repair-consolidate';
 import type { BudgetView, } from '@monochromatic-dev/translation-repair-provider';
 import {
@@ -69,6 +72,20 @@ const NEURALWATT_AND_BEDROCK: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ The XingZ6020 view at the lane contest (2026-10-22): NeuralWatt, DeepSeek and Xiaomi wet, the other four dry, which
+ left one seat of the seven late judges reachable.
+ */
+const XINGZ6020_VIEW: BudgetView = {
+  neuralwatt: false,
+  synthetic: true,
+  bedrock: true,
+  deepseek: false,
+  xiaomi: false,
   hyper: true,
   openrouter: true,
 };
@@ -537,14 +554,18 @@ await describe({
              Judges a reading of this view seats.
              */
             const { lateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            /**
+             Seats of those judges a wet provider would serve.
+             */
+            const reachable = reachableSeats({ seats: lateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
               logged: lines.includes(`JUDGE SEATS phase=lane contest slice re-seated under a hold: judges=${lateJudges.join(',',)}`,),
             },).toEqual({
-              underHold: { modelIds: lateJudges, },
-              afterHold: { modelIds: lateJudges, },
+              underHold: { modelIds: lateJudges, reachable, },
+              afterHold: { modelIds: lateJudges, reachable, },
               reads: 1,
               logged: true,
             },);
@@ -562,6 +583,55 @@ await describe({
             },);
             expect(await hooks.beforeSlice(),).toEqual({},);
             expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'HANDS THE STARTING REACH to a slice while nothing is held and the bench meets the contest\'s floor: '
+            + 'no dryness read, the reach the contest started on',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 5,
+            },);
+            expect(await hooks.beforeSlice(),).toEqual({ reachable: 5, },);
+            expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'READS THE BENCH AGAIN while the reach it hands is below the contest\'s floor, though no hold runs, '
+            + 'so a provider that came back after its hold ended lifts the floor for the slices after it',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 1,
+            },);
+            const { lateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({ seats: lateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect(await hooks.beforeSlice(),).toEqual({ modelIds: lateJudges, reachable: fresh, },);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
+          },
+        },),
+        it({
+          name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
+            + 'below its floor of two',
+          fn: async () => {
+            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            rig.holds.synthetic = SHORT_HOLD_MS;
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 1,
+            },);
+            const { lateJudges, } = judgeSeatsFor({ dry: XINGZ6020_VIEW, },);
+            expect(await hooks.beforeSlice(),).toEqual({ modelIds: lateJudges, reachable: 1, },);
           },
         },),
       ],
