@@ -32,6 +32,7 @@ import {
   levelCapturingLogger,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
+  ceilingWordsOf,
   type JudgeSeatPhase,
   readJudgeSeats,
 } from '../../dist/final/node/index.mjs';
@@ -383,6 +384,80 @@ await describe({
           meters: { ...METERS_WET, neuralwatt: 'dry', },
         },);
         expect(dayStart.reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'SAYS THE RETURN BRINGS BACK NO SEAT where the held provider serves none of the bench: Xiaomi held, the '
+        + 'wide bench reads 3 of 7, and the line closes on the words that name no seat',
+      fn: async () => {
+        const warning = shortBenchWarningOf({
+          lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, held: 'xiaomi', },)).lines,
+        },);
+        expect(warning,).toContain('(the return brings back no seat)',);
+      },
+    },),
+
+    it({
+      name: 'STATES THE DIGITS OF THE TRANSLATORS CEILING: with Synthetic back the translators read 4 of 8 against a '
+        + 'floor of 2 and a quorum of 4, which is the quorum exactly',
+      fn: async () => {
+        const warning = shortBenchWarningOf({
+          lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+        },);
+        expect(warning,).toContain(
+          'translators ceiling 4 of 8 with synthetic back, floor 2 and quorum 4, so the return lifts it to the quorum',
+        );
+      },
+    },),
+
+    it({
+      name: 'ceilingWordsOf STATES ONE CLAUSE PER SHORT BENCH IN THE ORDER THE BENCHES ARE NAMED, and none for a bench '
+        + 'that reads its quorum: with Synthetic held the wide bench reads 1 of 7 and the readers, which Synthetic does '
+        + 'not serve, are not short',
+      fn: () => {
+        const clauses = ceilingWordsOf({
+          running: providerRecord({ of: (provider) => (provider === 'synthetic') ? SHORT_HOLD_MS : 0, },),
+          dry: SYNTHETIC_HELD,
+          meterDry: new Set(),
+          names: ['wide', 'select',],
+        },);
+        expect(clauses.length,).toBe(2,);
+        expect(clauses[0],).toBe(
+          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but '
+            + 'not to the quorum (the return brings back hf:Qwen/Qwen3.8-27B, hf:moonshotai/Kimi-K3)',
+        );
+        expect(clauses[1],).toContain('select ceiling 3 of 7 with synthetic back',);
+        expect(ceilingWordsOf({
+          running: providerRecord({ of: (provider) => (provider === 'synthetic') ? SHORT_HOLD_MS : 0, },),
+          dry: { ...SYNTHETIC_HELD, bedrock: false, hyper: false, openrouter: false, },
+          meterDry: new Set(),
+          names: ['wide',],
+        },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'ceilingWordsOf LEAVES A METER-DRY HELD PROVIDER OUT OF THE RETURN and says so, and says nothing of the '
+        + 'ceiling for a bench over its floor when no hold runs',
+      fn: () => {
+        const clauses = ceilingWordsOf({
+          running: providerRecord({ of: (provider) => (provider === 'neuralwatt') ? SHORT_HOLD_MS : 0, },),
+          dry: BEDROCK_ALONE,
+          meterDry: new Set(['neuralwatt',],),
+          names: ['translators',],
+        },);
+        expect(clauses,).toEqual([
+          'translators ceiling 2 of 8 with no held provider back, floor 2 and quorum 4, so no return lifts it to the '
+          + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter, which a hold ending does not '
+          + 'change)',
+        ],);
+        expect(ceilingWordsOf({
+          running: NO_HOLDS,
+          dry: BEDROCK_AND_DEEPSEEK,
+          meterDry: new Set(),
+          names: ['wide',],
+        },),).toEqual([],);
       },
     },),
   ],
