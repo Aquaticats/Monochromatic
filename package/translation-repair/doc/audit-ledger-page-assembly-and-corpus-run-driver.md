@@ -783,7 +783,7 @@ A helper that writes line breaks into a text reads the text's line ending first.
 ## B827: a page shipped without 30 slices of the original and nothing on it said so
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
+fixed on 2026-10-23 (UTC),
 red `5585eeddd1`,
 fix `4452f464b4` (with `3827743a7e`,
 a lint split of one line in the tally).
@@ -866,12 +866,12 @@ a report that a shipped page "records the gap" is checked against what a reader 
 A finding in a log and an artifact field are not on the page.
 
 Follow-up of 2026-10-23 (UTC):
-the second re-check corrected parts of this entry (ledger B832).
+ledger B832 corrects parts of this entry.
 
 ## B828: the footnote check on the shipped page was relative to the archive, so an archive that lacked the notes passed
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
+fixed on 2026-10-23 (UTC),
 red `ef0a8407f1`,
 fix `7354f10f1a`.
 
@@ -900,7 +900,7 @@ A page-level property is checked on the page.
 ## B829: the recheck rolled a winning refinement back without a line in the log
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
+fixed on 2026-10-23 (UTC),
 red `ed8e3b3131`,
 fix `ee54c874bf`.
 
@@ -928,7 +928,7 @@ no defect.
 ## B830: the preparation's alignment findings reached the artifact and not the run log
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
+fixed on 2026-10-23 (UTC),
 red `1a494c2086`,
 fix `1fb20af076`.
 
@@ -942,12 +942,12 @@ once the driver has run the lanes over the preparation.
 Block-pairing and stage findings stay out because other code logs them.
 
 Follow-up of 2026-10-23 (UTC):
-the second re-check corrected the subject of the fix (ledger B832).
+ledger B832 corrects the subject of the fix.
 
 ## B831: the `TALLY` line did not count the standings kept without contest endorsement
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
+fixed on 2026-10-23 (UTC),
 red `0b54b22597`,
 fix `155a69cb4f`.
 
@@ -957,11 +957,12 @@ No `TALLY` field counted them:
 and the standings stay on it.
 `standingUnendorsed=` counts the consolidation slices that are not `consolidated`,
 whose shipped kind is not `archive`,
-and whose contest verdict does not pass `contestStandingMayShip`.
-On the real artifact it reads 56.
-The log's 58 lines are 58 distinct slices,
-two of which a later round consolidated,
-so the field counts the standings that still stand at the end of the run.
+and whose contest verdict does not pass `contestStandingMayShip`;
+it is read off the artifact.
+On the real artifact it reads 56,
+and the stage logs 58 lines for the run:
+the stage warns about the standing before the slate is judged,
+and a slice the slate then rewrote has been warned about too.
 
 Follow-up of 2026-10-23 (UTC):
-the second re-check corrected the comment at the call (ledger B832).
+ledger B832 corrects the comment at the call.

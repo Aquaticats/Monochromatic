@@ -114,9 +114,10 @@ named for that subject and listed here.
   a refinement rolled back with no line in the log (B829),
   alignment findings that reached the artifact and not the log (B830),
   and standings kept without contest endorsement that no `TALLY` field counted (B831).
-- [Audit ledger: the source text under a note and the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md):
-  The second re-check of the round that made a page carry the original of an untranslated passage,
-  a page the grammar refuses with the original on it (B832),
+- [Audit ledger: the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md):
+  The original of an untranslated passage written as literal text from a CommonMark parse,
+  a page the grammar refuses with the original on it,
+  a page shipped without the runs no writing makes parse and how a page on disk is judged (B832),
   and the corrections it made to A8,
   B827,
   B830

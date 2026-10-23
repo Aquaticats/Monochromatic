@@ -187,21 +187,32 @@ which lists every file of these commitments.
   parsing the page after each:
   first it writes,
   as literal text,
-  only the runs that do not parse as a fragment of their own
+  only the runs that do not parse as a fragment of their own,
+  and any run that opens an HTML comment which never closes
   (a backslash before each `{`,
-  `}` and `<`;
-  code,
-  comments and an escape the original already wrote stay as they are);
+  `}` and `<` the CommonMark parse of the run reads as text;
+  a fence,
+  a code span,
+  math,
+  a link destination,
+  a closed comment and an escape the original already wrote stay as they are);
   then it writes every run so;
-  then it ships the page without the source text and adds the defect `page-source-unparseable` naming the slices.
+  then it ships the page without the runs no writing makes parse
+  (without every run where that does not help)
+  and adds the defect `page-source-unparseable` naming the slices.
   Each step taken writes one warn line naming the slices and the step,
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
-  The known limit of the last step:
-  the page then differs from what the artifact says it ships,
-  and the page-agreement check reads it as disagreeing on a later republish
-  or `verify-published`;
-  no marker was added to the page to prevent that (ledger B832).
+  Under the real grammar no text was found to reach the second step,
+  and the last is reached by a fence one run opens and a later run closes with the English between them,
+  and by a run nested past the bound of the plain reading (ledger B832).
+  A page shipped without runs reads as agreed with its artifact:
+  the page-agreement check runs the same composition over what the artifact records
+  and weighs the page against the artifact without the originals the composition leaves off,
+  and `verify-published` prints one line naming the entry,
+  `page-source-unparseable` and the slices.
+  A page that never carried originals still disagrees wherever the composition keeps them,
+  so a pass publishes it again.
   The artifact keeps its record of the slice (`lanes.translate.delivery`),
   and the would-ship reading names the role,
   `source-ships` (`page-check/src/corpus-run/source-ships.ts`),

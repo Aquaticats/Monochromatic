@@ -1,6 +1,6 @@
 # Audit ledger: the source text under a note and the page grammar
 
-Findings of the second re-check of the round that made a page carry the original of an untranslated passage.
+Findings on the round that made a page carry the original of an untranslated passage.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -8,39 +8,59 @@ which lists every file of this record.
 ## B832: the page could stop over an original the grammar refuses, and four texts said more than the code did
 
 Status:
-fixed on 2026-10-23 (UTC) in the worktree `tr-w317`,
-except M5,
+fixed on 2026-10-23 (UTC),
+except the count of unendorsed standings,
 which is a flagged choice.
-Reds `a024fdf1d0` (M3),
-`4edf0025ab` (M4) and `dbcf9aed27` (M2,
-M1,
-N7).
-Fixes `0763fa31b8` (M4,
-the finding text),
-`449bfb369d` (M2,
-M3,
-M1,
-N1 to N4,
-N7,
-reworded in `fe2deb3d66`),
-`93ecd78335` (M5,
-the comment and a pin case),
-`be1c689889` (N1,
-`run`),
-`2eea925d80` (M4,
-the log and the comment,
-N1 and N2 in `translate-lane`)
-and `0257149051` (X6,
-a test only).
 The rulings of this entry are the lead's,
 open to the owner's veto.
+
+Commits of the first fix:
+reds `a024fdf1d0` (the default of the helper),
+`4edf0025ab` (the finding text)
+and `dbcf9aed27` (the grammar,
+the text the page carries,
+the case about the page passes);
+fixes `0763fa31b8` (the finding text),
+`449bfb369d` (the grammar,
+the helper,
+the text the page carries,
+style findings,
+the case about the page passes,
+reworded in `fe2deb3d66`),
+`93ecd78335` (the count of unendorsed standings,
+the comment and a pin case),
+`be1c689889` (style findings,
+`run`),
+`2eea925d80` (the finding text,
+the log and the comment,
+style findings in `translate-lane`)
+and `0257149051` (the consistency pass over a page cut short,
+a test only).
+
+Commits of the second fix:
+`11ca30f13c` and `0b3611ebd8` (the plain reading with the site's math,
+red and fix),
+`c4e8d63098` and `21a74ece11` (the reader's account of the shipped page,
+the encoder read from a parse,
+red and fix),
+`a1958cfced` and `a4582b3e42` (a comment that never closes,
+red and fix),
+`3b433336ad` and `a2853f7852` (a page shipped without runs,
+red and fix),
+`ba66757172` and `896e6c8346` (a page shipped without runs that parse alone,
+red and fix),
+`0e4ea9ffdd` and `3a3299d034` (the finding text,
+red and fix),
+`f400095ab1` (the case about the page passes)
+and `3610d9ff39` (what reaches steps 2 and 3,
+style findings).
 
 The red `dbcf9aed27` was wrong in two ways that its fix `449bfb369d` corrects:
 it left the source-scan suite red (two top-level `describe` calls in one file),
 and a case asserted that the warnings numbered exactly one where the composition's line is one of several;
 the cases now filter the composition's own lines.
 
-### M2: the grammar can refuse the original
+### The grammar can refuse the original
 
 `assertPageParses` stopped the entry with `UnparseablePageError` when an original held a bare `{`,
 an unclosed `{`,
@@ -56,87 +76,175 @@ and otherwise:
 3.  ships the page without the source text of the slices and adds the defect `page-source-unparseable`.
 
 Each step taken writes one warn line naming the slices and the step.
-Literal text is a backslash before each `{`,
-`}` and `<` and nothing else;
-`>` is not escaped,
-because it is syntax only inside a tag and escaping it would turn a block quote of the original
-into a line starting with the sign.
-Fenced code,
-a code span closed on its own line,
-an HTML comment and an escape the original already wrote are copied
-as they are.
-Known limits kept in the module comment:
-a code span that runs across lines and math between dollar signs are read as text,
-so a brace in them shows its backslash.
-The bytes of the original differ from the artifact's only on the encoding paths.
 
-What each hostile case reached under the real grammar:
-a bare `{` in a sentence,
+The step 1 text is not only the runs the grammar refuses:
+a run that opens an HTML comment which never closes also goes to step 1,
+because the package masks everything after such an opener and a page that "parses" with it hides the rest from the
+package's own parser.
+The opener is written `&lt;!--`;
+a backslash before the `<` does not stop the mask,
+which looks for the four characters
+(a probe with `\<!--` still found the unterminated comment and hid the English after the run,
+`&lt;!--` did not).
+The grammar is acorn through `micromark-extension-mdxjs`,
+which `remark-mdx` lists in its `package.json`;
+the module comment of the encoder said before this fix that no JavaScript parser stands behind the grammar,
+which was wrong.
+
+#### What is written, and where it is read from
+
+The literal text is read off a CommonMark parse of the run with the site's math and no MDX
+(`parseMarkdownMathBody` in `document-structure`),
+by the position of each node,
+and not off lines.
+A backslash goes before each `{`,
+`}` and `<` that the parse reads as text.
+Fences wherever they stand (in a list item,
+in a block quote),
+code spans across lines,
+math,
+link destinations and titles,
+bare addresses,
+closed HTML comments and escapes the original wrote are copied as they are.
+An angle autolink,
+which MDX reads as a tag,
+is written as a link with the same text and target.
+A paragraph at the first column that starts `import ` or `export `,
+which MDX reads as an ES module and refuses when it is not JavaScript,
+has the first letter of its first word written as a character reference
+(`&#101;xport to PDF`);
+a valid `import Foo from "./foo.js"` ships as written.
+`>` is not escaped,
+because it is syntax only inside a tag and a block quote of the original would otherwise turn into a line starting
+with the sign.
+`<Foo />` and a balanced `{他说}` ship as written when the run parses,
+since the original is a page of an upstream MDX site that compiles;
+only a run the grammar refuses is escaped,
+and there every brace and less-than sign in text is.
+Known limits are in the module comment:
+a backslash the original wrote before a character in indented code is read as an escape,
+a raw HTML block that holds Markdown-looking lines is read as Markdown,
+and a text nested past the bound of the plain reading is escaped as text throughout.
+The bytes of the original differ from the artifact's only on the encoding paths.
+Each case compares what a reader of the shipped page sees with what a reader of the source as plain Markdown sees
+(`source-reader-text.test-fixture.ts`).
+
+#### What reaches steps 2 and 3
+
+Under the real grammar the hostile cases of the first fix
+(a bare `{` in a sentence,
 an unclosed `{`,
 an unclosed `<details>`,
-a lone `</details>` and the indented `{x} <y>` line
+a lone `</details>` and the indented `{x} <y>` line)
 all reach step 1;
 the control that parses ships as written;
 a page with one parsing run and one failing run reaches step 1 and encodes only the failing run's slice;
 a `<details>` pair split across two slices of one run ships as written.
-No text found with the real grammar reaches step 2 or 3
-(300 `[` throws `MarkdownParseError` for the original alone,
-in `droppedDestinations`).
-Steps 2 and 3 are covered by cases that hand the composition a grammar of their own,
-not by real-grammar text.
+A seeded search of forty thousand pairs of runs built from a pool of fragments
+(braces,
+tags,
+comment markers,
+fences,
+module lines,
+autolinks,
+brackets and block quote markers),
+with English between the runs that parses,
+found no text that reaches step 2 and 1268 that reach step 3,
+every one holding a fence:
+a fence one run opens and a later run closes,
+with the English between them falling inside it.
+Each run parses alone and a fence is copied,
+so the literal form equals the written form,
+steps 1 and 2 change nothing and are not taken.
+A run nested past the bound of the plain reading is the other text found to reach step 3.
+The ledger entry,
+the commitment document
+and the header of the composition cases said before this fix
+that no text reaches step 2 or 3 under the real grammar;
+that was wrong for step 3.
+Step 2 is unreachable with the current encoder because every character it would escape that step 1 did not
+is inside a fence.
+Archive English that the grammar refuses on its own reaches step 3 too and then fails `assertPageParses`,
+which dropping the runs cannot help.
 
-Known limit of step 3,
-by design of the no-marker page:
-the page differs from what the artifact says it ships,
-so the page-agreement check reads it as disagreeing on a later republish
-or `verify-published` against the stored artifact.
-`withoutSourceRecord` makes the agreement check at publish time weigh the artifact without its record of the original,
-and a page marker was not added.
-The page-agreement check accepts the as-recorded or the literal form of a run.
+#### Step 3 and the page on disk
 
-### M1, M3, M4, N1 to N7, X6
+Step 3 ships the page without the runs no writing makes parse
+(the runs the grammar refuses even as literal text),
+and without every run where that does not parse or no such run is found.
+`composeSourcePage` returns the artifact the page is weighed against (`weighed`),
+which is the artifact without the originals of the slices left off
+(`withoutSourceRecordAt`),
+so the agreement check at publish time does not report them.
+A page on disk is judged by the same composition run over what the artifact records
+(`composeOverTiling`,
+the archive taken as the slices' archive wordings end to end):
+a page that disagrees as recorded and that the composition would ship without runs is judged against the artifact
+without those originals,
+and reads as agreed and of the right weight;
+`verify-published` prints one line naming the entry,
+`page-source-unparseable` and the slices.
+A page that never carried originals still disagrees wherever the composition keeps them,
+so a pass publishes it again;
+a first attempt,
+a bare fallback to every run dropped,
+failed that control.
+The residual is stated in the TSDoc of `pageAgreement`:
+the composition runs over the archive the slices tile and not over the archive itself,
+and a page that lost every original it should carry,
+where the composition would also ship without them,
+reads as shipped without them and not as lost.
+The brief asked for `pageAgreement` to compute the expected page through the composition;
+it has no slice offsets,
+so it runs the composition over the tiling.
 
-- M1:
+#### The original is never rewritten by a page pass
+
+Every page pass on the real publish path reads `shippableReplacements` with `includeSource: false`
+(`page-assembly-guard.ts`,
+`page-footnote-integrity.ts`
+and `carried-insertion-completeness.ts`),
+and `publishFixedPage` runs no pass after the composition,
+so no pass rewrites a shipped original and no exemption was needed.
+A case with a Windows line ending and `March 5th, 2020` ships the original byte for byte,
+and fails when `guardPageAssembly` is made to carry the original
+(under the flip the guard trims the slice with a finding for the folded line ending and the rewritten date);
+the older footnote case fails under the same flip.
+
+### Smaller fixes of the entry
+
+- The text the page carries:
   the docs say that the page carries each slice's text as the artifact records it,
   joined by one blank line,
   and that text between slices is not carried;
   the test is renamed,
   and a case with a single newline between slices is added.
-- M3:
+- The default of the helper:
   `shippableReplacements` defaults `includeSource` to `false`;
   the guards and the consistency pass cannot carry the original,
   and only `publishFixedPage` passes `true`.
-- M4:
+- The finding text:
   the finding `source-passage-unfilled` and its TSDoc say the page carries the source text under a note
   unless the source recorded for the slice renders as nothing or the artifact records none,
   because the only caller is in `corpus-pass/src/corpus-run/pass-entry.ts`,
-  which this round does not edit,
+  which that fix does not edit,
   so the reading cannot be passed in.
   The comment and the warn in `translate-lane/src/translate-slice-buy.ts` say the same.
-- N1,
-  N2,
-  N3,
-  N4:
+- Style findings:
   lines over 120 characters,
   article-opening `@param` and `@returns`,
   a ragged tail,
   an empty suite name and a double cast.
-- N7:
-  a case with English-looking words and straight quotes but no footnote definition was added to show that the
-  original stays out of the spelling and quote passes.
-  Shown to fail by making `guardPageAssembly` pass `includeSource: true`,
-  it still passed:
-  no page pass rewrites a row at a slice the archive holds no text for (seven candidate originals,
-  among them a heading that repeats the archive's,
-  a link,
-  an italic title,
-  a list,
-  a tag and a date,
-  came back with nothing trimmed and nothing withdrawn),
-  so the case is a check that such an original ships as recorded and not a guard on the default.
-  The footnote case is the one that fails under that flip (it reads `withdrawn: [1]`),
-  and the case's name and comment say what it shows.
-- X6:
+- The case that shows the original stays out of the page passes:
+  the first case (English-looking words and straight quotes) passed under the flip that makes the guard carry the
+  original,
+  so it guarded nothing,
+  and its text claimed otherwise.
+  The case now holds an original with a Windows line ending and `March 5th, 2020`,
+  which the line-ending fold and the Canadian-form pass rewrite under the flip,
+  and its name no longer narrates a measurement.
+  It passes against the default and fails under the flip.
+- The consistency pass over a page cut short:
   a test over the cat page with its last section cut from the archive shows that the consistency pass reads that
   slice as carrying no English,
   writes nothing there,
@@ -146,9 +254,9 @@ The page-agreement check accepts the as-recorded or the literal form of a run.
   It was not shown to fail,
   because making the pass read the original takes an edit to the fenced pass source.
 
-### M5: flagged choice, not implemented
+### The count of unendorsed standings: a flagged choice, not implemented
 
-The ruling was that `standingUnendorsed` leaves out the slices that carry the
+The ruling asked that `standingUnendorsed` leave out the slices that carry the
 `ineligible-standing-replaced-by-incumbent` finding.
 The artifact cannot support that:
 `ArtifactConsolidateSlice` has no `findings` field,
@@ -181,13 +289,14 @@ reword the comment and keep the count > add the finding to the record > leave ou
 because the first is true today and changes nothing a reader relies on,
 the second is exact but moves a persisted shape on a decision that is the owner's,
 and the third trades a documented count for a different wrong one.
-This round took the first (`93ecd78335`) and pinned that an `incumbent` slice is counted.
+The first was taken (`93ecd78335`),
+and a case pins that an `incumbent` slice is counted.
 
 Recurrence:
 a comment that says a count "asks the same question the log did" is checked against what the artifact records.
 A claim about a page is checked against what a reader of the page sees.
 
-## Corrections to earlier entries
+## Corrections to A8, B827, B830 and B831
 
 ### A8
 
@@ -223,7 +332,7 @@ and that a page the grammar refuses with the source on it ships without it (ledg
   a lone `</details>`,
   an indented `{x} <y>` line),
   and `assertPageParses` then stopped the whole entry.
-  The ruling of this round:
+  The ruling:
   the page ships each run as recorded whenever it parses;
   otherwise it takes up to three steps,
   parsing after each (the runs that do not parse alone as literal text,
@@ -233,8 +342,9 @@ and that a page the grammar refuses with the source on it ships without it (ledg
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
   Measured against the real grammar,
-  every hostile case found reaches the first step and none the second or the third;
-  those two are covered by cases that hand the composition a grammar of their own.
+  every hostile case of the first fix reaches the first step;
+  the claim that none reaches the second or the third was wrong for the third
+  (see "What reaches steps 2 and 3" in B832).
 
 ### B830
 
@@ -243,7 +353,7 @@ and the code logs every finding that begins `alignment ` (every kind the aligner
 `section-pairing` one,
 so the subject names fewer kinds than the code logs.
 The commit is not amended;
-the corrective comment is in the round's notes.
+this paragraph is the corrective comment.
 
 ### B831
 
