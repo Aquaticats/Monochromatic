@@ -29,6 +29,7 @@ import {
   levelCapturingLogger,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { readJudgeSeats, } from '../../dist/final/node/index.mjs';
+import { shortWarningOf, } from './run-seats-short-warning.test-fixture.ts';
 
 /**
  The wait the refusals here state, longer than the rate-limit backoff of a minute so the control case's hold is the
@@ -184,6 +185,12 @@ await describe({
          */
         const lines: string[] = [];
         expect(await readsAfterRefusal({ paymentRequired: true, lines, sinon: ctx.sinon, },),).toBe(1,);
+        // THE WARNING NAMES THE REFUSAL AS A CAUSE OF DRYNESS: Hyper's meter reads wet, so a clause saying only that it
+        // reads dry by its meter would contradict the reading it follows.
+        expect(shortWarningOf({ lines, phase: 'lane contest', },),).toContain(
+          'hyper reads dry by its meter or by a payment refusal that stands until the meter moves, which a hold ending '
+            + 'does not change',
+        );
         expect(lines.some(function waitLine(line,): boolean {
           return line.includes('waiting ',);
         },),).toBe(false,);

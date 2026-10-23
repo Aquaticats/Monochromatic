@@ -383,7 +383,10 @@ await describe({
         const warning = shortBenchWarningOf({ lines, },);
         expect(warning,).toContain('translators ceiling 2 of 8',);
         expect(warning,).toContain('no return lifts it to the quorum',);
-        expect(warning,).toContain('neuralwatt reads dry by its meter',);
+        expect(warning,).toContain(
+          'neuralwatt reads dry by its meter or by a payment refusal that stands until the meter moves, which a hold '
+            + 'ending does not change',
+        );
         expect(warning,).not.toContain('hf:zai-org/GLM-5.3-Flash',);
       },
     },),
@@ -475,8 +478,8 @@ await describe({
         },);
         expect(clauses,).toEqual([
           'translators ceiling 2 of 8 with no held provider back, floor 2 and quorum 4, so no return lifts it to the '
-            + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter, which a hold ending does not '
-            + 'change)',
+            + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter or by a payment refusal that stands '
+            + 'until the meter moves, which a hold ending does not change)',
         ],);
         expect(ceilingWordsOf({
           running: NO_HOLDS,
