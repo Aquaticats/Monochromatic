@@ -1,6 +1,6 @@
 # Audit ledger: the source text under a note and the page grammar
 
-Findings on the round that made a page carry the original of an untranslated passage.
+Findings on making a page carry the original of an untranslated passage.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -13,8 +13,10 @@ except the count of unendorsed standings,
 which is a flagged choice.
 The rulings of this entry are the lead's,
 open to the owner's veto.
+Follow-ups of 2026-10-23 (UTC) close the holes between the plain parse and the strict grammar that the encoder left,
+add the wiring tests and settle the style findings (see the headings that start "Follow-up").
 
-Commits of the first fix:
+Commits that let the page ship over an original the grammar refuses:
 reds `a024fdf1d0` (the default of the helper),
 `4edf0025ab` (the finding text)
 and `dbcf9aed27` (the grammar,
@@ -37,7 +39,7 @@ style findings in `translate-lane`)
 and `0257149051` (the consistency pass over a page cut short,
 a test only).
 
-Commits of the second fix:
+Commits that read the encoder from a parse and ship a page without the runs no writing makes parse:
 `11ca30f13c` and `0b3611ebd8` (the plain reading with the site's math,
 red and fix),
 `c4e8d63098` and `21a74ece11` (the reader's account of the shipped page,
@@ -52,7 +54,16 @@ red and fix),
 `0e4ea9ffdd` and `3a3299d034` (the finding text,
 red and fix),
 `f400095ab1` (the case about the page passes)
-and `3610d9ff39` (what reaches steps 2 and 3,
+and `3610d9ff39` (what takes steps 2 and 3,
+style findings).
+
+Commits of the follow-up:
+`8cd54f4871` (main merged at `98395c8555`),
+`b3f6b7ce51` and `95b8ae45f6` (the holes between the plain parse and the strict grammar,
+red and fix),
+`f7f20ef969` (the wiring tests and the cases for `includeSource: false`)
+and `0c46a09eb0` (what takes steps 2 and 3,
+the no-op sink,
 style findings).
 
 The red `dbcf9aed27` was wrong in two ways that its fix `449bfb369d` corrects:
@@ -88,7 +99,7 @@ which looks for the four characters
 `&lt;!--` did not).
 The grammar is acorn through `micromark-extension-mdxjs`,
 which `remark-mdx` lists in its `package.json`;
-the module comment of the encoder said before this fix that no JavaScript parser stands behind the grammar,
+the module comment of the encoder once said that no JavaScript parser stands behind the grammar,
 which was wrong.
 
 #### What is written, and where it is read from
@@ -129,43 +140,99 @@ The bytes of the original differ from the artifact's only on the encoding paths.
 Each case compares what a reader of the shipped page sees with what a reader of the source as plain Markdown sees
 (`source-reader-text.test-fixture.ts`).
 
-#### What reaches steps 2 and 3
+#### What takes steps 2 and 3
 
-Under the real grammar the hostile cases of the first fix
+Two senses are kept apart in this section:
+a step is taken when the composition writes its warn line and tries its page,
+and it made the page parse when the page of that step is the one shipped.
+
+Under the real grammar the hostile cases of `source-shipped-page.unit.test.ts`
 (a bare `{` in a sentence,
 an unclosed `{`,
 an unclosed `<details>`,
 a lone `</details>` and the indented `{x} <y>` line)
-all reach step 1;
+all take step 1 and step 1 made the page parse;
 the control that parses ships as written;
-a page with one parsing run and one failing run reaches step 1 and encodes only the failing run's slice;
+a page with one parsing run and one failing run takes step 1 and encodes only the failing run's slice;
 a `<details>` pair split across two slices of one run ships as written.
-A seeded search of forty thousand pairs of runs built from a pool of fragments
+
+A seeded search of forty thousand pairs of runs,
+built from a pool of fragments
 (braces,
 tags,
 comment markers,
-fences,
-module lines,
+fences and fence marks indented four spaces,
+module lines and setext headings that start with a module word,
 autolinks,
-brackets and block quote markers),
+bare addresses ended by a tag or holding a brace,
+brackets,
+footnote definitions CommonMark reads as link reference definitions and the blocks indented under them,
+reference labels with a brace,
+`$$` flows,
+and block quote,
+list and bracket markers nested 260 and 300 deep),
 with English between the runs that parses,
-found no text that reaches step 2 and 1268 that reach step 3,
-every one holding a fence:
-a fence one run opens and a later run closes,
-with the English between them falling inside it.
-Each run parses alone and a fence is copied,
-so the literal form equals the written form,
-steps 1 and 2 change nothing and are not taken.
-A run nested past the bound of the plain reading is the other text found to reach step 3.
-The ledger entry,
-the commitment document
-and the header of the composition cases said before this fix
-that no text reaches step 2 or 3 under the real grammar;
-that was wrong for step 3.
-Step 2 is unreachable with the current encoder because every character it would escape that step 1 did not
-is inside a fence.
-Archive English that the grammar refuses on its own reaches step 3 too and then fails `assertPageParses`,
-which dropping the runs cannot help.
+gave these counts:
+
+- 6887 pairs shipped as written;
+- step 1 was taken for 31868 pairs and made the page parse for 26457 of them;
+- step 2 was taken for 838 pairs and made the page parse for 32 of them;
+- step 3 was taken for 6624 pairs.
+
+Step 2 is taken when every run parses alone,
+the page does not,
+and writing every run as literal text changes some run.
+It made the page parse for 32 pairs,
+31 of them with a fence mark indented four spaces in both runs:
+MDX has no indented code and reads such a mark as a fence,
+the plain parse reads a paragraph or indented code there,
+so a brace between two such marks is text to the strict grammar once the marks pair across the runs,
+which writing every run so escapes.
+The older statement that step 2 is taken by no text was wrong:
+it was taken for 838 pairs,
+for the most part a run nested past the bound beside a run holding a character that step 2 escapes,
+and for the rest a pair of fence marks.
+
+Step 3 is taken for these causes,
+the counts being the pairs of the search that name each cause by the fragments they hold:
+
+- a run nested past the bound of 256 that the plain reading keeps:
+  6223 pairs,
+  the 260 and the 300 deep alike,
+  pinned by the 300-deep case in `source-shipped-page.unit.test.ts`;
+- a fence mark indented four spaces or more:
+  218 pairs;
+- a raw HTML block that runs to a closing marker (`<script>`,
+  a comment that never closes):
+  52 pairs;
+- a `$$` flow that one run opens and a later run closes,
+  with the English between them falling inside it and a tag after the closing line:
+  46 pairs.
+  A fence does the same,
+  which the fence case in `source-shipped-page.unit.test.ts` pins;
+  the search found no pair of that shape among the fences,
+  which is a finding about its pool and not about the shape;
+- the remaining 85 pairs,
+  which come down to the shapes the encoder does not meet,
+  named in the next heading.
+
+#### Shapes the encoder does not make parse
+
+Found by encoding each run of the remaining pairs alone and reading what stayed refused.
+Each is a limit of the module comment of `source-ships-encoding.ts` and is not fixed:
+
+- A raw HTML block or indented code that holds `[https://example.net/a{ b](u)`:
+  the plain parse reads one text and takes the address in it for a bare one,
+  where the strict grammar reads a link and its text.
+- A line CommonMark reads as a link reference definition right after a footnote definition:
+  the strict grammar takes it for a line of the footnote.
+- A bare address after a bracket nothing closes (`[ https://example.net/b{c`):
+  the strict grammar does not read an address there,
+  so the brace in it is syntax.
+- A code span or inline math across lines of which a later line starts with `{` or `<`:
+  an expression or a tag at the start of a line interrupts a paragraph in the strict grammar,
+  so the span is cut there.
+- A byte order mark line before a setext heading that starts `import`.
 
 #### Step 3 and the page on disk
 
@@ -194,7 +261,7 @@ the composition runs over the archive the slices tile and not over the archive i
 and a page that lost every original it should carry,
 where the composition would also ship without them,
 reads as shipped without them and not as lost.
-The brief asked for `pageAgreement` to compute the expected page through the composition;
+The first design had `pageAgreement` compute the expected page through the composition;
 it has no slice offsets,
 so it runs the composition over the tiling.
 
@@ -296,6 +363,110 @@ Recurrence:
 a comment that says a count "asks the same question the log did" is checked against what the artifact records.
 A claim about a page is checked against what a reader of the page sees.
 
+### Follow-up: the holes between the plain parse and the strict grammar
+
+A review of the encoder found texts it left refused,
+and texts that parse and read unlike the source.
+Each became a reader case in `page-check/src/corpus-run/source-ships-encoding.unit.test.ts`:
+the reader text of the encoded run under the real grammar equals the source read as plain Markdown,
+and the page parses.
+The cases were written first and failed;
+the encoder then closed each hole.
+
+- A footnote definition that CommonMark reads as a link reference definition
+  (`[^1]: {`,
+  `[^1]: <b>`,
+  `[^1]: <https://example.net/x>`,
+  `[^1]: a{b`
+  and `[^1]: 注 ({)`):
+  its body is encoded as the strict grammar reads it,
+  with footnotes on,
+  so `[^1]: <https://example.net/x>` ships as a footnote whose text and link target equal the source's.
+  The blocks indented under a footnote definition are read the same way,
+  and a fenced block in a footnote body keeps its braces without a visible backslash
+  (`source-ships-footnote.ts`,
+  `source-ships-spans.ts`).
+- A setext heading at the top level that starts `import ` or `export `
+  (`import data from the old system` over `===`):
+  MDX reads it as an ES module,
+  and it has its first letter written as a character reference like a paragraph does
+  (`source-ships-module-line.ts`).
+- A bare address that a less-than sign ends (`https://example.net/a<b> {`):
+  a backslash before the sign is read as part of the address,
+  and so is an entity written for it,
+  because GFM ends an address at an entity only when nothing follows it.
+  Writing `&lt;` was the first idea;
+  it does not give the same text,
+  so the address is written as a link with the same text and target and the sign after it is escaped
+  (`source-ships-addresses.ts`,
+  `source-ships-links.ts`).
+  A bare address in the text of a link (`[https://example.net/a{ b](u)`)
+  and a protocol with nothing after it (`https://{x`) are left alone,
+  since GFM reads no address there.
+- An angle autolink in the text of a link (`[<https://example.net/a>](u)`) is written as text,
+  since a link cannot hold a link,
+  and a reference label with a brace (`[a {b][]` with `[a {b]: u`) is written the same way where it is used and
+  where it is defined,
+  so the reference still resolves.
+- The encoder asks whether a text is nested past the bound of the plain reading
+  (`firstNestingExcess` of `translation-repair-markup`)
+  and no longer catches the parse error for it,
+  so no caught value goes unused.
+
+The reader of the source text in the cases (`page-check/src/corpus-run/source-reader-text.test-fixture.ts`)
+reads the source on the site's flavour,
+CommonMark with GFM and the site's math
+(`document-structure/src/gfm-math-reading.test-fixture.ts`),
+and no longer re-wraps a math node in `$`.
+`parseMarkdownMathBody` has no GFM,
+so a footnote definition made of one address was a link reference definition there and a footnote on the page;
+the cases would have compared different texts.
+
+The search of steps 2 and 3 was run again after the fixes,
+with the pool extended by every shape named in this follow-up,
+and the shapes it still finds are recorded under "What takes steps 2 and 3"
+and "Shapes the encoder does not make parse".
+No cache version moved:
+the encoder's output lives only in the pages on disk,
+and no stage keyed by a prompt or a sheet changed.
+
+### Follow-up: wiring tests that fail when the wiring goes
+
+Each case passes on the code as it stands and was shown to fail under a mutation of the wiring it guards.
+The mutations were made in the working tree and undone,
+and each failing line is quoted.
+
+- `run/src/corpus-run/verify-published-entry.unit.test.ts` writes a page the composition ships without the original
+  of its last slice,
+  with its artifact (`sourceDroppedRunOf` in `page-check/src/corpus-run/published-run.test-fixture.ts`),
+  and expects the line that names the entry,
+  `page-source-unparseable` and the slice.
+  With the spread of `sourceDroppedLinesOf` deleted from `judgePublishedEntry` it fails:
+  the expected line `CatEntry1: page-source-unparseable, the page ships without the source text of slices [1]` is
+  only in the expected lines.
+- `page-check/src/corpus-run/page-republish.unit.test.ts` expects `republishSettledPages` to leave that page as agreed.
+  With `pageAgreement` made to return the verdict as recorded,
+  ignoring `sourceDropped`,
+  it fails at the republish:
+  the outcome is a rewrite for a disagreement,
+  where `{ kind: 'agreed' }` was expected.
+- `page-check/src/corpus-run/page-footnote-integrity.unit.test.ts` and
+  `page-check/src/corpus-run/carried-insertion-completeness.unit.test.ts`
+  hold a case each for the original that an unfilled anchor ships.
+  With `includeSource: true` in place of `false` in the call of `shippableReplacements`
+  in `page-footnote-integrity.ts` and in `carried-insertion-completeness.ts`,
+  the footnote case throws where none is expected and the carried case does not throw where one is.
+
+### Follow-up: style findings
+
+Lines over 120 characters,
+article-opening `@returns`,
+one-word tails of paragraphs,
+a spelling,
+a hand-written silent logger in `source-ships-tiling.ts` (now the no-op sink of `module-logger`),
+and statements in this ledger that pointed to a round or a time were corrected.
+The checks that found them were run over the added lines of the whole branch.
+
 ## Corrections to A8, B827, B830 and B831
 
 ### A8
@@ -342,9 +513,9 @@ and that a page the grammar refuses with the source on it ships without it (ledg
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
   Measured against the real grammar,
-  every hostile case of the first fix reaches the first step;
-  the claim that none reaches the second or the third was wrong for the third
-  (see "What reaches steps 2 and 3" in B832).
+  every hostile case of `source-shipped-page.unit.test.ts` takes the first step;
+  the claim that no text takes the second or the third was wrong for both
+  (see "What takes steps 2 and 3" in B832).
 
 ### B830
 

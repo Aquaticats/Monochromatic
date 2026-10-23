@@ -203,9 +203,14 @@ which lists every file of these commitments.
   Each step taken writes one warn line naming the slices and the step,
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
-  Under the real grammar no text was found to reach the second step,
-  and the last is reached by a fence one run opens and a later run closes with the English between them,
-  and by a run nested past the bound of the plain reading (ledger B832).
+  A seeded search of forty thousand pairs of runs under the real grammar took the second step for 838 pairs,
+  and it made the page parse for 32 of them (a fence mark indented four spaces in both runs).
+  The third step is taken when no writing makes the page parse:
+  a run nested past the bound of the plain reading,
+  a `$$` flow or a fence that one run opens and a later run closes with the English between them,
+  a raw HTML block that runs to a closing marker,
+  a fence mark indented four spaces or more,
+  and the shapes the module comment of `page-check/src/corpus-run/source-ships-encoding.ts` names (ledger B832).
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,
