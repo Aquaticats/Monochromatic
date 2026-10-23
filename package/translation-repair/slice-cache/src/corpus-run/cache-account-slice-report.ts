@@ -1,7 +1,11 @@
 import { homedir, } from 'node:os';
 import {
   dirname,
+  isAbsolute,
   join,
+  relative,
+  resolve,
+  sep,
 } from 'node:path';
 
 import type { Logger, } from '@monochromatic-dev/module-logger/ts';
@@ -30,12 +34,59 @@ import { defaultRunsDirIn, } from '@monochromatic-dev/translation-repair-run/ts'
 // search could not list, the newest record and how many versions were set
 // after it, which every account stated from a hand-written `find` until then.
 // The entry (`cache-account-audit.ts`) prints the version accounts first and
-// hands this the settings it read.
+// hands this the settings it read. A WARNING FOLLOWS WHENEVER THE RUNBOOK'S RUNS ROOT IS NOT COVERED by the roots
+// searched, whatever the count: a stale record under the default roots gives a non-zero count that says nothing of the
+// runs a launch that follows the runbook writes.
 
 /**
  Logger for the report's progress lines, apart from the report on stdout.
  */
 const sliceReportLog = contextRoot({ tag: 'cache-account-slice-report', },);
+
+/**
+ Where a launch that follows the runbook writes its runs.
+
+ @param home - home directory the runbook's runs root sits under
+
+ @returns The runbook's runs root
+
+ @example
+ ```ts
+ const root = runbookRootOf({ home: '/cats/home', },); // '/cats/home/temp/agent'
+ ```
+ */
+function runbookRootOf({ home, }: { readonly home: string; },): string {
+  return join(
+    home,
+    'temp',
+    'agent',
+  );
+}
+
+/**
+ Whether one directory is the other or lies below it.
+
+ @param ancestor - directory that may hold the other
+
+ @param path - directory asked about
+
+ @returns Whether `path` is `ancestor` itself or below it
+
+ @example
+ ```ts
+ const covered = isAmongOrUnder({ ancestor: '/cats/home', path: '/cats/home/temp/agent', },); // true
+ ```
+ */
+function isAmongOrUnder({ ancestor, path, }: { readonly ancestor: string; readonly path: string; },): boolean {
+  /**
+   The way from the one to the other.
+   */
+  const way = relative(
+    resolve(ancestor,),
+    resolve(path,),
+  );
+  return (way === '') || ((way !== '..') && (!way.startsWith(`..${sep}`,)) && (!isAbsolute(way,)));
+}
 
 /**
  Words for a zero count, so the absence of records is never read as an empty cache.
@@ -67,14 +118,95 @@ function noRecordWords(
   /**
    Where the runbook's launches write their runs.
    */
-  const runbookRoot = join(
-    home,
-    'temp',
-    'agent',
-  );
+  const runbookRoot = runbookRootOf({ home, },);
   return 'no slice-cache record was read, so the newest record and the versions set after it say nothing of the '
     + `caches a launch would resume. Roots searched: ${searched.join(', ',)}. A launch that follows the runbook `
     + `writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+}
+
+/**
+ Words for records read when no searched root covers the runbook's runs root.
+
+ THE COUNT IS TRUE OF THE ROOTS SEARCHED AND SAYS NOTHING OF THE REST. A stale record under the default roots gives a
+ non-zero count while the runs of a launch that follows the runbook, under `temp/agent` of the home directory, were
+ never read.
+
+ @param searched - every root the search covered, in the order the account printed them
+
+ @param runbookRoot - where a launch that follows the runbook writes its runs
+
+ @returns Sentence, without a prefix, for the log and for stdout alike
+
+ @example
+ ```ts
+ const words = uncoveredRootWords({ searched: ['/cats/runs',], runbookRoot: '/cats/home/temp/agent', },);
+ ```
+ */
+function uncoveredRootWords(
+  {
+    searched,
+    runbookRoot,
+  }: {
+    readonly searched: readonly string[];
+    readonly runbookRoot: string;
+  },
+): string {
+  return `the runbook's runs root ${runbookRoot} is neither among nor under the roots searched: ${searched.join(', ',)}. `
+    + 'The newest record and the versions set after it speak only for those roots, and a launch that follows the '
+    + `runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+}
+
+/**
+ What the account's count does not say, for the warning that follows it.
+
+ The empty case keeps its own sentence; a count above zero warns only when no searched root is the runbook's runs root
+ or holds it.
+
+ @param count - records read
+
+ @param searched - every root the search covered, in the order the account printed them
+
+ @param home - home directory the runbook's runs root sits under
+
+ @returns Sentence, empty where the count says all it should
+
+ @example
+ ```ts
+ const words = warningWordsOf({ count: 1, searched: ['/cats/runs',], home: '/cats/home', },);
+ ```
+ */
+function warningWordsOf(
+  {
+    count,
+    searched,
+    home,
+  }: {
+    readonly count: number;
+    readonly searched: readonly string[];
+    readonly home: string;
+  },
+): string {
+  if (count === 0) {
+    return noRecordWords({
+      searched,
+      home,
+    },);
+  }
+  /**
+   Where a launch that follows the runbook writes its runs.
+   */
+  const runbookRoot = runbookRootOf({ home, },);
+  if (searched.some(function coversRunbookRoot(root,): boolean {
+    return isAmongOrUnder({
+      ancestor: root,
+      path: runbookRoot,
+    },);
+  },))
+    return '';
+  return uncoveredRootWords({
+    searched,
+    runbookRoot,
+  },);
 }
 
 /**
@@ -92,7 +224,7 @@ function noRecordWords(
 
  @param settings - every version with the commit that set it
 
- @param l - logger the zero-record warning goes to as well
+ @param l - logger the warnings go to as well
 
  @param home - home directory the runbook's runs root sits under
 
@@ -141,14 +273,15 @@ function printSliceCacheAccount(
     reason,
   } of unlisted)
     console.log(`  ${dir} (${reason})`,);
-  if (count === 0) {
-    /**
-     What a zero count does and does not say.
-     */
-    const words = noRecordWords({
-      searched,
-      home,
-    },);
+  /**
+   What the count does not say, empty where it says all it should.
+   */
+  const words = warningWordsOf({
+    count,
+    searched,
+    home,
+  },);
+  if (words !== '') {
     l.warn(words,);
     console.log(`WARNING: ${words}`,);
   }

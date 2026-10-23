@@ -124,6 +124,8 @@ await describe({
               line: lineOf({ command: 'cache-account-audit', typed: [], },),
               packageDirectory: repo.path,
               runsDir: runs.path,
+              // The runbook's runs root of this home lies under the runs directory, which is a root searched.
+              home: runs.path,
             },);
 
             expect(printed.lines.filter(function isReport(line,): boolean {
@@ -409,6 +411,8 @@ await describe({
               env: {
                 ...HERMETIC_GIT,
                 TRANSLATION_REPAIR_RUNS_DIR: runs.path,
+                // The runbook's runs root of this home lies under the directory searched, so the run warns of nothing.
+                HOME: under.path,
               },
               cwd: top,
             },);
