@@ -165,6 +165,12 @@ export {
 } from './corpus-run/source-ships.ts';
 export { encodeAsLiteralMdx, } from './corpus-run/source-ships-encoding.ts';
 export {
+  spansOf,
+  type SourceSpans,
+  type TextEdit,
+  type TextRange,
+} from './corpus-run/source-ships-spans.ts';
+export {
   type ComposedPage,
   composeSourcePage,
   type GrammarReader,

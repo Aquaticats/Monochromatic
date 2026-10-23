@@ -61,7 +61,7 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['an unclosed details tag', '<details>\n\n她说\n'],
   ['a lone closing details tag', '她说\n\n</details>\n'],
   ['an indented line holding an expression and a tag', '她说\n\n  {x} <y>\n'],
-  ['an escape the original wrote', String.raw`\{ 与 \< 与 \\{ 与 }` + '\n'],
+  ['an escape the original wrote', `${String.raw`\{ 与 \< 与 \\{ 与 }`}\n`],
   ['a trailing backslash', '行尾的反斜杠\\\n'],
   ['an HTML entity beside a brace', '&lt;猫&gt; 与 { 与 &#123;\n'],
   ['a footnote reference and its definition', '她[^1]说 {\n\n[^1]: 注 {x}，<y>。\n'],
@@ -190,10 +190,10 @@ await describe({
           name: 'ENCODES THE ALTERNATIVE TEXT OF AN IMAGE and leaves the destination and the title of any link alone, '
             + 'since only the first is read as text',
           fn: async () => {
-            expect(encoded({ text: '![图 {a}](u.png)', },),).toBe('![图 \\{a\\}](u.png)',);
+            expect(encoded({ text: '![图 {a}](u.png)', },),).toBe(String.raw`![图 \{a\}](u.png)`,);
             expect(encoded({ text: '[链接 {a}](https://example.net/{b} "标题 {c}")', },),)
-              .toBe('[链接 \\{a\\}](https://example.net/{b} "标题 {c}")',);
-            expect(encoded({ text: '[链接](<b c>) {d}', },),).toBe('[链接](<b c>) \\{d\\}',);
+              .toBe(String.raw`[链接 \{a\}](https://example.net/{b} "标题 {c}")`,);
+            expect(encoded({ text: '[链接](<b c>) {d}', },),).toBe(String.raw`[链接](<b c>) \{d\}`,);
           },
         },),
 
@@ -202,7 +202,7 @@ await describe({
             + 'space as one link and a backslash written into it would show',
           fn: async () => {
             expect(encoded({ text: '见 https://example.net/b{c} 与 {d}', },),)
-              .toBe('见 https://example.net/b{c} 与 \\{d\\}',);
+              .toBe(String.raw`见 https://example.net/b{c} 与 \{d\}`,);
           },
         },),
 
@@ -211,7 +211,7 @@ await describe({
             + 'with a backslash in the text and as a percent escape in the target',
           fn: async () => {
             expect(encoded({ text: '<https://example.net/a> {b}', },),)
-              .toBe('[https://example.net/a](https://example.net/a) \\{b\\}',);
+              .toBe(String.raw`[https://example.net/a](https://example.net/a) \{b\}`,);
             expect(encoded({ text: '<tabby@example.net>', },),).toBe('[tabby@example.net](mailto:tabby@example.net)',);
             expect(encoded({ text: '<https://example.net/a_b*c(d){e}[f]>', },),).toBe(
               String.raw`[https://example.net/a\_b\*c(d)\{e\}\[f\]](https://example.net/a_b*c%28d%29%7Be%7D[f])`,
@@ -312,7 +312,7 @@ await describe({
             expect(parseFindings.map(function kindOf({ kind, },): string {
               return kind;
             },),).toEqual([],);
-            expect(nodes.at(-1,)?.text,).toBe('She slept on the counter.\n',);
+            expect(nodes.at(-1,)?.text,).toBe('She slept on the counter.',);
           },
         },),
 
