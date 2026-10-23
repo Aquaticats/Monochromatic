@@ -189,7 +189,7 @@ await describe({
                 return line.includes('below the floor',);
               },),
             ).toEqual([
-              'lane contest: 0 of 4 seats reachable, below the floor of 2; no round is opened and the slice keeps its incumbent',
+              '[contestLaneSlice] lane contest: 0 of 4 seats reachable, below the floor of 2; no round is opened and the slice keeps its incumbent',
             ],);
           },
         },),

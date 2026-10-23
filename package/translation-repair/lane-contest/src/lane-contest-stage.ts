@@ -18,7 +18,9 @@ import {
 } from './lane-contest-wire.ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
+  benchBelowFloorStageFinding,
   type FanOutMode,
+  reachableQuorum,
   runWindowedRounds,
   shortBenchStageFinding,
   type StageSettings,
@@ -332,6 +334,28 @@ function logBallots(
 }
 
 /**
+ Finding for a contest that heard fewer ballots than it needs to settle.
+
+ @param heard - usable ballots the contest has
+
+ @returns Finding in scorecard-stable wording
+
+ @example
+ ```ts
+ const finding = belowQuorumFinding({ heard: 0, },);
+ ```
+ */
+function belowQuorumFinding({ heard, }: { readonly heard: number; },): string {
+  return `lane-contest heard ${String(heard,)} usable ${
+    wordForCount({
+      count: heard,
+      one: 'ballot',
+      many: 'ballots',
+    },)
+  }, below the ${String(LANE_CONTEST_QUORUM,)} needed to settle`;
+}
+
+/**
  Asks the roster which candidate one contested slice should ship.
 
  @param client - synthetic chat client
@@ -352,6 +376,11 @@ function logBallots(
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
+ @param reachable - seats of the bench a wet provider would serve right now,
+ absent for a caller that did not count; fewer than the voices the contest
+ needs open no round, since a round on them can only hear less than it
+ requires and costs the calls anyway (XingZ6020: 63 rounds on one seat of seven)
+
  @returns What the roster settled on, with every usable ballot
 
  @example
@@ -369,6 +398,7 @@ export async function contestLaneSlice(
     l,
     fanOut,
     stageSettings,
+    reachable,
   }: {
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -378,6 +408,7 @@ export async function contestLaneSlice(
     readonly l: Logger;
     readonly fanOut?: FanOutMode;
     readonly stageSettings: StageSettings;
+    readonly reachable?: number;
   },
 ): Promise<LaneContestOutcome> {
   /**
@@ -387,6 +418,38 @@ export async function contestLaneSlice(
     l,
     tag: contestLaneSlice.name,
   },);
+
+  // A BENCH BELOW THE FLOOR IS NOT ASKED. Fewer reachable seats than the voices a verdict needs cannot settle, and each
+  // such round still bought its calls. The slice keeps its incumbent, as an unheard roster does, and the findings say why.
+  if ((reachable !== undefined) && (reachable < LANE_CONTEST_QUORUM)) {
+    cl.warn(
+      `lane contest: ${String(reachable,)} of ${String(modelIds.length,)} seats reachable, below the floor of ${
+        String(LANE_CONTEST_QUORUM,)
+      }; no round is opened and the slice keeps its incumbent`,
+    );
+    return {
+      choice: 'neither',
+      ballots: [],
+      usable: 0,
+      findings: [
+        belowQuorumFinding({ heard: 0, },),
+        shortBenchStageFinding({
+          stage: 'lane-contest',
+          quorum: reachableQuorum({
+            benchSize: modelIds.length,
+            unreachable: modelIds.length - reachable,
+          },),
+          benchSize: modelIds.length,
+        },),
+        benchBelowFloorStageFinding({
+          stage: 'lane-contest',
+          reachable,
+          benchSize: modelIds.length,
+          floor: LANE_CONTEST_QUORUM,
+        },),
+      ],
+    };
+  }
 
   // EXACT-HALF VOICES ARE NEEDED BEFORE GRACE BEGINS, sized by the rounds on
   // the bench. Deterministic exclusions can make fast ballots inadmissible,
@@ -474,15 +537,7 @@ export async function contestLaneSlice(
     usable: recorded.length,
     findings: [
       ...((ballots.length < LANE_CONTEST_QUORUM)
-        ? [
-          `lane-contest heard ${String(ballots.length,)} usable ${
-            wordForCount({
-              count: ballots.length,
-              one: 'ballot',
-              many: 'ballots',
-            },)
-          }, below the ${String(LANE_CONTEST_QUORUM,)} needed to settle`,
-        ]
+        ? [belowQuorumFinding({ heard: ballots.length, },),]
         : []),
       // A SHORT BENCH IS SAID IN THE FINDINGS, as the gathers say it (ledger X8).
       ...(quorum.short

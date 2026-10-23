@@ -68,6 +68,11 @@ export type Reseated<SeatingT,> = {
 
  @param seatingOf - what this phase takes from a seat reading
 
+ @param staleWhen - whether the seating last handed over must be read again
+ although no hold runs, for a phase whose seating states a shortfall that a
+ provider returning after its hold ended would cure; absent keeps the memo
+ until a hold runs
+
  @param l - entry logger, which records every re-seating
 
  @returns Per-slice reader of the seating the slice runs on
@@ -84,6 +89,7 @@ export function reseatHookFor<SeatingT,>(
     phase,
     unseated,
     seatingOf,
+    staleWhen,
     l,
   }: {
     readonly client: SeatReadingClient;
@@ -91,6 +97,7 @@ export function reseatHookFor<SeatingT,>(
     readonly phase: JudgeSeatPhase;
     readonly unseated: SeatingT;
     readonly seatingOf: (args: { readonly seats: JudgeSeats; },) => Reseated<SeatingT>;
+    readonly staleWhen?: (seating: SeatingT,) => boolean;
     readonly l: Logger;
   },
 ): () => Promise<SeatingT> {
@@ -105,7 +112,8 @@ export function reseatHookFor<SeatingT,>(
   return async function reseatBeforeSlice(): Promise<SeatingT> {
     if (shortestHold({ holds: holdsWithinPass({ client, },), },) === 0) {
       warned.signature = '';
-      return latest.seating;
+      if ((staleWhen === undefined) || (!staleWhen(latest.seating,)))
+        return latest.seating;
     }
     /**
      Benches as of this slice, the reading waiting out a named hold when a

@@ -137,6 +137,7 @@ export {
   STAGE_RETRY_ROUNDS,
 } from './stage-quorum.ts';
 export {
+  benchBelowFloorStageFinding,
   MIN_STAGE_VOICES,
   type ReachableQuorum,
   reachableQuorum,
