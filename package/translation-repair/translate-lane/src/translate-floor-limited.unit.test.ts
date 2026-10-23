@@ -685,8 +685,8 @@ await describe({
           first: { kind: 'unfilled', unfilled: unfilledBy.unfilled, },
           lines: [
             '[notAskedAgain] slice 4: not asked again; it ended unfilled (no-candidate-backed) with 1 of 7 select '
-            + 'judges reachable against a floor of 2, and 1 are reachable now; a later pass asks it again only if the '
-            + 'entry is still unsettled',
+              + 'judges reachable against a floor of 2, and 1 are reachable now; a later pass asks it again only if the '
+              + 'entry is still unsettled',
           ],
           toldAfterFirst: true,
           secondKept: 'kept',
