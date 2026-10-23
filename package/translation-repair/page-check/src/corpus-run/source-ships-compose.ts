@@ -37,10 +37,11 @@ import {
 // composed in steps and each is read by the grammar before the next. The base case is the page with each source run
 // written as the artifact records it, and it is the page whenever it parses. Otherwise:
 //
-// 1. Only the source runs that do not parse as a text of their own, and those holding an HTML comment that never
-//    closes, are written as literal text (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping
-//    their original, the unit the note stands before, so a tag opened in one slice and closed in the next is read as
-//    the pair it is.
+// 1. Only the source runs that do not parse as a text of their own, those holding an HTML comment that never closes,
+//    and those that parse alone and cannot stand beside another (a fence mark indented four spaces or more; a name an
+//    earlier run still declares, `source-ships-company.ts`), are written as literal text
+//    (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping their original, the unit the note
+//    stands before, so a tag opened in one slice and closed in the next is read as the pair it is.
 // 2. If the page still does not parse, every source run is written as literal text.
 // 3. If it still does not, the page ships without the source runs no writing makes parse (the runs the grammar refuses
 //    even as literal text, `source-ships-runs.ts`), and where that does not help or no such run is found, without
@@ -57,8 +58,9 @@ import {
 /**
  Names a step of the composition.
 
- `as-written` is the page with every original as recorded, `encoded-failing-runs` the runs that do not parse alone
- written as literal text, `encoded-every-run` all of them, and `dropped` the page without any.
+ `as-written` is the page with every original as recorded, `encoded-failing-runs` the runs that do not parse alone,
+ hold a comment that never closes or cannot stand beside another written as literal text, `encoded-every-run` all of
+ them, and `dropped` the page without any.
  */
 export type SourcePageStep = 'as-written' | 'dropped' | 'encoded-every-run' | 'encoded-failing-runs';
 

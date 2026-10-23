@@ -59,31 +59,40 @@ import {
 // sign that the parse reads as text is escaped, a component and a balanced expression included, since a run refused
 // as a whole cannot be told apart piece by piece.
 //
+// SHAPES THE PLAIN PARSE HIDES, and how each is met. The plain parse reads a node as one text and the strict grammar
+// reads more in it, or reads the lines of a block as a paragraph. A raw HTML block and indented code are paragraphs to
+// MDX, so every character Markdown reads as syntax in them is escaped and the reader sees the characters of the source
+// (`source-ships-lines.ts`, `contentStretches`), no address is read in them after an open bracket, and an `import` or
+// `export` line in them after a blank line is written as a character reference. A line CommonMark reads as a link
+// reference definition right after a footnote definition, or right after a block that ends in a raw HTML block or
+// indented code, is a lazy line of a paragraph to the strict grammar and is written as text
+// (`source-ships-footnote.ts`, `source-ships-literal-end.ts`). A bare address after a bracket nothing closes is no
+// address to the tokenizer, so its brace is escaped. A code span, inline math, or the title of a link across lines, a
+// later one of which starts with `{`, `<` or a fence mark indented four spaces or more, is cut by the strict grammar,
+// so the line ending and the marks before that line are written as one space. A fence mark indented four spaces or
+// more is a fence to MDX and text to the plain parse, so it is escaped in text, and a fenced block holding one is
+// written with a longer fence (`source-ships-fence.ts`, `source-ships-fenced.ts`). A line of invisible characters
+// before an `import` line starts a module for the package's reading in a list item, a block quote and a raw HTML block
+// as well as at the top (`source-ships-module-line.ts`). Two runs that declare one name, or a run holding an indented
+// fence mark, are taken by the composition at its first step (`source-ships-company.ts`).
+//
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
-// a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments took
-// step 3 for 6624 pairs; its causes were a run nested past the bound the plain reading keeps (the 300-deep case in
-// `source-shipped-page.unit.test.ts` pins it), a `$$` flow one run opens and a later run closes with the English
-// between them falling inside it and a tag after the closing line (a fence does the same, which the fence case in that
-// file pins), a raw HTML block that runs to a closing marker (`<script>`, a comment never closed), a fence mark
-// indented four spaces or more (MDX reads a fence there, the plain parse a paragraph or indented code), and the shapes
-// under SHAPES THE PLAIN PARSE HIDES. Step 2 was taken for 838 pairs and made the page parse for 32 of them (a fence
-// mark indented in both runs; two runs that import the same name); in the rest it was taken and did not, a run
-// nested past the bound beside a run holding a character step 2 escapes among them.
+// a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments, run
+// with two seeds, took step 3 for 5493 and 5527 pairs; 5440 and 5471 of them hold a run nested past the bound the plain
+// reading keeps (the 300-deep case in `source-shipped-page.unit.test.ts` pins it), which the pool holds on purpose.
+// The rest, 53 and 56 pairs, are these: a `$$` flow one run opens and a later run closes, with the English between
+// them falling inside it and a tag after the closing line (a fence does the same, which the fence case in that file
+// pins; each pair that also holds a fence mark indented four spaces holds such a flow); an opener of a comment that
+// never closes beside a line the plain reading takes for a definition, which reads as a paragraph line once the opener
+// is written as a character reference; a run that starts with a byte order mark and whose first line then starts a
+// block (the encoder reads the run as a document start, where the mark is dropped, and in the page it stands in the
+// middle of a line); a definition line right after a block quote that holds a footnote definition; and a footnote
+// definition followed by a line of `*`, which was not diagnosed. Step 2 was taken for 486 and 467 pairs, almost all of
+// them nested ones, and made the page parse for 1 and 0.
 //
-// SHAPES THE PLAIN PARSE HIDES. These are texts the encoder does not make parse: the plain parse reads a node as one
-// text and the strict grammar reads more in it. A raw HTML block or indented code holding
-// `[https://example.net/a{ b](u)` has its address taken for a bare one. A line CommonMark reads as a link reference
-// definition right after a footnote definition is a line of the footnote to the strict grammar. A bare address after a
-// bracket nothing closes is not read as an address by the strict grammar. A code span or inline math across lines, a
-// later one of which starts with `{` or `<`, is cut by the strict grammar. A byte order mark line before a setext
-// heading starting `import` hides the module line from the plain parse.
-//
-// Smaller limits. The text of a node is escaped whole, so a backslash the original wrote before a character in indented
-// code (which MDX reads as a paragraph, escapes included) is read as an escape and the reader sees the character
-// without it. A raw HTML block that holds Markdown-looking lines is escaped as text and its lines are then read as
-// Markdown. The reach of a bare address is taken as up to the next space or less-than sign, as the GFM autolink-literal
-// pattern does. An opener of a comment that never closes is written as a character reference wherever it stands, inside
-// code too, where it shows as written.
+// Smaller limits. The reach of a bare address is taken as up to the next space or less-than sign, as the GFM
+// autolink-literal pattern does. An opener of a comment that never closes is written as a character reference wherever
+// it stands, inside code too, where it shows as written.
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
