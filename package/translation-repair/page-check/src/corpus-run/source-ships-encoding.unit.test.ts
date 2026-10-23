@@ -109,6 +109,33 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'an opener of a comment that never closes right before two definition lines',
     '<!--\n[r]: u{b\n[s]: v{c "t"\n',
   ],
+  ['an empty bullet line right after a footnote definition, then an export line', '[^1]: 注 ({)\n*\nexport to PDF\n'],
+  ['an empty dash line right after a footnote definition, then an export line', '[^1]: 注\n-\nexport to PDF\n'],
+  ['an empty plus line right after a footnote definition, then an import line', '[^1]: 注\n+\nimport data\n'],
+  [
+    'an empty ordered marker line right after a footnote definition, then an export line',
+    '[^1]: 注\n2.\nexport to PDF\n',
+  ],
+  ['an empty ordered marker line with a parenthesis, then an export line', '[^1]: 注\n3)\nexport to PDF\n'],
+  ['an empty bullet line with a space after it, then an export line', '[^1]: 注\n* \nexport to PDF\n'],
+  ['an empty bullet line indented one space, then an export line', '[^1]: 注\n *\nexport to PDF\n'],
+  ['two empty bullet lines right after a footnote definition, then an export line', '[^1]: 注\n*\n*\nexport to PDF\n'],
+  [
+    'an empty bullet line after a footnote that is a paragraph of its own, then an import line',
+    '[^1]: 注 *a*\n*\nimport data\n',
+  ],
+  [
+    'an empty bullet line after a footnote definition and a block indented under it, then an export line',
+    '[^1]: 注\n    more\n*\nexport to PDF\n',
+  ],
+  ['an empty bullet line after a footnote definition, then a setext heading', '[^1]: 注\n*\nexport to PDF\n===\n'],
+  ['an empty bullet line after a footnote definition after a paragraph', 'x\n\n[^1]: 注\n*\nimport data\n'],
+  ['an empty bullet line in a paragraph that is no footnote, then an export line', 'abc\n*\nexport to PDF\n'],
+  ['a bullet with text right after a footnote definition, then an export line', '[^1]: 注\n* a\nexport to PDF\n'],
+  [
+    'an empty bullet line, a text line, then an export line, after a footnote definition',
+    '[^1]: 注\n*\nfoo\nexport to PDF\n',
+  ],
   ['a byte order mark before a list item', '\uFEFF- a {\n'],
   ['a byte order mark before a block quote', '\uFEFF> a {\n'],
   ['a byte order mark before a backtick fence', '\uFEFF```\n{\n```\n'],
@@ -604,6 +631,21 @@ https://example.net/b{c`,);
 `,);
             // A blank line ends the footnote, so the definition after it is a definition.
             expect(encoded({ text: '[^1]: 注\n\n[b]: u{ "t"\n', },),).toBe('[^1]: 注\n\n[b]: u{ "t"\n',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE FIRST LETTER OF A MODULE LINE THAT FOLLOWS A LINE OF A LIST MARKER ALONE RIGHT AFTER A '
+            + 'FOOTNOTE DEFINITION, since the strict grammar starts a list there, which it does not where a '
+            + 'paragraph is open, and the line after the marker starts a module',
+          fn: async () => {
+            expect(encoded({ text: '[^1]: 注\n*\nexport to PDF\n', },),).toBe('[^1]: 注\n*\n&#101;xport to PDF\n',);
+            expect(encoded({ text: '[^1]: 注 *a*\n*\nimport data\n', },),)
+              .toBe('[^1]: 注 *a*\n*\n&#105;mport data\n',);
+            // Where a paragraph is open the marker is a line of it, and so is the line after it.
+            expect(encoded({ text: 'abc\n*\nexport to PDF\n', },),).toBe('abc\n*\nexport to PDF\n',);
+            expect(encoded({ text: '[^1]: 注\n*\nfoo\nexport to PDF\n', },),)
+              .toBe('[^1]: 注\n*\nfoo\nexport to PDF\n',);
           },
         },),
 

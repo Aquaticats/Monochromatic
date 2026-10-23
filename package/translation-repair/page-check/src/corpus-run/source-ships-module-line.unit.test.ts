@@ -62,6 +62,8 @@ function firstBlockIsModule(
 
  @param isNested - whether the text is read apart from the document
 
+ @param afterFootnote - whether the block follows or opens a footnote definition
+
  @returns Indices of the first letters
 
  @example
@@ -73,9 +75,11 @@ function laterLinesOf(
   {
     source,
     isNested = false,
+    afterFootnote = false,
   }: {
     readonly source: string;
     readonly isNested?: boolean;
+    readonly afterFootnote?: boolean;
   },
 ): readonly number[] {
   const [, node,] = parseMarkdownMathBody({ body: source, },).children;
@@ -86,6 +90,7 @@ function laterLinesOf(
     node,
     range: rangeOf({ node, },),
     isNested,
+    afterFootnote,
   },);
 }
 
@@ -112,6 +117,54 @@ await describe({
           fn: async () => {
             expect(laterLinesOf({ source: 'x\n\n<script>\n\nimport a\n', },),).toEqual([13,],);
             expect(laterLinesOf({ source: 'x\n\n<details>\n\uFEFF\nexport to PDF\n', },),).toEqual([15,],);
+          },
+        },),
+
+        it({
+          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LINE OF A LIST MARKER ALONE IN A BLOCK THAT FOLLOWS A '
+            + 'FOOTNOTE DEFINITION, a bullet, a dash, a plus and an ordered marker among them, since the strict '
+            + 'grammar starts a list at the marker there and the line after it is a block of its own',
+          fn: async () => {
+            expect(laterLinesOf({
+              source: '[^1]: 注\n*\nexport to PDF\n',
+              afterFootnote: true,
+            },),).toEqual([10,],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n-\nimport a\n',
+              afterFootnote: true,
+            },),).toEqual([10,],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n+ \nimport a\n',
+              afterFootnote: true,
+            },),).toEqual([11,],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n 12)\nimport a\n',
+              afterFootnote: true,
+            },),).toEqual([13,],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n*\n*\nexport to PDF\n',
+              afterFootnote: true,
+            },),).toEqual([12,],);
+          },
+        },),
+
+        it({
+          name: 'FINDS NOTHING AFTER A LIST MARKER WHEN THE BLOCK FOLLOWS NO FOOTNOTE DEFINITION, where the marker '
+            + 'is a line of the paragraph, and nothing after a marker that has text or is no marker',
+          fn: async () => {
+            expect(laterLinesOf({ source: 'x\n\nabc\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n* a\nexport to PDF\n',
+              afterFootnote: true,
+            },),).toEqual([],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n**\nexport to PDF\n',
+              afterFootnote: true,
+            },),).toEqual([],);
+            expect(laterLinesOf({
+              source: '[^1]: 注\n*\nfoo\nexport to PDF\n',
+              afterFootnote: true,
+            },),).toEqual([],);
           },
         },),
 
