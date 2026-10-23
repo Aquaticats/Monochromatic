@@ -161,6 +161,7 @@ const MARKED_CLASSES: readonly string[] = [
   'OpenRouterModelNotServedError',
   'OverlapRefusedError',
   'OverlappingEditsError',
+  'PageFootnoteResolutionError',
   'PairingEvidenceError',
   'PipelineDigestError',
   'PlacementLayoutError',
@@ -454,6 +455,8 @@ const NAMED_PARTS: Record<string, string> = {
   'short({ id: recorded, },)': 'abbreviated digest',
   'unavailableCount': 'count of source-referenced assets without usable visual evidence',
   'clauses.join(\'; \',)': 'bench names, seat counts and the floor, built by the seat reading and quoting nothing',
+  'groups.join(\'; \',)':
+    'footnote labels of the page (the text between [^ and ], never a note\'s wording) under three fixed phrases',
   'yamlRefusalSite({ cause, },)': 'position, built to state a place and quote nothing',
   'kindAndRemedy': 'a corpus read failure kind in brackets and the one of four fixed remedy sentences keyed by '
     + 'that closed union (CorpusReadError, REMEDY_SENTENCES), quoting no path, revision or content',

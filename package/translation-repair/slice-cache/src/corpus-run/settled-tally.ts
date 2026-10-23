@@ -132,6 +132,9 @@ function standingsKeptUnendorsed(
         // A LANE BACKED BY THE CONTEST IS ENDORSED; the choice is the verdict's lane or neither, as the driver reads it.
         choice: ((verdict.kind === 'lane-won') || (verdict.kind === 'sole-lane')) ? verdict.lane : 'neither',
         verdict,
+        // THE LOG LINE IS WRITTEN ONLY FOR A VALID STANDING (`consolidate-standing-verdict.ts`), so the count asks the
+        // same question the line did.
+        standingValid: true,
       },);
     },)
     .length;

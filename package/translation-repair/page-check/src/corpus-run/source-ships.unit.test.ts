@@ -181,7 +181,7 @@ await describe({
             + 'and an artifact with no lanes at all',
           fn: async () => {
             expect(carryingSource({
-              artifact: recording({ sourceText: ' ​\n', },),
+              artifact: recording({ sourceText: ' \u200B\n', },),
               sliceIndex: 4,
               reading: SILENT_ANCHOR,
             },),).toBe(SILENT_ANCHOR,);

@@ -266,7 +266,7 @@ await describe({
 
     it({
       name: 'REPORTS A PAGE THAT LOST THE SOURCE TEXT as disagreeing with its artifact, the positive control '
-        + 'for the case above',
+        + 'for the case of a page that keeps it',
       fn: async () => {
         const { page, artifact, } = await publishRows({ rows: ONE_RUN, },);
         const { agreement, wording, } = pageAgreement({

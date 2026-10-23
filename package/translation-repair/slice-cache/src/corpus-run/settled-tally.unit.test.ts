@@ -573,7 +573,7 @@ await describe({
           },),
         },).standingUnendorsed,).toBe('0',);
 
-        // The settled-neither verdict that declined the archive is unendorsed, the positive control for the case above.
+        // The settled-neither verdict that declined the archive is unendorsed, the positive control for the endorsed-standing case.
         expect(fieldsOf({
           artifact: consolidatedArtifact({
             firstTerminal: 'slate-declined-standing',
