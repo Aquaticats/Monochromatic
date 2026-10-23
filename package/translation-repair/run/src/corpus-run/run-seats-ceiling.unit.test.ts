@@ -4,10 +4,11 @@
  a wait and in the line that says none is taken, and that it waits only for a hold whose return crosses one of the two.
 
  THE SHAPE, from the corpus pass `XingZ6020` (2026-10-22 and 2026-10-23): NeuralWatt, DeepSeek and Xiaomi wet, Bedrock,
- Hyper and OpenRouter dry, and Synthetic refused and held out for five minutes. The judge benches read 1 of 7 with
- Synthetic held and 3 of 7 with every provider wet, against a quorum of 4 and a floor of 2 voices. The return lifts the
- wide bench over the floor, where the lane contest and the consolidation buy calls, though not to the quorum, so the
- reader waits for it; a hold whose return lifts a bench to neither is not waited for.
+ Hyper and OpenRouter dry, and Synthetic refused and held out for five minutes. With Synthetic held the judge
+ benches read 1 of 7 on that log, and 1 of 8 here since the Claude key's seat joined the wide and select benches;
+ with every provider wet they read 3 of 7 and 3 of 8, against a quorum of 4 and a floor of 2 voices. The return
+ lifts the wide bench over the floor, where the lane contest and the consolidation buy calls, though not to the
+ quorum, so the reader waits for it; a hold whose return lifts a bench to neither is not waited for.
 
  Fixtures are cat-themed invention; every view and hold is scripted and no HTTP is made.
 
@@ -49,12 +50,13 @@ const SYNTHETIC_HELD: BudgetView = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
 
 /**
- The view where the lane contest's wide bench stands at 3 of 7 (Bedrock's two seats and DeepSeek's) with Synthetic dry,
+ The view where the lane contest's wide bench stands at 3 of 8 (Bedrock's two seats and DeepSeek's) with Synthetic dry,
  and Xiaomi, which serves no seat of any judge bench, dry as well.
  */
 const BEDROCK_AND_DEEPSEEK: BudgetView = {
@@ -63,6 +65,7 @@ const BEDROCK_AND_DEEPSEEK: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -76,6 +79,7 @@ const BEDROCK_ALONE: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -89,6 +93,7 @@ const METERS_WET: Readonly<Record<keyof BudgetView, MeterState>> = {
   bedrock: 'wet',
   deepseek: 'wet',
   xiaomi: 'wet',
+  anthropic: 'wet',
   hyper: 'wet',
   openrouter: 'wet',
 };
@@ -229,14 +234,14 @@ await describe({
 
     it({
       name: 'STATES BOTH READINGS OF A BENCH THE RETURN LIFTS OVER ITS FLOOR BUT NOT TO ITS QUORUM, the case the '
-        + 'quorum-only rule misjudged: wide reads 1 of 7, Synthetic back it reads 3, floor 2, quorum 4',
+        + 'quorum-only rule misjudged: wide reads 1 of 8, Synthetic back it reads 3, floor 2, quorum 4',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
         },);
-        expect(warning,).toContain('wide 1 of 7 reachable, quorum 4',);
+        expect(warning,).toContain('wide 1 of 8 reachable, quorum 4',);
         expect(warning,).toContain(
-          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, '
+          'wide ceiling 3 of 8 with synthetic back, floor 2 and quorum 4, '
             + 'so the return lifts it to the floor but not to the quorum',
         );
         expect(warning,).toContain('waiting 40ms for the shortest hold to end',);
@@ -244,7 +249,7 @@ await describe({
     },),
 
     it({
-      name: 'TAKES NO WAIT FOR A HOLD WHOSE RETURN CROSSES NEITHER THRESHOLD: the wide bench reads 3 of 7, over its '
+      name: 'TAKES NO WAIT FOR A HOLD WHOSE RETURN CROSSES NEITHER THRESHOLD: the wide bench reads 3 of 8, over its '
         + 'floor, and Xiaomi, which serves no seat of it, cannot lift it to the quorum',
       fn: async () => {
         const { lines, reads, } = await readingOf({
@@ -254,13 +259,13 @@ await describe({
         },);
         expect(reads,).toBe(1,);
         expect(shortBenchWarningOf({ lines, },),).toContain(
-          'wide ceiling 3 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it to the quorum',
+          'wide ceiling 3 of 8 with xiaomi back, floor 2 and quorum 4, so no return lifts it to the quorum',
         );
       },
     },),
 
     it({
-      name: 'WAITS FOR A HOLD THAT LIFTS A BENCH FROM OVER ITS FLOOR TO ITS QUORUM: the wide bench reads 3 of 7 and '
+      name: 'WAITS FOR A HOLD THAT LIFTS A BENCH FROM OVER ITS FLOOR TO ITS QUORUM: the wide bench reads 3 of 8 and '
         + 'Synthetic back it reads 5',
       fn: async () => {
         const { lines, reads, } = await readingOf({
@@ -270,7 +275,7 @@ await describe({
         },);
         expect(reads,).toBe(2,);
         expect(shortBenchWarningOf({ lines, },),).toContain(
-          'wide ceiling 5 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the quorum',
+          'wide ceiling 5 of 8 with synthetic back, floor 2 and quorum 4, so the return lifts it to the quorum',
         );
       },
     },),
@@ -287,9 +292,9 @@ await describe({
     },),
 
     it({
-      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and the return '
+      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate reads 1 of 7 and the wide bench 1 of 8, and the return '
         + 'lifts each over the floor, the slate to 2 of 7 (Qwen sits on the wide bench only, ledger B815) and the wide '
-        + 'bench to 3 of 7',
+        + 'bench to 3 of 8',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
@@ -299,7 +304,7 @@ await describe({
             + 'so the return lifts it to the floor but not to the quorum',
         );
         expect(warning,).toContain(
-          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, '
+          'wide ceiling 3 of 8 with synthetic back, floor 2 and quorum 4, '
             + 'so the return lifts it to the floor but not to the quorum',
         );
       },
@@ -308,7 +313,7 @@ await describe({
     it({
       name: 'STATES WHICH BENCH THE WAIT CAN LIFT AND WHICH IT CANNOT in the line that announces it: the translate '
         + 'lane waits for the translators, whose return lifts them to their quorum, and says the select bench stays '
-        + 'under its quorum at 3 of 7 after lifting over the floor',
+        + 'under its quorum at 3 of 8 after lifting over the floor',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
@@ -316,7 +321,7 @@ await describe({
         expect(warning,).toContain('waiting 40ms for the shortest hold to end',);
         expect(warning,).toContain('translators ceiling',);
         expect(warning,).toContain('so the return lifts it to the quorum',);
-        expect(warning,).toContain('select ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return',);
+        expect(warning,).toContain('select ceiling 3 of 8 with synthetic back, floor 2 and quorum 4, so the return',);
       },
     },),
 
@@ -328,7 +333,7 @@ await describe({
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, },)).lines,
         },);
-        expect(warning,).toContain('wide 1 of 7 reachable, quorum 4',);
+        expect(warning,).toContain('wide 1 of 8 reachable, quorum 4',);
         expect(warning,).toContain('wide reads under its floor of 2 and no hold runs that could lift it',);
         expect(warning,).toContain('no provider has named a return the pass can wait for',);
         expect(warning,).not.toContain('ceiling',);
@@ -336,13 +341,13 @@ await describe({
     },),
 
     it({
-      name: 'SAYS NOTHING OF THE FLOOR OF A BENCH OVER IT WHEN NO HOLD RUNS: the wide bench reads 3 of 7 and only its '
+      name: 'SAYS NOTHING OF THE FLOOR OF A BENCH OVER IT WHEN NO HOLD RUNS: the wide bench reads 3 of 8 and only its '
         + 'clause is said',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, },)).lines,
         },);
-        expect(warning,).toContain('wide 3 of 7 reachable, quorum 4',);
+        expect(warning,).toContain('wide 3 of 8 reachable, quorum 4',);
         expect(warning,).not.toContain('floor',);
       },
     },),
@@ -396,7 +401,7 @@ await describe({
 
     it({
       name: 'SAYS THE RETURN BRINGS BACK NO SEAT where the held provider serves none of the bench: Xiaomi held, the '
-        + 'wide bench reads 3 of 7, and the line closes on the words that name no seat',
+        + 'wide bench reads 3 of 8, and the line closes on the words that name no seat',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, held: 'xiaomi', },)).lines,
@@ -420,7 +425,7 @@ await describe({
 
     it({
       name: 'ceilingWordsOf STATES ONE CLAUSE PER SHORT BENCH IN THE ORDER THE BENCHES ARE NAMED, and none for a bench '
-        + 'that reads its quorum: with Synthetic held the wide and select benches read 1 of 7 and 3 of 7 back, and '
+        + 'that reads its quorum: with Synthetic held the wide and select benches read 1 of 8 and 3 of 8 back, and '
         + 'with Bedrock, Hyper and OpenRouter wet the wide bench reads its quorum and has no clause',
       fn: async () => {
         const clauses = ceilingWordsOf({
@@ -431,10 +436,10 @@ await describe({
         },);
         expect(clauses.length,).toBe(2,);
         expect(clauses[0],).toBe(
-          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but '
+          'wide ceiling 3 of 8 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but '
             + 'not to the quorum (the return brings back hf:Qwen/Qwen3.8-27B, hf:moonshotai/Kimi-K3)',
         );
-        expect(clauses[1],).toContain('select ceiling 3 of 7 with synthetic back',);
+        expect(clauses[1],).toContain('select ceiling 3 of 8 with synthetic back',);
         expect(ceilingWordsOf({
           running: providerRecord({ of: (provider) => (provider === 'synthetic') ? SHORT_HOLD_MS : 0, },),
           dry: { ...SYNTHETIC_HELD, bedrock: false, hyper: false, openrouter: false, },

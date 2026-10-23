@@ -9,8 +9,8 @@
  bench is 3 of 8 against a quorum of 4. Synthetic, Hyper, OpenRouter or the Claude key back reach the quorum; DeepSeek
  or Xiaomi back leave it at 3 of 8 (DeepSeek's one wide seat is one Bedrock or NeuralWatt already reach). The Claude key
  is dry in every view here, so its own hold is the one held in the cases that name it: waited out where its return
- reaches the quorum (the one-short view) and skipped where it leaves the bench short (the three-short view); the rule
- is the same.
+ reaches the quorum (the one-short view) or lifts the bench over its floor (the three-short view), and skipped where it
+ crosses neither (the two-short view); the rule is the same.
 
  TWO HOLDS THAT EACH CURE ALONE (round 5): a hold counts when the held set cures the bench between them and that
  provider's return adds a reachable seat to it. A rule asking that the bench stay short without the provider counted
@@ -86,6 +86,21 @@ const WIDE_THREE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: true,
+  deepseek: true,
+  xiaomi: true,
+  anthropic: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ Bedrock wet and every other provider dry: the wide bench reads 2 of 8, over its floor of 2 and under its quorum of 4,
+ and the Claude key back adds a seat that crosses neither.
+ */
+const WIDE_TWO_SHORT: BudgetView = {
+  neuralwatt: true,
+  synthetic: true,
+  bedrock: false,
   deepseek: true,
   xiaomi: true,
   anthropic: true,
@@ -246,14 +261,25 @@ await describe({
     },),
 
     it({
-      name: 'DOES NOT WAIT OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LEAVES THE BENCH SHORT: with only '
-        + 'NeuralWatt wet the wide bench is three seats short of its quorum of 4, the Claude key back adds a '
-        + 'seat and the bench is still short, so the wait buys nothing and the line says the hold would not help',
+      name: 'WAITS OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LIFTS THE BENCH OVER ITS FLOOR THOUGH NOT TO ITS '
+        + 'QUORUM: with only NeuralWatt wet the wide bench reads 1 of 8, the Claude key back makes it 2, the floor of '
+        + '2 voices the stages decide on, so the wait buys a decision and not the quorum',
+      fn: async () => {
+        expect(await readsUnderHolds({ held: ['anthropic',], lines: [], view: WIDE_THREE_SHORT, },),).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT WAIT OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LEAVES THE BENCH SHORT AND CROSSES NEITHER '
+        + 'THRESHOLD: with only Bedrock wet the wide bench reads 2 of 8, over its floor, the Claude key back adds a '
+        + 'seat and the bench is 3 of 8 against a quorum of 4, so the wait buys nothing and the line says so',
       fn: async () => {
         const lines: string[] = [];
-        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_THREE_SHORT, },),).toBe(1,);
+        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_TWO_SHORT, },),).toBe(1,);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: anthropic (1 s); it would not help cure a short bench',);
+        expect(warning,).toContain(
+          'held: anthropic (1 s); it would lift no short bench over its floor or to its quorum',
+        );
       },
     },),
 

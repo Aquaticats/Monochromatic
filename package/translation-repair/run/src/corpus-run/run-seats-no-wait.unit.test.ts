@@ -36,7 +36,7 @@ import {
 //region No-wait reading tests
 
 /**
- The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, every other provider dry. The wide bench reads 1 of 7.
+ The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, every other provider dry. The wide bench reads 1 of 8.
  */
 const SYNTHETIC_HELD: BudgetView = {
   neuralwatt: false,
@@ -44,6 +44,7 @@ const SYNTHETIC_HELD: BudgetView = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -57,6 +58,7 @@ const BEDROCK_ALONE: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -70,6 +72,7 @@ const ALL_DRY: BudgetView = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -183,7 +186,7 @@ await describe({
         expect(unreachableWriters,).toEqual([],);
         expect(lines.length,).toBe(1,);
         expect(lines[0],).toContain(
-          'warn JUDGE SEATS phase=lane contest short of quorum: wide 1 of 7 reachable, quorum 4',
+          'warn JUDGE SEATS phase=lane contest short of quorum: wide 1 of 8 reachable, quorum 4',
         );
         expect(lines[0],).toContain('wide reads under its floor of 2 and no hold runs that could lift it',);
         expect(lines[0],).toContain(
@@ -253,7 +256,7 @@ await describe({
         },);
         expect(lines.length,).toBe(1,);
         expect(lines[0],).toContain(
-          'wide ceiling 1 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it',
+          'wide ceiling 1 of 8 with xiaomi back, floor 2 and quorum 4, so no return lifts it',
         );
         expect(lines[0],).toContain('held: xiaomi (',);
         expect(lines[0],).toContain('it would lift no short bench over its floor or to its quorum',);
@@ -279,7 +282,7 @@ await describe({
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect(lines.filter(function isError(line,): boolean {
           return line.startsWith(
-            'error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 3 reachable, floor 2',
+            'error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, floor 2',
           )
             && line.endsWith('stopping the entry',);
         },).length,).toBe(1,);
