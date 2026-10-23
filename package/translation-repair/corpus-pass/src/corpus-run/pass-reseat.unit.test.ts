@@ -704,7 +704,8 @@ await describe({
         it({
           name: 'READS THE TRANSLATE LANE\'S BENCH AGAIN while the select reach it hands is below the floor, though no '
             + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one '
-            + 'select judge reachable of seven and the slice is handed that reading, not the reach it started on',
+            + 'select judge reachable of eight seats and the slice is handed that reading, '
+            + 'not the reach it started on',
           fn: async () => {
             const rig = viewClient({ view: XINGZ6020_VIEW, },);
             const hooks = lanesHooksFor({
@@ -727,7 +728,7 @@ await describe({
               handed: { translateModels, selectReachable: 1, },
               repair: {},
               readsOnce: true,
-              benchSize: 7,
+              benchSize: 8,
               reachable: 1,
             },);
           },
