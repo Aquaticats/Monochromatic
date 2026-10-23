@@ -7,6 +7,7 @@ import {
   type CorpusPair,
   entryArchiveOriginalOf,
   type EntryOutcome,
+  type ParkAnswer,
   recordEntryDecline,
   settledTallyLine,
   tallyCaughtEntry,
@@ -104,8 +105,8 @@ import {
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
 
- @param parked - asked after `endRun`: whether the pass is now parked for the failure and the entry goes back to the
- front of its queue, which the TALLY line prints as `PARKED`
+ @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
+ failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
 
  @returns Whether an artifact was written
 
@@ -152,7 +153,7 @@ export async function runEntryPipeline(
     readonly visualEvidenceReader?: PassVisualEvidenceReader;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => boolean;
+    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**

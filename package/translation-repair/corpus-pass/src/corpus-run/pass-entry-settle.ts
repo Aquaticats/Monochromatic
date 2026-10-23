@@ -5,6 +5,7 @@ import type {
   CorpusPair,
   EntryOutcome,
   OverlapSetting,
+  ParkAnswer,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
@@ -85,8 +86,8 @@ import type {
 
  @param endRun - told of the failure that ended this entry when it ends the run, so the pass stops starting entries
 
- @param parked - asked after `endRun`: whether the pass is now parked for the failure and the entry goes back to the
- front of its queue, which the TALLY line prints as `PARKED`
+ @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
+ failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
 
  @returns Settlement, resumable operational failure, or stopped incomplete work
 
@@ -136,7 +137,7 @@ export async function settleEntry(
     readonly overlap: OverlapSetting;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => boolean;
+    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**

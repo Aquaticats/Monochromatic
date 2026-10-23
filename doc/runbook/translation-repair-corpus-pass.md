@@ -602,11 +602,14 @@ Each is the exact string the log carries.
     which means the pass paused because NeuralWatt's energy returns at that time of day,
     written as an ISO 8601 time with `Z` for UTC,
     and the entry goes back to the front of the queue to run again after the wait.
+    Both fields are the wait the pass is in,
+    the same on every `PARKED` line of one park,
+    whatever return the entry's own failure named.
     It is neither failure,
     nor success,
     nor a verdict on the entry,
     so count it with neither `status=ERROR` nor `status=INCOMPLETE`.
-    The `error=` text is the failure that named the return.
+    The `error=` text is the failure the entry ended with.
     The operator does nothing while the pass waits,
     and the log ends the wait one of two ways.
     When the pass resumes the entry,

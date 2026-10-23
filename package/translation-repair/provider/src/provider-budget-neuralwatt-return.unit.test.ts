@@ -84,11 +84,11 @@ const FRESH_DAY: Reading = {
 
  @param msBeforeReturn - how long before its day starts again the wall clock reads
 
- @param clock - the monotonic clock the case advances, absent for the real one
+ @param clock - monotonic clock the case advances, absent for the real one
 
  @param reads - counts the energy reads
 
- @param spent - the first reading, the spent day unless the case says otherwise
+ @param spent - first reading, the spent day unless the case says otherwise
 
  @param withXiaomi - whether the fleet carries a Xiaomi client, whose meter reads wet always, as the live roster's does
 

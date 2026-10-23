@@ -17,7 +17,6 @@ import {
 } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import {
   endsTheRun,
-  isDryRefusal,
   PromptPayloadStoreError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import { WritingBenchUnreachableError, } from '@monochromatic-dev/translation-repair-run/ts';
@@ -113,6 +112,41 @@ function carriesNeuralWattReturn({ error, }: { readonly error: unknown; },): boo
 }
 
 /**
+ The gate's answer when the pass is parked for the failure: the return the park waits for.
+ */
+export type ParkedAnswer = {
+  /**
+   The pass is parked for this failure.
+   */
+  readonly parked: true;
+
+  /**
+   Milliseconds between the read that named the return and the return.
+   */
+  readonly returnsInMs: number;
+
+  /**
+   Time of day the return falls at, with its zone, as the failure that parked the pass carried it.
+   */
+  readonly returnsAt: string;
+};
+
+/**
+ The gate's answer when the pass is not parked for the failure.
+ */
+export type NotParkedAnswer = {
+  /**
+   The pass is not parked for this failure.
+   */
+  readonly parked: false;
+};
+
+/**
+ What the gate answers when asked whether the pass is parked for a failure.
+ */
+export type ParkAnswer = ParkedAnswer | NotParkedAnswer;
+
+/**
  A return time that does not end in ` UTC`, though the only writer of the time gives it with that zone.
 
  @example
@@ -166,29 +200,21 @@ function oneTokenTimeOf({ text, }: { readonly text: string; },): string {
 }
 
 /**
- The fields stating the NeuralWatt return a failure names, none where it names none.
+ The fields stating the NeuralWatt return a park waits for.
 
- @param error - what the entry raised
+ @param answer - gate's answer for the entry's failure, which says the pass is parked for it
 
- @returns Leading-space fields: the distance, and the time of day where the failure carries one
+ @returns Leading-space fields: the distance and the time of day
 
- @throws {@link ReturnTimeNotUtcError} when the failure carries a time of day that is not in UTC
+ @throws {@link ReturnTimeNotUtcError} when the park's time of day is not in UTC
 
  @example
  ```ts
- const fields = returnFieldsOf({ error, },);
+ const fields = returnFieldsOf({ answer: { parked: true, returnsInMs: 301_000, returnsAt: '19:15:08 UTC', }, },);
  ```
  */
-function returnFieldsOf({ error, }: { readonly error: unknown; },): string {
-  if ((!(error instanceof WritingBenchUnreachableError)) && (!isDryRefusal(error,)))
-    return '';
-  if (error.neuralwattReturnsInMs === undefined)
-    return '';
-  return ` returnsInMs=${String(error.neuralwattReturnsInMs,)}${
-    (error.neuralwattReturnsAt === undefined)
-      ? ''
-      : ` returnsAt=${oneTokenTimeOf({ text: error.neuralwattReturnsAt, },)}`
-  }`;
+function returnFieldsOf({ answer, }: { readonly answer: ParkedAnswer; },): string {
+  return ` returnsInMs=${String(answer.returnsInMs,)} returnsAt=${oneTokenTimeOf({ text: answer.returnsAt, },)}`;
 }
 
 /**
@@ -201,7 +227,8 @@ function returnFieldsOf({ error, }: { readonly error: unknown; },): string {
  no retry would change, and `PARKED` for an entry the pass put back at the front of its queue to wait for NeuralWatt's
  energy to return, which earns no verdict and is attempted again after the wait. A `PARKED` line states the distance
  in `returnsInMs=` and the time of day in `returnsAt=` (ISO 8601, `Z` for UTC, one token) before the reason, so the
- cap on the reason's text never cuts them; `error=` is the failure that named the return.
+ cap on the reason's text never cuts them; both are the park's own, as the gate answers them, and never the entry's
+ failure's, which may name no return or another distance; `error=` is the failure the entry ended with.
 
  @param entryId - entry that failed
 
@@ -216,14 +243,15 @@ function returnFieldsOf({ error, }: { readonly error: unknown; },): string {
  the entry is filed, so the pass stops starting entries (or parks) however the failure reached the entry: a guarded call
  carries it by the shared abort, the seat reading and a layer that re-raises it reach here without one
 
- @param parked - asked after `endRun` has been told, naming this entry's failure: true when the pass is parked for
- that failure, so the entry goes back to the front of its queue and the line prints `PARKED` and not the status the
- failure would have had; never true for a failure that is not the park's own
+ @param parked - asked after `endRun` has been told, naming this entry's failure: answers the return the pass is
+ parked for when it is parked for that failure, so the entry goes back to the front of its queue and the line prints
+ `PARKED` with that return and not the status the failure would have had; answers not parked for a failure that is not
+ the park's own
 
  @returns Scheduling disposition, never a settlement
 
- @throws {@link ReturnTimeNotUtcError} when the entry is parked for a failure whose return time is not in UTC, before
- any TALLY line is printed
+ @throws {@link ReturnTimeNotUtcError} when the entry is parked for a return whose time is not in UTC, before any
+ TALLY line is printed
 
  @example
  ```ts
@@ -244,7 +272,7 @@ export function tallyCaughtEntry(
     readonly durationMs: number;
     readonly aborted: boolean;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => boolean;
+    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): EntryErrorOutcome['outcome'] {
   /**
@@ -267,17 +295,18 @@ export function tallyCaughtEntry(
       console.log(`INTERRUPTED ${entryId}: ${finding}`,);
   }
   /**
-   Whether the pass is parked for this failure and will attempt the entry again.
+   The gate's answer for this failure: the return the pass is parked for where it is parked for this failure and will
+   attempt the entry again, and not parked otherwise or where the run gave no gate.
    */
-  const parkedForThis = parked?.({ error, },) === true;
+  const answer: ParkAnswer = parked?.({ error, },) ?? { parked: false, };
   /**
    Status the line prints: the entry's own, or `PARKED`.
    */
-  const status = parkedForThis ? 'PARKED' : classified.status;
+  const status = answer.parked ? 'PARKED' : classified.status;
   /**
    The return a parked entry waits for, stated before the reason so the cap on the reason never cuts it.
    */
-  const returnFields = parkedForThis ? returnFieldsOf({ error, },) : '';
+  const returnFields = answer.parked ? returnFieldsOf({ answer, },) : '';
   console.log(
     `TALLY ${entryId} status=${status}${returnFields} ms=${String(durationMs,)} aborted=${String(aborted,)} `
       + `error=${message}`,
