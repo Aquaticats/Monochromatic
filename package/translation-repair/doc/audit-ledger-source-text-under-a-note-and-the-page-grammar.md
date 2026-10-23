@@ -188,9 +188,9 @@ and what the search found next"):
 - step 2 was taken for 838 pairs and made the page parse for 32 of them;
 - step 3 was taken for 6624 pairs.
 
-Step 2 is taken when every run parses alone,
-the page does not,
-and writing every run as literal text changes some run.
+Step 2 is taken when the page of step 1 does not parse
+(the page as written when step 1 changed nothing)
+and writing every run as literal text gives a page unlike the one last tried.
 It made the page parse for 32 pairs.
 One of them is two runs that import the same name:
 each parses alone,
@@ -700,6 +700,217 @@ No cache version moved:
 and the same form with `fenceLengthEdits` names `c513e15b29`.
 The encoder's output lives only in the pages on disk,
 and no stage keyed by a prompt or a sheet changed.
+
+### Follow-up: the sixth round of fixes after the re-check of round 4
+
+The re-check of round 4 (findings Minor 1 to 4 and nits N1 to N9) was rerun against the head of round 5 first,
+and each finding was fixed red first where it was still open.
+The merge of `origin/main` at `d8ac654323` (`a997614532`) had no conflict.
+
+#### The findings
+
+- Minor 1,
+  the condition of step 2:
+  restated in this entry,
+  in the header of `source-ships-compose.unit.test.ts`,
+  in the encoding module comment and in `design-commitments-shipping-and-the-archive.md`
+  as the code takes it:
+  step 2 is taken when the page of step 1 (the page as written when step 1 changed nothing) does not parse
+  and writing every run as literal text gives a page unlike the one last tried.
+  The older wording,
+  "every run parses alone",
+  was not the condition,
+  since step 1 writes the runs that do not.
+- Minor 2,
+  a top-level indented block whose first line starts with a fence mark:
+  round 5 had closed the visible symptom
+  (indented code is copied as literal text there,
+  so the page shows a paragraph and no backslash stands inside a fence).
+  The remedy of the ruling,
+  reading the block as a fence for the spans,
+  was not implemented,
+  and nothing needs it.
+  Three reader cases pin the two shapes of the finding and a tilde variant (`14fe5243bc`).
+- Minor 3,
+  an opener of a comment that never closes,
+  repeated:
+  open at the head of round 5.
+  Every `<!--` of such a run,
+  outside a comment that closes,
+  is written `&lt;!--`,
+  and a backslash before it goes with it (`a1346f7565`,
+  `bacb0a9b6b`).
+- Minor 4,
+  the label of the GFM and math reading:
+  it is "the flavour the package parses pages in (CommonMark with GFM and the site's math,
+  no MDX)"
+  in `gfm-math-reading.test-fixture.ts`,
+  in `source-reader-text.test-fixture.ts`
+  and in the follow-up named "Follow-up:
+  the holes between the plain parse and the strict grammar".
+  Whether the site's own compiler,
+  which has no GFM,
+  accepts the encoder's output is not measured here.
+- N1 to N6 and N9 are fixed in `9bddb06f37`:
+  ragged tails of comment paragraphs,
+  a blank line before a TSDoc that followed a statement at module level,
+  the two pointers of this entry that named a position or a round,
+  the articles that opened the `@param` and `@returns` descriptions the branch added,
+  the two address shapes the plain parse cuts into several nodes (named in `source-ships-addresses.ts`),
+  and the `@throws` of `parseGfmMathBody`.
+  N2 needed nothing:
+  every file the branch touches has as many region ends as region starts.
+- N7,
+  an angle autolink inside link text:
+  written as its address alone,
+  with the characters Markdown reads escaped,
+  so the page shows the address and no brackets (`e6155d7e1b`,
+  `50f1b18610`).
+  The alternative text of an image stays a limit,
+  since the plain parse holds it as a string with no autolink node in it;
+  a test pins it and the encoding module comment names it.
+- N8,
+  the record of the step search:
+  the script of this round writes every text with every warn line,
+  uncut,
+  one JSON line per text,
+  and no sample cap.
+
+#### A regression of round 5 found by rerunning the case sets
+
+A fence in a nested list item had its closing counted as a deep mark of the content,
+so the opening was lengthened and the closing was not.
+The closing of a fence is now the last line,
+a mark alone and at least as long as the opening,
+within three columns of the opening (`5e1fffd44e`,
+`2e6f975b66`).
+It was not on the list of the lead.
+
+#### Limits of round 5 that were not structural, closed
+
+- A comment opener beside a line the plain reading takes for a definition (`4d68fd59f8`,
+  `124be8dd2b`):
+  the text the parse is given holds a stand-in that starts with an ampersand,
+  where it held four spaces that made the next line a definition.
+- A run that starts with a byte order mark (`079a66e58b`,
+  `d9782af3a2`):
+  the page carries the run after a note and a blank line,
+  so the mark stands mid-page and starts no block;
+  the parse is given a letter in its place.
+- A definition line after a block quote that holds a footnote definition (`0759da4a22`,
+  `f8cf6ad08d`):
+  the footnote state is kept for each container,
+  and a lazy definition line counts in a root,
+  a block quote and a list item.
+- A footnote definition followed by a line of `*` (`c1dce5b237`,
+  `16b9ee1c3e`),
+  diagnosed:
+  the strict grammar keeps the footnote definition open for the line after it and tries a new container there as if no
+  paragraph were open (`micromark@4.0.3`,
+  `lib/initialize/document.js`,
+  `checkNewContainers`,
+  where the interrupt flag is set only when every open container continued;
+  `micromark-core-commonmark@2.0.4`,
+  `lib/list.js`,
+  where a marker with nothing after it starts a list,
+  and so does an ordered marker that is not 1,
+  when the flag is unset).
+  A bullet,
+  a dash,
+  a plus or a number with a dot or a parenthesis alone on the line is then an empty list item,
+  and the line after it starts a block,
+  an ES module among them.
+  The plain reading keeps the marker as a line of the paragraph.
+  The module line after such a marker is written with a character reference.
+
+#### What the step search found next, and what stays
+
+The script is the one of round 5 with a pool extended by the shapes of this round
+(a comment opener beside a definition,
+a byte order mark before a block,
+a definition after a block quote that holds one,
+a marker alone after a footnote definition,
+an autolink in link text,
+a fence in a nested list item,
+two openers),
+run with both seeds,
+forty thousand pairs each,
+each seed in its own `systemd-run` unit with a memory and a CPU cap.
+Because the pool is larger,
+the counts are not those of the follow-up above.
+The first run of the final head showed three more shapes,
+each fixed red first:
+
+- A footnote definition that starts inside a paragraph of the plain reading
+  (the plain reading has no footnotes,
+  so the line stays in the paragraph),
+  then a list marker alone and an `import` or `export` line (`93961f4aae`,
+  `5236e713d6`).
+  A definition indented four spaces or more is a definition to MDX and a line of the paragraph to CommonMark with GFM,
+  so the page parses and the reader of the page and of the source differ in the marker;
+  the encoding module comment names it.
+- A line of invisible characters,
+  then a list marker alone and a module line:
+  the invisible line ends the paragraph for the strict grammar (`e21a75ef6f`,
+  `eb28a07167`).
+- A code span that starts with a run of three backticks indented four spaces or more below a paragraph line,
+  in a block quote or not:
+  to the plain reading the run opens the span and no backslash can be written into it,
+  and the strict grammar takes it for a fence that cuts the paragraph.
+  The line ending before the span is written as one space,
+  as a later line that starts so already was (`e21a75ef6f`,
+  `eb28a07167`).
+
+The counts at the final head:
+
+- Seed 20261023:
+  7017 pairs shipped as written;
+  step 1 was taken for 32279 and made the page parse for 27974;
+  step 2 was taken for 402 and made the page parse for none;
+  step 3 was taken for 5009.
+- Seed 20270101:
+  7180 pairs shipped as written;
+  step 1 was taken for 32171 and made the page parse for 27899;
+  step 2 was taken for 407 and made the page parse for 1 (a pair of `$$` flows);
+  step 3 was taken for 4920.
+
+Of the pairs that took step 3,
+4969 and 4882 hold a run nested past the bound of the plain reading.
+The other 40 and 38 are one structural limit:
+a `$$` flow or a fence that one run opens and no line of the run closes,
+and a later run closes.
+Each run of each such pair parses alone.
+The grammar leaves the flow open to the end of the page
+(`micromark-extension-math@3.1.0`,
+`lib/math-flow.js`,
+`beforeContentChunk`,
+where the end of the input ends the flow;
+`micromark-core-commonmark@2.0.4`,
+`lib/code-fenced.js`,
+the same for a fence),
+so it takes the English between the runs,
+where a reader of the run alone sees it end with the run.
+Closing it would add a line the original does not hold.
+The other structural limit,
+nesting past 256,
+is refused by the package's own bound before any parser reads the text
+(`NESTING_BOUND` in `markup/src/nesting-bound.ts`),
+and a parse that ran out of stack is answered as the same refusal
+(`withMdxExhaustionRefused` in `document-structure/src/parse-mdx.ts`).
+
+#### Checks
+
+Five guards were mutated in the working tree and each mutation failed the suite,
+with the patch undone by `git restore` after each:
+the closing reach of a fence (1 test),
+the stand-in for a leading byte order mark (13 [FAIL] lines),
+the openers of an unclosed comment (7),
+the list-marker rule of the module line (19),
+and the choice between a link and its address for an autolink in link text (15).
+No cache version moved:
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' a997614532..HEAD` names no commit,
+the same form without the range names 110,
+and `-G closingMarksOf` over the range names the fix of the fence closing.
 
 ## Corrections to A8, B827, B830 and B831
 

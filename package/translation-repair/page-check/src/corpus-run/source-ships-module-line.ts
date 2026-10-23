@@ -26,11 +26,11 @@ import {
 // block, an ES module among them; the plain reading, which has no footnote definition to keep open, keeps the marker as
 // a line of the paragraph.
 //
-// A LINE OF INVISIBLE CHARACTERS ENDS THE PARAGRAPH THE SAME WAY, so a marker alone on a later line of the node starts a
-// list as well.
+// A LINE OF INVISIBLE CHARACTERS ENDS THE PARAGRAPH THE SAME WAY, so a marker alone on a later line of the
+// node starts a list as well.
 //
-// THE DEFINITION NEED NOT START THE PARAGRAPH. The strict grammar lets a footnote definition interrupt a paragraph, at any
-// indentation (the indented code that would otherwise cap it is off in MDX), so a line of `[^label]:` inside a
+// THE DEFINITION NEED NOT START THE PARAGRAPH. The strict grammar lets a footnote definition interrupt a paragraph, at
+// any indentation (the indented code that would otherwise cap it is off in MDX), so a line of `[^label]:` inside a
 // paragraph of the plain reading opens one for the lines after it, which stay a lazy line of its paragraph and keep the
 // definition open to the line that ends them.
 //
@@ -71,6 +71,12 @@ const MARKER_INDENT = 3;
  How many columns a tab takes in the indentation of a line.
  */
 const TAB_COLUMNS = 4;
+
+/**
+ The characters a footnote label may not hold: the white space micromark ends a label at (a space, a tab and the line
+ endings) and an opening bracket.
+ */
+const LABEL_BREAKS = ' \t\r\n[';
 
 /**
  Index in a footnote definition's line where the label starts, after the bracket and the caret.
@@ -170,7 +176,7 @@ export function startsFootnoteLine({ line, }: { readonly line: string; },): bool
   const isBroken = Array
     .from(label,)
     .some(function breaksLabel(character,): boolean {
-      return (character.trim() === '') || (character === '[');
+      return LABEL_BREAKS.includes(character,);
     },);
   return (body.charAt(close + 1,) === ':') && (!isBroken);
 }

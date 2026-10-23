@@ -70,33 +70,46 @@ import {
 // (`source-ships-footnote.ts`, `source-ships-literal-end.ts`). A bare address after a bracket nothing closes is no
 // address to the tokenizer, so its brace is escaped. A code span, inline math, or the title of a link across lines, a
 // later one of which starts with `{`, `<` or a fence mark indented four spaces or more, is cut by the strict grammar,
-// so the line ending and the marks before that line are written as one space. A fence mark indented four spaces or
-// more is a fence to MDX and text to the plain parse, so it is escaped in text, and a fenced block holding one is
-// written with a longer fence (`source-ships-fence.ts`, `source-ships-fenced.ts`). A line of invisible characters
-// before an `import` line starts a module for the package's reading in a list item, a block quote and a raw HTML block
-// as well as at the top (`source-ships-module-line.ts`). Two runs that declare one name, or a run holding an indented
-// fence mark, are taken by the composition at its first step (`source-ships-company.ts`).
+// so the line ending and the marks before that line are written as one space. A fence mark indented four spaces or more
+// is a fence to MDX and text to the plain parse, so it is escaped in text, and a fenced block holding one is written
+// with a longer fence (`source-ships-fence.ts`, `source-ships-fenced.ts`). A line of invisible characters before an
+// `import` line starts a module for the package's reading in a list item, a block quote and a raw HTML block as well as
+// at the top (`source-ships-module-line.ts`), and so does a list marker alone on a line after a footnote definition,
+// whether the definition starts the paragraph or one of its later lines, or after a line of invisible characters, since
+// the marker then starts a list and the line after it a block. A code span that starts with a run of three backticks
+// indented four spaces or more is joined to the line before it, as a later line that starts so is
+// (`source-ships-lines.ts`). Two runs that declare one name, or a run holding an indented fence mark, are taken by the
+// composition at its first step (`source-ships-company.ts`).
 //
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
 // a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments, run
-// with two seeds, took step 3 for 5493 and 5527 pairs; 5440 and 5471 of them hold a run nested past the bound the plain
-// reading keeps (the 300-deep case in `source-shipped-page.unit.test.ts` pins it), which the pool holds on purpose.
-// The rest, 53 and 56 pairs, are these: a `$$` flow one run opens and a later run closes, with the English between
-// them falling inside it and a tag after the closing line (a fence does the same, which the fence case in that file
-// pins; each pair that also holds a fence mark indented four spaces holds such a flow); an opener of a comment that
-// never closes beside a line the plain reading takes for a definition, which reads as a paragraph line once the opener
-// is written as a character reference; a run that starts with a byte order mark and whose first line then starts a
-// block (the encoder reads the run as a document start, where the mark is dropped, and in the page it stands in the
-// middle of a line); a definition line right after a block quote that holds a footnote definition; and a footnote
-// definition followed by a line of `*`, which was not diagnosed. Step 2 was taken for 486 and 467 pairs, almost all of
-// them nested ones, and made the page parse for 1 and 0.
+// with two seeds, took step 3 for 5009 and 4920 pairs; 4969 and 4882 of them hold a run nested past the bound the plain
+// reading keeps (the 300-deep case in `source-shipped-page.unit.test.ts` pins it), which the pool holds on purpose. The
+// rest, 40 and 38 pairs, are one limit, which is structural: a `$$` flow or a fence that one run opens and no line of
+// the run closes, and a later run closes, with the English between them falling inside it and a tag after the closing
+// line (each run of those pairs parses alone; a byte order mark before a fence mark makes the run read as text and
+// leaves a later fence of the same run open). The grammar leaves such a flow open to the end of the page
+// (`micromark-extension-math@3.1.0`, `lib/math-flow.js`, `beforeContentChunk`: at the end of the input the flow ends
+// with the document; `micromark-core-commonmark@2.0.4`, `lib/code-fenced.js`, the same for a fence), where a reader of
+// the run alone sees it end with the run, and closing it would add a line the original does not hold. The fence case in
+// `source-shipped-page.unit.test.ts` pins the behaviour. The other structural limit is nesting past the bound of 256
+// (`NESTING_BOUND` in `markup/src/nesting-bound.ts`, which refuses such a text before any parser reads it, and
+// `withMdxExhaustionRefused` in `document-structure/src/parse-mdx.ts`, which answers a parse that ran out of stack as
+// the same refusal); no writing of the text makes the grammar accept what it refuses by depth. Step 2 was taken for 402
+// and 407 pairs, all but three of each a nested one, and made the page parse for none and for 1 (a pair of `$$` flows).
+// This pool is larger than the one of the earlier rounds, so these counts are not theirs.
 //
-// Smaller limits. The reach of a bare address is taken as up to the next space or less-than sign, as the GFM
-// autolink-literal pattern does. An opener of a comment that never closes is written as a character reference wherever
-// it stands, inside code too, where it shows as written. An angle autolink inside the alternative text of an image is
-// written with a backslash before its less-than sign, as any text is, and the page shows the brackets there: the
-// alternative text of an image is a string to the plain parse, which holds no autolink node to write as its address
-// (`source-ships-encoding.unit.test.ts` pins the case).
+// Smaller limits. A footnote definition indented four spaces or more inside a paragraph is a definition to MDX and a
+// line of the paragraph to a reader of CommonMark with GFM (the indented code that would cap it is off in MDX): the
+// page parses and the encoder writes the module line after a marker there, but the reader of the page and of the source
+// differ in the marker (`source-ships-encoding.unit.test.ts` pins the text). The rest of a run after an opener of a
+// comment that never closes is read on the page as Markdown, where the package's own mask would hide it, so the shown
+// cases compare such a run up to the opener. The reach of a bare address is taken as up to the next space or less-than
+// sign, as the GFM autolink-literal pattern does. An opener of a comment that never closes is written as a character
+// reference wherever it stands, inside code too, where it shows as written. An angle autolink inside the alternative
+// text of an image is written with a backslash before its less-than sign, as any text is, and the page shows the
+// brackets there: the alternative text of an image is a string to the plain parse, which holds no autolink node to
+// write as its address (`source-ships-encoding.unit.test.ts` pins the case).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.

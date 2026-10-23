@@ -206,16 +206,18 @@ which lists every file of these commitments.
   Each step taken writes one warn line naming the slices and the step,
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
-  Two seeded searches of forty thousand pairs of runs each under the real grammar took the second step for 486 and 467
-  pairs,
-  almost all of them a run nested past the bound beside a run holding a character that step escapes,
-  and it made the page parse for 1 pair and for none.
+  The second step is taken when the page of the first step does not parse
+  (the page as written when the first step changed nothing)
+  and writing every run as literal text gives a page unlike the one last tried.
+  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 402 and 407 pairs,
+  all but three of each a run nested past the bound beside a run holding a character that step escapes,
+  and it made the page parse for none and for 1 pair.
   The third step is taken when no writing makes the page parse:
   a run nested past the bound of the plain reading,
-  a `$$` flow or a fence that one run opens and a later run closes with the English between them,
-  a comment opener that never closes beside a line the plain reading takes for a definition,
-  a run that starts with a byte order mark and whose first line starts a block,
-  and the shapes the module comment of `page-check/src/corpus-run/source-ships-encoding.ts` names (ledger B832).
+  and a `$$` flow or a fence that one run opens and a later run closes with the English between them
+  (the two structural limits,
+  with the grammar's source cited in the module comment of `page-check/src/corpus-run/source-ships-encoding.ts`
+  and in ledger B832).
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,

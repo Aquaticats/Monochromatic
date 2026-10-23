@@ -2,20 +2,20 @@
  Tests for the steps that make a page carrying the original of untranslated passages parse.
 
  The page-level cases that drive the real grammar are in `source-shipped-page.unit.test.ts`. A seeded search of forty
- thousand pairs of runs built from a pool of fragments, run with two seeds, took the first step for 31160 and 31140
- pairs, and it made the page parse for 26404 and 26361 of them: the refusals found in braces, tags and the other syntax
- of a run, and the runs that parse alone and cannot stand beside another (a fence mark indented four spaces or more,
- a name two runs import). The second step is taken when every run parses alone, the page does not, and writing every run
- as literal text changes some run; the search took it for 486 and 467 pairs, almost all of them a run nested past the
- bound beside a run holding a character the step escapes, and it made the page parse for 1 and for none (a pair of
- `$$` flows). The third step is taken when no writing makes the page parse: a run nested past the bound the plain
- reading keeps, a `$$` flow or a fence one run opens and a later run closes with the English between them falling
- inside it and a tag after the closing line, and the shapes named under LIMITS in the module comment of
- `source-ships-encoding.ts`. The page-level cases for the nested run and the fence pair are in
- `source-shipped-page.unit.test.ts`, as are the cases that take the first step for a fence mark indented four spaces in
- both runs and for two runs that import one name. The cases here hand the composition a grammar that answers by a rule
- written in the case, which takes the second step and the choices of the third on text the real grammar accepts, so they
- are cases of the ladder and not of the grammar.
+ thousand pairs of runs built from a pool of fragments, run with two seeds, took the first step for 32279 and 32171
+ pairs, and it made the page parse for 27974 and 27899 of them: the refusals found in braces, tags and the other syntax
+ of a run, and the runs that parse alone and cannot stand beside another (a fence mark indented four spaces or more, a
+ name two runs import). The second step is taken when the page of the first step (the page as written, when the first
+ step changed nothing) does not parse and writing every run as literal text gives a page unlike the one last tried; the
+ search took it for 402 and 407 pairs, all but three of each a run nested past the bound beside a run holding a
+ character the step escapes, and it made the page parse for none and for 1 (a pair of `$$` flows). The third step is
+ taken when no writing makes the page parse: a run nested past the bound the plain reading keeps, a `$$` flow or a fence
+ one run opens and a later run closes with the English between them falling inside it and a tag after the closing line,
+ as the module comment of `source-ships-encoding.ts` names under LIMITS. The page-level cases for the nested run and the
+ fence pair are in `source-shipped-page.unit.test.ts`, as are the cases that take the first step for a fence mark
+ indented four spaces in both runs and for two runs that import one name. The cases here hand the composition a grammar
+ that answers by a rule written in the case, which takes the second step and the choices of the third on text the real
+ grammar accepts, so they are cases of the ladder and not of the grammar.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
