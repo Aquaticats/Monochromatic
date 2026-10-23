@@ -219,7 +219,10 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
     /**
      The note and the text, read as the page holds them.
      */
-    const { children, ...page } = parseGfmMathBody({ body: `${NOTE}\n\n${readable}`, },);
+    const {
+      children,
+      ...page
+    } = parseGfmMathBody({ body: `${NOTE}\n\n${readable}`, },);
     return accountOf({
       root: {
         ...page,

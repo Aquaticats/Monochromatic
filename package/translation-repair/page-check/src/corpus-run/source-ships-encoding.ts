@@ -111,6 +111,13 @@ const BYTE_ORDER_MARK_CODE_POINT = 0xFE_FF;
 const BYTE_ORDER_MARK = String.fromCodePoint(BYTE_ORDER_MARK_CODE_POINT,);
 
 /**
+ What the parse is given in place of a byte order mark that opens a text. The page carries the text after a note and a
+ blank line, so the mark stands in the middle of the page: an ordinary character, after which the first line of the text
+ starts no block, where the parser drops a mark that opens its input and reads the line as the start of the document.
+ */
+const LEADING_MARK_STAND_IN = 'x';
+
+/**
  What opens an HTML comment.
  */
 const COMMENT_OPEN = '<!--';
@@ -304,9 +311,25 @@ function openerStarts(
 }
 
 /**
+ Gives a text to the parse as the page holds it: a byte order mark that opens it is an ordinary character there.
+
+ @param text - the text
+
+ @returns Text of the same length, with a letter in place of a mark that opens it
+
+ @example
+ ```ts
+ const given = asTheParseReadsIt({ text: '\uFEFF- a', },);
+ ```
+ */
+function asTheParseReadsIt({ text, }: { readonly text: string; },): string {
+  return text.startsWith(BYTE_ORDER_MARK,) ? `${LEADING_MARK_STAND_IN}${text.slice(1,)}` : text;
+}
+
+/**
  Reads what a text holds, with its comments out of the way.
 
- @param text - text without a leading byte order mark
+ @param text - the text
 
  @returns Stretches a reader sees as text, rewrites, comments that close, and the openers of comments that never close
 
@@ -364,13 +387,15 @@ function readText({ text, }: { readonly text: string; },): TextReading {
    The text as the parse reads it: comments that close blanked, so what stands inside them is not parsed, and the
    openers of comments that never close written as text.
    */
-  const readable = standingIn({
-    text: blanking({
-      text,
-      ranges: closedComments,
-    },),
-    starts: openers.map(function toStart({ end, },): number {
-      return end - 1;
+  const readable = asTheParseReadsIt({
+    text: standingIn({
+      text: blanking({
+        text,
+        ranges: closedComments,
+      },),
+      starts: openers.map(function toStart({ end, },): number {
+        return end - 1;
+      },),
     },),
   },);
   // A TEXT NESTED PAST THE BOUND OF THE PLAIN READING IS NOT PARSED, since the reading refuses it before it reads it;
@@ -473,9 +498,6 @@ function escapesNext(
  ```
  */
 export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): string {
-  // The parser drops a leading byte order mark and every position then stands one short, so the mark is kept apart.
-  if (text.startsWith(BYTE_ORDER_MARK,))
-    return `${BYTE_ORDER_MARK}${encodeAsLiteralMdx({ text: text.slice(1,), },)}`;
   /**
    What the text holds.
    */
