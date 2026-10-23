@@ -344,8 +344,8 @@ export function noWaitWordsOf(
 
  @example
  ```ts
- const said = shortBenchesWithCure({ dry, names: phaseBenches({ phase, },), },);
- // => ['wide 3 of 7 reachable, quorum 4 (reached again with the return of synthetic, hyper, openrouter)',]
+ const said = shortBenchesWithCure({ dry: everyProviderDry, names: ['late',], },);
+ // => ['late 0 of 7 reachable, quorum 4 (reached again with the return of hyper, openrouter)',]
  ```
  */
 export function shortBenchesWithCure(

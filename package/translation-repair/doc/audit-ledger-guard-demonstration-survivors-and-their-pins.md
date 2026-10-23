@@ -291,3 +291,191 @@ found two problems in its tests (M266).
 Recurrence:
 `mistake-prevention-guards-searches-and-claims.md`,
 "Guards that cannot fail".
+
+## B861: the producer-list search read a builder in few shapes, and its chained-wrapper case could not fail
+
+Status:
+fixed on 2026-10-23 (UTC),
+found by the re-check of fix round 10 of the Claude route (its findings on what the search misses).
+The design that landed is open to the owner's veto.
+
+The defect:
+`claude-schemas.unit.test.ts` keeps the list of answer-schema producers honest.
+It searches the family's source (`claude-schema-sources.test-fixture.ts`) for files that write a `json_schema` format,
+and for files that use a function that writes one (a builder) or a wrapper that returns a builder's result.
+The search read a plain call,
+a call that names type arguments,
+a builder handed over by reference,
+and a wrapper that returns the call after `return` or `=>`.
+It missed the spread of a builder's result (the dots before the name read as a property),
+a call through a namespace import or under an import alias,
+a wrapper that returns an awaited call or a parenthesised call across lines,
+a builder written as a function expression,
+as the default export,
+as a method of an object,
+as an argument of a call,
+or as an async arrow function with one bare parameter.
+Its header said it would name the shapes it misses and named none.
+The case for a wrapper of a wrapper passed on the search as it stood,
+and the mutant that finds wrappers once and does not repeat passed every case,
+while the mutant named for the closure removed every wrapper and so proved only that wrappers are read.
+An `rg` of the names of the three shared builders over the family's non-test source on 2026-10-23
+finds them only as plain calls,
+import and export list entries and documentation,
+so no producer was missing from the list.
+
+The fix
+(the red cases are `b7ba9306ba` and `9e8c7067f4`,
+the fix is `76e07ed906`):
+one case per shape,
+with imaginary files
+(`claude-schema-call-forms.test-fixture.ts`,
+`claude-schema-builder-forms.test-fixture.ts`,
+`claude-schema-wrapper-forms.test-fixture.ts`),
+a search that reads each shape
+(`claude-schema-code.test-fixture.ts`,
+`claude-schema-text.test-fixture.ts`,
+`claude-schema-member.test-fixture.ts`,
+`claude-schema-import.test-fixture.ts`),
+and a header in `claude-schema-code.test-fixture.ts` that lists the shapes it does not read:
+a function declared inside another function or a class,
+a wrapper that returns the call through a local variable,
+a conditional,
+an object,
+an array
+or a promise chain,
+an optional call,
+a function assigned to a second name,
+taken out of an object
+or re-exported under another name,
+an anonymous default export
+or one written `export default build;`,
+a dynamic import
+or `require`,
+a default import through a module of another file name (a barrel),
+an object member nested deeper than one level,
+an accessor (a getter or a setter),
+a member with a computed name,
+and a member on the line that opens the object
+(B862 added the barrel and the member limits to the list,
+which first lacked them).
+Wrappers stay limited to calls returned at once.
+Reading every function that calls a builder would make the three functions that ask the page consistency questions
+wrappers,
+and the producer list would demand every caller of each,
+though they pass the builder's result to a request and return something else.
+Mutating the search to read any call as a return fails three cases,
+among them the case over the real sources.
+
+Mutants shown to fail a case:
+the repeat of the search for wrappers (`one-level-wrappers`),
+the reading of wrappers at all (`wrappers-unread`),
+the spread,
+the property rule,
+the namespace names,
+the alias names,
+the default import names,
+`return await`,
+`=> await`,
+`=> (`,
+`return (`,
+the closing up of `( `,
+the function expression,
+the default export,
+the object members,
+the call argument,
+the async parameter,
+the alias of a wrapper,
+and the rule that a wrapper returns the call.
+A run with the fixtures copied unchanged passes.
+The mutation of `=> await ` first passed every case,
+which added the two arrow cases of `claude-schema-wrapper-forms.test-fixture.ts`.
+The claim that every mutation of the search's reading was shown to fail a case did not hold for nine readings (B862).
+
+Prevention rule:
+a search that stands in for a parser has one case per shape it reads,
+a header that lists the shapes it does not read,
+and every mutation of its reading is shown to fail a case.
+
+Cache versions:
+none moved.
+The change is to test fixtures.
+
+Recurrence:
+`mistake-prevention-guards-searches-and-claims.md`,
+"Guards that cannot fail".
+
+## B862: nine mutations of the producer-list search passed every case, and a header sentence on strings had none
+
+Status:
+fixed on 2026-10-23 (UTC),
+found by the re-check of fix round 11 of the Claude route
+(its findings on the survivors of the search and on its header).
+The design that landed is open to the owner's veto.
+
+The defect:
+B861 said every mutation of the search's reading is shown to fail a case.
+Eight did not fail one,
+and a ninth showed the header's sentence on strings had no case behind it.
+Dropping the opening `=> ` of a wrapper,
+the follower `<` of a call,
+the opening `export default async function` of a builder,
+or the reading of a value that starts with type parameters,
+each passed every case of the search,
+though the header and the TSDoc of `returnsCallOf` claimed all four.
+No case wrapped a builder written as a method of an object or as a default export,
+and a search that follows no wrapper of either also passed,
+though the header of `claude-schemas.unit.test.ts` claimed a wrapper of any builder form.
+The header said a name inside a string is no use.
+The rule is a quote directly against the name,
+a name inside a longer string (`'call build() here'`) is read as a use,
+and so is a name in a comment that follows code on its line.
+Dropping either quote rule passed every case,
+and so did a search that cut the contents of strings out of the code.
+The list of shapes the search does not read lacked a default import through a barrel
+and the limits on object members,
+and B861's copy of the list lacked four more of the header's.
+A search of the family's non-test source for the names of the three shared builders
+found no use of any of these shapes,
+so no producer was missing from the list.
+
+The fix:
+six cases for the readings that had none
+(`claude-schema-wrapped-builder-forms.test-fixture.ts`,
+`claude-schema-builder-forms.test-fixture.ts`):
+a wrapper written as an arrow function with the call as its body,
+a wrapper that returns a call naming a type argument,
+a wrapper of a method builder,
+a wrapper of a default-export builder,
+a generic arrow builder
+and an `export default async function` builder,
+and two cases in `claude-schema-wrapper-forms.test-fixture.ts`:
+a name that holds a whole string or starts or ends it is no use,
+and a name inside a longer string or in a comment after code is read as a use.
+The scan did not change.
+The longer string is pinned as the over-read the header states,
+rather than fixed by cutting string contents out of the code,
+which would be a change in behaviour that has to handle template literals that span lines and escaped quotes.
+The headers say what the cases hold,
+and the list of shapes not read matches B861's.
+Each of the nine mutations,
+applied to a scratch copy of the tree,
+passed every case before the cases and fails the case named for its shape after them,
+and the unmutated copy passes.
+Wrappers of the other builder forms (an arrow function,
+a function expression)
+have no case of their own,
+and the header says so.
+
+Prevention rule:
+a sentence of a header that names a shape the search reads is a claim,
+and each such sentence has a case that a mutation dropping the shape fails,
+or it is narrowed to what the cases hold.
+
+Cache versions:
+none moved.
+The change is to test fixtures.
+
+Recurrence:
+`mistake-prevention-guards-searches-and-claims.md`,
+"Guards that cannot fail".

@@ -7,11 +7,12 @@
  the stage does not seat: the preparation and the insertion admission ask the whole roster (`seats.roster`), and the
  page consistency pass and the consolidation gate ask the late bench. Each case reads one phase over a view where the
  bench the stage seats stands short and the bench the row used to read does not, with no hold running, so the
- reading takes one dryness read and writes the shortfall warning, which names the bench.
+ reading writes the shortfall warning, which names the bench.
 
  THE LANES ROW IS RIGHT IN EFFECT: the lanes seat the slate judges of both lanes from the select judges, which the row
  does not name, but across all 256 dryness views the select judges stand short only where the wide bench does, so the
- row never starts a phase past a short select bench. The last case checks that over every view.
+ row never starts a phase past a short select bench. The select case checks that over every view, and the checkers case
+ names the four views in which the checkers, a bench padded by design that the row leaves out, stand short alone.
 
  Fixtures are cat-themed invention; every view is scripted and no HTTP is made.
 
@@ -32,10 +33,13 @@ import {
 import {
   metersAllWet,
 } from '@monochromatic-dev/translation-repair-provider/ts/meter-states.test-fixture.ts';
+import { rosterQuorumSize, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
   benchesOf,
   type JudgeSeatPhase,
   judgeSeatsFor,
+  phaseBenches,
+  reachableSeats,
   readJudgeSeats,
   shortBenches,
 } from '../../dist/final/node/index.mjs';
@@ -102,11 +106,11 @@ function allViews(): readonly BudgetView[] {
 
  @param view - dryness every read returns
 
- @returns What the reading logged, one entry per line, and how many dryness reads it took
+ @returns What the reading logged, one entry per line
 
  @example
  ```ts
- const { lines, reads, } = await readOver({ phase: 'preparation', view: ROSTER_SHORT, },);
+ const { lines, } = await readOver({ phase: 'preparation', view: ROSTER_SHORT, },);
  ```
  */
 async function readOver(
@@ -117,21 +121,14 @@ async function readOver(
     readonly phase: JudgeSeatPhase;
     readonly view: BudgetView;
   },
-): Promise<{ readonly lines: readonly string[]; readonly reads: number; }> {
+): Promise<{ readonly lines: readonly string[]; }> {
   /**
    What the reading logged.
    */
   const lines: string[] = [];
-  /**
-   Dryness reads taken so far.
-   */
-  const counted = { reads: 0, };
   await readJudgeSeats({
     client: {
-      providerDryness: async () => {
-        counted.reads += 1;
-        return view;
-      },
+      providerDryness: async () => view,
       providerMeterStates: metersAllWet,
       providerHolds: () => providerRecord({ of: () => 0, },),
     },
@@ -140,7 +137,7 @@ async function readOver(
     l: levelCapturingLogger({ lines, },),
     pollMs: 5,
   },);
-  return { lines, reads: counted.reads, };
+  return { lines, };
 }
 
 await describe({
@@ -185,6 +182,53 @@ await describe({
             && (shortBenches({ benches, names: ['wide',], dry, },).length === 0);
         },);
         expect(unmatched,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'LEAVES THE CHECKERS OUT OF THE LANES ROW, A BENCH PADDED BY DESIGN, though in four of the 256 dryness '
+        + 'views it stands short while every bench the row reads is at its quorum: Hyper wet beside at most NeuralWatt '
+        + 'and DeepSeek',
+      fn: async () => {
+        /**
+         Wet providers of each view where the checker bench is short and no bench of the lanes row is.
+         */
+        const unmatched = allViews()
+          .filter(function checkersOnlyShort(dry,): boolean {
+            /**
+             Seats as derived for this view.
+             */
+            const seats = judgeSeatsFor({ dry, },);
+            /**
+             Whether some bench the lanes row reads stands short.
+             */
+            const rowShort = shortBenches({
+              benches: benchesOf({ seats, },),
+              names: phaseBenches({ phase: 'lanes', },),
+              dry,
+            },).length > 0;
+            return (!rowShort)
+              && (reachableSeats({ seats: seats.checkers, dry, },).length
+                < rosterQuorumSize({ rosterSize: seats.checkers.length, },));
+          },)
+          .map(function wetOf(dry,): string {
+            return Object.entries(dry,)
+              .filter(function isWet([, isDry,],): boolean {
+                return !isDry;
+              },)
+              .map(function providerOf([provider,],): string {
+                return provider;
+              },)
+              .toSorted()
+              .join('+',);
+          },)
+          .toSorted();
+        expect(unmatched,).toEqual([
+          'deepseek+hyper',
+          'deepseek+hyper+neuralwatt',
+          'hyper',
+          'hyper+neuralwatt',
+        ],);
       },
     },),
 

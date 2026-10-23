@@ -93,7 +93,7 @@ export type JudgeSeatPhase =
  for repair and writers for translate (the writing benches since the fifteenth class, `run-seats-floor.ts`), and the
  slate judges of both lanes from the select judges, which the row leaves to the wide bench because across all 256
  dryness views the select judges stand short only where the wide bench does (`run-seats-phase-bench.unit.test.ts`);
- the translate lane needs its writers and its slate judges, a bench of its own there; the contest
+ the translate lane needs its writers and its slate judges, which are the select judges; the contest
  judges with the late bench (`pass-contest.ts`); consolidation writes with the writers, judges with the slate and
  gates with the late bench, of which the slate is the narrower. The insertion admission, which asks the roster
  whether the archive already covers each source-only passage, re-reads its seats under a hold as its own phase
@@ -108,7 +108,11 @@ export type JudgeSeatPhase =
 
  NOT READ, BY DESIGN OF THIS TABLE: the consolidation's writers, its polish refiners and its polish judges (the select
  judges), and the lanes' checkers. They are benches the stages seat, but a phase here waits for the benches that
- decide its verdicts, and adding one is a change to when a phase waits.
+ decide its verdicts, and adding one is a change to when a phase waits. The checker bench is padded by design with
+ ranked seats no wet provider serves while fewer than three are served (`JudgeSeats.checkers` in `run-seats.ts`, the
+ owner's rule of 2026-09-09 that such a seat stays seated and is lost at call time), so it can stand short with every
+ row at quorum, as it does in 4 of the 256 dryness views for the lanes row (the checkers case of
+ `run-seats-phase-bench.unit.test.ts`).
  */
 const BENCHES_BY_PHASE: Readonly<Record<JudgeSeatPhase, readonly BenchName[]>> = {
   preparation: ['roster',],

@@ -50,7 +50,7 @@ import { shortWarningOf, } from './run-seats-short-warning.test-fixture.ts';
  NeuralWatt and Bedrock wet and every other provider dry: the late bench is 3 of 7 reachable against a quorum of 4,
  and the wide bench 3 of 8.
  */
-const WIDE_ONE_SHORT: BudgetView = {
+const LATE_ONE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: false,
@@ -86,7 +86,7 @@ const SHORT_HOLD_MS = 40;
  it short: with the three held, each one is unnecessary given the others, yet every one of them adds a seat to the bench
  the held set cures.
  */
-const WIDE_THREE_SHORT: BudgetView = {
+const LATE_THREE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: true,
@@ -150,7 +150,7 @@ async function readsUnderHolds(
   {
     held,
     lines,
-    view = WIDE_ONE_SHORT,
+    view = LATE_ONE_SHORT,
     phase = 'lane contest',
   }: {
     readonly held: readonly ProviderName[];
@@ -326,7 +326,7 @@ await describe({
         + 'late seat and the bench is still short, so the wait buys nothing and the line says the hold would not help',
       fn: async () => {
         const lines: string[] = [];
-        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_THREE_SHORT, },),).toBe(1,);
+        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: LATE_THREE_SHORT, },),).toBe(1,);
         const warning = noWaitWarningOf({ lines, },);
         expect(warning,).toContain('held: anthropic (1 s); it would not help cure a short bench',);
       },
@@ -348,7 +348,7 @@ await describe({
           await readsUnderHolds({
             held: ['synthetic', 'bedrock', 'hyper',],
             lines: [],
-            view: WIDE_THREE_SHORT,
+            view: LATE_THREE_SHORT,
           },),
         ).toBe(2,);
       },
@@ -468,8 +468,8 @@ await describe({
           },);
           return noWaitWarningOf({ lines, },);
         }
-        expect(await warningOver({ view: WIDE_ONE_SHORT, },),).not.toContain('no NeuralWatt return',);
-        expect(await warningOver({ view: { ...WIDE_ONE_SHORT, neuralwatt: true, }, },),).toContain(
+        expect(await warningOver({ view: LATE_ONE_SHORT, },),).not.toContain('no NeuralWatt return',);
+        expect(await warningOver({ view: { ...LATE_ONE_SHORT, neuralwatt: true, }, },),).toContain(
           '; no NeuralWatt return inside what the pass has left,',
         );
       },
