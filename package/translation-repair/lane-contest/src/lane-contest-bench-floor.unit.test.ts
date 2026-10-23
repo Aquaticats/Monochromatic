@@ -213,6 +213,24 @@ await describe({
             },);
           },
         },),
+        it({
+          name: 'MARKS THE OUTCOME OF A ROUND NEVER OPENED, and only that one, so the artifact tells it from a roster '
+            + 'that was asked and heard nobody',
+          fn: async () => {
+            const skipped = await contestWith({ asked: [], lines: [], reachable: LANE_CONTEST_QUORUM - 1, },);
+            const met = await contestWith({ asked: [], lines: [], reachable: LANE_CONTEST_QUORUM, },);
+            const uncounted = await contestWith({ asked: [], lines: [], },);
+            expect({
+              skipped: skipped.benchBelowFloor,
+              metHasKey: 'benchBelowFloor' in met,
+              uncountedHasKey: 'benchBelowFloor' in uncounted,
+            },).toEqual({
+              skipped: true,
+              metHasKey: false,
+              uncountedHasKey: false,
+            },);
+          },
+        },),
       ],
     },),
   ],

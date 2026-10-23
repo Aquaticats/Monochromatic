@@ -285,6 +285,65 @@ await describe({
     },),
     it({
       name:
+        'MARKS AN UNFILLED PASSAGE THE SELECT BENCH NEVER BOUGHT A CANDIDATE FOR, so the outcome tells a skip for '
+          + 'want of a bench from a panel that declined, and marks only the unfilled slices it is asked about',
+      fn: async () => {
+        /**
+         Two places the archive leaves empty, and a translated slice before them.
+         */
+        const anchored = [
+          CAT_SLICES[0] ?? pairOf({
+            index: 0,
+            target: 'The cat sleeps on the sill.',
+          },),
+          ...[1, 2,].map(function insertionAt(sliceIndex,) {
+            return {
+              source: {
+                sliceIndex,
+                nodes: [],
+                startOffset: 0,
+                endOffset: 0,
+                text: `source of the bowl ${String(sliceIndex,)}`,
+              },
+              target: makeInsertionChunk({
+                sliceIndex,
+                offset: 0,
+              },),
+            };
+          },),
+        ];
+        /**
+         Wordings with slice 1 marked and slice 2 an ordinary decline.
+         */
+        const wordings = translateLaneWordings({
+          slices: anchored,
+          unfilledChunkIndices: [1, 2,],
+          belowFloorChunkIndices: [1, 0,],
+          settled: [
+            recordFor({
+              sliceIndex: 0,
+              outputText: 'The cat sleeps on the sill.',
+              heardTranslators: 2,
+            },),
+          ],
+        },);
+        expect(wordings.map(function toOutcome(one,) {
+          return one.outcome;
+        },),).toEqual([
+          {
+            kind: 'decided',
+            acceptedText: 'The cat sleeps on the sill.',
+          },
+          {
+            kind: 'unfilled',
+            benchBelowFloor: true,
+          },
+          { kind: 'unfilled', },
+        ],);
+      },
+    },),
+    it({
+      name:
         'REFUSES a prepared slice no record and no unfilled index accounts for, since this lane visits every '
           + 'slice by contract and a gap it never named is a lost slice rather than an early stop',
       fn: async () => {

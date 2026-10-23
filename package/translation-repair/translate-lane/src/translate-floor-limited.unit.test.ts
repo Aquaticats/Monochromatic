@@ -483,6 +483,35 @@ await describe({
       },
     },),
     it({
+      name: 'MARKS THE UNFILLED SLICE IT SKIPPED, so the artifact tells a skip for want of a bench from a panel that '
+        + 'declined twice, and keeps the mark when a later attempt keeps the outcome without a call',
+      fn: async () => {
+        const memory = new Map<string, unknown>();
+        const first = await attempt({ memory, selectReachable: 1, calls: { count: 0, }, lines: [], },);
+        const second = await attempt({ memory, selectReachable: 1, calls: { count: 0, }, lines: [], },);
+        expect({
+          first: first.unfilled.map(function markOf(slice,) {
+            return slice.benchBelowFloor;
+          },),
+          second: second.unfilled.map(function markOf(slice,) {
+            return slice.benchBelowFloor;
+          },),
+          wording: first.sliceTexts.map(function outcomeOf(text,) {
+            return text.outcome;
+          },),
+        },).toEqual({
+          first: [true,],
+          second: [true,],
+          wording: [
+            {
+              kind: 'unfilled',
+              benchBelowFloor: true,
+            },
+          ],
+        },);
+      },
+    },),
+    it({
       name: 'IS NOT ASKED AGAIN by a later attempt at the same reach, and says nothing more: the unfilled outcome and '
         + 'its reason kept without a call, the finding that names it, and the one line the first attempt wrote',
       fn: async () => {
