@@ -111,7 +111,19 @@ const SLICES_A_DRAW_NEEDS: Readonly<Record<WidthDraw, number>> = {
 
  @example
  ```ts
- await runEditorWidthProbe({ line, newClient: createRunClient, drawSample, pin, readHeadSha, controlHolds, gather, runSlice, writeReport, runsDir, stageSettings, },);
+ await runEditorWidthProbe({
+   line,
+   newClient: createProbeRunClient,
+   drawSample,
+   pin,
+   readHeadSha,
+   controlHolds,
+   gather,
+   runSlice,
+   writeReport,
+   runsDir,
+   stageSettings,
+ },);
  ```
  */
 export async function runEditorWidthProbe(

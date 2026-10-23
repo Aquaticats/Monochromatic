@@ -24,6 +24,8 @@ const FLAT = '> The cat wakes.\n> The bird sings.';
 const KEPT = '> The cat wakes.<br/>The bird sings.';
 /** Shared heading must identify the same contract to every role. */
 const CONTRACT = 'RENDERED LINE STRUCTURE';
+/** Words every measured line holds, which ride in the user turn so the system prompt stays one text. */
+const MEASURED = ' explicit breaks by top-level block: ';
 
 await describe({
   name: 'rendered line structure reaches production sheets',
@@ -70,6 +72,13 @@ await describe({
         expect(JSON.stringify(lane,),).toContain(CONTRACT,);
         expect(JSON.stringify(gate,),).toContain(CONTRACT,);
         expect(JSON.stringify(lane,),).toContain('CANDIDATE',);
+        // THE COUNTS ARE THE CALL'S OWN VALUES (R4): they are in the user turn and never in the cached system prompt.
+        expect(lane[0]?.content,).not.toContain(MEASURED,);
+        expect(gate[0]?.content,).not.toContain(MEASURED,);
+        expect(lane[1]?.content,).toContain(`${JSON.stringify('CANDIDATE "repair"',)}${MEASURED}[0]`,);
+        expect(lane[1]?.content,).toContain(`${JSON.stringify('CANDIDATE "translate"',)}${MEASURED}[1]`,);
+        expect(gate[1]?.content,).toContain(`${JSON.stringify('CANDIDATE "consolidated"',)}${MEASURED}[0]`,);
+        expect(gate[1]?.content,).toContain(`${JSON.stringify('CANDIDATE "standing"',)}${MEASURED}[1]`,);
       },
     },),
     // LEDGER B29: the consolidation writer is shown both lanes' candidates,
@@ -80,25 +89,26 @@ await describe({
       name: 'SHOWS the consolidation writer the counts of the candidates its sheet displays',
       fn: async () => {
         /** Both lanes answered, neither with the archive's wording. */
-        const [system,] = buildConsolidateMessages({
+        const [system, user,] = buildConsolidateMessages({
           subject: { sourceText: SOURCE, incumbentText: '', repairText: FLAT, translateText: KEPT, ballots: [], lineStructured: false, },
         },);
-        expect(system?.content,).toContain(`${JSON.stringify('CANDIDATE "repair"',)} explicit breaks by top-level block: [0]`,);
-        expect(system?.content,).toContain(`${JSON.stringify('CANDIDATE "translate"',)} explicit breaks by top-level block: [1]`,);
+        expect(user?.content,).toContain(`${JSON.stringify('CANDIDATE "repair"',)}${MEASURED}[0]`,);
+        expect(user?.content,).toContain(`${JSON.stringify('CANDIDATE "translate"',)}${MEASURED}[1]`,);
+        expect(system?.content,).not.toContain(MEASURED,);
       },
     },),
     it({
       name: 'COUNTS no candidate the consolidation sheet leaves undisplayed',
       fn: async () => {
         /** The repair lane has no wording here, so the sheet shows no block for it. */
-        const [system,] = buildConsolidateMessages({
+        const [, user,] = buildConsolidateMessages({
           subject: { sourceText: SOURCE, incumbentText: '', repairText: '', translateText: KEPT, ballots: [], lineStructured: false, },
         },);
-        expect(system?.content,).toContain(`${JSON.stringify('CANDIDATE "translate"',)} explicit breaks by top-level block: [1]`,);
+        expect(user?.content,).toContain(`${JSON.stringify('CANDIDATE "translate"',)}${MEASURED}[1]`,);
         // COUNTED BY LINE, not by label: a lane whose text is the archive's
         // carries a longer label, which a label search would miss (ledger
         // B29 mutation batch). The original's line and the one candidate's.
-        expect((system?.content ?? '')
+        expect((user?.content ?? '')
           .split('\n',)
           .filter(function countsBreaks(line,): boolean {
             return line.includes(' explicit breaks by top-level block: ',);
@@ -111,13 +121,14 @@ await describe({
       name: 'SHOWS the follow-up writer the counts of the rejected candidates its sheet displays',
       fn: async () => {
         /** One flattened and one kept rendering, both declined. */
-        const [system,] = buildTranslateMessages({
+        const [system, user,] = buildTranslateMessages({
           sourceText: SOURCE,
           existingText: '',
           followupEvidence: { reason: 'declined-rejection', candidateTexts: [FLAT, KEPT,], findings: [], },
         },).messages;
-        expect(system?.content,).toContain(`${JSON.stringify('REJECTED CANDIDATE 1',)} explicit breaks by top-level block: [0]`,);
-        expect(system?.content,).toContain(`${JSON.stringify('REJECTED CANDIDATE 2',)} explicit breaks by top-level block: [1]`,);
+        expect(user?.content,).toContain(`${JSON.stringify('REJECTED CANDIDATE 1',)}${MEASURED}[0]`,);
+        expect(user?.content,).toContain(`${JSON.stringify('REJECTED CANDIDATE 2',)}${MEASURED}[1]`,);
+        expect(system?.content,).not.toContain(MEASURED,);
       },
     },),
   ],

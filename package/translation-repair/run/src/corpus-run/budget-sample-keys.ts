@@ -1,5 +1,6 @@
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
+  CLAUDE_KEY_VARIABLE,
   DEEPSEEK_KEY_VARIABLE,
   XIAOMI_KEY_VARIABLE,
 } from './direct-key-variables.ts';
@@ -9,7 +10,7 @@ import {
 // takes when set and leaves empty otherwise.
 
 /**
- The five provider keys, each non-empty, and the two optional ones.
+ The five provider keys, each non-empty, and the three optional ones.
  */
 export type ProviderKeys = {
   /**
@@ -47,6 +48,11 @@ export type ProviderKeys = {
    Xiaomi key, empty when unset, optional likewise.
    */
   readonly xiaomi: string;
+
+  /**
+   The owner's Claude key, empty when unset, optional likewise.
+   */
+  readonly anthropic: string;
 };
 
 /**
@@ -133,6 +139,7 @@ export function readProviderKeys(
     openrouter: openRouterKey,
     deepseek: env[DEEPSEEK_KEY_VARIABLE] ?? '',
     xiaomi: env[XIAOMI_KEY_VARIABLE] ?? '',
+    anthropic: env[CLAUDE_KEY_VARIABLE] ?? '',
   };
 }
 

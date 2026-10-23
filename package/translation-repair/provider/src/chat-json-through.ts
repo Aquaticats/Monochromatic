@@ -5,7 +5,10 @@ import type {
   ChatJsonRequest,
   ModelCaller,
 } from './chat-contract.ts';
-import { readJsonOutcome, } from './chat-json-outcome.ts';
+import {
+  readJsonOutcome,
+  responseFormatSpreadOf,
+} from './chat-json-outcome.ts';
 
 //region Chat json through
 // The `chatJson` every provider client exposes, built over that client's own
@@ -63,6 +66,7 @@ export function chatJsonThrough(
       modelId: request.modelId,
       reply,
       validate,
+      ...responseFormatSpreadOf({ request, },),
     },);
   };
 }

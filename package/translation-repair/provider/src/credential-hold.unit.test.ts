@@ -65,6 +65,7 @@ const BEDROCK_HYPER_OPENROUTER = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: true,
 };
 
@@ -107,6 +108,7 @@ await describe({
                 bedrock: false,
                 deepseek: false,
                 xiaomi: false,
+                anthropic: false,
                 openrouter: true,
               },
               refused: ['bedrock',],
@@ -213,6 +215,7 @@ await describe({
                   bedrock: false,
                   deepseek: false,
                   xiaomi: false,
+                  anthropic: false,
                   openrouter: false,
                 };
               },
@@ -279,6 +282,7 @@ await describe({
                     bedrock: false,
                     deepseek: false,
                     xiaomi: false,
+                    anthropic: false,
                     openrouter: true,
                   };
                 },
@@ -307,6 +311,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             };
 
@@ -317,6 +322,7 @@ await describe({
               bedrock: true,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             },);
             expect(foldCredentialHolds({ dry: metered, holds: createCredentialHolds(), },),).toEqual(metered,);

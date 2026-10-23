@@ -11,7 +11,8 @@ import type { LaneContestBallot, } from '@monochromatic-dev/translation-repair-l
 import { selectFence, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
   type BreakRendering,
-  renderedBreakPrompt,
+  renderedBreakContract,
+  renderedBreakFacts,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { PAGE_APPARATUS_IS_KEPT, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
@@ -382,11 +383,11 @@ export function buildConsolidateMessages(
     (subject.syntax === 'front-matter' ? TRANSLATE_FRONT_MATTER_RULE : ''),
     (subject.lineStructured ? TRANSLATE_LINE_STRUCTURE_RULE : ''),
     (((subject.pictureContext ?? '') === '') ? '' : TRANSLATE_PICTURE_SCOPE_RULE),
-    renderedBreakPrompt({
+    // THE INSTRUCTION ONLY: the measured counts ride in the user turn (R4).
+    renderedBreakContract({
       sourceText: subject.sourceText,
       archiveText: subject.incumbentText,
       ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
-      renderings: displayedCandidates,
     },),
     CONSOLIDATE_REPLY_RULE,
   ]
@@ -451,6 +452,16 @@ export function buildConsolidateMessages(
           fence,
           label: 'WHAT THE JUDGES FOUND, claims to check against the original',
           text: brief,
+        },),
+        ...renderBlock({
+          fence,
+          label: 'RENDERED LINE STRUCTURE, measured facts',
+          text: renderedBreakFacts({
+            sourceText: subject.sourceText,
+            archiveText: subject.incumbentText,
+            ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
+            renderings: displayedCandidates,
+          },),
         },),
         `${fence} END ${fence}`,
       ].join('\n',),

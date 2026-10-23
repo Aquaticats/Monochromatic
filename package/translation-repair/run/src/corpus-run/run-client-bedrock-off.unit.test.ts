@@ -32,6 +32,7 @@ import {
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { SEAT_BEDROCK_ONLY_TEXT, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 
 /**
  Name of the Bedrock key variable, named only.
@@ -57,6 +58,7 @@ await describe({
          */
         const exchanges: TransportExchange[] = [];
         const client = runClientFrom({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           env: {
             [BEDROCK_KEY_VAR]: 'calico-not-a-real-key',
             [BEDROCK_LEDGER_PATH_VAR]: join(scratch.path, 'bedrock-spend.jsonl',),
@@ -91,6 +93,7 @@ await describe({
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'run-client-bedrock-off-', },);
         const client = runClientFrom({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           env: {
             [BEDROCK_KEY_VAR]: 'calico-not-a-real-key',
             [BEDROCK_LEDGER_PATH_VAR]: join(scratch.path, 'bedrock-spend.jsonl',),

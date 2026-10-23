@@ -119,7 +119,13 @@ leaves `incumbentEligible` out.
   Neither reached a run:
   `corpus-run/run-seats.ts` asserts every derived bench against the static editors and refiners.
 - Two writers' sheets displayed candidates without their break counts,
-  which `renderedBreakPrompt` defaults to none:
+  which `renderedBreakPrompt` defaults to none
+  (on 2026-10-22 that function became two:
+  `renderedBreakContract`,
+  the fixed instruction in the system prompt,
+  and `renderedBreakFacts`,
+  the counts of the call in the user turn,
+  which defaults to no renderings):
   the consolidation writer,
   shown both lanes' texts,
   and the translate follow-up writer,

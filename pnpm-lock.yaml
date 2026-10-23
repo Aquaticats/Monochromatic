@@ -5889,6 +5889,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/translation-repair-adjudication':
+        specifier: workspace:*
+        version: link:../adjudication
       '@monochromatic-dev/translation-repair-archive':
         specifier: workspace:*
         version: link:../archive
@@ -5995,9 +5998,6 @@ importers:
       '@monochromatic-dev/module-test':
         specifier: workspace:*
         version: link:../../module/test
-      '@monochromatic-dev/translation-repair-adjudication':
-        specifier: workspace:*
-        version: link:../adjudication
       '@monochromatic-dev/translation-repair-test-fixture':
         specifier: workspace:*
         version: link:../test-fixture

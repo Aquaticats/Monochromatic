@@ -31,6 +31,7 @@ import {
 } from '../dist/final/node/index.mjs';
 import { warnLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Error a meter read rejects with when its endpoint cannot be reached.
@@ -439,7 +440,10 @@ await describe({
           name: 'ROUTES SYNTHETIC AS DRY and reports the dry state to the seat reader, from the budget layer over a real client',
           fn: async () => {
             const { transport, } = recordedTransport({ replies: [{ status: 200, bodyText: SPENT_RENAMED_WEEKLY_BODY, },], },);
-            const budgets = createProviderBudgets({ synthetic: createSyntheticClient({ apiKey: 'test-key', transport, },), },);
+            const budgets = createProviderBudgets({
+              maxHoldMs: TEST_MAX_HOLD_MS,
+              synthetic: createSyntheticClient({ apiKey: 'test-key', transport, },),
+            },);
             const signal = AbortSignal.timeout(HANG_STOP_MS,);
 
             expect((await budgets.read({ signal, },)).synthetic,).toBe(true,);

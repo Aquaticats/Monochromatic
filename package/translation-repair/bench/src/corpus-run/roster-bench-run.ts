@@ -68,7 +68,17 @@ const DEFAULT_SLICES = 10;
 
  @example
  ```ts
- await runRosterBench({ line, roster, newClient: createRunClient, drawSlices, readHead, writeReport: writeBenchReport, clock: performance, runsDir, stageSettings, },);
+ await runRosterBench({
+   line,
+   roster,
+   newClient: createProbeRunClient,
+   drawSlices,
+   readHead,
+   writeReport: writeBenchReport,
+   clock: performance,
+   runsDir,
+   stageSettings,
+ },);
  ```
  */
 export async function runRosterBench(

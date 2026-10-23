@@ -10,6 +10,7 @@ import type {
 import { contestResponseFormat, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
   buildConsolidateGateMessages,
+  CONSOLIDATE_GATE_NAMES,
   type ConsolidateGateSubject,
   type GateBallot,
   type GateChoice,
@@ -51,8 +52,9 @@ export const CONSOLIDATE_GATE_QUORUM = 2;
 /**
  Schema a reply must satisfy before it reaches the reader.
  */
-const GATE_RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
+export const CONSOLIDATE_GATE_RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
   schemaName: 'consolidate_gate',
+  verdicts: CONSOLIDATE_GATE_NAMES,
   // FALSE, AND NOT AN OVERSIGHT. This contest's `standing` choice IS the
   // archive, so a judge preferring it has already said the archive is worth
   // keeping. Asking again would record the same opinion twice.
@@ -241,7 +243,7 @@ export async function gateConsolidatedSlice(
     messages: buildConsolidateGateMessages({ subject, },),
     signal,
     exchangeTimeoutMs,
-    responseFormat: GATE_RESPONSE_FORMAT,
+    responseFormat: CONSOLIDATE_GATE_RESPONSE_FORMAT,
     validate: isConsolidateGateWire,
     stage: 'consolidate-gate',
     l: gl,

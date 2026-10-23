@@ -2,7 +2,7 @@ import { logger, } from '@monochromatic-dev/module-logger/ts';
 
 import { readPoolPolicy, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import {
-  createRunClient,
+  createProbeRunClient,
   reportingRefusals,
   resolveRunsDir,
   RUN_MODELS,
@@ -37,7 +37,7 @@ async function sampleOverTheEnvironment(): Promise<void> {
       name: 'DAMAGE_SAMPLE_SEED',
       fallback: 'damage-round-one',
     },),
-    openClient: createRunClient,
+    openClient: createProbeRunClient,
     proberModelIds: RUN_MODELS.checkerModelIds,
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     l: logger,

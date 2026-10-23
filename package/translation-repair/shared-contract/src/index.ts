@@ -20,6 +20,11 @@ export {
   type VoteTally,
 } from './adjudicate-model.ts';
 export {
+  assertOneWireModelPerBench,
+  wireModelOf,
+  WireModelRepeatedError,
+} from './bench-wire-model.ts';
+export {
   aggregateClaims,
   type AggregatedClaim,
   type ClaimAggregation,
@@ -108,10 +113,22 @@ export {
   type ServingCard,
 } from './model-card-derive.ts';
 export {
+  CLAUDE_CARDS,
+  CLAUDE_COMPLETION_CAP,
+  CLAUDE_FIRST_BYTE_ALLOWANCE_MS,
+  CLAUDE_FLOOR_TOKENS_PER_SECOND,
+  claudeCallDeadlineMs,
+  HAIKU_5_5_PRICES,
+  SONNET_5_5_PRICES,
+} from './claude-card-sides.ts';
+export {
   DEEPSEEK_V4_1_FLASH_ON_DEEPSEEK,
   MIMO_V2_6_FLASH_ON_XIAOMI,
 } from './direct-card-sides.ts';
 export {
+  type AnthropicCard,
+  type AnthropicPriceTier,
+  type AnthropicPrices,
   type BedrockCard,
   type BedrockRoute,
   type BedrockStreamEnd,
@@ -192,6 +209,12 @@ export {
   type RefinableSlice,
 } from './refine-envelope.ts';
 export {
+  ANTHROPIC_EFFORTS,
+  ANTHROPIC_SERVED_IDS,
+  ANTHROPIC_WIRE_MODELS,
+  type AnthropicEffort,
+  type AnthropicServedId,
+  type AnthropicWireModel,
   BEDROCK_SERVED_IDS,
   type BedrockOnlyRosterId,
   type BedrockServedId,

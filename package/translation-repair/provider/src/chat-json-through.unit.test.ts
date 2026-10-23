@@ -75,6 +75,37 @@ await describe({
             ],);
           },
         },),
+
+        it({
+          name: 'READS THE REPLY AGAINST THE RESPONSE FORMAT IT SENT, taking the schema\'s spelling of a listed value '
+            + 'that came back differing only in its capital',
+          fn: async () => {
+            const chatJson = chatJsonThrough({
+              chatText: async function chatText() {
+                return { text: '{"cat":"Tabby"}', };
+              },
+            },);
+            const outcome = await chatJson({
+              modelId: 'minimax-m3',
+              messages: [{ role: 'user', content: 'Name the cat.', },],
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              responseFormat: {
+                type: 'json_schema',
+                json_schema: {
+                  name: 'cat_name',
+                  schema: {
+                    type: 'object',
+                    properties: { cat: { type: 'string', enum: ['mittens', 'tabby',], }, },
+                  },
+                },
+              },
+              validate: function namesListedCat(value: unknown,): value is { readonly cat: string; } {
+                return namesCat(value,) && ((value.cat === 'mittens') || (value.cat === 'tabby'));
+              },
+            },);
+            expect(outcome.kind === 'ok' ? outcome.value : undefined,).toEqual({ cat: 'tabby', },);
+          },
+        },),
       ],
     },),
 

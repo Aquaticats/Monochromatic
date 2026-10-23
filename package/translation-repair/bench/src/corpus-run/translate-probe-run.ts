@@ -64,8 +64,9 @@ import {
 
  @param editorModelIds - translators asked
 
- @param perCallTimeoutMs - deadline per exchange and for the whole of one
- slice's round
+ @param perCallTimeoutMs - deadline per exchange; the client arms it inside its
+ own slot and a Claude seat runs under the larger deadline its card needs, which
+ a caller-side timeout signal at this figure would cut short
 
  @param log - logger the stage logs through
 
@@ -232,6 +233,12 @@ export async function probeTranslate(
      slice's failure to go on from.
      */
     const client = newClient();
+
+    /**
+     Abort of the caller, which this probe never raises: the per-call deadline
+     is armed inside the client and not by a signal handed to it.
+     */
+    const { signal, } = new AbortController();
     try {
       /**
        Translator voices over this slice.
@@ -240,7 +247,7 @@ export async function probeTranslate(
         client,
         modelIds: editorModelIds,
         messages: plan.messages,
-        signal: AbortSignal.timeout(perCallTimeoutMs,),
+        signal,
         exchangeTimeoutMs: perCallTimeoutMs,
         responseFormat: TRANSLATE_RESPONSE_FORMAT,
         validate: isTranslateReportWire,

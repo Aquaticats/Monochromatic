@@ -25,6 +25,7 @@ import {
 
 import type { LaneContestBallot, } from '@monochromatic-dev/translation-repair-lane-contest';
 import {
+  CONSOLIDATE_CACHE_VERSION,
   consolidateRunShape,
   consolidateSliceKey,
 } from '../dist/final/node/index.mjs';
@@ -75,6 +76,14 @@ const SLICE = {
 await describe({
   name: consolidateSliceKey.name,
   children: [
+    it({
+      name: 'IS AT VERSION 34: the reader of a model\'s reply takes a value that differs from a listed enum or const '
+        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
+        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      fn: async () => {
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(34,);
+      },
+    },),
     it({
       name: 'GIVES ONE KEY FOR ONE QUESTION, so a resumed run finds what an earlier run settled rather '
         + 'than paying for the same slate twice',
@@ -427,8 +436,13 @@ await describe({
         // short bench close one voice fewer than every live seat once the
         // straggler grace ends (ledger B816), which moved this literal to the
         // value this expectation names.
+        // Version 33 (2026-10-22) moved the rendered-break counts out of the system
+        // text into the user turn (R4 of the third review of the Claude route).
+        // Version 34 (2026-10-23) reads a reply value that differs from a listed
+        // enum or const value only in capitalization as the listed value, which
+        // moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '91b9a46fe40ad07a1299345c52c9e534d66af2c7b7b8337a221446a176980d68',
+          '6a36b56a69f8c798de956690d4e43fa32cb443dff77f8bad9922e57de394b1d1',
         );
       },
     },),
@@ -461,11 +475,10 @@ await describe({
     },),
 
     it({
-      name: 'KEYS NO READINGS AND AN EMPTY READING ALIKE, which the driver depends on: it folds a '
-        + 'slice its map never mentions into the empty string so the sheet and the key cannot '
-        + 'disagree about which spelling the caller used. Were these two keys, every slice near no '
-        + 'readable picture would be re-bought the first time a caller changed its mind about how to '
-        + 'say nothing',
+      name: 'KEYS NO READINGS AND AN EMPTY READING ALIKE, which the driver depends on: it folds a slice its map never '
+        + 'mentions into the empty string so the sheet and the key cannot disagree about which spelling the caller '
+        + 'used. Were these two keys, every slice near no readable picture would be re-bought the first time a caller '
+        + 'changed its mind about how to say nothing',
       fn: async () => {
         expect(consolidateSliceKey({ ...SLICE, pictureContext: '', },),).toBe(
           consolidateSliceKey(SLICE,),

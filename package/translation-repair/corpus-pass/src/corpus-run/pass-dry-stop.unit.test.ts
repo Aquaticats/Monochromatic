@@ -30,6 +30,7 @@ import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provide
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 
 /**
  Client whose chat calls all throw one scripted failure.
@@ -486,6 +487,7 @@ await describe({
          */
         const dayStartMsOfDay = 69_308_000;
         const budgets = createProviderBudgets({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           hyper: { credits: async () => ({ balance: 0, }), },
           neuralwatt: {
             energy: async () => ({

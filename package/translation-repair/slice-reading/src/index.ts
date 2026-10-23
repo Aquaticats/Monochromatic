@@ -73,6 +73,7 @@ export {
   parseGradedSheet,
 } from './grade-sheet-read.ts';
 export {
+  EmptyImageAssetError,
   type EncodedAsset,
   encodeImageAsset,
   extensionOf,

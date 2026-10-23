@@ -23,6 +23,8 @@ import {
   readEveryMeter,
   reachOf,
   routeProviderFor,
+  claudeIsDry,
+  claudeMeterLevel,
   xiaomiIsDry,
   xiaomiMeterLevel,
 } from '../dist/final/node/index.mjs';
@@ -31,6 +33,7 @@ import {
   SEAT_OPENROUTER_ONLY_CHECKER,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Every provider false, for a record the cases then set.
@@ -73,6 +76,35 @@ await describe({
           },
         },),
         it({
+          name: 'READS the Claude key wet until a billing refusal, then dry for the run, and reports the run\'s priced '
+            + 'spend to four places',
+          fn: async () => {
+            expect(claudeIsDry({ spend: { spentUsd: 1_000, billingRefused: false, }, },),).toBe(false,);
+            expect(claudeIsDry({ spend: { spentUsd: 0, billingRefused: true, }, },),).toBe(true,);
+            expect(claudeMeterLevel({ spend: { spentUsd: 0.0042, billingRefused: false, }, },),)
+              .toEqual(['anthropicUsdSpent=0.0042',],);
+            expect(claudeMeterLevel({ spend: { spentUsd: 0.5, billingRefused: true, }, },),)
+              .toEqual(['anthropicUsdSpent=0.5000', 'anthropicBilling=refused',],);
+          },
+        },),
+        it({
+          name: 'PUTS the Claude key in the METERS record: wet with its spend, dry once billing refused, and an unset '
+            + 'key dry with nothing to report',
+          fn: async () => {
+            const keyed = await readEveryMeter({
+              anthropic: { spend: async () => ({ spentUsd: 0.0042, billingRefused: false, }), },
+              signal: SIGNAL,
+            },);
+            expect(keyed.anthropic,).toEqual({ state: 'wet', fields: ['anthropicUsdSpent=0.0042',], },);
+            const refused = await readEveryMeter({
+              anthropic: { spend: async () => ({ spentUsd: 0, billingRefused: true, }), },
+              signal: SIGNAL,
+            },);
+            expect(refused.anthropic.state,).toBe('dry',);
+            expect((await readEveryMeter({ signal: SIGNAL, },)).anthropic,).toEqual({ state: 'dry', fields: [], },);
+          },
+        },),
+        it({
           name: 'PUTS both in the METERS record: DeepSeek by balance, Xiaomi wet with its spend, and an unset key dry '
             + 'with nothing to report',
           fn: async () => {
@@ -103,6 +135,7 @@ await describe({
             + 'its balance is empty',
           fn: async () => {
             const budgets = createProviderBudgets({
+              maxHoldMs: TEST_MAX_HOLD_MS,
               deepseek: { credits: async () => ({ isAvailable: true, totalUsd: 0, }), },
               xiaomi: { spend: async () => ({ spentUsd: 0.0042, }), },
             },);
@@ -150,7 +183,7 @@ await describe({
             + 'run when Xiaomi reads dry too, and still sends Xiaomi\'s own model to Xiaomi',
           fn: async () => {
             const dryButXiaomi = { ...NONE_DRY, neuralwatt: true, synthetic: true, bedrock: true, deepseek: true,
-              hyper: true, openrouter: true, };
+              hyper: true, openrouter: true, anthropic: true, };
             expect(routeProviderFor({
               reach: reachOf({ modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, }),
               dry: dryButXiaomi,

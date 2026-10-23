@@ -63,7 +63,7 @@ function renderingBreakLine(rendering: BreakRendering,): string {
 }
 
 /**
- Supplies rendered-structure facts before a model generates or selects text.
+ Reads the source's explicit break counts when this rule applies to the passage.
  Empty canonical archive text is the source-only interface contract used by
  these sheets. Callers pass the actual archive, never a generated standing or
  an eligibility-filtered fallback. Nonempty or whitespace-only archive inputs
@@ -73,18 +73,110 @@ function renderingBreakLine(rendering: BreakRendering,): string {
 
  @param archiveText - canonical archive slice, empty only where it has no wording
 
+ @param syntax - metadata uses a different grammar and never gets this body rule
+
+ @returns One count per source block, or none where the rule does not apply (a source with an explicit break
+ always has blocks)
+
+ @example
+ ```ts
+ const counts = sourceBreakCounts({ sourceText, archiveText: '' });
+ ```
+ */
+function sourceBreakCounts(
+  {
+    sourceText,
+    archiveText,
+    syntax,
+  }: {
+    readonly sourceText: string;
+    readonly archiveText: string;
+    readonly syntax?: SliceSyntax;
+  },
+): readonly number[] {
+  if ((archiveText !== '') || (syntax === 'front-matter'))
+    return [];
+  /**
+   Source-only authored structure, independent of the verse heuristic.
+   */
+  const source = readSliceSkeleton({ text: sourceText, },);
+  if (source.kind !== 'read')
+    return [];
+  /**
+   One count per source block, reused without repeating the syntax traversal.
+   */
+  const { explicitBreaks, } = source.skeleton;
+  if (!explicitBreaks.some(function hasBreak(count,): boolean {
+    return count > 0;
+  },))
+    return [];
+  return explicitBreaks;
+}
+
+/**
+ Supplies the fixed instruction for a source-only passage with explicit breaks.
+ The text never varies with the passage: whether it is due is the only thing the
+ passage decides, so a system prompt that carries it is the same on every call
+ where it is due, and the measured counts travel in `renderedBreakFacts`.
+
+ @param sourceText - exact source slice before supplemental picture/context text
+
+ @param archiveText - canonical archive slice, empty only where it has no wording
+
+ @param syntax - metadata uses a different grammar and never gets this body rule
+
+ @returns Shared instruction, or no extra prompt text
+
+ @example
+ ```ts
+ const contract = renderedBreakContract({ sourceText, archiveText: '' });
+ ```
+ */
+export function renderedBreakContract(
+  {
+    sourceText,
+    archiveText,
+    syntax,
+  }: {
+    readonly sourceText: string;
+    readonly archiveText: string;
+    readonly syntax?: SliceSyntax;
+  },
+): string {
+  /**
+   One count per source block, none where the rule does not apply.
+   */
+  const counts = sourceBreakCounts({
+    sourceText,
+    archiveText,
+    ...((syntax === undefined) ? {} : { syntax, }),
+  },);
+  if (counts.length === 0)
+    return '';
+  return RENDERED_BREAK_CONTRACT;
+}
+
+/**
+ Supplies the measured rendered-structure facts of one call, for a user turn.
+ They are the call's own values (the counts of this source and of each displayed
+ rendering), so they never ride in a system prompt that is cached across calls.
+
+ @param sourceText - exact source slice before supplemental picture/context text
+
+ @param archiveText - canonical archive slice, empty only where it has no wording
+
  @param renderings - texts in the actual displayed anonymous order
 
  @param syntax - metadata uses a different grammar and never gets this body rule
 
- @returns Shared instructions and measured facts, or no extra prompt text
+ @returns Measured lines, or no text where the instruction is not due
 
  @example
  ```ts
- const note = renderedBreakPrompt({ sourceText, archiveText: '', renderings: [] });
+ const facts = renderedBreakFacts({ sourceText, archiveText: '', renderings: [] });
  ```
  */
-export function renderedBreakPrompt(
+export function renderedBreakFacts(
   {
     sourceText,
     archiveText,
@@ -97,24 +189,17 @@ export function renderedBreakPrompt(
     readonly syntax?: SliceSyntax;
   },
 ): string {
-  if ((archiveText !== '') || (syntax === 'front-matter'))
-    return '';
   /**
-   Source-only authored structure, independent of the verse heuristic.
+   One count per source block, none where the rule does not apply.
    */
-  const source = readSliceSkeleton({ text: sourceText, },);
-  if (source.kind !== 'read')
-    return '';
-  /**
-   One count per source block, reused without repeating the syntax traversal.
-   */
-  const { explicitBreaks, } = source.skeleton;
-  if (!explicitBreaks.some(function hasBreak(count,): boolean {
-    return count > 0;
-  },))
+  const explicitBreaks = sourceBreakCounts({
+    sourceText,
+    archiveText,
+    ...((syntax === undefined) ? {} : { syntax, }),
+  },);
+  if (explicitBreaks.length === 0)
     return '';
   return [
-    RENDERED_BREAK_CONTRACT,
     `ORIGINAL explicit breaks by top-level block: ${JSON.stringify(explicitBreaks,)}`,
     ...renderings.map(renderingBreakLine,),
   ].join('\n',);

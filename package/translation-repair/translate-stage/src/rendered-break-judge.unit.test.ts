@@ -40,6 +40,8 @@ await describe({
       fn: async () => {
         /** Capture the exact sheets delivered to the judge client. */
         const sheets: string[] = [];
+        /** The system prompts alone, which the Claude body caches and so must not hold the call's own counts (R4). */
+        const systems: string[] = [];
         /** This client responds only to the new evidence, not candidate order. */
         const client: ModelClient = {
           chatText: async () => { throw new Error('No unstructured call expected',); },
@@ -50,6 +52,14 @@ await describe({
               return messageText({ message, },);
             },).join('\n',);
             sheets.push(sheet,);
+            systems.push(request.messages
+              .filter(function isSystem({ role, },): boolean {
+                return role === 'system';
+              },)
+              .map(function text(message,) {
+                return messageText({ message, },);
+              },)
+              .join('\n',),);
             /** Only a measured break-preserving candidate earns this scripted ballot. */
             const best = [1, 2,].find(function preserved(index,): boolean {
               return sheet.includes(`"Candidate ${String(index,)}" explicit breaks by top-level block: [1]`,);
@@ -86,6 +96,12 @@ await describe({
         },);
         expect(result.text,).toBe(KEPT,);
         expect(sheets.length,).toBeGreaterThan(0,);
+        expect(systems.length,).toBe(sheets.length,);
+        for (const system of systems) {
+          // The instruction is in the system prompt; the measured counts are in the user turn.
+          expect(system,).toContain('RENDERED LINE STRUCTURE',);
+          expect(system,).not.toContain(' explicit breaks by top-level block: ',);
+        }
         for (const entry of result.slate) {
           /** Re-read exactly the wording whose index the artifact records. */
           const parsed = readSliceSkeleton({ text: entry.text, },);

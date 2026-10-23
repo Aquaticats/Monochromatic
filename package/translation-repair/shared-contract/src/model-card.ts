@@ -1,4 +1,7 @@
 import type {
+  AnthropicEffort,
+  AnthropicServedId,
+  AnthropicWireModel,
   BedrockServedId,
   DeepSeekServedId,
   HyperServedId,
@@ -407,6 +410,85 @@ export type XiaomiCard = ServedCard<XiaomiServedId> & {
 };
 
 /**
+ One tier of Anthropic's per-token prices, in USD per million tokens.
+
+ @example
+ ```ts
+ const tier: AnthropicPriceTier = { inputUsdPerMillion: 2, outputUsdPerMillion: 10, cacheWriteUsdPerMillion: 2.5, cacheHitUsdPerMillion: 0.1, };
+ ```
+ */
+export type AnthropicPriceTier = {
+  /**
+   USD per million prompt tokens past the last cache breakpoint.
+   */
+  readonly inputUsdPerMillion: number;
+
+  /**
+   USD per million completion tokens, thinking included.
+   */
+  readonly outputUsdPerMillion: number;
+
+  /**
+   USD per million prompt tokens written to the five-minute cache.
+   */
+  readonly cacheWriteUsdPerMillion: number;
+
+  /**
+   USD per million prompt tokens read back from the cache.
+   */
+  readonly cacheHitUsdPerMillion: number;
+};
+
+/**
+ Anthropic's prices for one model: a base tier and, where the page prices a long prompt apart, the tier above a
+ prompt size.
+
+ @example
+ ```ts
+ const prices: AnthropicPrices = { inputUsdPerMillion: 0.1, outputUsdPerMillion: 0.5, cacheWriteUsdPerMillion: 0.125, cacheHitUsdPerMillion: 0.01, longPrompt: { aboveTokens: 100_000, inputUsdPerMillion: 0.5, outputUsdPerMillion: 2.5, cacheWriteUsdPerMillion: 0.625, cacheHitUsdPerMillion: 0.05, }, };
+ ```
+ */
+export type AnthropicPrices = AnthropicPriceTier & {
+  /**
+   Tier that prices the whole call once its prompt (input, cache write and cache read together) is over
+   `aboveTokens`; absent where the page prices every prompt size alike.
+   */
+  readonly longPrompt?: AnthropicPriceTier & {
+    /**
+     Prompt size past which this tier prices the whole call.
+     */
+    readonly aboveTokens: number;
+  };
+};
+
+/**
+ Anthropic's own API's side of a card: one of the two models the owner's Claude key is granted for, at one effort or
+ at the model's own default.
+
+ @example
+ ```ts
+ const card: AnthropicCard = { id: 'claude-haiku-5-5-effort-low', wireModel: 'claude-haiku-5-5', effort: 'low', readsImages: true, maxOutputLength: 128_000, prices, };
+ ```
+ */
+export type AnthropicCard = ServedCard<AnthropicServedId> & {
+  /**
+   Model id the request carries in its `model` member: one of the two the key is granted for.
+   */
+  readonly wireModel: AnthropicWireModel;
+
+  /**
+   Effort sent as `output_config.effort`; absent sends none, which is the model's own default (Sonnet `high`, Haiku
+   `medium`).
+   */
+  readonly effort?: AnthropicEffort;
+
+  /**
+   Prices the call is reckoned at.
+   */
+  readonly prices: AnthropicPrices;
+};
+
+/**
  The decisions endpoint's side of a card: a typed-decision model reached
  through OpenRouter's `/api/alpha/decisions`, which answers a choice, a
  yes-probability or a score and never a completion. A card carrying this
@@ -488,6 +570,11 @@ export type ModelCard = {
    for.
    */
   readonly xiaomi?: XiaomiCard;
+
+  /**
+   Anthropic's own API's entry, on the eight cards the owner's Claude key is granted for.
+   */
+  readonly anthropic?: AnthropicCard;
 
   /**
    OpenRouter's decisions endpoint's entry, where it serves the model as a

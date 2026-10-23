@@ -34,6 +34,7 @@ const BEDROCK_HYPER_OPENROUTER = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: true,
 };
 
@@ -47,6 +48,7 @@ const BEDROCK_ONLY = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 };
 
@@ -60,6 +62,7 @@ const NOBODY = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 };
 

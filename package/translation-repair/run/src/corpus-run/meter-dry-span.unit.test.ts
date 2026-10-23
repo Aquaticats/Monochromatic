@@ -53,6 +53,7 @@ function minuteByMinute(
   bedrock: 'absent';
   deepseek: 'absent';
   xiaomi: 'absent';
+  anthropic: 'absent';
   openrouter: 'absent';
   levels: readonly string[];
 }[] {
@@ -68,6 +69,7 @@ function minuteByMinute(
       bedrock: 'absent' as const,
       deepseek: 'absent' as const,
       xiaomi: 'absent' as const,
+      anthropic: 'absent' as const,
       openrouter: 'absent' as const,
       // Spans are arithmetic over states; what the meters read does not enter.
       levels: [],

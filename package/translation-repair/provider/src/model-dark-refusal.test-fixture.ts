@@ -19,6 +19,7 @@ const HYPER_ALONE = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 } as const;
 

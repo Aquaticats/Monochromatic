@@ -25,6 +25,7 @@ import {
   tallySpend,
 } from '../../dist/final/node/index.mjs';
 import { lineOf, } from './command-line.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 
 /**
  Transport that answers DeepSeek's balance and refuses everything else.
@@ -70,6 +71,7 @@ await describe({
             + 'and Xiaomi unbuilt',
           fn: async () => {
             const providers = configureProviders({
+              maxHoldMs: TEST_MAX_HOLD_MS,
               env: { DEEPSEEK_API_KEY: 'cat-key-deepseek', },
               transport: balanceOnly,
               off: [],
@@ -87,6 +89,7 @@ await describe({
             + 'exposes its pace',
           fn: async () => {
             const providers = configureProviders({
+              maxHoldMs: TEST_MAX_HOLD_MS,
               env: { TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY: 'cat-key-xiaomi', },
               transport: async function noRequestExpected() {
                 throw new Error('Xiaomi has no balance endpoint, so its meter must send nothing',);
@@ -104,6 +107,7 @@ await describe({
           name: 'NEVER BORROWS another provider\'s key: with only OpenRouter keyed, neither direct provider is built',
           fn: async () => {
             const providers = configureProviders({
+              maxHoldMs: TEST_MAX_HOLD_MS,
               env: { TRANSLATION_REPAIR_OPENROUTER_API_KEY: 'cat-key-openrouter', },
               transport: balanceOnly,
               off: [],
@@ -116,10 +120,10 @@ await describe({
           name: 'COUNTS EITHER DIRECT KEY as a key, and names both variables when there is none at all',
           fn: async () => {
             expect(function noKey(): unknown {
-              return configureProviders({ env: {}, transport: balanceOnly, off: [], },);
+              return configureProviders({ maxHoldMs: TEST_MAX_HOLD_MS, env: {}, transport: balanceOnly, off: [], },);
             },).toThrow(RunConfigError,);
             try {
-              configureProviders({ env: {}, transport: balanceOnly, off: [], },);
+              configureProviders({ maxHoldMs: TEST_MAX_HOLD_MS, env: {}, transport: balanceOnly, off: [], },);
             }
             catch (error) {
               expect(String(error,),).toContain('DEEPSEEK_API_KEY, TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY',);
@@ -191,16 +195,18 @@ await describe({
           fn: async () => {
             const stamp = '[info] [2026-10-22T17:00:00.000Z] [translation-repair] [takeReading] METERS';
             expect(readMeterLine({
-              line: `${stamp} neuralwatt=dry synthetic=dry bedrock=dry deepseek=wet xiaomi=wet hyper=dry openrouter=dry `
-                + 'deepseekUsd=9.96 xiaomiUsdSpent=0.0042',
+              line: `${stamp} neuralwatt=dry synthetic=dry bedrock=dry deepseek=wet xiaomi=wet anthropic=wet hyper=dry openrouter=dry `
+                + 'deepseekUsd=9.96 xiaomiUsdSpent=0.0042 anthropicUsdSpent=0.0100',
             },),).toMatchObject({
               deepseek: 'wet',
               xiaomi: 'wet',
-              levels: ['deepseekUsd=9.96', 'xiaomiUsdSpent=0.0042',],
+              anthropic: 'wet',
+              levels: ['deepseekUsd=9.96', 'xiaomiUsdSpent=0.0042', 'anthropicUsdSpent=0.0100',],
             },);
             expect(readMeterLine({ line: `${stamp} synthetic=wet hyper=dry`, },),).toMatchObject({
               deepseek: 'absent',
               xiaomi: 'absent',
+              anthropic: 'absent',
             },);
           },
         },),

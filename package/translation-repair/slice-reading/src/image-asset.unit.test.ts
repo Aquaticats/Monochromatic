@@ -3,7 +3,8 @@
  fit.
 
  WHAT THESE PIN is that refusing is a first-class outcome rather than an error
- path, and that the CALLER decides the ceiling.
+ path, and that the CALLER decides the ceiling. THE ONE THROW is a picture with
+ no bytes, which is a defect of the file and not a size or a type to refuse.
 
  THE CEILING USED TO BE DERIVED HERE and it measured the wrong thing: half a
  model's context, converted to characters, compared against base64 length. A
@@ -26,6 +27,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  EmptyImageAssetError,
   encodeImageAsset,
   extensionOf,
 } from '../dist/final/node/index.mjs';
@@ -156,6 +158,72 @@ await describe({
         if (encoded.kind !== 'refused')
           throw new Error('refused by construction',);
         expect(encoded.reason,).toBe('too-large-for-transport',);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A PICTURE WITH NO BYTES BY NAMING THE ASSET: a zero-byte file encodes to a data URI with an '
+        + 'empty payload, which the Anthropic request builder then rejects at every seat that reads the picture. The '
+        + 'refusal belongs here, where the file is known, and names it so the one empty file in a corpus can be found',
+      fn: async () => {
+        expect(() => {
+          encodeImageAsset({
+            bytes: new Uint8Array(0,),
+            assetName: 'sill.webp',
+            maxBytes: CEILING,
+          },);
+        },).toThrow(EmptyImageAssetError,);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE EMPTY ASSET IN THE ERROR, under the class name a log line shows',
+      fn: async () => {
+        /**
+         What the encoder threw for a picture with no bytes, or nothing when it threw nothing.
+         */
+        let thrown: unknown;
+        try {
+          encodeImageAsset({
+            bytes: new Uint8Array(0,),
+            assetName: 'sill.webp',
+            maxBytes: CEILING,
+          },);
+        }
+        catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown instanceof EmptyImageAssetError,).toBe(true,);
+        if (!(thrown instanceof EmptyImageAssetError))
+          throw new Error('thrown by construction',);
+        expect(thrown.name,).toBe('EmptyImageAssetError',);
+        expect(thrown.message,).toContain('sill.webp',);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A PICTURE WITH NO BYTES BEFORE ASKING ABOUT ITS EXTENSION: an empty file under an unknown '
+        + 'extension is an empty file first, since no extension makes zero bytes a picture',
+      fn: async () => {
+        expect(() => {
+          encodeImageAsset({
+            bytes: new Uint8Array(0,),
+            assetName: 'sill.heic',
+            maxBytes: CEILING,
+          },);
+        },).toThrow(EmptyImageAssetError,);
+      },
+    },),
+
+    it({
+      name: 'ENCODES A ONE-BYTE PICTURE (control): the refusal is for zero bytes, not for small ones',
+      fn: async () => {
+        expect(encodeImageAsset({
+          bytes: bytesOf({ length: 1, },),
+          assetName: 'sill.webp',
+          maxBytes: CEILING,
+        },).kind,).toBe('usable',);
       },
     },),
 

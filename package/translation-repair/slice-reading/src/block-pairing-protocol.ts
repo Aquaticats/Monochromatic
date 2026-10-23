@@ -31,10 +31,12 @@ const PAIRING_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
               'source',
               'target',
             ],
+            additionalProperties: false,
           },
         },
       },
       required: ['pairs',],
+      additionalProperties: false,
     },
   },
 };
@@ -54,7 +56,8 @@ export type BlockPairingProtocol = {
    */
   readonly messages: readonly ChatMessage[];
   /**
-   Schema name and shape, sent without `strict`.
+   Schema name and shape, sent without `strict`; every object is closed (`additionalProperties: false`), which the
+   Claude route requires and the other routes accept.
    */
   readonly responseFormat: JsonSchemaResponseFormat;
 };

@@ -45,6 +45,7 @@ const ALL_WET: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 };
 
@@ -58,6 +59,7 @@ const ALL_DRY: BudgetView = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   openrouter: true,
 };
 

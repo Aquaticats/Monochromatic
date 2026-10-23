@@ -5,7 +5,7 @@ import {
 } from './bench-sample.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readHeadSha,
   readRunCorpusPinSetting,
   reportingRefusals,
@@ -44,7 +44,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'roster-bench'>; }
   await runRosterBench({
     line,
     roster: RUN_ROSTER,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     drawSlices: function drawPinned({ count, }: { readonly count: number; },): Promise<readonly BenchSlice[]> {
       // The slices every width sees are drawn from the pin read here.
       return sampleBenchSlices({

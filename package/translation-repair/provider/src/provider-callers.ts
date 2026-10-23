@@ -45,6 +45,11 @@ export type ProviderCallers = {
   readonly xiaomi?: Pick<ModelCaller, 'chatText'>;
 
   /**
+   Anthropic's own API's text call, when the Claude key is set; it serves Sonnet 5.5 and Haiku 5.5.
+   */
+  readonly anthropic?: Pick<ModelCaller, 'chatText'>;
+
+  /**
    Third provider's text call, when its key is set.
    */
   readonly openrouter?: Pick<ModelCaller, 'chatText'>;

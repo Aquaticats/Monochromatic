@@ -95,7 +95,7 @@ function isHealthReply(value: unknown,): value is {
 
  @param modelId - model asked
 
- @param timeoutMs - how long the call may run before it is abandoned
+ @param timeoutMs - exchange deadline the client arms; a Claude model runs under the larger deadline its card needs
 
  @param l - logger the outcome lines are written to
 
@@ -134,7 +134,7 @@ export async function askModelHealth(
     responseFormat: HEALTH_RESPONSE_FORMAT,
     validate: isHealthReply,
     exchangeTimeoutMs: timeoutMs,
-    signal: AbortSignal.timeout(timeoutMs,),
+    signal: new AbortController().signal,
   },);
 
   l.info(

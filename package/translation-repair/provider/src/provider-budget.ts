@@ -7,6 +7,7 @@ import type { DeepSeekClient, } from './deepseek-client.ts';
 import type { HyperClient, } from './hyper-client.ts';
 import type { NeuralWattClient, } from './neuralwatt-client.ts';
 import type { OpenRouterClient, } from './openrouter-client.ts';
+import type { ClaudeClient, } from './claude-client.ts';
 import type { XiaomiClient, } from './xiaomi-client.ts';
 import {
   otherProviders,
@@ -27,6 +28,18 @@ import {
   readEveryMeter,
   routesAsDry,
 } from './provider-meters.ts';
+import {
+  createWaitCap,
+  HoldBoundError,
+  holdEndsNever,
+  noLevelBeforeReading,
+  notHeldOut,
+  type PaymentMark,
+  spendableBeforeReading,
+  systemClock,
+  unmarkedPayment,
+  unreadBeforeReading,
+} from './provider-budget-defaults.ts';
 
 //region Provider budget
 // ASKS FOR METERS, NOT CLIENTS. Every parameter is narrowed to the one method
@@ -151,7 +164,7 @@ type MeterReading = {
 
  @example
  ```ts
- const budgets: ProviderBudgets = createProviderBudgets({ synthetic, hyper, openrouter, },);
+ const budgets: ProviderBudgets = createProviderBudgets({ synthetic, hyper, openrouter, maxHoldMs: 25_200_000, },);
  ```
  */
 export type ProviderBudgets = {
@@ -220,7 +233,12 @@ export type ProviderBudgets = {
 
  @example
  ```ts
- const budgets: ProviderBudgetsWithStates = createProviderBudgets({ synthetic, hyper, openrouter, },);
+ const budgets: ProviderBudgetsWithStates = createProviderBudgets({
+   synthetic,
+   hyper,
+   openrouter,
+   maxHoldMs: 25_200_000,
+ },);
  ```
  */
 export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
@@ -244,107 +262,6 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
 };
 
 /**
- The reading before any meter has answered: nothing is dry.
-
- @returns Spendable
-
- @example
- ```ts
- const view = providerRecord({ of: spendableBeforeReading, },);
- ```
- */
-function spendableBeforeReading(): boolean {
-  return false;
-}
-
-/**
- The level before any meter has answered: no number at all.
-
- @returns Empty
-
- @example
- ```ts
- const levels = providerRecord({ of: noLevelBeforeReading, },);
- ```
- */
-function noLevelBeforeReading(): string {
-  return '';
-}
-
-/**
- Whether a provider last refused us for payment, and the meter level it
- read then.
-
- @example
- ```ts
- const mark: PaymentMark = { marked: true, level: 'openrouterUsd=0.01', };
- ```
- */
-type PaymentMark = {
-  marked: boolean;
-  level: string;
-};
-
-/**
- The mark before any provider has refused us for payment: none.
-
- @returns Unmarked
-
- @example
- ```ts
- const marks = providerRecord({ of: unmarkedPayment, },);
- ```
- */
-function unmarkedPayment(): PaymentMark {
-  return {
-    marked: false,
-    level: '',
-  };
-}
-
-/**
- The state before any meter has answered: nothing was read.
-
- @returns Unreadable
-
- @example
- ```ts
- const states = providerRecord({ of: unreadBeforeReading, },);
- ```
- */
-function unreadBeforeReading(): MeterState {
-  return 'unreadable';
-}
-
-/**
- The hold of a run that holds no provider out for a reason its meter cannot show.
-
- @returns Not held
-
- @example
- ```ts
- const held = notHeldOut();
- ```
- */
-function notHeldOut(): boolean {
-  return false;
-}
-
-/**
- The system clock, the wall clock outside a test.
-
- @returns Current instant
-
- @example
- ```ts
- const at = systemClock();
- ```
- */
-function systemClock(): Date {
-  return new Date();
-}
-
-/**
  Builds the cached budget view every provider is routed by.
 
  @param neuralwatt - first provider's energy meter, which is all this reads
@@ -359,6 +276,8 @@ function systemClock(): Date {
 
  @param xiaomi - Xiaomi's spend meter, which is all this reads
 
+ @param anthropic - the Claude key's spend meter, which is all this reads
+
  @param openrouter - fourth provider's credits meter, which is all this reads
 
  @param freshForMs - how long one reading is trusted
@@ -367,6 +286,12 @@ function systemClock(): Date {
 
  @param rateLimitBackoffMs - how long a refusal on a wet meter holds a
  provider out while another provider can take the traffic
+
+ @param maxHoldMs - longest a wait a refusal states for itself may hold a provider out, which a run sets to its hard
+ cap or, where its command has none, to a named bound with a reason (REQUIRED, with no unbounded default: a provider
+ whose `Retry-After` states 99,999,999,999 seconds held that provider out for about 3,170 years): a hold past it can
+ never be waited out, so a longer stated wait is cut to it and logged once for each provider with the
+ value the provider stated
 
  @param heldOut - whether the run holds a provider out for a reason its meter cannot show, such as a refused
  credential; the `METERS` line prints such a provider as dry. It changes only the printed word, never the routed view
@@ -384,9 +309,11 @@ function systemClock(): Date {
 
  @returns Budget view plus the correction a refused call feeds back, and the states the meters gave
 
+ @throws {@link HoldBoundError} when `maxHoldMs` is not a finite whole number of milliseconds greater than zero
+
  @example
  ```ts
- const budgets = createProviderBudgets({ neuralwatt, synthetic, hyper, bedrock, openrouter, },);
+ const budgets = createProviderBudgets({ neuralwatt, synthetic, hyper, bedrock, openrouter, maxHoldMs: 25_200_000, },);
  ```
  */
 export function createProviderBudgets(
@@ -397,10 +324,12 @@ export function createProviderBudgets(
     bedrock,
     deepseek,
     xiaomi,
+    anthropic,
     openrouter,
     freshForMs = BUDGET_FRESH_MS,
     cooldownMs = REFUSAL_COOLDOWN_MS,
     rateLimitBackoffMs = RATE_LIMIT_BACKOFF_MS,
+    maxHoldMs,
     heldOut = notHeldOut,
     now = monotonicMs,
     wallNow = systemClock,
@@ -412,16 +341,22 @@ export function createProviderBudgets(
     readonly bedrock?: Pick<BedrockClient, 'credits'>;
     readonly deepseek?: Pick<DeepSeekClient, 'credits'>;
     readonly xiaomi?: Pick<XiaomiClient, 'spend'>;
+    readonly anthropic?: Pick<ClaudeClient, 'spend'>;
     readonly openrouter?: Pick<OpenRouterClient, 'credits'>;
     readonly freshForMs?: number;
     readonly cooldownMs?: number;
     readonly rateLimitBackoffMs?: number;
+    readonly maxHoldMs: number;
     readonly heldOut?: (provider: ProviderName,) => boolean;
     readonly now?: () => number;
     readonly wallNow?: () => Date;
     readonly returnMarginMs?: number;
   },
 ): ProviderBudgetsWithStates {
+  // `isInteger` is false for NaN and both infinities, so one test covers every value that is not a whole number.
+  if ((!Number.isInteger(maxHoldMs,)) || (maxHoldMs <= 0))
+    throw new HoldBoundError({ maxHoldMs, },);
+
   /**
    Last meter reading and when it was taken, stamped infinitely long ago until
    the first.
@@ -513,15 +448,7 @@ export function createProviderBudgets(
   /**
    Until when each provider is held out by a refusal, zero for never.
    */
-  const heldUntil: Record<ProviderName, number> = {
-    neuralwatt: 0,
-    synthetic: 0,
-    hyper: 0,
-    bedrock: 0,
-    deepseek: 0,
-    xiaomi: 0,
-    openrouter: 0,
-  };
+  const heldUntil: Record<ProviderName, number> = providerRecord({ of: holdEndsNever, },);
 
   /**
    When NeuralWatt's spent day starts again, as the last meter reading named it.
@@ -573,6 +500,11 @@ export function createProviderBudgets(
   }
 
   /**
+   Cuts a wait a refusal states for itself to the longest hold the run can use, logging the first cut of each provider.
+   */
+  const cappedWait = createWaitCap({ maxHoldMs, },);
+
+  /**
    Reads every meter once, for everyone waiting on this reading.
 
    THE FIRST CALLER'S SIGNAL GOVERNS, which is a real consequence worth
@@ -611,6 +543,7 @@ export function createProviderBudgets(
       ...((bedrock === undefined) ? {} : { bedrock, }),
       ...((deepseek === undefined) ? {} : { deepseek, }),
       ...((xiaomi === undefined) ? {} : { xiaomi, }),
+      ...((anthropic === undefined) ? {} : { anthropic, }),
       ...((openrouter === undefined) ? {} : { openrouter, }),
       wall: {
         now: wallNow,
@@ -863,7 +796,7 @@ export function createProviderBudgets(
     markRefused: async function markRefused({
       provider,
       signal,
-      statedWaitMs = 0,
+      statedWaitMs: statedByProvider = 0,
       paymentRequired = false,
     },): Promise<void> {
       /**
@@ -872,6 +805,14 @@ export function createProviderBudgets(
       const rl = tagged({
         tag: markRefused.name,
         l,
+      },);
+
+      /**
+       Wait the refusal stated, cut to the longest hold the run can use.
+       */
+      const statedWaitMs = cappedWait({
+        provider,
+        statedWaitMs: statedByProvider,
       },);
 
       // THE METER IS ASKED AT ONCE, freshness window or not. A refusal from a

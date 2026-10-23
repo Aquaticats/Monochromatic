@@ -19,6 +19,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 import { createProviderBudgets, } from '../dist/final/node/index.mjs';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -54,6 +55,7 @@ function xiaomiBudgets(
   },
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
+    maxHoldMs: TEST_MAX_HOLD_MS,
     xiaomi: { spend: async () => ({ spentUsd: spend.usd, }), },
     freshForMs: FRESH_MS,
     now: () => clock.now,

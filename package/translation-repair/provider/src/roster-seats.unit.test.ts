@@ -15,6 +15,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  ANTHROPIC_SERVED_IDS,
   ROSTER_MODEL_IDS,
   type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
@@ -189,7 +190,9 @@ await describe({
         const seats = CLAIMS.map(function toSeat(claim,): RosterModelId {
           return claim.seat;
         },);
-        expect(seats.toSorted(),).toEqual([...ROSTER_MODEL_IDS,].toSorted(),);
+        // THE EIGHT CLAUDE CARDS NEED NO FIXTURE SEAT: they are served by the owner's Claude key alone and their
+        // reach, holds and prices are held by `claude-cards.unit.test.ts` and `claude-reach.unit.test.ts`.
+        expect([...seats, ...ANTHROPIC_SERVED_IDS,].toSorted(),).toEqual([...ROSTER_MODEL_IDS,].toSorted(),);
       },
     },),
 

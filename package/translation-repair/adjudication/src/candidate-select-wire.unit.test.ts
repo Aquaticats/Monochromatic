@@ -71,6 +71,68 @@ await describe({
             expect(bare.includes('COMMUNITY RENDERINGS',),).toBe(false,);
           },
         },),
+
+        it({
+          name: 'STATES THE FENCE LENGTH IN THE USER TURN AND NOT THE SYSTEM TEXT (R4 of the second review of the '
+            + 'Claude '
+            + 'route): five signs for a text holding a run of four, six for a run of five, so the system text is the '
+            + 'same '
+            + 'for every call and the model is still told the true length',
+          fn: async () => {
+            /**
+             The exchange for an original holding a run of the given number of equals signs.
+
+             @param run - length of the run, zero for none
+
+             @returns System text and the user turn
+
+             @example
+             ```ts
+             const { system, user, } = exchangeWith(4,);
+             ```
+             */
+            function exchangeWith(run: number,): {
+              readonly system: string;
+              readonly user: string;
+            } {
+              /**
+               The messages the judge is sent.
+               */
+              const messages = buildCandidateSelectMessages({
+                task: 'Pick one.',
+                criteria: ['Faithful.',],
+                evidence: [{
+                  label: 'ORIGINAL (Chinese)',
+                  text: `那只猫睡着了。\n${'='.repeat(run,)}`,
+                },],
+                rendered: [
+                  'The cat fell asleep.',
+                  'The cat slept.',
+                ],
+              },);
+              return {
+                system: messages.at(0,)?.content ?? '',
+                user: messages.at(1,)?.content ?? '',
+              };
+            }
+            /**
+             The exchange with a run one short of the minimum fence.
+             */
+            const four = exchangeWith(4,);
+            /**
+             The exchange with a run as long as the minimum fence.
+             */
+            const five = exchangeWith(5,);
+            expect(four.system,).toBe(five.system,);
+            expect(four.system.includes('equals signs',),).toBe(false,);
+            expect(
+              four.user.startsWith('Every block below opens and closes with a line of 5 equals signs.',),
+            ).toBe(true,);
+            expect(
+              five.user.startsWith('Every block below opens and closes with a line of 6 equals signs.',),
+            ).toBe(true,);
+          },
+        },),
       ],
     },),
 

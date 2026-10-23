@@ -109,6 +109,12 @@ export type MeterSample = {
   readonly xiaomi: MeterState | 'absent';
 
   /**
+   What the Claude key's meter said, or that the record predates it: every line written before 2026-10-22 carries no
+   such field.
+   */
+  readonly anthropic: MeterState | 'absent';
+
+  /**
    Every field beyond the states, in the order written.
 
    NOT AN ABSENCE SENTINEL WHEN EMPTY. A record written before the levels
@@ -521,6 +527,14 @@ export function readMeterLine(
     name: 'xiaomi',
   },);
 
+  /**
+   What the Claude key's meter said, absent on lines older than it.
+   */
+  const anthropic = fieldValue({
+    tail,
+    name: 'anthropic',
+  },);
+
   return {
     at,
     neuralwatt,
@@ -529,6 +543,7 @@ export function readMeterLine(
     bedrock,
     deepseek,
     xiaomi,
+    anthropic,
     openrouter,
     levels: levelFields({ tail, },),
   };

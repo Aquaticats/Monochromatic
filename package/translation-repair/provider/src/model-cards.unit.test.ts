@@ -114,6 +114,7 @@ await describe({
             ?? card.hyper?.id
             ?? card.bedrock?.id
             ?? card.openrouter?.id
+            ?? card.anthropic?.id
             ?? card.decisions?.id;
           if (Object.hasOwn(KEPT_ROSTER_NAME, card.id,)) {
             expect(expected,).toBe(KEPT_ROSTER_NAME[card.id],);

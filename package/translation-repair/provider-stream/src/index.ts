@@ -105,6 +105,7 @@ export {
   StreamDegenerateError,
   watchRunaway,
 } from './stream-runaway-watch.ts';
+export { capturedHeadersOf, } from './response-header-capture.ts';
 export {
   DEFAULT_WIRE_FORMAT,
   scannerFor,

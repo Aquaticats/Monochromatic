@@ -6,6 +6,7 @@ import {
 import {
   bedrockLedgerFromEnv,
   createBedrockClient,
+  createClaudeClient,
   createDeepSeekClient,
   createHyperClient,
   createNeuralWattClient,
@@ -20,6 +21,7 @@ import { PROVIDER_ORDER, } from '@monochromatic-dev/translation-repair-shared-co
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { readProviderKeys, } from './budget-sample-keys.ts';
 import { taskPathOf, } from './command-owners.ts';
+import { PROBE_MAX_HOLD_MS, } from './run-probe-client.ts';
 
 //region Budget sample run
 // Takes ONE reading of every provider's meter and leaves it in the log.
@@ -106,6 +108,8 @@ export async function sampleBudgets(
    first call always reaches the wire, and this process makes exactly one.
    */
   const budgets = createProviderBudgets({
+    // A SINGLE READING MARKS NO REFUSAL, so no hold is ever set and this bound never cuts; the budgets require one.
+    maxHoldMs: PROBE_MAX_HOLD_MS,
     neuralwatt: createNeuralWattClient({
       apiKey: keys.neuralwatt,
       ledger: neuralWattLedgerFromEnv({ env, },),
@@ -140,6 +144,16 @@ export async function sampleBudgets(
       : {
         xiaomi: createXiaomiClient({
           apiKey: keys.xiaomi,
+          transport,
+        },),
+      }),
+    // THE CLAUDE KEY LIKEWISE, when set: its meter is the run's own priced spend and a billing flag, so the sample
+    // reads it wet, and the line carries `anthropicUsdSpent`.
+    ...((keys.anthropic === '')
+      ? {}
+      : {
+        anthropic: createClaudeClient({
+          apiKey: keys.anthropic,
           transport,
         },),
       }),

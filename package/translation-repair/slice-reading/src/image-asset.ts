@@ -104,6 +104,36 @@ export type EncodedAsset = {
 };
 
 /**
+ Raised when a picture has no bytes at all.
+
+ THE ASSET IS NAMED, since one empty file in a corpus is the thing to find. A zero-byte file would otherwise encode to
+ a data URI with an empty payload, which the Anthropic request builder rejects at every seat that reads the picture,
+ so each seat would lose its voice with a warning per call. Raised here, where the file is known, the stage reports
+ the picture as unavailable with one warning for each seat read and spends no request on it.
+
+ @example
+ ```ts
+ throw new EmptyImageAssetError({ assetName: 'sill.webp', },);
+ ```
+ */
+export class EmptyImageAssetError extends Error {
+  /**
+   Builds the failure naming the empty asset.
+
+   @param assetName - file name of the picture that has no bytes
+
+   @example
+   ```ts
+   new EmptyImageAssetError({ assetName: 'sill.webp', },);
+   ```
+   */
+  public constructor({ assetName, }: { readonly assetName: string; },) {
+    super(`Picture ${assetName} has no bytes, so there is nothing to send`,);
+    this.name = 'EmptyImageAssetError';
+  }
+}
+
+/**
  Extension of a file name, lowercased, empty when it has none.
 
  @param assetName - file name
@@ -139,6 +169,8 @@ export function extensionOf({ assetName, }: { readonly assetName: string; },): s
 
  @returns Data URI, or the reason it was refused
 
+ @throws {@link EmptyImageAssetError} where the picture has no bytes, which no extension or ceiling makes sendable
+
  @example
  ```ts
  const encoded = encodeImageAsset({ bytes, assetName, maxBytes, },);
@@ -155,6 +187,10 @@ export function encodeImageAsset(
     readonly maxBytes: number;
   },
 ): EncodedAsset {
+  // BEFORE THE EXTENSION IS ASKED ABOUT, since no media type makes zero bytes a picture.
+  if (bytes.length === 0)
+    throw new EmptyImageAssetError({ assetName, },);
+
   /**
    Media type this file name declares.
    */

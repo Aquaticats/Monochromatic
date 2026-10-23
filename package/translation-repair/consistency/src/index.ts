@@ -119,6 +119,7 @@ export {
 export { ConsistencyInvariantError, } from './consistency-invariant-error.ts';
 export { shownLabelOf, } from './consistency-label-form.ts';
 export { labelsSentenceOf, } from './consistency-label-sentence.ts';
+export { marksSentenceOf, } from './consistency-marks-sentence.ts';
 export {
   isLinkNode,
   linkLabelKindOf,

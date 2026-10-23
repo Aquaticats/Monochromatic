@@ -19,9 +19,9 @@ import {
 /**
  Names the providers a set of USD seats were billed by.
 
- @param seats - seats billed in USD per token, each OpenRouter's, Bedrock's, DeepSeek's or Xiaomi's
+ @param seats - seats billed in USD per token, each OpenRouter's, Bedrock's, DeepSeek's, Xiaomi's or Anthropic's
 
- @returns The providers present in the order OpenRouter, Bedrock, DeepSeek, Xiaomi, joined by
+ @returns The providers present in the order OpenRouter, Bedrock, DeepSeek, Xiaomi, Anthropic, joined by
  commas and a last "and"
 
  @throws {@link Error} when a seat belongs to none of them, which the
@@ -53,6 +53,10 @@ function usdProvidersNamed({ seats, }: { readonly seats: readonly SeatSpend[]; }
       'xiaomi',
       'Xiaomi',
     ],
+    [
+      'anthropic',
+      'Anthropic',
+    ],
   ] as const;
 
   /**
@@ -70,7 +74,7 @@ function usdProvidersNamed({ seats, }: { readonly seats: readonly SeatSpend[]; }
 
   if (names.length === 0)
     throw new Error(
-      'unreachable: a seat of the USD group is none of the four USD providers, and priceTally groups only those',
+      'unreachable: a seat of the USD group is none of the five USD providers, and priceTally groups only those',
     );
   if (names.length === 1)
     return names.join('',);

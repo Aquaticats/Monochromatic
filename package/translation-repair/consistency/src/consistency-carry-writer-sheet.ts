@@ -1,6 +1,7 @@
 import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
 
 import { citedReferenceBlockText, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
+import { marksSentenceOf, } from './consistency-marks-sentence.ts';
 import {
   aroundBlocksOf,
   type CarryChosenPlace,
@@ -141,8 +142,6 @@ export type CarryWriterSubject = {
 
  @param lineStructured - whether the line-structure rule governs the slice
 
- @param marks - marks the paragraphs carry
-
  @param several - whether the paragraph holds the repeated wording in several receiving places
 
  @param keeping - whether the paragraph holds words of other places that must stay
@@ -153,22 +152,17 @@ export type CarryWriterSubject = {
 
  @example
  ```ts
- const rules = writerRules({ lineStructured: false, marks, several: false, keeping: false, crossing: false, },);
+ const rules = writerRules({ lineStructured: false, several: false, keeping: false, crossing: false, },);
  ```
  */
 function writerRules(
   {
     lineStructured,
-    marks,
     several,
     keeping,
     crossing,
   }: {
     readonly lineStructured: boolean;
-    readonly marks: {
-      readonly open: string;
-      readonly close: string;
-    };
     readonly several: boolean;
     readonly keeping: boolean;
     readonly crossing: boolean;
@@ -207,7 +201,9 @@ function writerRules(
 
 One Chinese wording is repeated in several places of one page. The English of the page was settled one passage at a time, so the places render it differently, and a reader who meets all of them reads the difference as a mistake. A panel of judges has chosen which place's rendering the whole page should follow: the CHOSEN RENDERING. Your task is to make ${places} follow it.
 
-Rewrite the CURRENT ENGLISH PARAGRAPH and return the whole paragraph. The words that now render the repeated wording in ${places} (${toReplace}) must come out rendered as the CHOSEN RENDERING renders it, so that the same Chinese wording reads as the same English in every place. In each ORIGINAL the repeated wording is enclosed between ${marks.open} and ${marks.close}; the marks are not part of the text.
+Rewrite the CURRENT ENGLISH PARAGRAPH and return the whole paragraph. The words that now render the repeated wording \
+in ${places} (${toReplace}) must come out rendered as the CHOSEN RENDERING renders it, so that the same Chinese \
+wording reads as the same English in every place.
 
 Rules:
 - Change only the words that render the repeated wording. Every other word of the CURRENT ENGLISH PARAGRAPH stays exactly as it is: its names, its tense, its punctuation, its line breaks and its Markdown, apart from what the next rules allow.
@@ -353,7 +349,6 @@ export function buildCarryWriterMessages(
       role: 'system',
       content: `${writerRules({
         lineStructured: subject.lineStructured,
-        marks,
         several: subject.receiving
           .length
           > 1,
@@ -370,7 +365,12 @@ export function buildCarryWriterMessages(
     },
     {
       role: 'user',
-      content: `${identityBlock}${referenceBlock}${
+      content: `${
+        marksSentenceOf({
+          marks,
+          shown: 'ORIGINAL',
+        },)
+      }\n\n${identityBlock}${referenceBlock}${
         repeatBlockOf({
           repeat: subject.repeat,
           fence,

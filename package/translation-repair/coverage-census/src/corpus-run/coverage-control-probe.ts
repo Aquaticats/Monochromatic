@@ -1,7 +1,7 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import {
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   RUN_PER_CALL_TIMEOUT_MS,
@@ -32,7 +32,7 @@ if (import.meta.main)
       return runCoverageControl({
         line,
         pin,
-        newClient: createRunClient,
+        newClient: createProbeRunClient,
         holds: coverageControlHolds,
         roster: RUN_ROSTER,
         exchangeTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,

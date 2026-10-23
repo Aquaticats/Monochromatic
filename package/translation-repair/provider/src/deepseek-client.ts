@@ -23,13 +23,13 @@ import {
 import {
   createDirectClient,
   type DirectRoute,
-  withoutRefusedKeyBody,
 } from './direct-client.ts';
 import {
   DIRECT_COST_UNREPORTED,
   deepSeekCostOf,
 } from './direct-cost.ts';
 import { deepSeekIdFor, } from './direct-reach.ts';
+import { withoutRefusedKeyBody, } from './refused-key-body.ts';
 import { deepSeekCacheSplitOf, } from './direct-usage.ts';
 import {
   DEFAULT_RETRY_POLICY,

@@ -52,6 +52,14 @@ export const ROSTER_MODEL_IDS = [
   'inception/mercury-2.5',
   'xiaomi/mimo-v2.6-flash',
   'typesafe/jev-1.13',
+  'claude-sonnet-5-5',
+  'claude-sonnet-5-5-effort-low',
+  'claude-sonnet-5-5-effort-medium',
+  'claude-sonnet-5-5-effort-high',
+  'claude-haiku-5-5',
+  'claude-haiku-5-5-effort-low',
+  'claude-haiku-5-5-effort-medium',
+  'claude-haiku-5-5-effort-high',
 ] as const;
 
 /**
@@ -268,6 +276,97 @@ export const XIAOMI_SERVED_IDS = [
  ```
  */
 export type XiaomiServedId = typeof XIAOMI_SERVED_IDS[number];
+
+/**
+ The only two model ids a request on the owner's Claude key may carry: Sonnet 5.5 and Haiku 5.5.
+
+ A TWO-LITERAL LIST ON PURPOSE: THE OWNER'S LOCK ON THE KEY, in the type. The owner, 2026-10-22: "I've added
+ TRANSLATION_REPAIR_CLAUDE_API_KEY . You may use latest Haiku and latest Sonnet with this key. This key would have
+ $200 every month so be careful what you use." The key is not model-scoped (it lists Opus, Fable and older models),
+ so the lock is in our code: a third id here is a type error in every file that reads a wire model, and
+ `claude-cards.unit.test.ts` fails on another one. The ids are the pricing page's (`claude-sonnet-5-5`,
+ `claude-haiku-5-5`, read 2026-10-22); neither takes a date suffix.
+
+ @example
+ ```ts
+ const everyone = ANTHROPIC_WIRE_MODELS;
+ ```
+ */
+export const ANTHROPIC_WIRE_MODELS = [
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+] as const;
+
+/**
+ A model id that may go in the `model` member of a request on the owner's Claude key.
+
+ @example
+ ```ts
+ const model: AnthropicWireModel = 'claude-haiku-5-5';
+ ```
+ */
+export type AnthropicWireModel = typeof ANTHROPIC_WIRE_MODELS[number];
+
+/**
+ The efforts the roster carries a card for, each sent as `output_config.effort`.
+
+ THREE, NOT FIVE. The API takes `low` to `max` on both models, and the owner declined to pick a level ("Why don't you
+ bench?"), so the route ships the three levels the bench is asked to separate. A card that sends no effort exists
+ beside them for each model (the model's own default: Sonnet `high`, Haiku `medium`).
+
+ @example
+ ```ts
+ const everyone = ANTHROPIC_EFFORTS;
+ ```
+ */
+export const ANTHROPIC_EFFORTS = [
+  'low',
+  'medium',
+  'high',
+] as const;
+
+/**
+ An effort the roster carries a card for.
+
+ @example
+ ```ts
+ const effort: AnthropicEffort = 'medium';
+ ```
+ */
+export type AnthropicEffort = typeof ANTHROPIC_EFFORTS[number];
+
+/**
+ Spellings the Claude route serves: one per model with no effort and one per model and effort.
+
+ SEVERAL SPELLINGS, ONE WIRE MODEL, because a roster identity is one seat and the effort bench seats each level on its
+ own: an effort variant is a distinct card the bench can seat. The spelling is not what goes in the `model` member of
+ the request (`ANTHROPIC_WIRE_MODELS` is); it names the card, and the card names the wire model and the effort.
+
+ @example
+ ```ts
+ const everyone = ANTHROPIC_SERVED_IDS;
+ ```
+ */
+export const ANTHROPIC_SERVED_IDS = [
+  'claude-sonnet-5-5',
+  'claude-sonnet-5-5-effort-low',
+  'claude-sonnet-5-5-effort-medium',
+  'claude-sonnet-5-5-effort-high',
+  'claude-haiku-5-5',
+  'claude-haiku-5-5-effort-low',
+  'claude-haiku-5-5-effort-medium',
+  'claude-haiku-5-5-effort-high',
+] as const;
+
+/**
+ A card spelling of the Claude route.
+
+ @example
+ ```ts
+ const modelId: AnthropicServedId = 'claude-haiku-5-5-effort-low';
+ ```
+ */
+export type AnthropicServedId = typeof ANTHROPIC_SERVED_IDS[number];
 
 /**
  Roster identities introduced through Charm Hyper without a Synthetic

@@ -136,11 +136,22 @@
  2026-10-18 (`slice-reading/src/pairing-cache-version.ts`). No record has been written at 7, which this change sets
  first.
 
+ Version 8 covers the reader of a model's reply taking a value that differs from a listed `enum` or `const` value only
+ in capitalization as the listed value (`provider/src/enum-case-fold.ts`, run by `readJsonOutcome`). The three judging
+ sheets list their labels as an enum built per ask (`consistency/src/consistency-wire.ts`,
+ `consistency/src/consistency-choice.ts`), so a label that a reply spelled with another capital, which the guard
+ refused and the round counted as no voice, now counts. The cache holds ballots only, and the key digests the exact
+ sheet, the roster and the version, not the reader, so a ballot stored before would be served after, though it may
+ rest on a round that lost such a voice. The previous number was set in `eb4db609ff`, and a record written under it by
+ a run that started before this change may stand, so the change cannot ride inside it and the number moves. A build
+ whose pipeline digest differs discards the namespace before it reads it (`openNamespacedCache`), and the number is
+ the belt beside that brace. The account of every cache is in the header of `provider/src/enum-case-fold.ts`.
+
  @example
  ```ts
  const material = JSON.stringify({ version: CONSISTENCY_CACHE_VERSION, sheet, roster, },);
  ```
  */
-export const CONSISTENCY_CACHE_VERSION = 7;
+export const CONSISTENCY_CACHE_VERSION = 8;
 
 //endregion Consistency cache version

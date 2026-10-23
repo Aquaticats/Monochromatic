@@ -16,6 +16,7 @@ import {
   type ConsolidationPolishBallot,
   type ConsolidationPolishGateSubject,
   isConsolidationPolishGateWire,
+  POLISH_NAMES,
   type PolishChoice,
   readConsolidationPolishBallot,
 } from './consolidation-polish-gate-wire.ts';
@@ -37,8 +38,9 @@ export const CONSOLIDATION_POLISH_GATE_QUORUM = 2;
 /**
  Structured reply contract for naturalness gate.
  */
-const RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
+export const CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
   schemaName: 'consolidation_polish_gate',
+  verdicts: POLISH_NAMES,
   asksArchive: false,
 },);
 
@@ -290,7 +292,7 @@ export async function gateConsolidationPolish(
     messages: buildConsolidationPolishGateMessages({ subject, },),
     signal,
     exchangeTimeoutMs,
-    responseFormat: RESPONSE_FORMAT,
+    responseFormat: CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
     validate: isConsolidationPolishGateWire,
     stage: 'consolidation-polish-gate',
     l: gl,

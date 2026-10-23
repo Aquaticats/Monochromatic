@@ -154,6 +154,7 @@ const BEDROCK_ALONE: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -167,6 +168,7 @@ const HYPER_HELD: ProviderRecord<number> = {
   bedrock: 0,
   deepseek: 0,
   xiaomi: 0,
+  anthropic: 0,
   hyper: 60_000,
   openrouter: 0,
 };
@@ -180,6 +182,7 @@ const NONE_HELD: ProviderRecord<number> = {
   bedrock: 0,
   deepseek: 0,
   xiaomi: 0,
+  anthropic: 0,
   hyper: 0,
   openrouter: 0,
 };
@@ -187,7 +190,7 @@ const NONE_HELD: ProviderRecord<number> = {
 /**
  Line the reading writes as it stops the entry over {@link BEDROCK_ALONE}.
  */
-export const BEDROCK_ALONE_STOP_LINE: string = 'JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 3 reachable, '
+export const BEDROCK_ALONE_STOP_LINE: string = 'JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, '
   + 'floor 2; refiners 0 of 3 reachable, floor 2; stopping the entry';
 
 /**

@@ -23,6 +23,7 @@ import {
   readBudgetsPastHolds,
 } from '../dist/final/node/index.mjs';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -128,6 +129,7 @@ function budgetsBefore(
   },
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
+    maxHoldMs: TEST_MAX_HOLD_MS,
     // Conditional spread keeps the fleet without a Xiaomi client where the case asks for none.
     ...(withXiaomi ? { xiaomi: { spend: async () => ({ spentUsd: 0.0042, }), }, } : {}),
     // Conditional spread keeps the fleet without a Hyper meter where the case asks for none.
@@ -358,6 +360,7 @@ await describe({
          */
         const began = performance.now();
         const budgets = createProviderBudgets({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           neuralwatt: {
             energy: async () => SPENT_DAY,
             dayAnchor: () => ({ known: true, msOfDay: DAY_START_MS_OF_DAY, }),
@@ -439,6 +442,7 @@ await describe({
             bedrock: true,
             deepseek: true,
             xiaomi: false,
+            anthropic: true,
             openrouter: true,
           },
         },);

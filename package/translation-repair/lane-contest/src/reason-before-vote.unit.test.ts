@@ -36,7 +36,18 @@ await describe({
       fn: async () => {
         for (const asksArchive of [true, false,]) {
           /** Response format of one contest. */
-          const format = contestResponseFormat({ schemaName: 'cat_contest', asksArchive, },);
+          const format = asksArchive
+            ? contestResponseFormat({
+              schemaName: 'cat_contest',
+              verdicts: ['tabby', 'neither',],
+              asksArchive,
+              archiveVerdicts: ['publishable', 'flawed',],
+            },)
+            : contestResponseFormat({
+              schemaName: 'cat_contest',
+              verdicts: ['tabby', 'neither',],
+              asksArchive,
+            },);
           expectReasonFirstInSchema({ format, reason: 'assessment', vote: 'verdict', },);
           /** Declared names. */
           const names = propertyOrderOf({ format, },);

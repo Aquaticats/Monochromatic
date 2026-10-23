@@ -69,8 +69,8 @@ import {
   routedTextElsewhere,
 } from './provider-router-reask.ts';
 import type { RoutedReply, } from './provider-router-reply.ts';
-import { DEFAULT_SLOT_LIMITS, } from './default-slot-limits.ts';
 import type { ProviderCallers, } from './provider-callers.ts';
+import { DEFAULT_SLOT_LIMITS, } from './provider-slot-limits.ts';
 import { isStreamBoundCut, } from './stream-bound.ts';
 import { createStreamBoundHolds, } from './stream-bound-hold.ts';
 import {

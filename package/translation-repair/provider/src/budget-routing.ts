@@ -8,6 +8,7 @@ import {
   type ProviderRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { QuotaSnapshot, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
+import type { ClaudeSpend, } from './claude-spend.ts';
 import { isIsoStampText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import type { XiaomiSpend, } from './xiaomi-spend.ts';
 import { modelDarkReason, } from './model-dark-reason.ts';
@@ -74,7 +75,8 @@ export type { NeuralWattReturn, } from './neuralwatt-return-words.ts';
  @example
  ```ts
  const writing: WritingReach = {
-   neuralwatt: true, synthetic: true, hyper: true, bedrock: true, deepseek: true, xiaomi: false, openrouter: true,
+   neuralwatt: true, synthetic: true, hyper: true, bedrock: true, deepseek: true, xiaomi: false, anthropic: true,
+   openrouter: true,
  };
  ```
  */
@@ -90,6 +92,7 @@ export const EVERY_PROVIDER_COUNTS: WritingReach = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   openrouter: true,
 };
 
@@ -207,6 +210,11 @@ const DRY_CLAUSES: readonly (readonly [
     'xiaomi',
     'Xiaomi',
     'Xiaomi has refused a call for payment',
+  ],
+  [
+    'anthropic',
+    'the Claude key',
+    'the Claude key has met a billing error this run',
   ],
   [
     'openrouter',
@@ -596,6 +604,11 @@ export const DEEPSEEK_DRY_FLOOR_USD = 0;
 const XIAOMI_SPEND_PLACES = 4;
 
 /**
+ Decimal places the Claude spend field is printed to: the figure the owner reads against a $200 month.
+ */
+const CLAUDE_SPEND_PLACES = 4;
+
+/**
  Whether DeepSeek's balance says nothing more can be bought there.
 
  DRY WHEN DEEPSEEK SAYS IT CANNOT SERVE (`is_available` false) OR THE BALANCE
@@ -640,6 +653,28 @@ export function xiaomiIsDry(
   // like every other meter; it decides nothing.
   void spend;
   return false;
+}
+
+/**
+ Whether the Claude key's meter says nothing more can be bought there: only after a billing error.
+
+ THE KEY HAS NO BALANCE ENDPOINT, so the meter answers wet until the client has met a billing error (402, or the older
+ 400 naming a low credit balance) and dry for the rest of the run after it (`claude-spend.ts`). The dollar figure
+ decides nothing: the owner's $200 a month has no hard cap in this code.
+
+ @param spend - most recent reading
+
+ @returns Whether a billing error has been met
+
+ @example
+ ```ts
+ const dry = claudeIsDry({ spend, },);
+ ```
+ */
+export function claudeIsDry(
+  { spend, }: { readonly spend: ClaudeSpend; },
+): boolean {
+  return spend.billingRefused;
 }
 
 /**
@@ -997,6 +1032,32 @@ export function xiaomiMeterLevel(
 ): readonly string[] {
   return [`xiaomiUsdSpent=${spend.spentUsd
     .toFixed(XIAOMI_SPEND_PLACES,)}`,];
+}
+
+/**
+ Renders what the Claude meter actually said, as record fields.
+
+ THE RUN'S OWN PRICED SPEND, TO FOUR PLACES, and `anthropicBilling=refused` once a billing error has been met. It is
+ what this process spent, not what the account holds.
+
+ @param spend - spend the verdict was read from
+
+ @returns `key=value` tokens, no value carrying a space
+
+ @example
+ ```ts
+ claudeMeterLevel({ spend, },);
+ // => ['anthropicUsdSpent=0.0042',]
+ ```
+ */
+export function claudeMeterLevel(
+  { spend, }: { readonly spend: ClaudeSpend; },
+): readonly string[] {
+  return [
+    `anthropicUsdSpent=${spend.spentUsd
+      .toFixed(CLAUDE_SPEND_PLACES,)}`,
+    ...(spend.billingRefused ? ['anthropicBilling=refused',] : []),
+  ];
 }
 
 //endregion Budget routing

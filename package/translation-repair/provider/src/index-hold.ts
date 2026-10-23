@@ -14,6 +14,17 @@ export {
   reachPastCredentialHolds,
 } from './credential-hold.ts';
 export {
+  createWaitCap,
+  HoldBoundError,
+  holdEndsNever,
+  noLevelBeforeReading,
+  notHeldOut,
+  spendableBeforeReading,
+  systemClock,
+  unmarkedPayment,
+  unreadBeforeReading,
+} from './provider-budget-defaults.ts';
+export {
   EVERY_PROVIDER_COUNTS,
   everyWritingProviderDry,
   idleWetProviders,

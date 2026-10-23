@@ -4,6 +4,10 @@
 
 export { nodeEntries, } from './build-entries.ts';
 export { consolidateDocument, } from './consolidate-driver.ts';
+export {
+  CLAUDE_SCHEMA_PRODUCERS,
+  type SchemaProducer,
+} from './claude-schema-producers.ts';
 export { assertPassResumable, } from './corpus-run/corpus-pass-guards.ts';
 export { type CorpusPassInput, } from './corpus-run/corpus-pass-input.ts';
 export {
@@ -30,6 +34,10 @@ export {
   recordOnPark,
 } from './corpus-run/pass-dry-stop.ts';
 export { runCorpusPassOver, } from './corpus-run/corpus-pass-run.ts';
+export {
+  assertSchemasSendable,
+  UnsendableSchemasError,
+} from './corpus-run/pass-schema-check.ts';
 export { selectPendingEntries, } from './corpus-run/corpus-pass-select.ts';
 export {
   passArchiveText,

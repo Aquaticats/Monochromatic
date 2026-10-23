@@ -1,6 +1,3 @@
-import { homedir, } from 'node:os';
-import { join, } from 'node:path';
-
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import spawn from 'nano-spawn';
 
@@ -8,14 +5,6 @@ import {
   childEnvironment,
   contextRoot,
 } from '@monochromatic-dev/translation-repair-typography/ts';
-import {
-  CORPUS_COMMIT_SHA,
-  type CorpusPin,
-} from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import {
-  type CorpusPinSetting,
-  readCorpusPinSetting,
-} from './corpus-pin-override.ts';
 import {
   assertCheckerIndependence,
   assertCheckerQuorumReachable,
@@ -25,12 +14,9 @@ import type { TranslateModels, } from '@monochromatic-dev/translation-repair-tra
 import {
   fetchTransport,
   type ModelTransport,
-  type QuotaSnapshot,
-  requireStreamBoundsInsideCallTimeout,
-  STREAM_FIRST_CONTENT_MS,
-  STREAM_IDLE_MS,
 } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
+  assertOneWireModelPerBench,
   DECISION_ONLY_ROSTER_IDS,
   holdSet,
   type ProviderRecord,
@@ -55,6 +41,7 @@ import {
 import type { ProviderOff, } from './providers-off.ts';
 import { configureProviders, } from './run-providers.ts';
 import { writingProvidersOf, } from './run-writing-providers.ts';
+import { unconfiguredSyntheticQuota, } from './run-unconfigured-quota.ts';
 import { refusingCulledSeats, } from '../culled-seat-guard.ts';
 import { resolveGit, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { defaultRunsDirIn, } from './runs-layout.ts';
@@ -400,6 +387,11 @@ export const RUN_CHECKER_ORDER: readonly RosterModelId[] = [
   'hf:Qwen/Qwen3.8-27B',
   'xiaomi/mimo-v2.6-flash',
   'hf:moonshotai/Kimi-K3',
+  // HAIKU 5.5 JOINS THE ORDER AT THE OWNER'S "Haiku wide" (2026-10-22), UNMEASURED AS A CHECKER, so it sits behind the
+  // three the benchmark ranks and in front of the two it ranks lowest: it fills the bench only when a provider
+  // serving one of those three is dry, and it does not displace a measured checker from the static bench of three. It
+  // sends no effort; the effort bench decides that.
+  'claude-haiku-5-5',
   'google.gemma-4-31b',
   'inception/mercury-2.5',
 ];
@@ -433,9 +425,9 @@ export type RunRepairModels = RepairModels & {
 };
 
 /**
- Role roster for a corpus run: SEVEN of the nine critique and adjudicate (six while Synthetic is dry), THREE edit
- against each other, THREE refine the result for naturalness, and three check
- the shipped repair.
+ Role roster for a corpus run: SEVEN of the nine critique and adjudicate (six while Synthetic is dry), FOUR edit
+ against each other since 2026-10-22 (THREE until Sonnet 5.5 joined them on the owner's Claude key), THREE refine the
+ result for naturalness, and three check the shipped repair.
 
  THREE refiners rather than the two first proposed, because two does not
  achieve what widening was for. The quorum is `ceil(rosterSize / 2)`, which is
@@ -480,8 +472,10 @@ export type RunRepairModels = RepairModels & {
 
  What still bounds a producing roster is not that arithmetic. It is checker
  disjointness, which is the binding one: checkers exclude every editor and
- refiner, so a fourth editor would leave two checkers at a quorum of one, the
- exact single-voice failure the 2026-08-12 roster change closed. Next to it
+ refiner, so an editor or refiner that was also a measured checker would leave two checkers at a quorum of one, the
+ exact single-voice failure the 2026-08-12 roster change closed. THE FOURTH EDITOR OF 2026-10-22, Sonnet 5.5, breaks no
+ such disjointness: no seat of {@link RUN_CHECKER_ORDER} edits or refines (Haiku 5.5, the one Claude card on that order,
+ is not an editor), and `run-seats.unit.test.ts` holds it. Next to it
  sit `assertJudgeableProducerRoster`'s two-disinterested-judge floor, now a
  policy rather than an arithmetic necessity, and judge quality, which the judge-quality
  bench has not measured. Widening was question 1 of the handover's next steps and
@@ -644,6 +638,14 @@ export const RUN_MODELS: RunRepairModels = {
   // successor, and the next `editor-calibrate` re-reads it.
   editorModelIds: [
     'hf:zai-org/GLM-5.3-Flash',
+    // SONNET 5.5 SEATS AS AN EDITOR ON THE OWNER'S WORD OF 2026-10-22, "Sonnet edits, Haiku wide", on the owner's own
+    // Claude key, with no effort sent: the owner declined to pick one ("Why don't you bench?"), so the card named by
+    // the model alone sends none and Anthropic's own default applies. UNMEASURED AS AN EDITOR: the editor calibration
+    // seats it by name, beside the roster's writers (`editor-calibrate-lane.ts`; the roster-derived benches leave it out
+    // because its card holds `judge-unmeasured`), so the next `editor-calibrate` measures it; and a run without the
+    // Claude key leaves it unserved like any provider-less seat. It sits ahead of `glm-5.3`, which has no provider
+    // while Hyper is empty.
+    'claude-sonnet-5-5',
     'glm-5.3',
     'deepseek-v4.1-flash',
   ],
@@ -825,200 +827,90 @@ export const RUN_READER_MODELS: readonly RosterModelId[] = ROSTER_MODEL_IDS
   },);
 
 /**
- Deadline granted to one model exchange during a corpus run.
+ Every list of seats the run fixes before it starts, each beside the name a refusal gives its bench.
 
- Was 240_000, which measurably clipped real work. Run 013 sampled every call
- unfiltered: 748 succeeded and 35 were cut at the deadline, a 4.5 percent
- censoring rate, while the surviving time-to-first-byte distribution ran p50
- 45_837 ms, p90 163_296 ms, p99 218_976 ms, and max 235_151 ms. Fifteen calls
- landed in the last 25 seconds before the cut, so the distribution had real
- density right up to the boundary with NO cliff ahead of it. That is the
- signature of clipping, not of connections hanging: a call completing at
- 245_000 ms would be unremarkable beside the ones observed at 235_151 ms.
-
- Timeouts still arrive in correlated batches, about five per retry round,
- which once looked like evidence of hangs. It reconciles if the provider slows
- every concurrent call together under load, so a batch crosses the deadline
- together. That explains the correlation without hangs, and it means the added
- waiting falls during congested periods specifically.
-
- 360_000 is chosen against the measurement rather than as a round multiple: it
- clears the observed p99 by 64 percent and the observed maximum by 53 percent,
- while keeping a worst-case stage bounded. `STAGE_RETRY_ROUNDS` allows four
- deadlines in one stage, so this caps a pathological stage near 24 minutes
- (the recovery round after them waits only a straggler window), where 480_000
- would put it past 32. The per-entry ceiling it was weighed against was 90
- minutes when this was written; it has been 420 since 2026-08-17
- (`HARD_CAP_MINUTES` in `corpus-pass.ts`), and this comment said 90 until
- ledger D6.
- Raising it should also REDUCE retry rounds by losing fewer voices, so the
- worst case gets rarer as well as no worse.
-
- Sampling stays unfiltered, so the next run reports how much tail still gets
- clipped at 360_000 and this can be tuned on evidence again.
- */
-export const RUN_PER_CALL_TIMEOUT_MS = 360_000;
-
-/**
- Call-timing knobs an artifact was produced under, so a pool spanning more
- than one configuration can still be analyzed per cohort.
+ ONE WIRE MODEL PER BENCH, ENFORCED AT LOAD (C6 of the review of the Claude route): the eight Claude cards share two
+ wire models, and a model seated on one bench under two cards is one model heard twice, counted as two voices toward a
+ quorum. The `assertOneWireModelPerBench` loop over `RUN_BENCHES` runs as the module loads, so a seating that breaks
+ the rule stops the run before it pays for a call, and `run-config-seating.unit.test.ts` holds that every list of
+ {@link RUN_MODELS} and {@link RUN_CHECKER_ORDER} is in it. A BENCH THE RUN DERIVES BY FILTER (`judgeSeatsFor`) is a
+ subset of one of these, so it inherits the rule; the editor calibration lane builds its chairs by union in another
+ package, and asks the rule itself (`editorLaneChairOf` in the bench package).
 
  @example
  ```ts
- const config: RunCallConfig = {
-   perCallTimeoutMs: 240_000,
-   streamFirstContentMs: 150_000,
-   streamIdleMs: 60_000,
- };
+ for (const { bench, modelIds, } of RUN_BENCHES) assertOneWireModelPerBench({ bench, modelIds, });
  ```
  */
-export type RunCallConfig = {
-  /**
-   Total-duration deadline one model exchange was granted.
-   */
-  readonly perCallTimeoutMs: number;
-
-  /**
-   Silence allowed before a stream's first content or reasoning delta. Named
-   `streamFirstByteMs` on artifacts written before ledger B804, when the
-   window counted bytes of any kind.
-   */
-  readonly streamFirstContentMs: number;
-
-  /**
-   Silence allowed between a stream's content or reasoning deltas once flowing.
-   */
-  readonly streamIdleMs: number;
-};
-
-/**
- Builds the call-timing knobs, refusing a set whose stream bounds cannot fire
- before the per-call deadline.
-
- @param perCallTimeoutMs - deadline one model exchange is granted
-
- @param streamFirstContentMs - silence allowed before the first generated text
-
- @param streamIdleMs - silence allowed between pieces of generated text
-
- @returns The three knobs, unchanged, to stamp on an artifact
-
- @throws {@link StreamBoundsOutsideCallTimeoutError} when a bound is not a
- positive finite number shorter than the deadline (ledger B804)
-
- @example
- ```ts
- const config = runCallConfigOf({ perCallTimeoutMs: 360_000, streamFirstContentMs: 180_000, streamIdleMs: 120_000, },);
- ```
- */
-export function runCallConfigOf(
+export const RUN_BENCHES: readonly {
+  readonly bench: string;
+  readonly modelIds: readonly RosterModelId[];
+}[] = [
   {
-    perCallTimeoutMs,
-    streamFirstContentMs,
-    streamIdleMs,
-  }: RunCallConfig,
-): RunCallConfig {
-  requireStreamBoundsInsideCallTimeout({
-    perCallTimeoutMs,
-    streamFirstContentMs,
-    streamIdleMs,
-  },);
-  return {
-    perCallTimeoutMs,
-    streamFirstContentMs,
-    streamIdleMs,
-  };
-}
+    bench: 'roster',
+    modelIds: RUN_ROSTER,
+  },
+  {
+    bench: 'writers',
+    modelIds: RUN_WRITERS,
+  },
+  {
+    bench: 'translators',
+    modelIds: RUN_TRANSLATORS,
+  },
+  {
+    bench: 'readers',
+    modelIds: RUN_READER_MODELS,
+  },
+  {
+    bench: 'wideSeats',
+    modelIds: RUN_WIDE_SEATS,
+  },
+  {
+    bench: 'lateJudges',
+    modelIds: RUN_LATE_JUDGES,
+  },
+  {
+    bench: 'selectJudges',
+    modelIds: RUN_SELECT_JUDGES,
+  },
+  {
+    bench: 'checkerOrder',
+    modelIds: RUN_CHECKER_ORDER,
+  },
+  {
+    bench: 'critics',
+    modelIds: RUN_MODELS.criticModelIds,
+  },
+  {
+    bench: 'panel',
+    modelIds: RUN_MODELS.panelModelIds,
+  },
+  {
+    bench: 'editors',
+    modelIds: RUN_MODELS.editorModelIds,
+  },
+  {
+    bench: 'judges',
+    modelIds: RUN_MODELS.judgeModelIds,
+  },
+  {
+    bench: 'refiners',
+    modelIds: RUN_MODELS.refinerModelIds,
+  },
+  {
+    bench: 'checkers',
+    modelIds: RUN_MODELS.checkerModelIds,
+  },
+];
 
-/**
- Call-timing configuration stamped into every artifact this pass writes.
-
- The pool it labels is deliberately MIXED, by a decision the user made twice:
- keep already-settled entries rather than discard the compute.
-
- An earlier version of this note promised more than the stamp can deliver: it
- said precision could be split by cohort at analysis time, turning the
- confound into a number. RETRACTED, because the arithmetic does not support
- it. The graded sample is 50 items and the pool at the coverage bar is about
- 30 entries split near evenly between cohorts, so a per-cohort precision
- estimate rests on roughly 25 graded items and carries a standard error near
- 8 points. A difference small enough to matter cannot resolve at that width,
- and the binding constraint is human grading effort, not compute, so widening
- the sample to the several hundred per cohort that would resolve it is not
- available. Claiming the number anyway would repeat the exact error retracted
- from the panel-coverage analysis: pooling across a noisy dimension and
- reading the result as signal.
-
- What the stamp is still for: identifying which cohort any artifact came from,
- so the mixed pool is disclosed QUALITATIVELY with the verdict rather than
- left unstated, and so a later analysis over a larger graded set is possible
- if one is ever funded.
-
- Three cohorts exist in the round-two pool, and the first two are equivalent
- for call timing even though they look different:
-
- -   Ten entries with NO `callConfig` field at all, settled before the field
-     existed. Their absence identifies them exactly.
- -   Five entries stamped `perCallTimeoutMs: 240_000`, from run 013. The
-     stream idle guard existed during this run but fired ZERO times, so these
-     five ran under the same effective timing as the ten with no `callConfig`. Treat the
-     fifteen as ONE cohort.
- -   Entries stamped `perCallTimeoutMs: 360_000` and later, which are the
-     first to run without the deadline clipping roughly 4.5 percent of calls.
-
- Deliberately not surfaced on the grading sheet: a grader who could see which
- cohort an issue came from would be a worse instrument than one who could not.
- */
-export const RUN_CALL_CONFIG: RunCallConfig = runCallConfigOf({
-  perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
-  streamFirstContentMs: STREAM_FIRST_CONTENT_MS,
-  streamIdleMs: STREAM_IDLE_MS,
-},);
-
-/**
- Built-in corpus read location: the user's local clone at the benchmark
- commit. Content is read at runtime and never committed here (the clone is
- UNLICENSED).
- */
-const RUN_CORPUS_PIN_FALLBACK: CorpusPin = {
-  cloneDir: join(
-    homedir(),
-    'one-among-us',
-    'data',
-  ),
-  commitSha: CORPUS_COMMIT_SHA,
-};
-
-/**
- Reads the run's corpus pin: the built-in clone and commit unless the
- environment overrides either half (`TRANSLATION_REPAIR_CORPUS_CLONE_DIR`,
- `TRANSLATION_REPAIR_CORPUS_COMMIT`), which fixture runs against an unmerged
- corpus pull request need, beside where each half came from, for the launch
- line `corpusPinOverrideNote` makes of it.
-
- CALLED BY AN ENTRY INSIDE ITS REFUSAL BOUNDARY, and handed down as a value.
- Until 2026-10-10 this was a module constant, resolved while this file
- loaded, so an unreadable override exited every command that loads this
- file at 1 under a dump of bundled source, before `reportingRefusals` ran,
- whether or not the command reads the corpus (ledger B302, B381).
-
- @param env - environment of the process the entry runs in
-
- @returns The pin beside a per-half source
-
- @throws StatedRefusalError when an override is written and unreadable
-
- @example
- ```ts
- const { pin, } = readRunCorpusPinSetting({ env: process.env, },);
- ```
- */
-export function readRunCorpusPinSetting(
-  { env, }: { readonly env: Readonly<NodeJS.ProcessEnv>; },
-): CorpusPinSetting {
-  return readCorpusPinSetting({
-    env,
-    fallback: RUN_CORPUS_PIN_FALLBACK,
+for (const {
+  bench,
+  modelIds,
+} of RUN_BENCHES) {
+  assertOneWireModelPerBench({
+    bench,
+    modelIds,
   },);
 }
 
@@ -1105,36 +997,6 @@ export async function resolveRunsDir(): Promise<string> {
  */
 const l = contextRoot({ tag: 'translation-repair', },);
 
-/* oxlint-disable require-await, typescript/require-await -- compatibility meter contract is asynchronous */
-/**
- Synthetic quota shape used only when Hyper is sole configured provider.
-
- Router receives absent Synthetic as dry directly;
- this compatibility method keeps client surface stable for observational callers.
-
- @returns Explicitly exhausted synthetic quota
-
- @example
- ```ts
- const quota = await unconfiguredSyntheticQuota();
- ```
- */
-async function unconfiguredSyntheticQuota(): Promise<QuotaSnapshot> {
-  return {
-    fiveHour: {
-      remaining: 0,
-      max: 0,
-      limited: true,
-      nextTickAt: '',
-    },
-    weekly: {
-      percentRemaining: 0,
-      nextRegenAt: '',
-    },
-  };
-}
-/* oxlint-enable require-await, typescript/require-await */
-
 /**
  The providers that keep a run going while they read wet: those that serve a model seated in a writing bench, the
  editors, the refiners or the translators. Every provider but Xiaomi in the roster of 2026-10-22, whose one seat is a
@@ -1197,13 +1059,20 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  @param off - providers left off, whose keys are read as unset; the owner's rulings by
  default (`PROVIDERS_LEFT_OFF`), an empty list in a case that exercises an off provider's client
 
+ @param maxHoldMs - longest a wait a refusal states for itself may hold a provider out (REQUIRED, so no client runs with
+ an unbounded hold)
+
  @returns Ready client, routed across configured providers and counted per seat
 
  @throws {@link RunConfigError} when every provider key variable is unset or empty
 
  @example
  ```ts
- const client = runClientFrom({ env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'test', }, transport, },);
+ const client = runClientFrom({
+   env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'test', },
+   transport,
+   maxHoldMs: 1_800_000,
+ },);
  ```
  */
 export function runClientFrom(
@@ -1213,12 +1082,14 @@ export function runClientFrom(
     promptPayloadDir,
     passLeftMs,
     off,
+    maxHoldMs,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly promptPayloadDir?: string;
     readonly passLeftMs?: () => number;
     readonly off?: readonly ProviderOff[];
+    readonly maxHoldMs: number;
   },
 ): RunClient {
   /**
@@ -1241,6 +1112,7 @@ export function runClientFrom(
     env,
     transport,
     ...((off === undefined) ? {} : { off, }),
+    maxHoldMs,
   },);
   /**
    Each configured provider's client, absent where its key is unset.
@@ -1252,6 +1124,7 @@ export function runClientFrom(
     bedrock,
     deepseek,
     xiaomi,
+    anthropic,
     openrouter,
   } = clients;
 
@@ -1284,6 +1157,8 @@ export function runClientFrom(
       paces: {
         ...((hyper === undefined) ? {} : { hyper: hyper.pace, }),
         ...((xiaomi === undefined) ? {} : { xiaomi: xiaomi.pace, }),
+        // The Claude key states 1000 requests a minute; its window fills before the account's limit answers 429.
+        ...((anthropic === undefined) ? {} : { anthropic: anthropic.pace, }),
       },
       // Conditional spread keeps the decisions transport absent where the
       // OpenRouter key is unset.
@@ -1297,7 +1172,7 @@ export function runClientFrom(
       String(hyper !== undefined,)
     } bedrock=${String(bedrock !== undefined,)} deepseek=${String(deepseek !== undefined,)} xiaomi=${
       String(xiaomi !== undefined,)
-    } openrouter=${String(openrouter !== undefined,)}`,
+    } anthropic=${String(anthropic !== undefined,)} openrouter=${String(openrouter !== undefined,)}`,
   );
 
   return {
@@ -1351,7 +1226,8 @@ export function runClientFrom(
  transport, handed to `runClientFrom`. The one place those two are named for
  every runner, so no library function or test reaches them by default.
 
- @param options - payload checkpoint, when the runner keeps one
+ @param options - longest hold a stated wait may set, which is required: the runner's hard cap, or the probe bound
+ where its command has none; and the payload checkpoint, when the runner keeps one
 
  @returns Ready client, routed across configured providers and counted per seat
 
@@ -1359,14 +1235,15 @@ export function runClientFrom(
 
  @example
  ```ts
- const client = createRunClient();
+ const client = createRunClient({ maxHoldMs: 25_200_000, },);
  ```
  */
 export function createRunClient(
   options: {
     readonly promptPayloadDir?: string;
-    readonly passLeftMs?: () => number
-  } = {},
+    readonly maxHoldMs: number;
+    readonly passLeftMs?: () => number;
+  },
 ): RunClient {
   return runClientFrom({
     ...options,

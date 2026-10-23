@@ -4,7 +4,7 @@ import {
   readCorpusFile,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
-  createRunClient,
+  createProbeRunClient,
   readHeadSha,
   readRunCorpusPinSetting,
   reportingRefusals,
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   return runWindowTrial({
     runsDir,
     headSha: await readHeadSha(),
-    makeClient: createRunClient,
+    makeClient: createProbeRunClient,
     pin,
     listPeople: listCorpusPeople,
     readPage: readCorpusFile,

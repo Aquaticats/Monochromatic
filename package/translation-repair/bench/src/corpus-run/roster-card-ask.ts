@@ -14,6 +14,16 @@ import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/t
 // nothing (measured 2026-09-16 on the first build of the task).
 
 /**
+ A provider whose listing `roster-card` reads: every card provider but the Claude key.
+
+ @example
+ ```ts
+ const provider: ListedCardProvider = 'hyper';
+ ```
+ */
+export type ListedCardProvider = Exclude<CardProvider, 'anthropic'>;
+
+/**
  Reads the provider and served id off the command line.
 
  @param line - the card's command line, read whole by `reportingRefusals`,
@@ -21,9 +31,9 @@ import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/t
 
  @returns Provider and served id
 
- @throws {@link StatedRefusalError} When the provider is not one of the four
- or the served id is written empty, naming each part that is wrong and
- quoting what was typed (ledger B75)
+ @throws {@link StatedRefusalError} When the provider is not a card provider,
+ is the Claude key (whose cards the owner's lock fixes), or the served id is written empty, naming each part that is
+ wrong and quoting what was typed (ledger B75)
 
  @example
  ```ts
@@ -33,7 +43,7 @@ import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/t
 export function readAsk(
   { line, }: { readonly line: CommandLineOf<'roster-card'>; },
 ): {
-  readonly provider: CardProvider;
+  readonly provider: ListedCardProvider;
   readonly servedId: string;
 } {
   /**
@@ -69,8 +79,21 @@ export function readAsk(
       says: problems.join('; ',),
     },);
   }
+  /**
+   Provider known to be a card provider, since no problem was found.
+   */
+  const asked = nonNullishOrThrow(provider,);
+  // THE CLAUDE KEY HAS NOTHING TO LOOK UP: the owner's grant fixes its cards to Sonnet 5.5 and Haiku 5.5 at three
+  // efforts each (`claude-card-sides.ts`), the key's own listing names Opus, Fable and older models too, and the
+  // bearer reader here does not send the `x-api-key` header that listing needs.
+  if (asked === 'anthropic') {
+    throw new StatedRefusalError({
+      says: 'roster-card does not read the Claude key: its cards are fixed by the owner\'s grant to Sonnet 5.5 and '
+        + 'Haiku 5.5 and are edited in claude-card-sides.ts, not pasted from a listing',
+    },);
+  }
   return {
-    provider: nonNullishOrThrow(provider,),
+    provider: asked,
     servedId,
   };
 }

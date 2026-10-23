@@ -5,6 +5,7 @@
 export { renderConsolidationBrief, } from './consolidate-brief.ts';
 export {
   CONSOLIDATE_GATE_QUORUM,
+  CONSOLIDATE_GATE_RESPONSE_FORMAT,
   type ConsolidateGateOutcome,
   gateConsolidatedSlice,
   type GateShipped,
@@ -12,6 +13,7 @@ export {
 } from './consolidate-gate-stage.ts';
 export {
   buildConsolidateGateMessages,
+  CONSOLIDATE_GATE_NAMES,
   type ConsolidateGateSubject,
   type GateBallot,
   type GateChoice,
@@ -82,6 +84,7 @@ export { applyFinalPolish, } from './consolidation-polish-apply.ts';
 export { configuredConsolidationPolish, } from './consolidation-polish-config.ts';
 export {
   CONSOLIDATION_POLISH_GATE_QUORUM,
+  CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
   type ConsolidationPolishGateOutcome,
   type ConsolidationPolishSettlement,
   type ConsolidationPolishSettlementRule,

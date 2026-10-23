@@ -1,5 +1,6 @@
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import { retryAfterHeaderMsOf, } from './retry-after-header.ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Request size refusal
@@ -168,6 +169,9 @@ export class SyntheticRequestTooLargeError extends ProviderHttpError {
  in bytes: this corpus is Chinese, and character counts run about a third of
  the bytes their UTF-8 costs
 
+ @param headers - the reply's captured headers, absent where none were asked for; a `retry-after` among them rides
+ on the failure for the budget layer to read
+
  @returns Failure to throw, size-naming only where all four signals agree
 
  @example
@@ -186,11 +190,13 @@ export function failureForReply(
     status,
     bodyText,
     requestBodyBytes,
+    headers,
   }: {
     readonly provider: ProviderName;
     readonly status: number;
     readonly bodyText: string;
     readonly requestBodyBytes: number;
+    readonly headers?: Readonly<Record<string, string>>;
   },
 ): ProviderHttpError {
   /**
@@ -227,10 +233,16 @@ export function failureForReply(
     },);
   }
 
+  /**
+   Wait the headers named, zero where none was read.
+   */
+  const retryAfterMs = retryAfterHeaderMsOf((headers === undefined) ? {} : { headers, },);
+
   return new ProviderHttpError({
     provider,
     status,
     bodyText,
+    ...((retryAfterMs === 0) ? {} : { retryAfterMs, }),
   },);
 }
 

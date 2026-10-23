@@ -11,11 +11,11 @@ import {
   PRODUCTION_PRIOR_ISSUE_DISCLOSURE,
   buildIntroducedDefectMessages,
   type IntroducedDefectCheckWire,
-  INTRODUCED_DEFECT_RESPONSE_FORMAT,
   isIntroducedDefectReportWire,
   type PriorIssueDisclosure,
   type ProbedEditKind,
 } from './introduced-defect-wire.ts';
+import { INTRODUCED_DEFECT_RESPONSE_FORMAT, } from './introduced-defect-format.ts';
 import {
   type RegionDefectTally,
   resolveProberChecks,

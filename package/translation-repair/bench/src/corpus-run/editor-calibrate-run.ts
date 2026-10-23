@@ -15,7 +15,11 @@ import {
   printEditorCalibrateRefineReach,
   printEditorCalibrateShipped,
 } from './editor-calibrate-closing.ts';
-import { runEditorLane, } from './editor-calibrate-lane.ts';
+import {
+  EDITOR_LANE_EDITORS,
+  EDITOR_LANE_REFINERS,
+  runEditorLane,
+} from './editor-calibrate-lane.ts';
 import type { SliceRounds, } from './editor-calibrate-slice.ts';
 import { printEditorCalibrateStandings, } from './editor-calibrate-standings.ts';
 import {
@@ -44,7 +48,14 @@ import { CALIBRATION_OVERLAP, } from '@monochromatic-dev/translation-repair-slic
 //
 // EVERY MODEL EDITS EVERY SLICE, for the reason the writer calibration gives:
 // a narrow slate compares only the models that happened to be seated, and a
-// standing then means something different for each of them.
+// standing then means something different for each of them. "EVERY MODEL" IS THE
+// ROSTER'S WRITERS AND THE RUN'S OWN NAMED EDITORS AND REFINERS
+// (`EDITOR_LANE_EDITORS`, `editor-calibrate-lane.ts`), since 2026-10-22 and the
+// owner's Claude key: Sonnet 5.5 is an editor by the owner's word and holds
+// `judge-unmeasured`, which keeps it off every roster-derived bench, so the lane
+// seats it by name and this command can measure it; Haiku 5.5 is seated wide and
+// not as an editor, holds `writer-unmeasured`, and so spends none of that key on
+// edits here. Judging, critique and checking stay on the roster.
 //
 // CHECKERS SELF-CERTIFY HERE, AND ONLY HERE. Production forbids a checker from
 // proving its own repair, so a full editor roster leaves nobody independent to
@@ -209,13 +220,13 @@ export async function runEditorCalibrate(
         many: 'slices',
       },)
     }, `
-      + `${String(RUN_ROSTER.length,)} ${
+      + `${String(EDITOR_LANE_EDITORS.length,)} ${
         wordForCount({
-          count: RUN_ROSTER.length,
+          count: EDITOR_LANE_EDITORS.length,
           one: 'model',
           many: 'models',
         },)
-      } editing and judging each, `
+      } editing and ${String(RUN_ROSTER.length,)} judging each, `
       + `${String(overlap,)} ${
         wordForCount({
           count: overlap,
@@ -294,7 +305,8 @@ export async function runEditorCalibrate(
   },);
 
   printEditorCalibrateStandings({
-    roster: RUN_ROSTER,
+    roster: EDITOR_LANE_EDITORS,
+    refinerRoster: EDITOR_LANE_REFINERS,
     perSlice,
   },);
 

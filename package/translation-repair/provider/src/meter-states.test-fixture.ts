@@ -23,6 +23,7 @@ export function metersAllWet(): Promise<ProviderRecord<MeterState>> {
     bedrock: 'wet',
     deepseek: 'wet',
     xiaomi: 'wet',
+    anthropic: 'wet',
     hyper: 'wet',
     openrouter: 'wet',
   },);

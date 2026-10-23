@@ -92,7 +92,6 @@ export {
 } from './introduced-defect-shown.ts';
 export {
   buildIntroducedDefectMessages,
-  INTRODUCED_DEFECT_RESPONSE_FORMAT,
   INTRODUCED_DEFECT_VERDICTS,
   type IntroducedDefectCheckWire,
   type IntroducedDefectPromptPlan,
@@ -104,6 +103,7 @@ export {
   type ProbedEditKind,
   PRODUCTION_PRIOR_ISSUE_DISCLOSURE,
 } from './introduced-defect-wire.ts';
+export { INTRODUCED_DEFECT_RESPONSE_FORMAT, } from './introduced-defect-format.ts';
 export { NaturalnessCompletenessError, } from './naturalness-completeness-error.ts';
 export {
   NaturalnessQuorumError,

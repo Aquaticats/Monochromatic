@@ -6,6 +6,7 @@ import {
   maskCredentials,
 } from './credential-mask.ts';
 import { drainBody, } from './stream-drain.ts';
+import { capturedHeadersOf, } from './response-header-capture.ts';
 import { StreamCutShortError, } from './stream-cut.ts';
 import type { StreamWireFormat, } from './stream-wire-format.ts';
 import {
@@ -38,6 +39,12 @@ export type TransportReply = {
    Response body as text; JSON parsing happens above the transport seam.
    */
   readonly bodyText: string;
+
+  /**
+   The response headers the exchange asked for (`captureHeaders`), by lower-case name; absent where none was asked
+   for or none came back, so a reply keeps the shape older callers read.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -128,6 +135,15 @@ export type TransportExchange = {
    attempt this same exchange.
    */
   readonly firstContentMs?: number;
+
+  /**
+   Response headers to hand back on the reply: exact lower-case names, or prefixes ending in an asterisk
+   (`anthropic-ratelimit-*`). Absent asks for none.
+
+   NAMED BY THE CALLER because only the client knows which headers it reads (`retry-after` for the ladder, a
+   provider's rate-limit family for a log line); the transport is one function serving every client.
+   */
+  readonly captureHeaders?: readonly string[];
 };
 
 /**
@@ -317,6 +333,7 @@ export async function fetchTransport(
     maxAnswerChars,
     wireFormat,
     firstContentMs,
+    captureHeaders,
   } = exchange;
 
   /**
@@ -370,6 +387,16 @@ export async function fetchTransport(
    */
   const credentials = credentialsOfHeaders({ headers, },);
 
+  /**
+   Headers the caller asked for, none when it asked for none or none came back.
+   */
+  const captured = (captureHeaders === undefined)
+    ? {}
+    : capturedHeadersOf({
+      headers: response.headers,
+      wanted: captureHeaders,
+    },);
+
   return {
     status: response.status,
     // MASKED AFTER THE WHOLE BODY IS ASSEMBLED, so a credential cut in two by
@@ -387,6 +414,10 @@ export async function fetchTransport(
       },),
       credentials,
     },),
+    // Conditional spread keeps the member absent when no header was captured.
+    ...((Object.keys(captured,)
+      .length
+      === 0) ? {} : { headers: captured, }),
   };
 }
 

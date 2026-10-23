@@ -5,7 +5,7 @@ import {
   SYNTHETIC_CHAT_BASE_URL,
   XIAOMI_BASE_URL,
 } from '@monochromatic-dev/translation-repair-provider/ts';
-import type { CardProvider, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { ListedCardProvider, } from './roster-card-ask.ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
@@ -20,7 +20,7 @@ import {
 /**
  Where each provider lists what it serves.
  */
-export const LISTING_URL: Readonly<Record<CardProvider, string>> = {
+export const LISTING_URL: Readonly<Record<ListedCardProvider, string>> = {
   synthetic: `${SYNTHETIC_CHAT_BASE_URL}/models`,
   hyper: 'https://hyper.charm.land/v1/models',
   openrouter: 'https://openrouter.ai/api/v1/models',
@@ -37,7 +37,7 @@ export const LISTING_URL: Readonly<Record<CardProvider, string>> = {
 /**
  Environment variable carrying each provider's key, injected by mise.
  */
-const KEY_VAR: Readonly<Record<CardProvider, string>> = {
+const KEY_VAR: Readonly<Record<ListedCardProvider, string>> = {
   synthetic: 'TRANSLATION_REPAIR_SYNTHETIC_API_KEY',
   hyper: 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY',
   openrouter: 'TRANSLATION_REPAIR_OPENROUTER_API_KEY',
@@ -72,7 +72,7 @@ export async function fetchListing(
     env,
     transport,
   }: {
-    readonly provider: CardProvider;
+    readonly provider: ListedCardProvider;
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
   },

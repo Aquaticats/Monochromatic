@@ -4,6 +4,8 @@ import {
   type DocumentSide,
   isIssueCategory,
   isIssueSeverity,
+  ISSUE_CATEGORIES,
+  ISSUE_SEVERITIES,
   type IssueClaim,
   remapCategoryLeaf,
   type SpanAnchor,
@@ -156,8 +158,17 @@ export const CRITIC_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
             ],
             additionalProperties: false,
             properties: {
-              category: { type: 'string', },
-              severity: { type: 'string', },
+              // THE CLOSED VOCABULARIES THE READER CHECKS, as an enum (P1 of the second review of the Claude route): the
+              // reader also remaps a bare leaf name of a category, which the schema does not offer, so a reply that
+              // follows the schema is always read as written.
+              category: {
+                type: 'string',
+                enum: [...ISSUE_CATEGORIES,],
+              },
+              severity: {
+                type: 'string',
+                enum: [...ISSUE_SEVERITIES,],
+              },
               sourceQuote: { type: 'string', },
               summary: { type: 'string', },
               targetQuote: { type: 'string', },

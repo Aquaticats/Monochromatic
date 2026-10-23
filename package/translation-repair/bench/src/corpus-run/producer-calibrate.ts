@@ -4,7 +4,7 @@ import {
 } from './bench-sample.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readHeadSha,
   readRunCorpusPinSetting,
   reportingRefusals,
@@ -36,7 +36,7 @@ function main({ line, }: { readonly line: CommandLineOf<'producer-calibrate'>; }
   const { pin, } = readRunCorpusPinSetting({ env: process.env, },);
   return runProducerCalibrate({
     line,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     drawSlices: function drawPinned({ count, }: { readonly count: number; },): Promise<readonly BenchSlice[]> {
       // The slices every model writes are drawn from the pin read here.
       return sampleBenchSlices({

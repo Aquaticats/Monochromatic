@@ -21,7 +21,9 @@ import {
 import {
   FINDING_FIELDS,
   isRenderingAuditReportWire,
+  RENDERING_AUDIT_CATEGORIES,
   RENDERING_AUDIT_RESPONSE_FORMAT,
+  RENDERING_AUDIT_VERDICTS,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -195,13 +197,18 @@ await describe({
         expect([...FINDING_FIELDS,],).toEqual(sorted,);
         expect(asked.includes('"required":["findings","verdict"]',),).toBe(true,);
         expect(asked.includes(`"required":${JSON.stringify(sorted,)}`,),).toBe(true,);
+        // THE CATEGORY AND THE VERDICT LIST THE VOCABULARIES THE SCREEN READS AS AN enum (P1 of the second review of the
+        // Claude route); the other fields are plain text.
         expect(asked.includes(
           `"properties":{${sorted.map(function declared(field,): string {
-            return `"${field}":{"type":"string"}`;
+            return (field === 'category')
+              ? `"${field}":{"type":"string","enum":${JSON.stringify(RENDERING_AUDIT_CATEGORIES,)}}`
+              : `"${field}":{"type":"string"}`;
           },).join(',',)}}`,
         ),).toBe(true,);
         expect(asked.indexOf('"properties":{"findings":',),).toBeGreaterThan(-1,);
-        expect(asked.indexOf('"verdict":{"type":"string"}',),).toBeGreaterThan(asked.indexOf('"findings":{"type":"array"',),);
+        expect(asked.indexOf(`"verdict":{"type":"string","enum":${JSON.stringify(RENDERING_AUDIT_VERDICTS,)}}`,),)
+          .toBeGreaterThan(asked.indexOf('"findings":{"type":"array"',),);
       },
     },),
   ],

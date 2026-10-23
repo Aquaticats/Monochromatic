@@ -51,7 +51,8 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @param seed - draw seed, which a later round overrides to draw a fresh sample
 
- @param openClient - builds the client one region's probe asks through: `createRunClient` in a run, called once per region and never for a pool with nothing to draw
+ @param openClient - builds the client one region's probe asks through: `createProbeRunClient` in a run, called once per
+ region and never for a pool with nothing to draw
 
  @param proberModelIds - models asked about each region
 
@@ -76,7 +77,17 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @example
  ```ts
- await sampleDamage({ runsDir, seed: 'damage-round-one', openClient: createRunClient, proberModelIds, perCallTimeoutMs: 360_000, l, policy, repository, stageSettings, },);
+ await sampleDamage({
+   runsDir,
+   seed: 'damage-round-one',
+   openClient: createProbeRunClient,
+   proberModelIds,
+   perCallTimeoutMs: 360_000,
+   l,
+   policy,
+   repository,
+   stageSettings,
+ },);
  ```
  */
 export async function sampleDamage(

@@ -5,6 +5,7 @@
 export * from './index-direct.ts';
 export * from './index-hold.ts';
 export * from './index-neuralwatt.ts';
+export * from './index-reading.ts';
 export { extractAnthropicCompletion, } from './anthropic-completion.ts';
 export {
   type AnthropicContentBlock,
@@ -119,8 +120,6 @@ export {
   type ModelClient,
   type VisionMessage,
 } from './chat-contract.ts';
-export { readJsonOutcome, } from './chat-json-outcome.ts';
-export { chatJsonThrough, } from './chat-json-through.ts';
 export { isDecisionStateOverContext, } from './decision-context-refusal.ts';
 export {
   type Decider,

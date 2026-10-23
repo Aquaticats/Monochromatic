@@ -74,6 +74,13 @@ export class ProviderHttpError extends Error {
   public readonly bodyExcerpt: string;
 
   /**
+   Wait the reply asked for in a header rather than in its body, in milliseconds, zero when it named none. Anthropic
+   states a rate limit's wait in `retry-after` and its error body carries no wait text, so the body alone never
+   shows a router how long to hold the provider out.
+   */
+  public readonly retryAfterMs: number;
+
+  /**
    Builds failure carrying provider, status and body opening.
 
    @param provider - provider that served the call, so a failure read without its call site still says whose it was
@@ -87,6 +94,8 @@ export class ProviderHttpError extends Error {
    The excerpt is appended either way, so no subclass has to know how long
    an excerpt runs or how to label whose words it quotes
 
+   @param retryAfterMs - wait the reply's headers named, in milliseconds; absent when none was read
+
    @example
    ```ts
    new ProviderHttpError({ provider: 'hyper', status: 500, bodyText: 'upstream exploded', },);
@@ -99,12 +108,14 @@ export class ProviderHttpError extends Error {
       bodyText,
       summary,
       excerpt = 'quoted',
+      retryAfterMs = 0,
     }: {
       readonly provider: ProviderName;
       readonly status: number;
       readonly bodyText: string;
       readonly summary?: string;
       readonly excerpt?: 'quoted' | 'withheld';
+      readonly retryAfterMs?: number;
     },
   ) {
     // THE EXCERPT IS QUOTED INTO THE MESSAGE ON PURPOSE for this class, which
@@ -130,6 +141,7 @@ export class ProviderHttpError extends Error {
       text: bodyText,
       units: BODY_EXCERPT_LIMIT,
     },);
+    this.retryAfterMs = retryAfterMs;
   }
 }
 

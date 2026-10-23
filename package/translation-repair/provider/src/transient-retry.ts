@@ -12,8 +12,10 @@ import {
   isSelfEndedStream,
   type ModelTransport,
   ProviderHttpError,
+  type TransportReply,
 } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { isStreamBoundCut, } from './stream-bound.ts';
+import { retryAfterHeaderMsOf, } from './retry-after-header.ts';
 import { retryAfterMsOf, } from './retry-stated-wait.ts';
 
 //region Transient retry
@@ -55,6 +57,12 @@ const HTTP_SERVICE_UNAVAILABLE = 503;
 const HTTP_GATEWAY_TIMEOUT = 504;
 
 /**
+ Overloaded: Anthropic's own status for a service that cannot take the call
+ now (its error list names `overloaded_error` at 529, read 2026-10-22).
+ */
+const HTTP_OVERLOADED = 529;
+
+/**
  Statuses worth one more try:
  timeouts, throttles, upstream and gateway hiccups.
  A live 42-stream burst drew instant 502s on most calls while identical
@@ -67,6 +75,7 @@ const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([
   HTTP_BAD_GATEWAY,
   HTTP_SERVICE_UNAVAILABLE,
   HTTP_GATEWAY_TIMEOUT,
+  HTTP_OVERLOADED,
 ],);
 
 /**
@@ -428,6 +437,26 @@ async function attemptExchange(
 }
 
 /**
+ Wait a refused reply asks for, from its body or its `retry-after` header, whichever is longer.
+
+ @param reply - the refused attempt's reply
+
+ @returns Milliseconds the reply asks the caller to wait, or zero
+
+ @example
+ ```ts
+ const waitMs = statedWaitOf({ reply, },);
+ ```
+ */
+function statedWaitOf({ reply, }: { readonly reply: TransportReply; },): number {
+  return Math.max(
+    retryAfterMsOf({ bodyText: reply.bodyText, },),
+    // Conditional spread keeps the member absent instead of undefined.
+    retryAfterHeaderMsOf(((reply.headers === undefined) ? {} : { headers: reply.headers, }),),
+  );
+}
+
+/**
  Performs one exchange with bounded retry on transient failures:
  retryable statuses and thrown transport failures both back off and
  try again on an equal-jitter ladder.
@@ -551,7 +580,7 @@ export async function exchangeWithRetry(
        Wait the reply names for the provider's return, zero when it names
        none.
        */
-      const statedWaitMs = retryAfterMsOf({ bodyText: reply.bodyText, },);
+      const statedWaitMs = statedWaitOf({ reply, },);
 
       /**
        Longest stated wait this ladder sleeps in one backoff.
@@ -593,7 +622,7 @@ export async function exchangeWithRetry(
         baseMs: policy.baseMs,
         attempt,
       },),
-      (reply === undefined) ? 0 : retryAfterMsOf({ bodyText: reply.bodyText, },),
+      (reply === undefined) ? 0 : statedWaitOf({ reply, },),
     );
     // THE CALL IS NAMED (ledger P12): 3,864 "stream ended without its [DONE]
     // terminator ... retrying" lines across the logs named no model, so none

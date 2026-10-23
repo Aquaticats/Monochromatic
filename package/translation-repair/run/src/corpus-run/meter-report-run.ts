@@ -66,6 +66,7 @@ export function mergeSamples({ readings, }: { readonly readings: readonly MeterL
             sample.bedrock,
             sample.deepseek,
             sample.xiaomi,
+            sample.anthropic,
             sample.levels,
           ],),
           sample,

@@ -327,6 +327,41 @@ await describe({
     },),
 
     it({
+      name: 'READS A CLAIMED PAYLOAD AGAINST THE RESPONSE FORMAT OF THE REQUEST, taking the schema\'s spelling of a '
+        + 'listed value that came back differing only in its capital',
+      fn: async () => {
+        const inner: ModelClient = {
+          chatText: async () => ({ text: '{"spot":"Windowsill"}', servedBy: 'synthetic', }),
+          chatJson: async () => {
+            throw new Error('chatJson bypassed by prompt payload reader',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const client = promptUniqueClient({ inner, },);
+        const outcome = await client.chatJson({
+          ...REQUEST,
+          responseFormat: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'nap_spot',
+              schema: {
+                type: 'object',
+                properties: { spot: { type: 'string', enum: ['windowsill', 'radiator',], }, },
+              },
+            },
+          },
+          validate: function isListedSpot(value: unknown,): value is { readonly spot: string; } {
+            return ((typeof value) === 'object') && (value !== null) && ('spot' in value)
+              && ((value.spot === 'windowsill') || (value.spot === 'radiator'));
+          },
+        },);
+        expect(outcome.kind === 'ok' ? outcome.value : undefined,).toEqual({ spot: 'windowsill', },);
+      },
+    },),
+
+    it({
       name: 'KEEPS THE FIRST ANSWER when no other provider can take the re-ask, and releases the nudged '
         + 'prompt, so a later ask of the same question may still buy it',
       fn: async () => {

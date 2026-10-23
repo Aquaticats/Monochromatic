@@ -3710,6 +3710,7 @@ await describe({
                 bedrock: true,
                 deepseek: true,
                 xiaomi: true,
+                anthropic: true,
                 hyper: true,
                 openrouter: true,
               },

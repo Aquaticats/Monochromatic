@@ -9,7 +9,9 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { contestResponseFormat, } from './contest-ballot-wire.ts';
 import {
+  ARCHIVE_VERDICTS,
   buildLaneContestMessages,
+  CANDIDATE_NAMES,
   isLaneContestWire,
   type LaneChoice,
   type LaneContestBallot,
@@ -55,9 +57,11 @@ export const LANE_CONTEST_QUORUM = 2;
 /**
  Schema a reply must satisfy before it reaches the reader.
  */
-const CONTEST_RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
+export const LANE_CONTEST_RESPONSE_FORMAT: JsonSchemaResponseFormat = contestResponseFormat({
   schemaName: 'lane_contest',
+  verdicts: CANDIDATE_NAMES,
   asksArchive: true,
+  archiveVerdicts: ARCHIVE_VERDICTS,
 },);
 
 /**
@@ -404,7 +408,7 @@ export async function contestLaneSlice(
     messages: buildLaneContestMessages({ subject, },),
     signal,
     exchangeTimeoutMs,
-    responseFormat: CONTEST_RESPONSE_FORMAT,
+    responseFormat: LANE_CONTEST_RESPONSE_FORMAT,
     validate: isLaneContestWire,
     stage: 'lane-contest',
     l: cl,

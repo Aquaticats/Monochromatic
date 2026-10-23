@@ -46,9 +46,9 @@ const GENERATION = 'sha256-tree-v1:cat';
 const KEY = 'purr';
 
 /**
- The key a one-message question to one seat gets at version seven, which moves when the version or the digest does.
+ The key a one-message question to one seat gets at version eight, which moves when the version or the digest does.
  */
-const KEY_AT_VERSION_SEVEN = '9a4555b14fc1b4b9cb94fbc381f8f6c3655ecf7e045dc035e1961711855328e1';
+const KEY_AT_VERSION_EIGHT = 'b3d2be74a4700b7a1181255c980429d5e5463ccc8073d29fad019732186d058d';
 
 /**
  A sheet of one message.
@@ -223,10 +223,20 @@ await describe({
           },
         },),
         it({
-          name: 'MOVES THE KEY WITH THE CACHE VERSION: the version is part of what the key digests, and version seven names '
-            + 'a run whose sheets list the labels a reply may use, whose replies may write a label in another form of it, whose '
-            + 'choice among candidates is run off when it splits, and whose house rule protects readers only from the account of '
-            + 'how a death or an attempt happened, and whose rounds close under the last-seat grace of 2026-10-22 (ledger B816)',
+          name: 'IS AT VERSION 8: the reader of a model\'s reply takes a label that differs from a listed label only '
+            + 'in its capital as the listed label, and the key digests the version, the sheet and the roster, not the '
+            + 'reader, so only this number retires a ballot stored under the reader before',
+          fn: async () => {
+            expect(CONSISTENCY_CACHE_VERSION,).toBe(8,);
+          },
+        },),
+        it({
+          name: 'MOVES THE KEY WITH THE CACHE VERSION: the version is part of what the key digests, and version '
+            + 'eight names a run whose sheets list the labels a reply may use, whose replies may write a label in '
+            + 'another form of it, whose choice among candidates is run off when it splits, whose house rule '
+            + 'protects readers only from the account of how a death or an attempt happened, whose rounds close '
+            + 'under the last-seat grace of 2026-10-22 (ledger B816), and whose reader takes a label that differs '
+            + 'from a listed one only in its capital as the listed label',
           fn: async () => {
             expect({
               version: CONSISTENCY_CACHE_VERSION,
@@ -236,8 +246,8 @@ await describe({
                 modelIds: ['glm-5.3',],
               },),
             },).toEqual({
-              version: 7,
-              key: KEY_AT_VERSION_SEVEN,
+              version: 8,
+              key: KEY_AT_VERSION_EIGHT,
             },);
           },
         },),

@@ -1,3 +1,4 @@
+import { CLAUDE_CARDS, } from './claude-card-sides.ts';
 import {
   DEEPSEEK_V4_1_FLASH_ON_DEEPSEEK,
   MIMO_V2_6_FLASH_ON_XIAOMI,
@@ -25,7 +26,7 @@ import type { RosterModelId, } from './roster-id.ts';
 // NeuralWatt sides and the OpenRouter sides that name their endpoints sit
 // in `neuralwatt-card-sides.ts` and `openrouter-card-sides.ts`, and the two
 // direct sides (DeepSeek's and Xiaomi's own APIs, each serving one model) in
-// `direct-card-sides.ts`, with their evidence.
+// `direct-card-sides.ts`, and the eight Claude cards in `claude-card-sides.ts`, with their evidence.
 //
 // TO ADD A MODEL: run `mise run roster-card -- <provider> <served id>` for a
 // card with the live listing's fields, paste it here with `completionCap:
@@ -539,6 +540,9 @@ export const MODEL_CARDS: Readonly<Record<RosterModelId, ModelCard>> = {
       'reader-unmeasured',
     ],
   },
+  // THE EIGHT CARDS OF THE OWNER'S CLAUDE KEY, 2026-10-22 (`claude-card-sides.ts`):
+  // Sonnet 5.5 and Haiku 5.5, each with no effort and at three efforts.
+  ...CLAUDE_CARDS,
 };
 
 //endregion Model cards

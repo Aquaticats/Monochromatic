@@ -60,6 +60,18 @@
 // retention; the owner's ruling of 2026-10-05 that the corpus is public and
 // PII is allowed, and the grants quoted here, are what permit it. Record:
 // `doc/decision/translation-repair-direct-providers.md`.
+//
+// ANTHROPIC JOINED ON 2026-10-22, AFTER XIAOMI AND AHEAD OF HYPER. OPEN TO THE
+// OWNER'S VETO. The owner added `TRANSLATION_REPAIR_CLAUDE_API_KEY` that day:
+// "You may use latest Haiku and latest Sonnet with this key. This key would have
+// $200 every month so be careful what you use." The place has no routing effect
+// today, because no other provider serves a Claude model and a walk down this
+// order only ever asks the providers that serve the model; it matters if one
+// ever does. It sits with the other direct, owner-keyed routes and ahead of the
+// balances that do not renew, since a monthly allowance that is not spent is
+// gone. The owner ruled it needs no hard monthly cap of its own ("a month is
+// defined very vaguely"), so its meter never reads dry (`claude-spend.ts`);
+// exhaustion is learned from the billing refusal at the wire.
 
 /**
  Every provider, in the order the owner prefers to spend on them.
@@ -78,6 +90,7 @@ export const PROVIDER_ORDER = [
   'bedrock',
   'deepseek',
   'xiaomi',
+  'anthropic',
   'hyper',
   'openrouter',
 ] as const;
@@ -101,7 +114,7 @@ export type ProviderName = typeof PROVIDER_ORDER[number];
 
  @example
  ```ts
- const dry: ProviderRecord<boolean> = { neuralwatt: false, synthetic: false, bedrock: false, deepseek: false, xiaomi: false, hyper: true, openrouter: false, };
+ const dry: ProviderRecord<boolean> = { neuralwatt: false, synthetic: false, bedrock: false, deepseek: false, xiaomi: false, anthropic: false, hyper: true, openrouter: false, };
  ```
  */
 export type ProviderRecord<ValueT,> = Readonly<Record<ProviderName, ValueT>>;
@@ -127,6 +140,7 @@ export function providerRecord<ValueT,>(
     bedrock: of('bedrock',),
     deepseek: of('deepseek',),
     xiaomi: of('xiaomi',),
+    anthropic: of('anthropic',),
     hyper: of('hyper',),
     openrouter: of('openrouter',),
   };
@@ -142,9 +156,9 @@ export function providerRecord<ValueT,>(
  @example
  ```ts
  otherProviders({ provider: 'hyper', },);
- // => ['neuralwatt', 'synthetic', 'bedrock', 'deepseek', 'xiaomi', 'openrouter',]
+ // => ['neuralwatt', 'synthetic', 'bedrock', 'deepseek', 'xiaomi', 'anthropic', 'openrouter',]
  otherProviders({ provider: 'synthetic', },);
- // => ['neuralwatt', 'bedrock', 'deepseek', 'xiaomi', 'hyper', 'openrouter',]
+ // => ['neuralwatt', 'bedrock', 'deepseek', 'xiaomi', 'anthropic', 'hyper', 'openrouter',]
  ```
  */
 export function otherProviders(

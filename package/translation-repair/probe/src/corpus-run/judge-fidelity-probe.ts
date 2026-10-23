@@ -2,7 +2,7 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { readReviewedFidelityReferences, } from '../fidelity-reference-read.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   resolveRunsDir,
@@ -49,7 +49,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'judge-fidelity-pr
     pin,
     readReferences: readReviewedFidelityReferences,
     resolveRuns: resolveRunsDir,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     now: nowAsIso,
     pipelineDigest,
     runnerClosure: await readRunnerClosure({ entryPath: line.script, },),

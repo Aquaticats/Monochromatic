@@ -9,7 +9,10 @@ import type {
   ChatTextReply,
   ChatTextRequest,
 } from './chat-contract.ts';
-import { readJsonOutcome, } from './chat-json-outcome.ts';
+import {
+  readJsonOutcome,
+  responseFormatSpreadOf,
+} from './chat-json-outcome.ts';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { reaskElsewhereNudged, } from './nudged-reask.ts';
 import {
@@ -365,6 +368,7 @@ export async function routedJson<ValueT,>(
         modelId: request.modelId,
         reply,
         validate: request.validate,
+        ...responseFormatSpreadOf({ request, },),
       },),
     },
     ask: async function askElsewhere(nudged,): Promise<ChatTextReply> {

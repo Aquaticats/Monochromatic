@@ -138,7 +138,13 @@ function refuseUnjudgeableRoster({ roster, }: { readonly roster: readonly Roster
 
  @example
  ```ts
- await runProducerCalibrate({ line, newClient: createRunClient, drawSlices, readHead: readHeadSha, stageSettings, },);
+ await runProducerCalibrate({
+   line,
+   newClient: createProbeRunClient,
+   drawSlices,
+   readHead: readHeadSha,
+   stageSettings,
+ },);
  ```
  */
 export async function runProducerCalibrate(

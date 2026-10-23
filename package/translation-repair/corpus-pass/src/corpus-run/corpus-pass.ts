@@ -72,11 +72,25 @@ async function runCorpusPass({ line, }: { readonly line: CommandLineOf<'corpus-p
    fits in one run: the queue only does anything to an entry the cap CUTS, and
    the shipped ceiling means the smallest such entry needs thirteen hours.
    `cap-override.ts` carries why an unreadable override throws.
+
+   ROUNDED HERE, ONCE, to a whole millisecond, and this is no silent fallback:
+   `resolveHardCapMinutes` accepts any plain decimal that is at least half a
+   millisecond, so a fractional figure is valid operator input, and its product
+   with the milliseconds in a minute is a floating-point number that is not
+   whole for most decimals (4.35 minutes comes out as 260999.99999999997). The
+   remainder is under half a millisecond, finer than a timer can resolve, so
+   rounding changes no cap anyone can observe. A positive figure that would
+   round to zero is refused by `resolveHardCapMinutes` with the smallest figure
+   accepted, and no floor is applied here, because a floor would replace a
+   figure the operator wrote and print one they did not. Every later consumer,
+   the hold bound of the provider budgets among them, then receives a whole
+   number above zero, which keeps the budgets' check an invariant break that
+   nothing an operator sets can reach.
    */
-  const hardCapMs = resolveHardCapMinutes({
+  const hardCapMs = Math.round(resolveHardCapMinutes({
     fallback: HARD_CAP_MINUTES,
     raw: process.env[HARD_CAP_VAR] ?? '',
-  },) * PASS_MS_PER_MINUTE;
+  },) * PASS_MS_PER_MINUTE,);
 
   /**
    USD this run may spend on the provider that bills in USD before it stops

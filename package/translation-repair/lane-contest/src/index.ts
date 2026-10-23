@@ -77,6 +77,7 @@ export {
   type ArchiveOutcome,
   contestLaneSlice,
   LANE_CONTEST_QUORUM,
+  LANE_CONTEST_RESPONSE_FORMAT,
   type LaneContestOutcome,
   settleArchiveBallots,
   settleLaneContestBallots,

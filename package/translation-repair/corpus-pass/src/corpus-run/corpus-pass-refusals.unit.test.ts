@@ -189,8 +189,9 @@ await describe({
                 + 'the built-in 420',
               WRITER_GRACE_BUILT_IN,
               pinLine({ clone, },),
-              'CAP TOO TIGHT: an attempt runs 60000ms, which is not longer than the 360000ms one model '
-                + 'exchange is allowed. Attempts are cut before an exchange can return, so no slice caches, every '
+              'CAP TOO TIGHT: an attempt runs 60000ms, which is not longer than the 460000ms one model '
+                + 'exchange is allowed (360000ms by default, 460000ms for a Claude exchange). Attempts are cut before '
+                + 'an exchange can return, so no slice caches, every '
                 + 'attempt reports no progress, and the queue drops the entry as stalled after its second try. '
                 + 'Raise the ceiling above one exchange to buy anything, or keep it here to exercise the stall '
                 + 'path deliberately.',
@@ -198,6 +199,81 @@ await describe({
               '',
             ].join('\n',),);
             expect(run.stderr,).toBe(NO_KEY_REFUSAL,);
+          },
+        },),
+
+        it({
+          name: 'ROUNDS A FRACTIONAL CAP TO THE WHOLE MILLISECOND at the one place minutes become milliseconds, so '
+            + '4.35 minutes is 261000ms and no hold bound refuses it',
+          fn: async () => {
+            await using clone = await makeCorpusPassClone({ entries: ENTRIES, },);
+            await using runs = await scratchDir({ prefix: 'corpus-pass-runs-', },);
+            await using cache = await scratchDir({ prefix: 'corpus-pass-cache-', },);
+
+            /**
+             What the command wrote with the cap at a decimal whose product with 60000 is not a whole number of
+             floating-point milliseconds (4.35 * 60000 is 260999.99999999997).
+             */
+            const run = await runPass({
+              args: [],
+              runsDir: runs.path,
+              cacheDir: cache.path,
+              clone,
+              settings: { TRANSLATION_REPAIR_HARD_CAP_MINUTES: '4.35', },
+            },);
+
+            expect(run.code,).toBe(REFUSED_AS_STATED,);
+            expect(run.stdout,).toBe([
+              await startLine({
+                pending: 2,
+                hardMs: 261_000,
+              },),
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 4.35 minutes rather than '
+                + 'the built-in 420',
+              WRITER_GRACE_BUILT_IN,
+              pinLine({ clone, },),
+              'CAP TOO TIGHT: an attempt runs 261000ms, which is not longer than the 460000ms one model '
+                + 'exchange is allowed (360000ms by default, 460000ms for a Claude exchange). Attempts are cut before '
+                + 'an exchange can return, so no slice caches, every '
+                + 'attempt reports no progress, and the queue drops the entry as stalled after its second try. '
+                + 'Raise the ceiling above one exchange to buy anything, or keep it here to exercise '
+                + 'the stall path deliberately.',
+              ...PROVIDERS_OFF_LINES,
+              '',
+            ].join('\n',),);
+            expect(run.stderr,).toBe(NO_KEY_REFUSAL,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES A POSITIVE CAP THAT ROUNDS TO ZERO MILLISECONDS at exit 6 with its line alone, naming the '
+            + 'figure and the smallest figure accepted',
+          fn: async () => {
+            await using clone = await makeCorpusPassClone({ entries: ENTRIES, },);
+            await using runs = await scratchDir({ prefix: 'corpus-pass-runs-', },);
+            await using cache = await scratchDir({ prefix: 'corpus-pass-cache-', },);
+
+            /**
+             What the command wrote with the cap at 0.0000001 minutes, which is 0.006 milliseconds.
+             */
+            const run = await runPass({
+              args: [],
+              runsDir: runs.path,
+              cacheDir: cache.path,
+              clone,
+              settings: { TRANSLATION_REPAIR_HARD_CAP_MINUTES: '0.0000001', },
+            },);
+
+            expect(run.code,).toBe(REFUSED_AS_STATED,);
+            expect(run.stdout,).toBe('',);
+            expect(run.stderr,).toBe(
+              'corpus-pass: TRANSLATION_REPAIR_HARD_CAP_MINUTES must be a positive number of minutes, and a ceiling '
+                + 'is read in whole milliseconds; received "0.0000001", which rounds to 0 milliseconds. The smallest '
+                + 'figure accepted is half a millisecond, written as 0.0000083334 minutes. This is the ceiling that '
+                + 'stops one entry running away with a whole pass, so a figure it cannot state is refused rather '
+                + 'than quietly replaced by another: an operator who set it believes the run is bounded the way '
+                + 'they asked for.\n',
+            );
           },
         },),
 

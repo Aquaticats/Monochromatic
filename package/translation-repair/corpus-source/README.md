@@ -87,7 +87,8 @@ The groups that follow name the main ones.
   `assertPlacementLayout`,
   `PlacementLayoutError`,
   `preparedSheetFactsOf`,
-  `renderedBreakPrompt`.
+  `renderedBreakContract`,
+  `renderedBreakFacts`.
   Declared in `archive-footnote-relabel.ts`,
   `archive-original-note.ts`,
   `placement-layout.ts`,

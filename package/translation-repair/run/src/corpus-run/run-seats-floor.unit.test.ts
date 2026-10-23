@@ -49,6 +49,7 @@ const ALL_WET: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   hyper: false,
   openrouter: false,
 };
@@ -62,6 +63,7 @@ const BEDROCK_ALONE: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -189,7 +191,7 @@ await describe({
           name: 'NAMES EACH WRITING BENCH BELOW THE FLOOR WITH ITS CLAUSE, the name beside the clause the phase prints, and '
             + 'names no judge bench however short, the same benches unreachableWritingBenches words',
           fn: async () => {
-            const dry: BudgetView = { neuralwatt: true, synthetic: true, bedrock: true, deepseek: true, xiaomi: true, hyper: true, openrouter: true, };
+            const dry: BudgetView = { neuralwatt: true, synthetic: true, bedrock: true, deepseek: true, xiaomi: true, anthropic: true, hyper: true, openrouter: true, };
             const benches = benchesOf({ seats: judgeSeatsFor({ dry, },), },);
             const shortOfFloor = belowFloorWritingBenches({
               benches,
@@ -240,7 +242,7 @@ await describe({
             const error = new WritingBenchUnreachableError({
               phase: 'lanes',
               clauses: [
-                'editors 0 of 3 reachable, floor 2',
+                'editors 0 of 4 reachable, floor 2',
                 'translators 1 of 7 reachable, floor 2',
               ],
             },);
@@ -248,7 +250,7 @@ await describe({
             expect(error.messageNamesOnly,).toBe(true,);
             expect(error.clauses.length,).toBe(2,);
             expect(error.message,).toBe(
-              'writing bench unreachable at lanes: editors 0 of 3 reachable, floor 2; translators 1 of 7 reachable, '
+              'writing bench unreachable at lanes: editors 0 of 4 reachable, floor 2; translators 1 of 7 reachable, '
                 + 'floor 2; no provider has named a return the pass can wait for, so the entry stops for a pass that '
                 + 'has the bench',
             );

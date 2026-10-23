@@ -150,6 +150,35 @@ await describe({
     },),
 
     it({
+      name: 'READS THE RE-ASK AGAINST THE RESPONSE FORMAT OF THE REQUEST, taking the schema\'s spelling of a listed '
+        + 'value that came back differing only in its capital',
+      fn: async () => {
+        const listed = await reaskElsewhereNudged({
+          request: {
+            ...REQUEST,
+            responseFormat: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'cat',
+                schema: {
+                  type: 'object',
+                  properties: { spot: { type: 'string', enum: ['radiator', 'windowsill',], }, },
+                },
+              },
+            },
+            validate: function isListedSpot(value: unknown,): value is Cat {
+              return ((typeof value) === 'object') && (value !== null) && ('spot' in value)
+                && ((value.spot === 'radiator') || (value.spot === 'windowsill'));
+            },
+          },
+          first: { reply: FIRST_REPLY, outcome: FIRST_UNUSABLE, },
+          ask: async () => ({ text: '{"spot":"Radiator"}', servedBy: 'hyper', }),
+        },);
+        expect(listed.kind === 'ok' ? listed.value : undefined,).toEqual({ spot: 'radiator', },);
+      },
+    },),
+
+    it({
       name: 'ASKS THE SAME QUESTION AGAIN with the nudge as the last message and the first provider excluded',
       fn: async () => {
         /**

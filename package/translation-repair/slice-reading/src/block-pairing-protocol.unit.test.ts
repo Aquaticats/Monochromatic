@@ -7,8 +7,8 @@ const expectedFormat: JsonSchemaResponseFormat = {
   type: 'json_schema', json_schema: { name: 'block_pairing', schema: {
     type: 'object', properties: { pairs: { type: 'array', items: {
       type: 'object', properties: { source: { type: 'integer' }, target: { type: 'integer' } },
-      required: ['source', 'target'],
-    } } }, required: ['pairs'],
+      required: ['source', 'target'], additionalProperties: false,
+    } } }, required: ['pairs'], additionalProperties: false,
   } },
 };
 

@@ -16,7 +16,10 @@ import {
   withoutTranslatorsNotes,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { selectFence, } from '@monochromatic-dev/translation-repair-stage/ts';
-import { renderedBreakPrompt, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import {
+  renderedBreakContract,
+  renderedBreakFacts,
+} from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
   citedReferenceCandidateLines,
   type SliceSyntax,
@@ -59,7 +62,7 @@ import {
  inferred), both under `--isolatedDeclarations`, since the exported type is
  derived from this list. The compiler refuses either side without the other.
  */
-const GATE_NAMES: readonly [
+export const CONSOLIDATE_GATE_NAMES: readonly [
   'consolidated',
   'standing',
   typeof CONTEST_REFUSAL,
@@ -77,7 +80,7 @@ const GATE_NAMES: readonly [
  const choice: GateChoice = 'standing';
  ```
  */
-export type GateChoice = typeof GATE_NAMES[number];
+export type GateChoice = typeof CONSOLIDATE_GATE_NAMES[number];
 
 /**
  Whether a value is one of the names a judge may use.
@@ -94,7 +97,7 @@ export type GateChoice = typeof GATE_NAMES[number];
 export function isGateChoice(value: unknown,): value is GateChoice {
   return namesOneOf({
     value,
-    names: GATE_NAMES,
+    names: CONSOLIDATE_GATE_NAMES,
   },);
 }
 
@@ -224,12 +227,12 @@ export function readConsolidateGateBallot(
     choice: wire.verdict,
     unsupported: readCandidateNames({
       findings: unsupported,
-      names: GATE_NAMES,
+      names: CONSOLIDATE_GATE_NAMES,
     },),
     unsupportedRaw: unsupported,
     dropped: readCandidateNames({
       findings: dropped,
-      names: GATE_NAMES,
+      names: CONSOLIDATE_GATE_NAMES,
     },),
     droppedRaw: dropped,
     reason: wire.assessment,
@@ -525,26 +528,36 @@ export function buildConsolidateGateMessages(
       ? `${CONTEST_POLICY}\n\n${FRONT_MATTER_DECISION_RULE}`
       : CONTEST_POLICY,
     subject.lineStructured ? JUDGE_LINE_STRUCTURE_CLAUSE : '',
-    renderedBreakPrompt({
+    // THE INSTRUCTION ONLY: the measured counts ride in the user turn (R4).
+    renderedBreakContract({
       sourceText: subject.sourceText,
       archiveText: subject.incumbentText,
       ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
-      renderings: [
-        {
-          label: 'CANDIDATE "consolidated"',
-          text: subject.consolidatedText,
-        },
-        {
-          label: 'CANDIDATE "standing"',
-          text: subject.standingText,
-        },
-      ],
     },),
   ]
     .filter(function hasPolicy(part,): boolean {
       return part !== '';
     },)
     .join('\n\n',);
+
+  /**
+   Measured break counts of the original and of both candidates, none where the instruction is not due.
+   */
+  const breakFacts = renderedBreakFacts({
+    sourceText: subject.sourceText,
+    archiveText: subject.incumbentText,
+    ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
+    renderings: [
+      {
+        label: 'CANDIDATE "consolidated"',
+        text: subject.consolidatedText,
+      },
+      {
+        label: 'CANDIDATE "standing"',
+        text: subject.standingText,
+      },
+    ],
+  },);
 
   return [
     {
@@ -567,6 +580,13 @@ export function buildConsolidateGateMessages(
         'CANDIDATE "standing":',
         `${fence}\n${subject.standingText}\n${fence}`,
         '',
+        ...((breakFacts === '')
+          ? []
+          : [
+            'RENDERED LINE STRUCTURE, measured facts:',
+            `${fence}\n${breakFacts}\n${fence}`,
+            '',
+          ]),
         ...refusalBlock,
         ...disputeBlock,
         ...referenceBlock,

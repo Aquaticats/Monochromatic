@@ -15,7 +15,10 @@ import {
 } from './contest-ballot-wire.ts';
 import { contestSizeNote, } from './contest-size-note.ts';
 import { selectFence, } from '@monochromatic-dev/translation-repair-stage/ts';
-import { renderedBreakPrompt, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import {
+  renderedBreakContract,
+  renderedBreakFacts,
+} from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { laneContestTenseGroups, } from './lane-contest-tense.ts';
 import { tenseCandidateLines, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import {
@@ -674,26 +677,36 @@ export function buildLaneContestMessages(
       ? `${CONTEST_POLICY}\n\n${FRONT_MATTER_DECISION_RULE}`
       : CONTEST_POLICY,
     subject.lineStructured ? JUDGE_LINE_STRUCTURE_CLAUSE : '',
-    renderedBreakPrompt({
+    // THE INSTRUCTION ONLY: the measured counts ride in the user turn (R4).
+    renderedBreakContract({
       sourceText: subject.sourceText,
       archiveText: subject.incumbentText,
       ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
-      renderings: [
-        {
-          label: 'CANDIDATE "repair"',
-          text: subject.repairText,
-        },
-        {
-          label: 'CANDIDATE "translate"',
-          text: subject.translateText,
-        },
-      ],
     },),
   ]
     .filter(function hasPolicy(part,): boolean {
       return part !== '';
     },)
     .join('\n\n',);
+
+  /**
+   Measured break counts of the original and of both candidates, none where the instruction is not due.
+   */
+  const breakFacts = renderedBreakFacts({
+    sourceText: subject.sourceText,
+    archiveText: subject.incumbentText,
+    ...((subject.syntax === undefined) ? {} : { syntax: subject.syntax, }),
+    renderings: [
+      {
+        label: 'CANDIDATE "repair"',
+        text: subject.repairText,
+      },
+      {
+        label: 'CANDIDATE "translate"',
+        text: subject.translateText,
+      },
+    ],
+  },);
 
   return [
     {
@@ -717,6 +730,13 @@ export function buildLaneContestMessages(
         'CANDIDATE "translate":',
         `${fence}\n${subject.translateText}\n${fence}`,
         '',
+        ...((breakFacts === '')
+          ? []
+          : [
+            'RENDERED LINE STRUCTURE, measured facts:',
+            `${fence}\n${breakFacts}\n${fence}`,
+            '',
+          ]),
         ...disputeBlock,
         ...referenceBlock,
         ...damageBlock,

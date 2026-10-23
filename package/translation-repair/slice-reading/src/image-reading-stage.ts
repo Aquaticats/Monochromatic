@@ -5,7 +5,11 @@ import {
 
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { encodeImageAsset, } from './image-asset.ts';
+import {
+  EmptyImageAssetError,
+  type EncodedAsset,
+  encodeImageAsset,
+} from './image-asset.ts';
 import {
   readingMakesSense,
   solidCharacters,
@@ -187,6 +191,7 @@ export type ImageReading = {
     | 'model-does-not-read-images'
       | 'unknown-media-type'
       | 'too-large-for-transport'
+      | 'empty-asset'
       | 'too-short'
       | 'reads-as-refusal'
       | 'reports-no-text'
@@ -213,8 +218,8 @@ export type ImageReading = {
 
  A reader that threw, answered nothing, answered too little or declined may
  read the same picture tomorrow; a model that does not read images, a media
- type nobody names, a file too large to send, and a reader reporting that the
- picture carries no text will not change. The split decides what a pair
+ type nobody names, a file too large to send, a file with no bytes, and a reader
+ reporting that the picture carries no text will not change. The split decides what a pair
  verdict built on the reason is allowed to remember.
  */
 const TRANSIENT_READING_REASONS: ReadonlySet<string> = new Set([
@@ -240,6 +245,75 @@ export function isTransientReadingReason(
   { reason, }: { readonly reason: Extract<ImageReading, { readonly kind: 'unavailable'; }>['reason']; },
 ): boolean {
   return TRANSIENT_READING_REASONS.has(reason,);
+}
+
+/**
+ Refusal of a picture that has no bytes, shaped like the refusals `encodeImageAsset` returns.
+
+ @example
+ ```ts
+ const refusal: EmptyAssetRefusal = { kind: 'refused', reason: 'empty-asset', };
+ ```
+ */
+type EmptyAssetRefusal = {
+  readonly kind: 'refused';
+  readonly reason: 'empty-asset';
+};
+
+/**
+ Encodes a picture for the reader, naming a picture with no bytes as refused rather than letting it throw.
+
+ @param bytes - picture as read from disk
+
+ @param assetName - its file name, which carries the media type
+
+ @param l - logger the caught empty-picture error is written to, at the debug level, since the caller
+ warns of the refusal once
+
+ @returns Encoding, or the refusal, which for a picture with no bytes carries the reason `empty-asset`
+
+ @example
+ ```ts
+ const encoded = encodedForReading({ bytes, assetName, l, },);
+ ```
+ */
+function encodedForReading(
+  {
+    bytes,
+    assetName,
+    l,
+  }: {
+    readonly bytes: Uint8Array;
+    readonly assetName: string;
+    readonly l: Logger;
+  },
+): EncodedAsset | EmptyAssetRefusal {
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const el = tagged({
+    tag: encodedForReading.name,
+    l,
+  },);
+  try {
+    return encodeImageAsset({
+      bytes,
+      assetName,
+      maxBytes: READING_MAX_BYTES,
+    },);
+  }
+  catch (error) {
+    // ONLY THE EMPTY PICTURE IS NAMED. Any other throw is a defect of this code and keeps propagating.
+    if (!(error instanceof EmptyImageAssetError))
+      throw error;
+    // LOGGED, NOT WARNED: `readImageAsset` warns of the refusal once for the seat read, so this line only records
+    // which error was caught and which picture it named.
+    el.debug(`${error.name}: ${assetName} has no bytes, so nothing of it is sent`,);
+    return {
+      kind: 'refused',
+      reason: 'empty-asset',
+    };
+  }
 }
 
 /**
@@ -325,10 +399,10 @@ export async function readImageAsset(
   /**
    Picture as a content part carries it, or why it cannot be sent.
    */
-  const encoded = encodeImageAsset({
+  const encoded = encodedForReading({
     bytes,
     assetName,
-    maxBytes: READING_MAX_BYTES,
+    l: rl,
   },);
   if (encoded.kind === 'refused') {
     rl.warn(`${assetName} cannot be sent to ${modelId}: ${encoded.reason}`,);

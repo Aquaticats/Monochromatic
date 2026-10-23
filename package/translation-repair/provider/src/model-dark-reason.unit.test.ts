@@ -31,6 +31,7 @@ const NOBODY_SERVES = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 } as const;
 
@@ -44,6 +45,7 @@ const EVERYBODY_SERVES = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   openrouter: true,
 } as const;
 
@@ -74,7 +76,8 @@ await describe({
               dry: { ...NOBODY_SERVES, hyper: true, openrouter: true, xiaomi: true, },
             },),).toBe(
               'every provider serving this model is out of budget (hyper dry, openrouter dry); the providers that do '
-                + 'not serve it read neuralwatt wet, synthetic wet, bedrock wet, deepseek wet, xiaomi dry',
+                + 'not serve it read neuralwatt wet, synthetic wet, bedrock wet, deepseek wet, '
+                + 'xiaomi dry, anthropic wet',
             );
           },
         },),
@@ -84,7 +87,7 @@ await describe({
           fn: async () => {
             expect(modelDarkReason({ reach: EVERYBODY_SERVES, dry: EVERYBODY_SERVES, },),).toBe(
               'every provider serving this model is out of budget (neuralwatt dry, synthetic dry, bedrock dry, '
-                + 'deepseek dry, xiaomi dry, hyper dry, openrouter dry)',
+                + 'deepseek dry, xiaomi dry, anthropic dry, hyper dry, openrouter dry)',
             );
           },
         },),

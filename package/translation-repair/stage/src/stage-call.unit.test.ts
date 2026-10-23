@@ -25,14 +25,28 @@ import {
 
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
+  BedrockModelNotServedError,
   type ChatJsonOutcome,
   type ChatJsonRequest,
+  ClaudeModelNotServedError,
+  ClaudePrefillError,
+  ClaudeSchemaKeywordError,
+  DeepSeekModelNotServedError,
+  EmptyConversationError,
   EveryProviderDryError,
+  MalformedImageUriError,
   type ModelClient,
+  ModelNotServedError,
+  NeuralWattModelNotServedError,
+  OpenRouterModelNotServedError,
+  SyntheticModelNotServedError,
+  UnnameableToolError,
+  XiaomiModelNotServedError,
 } from '@monochromatic-dev/translation-repair-provider';
 import { attemptStageCall, } from '../dist/final/node/index.mjs';
 import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import { warningRecordingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { quotingFailure, } from '@monochromatic-dev/translation-repair-test-fixture/ts/quoting-failure.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import {
@@ -147,6 +161,40 @@ async function callWith(
   },);
 }
 
+/**
+ Runs one call for each fault, the client throwing that fault, and hands back what each call rejected with.
+
+ @param faults - errors the scripted client throws, one call for each
+
+ @param logger - logger the calls write to
+
+ @returns What each call rejected with, in the order of the faults
+
+ @example
+ ```ts
+ const refusals = await refusalsOf({ faults: [new ClaudePrefillError(),], logger, },);
+ ```
+ */
+async function refusalsOf(
+  {
+    faults,
+    logger,
+  }: {
+    readonly faults: readonly Error[];
+    readonly logger: typeof l;
+  },
+): Promise<readonly unknown[]> {
+  return await Promise.all(faults.map(async function refusalOf(thrown,): Promise<unknown> {
+    return await rejectionOf(async function asked(): Promise<unknown> {
+      return await callWith({
+        client: scriptedClient({ thrown, },),
+        signal: new AbortController().signal,
+        logger,
+      },);
+    },);
+  },),);
+}
+
 await describe({
   name: attemptStageCall.name,
   children: [
@@ -163,6 +211,110 @@ await describe({
 
         expect(voice.heard,).toBe(true,);
         expect(voice.heard ? voice.value.purr : '',).toBe('loud',);
+      },
+    },),
+
+    it({
+      name: 'RETHROWS A REQUEST THE ROUTE REFUSED AS MALFORMED, unlogged as a lost voice (F5 of the re-check of the '
+        + 'second fix round): a schema keyword the Claude route cannot send, a conversation that ends on an assistant '
+        + 'turn or holds no turn to answer, and a seat that is no Claude card are faults of our own stage code, which '
+        + 'a lost voice would hide behind one warn line for every call of the stage',
+      fn: async () => {
+        /**
+         Faults the route raises before any exchange, one of each class.
+         */
+        const faults: readonly Error[] = [
+          new ClaudeSchemaKeywordError({ refusedKeyword: 'oneOf', schemaPath: 'root.pick', },),
+          new ClaudePrefillError(),
+          new EmptyConversationError({ detail: 'no message outside the system prompt', },),
+          new ClaudeModelNotServedError({ modelId: 'claude-cat-5-5', },),
+        ];
+        const warnings: string[] = [];
+        const logger = warningRecordingLogger({ base: l, warnings, },);
+
+        /**
+         What each call rejected with, in the order of the faults.
+         */
+        const refusals = await refusalsOf({ faults, logger, },);
+
+        expect(refusals,).toEqual(faults,);
+        expect(refusals.map(function nameOf(refusal,): string {
+          return (refusal as Error).name;
+        },),).toEqual([
+          'ClaudeSchemaKeywordError',
+          'ClaudePrefillError',
+          'EmptyConversationError',
+          'ClaudeModelNotServedError',
+        ],);
+        expect(warnings,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'RETHROWS A SEAT HANDED TO A CLIENT THAT DOES NOT SERVE IT, AND A SCHEMA NAME THE PROTOCOL REJECTS: '
+        + 'each is thrown from local state, the roster lookup of one of the '
+        + 'eight clients or the name of the stage\'s own schema, before any exchange, so it recurs on every call of '
+        + 'the stage like the four classes before it',
+      fn: async () => {
+        /**
+         Faults the clients and the request builder raise before any exchange, one of each class.
+         */
+        const faults: readonly Error[] = [
+          new BedrockModelNotServedError({ modelId: MODEL_ID, },),
+          new DeepSeekModelNotServedError({ modelId: MODEL_ID, },),
+          new ModelNotServedError({ modelId: MODEL_ID, },),
+          new NeuralWattModelNotServedError({ modelId: MODEL_ID, },),
+          new OpenRouterModelNotServedError({ modelId: MODEL_ID, },),
+          new SyntheticModelNotServedError({ modelId: MODEL_ID, },),
+          new XiaomiModelNotServedError({ modelId: MODEL_ID, },),
+          new UnnameableToolError({ detail: 'schema name is empty', },),
+        ];
+        const warnings: string[] = [];
+        const logger = warningRecordingLogger({ base: l, warnings, },);
+
+        /**
+         What each call rejected with, in the order of the faults.
+         */
+        const refusals = await refusalsOf({ faults, logger, },);
+
+        expect(refusals,).toEqual(faults,);
+        expect(refusals.map(function nameOf(refusal,): string {
+          return (refusal as Error).name;
+        },),).toEqual([
+          'BedrockModelNotServedError',
+          'DeepSeekModelNotServedError',
+          'ModelNotServedError',
+          'NeuralWattModelNotServedError',
+          'OpenRouterModelNotServedError',
+          'SyntheticModelNotServedError',
+          'XiaomiModelNotServedError',
+          'UnnameableToolError',
+        ],);
+        expect(warnings,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS A PICTURE THE ANTHROPIC PROTOCOL CANNOT READ A LOST VOICE (the control arm): the data URI is '
+        + 'built by the caller of the request, so a malformed one is a fault of that caller\'s content part and not '
+        + 'of the stage code, and the other seats of the round still answer. A zero-byte file no longer reaches it, '
+        + 'since the encoder refuses it by name',
+      fn: async () => {
+        const warnings: string[] = [];
+        const logger = warningRecordingLogger({ base: l, warnings, },);
+
+        /**
+         What the call returned for a picture with no payload.
+         */
+        const voice = await callWith({
+          client: scriptedClient({ thrown: new MalformedImageUriError({ detail: 'payload is empty', },), },),
+          signal: new AbortController().signal,
+          logger,
+        },);
+
+        expect(voice.heard,).toBe(false,);
+        expect(warnings.length,).toBe(1,);
+        expect(warnings[0],).toContain('voice lost',);
       },
     },),
 
@@ -199,10 +351,9 @@ await describe({
     },),
 
     it({
-      name: 'NAMES THE SUB-KIND when a schema mismatch loses a voice, because '
-        + 'schema-mismatch covers truncated thinking, unparseable content and '
-        + 'a rejected guard, which need three different fixes and read '
-        + 'identically without it',
+      name: 'NAMES THE SUB-KIND when a schema mismatch loses a voice, because schema-mismatch covers truncated '
+        + 'thinking, unparseable content and a rejected guard, which need three different fixes and read identically '
+        + 'without it',
       fn: async () => {
         const warnings: string[] = [];
         const logger = warningRecordingLogger({ base: l, warnings, },);

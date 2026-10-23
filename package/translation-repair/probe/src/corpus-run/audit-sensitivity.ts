@@ -2,7 +2,7 @@ import { AUDIT_ARMS, } from './audit-sensitivity-input.ts';
 import { runAuditSensitivity, } from './audit-sensitivity-run.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   reportingRefusals,
   resolveRunsDir,
 } from '@monochromatic-dev/translation-repair-run/ts';
@@ -97,7 +97,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'audit-sensitivity
 
   return runAuditSensitivity({
     arms: AUDIT_ARMS,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     runsDir: await resolveRunsDir(),
     startedAt,
     now: nowAsIso,

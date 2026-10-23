@@ -95,7 +95,19 @@ type PeopleLister = typeof listCorpusPeople;
 
  @example
  ```ts
- await runWindowTrial({ runsDir, headSha, makeClient: createRunClient, pin, listPeople: listCorpusPeople, readPage: readCorpusFile, pickSlice: runPick, roster, perCallTimeoutMs, l, stageSettings, },);
+ await runWindowTrial({
+   runsDir,
+   headSha,
+   makeClient: createProbeRunClient,
+   pin,
+   listPeople: listCorpusPeople,
+   readPage: readCorpusFile,
+   pickSlice: runPick,
+   roster,
+   perCallTimeoutMs,
+   l,
+   stageSettings,
+ },);
  ```
  */
 export async function runWindowTrial(

@@ -22,7 +22,7 @@ import type { ProviderRecord, } from '@monochromatic-dev/translation-repair-shar
 
  @example
  ```ts
- const client: RunClient = createRunClient();
+ const client: RunClient = createRunClient({ maxHoldMs: 25_200_000, },);
  ```
  */
 export type RunClient = ModelClient & {

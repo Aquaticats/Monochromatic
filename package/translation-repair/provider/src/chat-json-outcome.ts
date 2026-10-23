@@ -1,4 +1,5 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
   contextRoot,
@@ -9,7 +10,13 @@ import { stripChannelMarker, } from './channel-marker.ts';
 import type {
   ChatJsonOutcome,
   ChatTextReply,
+  ChatTextRequest,
+  JsonSchemaResponseFormat,
 } from './chat-contract.ts';
+import {
+  type EnumCaseFolded,
+  foldEnumCase,
+} from './enum-case-fold.ts';
 import {
   parseAnswerJson,
   stripCodeFence,
@@ -58,6 +65,10 @@ import { detectRefusalShape, } from '@monochromatic-dev/translation-repair-house
 //   deepseek-v4-flash-0731) wrote `{ {   "choice`, `{"{"resolution` and
 //   `{"best": 1{"best": 1, ...` on 2026-09-08, and the guard still judges
 //   what was read (`json-false-start.ts`, the seventeenth class).
+//
+//   A value that differs from a listed `enum` or `const` value only in capitalization is read as the listed one when
+//   the schema the caller sent lists exactly one such value, and logged (`enum-case-fold.ts`): the structured outputs
+//   page does not guarantee the capitalization, and a guard compares a label exactly.
 
 /**
  Logger root for the provider-neutral reply reader.
@@ -85,6 +96,70 @@ function usageSpreadOf(
   const { usage, } = reply;
 
   return (usage === undefined) ? {} : { usage, };
+}
+
+/**
+ The response format a request carried, as a fragment a reading spreads in.
+
+ @param request - request whose reply is being read
+
+ @returns Spreadable fragment carrying the request's response format, or nothing where it sent none
+
+ @example
+ ```ts
+ const outcome = readJsonOutcome({ modelId, reply, validate, ...responseFormatSpreadOf({ request, },), },);
+ ```
+ */
+export function responseFormatSpreadOf(
+  { request, }: { readonly request: ForeignBorrowed<Pick<ChatTextRequest, 'responseFormat'>>; },
+): Pick<ChatTextRequest, 'responseFormat'> {
+  /**
+   Format the request sent, absent when it asked for plain text.
+   */
+  const { responseFormat, } = request;
+
+  return (responseFormat === undefined) ? {} : { responseFormat, };
+}
+
+/**
+ Takes a parsed reply's capital-only differences from the values its request's schema lists back to the schema's
+ spelling, where the request carried a schema.
+
+ @param responseFormat - format the request sent, absent when it asked for plain text
+
+ @param value - reply parsed from JSON
+
+ @returns Value to read onward and each value taken back; where no format was sent, the value itself and no
+ values taken back
+
+ @example
+ ```ts
+ const { value, folds, } = foldedByFormat({ responseFormat, value: { verdict: 'Consistent', }, },);
+ ```
+ */
+function foldedByFormat(
+  {
+    responseFormat,
+    value,
+  }: {
+    readonly responseFormat?: ForeignBorrowed<JsonSchemaResponseFormat>;
+    readonly value: unknown;
+  },
+): EnumCaseFolded {
+  if (responseFormat === undefined)
+    return {
+      value,
+      folds: [],
+    };
+
+  /**
+   The envelope holding the schema the model was asked to answer in.
+   */
+  const { json_schema: jsonSchema, } = responseFormat;
+  return foldEnumCase({
+    schema: jsonSchema.schema,
+    value,
+  },);
 }
 
 /**
@@ -154,6 +229,10 @@ function isTruncatingFinishReason(
 
  @param validate - caller's guard admitting parsed content
 
+ @param responseFormat - format the caller sent with the request, when it sent one: a value of the reply that differs
+ from a value its schema lists under `enum` or `const` only in capitalization is read as the listed value, and each
+ such reading is logged as a warning (`enum-case-fold.ts` holds the rule and why). Absent, the reply is read as it came
+
  @returns Outcome as data: ok, refusal-shaped, or schema-mismatch
 
  @example
@@ -166,10 +245,12 @@ export function readJsonOutcome<ValueT,>(
     modelId,
     reply,
     validate,
+    responseFormat,
   }: {
     readonly modelId: string;
     readonly reply: ChatTextReply;
     readonly validate: (value: unknown,) => value is ValueT;
+    readonly responseFormat?: JsonSchemaResponseFormat;
   },
 ): ChatJsonOutcome<ValueT> {
   /**
@@ -311,9 +392,24 @@ export function readJsonOutcome<ValueT,>(
   }
 
   /**
-   Parsed content awaiting the caller's guard.
+   Parsed content with each capital-only difference from a listed value taken back to the schema's spelling, and
+   those differences. Nothing is taken back where the caller sent no response format.
    */
-  const candidate = attempt.value;
+  const {
+    value: candidate,
+    folds,
+  } = foldedByFormat({
+    ...((responseFormat === undefined) ? {} : { responseFormat, }),
+    value: attempt.value,
+  },);
+
+  for (const fold of folds) {
+    rl.warn(
+      `${modelId}: enum capitalization: field ${fold.path} came as ${
+        JSON.stringify(fold.received,)
+      } and is read as ${JSON.stringify(fold.taken,)}, the spelling the schema lists`,
+    );
+  }
 
   if (!validate(candidate,)) {
     rl.debug(`${modelId}: schema-mismatch (guard rejected)`,);

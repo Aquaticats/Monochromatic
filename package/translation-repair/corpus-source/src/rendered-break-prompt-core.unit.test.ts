@@ -5,7 +5,40 @@
  */
 
 import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
-import { renderedBreakPrompt, } from '../dist/final/node/index.mjs';
+import {
+  renderedBreakContract,
+  renderedBreakFacts,
+  type BreakRendering,
+} from '../dist/final/node/index.mjs';
+
+/**
+ The instruction and the facts as one text, the way a sheet that shows both in one place would read them.
+
+ @param input - passage, its archive wording and the shown renderings
+
+ @returns Instruction and the facts, or nothing where the instruction is not due
+
+ @example
+ ```ts
+ const note = renderedBreakPrompt({ sourceText, archiveText: '', },);
+ ```
+ */
+function renderedBreakPrompt(
+  input: {
+    readonly sourceText: string;
+    readonly archiveText: string;
+    readonly renderings?: readonly BreakRendering[];
+    readonly syntax?: 'front-matter';
+  },
+): string {
+  /**
+   The fixed instruction.
+   */
+  const contract = renderedBreakContract(input,);
+  if (contract === '')
+    return '';
+  return `${contract}\n${renderedBreakFacts(input,)}`;
+}
 
 /** Single source block has one authored visible break. */
 const SOURCE = '> 猫醒了。  \n> 鸟唱了。';

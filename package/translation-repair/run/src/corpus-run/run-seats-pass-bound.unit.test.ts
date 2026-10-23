@@ -272,6 +272,7 @@ await describe({
               bedrock: 0,
               deepseek: 0,
               xiaomi: 0,
+              anthropic: 0,
               hyper: 0,
               openrouter: 0,
             };
