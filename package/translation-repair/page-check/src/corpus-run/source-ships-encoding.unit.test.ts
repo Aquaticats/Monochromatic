@@ -139,6 +139,19 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a bare address after a bracket that a later one closes', 'x [y https://example.net/b{c]\n'],
   ['a bare address after a pair of brackets, which is read as an address', 'x [y] https://example.net/b{c\n'],
   ['a bare address in the paragraph after a bracket nothing closes', '[ x\n\nhttps://example.net/b{c\n'],
+  ['a code span whose second line starts with an unclosed brace', '`a\n{b` {c\n'],
+  ['a code span whose second line starts with a less-than sign', '`a\n<b` {c\n'],
+  ['a code span whose second line is indented and starts with a brace', '`a\n  {b` {c\n'],
+  ['a code span whose third line starts with a brace', '`a\nb\n{c` {d\n'],
+  ['inline math whose second line starts with an unclosed brace', '$a\n{b$ {c\n'],
+  ['inline math whose second line starts with a less-than sign', '$a\n<b$ {c\n'],
+  ['a code span in a list item whose second line starts with a brace', '- `a\n  {b` {c\n'],
+  ['a code span in a block quote whose second line starts with a brace', '> `a\n> {b` {c\n'],
+  ['a link title whose second line starts with a brace', '[a](u "t\n{b") {c\n'],
+  ['an image title whose second line starts with a less-than sign', '![a](u "t\n<b") {c\n'],
+  ['a definition title whose second line starts with a brace', '[r]: u "t\n{b"\n\n{c\n'],
+  ['a code span whose second line starts with a closed brace', '`a\n{b}` {c\n'],
+  ['a code span whose second line holds a brace after a word', '`a\nb {c` {d\n'],
 ];
 
 await describe({
@@ -344,6 +357,24 @@ await describe({
               .toBe('[^1]: [https://example.net/x](https://example.net/x)',);
             // A link reference definition that is no footnote keeps its destination and its title.
             expect(encoded({ text: '[r]: u{b "t {"\n', },),).toBe('[r]: u{b "t {"\n',);
+          },
+        },),
+
+        it({
+          name: 'JOINS THE LINES OF A CODE SPAN, INLINE MATH OR A TITLE WHOSE LATER LINE STARTS WITH A BRACE OR A '
+            + 'LESS-THAN SIGN, since the strict grammar starts an expression or a tag there and ends the paragraph, '
+            + 'where a line ending in a code span reads as a space and no backslash may be written into the span',
+          fn: async () => {
+            expect(encoded({ text: '`a\n{b` {c', },),).toBe('`a {b` \\{c',);
+            expect(encoded({ text: '`a\n  <b` {c', },),).toBe('`a <b` \\{c',);
+            expect(encoded({ text: '$a\n{b$ {c', },),).toBe('$a {b$ \\{c',);
+            expect(encoded({ text: '- `a\n  {b` {c', },),).toBe('- `a {b` \\{c',);
+            expect(encoded({ text: '> `a\n> {b` {c', },),).toBe('> `a {b` \\{c',);
+            expect(encoded({ text: '[a](u "t\n{b") {c', },),).toBe('[a](u "t {b") \\{c',);
+            // A closed brace joins too, since a line holding only it is an expression of its own to the strict grammar.
+            expect(encoded({ text: '`a\n{b}` {c', },),).toBe('`a {b}` \\{c',);
+            // A later line that does not start with a brace or a less-than sign keeps its line ending.
+            expect(encoded({ text: '`a\nb {c` {d', },),).toBe('`a\nb {c` \\{d',);
           },
         },),
 
