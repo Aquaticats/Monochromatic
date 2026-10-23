@@ -552,17 +552,14 @@ await describe({
         },),
 
         it({
-          name: 'SHIPS AN ORIGINAL WITH ENGLISH-LOOKING WORDS AND STRAIGHT QUOTES AS RECORDED, with no footnote '
-            + 'definition at all, where the footnote guard has nothing to withdraw; measured with the guard made to '
-            + 'carry the original: no page pass rewrites a row at a slice the archive holds no text for, so this case '
-            + 'fails on no change to the default and the footnote case, KEEPS THE ORIGINAL OUT OF THE PAGE-ASSEMBLY '
-            + 'PASSES AND THE FOOTNOTE GUARD, is the one that shows it',
+          name: 'SHIPS AN ORIGINAL WITH A WINDOWS LINE ENDING AND A US-FORM DATE BYTE FOR BYTE: no page-assembly pass '
+            + 'folds the carriage return or rewrites the ordinal, the guard records nothing against the slice, and the '
+            + 'published page carries the original as the artifact records it',
           fn: async () => {
             /**
-             Original with words and quotes that a spelling or quote pass would rewrite in English, and nothing for
-             the guard.
+             Original with a Windows line ending and a date the Canadian-form pass rewrites in English wording.
              */
-            const english = '\nThe color of the day was "grey", a neighbour\'s note.\n';
+            const english = '\nThe move was on March 5th, 2020.\r\nShe slept on the counter.\r\n';
             /**
              Rows with that original as the one untranslated slice.
              */
