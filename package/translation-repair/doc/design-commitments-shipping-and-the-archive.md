@@ -144,3 +144,39 @@ which lists every file of these commitments.
   one real stop was of the kind still reachable (yulianNyanner,
   `incumbent-only`,
   0.48 hours).
+- **A slice with no archive text and no backed wording ships its source text under a note.**
+  Owner,
+  2026-10-23,
+  asked what a shipped page carries for such a slice,
+  after the corpus pass XingZ6020 shipped 88 of its 118 slices and left the other 30,
+  31.5 percent of the original and every footnote definition,
+  off the page with nothing on it to say so:
+  "Source text + note".
+  The page carries the source text of the passage,
+  preceded by a note saying it has not been translated yet and the original follows,
+  footnote definitions included;
+  a later run replaces it once a wording is backed.
+  Options offered and not chosen:
+  the note alone,
+  keeping the silent gap,
+  and unbacked wording marked as unreviewed,
+  which would break the standing rule that one judge alone never decides.
+  The earlier rulings stand:
+  a run always ships,
+  and a slice with archive text and no valid wording keeps the archive.
+  One note stands before each contiguous run of such slices,
+  in Canadian English as a block quote on its own lines:
+  `> This passage has not been translated yet. The original text follows.`
+  The source text follows as written.
+  No page pass,
+  floor or footnote guard rewrites it,
+  since each of them reads or edits English.
+  The artifact keeps its record of the slice (`lanes.translate.delivery`),
+  and the would-ship reading names the role,
+  `source-ships` (`page-check/src/corpus-run/source-ships.ts`),
+  so the page-agreement check,
+  `verify-published` (`source-shipped=`)
+  and the `TALLY` line (`pageSourceShipped`,
+  beside `pageSilent`) read the page as the artifact says it ships.
+  The slice stays uncached,
+  so the next run asks again (ledger B827).

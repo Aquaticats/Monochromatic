@@ -424,6 +424,7 @@ which lists every file of this record.
 - [B821 to B823, the every-provider-dry refusal](audit-ledger-the-every-provider-dry-refusal.md)
 - [B824 to B825, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
 - [B826, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
+- [B827 to B831, page assembly and the corpus-run driver](audit-ledger-page-assembly-and-corpus-run-driver.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

@@ -41,6 +41,18 @@ The groups that follow name the main ones.
   `UnansweredContestSliceError`,
   `WouldShipReading`.
   Declared in `corpus-run/would-ship-text.ts`.
+- Source text under a note:
+  read a slice with no archive text and no backed wording as shipping the original passage,
+  one block-quote note before each contiguous run (owner,
+  2026-10-23,
+  "Source text + note").
+  Names:
+  `UNTRANSLATED_PASSAGE_NOTE`,
+  `carryingSource`,
+  `markRuns`,
+  `carriesText`,
+  `textOnPage`.
+  Declared in `corpus-run/source-ships.ts`.
 - Page assembly guards:
   run the composed page through the guards each lane runs,
   and refuse a page that does not parse or breaks its footnotes.
@@ -49,10 +61,16 @@ The groups that follow name the main ones.
   `assertPageParses`,
   `UnparseablePageError`,
   `assertPageFootnotesIntact`,
+  `assertPageFootnotesResolve`,
+  `PageFootnoteResolutionError`,
   `assertFrontMatterComplete`.
+  The integrity guard weighs the page against its archive;
+  the resolve check reads the page alone and is reported as a publish defect,
+  never a refusal.
   Declared in `corpus-run/page-assembly-guard.ts`,
   `corpus-run/page-grammar.ts`,
   `corpus-run/page-footnote-integrity.ts`,
+  `corpus-run/page-footnote-resolution.ts`,
   and `corpus-run/front-matter-completeness.ts`.
 - Destinations:
   find the link destinations of the source that a page no longer carries,
