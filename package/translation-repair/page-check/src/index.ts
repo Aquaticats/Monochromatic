@@ -171,6 +171,30 @@ export {
   type TextRange,
 } from './corpus-run/source-ships-spans.ts';
 export {
+  addressAsLink,
+  type BareAddress,
+  bareAddresses,
+} from './corpus-run/source-ships-addresses.ts';
+export {
+  footnoteBodyStart,
+  isIndentedCode,
+  opensFootnote,
+  withoutIndentation,
+} from './corpus-run/source-ships-footnote.ts';
+export {
+  explicitLink,
+  linkInsteadOfAutolink,
+} from './corpus-run/source-ships-links.ts';
+export { startsEsModule, } from './corpus-run/source-ships-module-line.ts';
+export {
+  closingBracket,
+  indicesOf,
+  originalStretches,
+  rangeOf,
+  secondLabel,
+  startsAny,
+} from './corpus-run/source-ships-ranges.ts';
+export {
   type ComposedPage,
   composeSourcePage,
   SourcePageCompositionError,

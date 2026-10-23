@@ -1,8 +1,12 @@
 import {
   commentRegionsOf,
-  MarkdownParseError,
   parseMarkdownMathBody,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { firstNestingExcess, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  addressAsLink,
+  bareAddresses,
+} from './source-ships-addresses.ts';
 import {
   ESCAPABLE,
   type SourceSpans,
@@ -21,13 +25,21 @@ import {
 // `remark-mdx` lists the extension), a `<` as the start of a tag, and a line starting `import ` or `export ` as an
 // ES module. The text is parsed once as CommonMark with the site's math and nothing else
 // (`document-structure/src/parse-markdown-math.ts`), which never refuses a text, and the parse says where those
-// characters stand in text a reader sees: a backslash goes before each `{`, `}` and `<` there, a paragraph that MDX
-// would read as an ES module has the first letter of its first word written as a character reference
+// characters stand in text a reader sees: a backslash goes before each `{`, `}` and `<` there, a paragraph or setext
+// heading that MDX would read as an ES module has the first letter of its first word written as a character reference
 // (`&#105;mport` shows as `import`), and an angle autolink, which MDX reads as a tag, is written as a link with the
 // same text and target. Everything else is copied, which is the point of reading the structure from a parse and not
 // from lines: a fence is found wherever it stands (in a list item, in a block quote), as are code spans across lines,
 // math, link destinations and titles, bare addresses and escapes the original wrote, none of which a backslash
 // may touch.
+//
+// WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is met).
+// GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark takes for link
+// reference definitions, are footnotes to the strict grammar with a body to encode, and a block indented under a
+// footnote definition is a block of the footnote and no indented code. A bare address that a less-than sign ends is
+// written as a link with the same text and target (`source-ships-addresses.ts`), since a backslash written before the
+// sign is read as part of the address and an entity written for it is read as part of the address too. An angle
+// autolink inside the text of a link is written as text, since a link cannot hold a link.
 //
 // - `>` stays. It is syntax in MDX only inside a tag, and a `<` written as `\<` opens none; at the start of a line it
 //   is a block quote of the original, which encoding would turn into a line starting with a greater-than sign.
@@ -83,24 +95,6 @@ const COMMENT_OPEN = '<!--';
 const SYNTAX = '{}<';
 
 /**
- What GFM reads as the start of an address with a protocol.
- */
-const PROTOCOLS: readonly string[] = [
-  'http://',
-  'https://',
-];
-
-/**
- What GFM reads as the start of an address without one.
- */
-const WWW = 'www.';
-
-/**
- Characters that may stand before `www.` for GFM to read an address.
- */
-const BEFORE_WWW = ' \t\n\r(*_[]~';
-
-/**
  What a text holds that the encoder acts on.
  */
 type TextReading = SourceSpans & {
@@ -109,156 +103,6 @@ type TextReading = SourceSpans & {
    */
   readonly closedComments: readonly TextRange[];
 };
-
-/**
- Whether a character is an ASCII letter.
-
- @param character - one character, or none
-
- @returns Whether it is `a` to `z` or `A` to `Z`
-
- @example
- ```ts
- const letter = isAsciiLetter({ character: 'a', },);
- ```
- */
-function isAsciiLetter({ character, }: { readonly character: string; },): boolean {
-  /**
-   Whether it is a lower-case letter.
-   */
-  const lower = (character >= 'a') && (character <= 'z');
-  /**
-   Whether it is an upper-case letter.
-   */
-  const upper = (character >= 'A') && (character <= 'Z');
-  return lower || upper;
-}
-
-/**
- Whether GFM reads an address starting at an index.
-
- @param text - the text
-
- @param at - index to look at
-
- @returns Whether a protocol or `www.` starts there after a character GFM accepts before it
-
- @example
- ```ts
- const starts = startsAddress({ text: '见 https://example.net', at: 2, },);
- ```
- */
-function startsAddress(
-  {
-    text,
-    at,
-  }: {
-    readonly text: string;
-    readonly at: number;
-  },
-): boolean {
-  if (PROTOCOLS.some(function startsHere(protocol,): boolean {
-    return text.startsWith(
-      protocol,
-      at,
-    );
-  },))
-    return !isAsciiLetter({ character: text.charAt(at - 1,), },);
-  return text.startsWith(
-    WWW,
-    at,
-  ) && ((at === 0) || BEFORE_WWW.includes(text.charAt(at - 1,),));
-}
-
-/**
- Where an address ends: at the next space or less-than sign, as the GFM pattern reads it.
-
- @param text - the text
-
- @param from - index the address starts at
-
- @param limit - index the address cannot run past
-
- @returns Index of the first character that is not part of it, or the limit
-
- @example
- ```ts
- const stop = addressEnd({ text: 'https://example.net/a b', from: 0, limit: 23, },);
- ```
- */
-function addressEnd(
-  {
-    text,
-    from,
-    limit,
-  }: {
-    readonly text: string;
-    readonly from: number;
-    readonly limit: number;
-  },
-): number {
-  for (let at = from; at < limit; at += 1) {
-    /**
-     Character read.
-     */
-    const character = text.charAt(at,);
-    if ((character === '<') || (character.trim() === ''))
-      return at;
-  }
-  return limit;
-}
-
-/**
- Finds the bare addresses inside the stretches a reader sees as text.
-
- @param text - the text
-
- @param ranges - stretches read as text
-
- @returns Where each address stands, from its protocol to the next space or less-than sign
-
- @example
- ```ts
- const addresses = bareAddresses({ text: '见 https://example.net/a', ranges: [{ start: 0, end: 22, },], },);
- ```
- */
-function bareAddresses(
-  {
-    text,
-    ranges,
-  }: {
-    readonly text: string;
-    readonly ranges: readonly TextRange[];
-  },
-): readonly TextRange[] {
-  /**
-   Addresses found.
-   */
-  const found: TextRange[] = [];
-  for (const range of ranges) {
-    for (let at = range.start; at < range.end; at += 1) {
-      if (!startsAddress({
-        text,
-        at,
-      },))
-        continue;
-      /**
-       Index where the address ends.
-       */
-      const stop = addressEnd({
-        text,
-        from: at,
-        limit: range.end,
-      },);
-      found.push({
-        start: at,
-        end: stop,
-      },);
-      at = stop - 1;
-    }
-  }
-  return found;
-}
 
 /**
  Replaces every character of a text but its line endings with a space.
@@ -401,32 +245,16 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       return left.start - right.start;
     },),
   },);
-  try {
-    /**
-     What the parse says of the readable text.
-     */
-    const spans = spansOf({
-      source: text,
-      root: parseMarkdownMathBody({ body: readable, },),
-    },);
-    return {
-      text: spans.text,
-      edits: [
-        ...spans.edits,
-        ...openers,
-      ].toSorted(function byStart(
-        left,
-        right,
-      ): number {
-        return left.start - right.start;
-      },),
-      closedComments,
-    };
-  }
-  catch (error) {
-    // A text nested past the bound cannot be parsed; the strict grammar refuses it too, so it is escaped as text.
-    if (!(error instanceof MarkdownParseError))
-      throw error;
+  // A TEXT NESTED PAST THE BOUND OF THE PLAIN READING IS NOT PARSED, since the reading refuses it before it reads it;
+  // the strict grammar refuses such a text too, so every stretch of it outside a comment is escaped as text. This is a
+  // branch on the reading's own predicate and not a caught error, since the callers (the judgement of a page on disk
+  // among them) hold no logger and a text nested that deep is an expected input, not a fault.
+  if (firstNestingExcess({
+    body: readable,
+    grammar: 'markdown',
+  },)
+    .kind
+    === 'beyond') {
     return {
       text: [
         {
@@ -435,9 +263,32 @@ function readText({ text, }: { readonly text: string; },): TextReading {
         },
       ],
       edits: openers,
+      insideLinks: [],
       closedComments,
     };
   }
+  /**
+   What the parse says of the readable text.
+   */
+  const spans = spansOf({
+    source: text,
+    readable,
+    root: parseMarkdownMathBody({ body: readable, },),
+  },);
+  return {
+    text: spans.text,
+    edits: [
+      ...spans.edits,
+      ...openers,
+    ].toSorted(function byStart(
+      left,
+      right,
+    ): number {
+      return left.start - right.start;
+    },),
+    insideLinks: spans.insideLinks,
+    closedComments,
+  };
 }
 
 /**
@@ -498,6 +349,14 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
    */
   const reading = readText({ text, },);
   /**
+   Bare addresses of the text.
+   */
+  const addresses = bareAddresses({
+    text,
+    ranges: reading.text,
+    insideLinks: reading.insideLinks,
+  },);
+  /**
    Characters a backslash may go before: the stretches read as text, less the comments that close and the bare
    addresses.
    */
@@ -511,10 +370,7 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
   }
   for (const range of [
     ...reading.closedComments,
-    ...bareAddresses({
-      text,
-      ranges: reading.text,
-    },),
+    ...addresses,
   ]) {
     touchable.fill(
       0,
@@ -522,6 +378,27 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
       range.end,
     );
   }
+  /**
+   The edits, with the links that bare addresses a less-than sign ends become.
+   */
+  const edits = [
+    ...reading.edits,
+    ...addresses
+      .filter(function endsAtTag({ endsAtTag: ends, },): boolean {
+        return ends;
+      },)
+      .map(function asLink(address,): TextEdit {
+        return addressAsLink({
+          text,
+          address,
+        },);
+      },),
+  ].toSorted(function byStart(
+    left,
+    right,
+  ): number {
+    return left.start - right.start;
+  },);
   /**
    Index of the next edit to make, the edits being in text order and not overlapping.
    */
@@ -534,7 +411,7 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     /**
      The edit starting here, when one does.
      */
-    const edit = reading.edits[upcoming.edit];
+    const edit = edits[upcoming.edit];
     if ((edit !== undefined) && (edit.start === at)) {
       pieces.push(edit.replacement,);
       at = edit.end - 1;

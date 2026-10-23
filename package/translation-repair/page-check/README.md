@@ -71,6 +71,9 @@ The groups that follow name the main ones.
   a link destination and an escape the original wrote are copied,
   and only a `{`,
   `}` or `<` the parse reads as text is escaped.
+  A footnote definition that CommonMark takes for a link reference definition is read as the footnote it is,
+  its body as blocks of its own,
+  and a bare address that a less-than sign ends is written as a link with the same text and target.
   A page on disk is judged by the same composition run over what the artifact records,
   so a page shipped without runs reads as agreed
   (`PageAgreement.sourceDropped` names the slices).
@@ -82,6 +85,9 @@ The groups that follow name the main ones.
   `slicesRefusedAsLiteral`,
   `droppedRunSets`,
   `spansOf`,
+  `bareAddresses`,
+  `addressAsLink`,
+  `explicitLink`,
   `encodeAsLiteralMdx`,
   `SourcePageCompositionError`,
   `readPageGrammar`.
@@ -89,8 +95,13 @@ The groups that follow name the main ones.
   `corpus-run/source-ships-runs.ts`,
   `corpus-run/source-ships-tiling.ts`,
   `corpus-run/source-ships-spans.ts`,
+  `corpus-run/source-ships-addresses.ts`,
+  `corpus-run/source-ships-links.ts`,
   `corpus-run/source-ships-encoding.ts`
   and `corpus-run/page-grammar.ts`.
+  `corpus-run/source-ships-footnote.ts`,
+  `corpus-run/source-ships-module-line.ts`
+  and `corpus-run/source-ships-ranges.ts` hold the helpers of the reading and are exported for their own tests.
 - Shippable replacements:
   turn a settled entry's per-slice readings into the replacements that assemble its page.
   The original of a slice that ships it is left out unless the caller passes `includeSource: true`,

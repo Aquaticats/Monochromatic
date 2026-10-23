@@ -1,8 +1,9 @@
-import type { Root, } from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified, } from 'unified';
+
+import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
 
 //region GFM and math reading
 // TEST SUPPORT, NOT PACKAGE SOURCE. WHAT A READER OF PLAIN MARKDOWN SEES ON THE SITE'S FLAVOUR: CommonMark with the
@@ -25,7 +26,9 @@ import { unified, } from 'unified';
  const root = parseGfmMathBody({ body: '猫[^1] $a < b$\n\n[^1]: 注\n', },);
  ```
  */
-export function parseGfmMathBody({ body, }: { readonly body: string; },): Root {
+export function parseGfmMathBody(
+  { body, }: { readonly body: string; },
+): ReturnType<typeof parseMarkdownMathBody> {
   return unified()
     .use(remarkParse,)
     .use(remarkGfm,)

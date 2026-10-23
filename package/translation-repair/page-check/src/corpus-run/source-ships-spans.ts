@@ -1,4 +1,32 @@
-import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import {
+  parseMarkdownMathBody,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  footnoteBodyStart,
+  isIndentedCode,
+  opensFootnote,
+  withoutIndentation,
+} from './source-ships-footnote.ts';
+import { linkInsteadOfAutolink, } from './source-ships-links.ts';
+import { startsEsModule, } from './source-ships-module-line.ts';
+import {
+  closingBracket,
+  FENCE_MARKS,
+  indicesOf,
+  originalStretches,
+  rangeOf,
+  secondLabel,
+  startsAny,
+  type TextEdit,
+  type TextRange,
+} from './source-ships-ranges.ts';
+
+export type {
+  TextEdit,
+  TextRange,
+} from './source-ships-ranges.ts';
 
 //region Source ships spans
 // WHERE IN A TEXT THE STRICT MDX GRAMMAR READS SYNTAX, read off a CommonMark parse of the same text
@@ -6,31 +34,24 @@ import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-s
 // guess at it: a node says whether the characters it spans are text a reader sees (a `text` node, a raw `html` node,
 // indented code, which MDX has no such thing as, the alternative text of an image) or something the grammar reads as
 // its own syntax (a fence, a code span, math, a link destination), and the second kind is never touched.
+//
+// WHAT THE PLAIN PARSE READS DIFFERENTLY FROM THE STRICT GRAMMAR, and how each is handled. GFM is not on in the plain
+// parse (its autolink-literal transform builds nodes without a position), so a footnote definition made of one
+// destination is a link reference definition there and a footnote to the strict grammar: its body is read as a text of
+// its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
+// the footnote and the plain parse for indented code. A label of a reference definition and of the references to it
+// are written alike, so the reference still resolves. An angle autolink inside the text of a link cannot become a link
+// of its own, which a link cannot hold: it is written as text there, and the reader sees the address as typed.
 
 /**
- A stretch of the text, the end exclusive, in UTF-16 units.
+ Characters a backslash escapes in Markdown: the ASCII punctuation.
  */
-export type TextRange = {
-  /**
-   Index of the first character.
-   */
-  readonly start: number;
-
-  /**
-   Index after the last character.
-   */
-  readonly end: number;
-};
+export const ESCAPABLE = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
 
 /**
- A stretch of the text and what stands in its place.
+ How many characters `![` takes.
  */
-export type TextEdit = TextRange & {
-  /**
-   Text written instead of the stretch.
-   */
-  readonly replacement: string;
-};
+const IMAGE_OPENER_LENGTH = 2;
 
 /**
  What a parse says of a text.
@@ -45,333 +66,126 @@ export type SourceSpans = {
    Stretches rewritten whole, in text order and not overlapping.
    */
   readonly edits: readonly TextEdit[];
+
+  /**
+   Links and link references, each from its first bracket to its last character, inside whose text GFM reads no bare
+   address.
+   */
+  readonly insideLinks: readonly TextRange[];
 };
-
 /**
- Characters a backslash escapes in Markdown: the ASCII punctuation.
- */
-export const ESCAPABLE = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
+ The characters of a text at the indices.
 
-/**
- How many characters `![` takes.
- */
-const IMAGE_OPENER_LENGTH = 2;
+ @param text - the text
 
-/**
- What a flow block starts with when MDX reads it as an ES module: `import` or `export` and one space.
- */
-const ES_MODULE_STARTS: readonly string[] = [
-  'import ',
-  'export ',
-];
+ @param indices - indices of the characters, in order
 
-/**
- What a fenced code block starts with, as the parse positions one: the fence itself.
- */
-const FENCE_MARKS: readonly string[] = [
-  '```',
-  '~~~',
-];
-
-/**
- Characters other than control characters and spaces that a destination holds as a percent escape, since Markdown reads
- them as the end of it or as its syntax.
- */
-const DESTINATION_SYNTAX = '<>(){}\\';
-
-/**
- Characters Markdown reads in the text of a link.
- */
-const LABEL_SYNTAX = '\\[]{}<>*_`~&';
-
-/**
- The highest code point of a character that one percent escape stands for.
- */
-const ASCII_LIMIT = 0x7F;
-
-/**
- The code point of a space, below which every character is a control character.
- */
-const SPACE_CODE = 0x20;
-
-/**
- The base percent escapes write their digits in.
- */
-const HEX = 16;
-
-/**
- Where a node's characters start and end.
-
- @param node - node of the parse
-
- @returns The range its position gives
-
- @throws {@link Error} when the node has no position, which the reading used never builds
+ @returns The characters joined
 
  @example
  ```ts
- const { start, end, } = rangeOf({ node, },);
+ const body = charactersAt({ text: 'abc', indices: [0, 2,], },);
  ```
  */
-function rangeOf({ node, }: { readonly node: TreeNode; },): TextRange {
+function charactersAt(
+  {
+    text,
+    indices,
+  }: {
+    readonly text: string;
+    readonly indices: readonly number[];
+  },
+): string {
+  return indices
+    .map(function characterAt(at,): string {
+      return text.charAt(at,);
+    },)
+    .join('',);
+}
+
+/**
+ Reads a block nested in another as a text of its own: the body of a footnote definition, or a block indented under one.
+
+ @param source - the whole text
+
+ @param readable - the whole text with its comments blanked, the parse's own input
+
+ @param indices - the indices of the whole text that make up the block, in order
+
+ @returns The spans of the block at the offsets of the whole text
+
+ @throws {@link Error} when a node of the block has no position, which the reading used never builds
+
+ @example
+ ```ts
+ const spans = nestedSpans({ source, readable, indices: [6, 7, 8,], });
+ ```
+ */
+function nestedSpans(
+  {
+    source,
+    readable,
+    indices,
+  }: {
+    readonly source: string;
+    readonly readable: string;
+    readonly indices: readonly number[];
+  },
+): SourceSpans {
   /**
-   Where the node starts.
+   The block as a text of its own.
    */
-  const start = node.position
-    ?.start
-    .offset;
+  const body = charactersAt({
+    text: source,
+    indices,
+  },);
   /**
-   Where the node ends.
+   The same with its comments blanked.
    */
-  const end = node.position
-    ?.end
-    .offset;
-  if ((start === undefined) || (end === undefined)) {
-    throw new Error(
-      `unreachable: a ${node.type} node of the plain reading carries no position, though that reading builds `
-        + 'every one with one',
-    );
-  }
+  const bodyReadable = charactersAt({
+    text: readable,
+    indices,
+  },);
+  /**
+   What the parse of the block says of it.
+   */
+  const inner = spansOf({
+    source: body,
+    readable: bodyReadable,
+    root: parseMarkdownMathBody({ body: bodyReadable, },),
+    isNested: true,
+  },);
   return {
-    start,
-    end,
+    text: inner
+      .text
+      .flatMap(function original(range,): readonly TextRange[] {
+        return originalStretches({
+          range,
+          indices,
+        },);
+      },),
+    edits: inner
+      .edits
+      .map(function original(edit,): TextEdit {
+        return {
+          ...edit,
+          start: nonNullishOrThrow(indices[edit.start],),
+          end: nonNullishOrThrow(indices[edit.end - 1],) + 1,
+        };
+      },),
+    insideLinks: inner
+      .insideLinks
+      .flatMap(function original(range,): readonly TextRange[] {
+        return originalStretches({
+          range,
+          indices,
+        },);
+      },),
   };
 }
 
 /**
- Whether the text has one of the strings at an index.
-
- @param text - the text
-
- @param at - index to look at
-
- @param candidates - strings to try
-
- @returns Whether any of them starts at the index
-
- @example
- ```ts
- const fenced = startsAny({ text: '```ts', at: 0, candidates: ['```', '~~~',], },);
- ```
- */
-function startsAny(
-  {
-    text,
-    at,
-    candidates,
-  }: {
-    readonly text: string;
-    readonly at: number;
-    readonly candidates: readonly string[];
-  },
-): boolean {
-  return candidates.some(function startsHere(candidate,): boolean {
-    return text.startsWith(
-      candidate,
-      at,
-    );
-  },);
-}
-
-/**
- Where the bracket closing a label stands.
-
- @param source - the text
-
- @param from - index just past the opening bracket
-
- @param limit - index the label cannot run past
-
- @returns Index of the closing bracket, or the limit when none closes within it
-
- @example
- ```ts
- const close = closingBracket({ source: '![a [b]](u)', from: 2, limit: 11, },);
- ```
- */
-function closingBracket(
-  {
-    source,
-    from,
-    limit,
-  }: {
-    readonly source: string;
-    readonly from: number;
-    readonly limit: number;
-  },
-): number {
-  /**
-   Brackets opened inside the label and not yet closed.
-   */
-  const open = { depth: 1, };
-  for (let at = from; at < limit; at += 1) {
-    /**
-     Character read.
-     */
-    const character = source.charAt(at,);
-    if (character === '\\') {
-      at += 1;
-      continue;
-    }
-    if (character === '[')
-      open.depth += 1;
-    if (character === ']')
-      open.depth -= 1;
-    if (open.depth === 0)
-      return at;
-  }
-  return limit;
-}
-
-/**
- Writes a character of a destination as the percent escape of its UTF-8 bytes when Markdown reads it as syntax.
-
- @param character - one character of the destination
-
- @returns The character, or its escape
-
- @example
- ```ts
- const written = destinationCharacter({ character: ' ', },);
- ```
- */
-function destinationCharacter({ character, }: { readonly character: string; },): string {
-  /**
-   The character's code point.
-   */
-  const codePoint = character.codePointAt(0,) ?? 0;
-  /**
-   Whether Markdown reads the character as the end of a destination or as its syntax.
-   */
-  const unsafe = (codePoint <= SPACE_CODE)
-    || (codePoint === ASCII_LIMIT)
-    || DESTINATION_SYNTAX.includes(character,)
-    || (character.trim() === '');
-  if (!unsafe)
-    return character;
-  if (codePoint > ASCII_LIMIT)
-    return encodeURIComponent(character,);
-  /**
-   The code point in upper-case hexadecimal.
-   */
-  const digits = codePoint
-    .toString(HEX,)
-    .toUpperCase();
-  return `%${
-    digits.padStart(
-      2,
-      '0',
-    )
-  }`;
-}
-
-/**
- Writes the text of an angle autolink as a link with the same text and target, without the angle brackets MDX reads
- as a tag.
-
- @param source - the text
-
- @param url - target the parse gives the autolink
-
- @param range - where the autolink stands
-
- @returns The link in Markdown's own link syntax
-
- @example
- ```ts
- const link = linkInsteadOfAutolink({ source, url: node.url, range, },);
- ```
- */
-function linkInsteadOfAutolink(
-  {
-    source,
-    url,
-    range,
-  }: {
-    readonly source: string;
-    readonly url: string;
-    readonly range: TextRange;
-  },
-): string {
-  /**
-   What stands between the angle brackets, which is the text of the link.
-   */
-  const inner = source.slice(
-    range.start + 1,
-    range.end - 1,
-  );
-  /**
-   The text with each character Markdown reads as syntax written with a backslash.
-   */
-  const label = Array.from(inner,)
-    .map(function written(character,): string {
-      return LABEL_SYNTAX.includes(character,) ? `\\${character}` : character;
-    },)
-    .join('',);
-  /**
-   The target with each character Markdown reads as syntax written as a percent escape.
-   */
-  const destination = Array.from(url,)
-    .map(function written(character,): string {
-      return destinationCharacter({ character, },);
-    },)
-    .join('',);
-  return `[${label}](${destination})`;
-}
-
-/**
- Whether MDX reads the node as an ES module: a paragraph at the first column of the document's own level that starts with
- `import ` or `export `.
-
- @param source - the text
-
- @param node - node of the parse
-
- @param isTopLevel - whether the node's parent is the root
-
- @param range - where the node stands
-
- @returns Whether the first word of the node must be written as a character reference
-
- @example
- ```ts
- const esm = startsEsModule({ source, node, isTopLevel: true, range, },);
- ```
- */
-function startsEsModule(
-  {
-    source,
-    node,
-    isTopLevel,
-    range,
-  }: {
-    readonly source: string;
-    readonly node: TreeNode;
-    readonly isTopLevel: boolean;
-    readonly range: TextRange;
-  },
-): boolean {
-  if (node.type !== 'paragraph')
-    return false;
-  if (!isTopLevel)
-    return false;
-  /**
-   Column the node starts at, where a node that follows indentation does not start at the first.
-   */
-  const column = node.position
-    ?.start
-    .column;
-  if (column !== 1)
-    return false;
-  return startsAny({
-    text: source,
-    at: range.start,
-    candidates: ES_MODULE_STARTS,
-  },);
-}
-
-/**
- A node still to read, and whether it stands directly under the root.
+ A node still to read, and where it stands.
  */
 type Pending = {
   /**
@@ -380,19 +194,29 @@ type Pending = {
   readonly node: TreeNode;
 
   /**
-   Whether its parent is the root.
+   Whether its parent is the root of the text being read.
    */
-  readonly isTopLevel: boolean;
+  readonly isRootChild: boolean;
+
+  /**
+   Whether it stands inside the text of a link, where a link cannot be written.
+   */
+  readonly insideLink: boolean;
 };
 
 /**
  Reads where a text holds syntax, from the parse of it.
 
- @param source - the text, the parse's own input apart from the comments it blanked
+ @param source - the text, which edits and rewrites are made from
 
  @param root - parse of the text by the plain reading with the site's math
 
- @returns The stretches a reader sees as text and the stretches rewritten whole
+ @param readable - the text as the parse read it, with its comments blanked, the source itself where none is; a block
+ nested in another is parsed from this
+
+ @param isNested - whether the text is a block nested in another, none of whose nodes MDX reads as an ES module
+
+ @returns The stretches a reader sees as text, the stretches rewritten whole and the links
 
  @throws {@link Error} when a node has no position, which the reading used never builds
 
@@ -405,9 +229,13 @@ export function spansOf(
   {
     source,
     root,
+    readable = source,
+    isNested = false,
   }: {
     readonly source: string;
     readonly root: TreeNode;
+    readonly readable?: string;
+    readonly isNested?: boolean;
   },
 ): SourceSpans {
   /**
@@ -419,6 +247,31 @@ export function spansOf(
    */
   const edits: TextEdit[] = [];
   /**
+   Links.
+   */
+  const insideLinks: TextRange[] = [];
+
+  /**
+   Adds what the parse of a nested block says of it.
+
+   @param nested - spans of the block at the offsets of the whole text
+
+   @example
+   ```ts
+   absorb({ nested: nestedSpans({ source, readable, indices, },), },);
+   ```
+   */
+  function absorb({ nested, }: { readonly nested: SourceSpans; },): void {
+    text.push(...nested.text,);
+    edits.push(...nested.edits,);
+    insideLinks.push(...nested.insideLinks,);
+  }
+
+  /**
+   Whether the block read last at the top is part of a footnote definition, which blocks indented under it continue.
+   */
+  const footnote = { open: false, };
+  /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
   const pending: Pending[] = ('children' in root)
@@ -426,23 +279,43 @@ export function spansOf(
       .map(function topLevel(node,): Pending {
         return {
           node,
-          isTopLevel: true,
+          isRootChild: true,
+          insideLink: false,
         };
       },)
       .toReversed()
     : [];
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     /**
-     The node and whether it stands directly under the root.
+     The node and where it stands.
      */
     const {
       node,
-      isTopLevel,
+      isRootChild,
+      insideLink,
     } = next;
     /**
      Where its characters are.
      */
     const range = rangeOf({ node, },);
+    /**
+     Whether the node is indented code under a footnote definition, which the strict grammar reads as the blocks of the
+     definition.
+     */
+    const continuesFootnote = isRootChild
+      && footnote.open
+      && isIndentedCode({
+        source,
+        node,
+        range,
+      },);
+    if (isRootChild) {
+      footnote.open = continuesFootnote || opensFootnote({
+        source,
+        node,
+        range,
+      },);
+    }
     // A TEXT AND A RAW HTML NODE are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || (node.type === 'html')) {
       text.push(range,);
@@ -458,6 +331,28 @@ export function spansOf(
           limit: range.end,
         },),
       },);
+      if ((node.type === 'imageReference') && (node.referenceType === 'full')) {
+        text.push(secondLabel({
+          source,
+          range,
+          textFrom: range.start + IMAGE_OPENER_LENGTH,
+        },),);
+      }
+      continue;
+    }
+    // BLOCKS INDENTED UNDER A FOOTNOTE DEFINITION are read by their own structure, since GFM reads them as the blocks
+    // of the footnote and a fence among them is code.
+    if (continuesFootnote) {
+      absorb({
+        nested: nestedSpans({
+          source,
+          readable,
+          indices: withoutIndentation({
+            source,
+            range,
+          },),
+        },),
+      },);
       continue;
     }
     // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph.
@@ -470,24 +365,72 @@ export function spansOf(
         text.push(range,);
       continue;
     }
-    // AN ANGLE AUTOLINK, which MDX reads as a tag, becomes a link; any other link keeps everything but its text.
-    if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
-      edits.push({
-        ...range,
-        replacement: linkInsteadOfAutolink({
+    // A FOOTNOTE DEFINITION CommonMark READS AS A LINK REFERENCE DEFINITION is a footnote to the strict grammar, whose
+    // body is blocks; any other definition keeps its destination and title and has a label read as text.
+    if (node.type === 'definition') {
+      if (node
+        .identifier
+        .startsWith('^',)) {
+        absorb({
+          nested: nestedSpans({
+            source,
+            readable,
+            indices: indicesOf({
+              range: {
+                start: footnoteBodyStart({
+                  source,
+                  range,
+                },),
+                end: range.end,
+              },
+            },),
+          },),
+        },);
+        continue;
+      }
+      text.push({
+        start: range.start + 1,
+        end: closingBracket({
           source,
-          url: node.url,
-          range,
+          from: range.start + 1,
+          limit: range.end,
         },),
       },);
       continue;
     }
-    // A PARAGRAPH STARTING AT THE FIRST COLUMN WITH `import ` OR `export `, which MDX reads as an ES module and no
-    // backslash makes plain; a character reference for the first letter does.
+    // AN ANGLE AUTOLINK, which MDX reads as a tag, becomes a link, except inside the text of a link, which holds none:
+    // it is written as text there. Any other link keeps everything but its text.
+    if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
+      if (insideLink)
+        text.push(range,);
+      else {
+        edits.push({
+          ...range,
+          replacement: linkInsteadOfAutolink({
+            source,
+            url: node.url,
+            range,
+          },),
+        },);
+      }
+      continue;
+    }
+    if ((node.type === 'link') || (node.type === 'linkReference')) {
+      insideLinks.push(range,);
+      if ((node.type === 'linkReference') && (node.referenceType === 'full')) {
+        text.push(secondLabel({
+          source,
+          range,
+          textFrom: range.start + 1,
+        },),);
+      }
+    }
+    // A PARAGRAPH OR SETEXT HEADING STARTING AT THE FIRST COLUMN WITH `import ` OR `export `, which MDX reads as an ES
+    // module and no backslash makes plain; a character reference for the first letter does.
     if (startsEsModule({
       source,
       node,
-      isTopLevel,
+      isTopLevel: isRootChild && (!isNested),
       range,
     },)) {
       edits.push({
@@ -506,7 +449,10 @@ export function spansOf(
       for (const child of children)
         pending.push({
           node: child,
-          isTopLevel: false,
+          isRootChild: false,
+          insideLink: insideLink
+            || (node.type === 'link')
+            || (node.type === 'linkReference'),
         },);
     }
   }
@@ -518,7 +464,10 @@ export function spansOf(
     ): number {
       return left.start - right.start;
     },),
+    insideLinks,
   };
 }
+
+//endregion Source ships spans
 
 //endregion Source ships spans

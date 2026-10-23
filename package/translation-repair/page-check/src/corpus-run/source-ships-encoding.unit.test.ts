@@ -95,7 +95,10 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a footnote definition of one word holding a less-than sign', '她[^1]说\n\n[^1]: a<b\n'],
   ['a footnote definition with a title holding a brace', '她[^1]说\n\n[^1]: 注 ({)\n'],
   ['a footnote definition with a fenced block in its body', '她[^1]说\n\n[^1]: x\n\n    ```\n    {\n    ```\n'],
-  ['a footnote definition with a paragraph and a fenced block in its body', '她[^1]说\n\n[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n'],
+  [
+    'a footnote definition with a paragraph and a fenced block in its body',
+    '她[^1]说\n\n[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n',
+  ],
   ['a setext heading starting with import', 'import data from the old system\n===\n'],
   ['a setext heading starting with export', 'export to PDF\n---\n'],
   ['a setext heading of two lines starting with import', 'import x from y\nabc\n===\n'],
@@ -277,8 +280,8 @@ await describe({
         },),
 
         it({
-          name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD AS A CHARACTER REFERENCE '
-            + 'too, since MDX reads the heading line as the module before it reads the underline',
+          name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD AS A CHARACTER '
+            + 'REFERENCE too, since MDX reads the heading line as the module before it reads the underline',
           fn: async () => {
             expect(encoded({ text: 'import data from the old system\n===\n', },),)
               .toBe('&#105;mport data from the old system\n===\n',);
@@ -309,7 +312,8 @@ await describe({
           name: 'READS THE BODY OF A FOOTNOTE DEFINITION BY ITS OWN BLOCKS: a paragraph indented under it is text, a '
             + 'fence indented under it is code, which keeps its braces without a backslash',
           fn: async () => {
-            expect(encoded({ text: '[^1]: x\n\n    ```\n    {\n    ```\n', },),).toBe('[^1]: x\n\n    ```\n    {\n    ```\n',);
+            expect(encoded({ text: '[^1]: x\n\n    ```\n    {\n    ```\n', },),)
+              .toBe('[^1]: x\n\n    ```\n    {\n    ```\n',);
             expect(encoded({ text: '[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n', },),)
               .toBe('[^1]: x\n\n    注 \\{\n\n    ```\n    {y}\n    ```\n',);
             // Indented code that follows no footnote is still text, as it was.
@@ -334,7 +338,8 @@ await describe({
           name: 'READS A BARE ADDRESS AS GFM DOES: none inside link text, none with a punctuation mark right after the '
             + 'protocol, so a brace there is escaped as any other',
           fn: async () => {
-            expect(encoded({ text: '[https://example.net/a{ b](u)', },),).toBe(String.raw`[https://example.net/a\{ b](u)`,);
+            expect(encoded({ text: '[https://example.net/a{ b](u)', },),)
+              .toBe(String.raw`[https://example.net/a\{ b](u)`,);
             expect(encoded({ text: '见 https://{x', },),).toBe(String.raw`见 https://\{x`,);
             expect(encoded({ text: '见 https:// {', },),).toBe(String.raw`见 https:// \{`,);
             expect(encoded({ text: '见 https://example.net/b{c}', },),).toBe('见 https://example.net/b{c}',);
@@ -350,11 +355,12 @@ await describe({
         },),
 
         it({
-          name: 'KEEPS THE LINK AROUND AN ANGLE AUTOLINK INSIDE LINK TEXT and writes the angle autolink as text, since a '
-            + 'link cannot hold a link and MDX reads the autolink as a tag: the reader sees the outer link, '
+          name: 'KEEPS THE LINK AROUND AN ANGLE AUTOLINK INSIDE LINK TEXT and writes the angle autolink as text, '
+            + 'since a link cannot hold a link and MDX reads the autolink as a tag: the reader sees the outer link '
             + 'and the address as typed (a limit the module comment names)',
           fn: async () => {
-            expect(encoded({ text: '[<https://example.net/a>](u) {', },),).toBe(String.raw`[\<https://example.net/a>](u) \{`,);
+            expect(encoded({ text: '[<https://example.net/a>](u) {', },),)
+              .toBe(String.raw`[\<https://example.net/a>](u) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '[<https://example.net/a>](u) {', },), },),)
               .toBe('⟦u⟧<https://example.net/a> {',);
           },

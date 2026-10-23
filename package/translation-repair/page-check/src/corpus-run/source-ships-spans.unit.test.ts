@@ -98,7 +98,8 @@ await describe({
     },),
 
     it({
-      name: 'CALLS THE ALTERNATIVE TEXT OF AN IMAGE TEXT and not its destination, whether written inline or by reference',
+      name: 'CALLS THE ALTERNATIVE TEXT OF AN IMAGE TEXT and not its destination, whether written inline or by '
+        + 'reference, and the labels of a reference and of its definition, which must be written alike',
       fn: async () => {
         /**
          An inline image and a reference image, each with a brace in its alternative text.
@@ -109,7 +110,7 @@ await describe({
             source,
             range,
           },);
-        },),).toEqual(['图 {a}', ' ', '图 {b}',],);
+        },),).toEqual(['图 {a}', ' ', '图 {b}', 'r', 'r',],);
       },
     },),
 
@@ -154,8 +155,8 @@ await describe({
     },),
 
     it({
-      name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD as a character reference too, '
-        + 'and of no ATX heading',
+      name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD as a character '
+        + 'reference too, and of no ATX heading',
       fn: async () => {
         expect(spansIn({ source: 'import a\n===\n', },).edits,).toEqual([
           {
@@ -169,8 +170,8 @@ await describe({
     },),
 
     it({
-      name: 'READS THE BODY OF A FOOTNOTE DEFINITION CommonMark TAKES FOR A LINK REFERENCE DEFINITION as the blocks it is '
-        + 'made of, at the offsets of the whole text',
+      name: 'READS THE BODY OF A FOOTNOTE DEFINITION CommonMark TAKES FOR A LINK REFERENCE DEFINITION as the '
+        + 'blocks it is made of, at the offsets of the whole text',
       fn: async () => {
         /**
          A definition made of one brace, and one made of an address in angle brackets.
@@ -210,8 +211,8 @@ await describe({
     },),
 
     it({
-      name: 'READS INDENTED BLOCKS UNDER A FOOTNOTE DEFINITION BY THEIR OWN STRUCTURE: text for a paragraph, nothing for a '
-        + 'fence',
+      name: 'READS INDENTED BLOCKS UNDER A FOOTNOTE DEFINITION BY THEIR OWN STRUCTURE: text for a paragraph, '
+        + 'nothing for a fence',
       fn: async () => {
         /**
          A footnote with a paragraph and a fence indented under it.
@@ -222,7 +223,7 @@ await describe({
             source,
             range,
           },);
-        },),).toEqual(['注 {',],);
+        },),).toEqual(['x', '注 {',],);
       },
     },),
 

@@ -1500,11 +1500,15 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SENTINEL,
   },
-  'page-check/corpus-run/source-ships-encoding.ts#addressEnd': {
+  'page-check/corpus-run/source-ships-addresses.ts#addressEnd': {
     tests: 1,
     why: SCANNER,
   },
-  'page-check/corpus-run/source-ships-spans.ts#destinationCharacter': {
+  'page-check/corpus-run/source-ships-addresses.ts#startsDomain': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-links.ts#destinationCharacter': {
     tests: 1,
     why: SCANNER,
   },
