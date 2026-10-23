@@ -26,7 +26,7 @@ import {
   reachableSeats,
 } from './run-seats-wait.ts';
 
-//region Holds that cure a short bench
+//region Holds whose return changes a short bench
 // A HOLD IS WAITED FOR ONLY WHEN THE PROVIDER, BACK, WOULD LIFT A SHORT BENCH ACROSS A THRESHOLD THAT CHANGES WHAT THE
 // STAGES DO. The seat reader waits while a bench the phase leans on stands short and a hold runs; a hold on a provider
 // whose return leaves every such bench on the same side of its floor and of its quorum (it serves no seat of the bench,
@@ -379,7 +379,7 @@ export function holdsThatCureShortBenches(
 
  @example
  ```ts
- // => 'held: xiaomi (2 h), deepseek (40 min); neither would help cure a short bench'
+ // => 'held: xiaomi (2 h), deepseek (40 min); neither would lift a short bench over its floor or to its quorum'
  const said = noWaitWordsOf({ running, counted, dry, nothingHeld: 'no provider has named a return', },);
  ```
  */
@@ -408,8 +408,8 @@ export function noWaitWordsOf(
    Why none of them is waited for, in the count of the list.
    */
   const why = (skipped.length === 1)
-    ? 'it would not help cure a short bench'
-    : `${(skipped.length === 2) ? 'neither' : 'none'} would help cure a short bench`;
+    ? 'it would lift no short bench over its floor or to its quorum'
+    : `${(skipped.length === 2) ? 'neither' : 'none'} would lift a short bench over its floor or to its quorum`;
   /**
    NeuralWatt's part, said only where it is dry with no hold of its own inside what the pass has left.
    */
@@ -476,4 +476,4 @@ export function shortBenchesWithCure(
     },);
 }
 
-//endregion Holds that cure a short bench
+//endregion Holds whose return changes a short bench

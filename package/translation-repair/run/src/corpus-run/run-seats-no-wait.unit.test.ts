@@ -182,7 +182,9 @@ await describe({
         expect(waitMs,).toBe(0,);
         expect(unreachableWriters,).toEqual([],);
         expect(lines.length,).toBe(1,);
-        expect(lines[0],).toContain('warn JUDGE SEATS phase=lane contest short of quorum: wide 1 of 7 reachable, quorum 4',);
+        expect(lines[0],).toContain(
+          'warn JUDGE SEATS phase=lane contest short of quorum: wide 1 of 7 reachable, quorum 4',
+        );
         expect(lines[0],).toContain('wide reads under its floor of 2 and no hold runs that could lift it',);
         expect(lines[0],).toContain(
           'no provider has named a return the pass can wait for, so the phase runs on what is reachable',
@@ -191,8 +193,8 @@ await describe({
     },),
 
     it({
-      name: 'SAYS THE SAME STATE ONCE FOR A CALLER THAT KEEPS ITS MEMORY, and again once the memory is forgotten, while '
-        + 'a caller that keeps none says it every time',
+      name: 'SAYS THE SAME STATE ONCE FOR A CALLER THAT KEEPS ITS MEMORY, and again once the memory is forgotten, '
+        + 'while a caller that keeps none says it every time',
       fn: async () => {
         const lines: string[] = [];
         const warned: WarnedState = { signature: '', };
@@ -240,7 +242,7 @@ await describe({
 
     it({
       name: 'NAMES THE RUNNING HOLDS IT DID NOT WAIT FOR: Xiaomi held and its return lifting no bench, so the line '
-        + 'says it would not help cure a short bench, with the ceiling of each bench',
+        + 'says it would lift no short bench over its floor or to its quorum, with the ceiling of each bench',
       fn: async () => {
         const { lines, } = callOf({
           phase: 'lane contest',
@@ -250,9 +252,11 @@ await describe({
           lines: [],
         },);
         expect(lines.length,).toBe(1,);
-        expect(lines[0],).toContain('wide ceiling 1 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it',);
+        expect(lines[0],).toContain(
+          'wide ceiling 1 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it',
+        );
         expect(lines[0],).toContain('held: xiaomi (',);
-        expect(lines[0],).toContain('it would not help cure a short bench',);
+        expect(lines[0],).toContain('it would lift no short bench over its floor or to its quorum',);
       },
     },),
 
@@ -274,7 +278,9 @@ await describe({
         }
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect(lines.filter(function isError(line,): boolean {
-          return line.startsWith('error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 3 reachable, floor 2',)
+          return line.startsWith(
+            'error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 3 reachable, floor 2',
+          )
             && line.endsWith('stopping the entry',);
         },).length,).toBe(1,);
       },

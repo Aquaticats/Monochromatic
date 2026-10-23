@@ -30,8 +30,8 @@ import {
 
 //region Reading that takes no wait
 // THE HALF OF THE SHORT-BENCH READING THAT SEATS WHAT IS REACHABLE, split out of `run-seats-short-bench.ts` at its line
-// budget: a bench the phase leans on stands short, and no hold the reader could wait for would cure it, so the reading
-// says why and goes on, or stops the entry for a writing bench below its floor.
+// budget: a bench the phase leans on stands short, and no hold the reader could wait for would lift it over its floor
+// or to its quorum, so the reading says why and goes on, or stops the entry for a writing bench below its floor.
 
 /**
  What a reading says of the returns when it stops waiting, said of NeuralWatt's too when its return lies past what the

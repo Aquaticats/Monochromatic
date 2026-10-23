@@ -1,6 +1,6 @@
 /**
- Tests that the seat reader waits only for a hold whose provider, back, would cure a short bench, and says which
- providers could when it seats a bench short.
+ Tests that the seat reader waits only for a hold whose provider, back, would lift a short bench over its floor or to
+ its quorum, and says which providers could when it seats a bench short.
 
  THE SHAPE, from the second review of the Claude route (round 3): with one provider's key dry the wide bench stands one
  seat short of its quorum, and a hold on a provider that serves no seat the bench lacks is waited out in full (a
@@ -294,24 +294,29 @@ await describe({
 
     it({
       name: 'NAMES THE RUNNING HOLDS IT DID NOT WAIT FOR and why, in place of saying no provider named a return: the '
-        + 'DeepSeek hold is listed with its length and "would help cure a short bench" is the reason',
+        + 'DeepSeek hold is listed with its length and "would lift no short bench over its floor or to its quorum" is '
+        + 'the reason',
       fn: async () => {
         const lines: string[] = [];
         await readsUnderHolds({ held: ['deepseek',], lines, },);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: deepseek (1 s); it would not help cure a short bench',);
+        expect(warning,).toContain(
+          'held: deepseek (1 s); it would lift no short bench over its floor or to its quorum',
+        );
         expect(warning,).not.toContain('no provider has named a return',);
       },
     },),
 
     it({
-      name: 'NAMES BOTH SKIPPED HOLDS WITH "neither": DeepSeek and Xiaomi held, and neither would help cure '
-        + 'the wide bench',
+      name: 'NAMES BOTH SKIPPED HOLDS WITH "neither": DeepSeek and Xiaomi held, and neither would lift '
+        + 'the wide bench over its floor or to its quorum',
       fn: async () => {
         const lines: string[] = [];
         await readsUnderHolds({ held: ['deepseek', 'xiaomi',], lines, },);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: deepseek (1 s), xiaomi (1 s); neither would help cure a short bench',);
+        expect(warning,).toContain(
+          'held: deepseek (1 s), xiaomi (1 s); neither would lift a short bench over its floor or to its quorum',
+        );
       },
     },),
 
