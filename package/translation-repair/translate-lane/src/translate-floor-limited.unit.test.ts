@@ -33,6 +33,8 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider';
 import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  type FloorLimitedMemory,
+  rememberFloorLimited,
   translateDocument,
   type TranslateModels,
   type TranslateSliceSeating,
@@ -569,6 +571,33 @@ await describe({
         },).toEqual({
           recorded: 0,
           askedAgain: true,
+        },);
+      },
+    },),
+    it({
+      name: 'KEEPS WHAT THE SLICE WAS TOLD when a purchase that did not skip it ends unfilled again at a reach under the '
+        + 'floor, so a repeat of the same ending does not unsay the one line, and forgets the slice once it settles',
+      fn: async () => {
+        const memory: FloorLimitedMemory = new Map();
+        const unfilledBy = {
+          kind: 'unfilled',
+          unfilled: { sliceIndex: 3, reason: 'no-candidate-backed', findings: [], },
+          findings: ['absence chunk 3',],
+        } as const;
+        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, toldWhy: true, },);
+        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, },);
+        const keptAfterRepeat = memory.get('q',)?.told;
+        rememberFloorLimited({ memory, key: 'fresh', bought: unfilledBy, reachable: 1, },);
+        const freshTold = memory.get('fresh',)?.told;
+        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 2, },);
+        expect({
+          keptAfterRepeat,
+          freshTold,
+          forgottenAtFloor: memory.has('q',),
+        },).toEqual({
+          keptAfterRepeat: true,
+          freshTold: false,
+          forgottenAtFloor: false,
         },);
       },
     },),
