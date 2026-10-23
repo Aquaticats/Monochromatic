@@ -33,7 +33,9 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider';
 import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  type AskDecision,
   type FloorLimitedMemory,
+  notAskedAgain,
   rememberFloorLimited,
   translateDocument,
   type TranslateModels,
@@ -634,6 +636,63 @@ await describe({
           keptAfterRepeat: true,
           freshTold: false,
           forgottenAtFloor: false,
+        },);
+      },
+    },),
+    it({
+      name: 'TELLS WHY A SLICE IS NOT ASKED AGAIN ONCE, from the tagged helper, when a record that was not told is '
+        + 'kept: the record seeded without toldWhy is kept as its unfilled outcome with one line, marked told, and a '
+        + 'second call keeps it silently while a bench that grew is asked',
+      fn: async () => {
+        const memory: FloorLimitedMemory = new Map();
+        const unfilledBy = {
+          kind: 'unfilled',
+          unfilled: { sliceIndex: 4, reason: 'no-candidate-backed', findings: [], },
+          findings: ['absence chunk 4',],
+        } as const;
+        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, },);
+        /**
+         What the helper logged.
+         */
+        const lines: string[] = [];
+        /**
+         The helper asked about the slice with the bench no larger than the record.
+         */
+        function askedAt({ reachable, }: { readonly reachable: number; },): AskDecision {
+          return notAskedAgain({
+            memory,
+            key: 'q',
+            reachable,
+            benchSize: 7,
+            sliceIndex: 4,
+            l: capturingLogger({ messages: lines, },),
+          },);
+        }
+        const first = askedAt({ reachable: 1, },);
+        const toldAfterFirst = memory.get('q',)?.told;
+        const linesAfterFirst = [...lines,];
+        const second = askedAt({ reachable: 1, },);
+        const grown = askedAt({ reachable: 2, },);
+        expect({
+          first: first.kind === 'kept' ? first.settlement.outcome : first.kind,
+          lines: linesAfterFirst,
+          toldAfterFirst,
+          secondKept: second.kind,
+          linesAfterSecond: lines.length,
+          grown: grown.kind,
+          linesAfterGrown: lines.length,
+        },).toEqual({
+          first: { kind: 'unfilled', unfilled: unfilledBy.unfilled, },
+          lines: [
+            '[notAskedAgain] slice 4: not asked again; it ended unfilled (no-candidate-backed) with 1 of 7 select '
+            + 'judges reachable against a floor of 2, and 1 are reachable now; a later pass asks it again only if the '
+            + 'entry is still unsettled',
+          ],
+          toldAfterFirst: true,
+          secondKept: 'kept',
+          linesAfterSecond: 1,
+          grown: 'ask',
+          linesAfterGrown: 1,
         },);
       },
     },),
