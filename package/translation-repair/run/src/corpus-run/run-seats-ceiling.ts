@@ -72,7 +72,7 @@ function liftWordsOf(
 
  @param returning - providers whose return a wait can bring back
 
- @param meterHeld - held providers that stay dry by their meter
+ @param meterHeld - held providers that stay dry by their meter or by a payment refusal that stands until it moves
 
  @returns Clause naming the ceiling, both thresholds, what the return lifts and the seats it brings back
 
@@ -123,8 +123,8 @@ function ceilingClauseOf(
    */
   const meterWords = (meterHeld.length === 0)
     ? ''
-    : `; ${meterHeld.join(', ',)} ${(meterHeld.length === 1) ? 'reads' : 'read'} dry by its meter, which a hold ending `
-      + 'does not change';
+    : `; ${meterHeld.join(', ',)} ${(meterHeld.length === 1) ? 'reads' : 'read'} dry by its meter or by a payment `
+      + 'refusal that stands until the meter moves, which a hold ending does not change';
   /**
    What the return lifts the bench across.
    */
@@ -242,7 +242,7 @@ export function ceilingWordsOf(
     dry: after,
   },);
   /**
-   Held providers that stay dry by their meter.
+   Held providers that stay dry by their meter or by a payment refusal that stands until it moves.
    */
   const meterHeld = held.filter(function staysDry(provider,): boolean {
     return meterDry.has(provider,);
