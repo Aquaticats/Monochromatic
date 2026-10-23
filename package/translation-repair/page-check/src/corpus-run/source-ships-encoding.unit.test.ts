@@ -195,6 +195,12 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['indented code holding block marks', '猫\n\n    - a {\n    # b {\n    > c {\n    1. d {\n'],
   ['indented code holding a setext underline and a table', '猫\n\n    a {\n    ===\n    | b | c |\n    | - | - |\n'],
   ['a raw HTML block holding emphasis and a code span', '<div>\n*a* _b_ `{c}`\n</div>\n'],
+  [
+    'a raw HTML block holding a link whose text is an address with a brace, after a bracket nothing closes',
+    '[ https://example.net/a{b\n<div>\n[https://example.net/a{ b](u)\n</div>\n',
+  ],
+  ['a raw HTML block holding a bare address with a brace, after a bracket nothing closes', '[ x\n<div>\nhttps://example.net/a{b\n</div>\n'],
+  ['a raw HTML block holding a bare address with a brace, after a blank line', '[ x\n\n<div>\nhttps://example.net/a{b\n</div>\n'],
   ['a raw HTML block holding an import line after a blank line', '<script>\n\nimport data from the old system\n===\n'],
   ['a raw HTML block holding an export line after a blank line', '<script>\n\nexport to PDF\n'],
   ['a raw HTML block holding an import line after a line of format characters', '<details>\n\uFEFF\nimport q\n===\n'],
