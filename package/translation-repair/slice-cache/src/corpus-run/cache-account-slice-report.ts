@@ -151,9 +151,10 @@ function uncoveredRootWords(
     readonly runbookRoot: string;
   },
 ): string {
-  return `the runbook's runs root ${runbookRoot} is neither among nor under the roots searched: ${searched.join(', ',)}. `
-    + 'The newest record and the versions set after it speak only for those roots, and a launch that follows the '
-    + `runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+  return `the runbook's runs root ${runbookRoot} is neither among nor under the roots searched: `
+    + `${searched.join(', ',)}. The newest record and the versions set after it speak only for those roots, and a `
+    + `launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after `
+    + '-- to read them.';
 }
 
 /**

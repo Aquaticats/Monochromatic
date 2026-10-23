@@ -323,7 +323,7 @@ await describe({
       },
     },),
     it({
-      name: 'DOES NOT WARN OF THE RUNBOOK\'S RUNS ROOT WHERE IT IS A ROOT SEARCHED OR LIES UNDER ONE, whatever the count',
+      name: 'DOES NOT WARN OF THE RUNBOOK\'S RUNS ROOT WHERE A ROOT SEARCHED IS IT OR HOLDS IT, whatever the count',
       fn: async (ctx) => {
         using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
         await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);

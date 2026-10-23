@@ -22,7 +22,9 @@ import {
 
 import { createProviderBudgets, } from '@monochromatic-dev/translation-repair-provider';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
-import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  levelCapturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { readJudgeSeats, } from '../../dist/final/node/index.mjs';
 
 /**
@@ -141,8 +143,9 @@ await describe({
     },),
 
     it({
-      name: 'DOES NOT WAIT FOR A PROVIDER REFUSED FOR PAYMENT whose stated hold ends and whose meter reads wet: it stays '
-        + 'dry until the meter moves, so the hold ending brings nothing back and the reader seats the bench short at once',
+      name: 'DOES NOT WAIT FOR A PROVIDER REFUSED FOR PAYMENT whose stated hold ends and whose meter reads wet: it '
+        + 'stays dry until the meter moves, so the hold ending brings nothing back and the reader seats the bench '
+        + 'short at once',
       fn: async () => {
         /**
          What the reading logged.

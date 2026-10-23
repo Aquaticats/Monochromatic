@@ -14,11 +14,11 @@ import {
 //
 // THE FLOOR IS TWO VOICES FOR EVERY BENCH, FOR A DIFFERENT REASON EACH, read from the stage code:
 //
-// - `wide`, `late` and `roster` serve the gathers (`stage-quorum.ts`): below `MIN_STAGE_VOICES` the quorum a short
-//   bench closes on, `max(MIN_STAGE_VOICES, majority of the reachable)`, exceeds the reachable seats, so no gather meets
-//   its quorum (`reachableQuorum`, `stage-reachable-quorum.ts`). `late` also serves the lane contest, which opens no
-//   round under `LANE_CONTEST_QUORUM` and whose verdict tallies need two ballots on a side (`lane-contest-stage.ts`);
-//   `roster` serves the preparation's pairing rounds and the admission question.
+// - `wide`, `late` and `roster` serve the gathers (`stage-quorum.ts`): below `MIN_STAGE_VOICES` the quorum a
+//   short bench closes on, `max(MIN_STAGE_VOICES, majority of the reachable)`, exceeds the reachable seats, so no
+//   gather meets its quorum (`reachableQuorum`, `stage-reachable-quorum.ts`). `late` also serves the lane contest,
+//   which opens no round under `LANE_CONTEST_QUORUM` and whose verdict tallies need two ballots on a side
+//   (`lane-contest-stage.ts`); `roster` serves the preparation's pairing rounds and the admission question.
 // - `select` and `slate` serve the selection rounds (`candidate-select.ts`): a leader needs `MIN_SELECTION_BALLOTS`
 //   ballots whatever the weight, one judge alone never deciding, and the consolidation buys no slate for a standing
 //   under that reach (`consolidate-slice-buy.ts`).
