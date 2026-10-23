@@ -28,6 +28,7 @@ import {
   reportSliceCaches,
   type VersionSetting,
 } from '../../dist/final/node/index.mjs';
+import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { writeSliceRecord, } from './cache-account-repo.test-fixture.ts';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
@@ -36,6 +37,29 @@ import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test
  Time of the newest record the cases write, 2026-09-02T10:00:00Z.
  */
 const NEWEST_SECONDS = 1_788_343_200;
+
+/**
+ Home directory the cases state, so the runbook's runs root reads the same on every machine.
+ */
+const HOME = '/cats/home';
+
+/**
+ What the audit says when it read no slice-cache record.
+
+ @param roots - every root it searched, in the order it printed them
+
+ @returns The sentence, without the stdout prefix
+
+ @example
+ ```ts
+ const words = noRecordWarning({ roots: ['/cats/runs',], },);
+ ```
+ */
+function noRecordWarning({ roots, }: { readonly roots: readonly string[]; },): string {
+  return 'no slice-cache record was read, so the newest record and the versions set after it say nothing of the caches '
+    + `a launch would resume. Roots searched: ${roots.join(', ',)}. A launch that follows the runbook writes its `
+    + `runs under ${HOME}/temp/agent; pass --runs-under ${HOME}/temp/agent after -- to read them.`;
+}
 
 /**
  One version's setting at a time.
@@ -101,25 +125,109 @@ await describe({
       },
     },),
     it({
-      name: 'SAYS NONE WAS FOUND where the runs hold no record, with the count as the control',
+      name: 'SAYS NONE WAS FOUND where the runs hold no record, with the count as the control, and warns that the '
+        + 'lines below it say nothing, naming every root searched and the runbook\'s runs root',
       fn: async (ctx) => {
         using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
         await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
         await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        const logged: string[] = [];
 
         await reportSliceCaches({
           root: root.path,
           runsDir: runs.path,
           searched: [],
           settings: [],
+          l: capturingLogger({ messages: logged, },),
+          home: HOME,
         },);
 
-        expect(printed.lines,).toEqual([
-          `slice-cache records under 1 runs directory found in ${join(root.path, 'node_modules', '.monochromatic',)}, `
-            + `${runs.path}: 0`,
-          'directories the search could not list, whose runs the count leaves out: 0',
-          'newest slice-cache record: none',
+        /**
+         What the warning says, on stdout after the prefix and in the log without it.
+         */
+        const warning = noRecordWarning({
+          roots: [
+            join(root.path, 'node_modules', '.monochromatic',),
+            runs.path,
+          ],
+        },);
+        expect({
+          printed: printed.lines,
+          logged,
+        },).toEqual({
+          printed: [
+            'slice-cache records under 1 runs directory found in '
+              + `${join(root.path, 'node_modules', '.monochromatic',)}, ${runs.path}: 0`,
+            'directories the search could not list, whose runs the count leaves out: 0',
+            `WARNING: ${warning}`,
+            'newest slice-cache record: none',
+          ],
+          logged: [warning,],
+        },);
+      },
+    },),
+    it({
+      name: 'NAMES EVERY ROOT IT SEARCHED in the warning, the ones given after --runs-under beside the default two, '
+        + 'so a reader sees which directories the zero can speak for',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [under.path,],
+          settings: [],
+          l: capturingLogger({ messages: logged, },),
+          home: HOME,
+        },);
+
+        expect(logged,).toEqual([
+          noRecordWarning({
+            roots: [
+              join(root.path, 'node_modules', '.monochromatic',),
+              runs.path,
+              under.path,
+            ],
+          },),
         ],);
+        expect(printed.lines.filter(function isWarning(line,): boolean {
+          return line.startsWith('WARNING: ',);
+        },),).toEqual([`WARNING: ${logged[0] ?? ''}`,],);
+      },
+    },),
+    it({
+      name: 'DOES NOT WARN where a record was read, so the warning is the zero and not a habit',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [],
+          settings: [],
+          l: capturingLogger({ messages: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          warned: logged.filter(function isWarning(line,): boolean {
+            return line.includes('no slice-cache record was read',);
+          },),
+          printedWarning: printed.lines.some(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+        },).toEqual({
+          warned: [],
+          printedWarning: false,
+        },);
       },
     },),
     it({
