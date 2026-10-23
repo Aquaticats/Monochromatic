@@ -325,6 +325,26 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
     source: '她说\n\n  {x} <y>\n',
     carried: '她说\n\n  \\{x\\} \\<y>',
   },
+  {
+    name: 'a line starting with export that is not valid JavaScript, which the grammar reads as an ES module',
+    source: 'export to PDF 的步骤如下。\n',
+    carried: '&#101;xport to PDF 的步骤如下。',
+  },
+  {
+    name: 'a line starting with import that is not valid JavaScript',
+    source: '她说\n\nimport data from the old system\n',
+    carried: '她说\n\n&#105;mport data from the old system',
+  },
+  {
+    name: 'a fence in a list item followed by a bare brace',
+    source: '- ```\n  {\n  ```\n\n然后 { 走了\n',
+    carried: '- ```\n  {\n  ```\n\n然后 \\{ 走了',
+  },
+  {
+    name: 'an angle autolink',
+    source: '见 <https://example.net/a>\n',
+    carried: '见 [https://example.net/a](https://example.net/a)',
+  },
 ];
 
 /**
