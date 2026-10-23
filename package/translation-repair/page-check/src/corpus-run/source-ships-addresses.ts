@@ -329,6 +329,9 @@ export function bareAddresses(
   const labels = {
     stream: -1,
     open: 0,
+    // Where the stretch read last ends, which a raw HTML block that follows it has no blank line from when it continues
+    // that stretch's paragraph.
+    readUpTo: 0,
   };
   /**
    Every stretch to read, with whether it is literal, in text order.
@@ -373,6 +376,15 @@ export function bareAddresses(
       labels.stream = stream;
       labels.open = 0;
     }
+    // A RAW HTML BLOCK AFTER A BLANK LINE STARTS A PARAGRAPH OF ITS OWN, so no label is open in it.
+    if (isLiteral && hasBlankLine({
+      text: text.slice(
+        labels.readUpTo,
+        range.start,
+      ),
+    },))
+      labels.open = 0;
+    labels.readUpTo = range.end;
     for (let at = range.start; at < range.end; at += 1) {
       /**
        Character read.
@@ -418,8 +430,7 @@ export function bareAddresses(
       /**
        Whether the address stands clear of any label that is still open.
        */
-      const isClear = isLiteral
-        || endsAtTag
+      const isClear = endsAtTag
         || (labels.open === 0);
       if (!isClear)
         continue;
@@ -432,6 +443,39 @@ export function bareAddresses(
     }
   }
   return found;
+}
+
+/**
+ Whether a blank line stands in a text: a line of indentation and block quote marks only between two line endings.
+
+ @param text - the text
+
+ @returns Whether the text holds a line ending, a line of nothing else, and a line ending
+
+ @example
+ ```ts
+ const blank = hasBlankLine({ text: '\n\n', },);
+ ```
+ */
+function hasBlankLine({ text, }: { readonly text: string; },): boolean {
+  /**
+   The lines of the text.
+   */
+  const lines = text.split('\n',);
+  /**
+   The lines between the first line ending and the last.
+   */
+  const between = lines.slice(
+    1,
+    -1,
+  );
+  return between.some(function isBlank(line,): boolean {
+    for (const character of line) {
+      if (!' \t>'.includes(character,))
+        return false;
+    }
+    return true;
+  },);
 }
 
 /**

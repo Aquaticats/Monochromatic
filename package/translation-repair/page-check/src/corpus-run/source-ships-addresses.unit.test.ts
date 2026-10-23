@@ -67,6 +67,41 @@ function shownAddresses({ text, }: { readonly text: string; },): readonly string
   },);
 }
 
+/**
+ How many addresses are found in a literal stretch that follows a text range holding an open bracket.
+
+ @param gap - what stands between the bracket and the stretch
+
+ @returns Count
+
+ @example
+ ```ts
+ const count = foundAfter({ gap: '\n\n', },);
+ ```
+ */
+function foundAfter({ gap, }: { readonly gap: string; },): number {
+  /**
+   The text: the bracket, the gap, then the address.
+   */
+  const text = `[ x${gap}https://example.net/a{b`;
+  return bareAddresses({
+    text,
+    ranges: [
+      {
+        start: 0,
+        end: 3,
+      },
+    ],
+    literal: [
+      {
+        start: 3 + gap.length,
+        end: text.length,
+      },
+    ],
+    insideLinks: [],
+  },).length;
+}
+
 await describe({
   name: 'source ships addresses',
   children: [
@@ -175,6 +210,16 @@ await describe({
                 end,
               );
             },),).toEqual([String.raw`https://example.net/a\{`,],);
+          },
+        },),
+
+        it({
+          name: 'READS NO ADDRESS IN A LITERAL STRETCH THAT CONTINUES A PARAGRAPH WITH AN OPEN LABEL, which the strict '
+            + 'grammar keeps in that paragraph, and reads one after a blank line, where a paragraph of its own starts',
+          fn: async () => {
+            expect(foundAfter({ gap: '\n', },),).toBe(0,);
+            expect(foundAfter({ gap: '\n\n', },),).toBe(1,);
+            expect(foundAfter({ gap: '\n>\n> ', },),).toBe(1,);
           },
         },),
 
