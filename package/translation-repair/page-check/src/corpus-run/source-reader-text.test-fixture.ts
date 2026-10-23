@@ -25,6 +25,11 @@ import {
 const NOTE = '> This passage has not been translated yet. The original text follows.';
 
 /**
+ The byte order mark a text may open with, which a parser drops from the start of its input.
+ */
+const BYTE_ORDER_MARK = '\uFEFF';
+
+/**
  Node types whose value is what a reader sees.
  */
 const VALUE_TYPES: ReadonlySet<string> = new Set([
@@ -184,7 +189,9 @@ export function readerOfPage({ carried, }: { readonly carried: string; },): stri
 
  @param source - text as the artifact records it
 
- @returns Account of the text, its closed HTML comments blanked the way the page's reading blanks them
+ @returns Account of the text, its closed HTML comments blanked the way the page's reading blanks them; a text that
+ opens with a byte order mark is read after the note, as the page carries it, since a parser drops a mark that opens its
+ input and reads the first line as the start of the document, where the page has it in the middle
 
  @example
  ```ts
@@ -208,6 +215,18 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
    when one does not, since the plain grammar reads that comment as it stands.
    */
   const readable = allClose ? masked : source;
+  if (readable.startsWith(BYTE_ORDER_MARK,)) {
+    /**
+     The note and the text, read as the page holds them.
+     */
+    const { children, ...page } = parseGfmMathBody({ body: `${NOTE}\n\n${readable}`, },);
+    return accountOf({
+      root: {
+        ...page,
+        children: children.slice(1,),
+      },
+    },);
+  }
   return accountOf({ root: parseGfmMathBody({ body: readable, },), },);
 }
 

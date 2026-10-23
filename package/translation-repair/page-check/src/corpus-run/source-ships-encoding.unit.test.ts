@@ -109,6 +109,18 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'an opener of a comment that never closes right before two definition lines',
     '<!--\n[r]: u{b\n[s]: v{c "t"\n',
   ],
+  ['a byte order mark before a list item', '\uFEFF- a {\n'],
+  ['a byte order mark before a block quote', '\uFEFF> a {\n'],
+  ['a byte order mark before a backtick fence', '\uFEFF```\n{\n```\n'],
+  ['a byte order mark before a tilde fence', '\uFEFF~~~\n{\n~~~\n'],
+  ['a byte order mark before a fence holding a tag', '\uFEFF```\n<b>\n```\n'],
+  ['a byte order mark before display math', '\uFEFF$$\n{x\n$$\n'],
+  ['a byte order mark before a list item holding a fence', '\uFEFF- ```\n  {\n  ```\n'],
+  [
+    'a byte order mark and a space before a list item holding a fence with an info string',
+    '\uFEFF - ``` [r]: u{b "t {"\n',
+  ],
+  ['a byte order mark before a link reference definition', '\uFEFF[r]: u{b "t {"\n'],
   ['a footnote definition that is only a brace', '她[^1]说\n\n[^1]: {\n'],
   ['a footnote definition that is only a tag', '她[^1]说\n\n[^1]: <b>\n'],
   ['a footnote definition that is only an address in angle brackets', '她[^1]说\n\n[^1]: <https://example.net/x>\n'],
@@ -650,6 +662,18 @@ https://example.net/b{c`,);
             + 'the escape',
           fn: async () => {
             expect(encoded({ text: '\u{1F408} `{a}` {b}', },),).toBe('\u{1F408} `{a}` \\{b\\}',);
+          },
+        },),
+
+        it({
+          name: 'READS A BYTE ORDER MARK THAT OPENS THE TEXT AS A CHARACTER OF ITS FIRST LINE, since the page carries '
+            + 'the text after a note and the mark then stands in the middle of the page, where it starts no block '
+            + 'and no module',
+          fn: async () => {
+            expect(encoded({ text: '\uFEFF```\n{\n```\n', },),).toBe('\uFEFF```\n\\{\n```\n',);
+            expect(encoded({ text: '\uFEFF- ```\n  {\n  ```\n', },),).toBe('\uFEFF- ```\n  \\{\n  ```\n',);
+            expect(encoded({ text: '\uFEFFimport a {\n', },),).toBe('\uFEFFimport a \\{\n',);
+            expect(encoded({ text: '\uFEFF[r]: u{b "t {"\n', },),).toBe('\uFEFF[r]: u\\{b "t \\{"\n',);
           },
         },),
 
