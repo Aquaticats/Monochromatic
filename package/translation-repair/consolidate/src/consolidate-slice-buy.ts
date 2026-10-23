@@ -24,6 +24,7 @@ import {
   benchBelowFloorStageFinding,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Consolidate slice buy
 
@@ -255,11 +256,20 @@ async function buyConsolidationAttempt(
     && (laneTexts.length === 0);
   if (benchBelowFloor) {
     /**
+     The noun for the slate judges seated, which the line counts.
+     */
+    const judgeWord = wordForCount({
+      count: judgeModelIds.length,
+      one: 'judge',
+      many: 'judges',
+    },);
+    /**
      The line saying why no slate is bought.
      */
     const skipped = [
-      `slice ${String(sliceIndex,)}: ${String(slateReachable,)} of ${String(judgeModelIds.length,)} slate judges `
-        + `reachable, below the floor of ${String(MIN_SELECTION_BALLOTS,)}`,
+      `slice ${String(sliceIndex,)}: ${String(slateReachable,)} of ${String(judgeModelIds.length,)} slate `
+        + `${judgeWord} reachable, below the floor `
+        + `of ${String(MIN_SELECTION_BALLOTS,)}`,
       'no slate is bought and the standing is kept',
     ].join('; ',);
     l.warn(skipped,);
