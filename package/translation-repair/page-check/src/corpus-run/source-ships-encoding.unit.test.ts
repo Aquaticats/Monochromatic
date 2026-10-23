@@ -153,6 +153,16 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a definition title whose second line starts with a brace', '[r]: u "t\n{b"\n\n{c\n'],
   ['a code span whose second line starts with a closed brace', '`a\n{b}` {c\n'],
   ['a code span whose second line holds a brace after a word', '`a\nb {c` {d\n'],
+  ['a fence mark indented four spaces after a paragraph line', 'abc\n    ```\n'],
+  ['a tilde fence mark indented four spaces after a paragraph line', 'abc\n    ~~~\n'],
+  ['a fence mark after a tab after a paragraph line', 'abc\n\t```\n'],
+  ['a fence mark indented four spaces and an info string holding a brace', 'abc\n    ```js {\n'],
+  ['a fence mark indented four spaces in a block quote', '> abc\n>     ```\n'],
+  ['a fence mark indented four spaces in a list item', '- a\n      ```\n'],
+  ['a fence mark indented four spaces inside a setext heading', 'abc\n    ```\n===\n'],
+  ['a code span across a line that is a fence mark indented four spaces', 'a `x\n    ```\n    y` b\n'],
+  ['inline math across a line that is a fence mark indented four spaces', '$a\n    ```\n    b$ c\n'],
+  ['a link title across a line that is a fence mark indented four spaces', '[a](u "t\n    ```\n    t") b\n'],
 ];
 
 /**

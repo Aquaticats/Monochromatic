@@ -844,6 +844,91 @@ await describe({
         },),
 
         it({
+          name: 'WRITES BOTH RUNS AS LITERAL TEXT AT THE FIRST STEP WHEN EACH HOLDS A FENCE MARK INDENTED FOUR SPACES, '
+            + 'which MDX reads as a fence and the plain reading does not: each run parses alone, the one opens a '
+            + 'fence the other closes over the English and a brace, and the second step is not needed',
+          fn: async () => {
+            /**
+             Two runs that parse alone, with a paragraph the archive covers between them.
+             */
+            const rows: readonly SourceShippedRow[] = [
+              OPENING_ROW,
+              {
+                incumbentText: '',
+                sourceText: '    ```\n',
+              },
+              MIDDLE_ROW,
+              {
+                incumbentText: '',
+                sourceText: '    ```\n    {\n    ```\n',
+              },
+            ];
+            const { page, checks, warnings, } = await publishRows({ rows, },);
+            expect(checks,).toEqual([],);
+            expect(page,).toContain(`${NOTE}\n\n${String.raw`    \`\`\``}\n`,);
+            expect(page,).toContain('She slept on the counter.',);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.length,).toBe(1,);
+            expect(lines[0],).toContain('step 1 of 3',);
+            expect(lines[0],).toContain('slices [1, 3]',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE LATER RUN AS LITERAL TEXT AT THE FIRST STEP WHEN TWO RUNS IMPORT ONE NAME, so the page '
+            + 'does not declare it twice: the first run stays as written, a module, and the second shows its text',
+          fn: async () => {
+            /**
+             Two runs that parse alone and import one name, with a paragraph the archive covers between them.
+             */
+            const rows: readonly SourceShippedRow[] = [
+              OPENING_ROW,
+              {
+                incumbentText: '',
+                sourceText: 'import a from "b"\n',
+              },
+              MIDDLE_ROW,
+              {
+                incumbentText: '',
+                sourceText: 'import a from "b"\n',
+              },
+            ];
+            const { page, checks, warnings, } = await publishRows({ rows, },);
+            expect(checks,).toEqual([],);
+            expect(page,).toContain(`${NOTE}\n\nimport a from "b"\n`,);
+            expect(page,).toContain(`${NOTE}\n\n&#105;mport a from "b"\n`,);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.length,).toBe(1,);
+            expect(lines[0],).toContain('step 1 of 3',);
+            expect(lines[0],).toContain('slices [3]',);
+          },
+        },),
+
+        it({
+          name: 'LEAVES TWO RUNS THAT IMPORT DIFFERENT NAMES AS WRITTEN, the control for the repeated import: the '
+            + 'page parses with both modules and no step is taken',
+          fn: async () => {
+            const { page, checks, warnings, } = await publishRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: 'import a from "b"\n',
+                },
+                MIDDLE_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: 'import c from "b"\n',
+                },
+              ],
+            },);
+            expect(checks,).toEqual([],);
+            expect(page,).toContain(`${NOTE}\n\nimport c from "b"\n`,);
+            expect(compositionLines({ warnings, },),).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'STILL REPORTS A PAGE THAT NEVER CARRIED ORIGINALS THE GRAMMAR ACCEPTS, the control for the pages '
             + 'shipped without a run: the archive alone, as a page shipped before the originals were carried is, '
             + 'disagrees with an artifact whose runs parse, so a pass publishes it again with them',
