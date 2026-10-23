@@ -1,6 +1,8 @@
 import {
   isJsonArray,
   isJsonRecord,
+  maskHtmlComments,
+  maskInvisibleLines,
   parseMdxBody,
   requireMdxRefusal,
   withMdxExhaustionRefused,
@@ -10,7 +12,9 @@ import {
 // THE NAMES A TEXT DECLARES AS AN ES MODULE. A page is one MDX module, and acorn refuses it when two of its `import`
 // or `export` lines declare one name. Two runs of the original that each declare a name parse alone, and the page
 // holding both does not. The names are read from the `estree` the strict parse gives each module block, since a line
-// that merely starts with the word is no module and declares nothing.
+// that merely starts with the word is no module and declares nothing. The text is read as the package reads a page:
+// lines of format characters and HTML comments blanked first, since MDX has no syntax for a comment and a page holding
+// one is not refused for it.
 
 /**
  A member of an object read from the tree.
@@ -175,11 +179,19 @@ function namesOfStatement({ statement, }: { readonly statement: unknown; },): re
 export function declaredNamesOf({ text, }: { readonly text: string; },): readonly string[] {
   try {
     /**
+     The text with its lines of format characters blanked.
+     */
+    const { masked: unwelded, } = maskInvisibleLines({ text, },);
+    /**
+     The text with its comments blanked as well.
+     */
+    const { masked, } = maskHtmlComments({ text: unwelded, },);
+    /**
      Tree of the strict grammar.
      */
     const root = withMdxExhaustionRefused({
       parse: parseMdxBody,
-      input: { body: text, },
+      input: { body: masked, },
     },);
     /**
      Blocks directly under the root.
