@@ -138,6 +138,7 @@ export {
   withMarkdownExhaustionRefused,
   withMdxExhaustionRefused,
 } from './parse-mdx.ts';
+export { parseMarkdownMathBody, } from './parse-markdown-math.ts';
 export { parseSliceBody, } from './parse-slice-body.ts';
 export {
   type AtomKind,

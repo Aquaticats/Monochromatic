@@ -20,12 +20,14 @@ The groups that follow name the main ones.
   Names:
   `parseMdxBody`,
   `parseMarkdownBody`,
+  `parseMarkdownMathBody`,
   `MdxParseError`,
   `MarkdownParseError`,
   `splitFrontMatter`,
   `FrontMatterParseError`,
   `parseSliceBody`.
   Declared in `parse-mdx.ts`,
+  `parse-markdown-math.ts`,
   `front-matter.ts`,
   and `parse-slice-body.ts`.
 - Document nodes and masks:

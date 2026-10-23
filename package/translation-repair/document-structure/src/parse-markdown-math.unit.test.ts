@@ -42,7 +42,7 @@ function nodesOf({ node, }: { readonly node: Nodes; },): readonly Nodes[] {
   return [
     node,
     ...('children' in node)
-      ? node.children.flatMap(function below(child,): readonly Nodes[] {
+      ? node.children.flatMap(function underNode(child,): readonly Nodes[] {
         return nodesOf({ node: child, },);
       },)
       : [],
