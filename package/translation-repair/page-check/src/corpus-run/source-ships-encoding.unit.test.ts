@@ -92,6 +92,23 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a comment that never closes', '<!-- 注释\n她说\n'],
   ['a comment that never closes and a second opener inside it', '猫 <!-- 一 <!-- 二\n'],
   ['inline math and two openers of a comment that never closes', '$a < b$ <!-- <!--\n'],
+  ['an opener of a comment that never closes right before a definition line', '<!--\n[r]: u{b "t {"\n'],
+  [
+    'an opener of a comment that never closes after a paragraph, right before a definition line',
+    'x\n\n<!--\n[r]: u{b "t {"\n',
+  ],
+  [
+    'an opener of a comment that never closes in a list item, right before a definition line',
+    '- <!--\n  [r]: u{b "t {"\n',
+  ],
+  [
+    'an opener of a comment that never closes in a block quote, right before a definition line',
+    '> <!--\n> [r]: u{b "t {"\n',
+  ],
+  [
+    'an opener of a comment that never closes right before two definition lines',
+    '<!--\n[r]: u{b\n[s]: v{c "t"\n',
+  ],
   ['a footnote definition that is only a brace', '她[^1]说\n\n[^1]: {\n'],
   ['a footnote definition that is only a tag', '她[^1]说\n\n[^1]: <b>\n'],
   ['a footnote definition that is only an address in angle brackets', '她[^1]说\n\n[^1]: <https://example.net/x>\n'],
@@ -210,8 +227,14 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
     'a raw HTML block holding a link whose text is an address with a brace, after a bracket nothing closes',
     '[ https://example.net/a{b\n<div>\n[https://example.net/a{ b](u)\n</div>\n',
   ],
-  ['a raw HTML block holding a bare address with a brace, after a bracket nothing closes', '[ x\n<div>\nhttps://example.net/a{b\n</div>\n'],
-  ['a raw HTML block holding a bare address with a brace, after a blank line', '[ x\n\n<div>\nhttps://example.net/a{b\n</div>\n'],
+  [
+    'a raw HTML block holding a bare address with a brace, after a bracket nothing closes',
+    '[ x\n<div>\nhttps://example.net/a{b\n</div>\n',
+  ],
+  [
+    'a raw HTML block holding a bare address with a brace, after a blank line',
+    '[ x\n\n<div>\nhttps://example.net/a{b\n</div>\n',
+  ],
   ['a raw HTML block holding an import line after a blank line', '<script>\n\nimport data from the old system\n===\n'],
   ['a raw HTML block holding an export line after a blank line', '<script>\n\nexport to PDF\n'],
   ['a raw HTML block holding an import line after a line of format characters', '<details>\n\uFEFF\nimport q\n===\n'],
@@ -394,6 +417,16 @@ await describe({
           fn: async () => {
             expect(encoded({ text: '<!-- 注释\n她说 {a}\n', },),).toBe('&lt;!-- 注释\n她说 \\{a\\}\n',);
             expect(encoded({ text: String.raw`\<!-- 注释`, },),).toBe('&lt;!-- 注释',);
+          },
+        },),
+
+        it({
+          name: 'READS THE LINE AFTER AN OPENER OF A COMMENT THAT NEVER CLOSES AS A LINE OF ITS PARAGRAPH, since the '
+            + 'opener is written as text and a definition cannot interrupt a paragraph, so a brace in that line is '
+            + 'escaped as any other',
+          fn: async () => {
+            expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n[r]: u\\{b "t \\{"\n',);
+            expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  [r]: u\\{b\n',);
           },
         },),
 
@@ -702,8 +735,9 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'LEAVES THE ENGLISH AFTER A RUN HOLDING TWO OPENERS OF A COMMENT THAT NEVER CLOSES TO THE PACKAGE\'S OWN '
-            + 'PARSER: no unterminated comment is found in the page and the paragraph after the run is a node of it',
+          name: 'LEAVES THE ENGLISH AFTER A RUN HOLDING TWO OPENERS OF A COMMENT THAT NEVER CLOSES TO THE PACKAGE\'S '
+            + 'OWN PARSER: no unterminated comment is found in the page and the paragraph after the run is a node of '
+            + 'it',
           fn: async () => {
             for (const text of ['猫 <!-- 一 <!-- 二\n', '$a < b$ <!-- <!--\n', '[^1]: 注 <!-- <!--\n',]) {
               /**
