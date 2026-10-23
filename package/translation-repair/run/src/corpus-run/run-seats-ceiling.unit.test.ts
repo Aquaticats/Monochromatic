@@ -1,16 +1,13 @@
 /**
  Tests that the seat reader states, for each bench that stands short of its quorum, what the holds running on the
- providers could bring back and whether that lifts the bench to its quorum, in the line that announces a wait and in the
- line that says none is taken.
+ providers could bring back and whether that lifts the bench to its floor and to its quorum, in the line that announces
+ a wait and in the line that says none is taken, and that it waits only for a hold whose return crosses one of the two.
 
  THE SHAPE, from the corpus pass `XingZ6020` (2026-10-22 and 2026-10-23): NeuralWatt, DeepSeek and Xiaomi wet, Bedrock,
  Hyper and OpenRouter dry, and Synthetic refused and held out for five minutes. The judge benches read 1 of 7 with
- Synthetic held and 3 of 7 with every provider wet, against a quorum of 4: no return lifts them, and the pass waited for
- the hold 228 times all the same (112 of them in the translate lane, 52 in the lane contest, 59 in the consolidation).
- The wait itself is not taken in the phases that lean on judge benches alone, since the hold cures none of them (the
- cure rule of ledger B827 builds on commit `a019032c6d`); what the log said was that a hold would not help and nothing of
- the ceiling the benches stood at. The translate lane also leans on the translators, which Synthetic's return does lift
- from 2 of 8 to their quorum, so that wait is the right one and is announced with the benches it can and cannot lift.
+ Synthetic held and 3 of 7 with every provider wet, against a quorum of 4 and a floor of 2 voices. The return lifts the
+ wide bench over the floor, where the lane contest and the consolidation buy calls, though not to the quorum, so the
+ reader waits for it; a hold whose return lifts a bench to neither is not waited for.
 
  Fixtures are cat-themed invention; every view and hold is scripted and no HTTP is made.
 
@@ -23,7 +20,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import type { BudgetView, } from '@monochromatic-dev/translation-repair-provider';
+import type {
+  BudgetView,
+  MeterState,
+} from '@monochromatic-dev/translation-repair-provider';
 import {
   type ProviderName,
   providerRecord,
@@ -31,9 +31,6 @@ import {
 import {
   levelCapturingLogger,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
-import {
-  metersAllWet,
-} from '@monochromatic-dev/translation-repair-provider/ts/meter-states.test-fixture.ts';
 import {
   type JudgeSeatPhase,
   readJudgeSeats,
@@ -53,6 +50,46 @@ const SYNTHETIC_HELD: BudgetView = {
   xiaomi: false,
   hyper: true,
   openrouter: true,
+};
+
+/**
+ The view where the lane contest's wide bench stands at 3 of 7 (Bedrock's two seats and DeepSeek's) with Synthetic dry,
+ and Xiaomi, which serves no seat of any judge bench, dry as well.
+ */
+const BEDROCK_AND_DEEPSEEK: BudgetView = {
+  neuralwatt: true,
+  synthetic: true,
+  bedrock: false,
+  deepseek: false,
+  xiaomi: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ Bedrock alone wet: the translate lane's translators read 2 of 8 and NeuralWatt's two seats would lift them to 4.
+ */
+const BEDROCK_ALONE: BudgetView = {
+  neuralwatt: true,
+  synthetic: true,
+  bedrock: false,
+  deepseek: true,
+  xiaomi: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ What each meter says when none is asked about.
+ */
+const METERS_WET: Readonly<Record<keyof BudgetView, MeterState>> = {
+  neuralwatt: 'wet',
+  synthetic: 'wet',
+  bedrock: 'wet',
+  deepseek: 'wet',
+  xiaomi: 'wet',
+  hyper: 'wet',
+  openrouter: 'wet',
 };
 
 /**
@@ -82,6 +119,8 @@ type Reading = {
 
  @param held - provider the hold is on, none when no hold runs
 
+ @param meters - what the meters say, every one wet when absent
+
  @returns What the reading logged and the dryness reads it took (1 without a wait, 2 with one)
 
  @example
@@ -94,10 +133,12 @@ async function readingOf(
     phase,
     view,
     held,
+    meters = METERS_WET,
   }: {
     readonly phase: JudgeSeatPhase;
     readonly view: BudgetView;
     readonly held?: ProviderName;
+    readonly meters?: Readonly<Record<keyof BudgetView, MeterState>>;
   },
 ): Promise<Reading> {
   /**
@@ -114,7 +155,7 @@ async function readingOf(
         counted.reads += 1;
         return view;
       },
-      providerMeterStates: metersAllWet,
+      providerMeterStates: () => Promise.resolve(meters,),
       providerHolds: () => {
         counted.asks += 1;
         return ((counted.asks === 1) && (held !== undefined))
@@ -157,32 +198,68 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'TAKES NO WAIT IN THE LANE CONTEST AND THE CONSOLIDATION WITH SYNTHETIC HELD, the XingZ6020 shape: the hold '
-        + 'cures no judge bench, so the phase runs on what is reachable at once',
+      name: 'WAITS IN THE LANE CONTEST AND THE CONSOLIDATION WITH SYNTHETIC HELD, the XingZ6020 shape: the return lifts '
+        + 'the wide bench from 1 to 3, over the floor of 2 though under the quorum of 4, so the reader waits for it '
+        + '(the case that stood here read no wait, against the quorum alone)',
       fn: async () => {
-        expect((await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(1,);
-        expect((await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(1,);
+        expect((await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
+        expect((await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
       },
     },),
 
     it({
       name: 'WAITS IN THE TRANSLATE LANE WITH SYNTHETIC HELD, the XingZ6020 shape: the hold ends in a return that lifts '
-        + 'the translators to their quorum, so that wait is the right one',
+        + 'the translators to their quorum',
       fn: async () => {
         expect((await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
       },
     },),
 
     it({
-      name: 'STATES THE CEILING OF EACH SHORT BENCH IN THE LINE THAT TAKES NO WAIT: wide reads 1 of 7 against a quorum of '
-        + '4, and with Synthetic back it would read 3 of 7, which no return lifts',
+      name: 'STATES BOTH READINGS OF A BENCH THE RETURN LIFTS OVER ITS FLOOR BUT NOT TO ITS QUORUM, the case the '
+        + 'quorum-only rule misjudged: wide reads 1 of 7, Synthetic back it reads 3, floor 2, quorum 4',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
         },);
         expect(warning,).toContain('wide 1 of 7 reachable, quorum 4',);
-        expect(warning,).toContain('wide ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it',);
-        expect(warning,).toContain('so the phase runs on what is reachable',);
+        expect(warning,).toContain(
+          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, '
+            + 'so the return lifts it to the floor but not to the quorum',
+        );
+        expect(warning,).toContain('waiting 40ms for the shortest hold to end',);
+      },
+    },),
+
+    it({
+      name: 'TAKES NO WAIT FOR A HOLD WHOSE RETURN CROSSES NEITHER THRESHOLD: the wide bench reads 3 of 7, over its '
+        + 'floor, and Xiaomi, which serves no seat of it, cannot lift it to the quorum',
+      fn: async () => {
+        const { lines, reads, } = await readingOf({
+          phase: 'lane contest',
+          view: BEDROCK_AND_DEEPSEEK,
+          held: 'xiaomi',
+        },);
+        expect(reads,).toBe(1,);
+        expect(shortBenchWarningOf({ lines, },),).toContain(
+          'wide ceiling 3 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it to the quorum',
+        );
+      },
+    },),
+
+    it({
+      name: 'WAITS FOR A HOLD THAT LIFTS A BENCH FROM OVER ITS FLOOR TO ITS QUORUM: the wide bench reads 3 of 7 and '
+        + 'Synthetic back it reads 5',
+      fn: async () => {
+        const { lines, reads, } = await readingOf({
+          phase: 'lane contest',
+          view: BEDROCK_AND_DEEPSEEK,
+          held: 'synthetic',
+        },);
+        expect(reads,).toBe(2,);
+        expect(shortBenchWarningOf({ lines, },),).toContain(
+          'wide ceiling 5 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the quorum',
+        );
       },
     },),
 
@@ -198,41 +275,100 @@ await describe({
     },),
 
     it({
-      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and neither can be '
-        + 'lifted by the hold (the slate to 2 of 7, since Qwen sits on the wide bench only, ledger B815)',
+      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and the return lifts '
+        + 'each over the floor, the slate to 2 of 7 (Qwen sits on the wide bench only, ledger B815) and the wide bench '
+        + 'to 3 of 7',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
         },);
-        expect(warning,).toContain('slate ceiling 2 of 7 with synthetic back, quorum 4, so no return lifts it',);
-        expect(warning,).toContain('wide ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it',);
+        expect(warning,).toContain(
+          'slate ceiling 2 of 7 with synthetic back, floor 2 and quorum 4, '
+            + 'so the return lifts it to the floor but not to the quorum',
+        );
+        expect(warning,).toContain(
+          'wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, '
+            + 'so the return lifts it to the floor but not to the quorum',
+        );
       },
     },),
 
     it({
       name: 'STATES WHICH BENCH THE WAIT CAN LIFT AND WHICH IT CANNOT in the line that announces it: the translate '
-        + 'lane waits for the translators, whose return lifts them, and says the select bench stays at 3 of 7',
+        + 'lane waits for the translators, whose return lifts them to their quorum, and says the select bench stays '
+        + 'under its quorum at 3 of 7 after lifting over the floor',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
         },);
         expect(warning,).toContain('waiting 40ms for the shortest hold to end',);
         expect(warning,).toContain('translators ceiling',);
-        expect(warning,).toContain('so the return lifts it',);
-        expect(warning,).toContain('select ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it',);
+        expect(warning,).toContain('so the return lifts it to the quorum',);
+        expect(warning,).toContain('select ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return',);
       },
     },),
 
     it({
-      name: 'STATES NO CEILING WHEN NO HOLD RUNS: the ceiling of a short bench is then what it reads, which its clause '
-        + 'already says, so the line keeps its words about no named return',
+      name: 'STATES NO CEILING WHEN NO HOLD RUNS, but says a bench under its floor is under it: the ceiling of a short '
+        + 'bench is then what it reads, which its clause already says, and the clause did not say that a stage under '
+        + 'the floor buys no call',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, },)).lines,
         },);
         expect(warning,).toContain('wide 1 of 7 reachable, quorum 4',);
+        expect(warning,).toContain('wide reads under its floor of 2 and no hold runs that could lift it',);
         expect(warning,).toContain('no provider has named a return the pass can wait for',);
         expect(warning,).not.toContain('ceiling',);
+      },
+    },),
+
+    it({
+      name: 'SAYS NOTHING OF THE FLOOR OF A BENCH OVER IT WHEN NO HOLD RUNS: the wide bench reads 3 of 7 and only its '
+        + 'clause is said',
+      fn: async () => {
+        const warning = shortBenchWarningOf({
+          lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, },)).lines,
+        },);
+        expect(warning,).toContain('wide 3 of 7 reachable, quorum 4',);
+        expect(warning,).not.toContain('floor',);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT COUNT A PROVIDER DRY BY ITS METER AS COMING BACK: NeuralWatt is held and its meter reads dry, the '
+        + 'translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if its hold ended in a '
+        + 'return, which a dry meter keeps dry, so no wait is taken and the line brings back no seat',
+      fn: async () => {
+        const { lines, reads, } = await readingOf({
+          phase: 'translate lane',
+          view: BEDROCK_ALONE,
+          held: 'neuralwatt',
+          meters: { ...METERS_WET, neuralwatt: 'dry', },
+        },);
+        expect(reads,).toBe(1,);
+        const warning = shortBenchWarningOf({ lines, },);
+        expect(warning,).toContain('translators ceiling 2 of 8',);
+        expect(warning,).toContain('no return lifts it to the quorum',);
+        expect(warning,).toContain('neuralwatt reads dry by its meter',);
+        expect(warning,).not.toContain('hf:zai-org/GLM-5.3-Flash',);
+      },
+    },),
+
+    it({
+      name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK: the same view and hold wait, '
+        + 'and the line names the seats of the return',
+      fn: async () => {
+        const wet = await readingOf({ phase: 'translate lane', view: BEDROCK_ALONE, held: 'neuralwatt', },);
+        expect(wet.reads,).toBe(2,);
+        expect(shortBenchWarningOf({ lines: wet.lines, },),).toContain('hf:zai-org/GLM-5.3-Flash',);
+        const unreadable = await readingOf({
+          phase: 'translate lane',
+          view: BEDROCK_ALONE,
+          held: 'neuralwatt',
+          meters: { ...METERS_WET, neuralwatt: 'unreadable', },
+        },);
+        expect(unreadable.reads,).toBe(2,);
       },
     },),
   ],
