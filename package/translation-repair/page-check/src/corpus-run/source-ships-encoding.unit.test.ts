@@ -90,6 +90,8 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['an ES module word later in a paragraph', '她说\nimport data from the old system {\n'],
   ['a comment that closes beside a brace', '<!-- 注释 {a} -->\n\n她说 {b}\n'],
   ['a comment that never closes', '<!-- 注释\n她说\n'],
+  ['a comment that never closes and a second opener inside it', '猫 <!-- 一 <!-- 二\n'],
+  ['inline math and two openers of a comment that never closes', '$a < b$ <!-- <!--\n'],
   ['a footnote definition that is only a brace', '她[^1]说\n\n[^1]: {\n'],
   ['a footnote definition that is only a tag', '她[^1]说\n\n[^1]: <b>\n'],
   ['a footnote definition that is only an address in angle brackets', '她[^1]说\n\n[^1]: <https://example.net/x>\n'],
@@ -396,6 +398,22 @@ await describe({
         },),
 
         it({
+          name: 'WRITES EVERY OPENER INSIDE A COMMENT THAT NEVER CLOSES AS A CHARACTER REFERENCE TOO, since the '
+            + 'package\'s mask opens a comment of its own at each one that stays, and the text after the run would '
+            + 'be hidden from it',
+          fn: async () => {
+            expect(encoded({ text: '猫 <!-- 一 <!-- 二\n', },),).toBe('猫 &lt;!-- 一 &lt;!-- 二\n',);
+            expect(encoded({ text: '<!-- 一\n<!-- 二\n<!-- 三 {a}\n', },),)
+              .toBe('&lt;!-- 一\n&lt;!-- 二\n&lt;!-- 三 \\{a\\}\n',);
+            // A backslash before a later opener goes with it, as it does before the first.
+            expect(encoded({ text: String.raw`猫 <!-- 一 \<!-- 二`, },),).toBe('猫 &lt;!-- 一 &lt;!-- 二',);
+            // A comment that closes keeps its opener, and the opener of one that does not is written whole.
+            expect(encoded({ text: '<!-- 一 --> 猫 <!-- 二 <!-- 三\n', },),)
+              .toBe('<!-- 一 --> 猫 &lt;!-- 二 &lt;!-- 三\n',);
+          },
+        },),
+
+        it({
           name: 'WRITES THE FIRST LETTER OF AN ES MODULE LINE AS A CHARACTER REFERENCE, a line starting `import ` or '
             + '`export ` at the start of a paragraph, and no other line',
           fn: async () => {
@@ -680,6 +698,25 @@ https://example.net/b{c`,);
               return kind;
             },),).toEqual([],);
             expect(nodes.at(-1,)?.text,).toBe('She slept on the counter.',);
+          },
+        },),
+
+        it({
+          name: 'LEAVES THE ENGLISH AFTER A RUN HOLDING TWO OPENERS OF A COMMENT THAT NEVER CLOSES TO THE PACKAGE\'S OWN '
+            + 'PARSER: no unterminated comment is found in the page and the paragraph after the run is a node of it',
+          fn: async () => {
+            for (const text of ['猫 <!-- 一 <!-- 二\n', '$a < b$ <!-- <!--\n', '[^1]: 注 <!-- <!--\n',]) {
+              /**
+               The package's reading of a page whose run holds two openers and whose English follows.
+               */
+              const { parseFindings, nodes, } = parseDocument({
+                text: `${BEFORE}${encoded({ text, },)}\nShe slept on the counter.\n`,
+              },);
+              expect(parseFindings.map(function kindOf({ kind, },): string {
+                return kind;
+              },),).toEqual([],);
+              expect(nodes.at(-1,)?.text,).toBe('She slept on the counter.',);
+            }
           },
         },),
 
