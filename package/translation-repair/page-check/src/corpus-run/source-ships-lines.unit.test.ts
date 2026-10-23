@@ -122,6 +122,37 @@ function joinsOfFirst(
 }
 
 /**
+ What the lines of the first code span of a text are joined by.
+
+ @param source - text
+
+ @returns Edits
+
+ @throws {@link Error} when the text holds no code span
+
+ @example
+ ```ts
+ const edits = joinsOfFirstSpan({ source: 'a\n    ```\n`x\n    ```\n', },);
+ ```
+ */
+function joinsOfFirstSpan({ source, }: { readonly source: string; },): ReturnType<typeof lineJoinsOf> {
+  /**
+   Nodes still to read, the first of them on top.
+   */
+  const pending: TreeNode[] = [parseMarkdownMathBody({ body: source, },),];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if (node.type === 'inlineCode')
+      return joinsOfNode({
+        source,
+        node,
+      },);
+    if ('children' in node)
+      pending.push(...node.children.toReversed(),);
+  }
+  throw new Error('the text holds no code span',);
+}
+
+/**
  The content stretches of the first raw HTML or code node of a text.
 
  @param source - text
@@ -352,6 +383,46 @@ await describe({
                 replacement: ' ',
               },
             ],);
+          },
+        },),
+
+        it({
+          name: 'JOINS THE LINE ENDING BEFORE A CODE SPAN THAT STARTS WITH AN INDENTED FENCE MARK, in a block quote '
+            + 'too, since the mark opens the span for the plain reading and a fence for the strict grammar',
+          fn: async () => {
+            expect(joinsOfFirstSpan({ source: 'a\n    ```\n`x {\n    ```\n    y`\n', },),).toEqual([
+              {
+                start: 1,
+                end: 6,
+                replacement: ' ',
+              },
+              {
+                start: 14,
+                end: 19,
+                replacement: ' ',
+              },
+            ],);
+            expect(joinsOfFirstSpan({ source: '> a\n>     ```\n`x {\n    ```\n    y`\n', },),).toEqual([
+              {
+                start: 3,
+                end: 10,
+                replacement: ' ',
+              },
+              {
+                start: 18,
+                end: 23,
+                replacement: ' ',
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'JOINS NO LINE ENDING BEFORE A CODE SPAN THAT STARTS A LINE WITHOUT A FENCE MARK INDENTED FOUR SPACES',
+          fn: async () => {
+            expect(joinsOfFirstSpan({ source: 'a\n   ```x```\n', },),).toEqual([],);
+            expect(joinsOfFirstSpan({ source: 'a\n`x`\n', },),).toEqual([],);
+            expect(joinsOfFirstSpan({ source: 'a ```x```\n', },),).toEqual([],);
           },
         },),
 

@@ -342,6 +342,31 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
     'x\n[^1]: 注\n*\nexport to PDF\n===\n',
   ],
   [
+    'a line of invisible characters, then a bullet alone and a setext heading starting import',
+    '\uFEFF\n*\nimport x from y\nabc\n===\n',
+  ],
+  ['a line of invisible characters, then a bullet alone and an export line', 'x\n\uFEFF\n*\nexport to PDF\n'],
+  [
+    'a block quote with an indented fence mark that opens a code span across lines, and a brace',
+    '> a\n>     ```\n`x {\n    ```\n    y`\n',
+  ],
+  [
+    'an indented fence mark that opens a code span across lines, below a paragraph line',
+    'a\n    ```\n`x {\n    ```\n    y`\n',
+  ],
+  [
+    'a block quote with an indented fence mark that opens a code span, and a link with a brace',
+    '> a\n>     ```\n[https://example.net/a{ b](u)\n`x\n    ```\n    y`\n',
+  ],
+  [
+    'a block quote with an indented fence mark that opens a code span, and an import line inside it',
+    '> a\n>     ```\nimport data from the old system\n\uFEFF```\n{\n```\n',
+  ],
+  [
+    'a block quote with an indented fence mark that opens a code span closed by a mark after a byte order mark',
+    '> a\n>     ```\nbcd\n\uFEFF```\n{\n```\n',
+  ],
+  [
     'a footnote definition with a brace inside a paragraph, then a marker and an export line',
     'x\n[^1]: 注 {\n*\nexport to PDF\n',
   ],

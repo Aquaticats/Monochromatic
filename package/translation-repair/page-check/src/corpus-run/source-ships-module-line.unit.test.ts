@@ -164,6 +164,16 @@ await describe({
         },),
 
         it({
+          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LIST MARKER ALONE AFTER A LINE OF INVISIBLE '
+            + 'CHARACTERS, since that line ends the paragraph for the strict grammar and the marker then starts a list',
+          fn: async () => {
+            expect(laterLinesOf({ source: 'y\n\nx\n\uFEFF\n*\nexport to PDF\n', },),).toEqual([9,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n\u200B\n2.\nimport a\n', },),).toEqual([10,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n\uFEFF\n*\n*\nexport to PDF\n', },),).toEqual([11,],);
+          },
+        },),
+
+        it({
           name: 'FINDS NOTHING AFTER A LIST MARKER THAT STANDS BEFORE THE LINE STARTING A FOOTNOTE DEFINITION, or '
             + 'after a line that only looks like the start of one',
           fn: async () => {
