@@ -17,6 +17,15 @@ import {
 // no paragraph; every separator and format character is taken for invisible here, so a line the grammar keeps in the
 // paragraph is written as a character reference too, which shows the same.
 //
+// A LIST MARKER ALONE ON A LINE, RIGHT AFTER A FOOTNOTE DEFINITION, ENDS THE PARAGRAPH TOO. The strict grammar
+// keeps a footnote definition open for the line after it and tries a new container there as if no paragraph were open
+// (`micromark@4.0.3`, `lib/initialize/document.js`, `checkNewContainers`: the interrupt flag is set only when every
+// open container continued; `micromark-core-commonmark@2.0.4`, `lib/list.js`, `start` and `atMarker`: with the flag
+// unset, a marker with nothing after it starts a list, and so does an ordered marker that is not 1). A line of `*`,
+// `-`, `+` or a number and a dot or a parenthesis alone is then an empty list item, and the line after it starts a
+// block, an ES module among them; the plain reading, which has no footnote definition to keep open, keeps the marker as
+// a line of the paragraph.
+//
 // THE LINE NEED NOT BE IN A PARAGRAPH AT THE TOP. A line at the first column ends every container it stands in, so one
 // that follows such a line in a list item or a block quote (a lazy line of its paragraph) starts a module as well, and
 // so does one in a raw HTML block, which the plain reading keeps whole across blank lines and the strict grammar, which
@@ -29,6 +38,31 @@ bounded and cannot backtrack; the Unicode categories have no string API */
  */
 const INVISIBLE_LINE = /^[\p{Z}\p{Cf}\t]*$/u;
 /* oxlint-enable no-restricted-syntax/no-regex */
+
+/**
+ The characters a bullet list marker is.
+ */
+const BULLET_MARKERS = '*+-';
+
+/**
+ The characters that end an ordered list marker.
+ */
+const ORDERED_MARKER_ENDS = '.)';
+
+/**
+ How many digits an ordered list marker has at most.
+ */
+const ORDERED_MARKER_DIGITS = 9;
+
+/**
+ How many columns of indentation may stand before a list marker.
+ */
+const MARKER_INDENT = 3;
+
+/**
+ How many columns a tab takes in the indentation of a line.
+ */
+const TAB_COLUMNS = 4;
 
 /**
  What a flow block starts with when MDX reads it as an ES module: `import` or `export` and one space.
@@ -47,6 +81,76 @@ const LINE_BLOCKS: ReadonlySet<string> = new Set([
   'heading',
   'html',
 ],);
+
+/**
+ Whether a line is a list marker and nothing else: a bullet, or one to nine digits and a dot or a parenthesis, with
+ up to three columns of indentation before it and white space after it.
+
+ @param line - the line, with no line ending
+
+ @returns Whether the strict grammar reads an empty list item there when no paragraph is open
+
+ @example
+ ```ts
+ const marker = isEmptyMarkerLine({ line: ' 2)', },);
+ ```
+ */
+export function isEmptyMarkerLine({ line, }: { readonly line: string; },): boolean {
+  /**
+   Index of the first character after the indentation, and the columns the indentation takes.
+   */
+  const indent = {
+    at: 0,
+    columns: 0,
+  };
+  while ((indent.at < line.length) && ' \t'.includes(line.charAt(indent.at,),)) {
+    indent.columns += (line.charAt(indent.at,) === '\t') ? TAB_COLUMNS : 1;
+    indent.at += 1;
+  }
+  if (indent.columns > MARKER_INDENT)
+    return false;
+  /**
+   Index after the marker, before the spaces and tabs that end the line.
+   */
+  const end = { at: line.length, };
+  while ((end.at > indent.at) && ' \t'.includes(line.charAt(end.at - 1,),))
+    end.at -= 1;
+  /**
+   What stands between the indentation and the white space at the end.
+   */
+  const marker = line.slice(
+    indent.at,
+    end.at,
+  );
+  if (marker.length === 0)
+    return false;
+  if (marker.length === 1)
+    return BULLET_MARKERS.includes(marker,);
+  /**
+   The digits before the end of an ordered marker.
+   */
+  const digits = marker.slice(
+    0,
+    -1,
+  );
+  /**
+   Whether the marker ends with a dot or a parenthesis.
+   */
+  const hasEnd = ORDERED_MARKER_ENDS.includes(marker.slice(-1,),);
+  /**
+   Whether everything before the end is a digit.
+   */
+  const isNumber = Array
+    .from(digits,)
+    .every(function isDigit(character,): boolean {
+      return (character >= '0') && (character <= '9');
+    },);
+  return [
+    hasEnd,
+    isNumber,
+    digits.length <= ORDERED_MARKER_DIGITS,
+  ].every(Boolean,);
+}
 
 /**
  Whether MDX reads the node as an ES module: a paragraph or a setext heading at the first column of the document's own
@@ -114,6 +218,9 @@ export function startsEsModule(
  @param isNested - whether the text is a block read apart from the document, none of whose lines stands at the first
  column of it
 
+ @param afterFootnote - whether the node follows a footnote definition on the next line or opens one, so that a line of
+ a list marker alone also ends its paragraph for the strict grammar
+
  @returns Index of the first letter of each such line, in text order
 
  @example
@@ -127,11 +234,13 @@ export function laterModuleLines(
     node,
     range,
     isNested,
+    afterFootnote = false,
   }: {
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
     readonly isNested: boolean;
+    readonly afterFootnote?: boolean;
   },
 ): readonly number[] {
   if (isNested)
@@ -169,7 +278,7 @@ export function laterModuleLines(
       '\r',
       '',
     );
-    if (INVISIBLE_LINE.test(line,) && startsAny({
+    if ((INVISIBLE_LINE.test(line,) || (afterFootnote && isEmptyMarkerLine({ line, },))) && startsAny({
       text: source,
       at: lineEnd + 1,
       candidates: ES_MODULE_STARTS,
@@ -224,6 +333,8 @@ export function moduleLetterEdit(
 
  @param isNested - whether the text is a block read apart from the document
 
+ @param afterFootnote - whether the node follows a footnote definition on the next line or opens one
+
  @returns The edits, none for a node that starts no module
 
  @example
@@ -238,12 +349,14 @@ export function moduleEdits(
     range,
     isTopLevel,
     isNested,
+    afterFootnote = false,
   }: {
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
     readonly isTopLevel: boolean;
     readonly isNested: boolean;
+    readonly afterFootnote?: boolean;
   },
 ): readonly TextEdit[] {
   /**
@@ -265,6 +378,7 @@ export function moduleEdits(
     node,
     range,
     isNested,
+    afterFootnote,
   },);
   return [
     ...first,

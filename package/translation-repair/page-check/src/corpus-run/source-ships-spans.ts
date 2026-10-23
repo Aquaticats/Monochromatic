@@ -4,7 +4,6 @@ import {
   footnoteBodyStart,
   isIndentedCode,
   isLazyDefinition,
-  opensFootnote,
   withoutIndentation,
 } from './source-ships-footnote.ts';
 import {
@@ -12,18 +11,20 @@ import {
   lineJoinsOf,
 } from './source-ships-lines.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
-import { endsInLiteral, } from './source-ships-literal-end.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import { moduleEdits, } from './source-ships-module-line.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
+  isAfterFootnote,
   type Pending,
+  stateAfter,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
   FENCE_MARKS,
+  imageTextRanges,
   indicesOf,
   rangeOf,
   secondLabel,
@@ -73,11 +74,6 @@ const INLINE_CONTENT: ReadonlySet<string> = new Set([
   'heading',
   'tableCell',
 ],);
-
-/**
- How many characters `![` takes.
- */
-const IMAGE_OPENER_LENGTH = 2;
 
 /**
  Reads where a text holds syntax, from the parse of it.
@@ -195,20 +191,33 @@ export function spansOf(
       footnotes,
       parent,
     },);
-    // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a paragraph to
-    // the strict grammar, and a text, at the top and in a block quote or a list item.
+    // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a
+    // paragraph to the strict grammar, and a text, at the top and in a block quote or a list item.
     if (BLOCK_PARENTS.has(parentType,) && isLazyDefinition({
       node,
       footnoteOpen: footnote.open || footnote.endsInLiteral,
       previousEndLine: footnote.endLine,
     },)) {
       text.push(range,);
-      footnote.endLine = endLineOf({
-        node,
-        fallback: footnote.endLine,
-      },);
+      footnotes.set(
+        parent,
+        {
+          ...footnote,
+          endLine: endLineOf({
+            node,
+            fallback: footnote.endLine,
+          },),
+        },
+      );
       continue;
     }
+    /**
+     Whether the node stands on the line right after a footnote definition.
+     */
+    const followsFootnote = isAfterFootnote({
+      state: footnote,
+      node,
+    },);
     /**
      Whether the node is indented code under a footnote definition, which the strict grammar reads as the blocks of the
      definition.
@@ -220,21 +229,22 @@ export function spansOf(
         node,
         range,
       },);
-    if (BLOCK_PARENTS.has(parentType,)) {
-      footnote.endsInLiteral = endsInLiteral({
-        source,
-        node,
-      },);
-      footnote.open = continuesFootnote || opensFootnote({
+    /**
+     What the block read last in the parent is once this one is read.
+     */
+    const after = BLOCK_PARENTS.has(parentType,)
+      ? stateAfter({
+        before: footnote,
         source,
         node,
         range,
-      },);
-      footnote.endLine = endLineOf({
-        node,
-        fallback: footnote.endLine,
-      },);
-    }
+        continuesFootnote,
+      },)
+      : footnote;
+    footnotes.set(
+      parent,
+      after,
+    );
     edits.push(...lineJoinsOf({
       source,
       node,
@@ -264,21 +274,11 @@ export function spansOf(
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
     if ((node.type === 'image') || (node.type === 'imageReference')) {
-      text.push({
-        start: range.start + IMAGE_OPENER_LENGTH,
-        end: closingBracket({
-          source,
-          from: range.start + IMAGE_OPENER_LENGTH,
-          limit: range.end,
-        },),
-      },);
-      if ((node.type === 'imageReference') && (node.referenceType === 'full')) {
-        text.push(secondLabel({
-          source,
-          range,
-          textFrom: range.start + IMAGE_OPENER_LENGTH,
-        },),);
-      }
+      text.push(...imageTextRanges({
+        source,
+        node,
+        range,
+      },),);
       continue;
     }
     // BLOCKS INDENTED UNDER A FOOTNOTE DEFINITION are read by their own structure, since GFM reads them as the blocks
@@ -389,6 +389,7 @@ export function spansOf(
       range,
       isTopLevel: isRootChild && (!isNested),
       isNested,
+      afterFootnote: followsFootnote || after.open,
     },),);
     if ('children' in node) {
       /**

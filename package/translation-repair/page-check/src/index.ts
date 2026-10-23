@@ -186,7 +186,11 @@ export {
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
-export { footnoteStateOf, } from './corpus-run/source-ships-pending.ts';
+export {
+  footnoteStateOf,
+  isAfterFootnote,
+  stateAfter,
+} from './corpus-run/source-ships-pending.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
 export {
   holdsIndentedFenceMark,
@@ -206,6 +210,7 @@ export {
   type SpansReader,
 } from './corpus-run/source-ships-nested.ts';
 export {
+  isEmptyMarkerLine,
   laterModuleLines,
   moduleEdits,
   moduleLetterEdit,
@@ -213,6 +218,7 @@ export {
 } from './corpus-run/source-ships-module-line.ts';
 export {
   closingBracket,
+  imageTextRanges,
   indicesOf,
   originalStretches,
   rangeOf,

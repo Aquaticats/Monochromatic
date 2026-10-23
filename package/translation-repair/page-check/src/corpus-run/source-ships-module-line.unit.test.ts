@@ -14,6 +14,7 @@ import {
 import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
+  isEmptyMarkerLine,
   laterModuleLines,
   moduleEdits,
   moduleLetterEdit,
@@ -246,6 +247,64 @@ await describe({
               isTopLevel: true,
               isNested: false,
             },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: isEmptyMarkerLine.name,
+      children: [
+        it({
+          name: 'READS A BULLET, A DASH, A PLUS AND AN ORDERED MARKER OF ONE TO NINE DIGITS ALONE ON A LINE AS A '
+            + 'MARKER, with up to three columns of indentation before it and white space after it',
+          fn: async () => {
+            for (
+              const line of [
+                '*',
+                '-',
+                '+',
+                ' *',
+                '   -',
+                '*  ',
+                '* \t',
+                '1.',
+                '2)',
+                ' 12)',
+                '123456789.',
+              ]
+            ) {
+              expect(isEmptyMarkerLine({ line, },),).toBe(true,);
+            }
+          },
+        },),
+
+        it({
+          name: 'READS NOTHING ELSE AS ONE: an empty line, a marker with text, a rule, indentation of four columns or a '
+            + 'tab, ten digits, a number with no end, a lone digit, and a marker with a no-break space beside it',
+          fn: async () => {
+            for (
+              const line of [
+                '',
+                '   ',
+                '* a',
+                '**',
+                '***',
+                '--',
+                '    *',
+                '\t*',
+                '1234567890.',
+                '12',
+                '1',
+                'a.',
+                '1.a',
+                '1 .',
+                '\u00A0*',
+                '*\u00A0',
+              ]
+            ) {
+              expect(isEmptyMarkerLine({ line, },),).toBe(false,);
+            }
           },
         },),
       ],

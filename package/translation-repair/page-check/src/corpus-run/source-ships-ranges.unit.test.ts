@@ -16,6 +16,7 @@ import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-do
 
 import {
   closingBracket,
+  imageTextRanges,
   indicesOf,
   originalStretches,
   rangeOf,
@@ -121,6 +122,39 @@ await describe({
               start: 4,
               end: 8,
             },);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: imageTextRanges.name,
+      children: [
+        it({
+          name: 'GIVES THE ALTERNATIVE TEXT OF AN IMAGE, and with it the second label of a full reference, and not the '
+            + 'destination or the title',
+          fn: async () => {
+            /**
+             An image, and an image with a full reference, in two paragraphs.
+             */
+            const source = '![图 {a}](u.png "t")\n\n![x][a {b]\n\n[a {b]: u\n';
+            const [first, second,] = parseMarkdownMathBody({ body: source, },).children;
+            if ((first === undefined) || (second === undefined) || (!('children' in first)) || (!('children' in second)))
+              throw new Error('the text holds no two paragraphs',);
+            const [image,] = first.children;
+            const [reference,] = second.children;
+            if ((image === undefined) || (reference === undefined))
+              throw new Error('the paragraphs hold no image',);
+            expect(imageTextRanges({
+              source,
+              node: image,
+              range: rangeOf({ node: image, },),
+            },),).toEqual([{ start: 2, end: 7, },],);
+            expect(imageTextRanges({
+              source,
+              node: reference,
+              range: rangeOf({ node: reference, },),
+            },),).toEqual([{ start: 23, end: 24, }, { start: 26, end: 30, },],);
           },
         },),
       ],

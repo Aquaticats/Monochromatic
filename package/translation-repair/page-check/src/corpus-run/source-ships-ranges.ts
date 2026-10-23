@@ -278,6 +278,11 @@ export function originalStretches(
 }
 
 /**
+ How many characters `![` takes.
+ */
+const IMAGE_OPENER_LENGTH = 2;
+
+/**
  Where the second label of a full reference stands: the brackets after the text.
 
  @param source - the text
@@ -312,6 +317,58 @@ export function secondLabel(
     },) + 2,
     end: range.end - 1,
   };
+}
+
+/**
+ The stretches of an image or an image reference that a reader sees as text: the alternative text, and the second label
+ of a full reference. The destination and the title are not.
+
+ @param source - the text
+
+ @param node - an `image` or an `imageReference` node of the parse
+
+ @param range - where the node stands
+
+ @returns The stretches, in text order
+
+ @example
+ ```ts
+ const stretches = imageTextRanges({ source: '![图](u.png)', node, range: { start: 0, end: 10, }, },);
+ ```
+ */
+export function imageTextRanges(
+  {
+    source,
+    node,
+    range,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+  },
+): readonly TextRange[] {
+  /**
+   The alternative text, from after the opener to the bracket that closes it.
+   */
+  const alternative = {
+    start: range.start + IMAGE_OPENER_LENGTH,
+    end: closingBracket({
+      source,
+      from: range.start + IMAGE_OPENER_LENGTH,
+      limit: range.end,
+    },),
+  };
+  if ((node.type === 'imageReference') && (node.referenceType === 'full')) {
+    return [
+      alternative,
+      secondLabel({
+        source,
+        range,
+        textFrom: range.start + IMAGE_OPENER_LENGTH,
+      },),
+    ];
+  }
+  return [alternative,];
 }
 
 //endregion Source ships ranges

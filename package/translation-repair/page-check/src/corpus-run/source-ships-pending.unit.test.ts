@@ -13,90 +13,197 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
-import { footnoteStateOf, } from '../../dist/final/node/index.mjs';
+import {
+  footnoteStateOf,
+  isAfterFootnote,
+  rangeOf,
+  stateAfter,
+} from '../../dist/final/node/index.mjs';
 
 /**
- The state of each container met, as the function under test takes it.
+ The state of a container whose last block is part of a footnote definition that ends on the first line.
  */
-type Footnotes = Parameters<typeof footnoteStateOf>[0]['footnotes'];
+const OPEN_ON_LINE_ONE = {
+  open: true,
+  endLine: 1,
+  endsInLiteral: false,
+};
+
+/**
+ The state of a container nothing has been read in.
+ */
+const NOTHING_READ = {
+  open: false,
+  endLine: 0,
+  endsInLiteral: false,
+};
+
+/**
+ The blocks of a text, parsed as the spans reader parses.
+
+ @param source - the text
+
+ @returns The root and its blocks
+
+ @example
+ ```ts
+ const { root, blocks, } = blocksOf({ source: '[^1]: 注\n', },);
+ ```
+ */
+function blocksOf({ source, }: { readonly source: string; },) {
+  /**
+   The root of the parse.
+   */
+  const root = parseMarkdownMathBody({ body: source, },);
+  return {
+    root,
+    blocks: root.children,
+  };
+}
 
 await describe({
-  name: footnoteStateOf.name,
+  name: 'the state the spans reader keeps',
   children: [
-    it({
-      name: 'GIVES A CONTAINER NOTHING READ IN IT THE STATE OF NO FOOTNOTE DEFINITION',
-      fn: async () => {
-        /**
-         A text of a block quote and a paragraph.
-         */
-        const root = parseMarkdownMathBody({ body: '> a\n\nb\n', },);
-        expect(footnoteStateOf({
-          footnotes: new Map(),
-          parent: root,
-        },),).toEqual({
-          open: false,
-          endLine: 0,
-          endsInLiteral: false,
-        },);
-      },
+    describe({
+      name: footnoteStateOf.name,
+      children: [
+        it({
+          name: 'GIVES A CONTAINER NOTHING WAS READ IN THE STATE OF NO FOOTNOTE DEFINITION',
+          fn: async () => {
+            const { root, } = blocksOf({ source: '> a\n\nb\n', },);
+            expect(footnoteStateOf({
+              footnotes: new Map(),
+              parent: root,
+            },),).toEqual(NOTHING_READ,);
+          },
+        },),
+
+        it({
+          name: 'GIVES THE STATE RECORDED FOR A CONTAINER AND KEEPS THE STATE OF TWO CONTAINERS APART, the root and a '
+            + 'block quote in it',
+          fn: async () => {
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source: '> a\n\nb\n', },);
+            const [quote,] = blocks;
+            if (quote === undefined)
+              throw new Error('the text holds no block',);
+            expect(footnoteStateOf({
+              footnotes: new Map([[root, OPEN_ON_LINE_ONE,],],),
+              parent: root,
+            },),).toEqual(OPEN_ON_LINE_ONE,);
+            expect(footnoteStateOf({
+              footnotes: new Map([[root, OPEN_ON_LINE_ONE,],],),
+              parent: quote,
+            },),).toEqual(NOTHING_READ,);
+          },
+        },),
+      ],
     },),
 
-    it({
-      name: 'GIVES THE SAME STATE FOR A CONTAINER EVERY TIME, so what the walk records in it is there the next time',
-      fn: async () => {
-        /**
-         A text of a block quote and a paragraph.
-         */
-        const root = parseMarkdownMathBody({ body: '> a\n\nb\n', },);
-        /**
-         State of each container met.
-         */
-        const footnotes: Footnotes = new Map();
-        /**
-         State the first look made.
-         */
-        const first = footnoteStateOf({
-          footnotes,
-          parent: root,
-        },);
-        first.open = true;
-        expect(footnoteStateOf({
-          footnotes,
-          parent: root,
-        },),).toBe(first,);
-        expect(footnoteStateOf({
-          footnotes,
-          parent: root,
-        },).open,).toBe(true,);
-      },
+    describe({
+      name: stateAfter.name,
+      children: [
+        it({
+          name: 'MAKES A FOOTNOTE DEFINITION THE OPEN BLOCK, with the line it ends on',
+          fn: async () => {
+            const source = '[^1]: 注\n';
+            const [definition,] = blocksOf({ source, },).blocks;
+            if (definition === undefined)
+              throw new Error('the text holds no block',);
+            expect(stateAfter({
+              before: NOTHING_READ,
+              source,
+              node: definition,
+              range: rangeOf({ node: definition, },),
+              continuesFootnote: false,
+            },),).toEqual(OPEN_ON_LINE_ONE,);
+          },
+        },),
+
+        it({
+          name: 'MAKES A BLOCK INDENTED UNDER A FOOTNOTE DEFINITION THE OPEN BLOCK TOO, and a paragraph, a raw HTML '
+            + 'block and indented code what they are',
+          fn: async () => {
+            const source = 'a\n\n<div>\n';
+            const [paragraph, html,] = blocksOf({ source, },).blocks;
+            if ((paragraph === undefined) || (html === undefined))
+              throw new Error('the text holds no second block',);
+            expect(stateAfter({
+              before: NOTHING_READ,
+              source,
+              node: paragraph,
+              range: rangeOf({ node: paragraph, },),
+              continuesFootnote: false,
+            },),).toEqual({
+              open: false,
+              endLine: 1,
+              endsInLiteral: false,
+            },);
+            expect(stateAfter({
+              before: NOTHING_READ,
+              source,
+              node: paragraph,
+              range: rangeOf({ node: paragraph, },),
+              continuesFootnote: true,
+            },).open,).toBe(true,);
+            expect(stateAfter({
+              before: OPEN_ON_LINE_ONE,
+              source,
+              node: html,
+              range: rangeOf({ node: html, },),
+              continuesFootnote: false,
+            },),).toEqual({
+              open: false,
+              endLine: 3,
+              endsInLiteral: true,
+            },);
+          },
+        },),
+      ],
     },),
 
-    it({
-      name: 'KEEPS THE STATE OF TWO CONTAINERS APART, the root and a block quote in it',
-      fn: async () => {
-        /**
-         A text of a block quote and a paragraph.
-         */
-        const root = parseMarkdownMathBody({ body: '> a\n\nb\n', },);
-        /**
-         The block quote.
-         */
-        const [quote,] = root.children;
-        if (quote === undefined)
-          throw new Error('the text holds no block',);
-        /**
-         State of each container met.
-         */
-        const footnotes: Footnotes = new Map();
-        footnoteStateOf({
-          footnotes,
-          parent: root,
-        },).open = true;
-        expect(footnoteStateOf({
-          footnotes,
-          parent: quote,
-        },).open,).toBe(false,);
-      },
+    describe({
+      name: isAfterFootnote.name,
+      children: [
+        it({
+          name: 'ANSWERS YES FOR A BLOCK ON THE LINE RIGHT AFTER A FOOTNOTE DEFINITION, and for one that starts at the '
+            + 'definition\'s line, a setext heading whose first line was taken for the definition',
+          fn: async () => {
+            const [, paragraph,] = blocksOf({ source: '[^1]: 注\n*\nfoo\n', },).blocks;
+            const [, heading,] = blocksOf({ source: '[^1]: 注\n*\nfoo\n===\n', },).blocks;
+            if ((paragraph === undefined) || (heading === undefined))
+              throw new Error('the text holds no second block',);
+            expect(isAfterFootnote({
+              state: OPEN_ON_LINE_ONE,
+              node: paragraph,
+            },),).toBe(true,);
+            expect(isAfterFootnote({
+              state: OPEN_ON_LINE_ONE,
+              node: heading,
+            },),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'ANSWERS NO WHEN THE BLOCK READ LAST IS NO FOOTNOTE DEFINITION, or a line stands between it and the '
+            + 'block',
+          fn: async () => {
+            const [, paragraph,] = blocksOf({ source: '[^1]: 注\n\nfoo\n', },).blocks;
+            if (paragraph === undefined)
+              throw new Error('the text holds no second block',);
+            expect(isAfterFootnote({
+              state: OPEN_ON_LINE_ONE,
+              node: paragraph,
+            },),).toBe(false,);
+            expect(isAfterFootnote({
+              state: NOTHING_READ,
+              node: paragraph,
+            },),).toBe(false,);
+          },
+        },),
+      ],
     },),
   ],
 },);
