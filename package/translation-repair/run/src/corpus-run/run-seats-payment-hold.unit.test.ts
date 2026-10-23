@@ -40,7 +40,7 @@ const STATED_HOLD_MS = 90_000;
 /**
  Budgets over stub meters with NeuralWatt, Bedrock and Hyper wet and every other provider unconfigured, so dry.
 
- @returns The real budgets, reading on whichever clock is global when they are asked, which the cases fake
+ @returns Real budgets, reading on whichever clock is global when they are asked, which the cases fake
 
  @example
  ```ts

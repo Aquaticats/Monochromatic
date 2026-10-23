@@ -22,7 +22,7 @@ import { createPaymentMarks, } from '../dist/final/node/index.mjs';
 
  @param word - level every meter reads
 
- @returns The level of each provider
+ @returns Level of each provider
 
  @example
  ```ts
