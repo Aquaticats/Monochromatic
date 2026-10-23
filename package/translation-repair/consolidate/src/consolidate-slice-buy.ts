@@ -245,8 +245,9 @@ async function buyConsolidationAttempt(
   // A SLATE BENCH BELOW THE FLOOR BUYS NO SLATE FOR AN ELIGIBLE STANDING. Fewer reachable judges than the ballots a
   // winner needs can only name a winner alone, which the selection declines, so the writers and the judges would be
   // paid for a slate that settles on the standing it started from (XingZ6020: 54 slices, 164 calls). An ineligible
-  // standing is still asked, since its slate may be the only wording that ships. The settlement is marked so a later
-  // pass on a healthier bench asks again.
+  // standing is still asked, since its slate may be the only wording that ships. The settlement is marked and never
+  // cached, so a later pass asks the slice again, on whatever bench it then has, only while the entry is unsettled (a
+  // pass selects no entry that carries an artifact or a decline record).
   /**
    Whether the slate bench reads below the floor for a standing that may be kept unasked.
    */

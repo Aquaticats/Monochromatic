@@ -12,28 +12,30 @@ import type { BoughtSlice, } from './translate-slice-buy.ts';
 import type { TranslateSliceSettlement, } from './translate-slice-settle.ts';
 
 //region Floor-limited slices
-// A SLICE THAT ENDED UNFILLED BECAUSE THE BENCH THAT DECIDES IT COULD NOT REACH ITS FLOOR is not asked again by a later
-// attempt of the same pass unless that bench has grown (XingZ6020, 2026-10-22: slices 88 to 105 were tried with one
-// select judge reachable of seven, each ended unfilled for want of a second ballot, and the next attempt asked all
-// eighteen again).
+// A SLICE THAT ENDED UNFILLED BECAUSE THE BENCH THAT DECIDES IT COULD NOT REACH ITS FLOOR is not asked again by a
+// later attempt of the same pass unless that bench has grown (XingZ6020, 2026-10-22: slices 88 to 105 were tried
+// with one select judge reachable of seven, each ended unfilled for want of a second ballot, and the next attempt
+// asked all eighteen again).
 //
-// THE PASS HOLDS THE MEMORY, one per entry, so a later attempt of the same entry finds what an earlier one left. A later
-// pass starts with none and asks again as it always did, since the bench may be healthy by then.
+// THE PASS HOLDS THE MEMORY, one per entry, so a later attempt of the same entry finds what an earlier one left. A
+// later pass starts with none and asks as it always did, since the bench may be healthy by then; it runs this entry
+// again only while the entry has not settled (no artifact or decline record: an unsettled entry, or one the queue
+// reattempts), because a pass selects no entry that carries one.
 //
 // ONLY THE FLOOR-LIMITED CASE IS REMEMBERED. A panel that met its floor and backed nothing twice has said something
-// about the slice, and a later attempt may still ask it as it does now. A reach that has grown asks again, even to a
-// count still under the floor, because one more seat is the only thing a repeat could change.
+// about the slice, and a later attempt may still ask it as it does now. A reach that has grown asks again, even to
+// a count still under the floor, because one more seat is the only thing a repeat could change.
 //
 // A PASSAGE THE ARCHIVE NEVER TRANSLATED IS NOT BOUGHT AT ALL UNDER THE FLOOR. A winner of a selection round needs
-// `MIN_SELECTION_BALLOTS` ballots whatever the weight (`candidate-select.ts`), and a round over one reachable seat casts
-// at most one, so every candidate such a slice buys can only be declined, and the slice ends `no-candidate-backed`
-// (XingZ6020 bought slices 88 to 117 that way). The skip sits where a purchase would start, after every path that can
-// answer the slice without one: a stored record resumes before it, a twin's record is reused before it
-// (`reuseTwinOrBuy` runs the purchase only on a miss), and the pass's memory returns first. No other path backs a
-// candidate under the floor for a passage with no archive wording: the sole-candidate rule ships an incumbent, which the
-// slice lacks; a challenge round's tie-break needs two candidates drawing weight and the preference shipped past a
-// decline needs archive wording that cannot ship; the lane has no payload store. A slice the archive translates ends
-// as a settled slice whatever its bench, so it is bought as before.
+// `MIN_SELECTION_BALLOTS` ballots whatever the weight (`candidate-select.ts`), and a round over one reachable seat
+// casts at most one, so every candidate such a slice buys can only be declined, and the slice ends
+// `no-candidate-backed` (XingZ6020 bought slices 88 to 117 that way). The skip sits where a purchase would start,
+// after every path that can answer the slice without one: a stored record resumes before it, a twin's record is
+// reused before it (`reuseTwinOrBuy` runs the purchase only on a miss), and the pass's memory returns first. No
+// other path backs a candidate under the floor for a passage with no archive wording: the sole-candidate rule ships
+// an incumbent, which the slice lacks; a challenge round's tie-break needs two candidates drawing weight and the
+// preference shipped past a decline needs archive wording that cannot ship; the lane has no payload store. A slice
+// the archive translates ends as a settled slice whatever its bench, so it is bought as before.
 
 /**
  What a pass remembers of one slice that ended unfilled on a bench below its floor.
@@ -370,7 +372,8 @@ export function notAskedAgain(
             many: 'judges',
           },)
         } reachable against a floor of `,
-        `${String(MIN_SELECTION_BALLOTS,)}, and ${String(reachable,)} are reachable now; a later pass asks again`,
+        `${String(MIN_SELECTION_BALLOTS,)}, and ${String(reachable,)} are reachable now; a later pass asks it again `,
+        'only if the entry is still unsettled',
       ].join('',),
     );
     memory.set(

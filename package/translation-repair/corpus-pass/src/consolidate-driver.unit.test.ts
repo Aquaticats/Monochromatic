@@ -2647,7 +2647,7 @@ await describe({
         it({
           name: 'BUYS NOTHING FOR A SLICE whose hook reports fewer reachable slate judges than the ballots a '
             + 'winner needs, keeps the standing as the incumbent-only exit does, and writes nothing to the '
-            + 'cache, so a later pass on a healthier bench asks again (XingZ6020: 54 slices, 164 calls)',
+            + 'cache, so an unsettled entry asks the slice again in a later pass (XingZ6020: 54 slices, 164 calls)',
           fn: async () => {
             /**
              Seat of every call the driver made under a bench below the floor.

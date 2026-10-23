@@ -843,8 +843,8 @@ await describe({
 
     it({
       name: 'REFUSES A SETTLEMENT MARKED BENCH-BELOW-FLOOR, since the stage never persists one: no judge was asked '
-        + 'for it, so a copy found on disk was written by something else and a later pass on a healthier bench '
-        + 'would resume a standing nobody judged',
+        + 'for it, so a copy found on disk was written by something else and a later pass over an unsettled '
+        + 'entry would resume a standing nobody judged',
       fn: async () => {
         expect(await roundTrip({
           settlement: {
