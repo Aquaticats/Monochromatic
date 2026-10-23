@@ -20,7 +20,10 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 import {
   describe,
   expect,
@@ -316,6 +319,8 @@ function missingCheck(
 
  @param asked - sink receiving every exchange the recheck sent
 
+ @param logger - logger the recheck writes to, `l` unless a case reads its warnings
+
  @returns The recheck's verdict exactly as it came back: its ballots and its
  findings in the order the roster seats the checkers, which the stage
  guarantees and the cases assert
@@ -334,6 +339,7 @@ async function recheck(
     checkerModelIds = CHECKERS,
     refused = [],
     asked = [],
+    logger = l,
   }: {
     readonly issues: readonly AdjudicatedIssue[];
     readonly resolvedIssueIds?: readonly string[];
@@ -342,6 +348,7 @@ async function recheck(
     readonly checkerModelIds?: readonly RosterModelId[];
     readonly refused?: readonly RosterModelId[];
     readonly asked?: AskedSheet[];
+    readonly logger?: Logger;
   },
 ): Promise<Awaited<ReturnType<typeof retainsResolvedIssues>>> {
   /**
@@ -365,7 +372,7 @@ async function recheck(
     refinedText: REWRITTEN_TEXT,
     signal: AbortSignal.timeout(HANG_STOP_MS,),
     perCallTimeoutMs: HANG_STOP_MS,
-    l,
+    l: logger,
     stageSettings: SCRIPTED_STAGE_SETTINGS,
   },);
   return verdict;
@@ -656,6 +663,50 @@ await describe({
             },
           },
         },);
+      },
+    },),
+
+    it({
+      name: 'WARNS ONCE when it rolls a slice back on a worse ballot, naming the slice, the refiner, the issue '
+        + 'and every ballot cast on that issue',
+      fn: async () => {
+        /**
+         Warnings the recheck wrote, in order.
+         */
+        const warnings: string[] = [];
+        /**
+         Logger keeping the warnings and forwarding nothing else.
+         */
+        const capturing: Logger = {
+          ...l,
+          warn: function keep(message: string,): void {
+            warnings.push(message,);
+          },
+        };
+        await recheck({
+          issues: [SUNBATHING_ISSUE,],
+          verdicts: new Map<RosterModelId, ResolutionVerdict>([
+            [
+              SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+              'not-fixed',
+            ],
+            [
+              SEAT_SYNTHETIC_VISION_WITHHELD,
+              'worse',
+            ],
+            [
+              SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+              'not-fixed',
+            ],
+          ],),
+          logger: capturing,
+        },);
+        expect(warnings,).toEqual([
+          `slice 0: refine-rolled-back (${SUNBATHING_ISSUE.issueId}); rewrite by `
+          + `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}; ballots on ${SUNBATHING_ISSUE.issueId}: `
+          + `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} not-fixed, ${SEAT_SYNTHETIC_VISION_WITHHELD} worse, `
+          + `${SEAT_SYNTHETIC_TEXT_EVERYWHERE} not-fixed; keeping the text before the rewrite`,
+        ],);
       },
     },),
 
