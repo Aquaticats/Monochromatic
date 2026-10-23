@@ -121,6 +121,7 @@ named for that subject and listed here.
   the holes between the plain parse and the strict grammar that followed it,
   the limits of that follow-up closed and the shapes a second search found (B832 follow-ups),
   the wiring tests of the page on disk (B832 follow-ups),
+  the sixth round after the re-check of round 4 (B832 follow-ups),
   and the corrections it made to A8,
   B827,
   B830
