@@ -47,6 +47,15 @@ await describe({
     },),
 
     it({
+      name: 'READS THE NAMES OF A TEXT THE PACKAGE READS WITH ITS COMMENTS AND ITS LINES OF FORMAT CHARACTERS MASKED, '
+        + 'since MDX has no comment and the package blanks both before it parses a page',
+      fn: async () => {
+        expect(declaredNamesOf({ text: 'import a from "b"\n\n<!-- 注释 -->\n', },),).toEqual(['a',],);
+        expect(declaredNamesOf({ text: 'import a from "b"\n\n\uFEFF\n它\n', },),).toEqual(['a',],);
+      },
+    },),
+
+    it({
       name: 'READS NOTHING FOR A TEXT WITHOUT A MODULE, prose that starts with the word among them, and for a text the '
         + 'strict grammar refuses',
       fn: async () => {

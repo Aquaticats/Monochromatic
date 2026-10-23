@@ -905,6 +905,33 @@ await describe({
         },),
 
         it({
+          name: 'WRITES THE LATER RUN AS LITERAL TEXT AT THE FIRST STEP WHEN IT IMPORTS A NAME AND HOLDS A COMMENT, '
+            + 'which the grammar has no syntax for and the package blanks before it reads the page',
+          fn: async () => {
+            const { page, checks, warnings, } = await publishRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: 'import a from "b"\n',
+                },
+                MIDDLE_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: 'import a from "b"\n\n它\n<!-- 注释 -->\n',
+                },
+              ],
+            },);
+            expect(checks,).toEqual([],);
+            expect(page,).toContain(`${NOTE}\n\n&#105;mport a from "b"\n`,);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.length,).toBe(1,);
+            expect(lines[0],).toContain('step 1 of 3',);
+            expect(lines[0],).toContain('slices [3]',);
+          },
+        },),
+
+        it({
           name: 'LEAVES TWO RUNS THAT IMPORT DIFFERENT NAMES AS WRITTEN, the control for the repeated import: the '
             + 'page parses with both modules and no step is taken',
           fn: async () => {
