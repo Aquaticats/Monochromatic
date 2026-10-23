@@ -334,7 +334,7 @@ export async function checkAllFixedSheet(
 
  @example
  ```ts
- await runCheckerSensitivity({ newClient: createRunClient, stageSettings, },);
+ await runCheckerSensitivity({ newClient: createProbeRunClient, stageSettings, },);
  ```
  */
 export async function runCheckerSensitivity(

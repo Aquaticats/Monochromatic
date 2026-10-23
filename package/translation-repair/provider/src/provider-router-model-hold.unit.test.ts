@@ -133,6 +133,7 @@ function stubProviders(): {
       bedrock: callerFor('bedrock',),
       deepseek: callerFor('deepseek',),
       xiaomi: callerFor('xiaomi',),
+      anthropic: callerFor('anthropic',),
       openrouter: callerFor('openrouter',),
     },
   };

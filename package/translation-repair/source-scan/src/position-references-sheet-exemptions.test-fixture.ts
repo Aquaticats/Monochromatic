@@ -83,6 +83,16 @@ export const SHEET_EXEMPTIONS: readonly PositionExemption[] = [
     reason: SHEET_TEXT,
   },
   {
+    path: 'adjudication/candidate-select-wire.unit.test.ts',
+    holds: 'Every block below opens and closes',
+    reason: 'asserts the sheet text that line renders',
+  },
+  {
+    path: 'artifact/system-prompt-invariance.unit.test.ts',
+    holds: 'Every block below opens and closes',
+    reason: 'asserts the sheet text that line renders',
+  },
+  {
     path: 'adjudication/critic-prompt.ts',
     holds: 'SEVERITY SCALE below defines',
     reason: SHEET_TEXT,

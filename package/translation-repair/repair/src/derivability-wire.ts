@@ -190,7 +190,11 @@ export const DERIVABILITY_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
             additionalProperties: false,
             properties: {
               reference: { type: 'integer', },
-              verdict: { type: 'string', },
+              // THE CLOSED VOCABULARY `isDerivabilityVerdict` reads, as an enum (P1 of the second review of the Claude route).
+              verdict: {
+                type: 'string',
+                enum: [...DERIVABILITY_VERDICTS,],
+              },
             },
           },
         },

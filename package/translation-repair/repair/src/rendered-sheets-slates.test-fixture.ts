@@ -8,6 +8,7 @@
  */
 
 import {
+  translatedSlateBreakEvidence,
   translatedSlateCriteria,
   translateSlateEvidence,
 } from '@monochromatic-dev/translation-repair-translate-stage';
@@ -211,30 +212,36 @@ export function slateSheets(): readonly RenderedSheet[] {
             sourceText: VERSE_SOURCE,
             archiveText: '',
             lineStructured: false,
-            slate: [
-              {
-                index: 1,
-                text: `The kitten fell asleep. It dreamed of fish. ${TRANSLATORS_NOTE}`,
-                hash: 'slate/1',
-                origin: 'fresh',
-                producer: {
-                  kind: 'model',
-                  modelId: SEAT_HYPER_ONLY,
-                },
-              },
-              {
-                index: 2,
-                text: `The kitten fell asleep.<br/>It dreamed of fish. ${TRANSLATORS_NOTE}`,
-                hash: 'slate/2',
-                origin: 'fresh',
-                producer: {
-                  kind: 'model',
-                  modelId: SEAT_OPENROUTER_ONLY,
-                },
-              },
-            ],
           },),
-          evidence: translatedEvidence({ sourceText: VERSE_SOURCE, },),
+          evidence: [
+            ...translatedEvidence({ sourceText: VERSE_SOURCE, },),
+            ...translatedSlateBreakEvidence({
+              sourceText: VERSE_SOURCE,
+              archiveText: '',
+              slate: [
+                {
+                  index: 1,
+                  text: `The kitten fell asleep. It dreamed of fish. ${TRANSLATORS_NOTE}`,
+                  hash: 'slate/1',
+                  origin: 'fresh',
+                  producer: {
+                    kind: 'model',
+                    modelId: SEAT_HYPER_ONLY,
+                  },
+                },
+                {
+                  index: 2,
+                  text: `The kitten fell asleep.<br/>It dreamed of fish. ${TRANSLATORS_NOTE}`,
+                  hash: 'slate/2',
+                  origin: 'fresh',
+                  producer: {
+                    kind: 'model',
+                    modelId: SEAT_OPENROUTER_ONLY,
+                  },
+                },
+              ],
+            },),
+          ],
           rendered: [
             `The kitten fell asleep. It dreamed of fish. ${TRANSLATORS_NOTE}`,
             `The kitten fell asleep.<br/>It dreamed of fish. ${TRANSLATORS_NOTE}`,

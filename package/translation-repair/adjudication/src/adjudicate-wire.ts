@@ -2,6 +2,8 @@ import {
   type BallotVerdict,
   isIssueSeverity,
   isPanelVoteState,
+  ISSUE_SEVERITIES,
+  PANEL_VOTE_STATES,
   type PanelBallot,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { JsonSchemaResponseFormat, } from '@monochromatic-dev/translation-repair-provider/ts';
@@ -266,8 +268,17 @@ export const ADJUDICATION_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
             properties: {
               claim: { type: 'integer', },
               reason: { type: 'string', },
-              severity: { type: 'string', },
-              vote: { type: 'string', },
+              // THE CLOSED VOCABULARIES THE RESOLVER READS, as an enum (P1 of the second review of the Claude route; the
+              // lead's ruling of 2026-10-15 lists labels as an enum): `resolvePanelBallot` drops a vote outside
+              // `PANEL_VOTE_STATES` and a re-grade outside `ISSUE_SEVERITIES`.
+              severity: {
+                type: 'string',
+                enum: [...ISSUE_SEVERITIES,],
+              },
+              vote: {
+                type: 'string',
+                enum: [...PANEL_VOTE_STATES,],
+              },
             },
           },
         },

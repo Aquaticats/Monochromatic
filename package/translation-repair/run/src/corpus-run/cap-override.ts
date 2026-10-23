@@ -27,6 +27,18 @@ import { isDecimalText, } from '@monochromatic-dev/translation-repair-markup/ts'
 export const HARD_CAP_VAR = 'TRANSLATION_REPAIR_HARD_CAP_MINUTES';
 
 /**
+ Milliseconds in a minute, which converts the override to the whole milliseconds a ceiling is stated in.
+ */
+const MS_PER_MINUTE = 60_000;
+
+/**
+ Smallest figure the override may state, written as the decimal minutes the message gives an operator: half a
+ millisecond is the least that rounds to one whole millisecond, and this figure is a little over it so that
+ floating-point multiplication cannot round it back to zero.
+ */
+const SMALLEST_FIGURE_MINUTES = '0.0000083334';
+
+/**
  Raised when the override is present but is not a usable number of minutes.
  */
 export class HardCapOverrideError extends StatedRefusalError {
@@ -40,17 +52,34 @@ export class HardCapOverrideError extends StatedRefusalError {
 
    @param value - what the variable held, quoted back
 
+   @param roundsToZero - whether the value is a positive number of minutes finer than half a millisecond, which
+   the message then says along with the smallest figure accepted
+
    @example
    ```ts
    throw new HardCapOverrideError({ value: 'soon', },);
    ```
    */
-  constructor({ value, }: { readonly value: string; },) {
+  constructor(
+    {
+      value,
+      roundsToZero = false,
+    }: {
+      readonly value: string;
+      readonly roundsToZero?: boolean;
+    },
+  ) {
     super({
-      says: `${HARD_CAP_VAR} must be a positive number of minutes; received ${JSON.stringify(value,)}.`
-        + ' This is the ceiling that stops one entry running away with a whole pass, so an'
-        + ' unreadable value is refused rather than quietly replaced by the default: an operator'
-        + ' who set it believes the run is bounded the way they asked for.',
+      says: roundsToZero
+        ? `${HARD_CAP_VAR} must be a positive number of minutes, and a ceiling is read in whole milliseconds;`
+          + ` received ${JSON.stringify(value,)}, which rounds to 0 milliseconds. The smallest figure accepted is`
+          + ` half a millisecond, written as ${SMALLEST_FIGURE_MINUTES} minutes. This is the ceiling that stops one`
+          + ' entry running away with a whole pass, so a figure it cannot state is refused rather than quietly'
+          + ' replaced by another: an operator who set it believes the run is bounded the way they asked for.'
+        : `${HARD_CAP_VAR} must be a positive number of minutes; received ${JSON.stringify(value,)}.`
+          + ' This is the ceiling that stops one entry running away with a whole pass, so an'
+          + ' unreadable value is refused rather than quietly replaced by the default: an operator'
+          + ' who set it believes the run is bounded the way they asked for.',
     },);
     this.name = 'HardCapOverrideError';
   }
@@ -71,7 +100,10 @@ export class HardCapOverrideError extends StatedRefusalError {
  @returns Minutes one entry may run before its exchanges abort
 
  @throws {@link HardCapOverrideError} when the override is present and is not
- a positive finite number
+ a positive finite number, or is positive and finer than half a millisecond,
+ which the pass rounds to zero whole milliseconds and the provider budgets'
+ hold bound refuses. The figure is refused here, with the smallest figure
+ accepted, so no figure an operator wrote is replaced by another
 
  @example
  ```ts
@@ -104,6 +136,15 @@ export function resolveHardCapMinutes(
     || (minutes <= 0))
     throw new HardCapOverrideError({ value: raw, },);
 
+  // A POSITIVE FIGURE THAT ROUNDS TO ZERO WHOLE MILLISECONDS names no ceiling a timer can state. The pass rounds
+  // the product once to whole milliseconds (`corpus-pass.ts`), and a floor of one millisecond there would print a
+  // figure the operator never wrote, so the figure is refused here instead.
+  if (Math.round(minutes * MS_PER_MINUTE,) < 1)
+    throw new HardCapOverrideError({
+      value: raw,
+      roundsToZero: true,
+    },);
+
   return minutes;
 }
 
@@ -120,23 +161,30 @@ export function resolveHardCapMinutes(
 
  @param perCallMs - deadline one exchange is allowed
 
- @returns Whether an exchange can finish inside an attempt
+ @param claudeCallMs - deadline a Claude exchange is allowed, which the ceiling must outlast too
+
+ @returns Whether the longest exchange can finish inside an attempt
 
  @example
  ```ts
- const roomy = capOutlastsOneCall({ capMs, perCallMs, },);
+ const roomy = capOutlastsOneCall({ capMs, perCallMs, claudeCallMs, },);
  ```
  */
 export function capOutlastsOneCall(
   {
     capMs,
     perCallMs,
+    claudeCallMs,
   }: {
     readonly capMs: number;
     readonly perCallMs: number;
+    readonly claudeCallMs: number;
   },
 ): boolean {
-  return capMs > perCallMs;
+  return capMs > Math.max(
+    perCallMs,
+    claudeCallMs,
+  );
 }
 
 /**
@@ -151,25 +199,37 @@ export function capOutlastsOneCall(
 
  @param perCallMs - deadline one exchange is allowed
 
- @returns Line naming both numbers and what follows from them
+ @param claudeCallMs - deadline a Claude exchange is allowed
+
+ @returns Line naming the three numbers and what follows from them
 
  @example
  ```ts
- console.log(capTooTightNote({ capMs, perCallMs, },),);
+ console.log(capTooTightNote({ capMs, perCallMs, claudeCallMs, },),);
  ```
  */
 export function capTooTightNote(
   {
     capMs,
     perCallMs,
+    claudeCallMs,
   }: {
     readonly capMs: number;
     readonly perCallMs: number;
+    readonly claudeCallMs: number;
   },
 ): string {
+  /**
+   Deadline of the longest exchange, which the ceiling must outlast.
+   */
+  const longestMs = Math.max(
+    perCallMs,
+    claudeCallMs,
+  );
   return `CAP TOO TIGHT: an attempt runs ${String(capMs,)}ms, which is not longer than the `
-    + `${String(perCallMs,)}ms one model exchange is allowed. Attempts are cut before an `
-    + 'exchange can return, so no slice caches, every attempt reports no progress, and the '
+    + `${String(longestMs,)}ms one model exchange is allowed `
+    + `(${String(perCallMs,)}ms by default, ${String(claudeCallMs,)}ms for a Claude exchange). Attempts are cut `
+    + 'before an exchange can return, so no slice caches, every attempt reports no progress, and the '
     + 'queue drops the entry as stalled after its second try. Raise the ceiling above one '
     + 'exchange to buy anything, or keep it here to exercise the stall path deliberately.';
 }

@@ -299,8 +299,46 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  translate slice (25), repair slice (43), refine (14), consistency (7), page title (6) versions move with this one; the
  pairing version stays, by its own account of 2026-10-18 (`slice-reading/src/pairing-cache-version.ts`). No record has
  been written at 16, which this change sets first.
+
+ Version 17 covers the system text of 2026-10-22 (R4 of the third review of the Claude route): the lane contest keeps
+ the rendered-break instruction in the system text and shows the measured break counts of the original and of both
+ candidates in the user turn (`lane-contest/src/lane-contest-wire.ts`). The counts are the same facts in a different
+ place. The key hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts` reads the imports of the five key files), so a record
+ written before would be served after. The previous number was set in `eb4db609ff`, and the tip `8864316eb2` of runs
+ zheermao23 and XingZ6018 holds it (`git merge-base --is-ancestor`, with `2eeef91fac` as an ancestor of `HEAD` for the
+ control that finds ancestry and the reverse pair for the control that does not); `find` under those two run
+ directories finds 180 slice-cache files newer than that tip's commit time (2026-10-22T10:30:29Z), so records may
+ stand at the previous number and the change cannot ride inside it. The consistency version stays because its key
+ digests the exact sheet, and the page title and pairing versions stay because their sheets name no fence length, no
+ break count and no marks. No record has been written at the new number, which this change sets first.
+
+ The answer schemas of the range ride inside this number, checked on 2026-10-22 (F6 of the re-check of the second fix
+ round) and not assumed: the lane contest's ballot (`lane-contest/src/contest-ballot-wire.ts`, through
+ `contestResponseFormat`) lists its verdicts as an enum built from the constant its guard reads (P1, `f9e4fc3097`). The
+ key hashes the version, the shape of the run and the texts, not the schema, so only the number retires a record.
+ `f9e4fc3097` is an ancestor of `33ca9974f2`, which set this number (`git merge-base --is-ancestor`), and it is not an
+ ancestor of `8864316eb2`, the tip of runs zheermao23 and XingZ6018, so no record written by code without it can stand
+ at this number. Measured at 2026-10-23T07:30Z: `git branch --all --contains 33ca9974f2` lists only the marker of a
+ detached head (`* (no branch)`) and no branch name, and checking the heads of the 86 entries of `git worktree list`
+ with `git merge-base --is-ancestor` finds the commit in `tr-w289`, `tr-w305` and `tr-w314`, all at detached heads
+ (`tr-w314` is a review worktree at `c98d140b3f`). That set is a reading at that time and grows with each review
+ worktree, so the argument that holds is the ancestry argument: no record written by code without the commit can stand
+ at this number. The one bump covers both the system text and the schemas, and the number does not move twice
+ for one release.
+
+ Version 18 covers the reader of a model's reply taking a value that differs from a listed `enum` or `const` value
+ only in capitalization as the listed value (`provider/src/enum-case-fold.ts`, run by `readJsonOutcome`). The lane
+ contest's ballot lists its verdicts as an enum (`lane-contest/src/contest-ballot-wire.ts`), so a verdict that a reply
+ spelled with another capital, which the guard refused and the round counted as no voice, now counts. The key hashes
+ the version, the shape of the run and the texts, not the reader, so a ballot stored before would be served after,
+ though it may rest on a round that lost such a voice. The previous number was set by `33ca9974f2`, and no slice-cache
+ directory was searched for a record written by code that holds that commit and lacks the fold, so the change cannot
+ ride inside it and the number moves. A build whose pipeline digest differs discards the namespace before it reads it
+ (`openNamespacedCache`), and the number is the belt beside that brace. The account of every cache is in the
+ header of `provider/src/enum-case-fold.ts`.
  */
-export const LANE_CONTEST_CACHE_VERSION = 16;
+export const LANE_CONTEST_CACHE_VERSION = 18;
 
 /**
  Everything about this run that changes what the judges are ASKED, folded into

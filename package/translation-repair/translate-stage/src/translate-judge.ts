@@ -9,7 +9,10 @@ import { selectBestCandidate, } from './candidate-select-record.ts';
 import { declineConsequenceFor, } from '@monochromatic-dev/translation-repair-adjudication/ts';
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
-import { translatedSlateCriteria, } from './translated-slate-criteria.ts';
+import {
+  translatedSlateBreakEvidence,
+  translatedSlateCriteria,
+} from './translated-slate-criteria.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   blankAgainst,
@@ -452,23 +455,30 @@ export async function judgeTranslateSlate(
       sourceText,
       archiveText: incumbentText,
       lineStructured,
-      slate,
       ...((syntax === undefined) ? {} : { syntax, }),
     },),
-    evidence: translateSlateEvidence({
-      sourceText,
-      ...((pictureContext === undefined) ? {} : { pictureContext, }),
-      ...((neighbouringSourceText === undefined) ? {} : { neighbouringSourceText, }),
-      ...((neighbouringIncumbentText === undefined) ? {} : { neighbouringIncumbentText, }),
-      ...((identityContext === undefined) ? {} : { identityContext, }),
-      ...((referenceContext === undefined) ? {} : { referenceContext, }),
-      ...((archiveDisputeNote === undefined) ? {} : { archiveDisputeNote, }),
-      lifeEnded: lifeEnded === true,
-      ...((subjectNames === undefined) ? {} : { subjectNames, }),
-      ballotTexts: rotated.map(function ballotText(candidate,): string {
-        return candidate.rendered;
+    evidence: [
+      ...translateSlateEvidence({
+        sourceText,
+        ...((pictureContext === undefined) ? {} : { pictureContext, }),
+        ...((neighbouringSourceText === undefined) ? {} : { neighbouringSourceText, }),
+        ...((neighbouringIncumbentText === undefined) ? {} : { neighbouringIncumbentText, }),
+        ...((identityContext === undefined) ? {} : { identityContext, }),
+        ...((referenceContext === undefined) ? {} : { referenceContext, }),
+        ...((archiveDisputeNote === undefined) ? {} : { archiveDisputeNote, }),
+        lifeEnded: lifeEnded === true,
+        ...((subjectNames === undefined) ? {} : { subjectNames, }),
+        ballotTexts: rotated.map(function ballotText(candidate,): string {
+          return candidate.rendered;
+        },),
       },),
-    },),
+      ...translatedSlateBreakEvidence({
+        sourceText,
+        archiveText: incumbentText,
+        slate,
+        ...((syntax === undefined) ? {} : { syntax, }),
+      },),
+    ],
     signal,
     perCallTimeoutMs,
     l: tl,

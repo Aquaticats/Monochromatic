@@ -14,6 +14,10 @@ import {
   xiaomiShowsPictures,
 } from './direct-reach.ts';
 import {
+  claudeIdFor,
+  claudeShowsPictures,
+} from './claude-reach.ts';
+import {
   neuralWattIdFor,
   neuralWattShowsPictures,
 } from './neuralwatt-reach.ts';
@@ -353,6 +357,10 @@ export function reachOf(
       .served,
     xiaomi: xiaomiIdFor({ modelId, },)
       .served,
+    // SERVED, with no withholding, for the EIGHT CLAUDE CARDS ONLY since 2026-10-22: the owner's key is granted for
+    // Sonnet 5.5 and Haiku 5.5 alone (`claude-reach.ts`), and the cards' own holds decide which roles they fill.
+    anthropic: claudeIdFor({ modelId, },)
+      .served,
     // SERVED AND BOUGHT. A seat the owner withheld from OpenRouter on cost
     // (2026-09-03) is one this provider does not serve as far as the router
     // is concerned, since 2026-09-09 (`OPENROUTER_WITHHELD`); so is a seat the
@@ -520,6 +528,7 @@ export function visionReachOf(
     bedrock: bedrockShowsPictures({ modelId, },),
     deepseek: deepSeekShowsPictures({ modelId, },),
     xiaomi: xiaomiShowsPictures({ modelId, },),
+    anthropic: claudeShowsPictures({ modelId, },),
     openrouter: openRouterShowsPictures({ modelId, },),
   };
 }

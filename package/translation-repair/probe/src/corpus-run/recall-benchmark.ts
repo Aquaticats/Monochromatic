@@ -1,6 +1,6 @@
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readHeadSha,
   readRunCorpusPinSetting,
   reportingRefusals,
@@ -42,7 +42,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'recall-benchmark'
     runsDir: await resolveRunsDir(),
     readTip: readHeadSha,
     pin,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     now: nowAsIso,
     stageSettings: readStageSettings({ env: process.env, },),
   },);

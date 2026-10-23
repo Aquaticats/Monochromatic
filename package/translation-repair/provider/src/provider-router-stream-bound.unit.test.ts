@@ -115,6 +115,7 @@ function stubBudgetsDryOnceRefused(): ReturnType<typeof stubWetBudgets> {
         bedrock: refused.has('bedrock',),
         deepseek: refused.has('deepseek',),
         xiaomi: refused.has('xiaomi',),
+        anthropic: refused.has('anthropic',),
         openrouter: refused.has('openrouter',),
       };
     },
@@ -222,6 +223,7 @@ function stubProviders(
       bedrock: callerFor('bedrock',),
       deepseek: callerFor('deepseek',),
       xiaomi: callerFor('xiaomi',),
+      anthropic: callerFor('anthropic',),
       openrouter: callerFor('openrouter',),
     },
   };

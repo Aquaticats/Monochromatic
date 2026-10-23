@@ -12,7 +12,7 @@ import {
   reportRepeatCensus,
 } from './repeat-census-report.ts';
 import type { EntryCensus, } from './repeat-census-summary.ts';
-import { readRunCorpusPinSetting, } from './run-config.ts';
+import { readRunCorpusPinSetting, } from './run-corpus-pin.ts';
 
 //region Repeat census
 // The repeated-wording census as a command: the wiring only. The line reading is

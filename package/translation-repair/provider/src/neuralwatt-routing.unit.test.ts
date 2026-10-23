@@ -41,6 +41,7 @@ import {
   SEAT_HYPER_VISION,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Abort signal every call here carries.
@@ -80,6 +81,7 @@ const ALL_REACH = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   hyper: true,
   openrouter: true,
 } as const;
@@ -93,6 +95,7 @@ const NONE_DRY = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   hyper: false,
   openrouter: false,
 } as const;
@@ -152,6 +155,7 @@ function routedWithOneLargeRefusal(): {
         },
       },
       budgets: createProviderBudgets({
+        maxHoldMs: TEST_MAX_HOLD_MS,
         neuralwatt: { energy: async () => energyOf({ remainingWh: 100, }), },
         hyper: { credits: async () => ({ balance: 10, }), },
       },),
@@ -264,6 +268,7 @@ await describe({
                  Budgets over a wet NeuralWatt meter alone.
                  */
                 const budgets = createProviderBudgets({
+                  maxHoldMs: TEST_MAX_HOLD_MS,
                   neuralwatt: { energy: async () => energyOf({ remainingWh: 250, }), },
                 },);
                 const view = await budgets.read({ signal: SIGNAL, },);
@@ -367,6 +372,7 @@ await describe({
                 hyper: callerOf('hyper',),
               },
               budgets: createProviderBudgets({
+                maxHoldMs: TEST_MAX_HOLD_MS,
                 neuralwatt: { energy: async () => energyOf({ remainingWh: meter.remainingWh, }), },
                 hyper: { credits: async () => ({ balance: 10, }), },
                 freshForMs: 0,
@@ -411,6 +417,7 @@ await describe({
                 },
               },
               budgets: createProviderBudgets({
+                maxHoldMs: TEST_MAX_HOLD_MS,
                 neuralwatt: { energy: async () => energyOf({ remainingWh: 0.1, }), },
                 hyper: { credits: async () => ({ balance: 10, }), },
               },),

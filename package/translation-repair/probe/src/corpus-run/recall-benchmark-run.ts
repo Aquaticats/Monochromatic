@@ -106,7 +106,15 @@ const RUN_BUDGET_MS = BUDGET_HOURS
 
  @example
  ```ts
- await runRecallBenchmark({ line, runsDir, readTip: readHeadSha, pin, newClient: createRunClient, now, stageSettings, },);
+ await runRecallBenchmark({
+   line,
+   runsDir,
+   readTip: readHeadSha,
+   pin,
+   newClient: createProbeRunClient,
+   now,
+   stageSettings,
+ },);
  ```
  */
 export async function runRecallBenchmark(

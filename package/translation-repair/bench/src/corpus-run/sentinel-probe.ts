@@ -1,7 +1,7 @@
 import { repairTranslation, } from '@monochromatic-dev/translation-repair-repair/ts';
 import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   RUN_MODELS,
@@ -30,7 +30,7 @@ if (import.meta.main)
       return probeCorpusEntries({
         line,
         pin,
-        newClient: createRunClient,
+        newClient: createProbeRunClient,
         repair: repairTranslation,
         models: RUN_MODELS,
         perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,

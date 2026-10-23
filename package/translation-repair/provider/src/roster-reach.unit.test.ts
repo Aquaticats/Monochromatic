@@ -20,12 +20,14 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  ANTHROPIC_SERVED_IDS,
   isDecisionSeat,
   MODEL_CARDS,
   ROSTER_MODEL_IDS,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   bedrockIdFor,
+  claudeIdFor,
   hyperIdFor,
   OPENROUTER_MODELS,
   openRouterIdFor,
@@ -87,7 +89,7 @@ await describe({
               if (isDecisionSeat({ modelId, },))
                 return false;
               return (!syntheticServes(modelId,)) && (!hyperIdFor({ modelId, },).served) && (!bedrockServesLabel(modelId,))
-                && (!openRouterServesLabel(modelId,));
+                && (!openRouterServesLabel(modelId,)) && (!claudeIdFor({ modelId, },).served);
             },);
             expect(unserved,).toStrictEqual([],);
           },
@@ -288,6 +290,7 @@ await describe({
               bedrock: true,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
           },
@@ -308,6 +311,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
 
@@ -318,6 +322,7 @@ await describe({
               bedrock: true,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
           },
@@ -337,7 +342,7 @@ await describe({
                */
               const reach = reachOf({ modelId, },);
 
-              expect(reach.synthetic || reach.hyper || reach.bedrock || reach.openrouter,).toBe(true,);
+              expect(reach.synthetic || reach.hyper || reach.bedrock || reach.openrouter || reach.anthropic,).toBe(true,);
             }
           },
         },),
@@ -365,6 +370,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
 
@@ -375,6 +381,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
           },
@@ -391,6 +398,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             },);
           },
@@ -407,6 +415,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             },);
           },
@@ -426,6 +435,7 @@ await describe({
               bedrock: true,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: true,
             },);
             expect(visionReachOf({ modelId: SEAT_BEDROCK_ONLY_TEXT, },),).toEqual({
@@ -435,6 +445,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             },);
           },
@@ -454,6 +465,7 @@ await describe({
                 return readsImages({ modelId, },);
               },)
               .toSorted(),).toEqual([
+                ...ANTHROPIC_SERVED_IDS,
                 SEAT_HYPER_OPENROUTER_UNMEASURED,
                 SEAT_HYPER_TEXT_BEDROCK,
                 SEAT_BEDROCK_ONLY_VISION_UNSEATED,
@@ -462,7 +474,7 @@ await describe({
                 SEAT_HYPER_OPENROUTER_VISION_EDITOR,
                 SEAT_HYPER_VISION,
                 SEAT_OPENROUTER_ONLY_CHECKER,
-              ],);
+              ].toSorted(),);
           },
         },),
 

@@ -4,7 +4,7 @@ import {
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   resolveRunsDir,
@@ -101,7 +101,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'rendering-audit-s
 
   return runSettledAudit({
     line,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     reader: outsideReads.references,
     runCloneDir: pin.cloneDir,
     roster: RUN_MODELS.checkerModelIds,

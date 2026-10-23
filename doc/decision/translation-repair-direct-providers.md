@@ -534,3 +534,233 @@ This change made no call with a key to check it.
 - The rotation sweep and the gate were not run.
 - The cap census maps both providers' served ids to their seats,
   but no call has been counted.
+
+## Addendum: the owner's Claude key (2026-10-22)
+
+The owner,
+2026-10-22:
+"I've added TRANSLATION_REPAIR_CLAUDE_API_KEY .
+You may use latest Haiku and latest Sonnet with this key.
+This key would have $200 every month so be careful what you use."
+Seats:
+"Sonnet edits,
+Haiku wide".
+Effort:
+"Why don't you bench?"
+Code:
+`provider/src/claude-*.ts` and `shared-contract/src/claude-card-sides.ts`.
+
+- The key lists Opus,
+  Fable and older models too,
+  so the lock is held four ways:
+  the wire model of every card is one of two literals (`ANTHROPIC_WIRE_MODELS`),
+  `claude-cards.unit.test.ts` fails on a third,
+  `cardFor` in `claude-client.ts` throws before a request is built,
+  and `roster-card` refuses the Claude key by name.
+- One card per model and effort (`claude-sonnet-5-5`,
+  `claude-sonnet-5-5-effort-low` and so on),
+  eight in all.
+  The cards named by the model alone send no effort,
+  which is the model's own default.
+  The six effort cards carry `judge-unmeasured`,
+  so no derived bench seats them until the effort bench names a level.
+  Two cards of one model share a wire model,
+  so no bench may seat two of them together:
+  `assertOneWireModelPerBench` (`shared-contract/src/bench-wire-model.ts`) refuses it,
+  and `run-config.ts` calls it at load on every list in `RUN_BENCHES`.
+- Seats in `run/src/corpus-run/run-config.ts`:
+  Sonnet 5.5 in `editorModelIds` ahead of `glm-5.3`,
+  Haiku 5.5 in the wide seats through its card holds
+  and in `RUN_CHECKER_ORDER` behind the three the 2026-09-27 benchmark ranks,
+  so it fills the checker bench only when a provider serving one of those three is dry.
+  The editor calibration (`editor-calibrate`) seats Sonnet 5.5 by name beside the roster's writers
+  and gives Haiku 5.5,
+  which holds `writer-unmeasured`,
+  no editor or refiner chair.
+  That second part is the narrower reading of "Haiku wide" and is open to the owner's veto.
+- Sonnet 5.5 cache reads are priced at 0.10 USD a million,
+  from the owner's brief of the pricing page.
+  The API skill bundled with the session lists 0.20 for the same line.
+  The difference is on cache reads only.
+- `PROVIDER_ORDER` places `anthropic` after `xiaomi`.
+  That position is open to the owner's veto and has no routing effect,
+  since every Claude card is served by this provider alone.
+
+### Not done
+
+- No call with the key was made:
+  every test runs over a recorded transport.
+  Where a refusal's `stop_details` sits on a stream is not documented,
+  so `claude-stream-facts.ts` looks in the delta,
+  on the frame and in the message.
+- Whether `output_config.format` accepts every stage's schema is still unverified live.
+  The bundled API skill says every object needs `additionalProperties: false`
+  and that the numeric,
+  string and array bounds are not supported;
+  `claude-schema.ts` sends exactly that,
+  `corpus-pass/src/claude-schemas.unit.test.ts` reads all 23 schema-declaring files through the body builder,
+  and the block pairing and contest ballot schemas were closed at source.
+  The one bound dropped anywhere is `minimum: 1` on a naturalness finding's paragraph,
+  which `isAbsoluteNaturalnessReviewWire` rejects below one.
+  One owner-run probe per distinct schema shape would close it.
+- Thinking streams only if `display: "summarized"` does what the skill says.
+  The default `omitted` leaves the stream silent while the model thinks,
+  which the idle guard (`STREAM_FIRST_CONTENT_MS`,
+  180 s)
+  would read as a stall and cut,
+  and every attempt that delivered something is billed.
+  The request now asks for the summary,
+  the skill says billing is the same under every setting,
+  and both are unverified here:
+  whether summary text arrives in time to reset the guard,
+  and whether a think longer than the window still produces no `thinking_delta` before its summary is ready.
+  If a cut still shows in the first live log,
+  the alternative is a `firstContentMs` on the Claude cards above the measured think time.
+- `max_tokens` is 32,000 on every Claude card,
+  a starting value:
+  thinking counts against it on both models,
+  and the pooled p99 of 13,082 measured on other providers could be spent thinking.
+  A call that runs to it costs at most 0.32 USD on Sonnet.
+  The cap census reads the `SPEND` lines of the first live calls and flags the card when its own p99 disagrees.
+- Each stage's system prompt is marked for the five-minute cache on every call.
+  A write costs 2.50 against 2.00 base on Sonnet,
+  and pays back only if the same prefix is read again within five minutes.
+  That holds for instructions that repeat and not for a system text that embeds per-call content,
+  and no test shows which stages are which.
+  The `cached=` field of the first live `SPEND` lines settles it.
+- The effort bench and the rotation sweep were not run.
+
+## Addendum: the keyed Claude probes (2026-10-23)
+
+The lead ran `probe3.ts` against the owner's Claude key with `claude-haiku-5-5`,
+three times:
+26 calls on 2026-10-22,
+30 calls on 2026-10-23,
+which cost an estimated 0.00215 USD and sent no baseline,
+and 34 calls on 2026-10-23,
+which cost an estimated 0.0023 USD and sent a baseline for each accepted control.
+The figures of this section are those of the third run.
+The probe sits outside this repository,
+so this record holds what it measured.
+The route's source comments cite this section.
+
+### What the probe shows
+
+Each accepted control was sent twice,
+once with the keyword and once as a baseline with the keyword removed from the schema.
+The ask told the model to break the keyword in both.
+
+- `pattern` (three capital letters):
+  with the keyword the reply was `{"code":"CAT"}`,
+  without it `{"code":"cat"}`.
+- A 25-label `enum`:
+  with it the reply was `LABEL_25`,
+  and its `reason` text said the asked-for `OTHER` was not among the allowed values;
+  without it the reply was `OTHER`.
+- `minItems` 1:
+  with it the reply held one item,
+  without it `{"items":[]}`.
+- A listed `format` (`date-time`):
+  with it the reply was `7681-07-01T00:00:00Z`,
+  without it `banana`.
+- `minItems` 2 and an unlisted `format` (`color`) were sent raw,
+  and each was refused with HTTP 400 and `invalid_request_error`.
+  The `minItems` message was
+  `output_config.format.schema: For 'array' type, 'minItems' values other than 0 or 1 are not supported (got: [2, 5])`.
+  The `format` message was
+  `output_config.format.schema: For 'string' type, format 'color' is not supported`.
+  Both refusals agree with the page,
+  and neither reached a model.
+- All 24 formats of the closed-vocabulary census answered HTTP 200.
+  The probe's validator was a plain object check and not the stage guards.
+
+So in this sample a keyword changes the reply.
+Each of the four contrasts rests on one reply with the keyword and one without,
+and the probe passes no sampling setting beyond the output limit of 512 tokens
+(no `temperature` appears in `probe3.ts`),
+so the API's default sampling applied.
+Four pairs are a pattern and not a measurement of how often a reply obeys.
+That is all the probe shows.
+
+### What it cannot show
+
+The probe cannot tell a compiled grammar from the model reading the keyword.
+The input tokens of each control exceeded those of its baseline.
+The excess is our own measurement,
+control minus baseline with both arms structured,
+and the page does not account for it:
+the page says nothing about what a grammar costs in input tokens.
+The excess was 20 for `pattern`,
+261 for the 25-label `enum`,
+9 for `minItems` 1 and
+10 for `format`.
+Our inference is that the keyword text reaches the model,
+because the excess grows with the keyword text (261 tokens for 25 labels).
+If it does,
+the model reading it explains every reply in the list of results without any grammar.
+The reason text of the `enum` reply reads as the model quoting the schema,
+which is consistent with that inference and does not prove it.
+The probe therefore does not show that the API enforces any keyword.
+A reply that obeys a keyword once is no guarantee for the next reply,
+and the stage guards remain the check.
+
+### The documented mechanism
+
+<https://platform.claude.com/docs/en/build-with-claude/structured-outputs>,
+read 2026-10-23.
+Quoted:
+
+- "Structured outputs guarantee schema-compliant responses through constrained decoding"
+  (section "Why use structured outputs").
+- "Structured outputs use constrained sampling with compiled grammar artifacts."
+  (section "Grammar compilation and caching").
+- "When using structured outputs,
+  Claude automatically receives an additional system prompt explaining the expected output format."
+  and "Your input token count is slightly higher."
+  (section "Prompt modification and token costs").
+  The page gives this as the reason a structured request costs more input tokens than one without structured outputs.
+  It does not account for the excess measured in this section,
+  where both arms were structured.
+- "Although structured outputs guarantee schema compliance in most cases,
+  there are scenarios where the output might not match your schema"
+  (section "Invalid outputs"),
+  which names refusals and the token limit.
+- "**API-enforced constraints** (sent in the schema):
+  `description`,
+  `format`,
+  `const`,
+  `itemClass`,
+  `minItems` (0 or 1 only)."
+  This sentence sits in the PHP tab of the page,
+  under the accordion "Constraints with the #[Constrained] attribute",
+  so it describes that SDK's attribute handling and not the API reference.
+  It is the sentence of the page that uses "enforced" of `format`,
+  `const` and `minItems`,
+  and it was fetched on 2026-10-23.
+  It names which constraints the PHP SDK sends in the schema,
+  and the probe cannot say whether the API then enforces them by grammar or by the model reading them.
+- "Structured outputs don't guarantee the capitalization of string `enum` and `const` values:
+  Claude might return a value that differs from your schema only in capitalization,
+  typically in the first letter of a word following a space."
+  "The response completes normally,
+  with no error and no special `stop_reason`."
+  "Compare enum values case-insensitively,
+  and avoid enum values that differ only in capitalization."
+  (section "Invalid outputs").
+
+The mechanism is the documented grammar,
+and the probe is consistent with it and does not prove it.
+
+### What the route does with this
+
+- Source comments that cited the probe say a keyword "changes the reply" or "is accepted",
+  and say "enforced" only of the stage guards,
+  which are our own code.
+- The page's capitalization caveat is why `foldEnumCase` (`provider/src/enum-case-fold.ts`) takes the schema's spelling
+  when exactly one listed value matches case-insensitively.
+  It logs a warning naming the field,
+  the value received and the value taken,
+  and leaves the refusal in place when none or several match.
+  The fold runs in `readJsonOutcome` for the four sites that read a reply under a response format.
+- No troubleshooting document under `doc/troubleshooting/` is cited by the Claude route's source or notes,
+  so this section is the one record of the keyed result.

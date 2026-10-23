@@ -19,6 +19,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  LANE_CONTEST_CACHE_VERSION,
   laneContestRunShape,
   laneContestSliceKey,
 } from '../dist/final/node/index.mjs';
@@ -81,6 +82,14 @@ await describe({
   name: laneContestSliceKey.name,
   children: [
     it({
+      name: 'IS AT VERSION 18: the reader of a model\'s reply takes a value that differs from a listed enum or const '
+        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
+        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      fn: async () => {
+        expect(LANE_CONTEST_CACHE_VERSION,).toBe(18,);
+      },
+    },),
+    it({
       name:
         'DERIVES THE PINNED KEY for a fixed set of inputs, which is the only thing that fails when the '
           + 'derivation moves and the version does not: a moved key costs quota and nothing else, so '
@@ -121,7 +130,10 @@ await describe({
         // Version 16 (2026-10-22) re-keys every ballot cast before a short
         // bench closed one voice fewer than every live seat once the straggler
         // grace ended (ledger B816).
-        expect(key,).toBe('fcdb9c7c27d192aad9758e5a2bcdc2f34f7a27ebc2b260dd9a75e8349e611ba5',);
+        // Version 17 (2026-10-22) re-keys every ballot cast before the rendered-break
+        // counts moved out of the system text into the user turn (R4 of the third
+        // review of the Claude route).
+        expect(key,).toBe('45a984ed36bfb4ffff0999650beb1dbfddd09061a4ede943b1a9999c74df7bbd',);
       },
     },),
     it({
@@ -286,9 +298,8 @@ await describe({
       },
     },),
     it({
-      name: 'SEPARATES a question asked with a dispute note against the archive from one asked without, '
-        + 'and two different notes from each other, since the judges read the note as evidence (class one '
-        + 'hundred eight)',
+      name: 'SEPARATES a question asked with a dispute note against the archive from one asked without, and two '
+        + 'different notes from each other, since the judges read the note as evidence (class one hundred eight)',
       fn: async () => {
         /**
          Key for the slice asked with one note against its archive rendering.

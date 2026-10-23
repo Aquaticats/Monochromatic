@@ -76,6 +76,36 @@ export const CONTEST_POLICY: string = [
 ].join('\n',);
 
 /**
+ The part of a contest's ask that says it judges no archive rendering.
+ */
+type ContestWithoutArchive = {
+  /**
+   False: no archive verdict is asked.
+   */
+  readonly asksArchive: false;
+
+  /**
+   Absent: there is no archive vocabulary to list.
+   */
+  readonly archiveVerdicts?: undefined;
+};
+
+/**
+ The part of a contest's ask that says it judges the archive rendering, with the vocabulary of that verdict.
+ */
+type ContestWithArchive = {
+  /**
+   True: an archive verdict is asked.
+   */
+  readonly asksArchive: true;
+
+  /**
+   Every verdict a ballot may give the archive rendering, the guard's own list.
+   */
+  readonly archiveVerdicts: readonly string[];
+};
+
+/**
  Builds the reply schema one contest asks for.
 
  REASON FIRST (owner, 2026-10-21, "Reason first everywhere"), then the two
@@ -98,23 +128,37 @@ export const CONTEST_POLICY: string = [
 
  @param schemaName - name this contest's replies are recorded under
 
+ @param verdicts - every choice a ballot may cast, the candidate names and the refusal; the guard's own list, so the
+ schema's `enum` and the guard cannot drift (P1 of the second review of the Claude route; the lead's ruling of
+ 2026-10-15 lists a reply's labels as an `enum`)
+
  @param asksArchive - whether this contest also judges the archive rendering
+
+ @param archiveVerdicts - every verdict a ballot may give the archive rendering, present exactly when the contest asks
+ for one
 
  @returns Response format for the round
 
  @example
  ```ts
- const format = contestResponseFormat({ schemaName: 'lane_contest', asksArchive: true, },);
+ const format = contestResponseFormat({
+   schemaName: 'lane_contest',
+   verdicts: CANDIDATE_NAMES,
+   asksArchive: true,
+   archiveVerdicts: ARCHIVE_VERDICTS,
+ },);
  ```
  */
 export function contestResponseFormat(
   {
     schemaName,
+    verdicts,
     asksArchive,
+    archiveVerdicts,
   }: {
     readonly schemaName: string;
-    readonly asksArchive: boolean;
-  },
+    readonly verdicts: readonly string[];
+  } & (ContestWithoutArchive | ContestWithArchive),
 ): JsonSchemaResponseFormat {
   /**
    Archive property, present only for the contest that asks about it.
@@ -123,7 +167,12 @@ export function contestResponseFormat(
    so a third contest added later cannot inherit a choice nobody made.
    */
   const archiveProperty = asksArchive
-    ? { verdictOnArchive: { type: 'string', }, }
+    ? {
+      verdictOnArchive: {
+        type: 'string',
+        enum: [...archiveVerdicts,],
+      },
+    }
     : {};
 
   /**
@@ -158,7 +207,13 @@ export function contestResponseFormat(
             type: 'array',
             items: { type: 'string', },
           },
-          verdict: { type: 'string', },
+          // THE FINDINGS STAY PLAIN STRINGS: a finding may annotate the candidate it names, and the reader takes the
+          // name from the start of the finding (`readCandidateNames`). THE VERDICTS ARE THE GUARD'S OWN LISTS, as an
+          // enum: a live Claude call under a plain string answered "Consistent", which the guard refused.
+          verdict: {
+            type: 'string',
+            enum: [...verdicts,],
+          },
           ...archiveProperty,
         },
         required: [
@@ -168,6 +223,8 @@ export function contestResponseFormat(
           'verdict',
           ...archiveRequired,
         ],
+        // CLOSED, as Anthropic's structured outputs require of every object and the other routes accept.
+        additionalProperties: false,
       },
     },
   };

@@ -9,7 +9,7 @@ import {
 import { sampleBenchSlices, } from './bench-sample.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
 } from '@monochromatic-dev/translation-repair-run/ts';
@@ -110,7 +110,7 @@ function main({ line, }: { readonly line: CommandLineOf<'editor-calibrate'>; },)
     pin,
     adoptGrace: calibrationGraceFromEnvironment,
     readWriterGrace: windowsFromEnvironment,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     contestLedger: readContestLedger({ env: process.env, },),
   },);
 }

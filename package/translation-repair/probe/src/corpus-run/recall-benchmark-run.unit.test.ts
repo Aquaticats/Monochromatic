@@ -201,6 +201,7 @@ await describe({
             perCallTimeoutMs: 360_000,
             streamFirstContentMs: 180_000,
             streamIdleMs: 120_000,
+            claudeCallTimeoutMs: 460_000,
           },
           entriesPerBand: 3,
           seedsPerEntry: 3,

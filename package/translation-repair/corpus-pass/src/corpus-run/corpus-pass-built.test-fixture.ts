@@ -54,7 +54,7 @@ export const PROVIDERS_OFF_LINES: readonly string[] = passProvidersOffLines({ of
  */
 export const NO_KEY_REFUSAL: string = 'corpus-pass: TRANSLATION_REPAIR_NEURALWATT_API_KEY, TRANSLATION_REPAIR_SYNTHETIC_API_KEY, '
   + 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY, TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY, DEEPSEEK_API_KEY, '
-  + 'TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY '
+  + 'TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY, TRANSLATION_REPAIR_CLAUDE_API_KEY '
   + 'or TRANSLATION_REPAIR_OPENROUTER_API_KEY is not set; '
   + 'run under mise so sops injects it\n';
 
@@ -190,7 +190,7 @@ export async function startLine(
   } = await digestPipeline({ dir: BUILT_DIRECTORY, },);
   return `START tip=${await readHeadSha()} pipeline=${digest} files=${String(fileCount,)} pending=${
     String(pending,)
-  } done=0 soft=259200000ms hard=${String(hardMs,)}ms`;
+  } done=0 soft=259200000ms hard=${String(hardMs,)}ms call=360000ms claude-call=460000ms`;
 }
 
 /**

@@ -53,6 +53,7 @@ export {
 export {
   type PairedDocumentRecord,
   pairSectionsWithRoster,
+  SECTION_PAIRING_RESPONSE_FORMAT,
   type SectionPairingOutcome,
 } from './pair-sections-stage.ts';
 export { sectionPairingToSteps, } from './pair-sections-steps.ts';
@@ -109,6 +110,7 @@ export {
 } from './seat-tally.ts';
 export {
   attemptStageCall,
+  isRequestFault,
   type StageVoice,
 } from './stage-call.ts';
 export {

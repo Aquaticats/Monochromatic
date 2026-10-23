@@ -38,7 +38,7 @@ import {
   runClientFrom,
   RunsDirectoryBusyError,
 } from '@monochromatic-dev/translation-repair-run';
-import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
+import { EveryProviderDryError, type JsonSchemaResponseFormat, } from '@monochromatic-dev/translation-repair-provider';
 import type { EntryOutcome, } from '@monochromatic-dev/translation-repair-slice-cache';
 import {
   digestPipeline,
@@ -56,6 +56,7 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/command-line.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { makeCorpusPassClone, } from './corpus-pass-clone.test-fixture.ts';
@@ -95,6 +96,11 @@ type Watched = {
   readonly clients: string[];
 
   /**
+   Longest hold the client was told it may keep a provider out for, in order of the clients built.
+   */
+  readonly holds: number[];
+
+  /**
    What was on disk the moment the first entry was settled.
    */
   readonly atFirstSettle: { stalePageThere: boolean; };
@@ -128,6 +134,11 @@ type Overrides = {
    HTTP the required providers' meters are read over.
    */
   readonly transport?: CorpusPassInput['transport'];
+
+  /**
+   Producers of answer schemas the pass-start check reads.
+   */
+  readonly schemaProducers?: NonNullable<CorpusPassInput['schemaProducers']>;
 
   /**
    What building the client does.
@@ -220,11 +231,16 @@ async function runPass(
     },
     env: {},
     transport: unreachedTransport,
-    newClient: function newClient({ promptPayloadDir, },) {
+    newClient: function newClient({
+      promptPayloadDir,
+      maxHoldMs,
+    },) {
       watched.clients.push(promptPayloadDir,);
+      watched.holds.push(maxHoldMs,);
       return runClientFrom({
         env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: INVENTED_KEY, },
         transport: unreachedTransport,
+        maxHoldMs,
       },);
     },
     settle: async function settle({
@@ -319,7 +335,48 @@ function nothingWatched(): Watched {
   return {
     settled: [],
     clients: [],
+    holds: [],
     atFirstSettle: { stalePageThere: true, },
+  };
+}
+
+/**
+ A producer of one answer schema that writes `oneOf`, which the Claude route cannot send.
+
+ @param file - file the producer stands for
+ @param name - schema's own name
+
+ @returns Producer of that one schema
+
+ @example
+ ```ts
+ const producer = oneOfProducer({ file: 'cat/src/pick-wire.ts', name: 'pick', },);
+ ```
+ */
+function oneOfProducer(
+  {
+    file,
+    name,
+  }: {
+    readonly file: string;
+    readonly name: string;
+  },
+): { readonly file: string; readonly formats: readonly JsonSchemaResponseFormat[]; } {
+  return {
+    file,
+    formats: [{
+      type: 'json_schema',
+      json_schema: {
+        name,
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: { pick: { oneOf: [{ type: 'string', }, { type: 'integer', },], }, },
+          required: ['pick',],
+          additionalProperties: false,
+        },
+      },
+    },],
   };
 }
 
@@ -360,7 +417,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=0 elapsed=42ms',
         ],);
@@ -371,6 +428,8 @@ await describe({
             'prompt-payloads',
           ),
         ],);
+        // THE HARD CAP IS THE LONGEST A HOLD CAN MATTER (F9 of the re-check of the second fix round).
+        expect(watched.holds,).toEqual([25_200_000,],);
       },
     },),
     it({
@@ -432,7 +491,7 @@ await describe({
             + 'people/mittens/page.en.md (missing-object); the commit has no such path: check the path, or pin a '
             + 'commit that has it.)',
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=2 done=1 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=2 of pending=2; artifacts=2/2 declined=1 unpairedArtifacts=0 elapsed=42ms',
         ],);
@@ -489,7 +548,7 @@ await describe({
           return line.startsWith('START ',) || line.startsWith('DONE ',);
         },),).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=1 elapsed=42ms',
         ],);
       },
@@ -550,7 +609,7 @@ await describe({
           return line.startsWith('START ',) || line.startsWith('DONE ',);
         },),).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=1 elapsed=42ms',
         ],);
       },
@@ -592,7 +651,7 @@ await describe({
             + 'the pass\'s own order; run this into a throwaway TRANSLATION_REPAIR_RUNS_DIR so a hand-picked '
             + 'entry never enters a pool later draws treat as natural accumulation)',
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 (pairs counted over the entries --only named, '
             + 'not every pair at the pin) elapsed=42ms',
@@ -631,7 +690,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=0 done=0 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           'a straggler note',
           'a writer note',
           'REQUIRED-PROVIDERS hyper status=wet',
@@ -666,11 +725,12 @@ await describe({
           pipelineDir: built.dir,
           watched: nothingWatched(),
           overrides: {
-            newClient: function newClient({ passLeftMs, },) {
+            newClient: function newClient({ maxHoldMs, passLeftMs, },) {
               seen.before = passLeftMs();
               return runClientFrom({
                 env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: INVENTED_KEY, },
                 transport: unreachedTransport,
+                maxHoldMs,
                 passLeftMs,
               },);
             },
@@ -779,10 +839,11 @@ await describe({
             now: function now() {
               return clock.now;
             },
-            newClient: function newClient({ passLeftMs, },) {
+            newClient: function newClient({ maxHoldMs, passLeftMs, },) {
               return runClientFrom({
                 env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: INVENTED_KEY, },
                 transport: unreachedTransport,
+                maxHoldMs,
                 passLeftMs,
               },);
             },
@@ -835,7 +896,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           `PLAN ok tip=${TIP} pipeline=${built.digest} client=constructed pending=1 first=tabby`,
         ],);
@@ -905,7 +966,7 @@ await describe({
         expect(watched.atFirstSettle.stalePageThere,).toBe(false,);
         expect(printed.lines[0],).toBe(
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
         );
       },
     },),
@@ -1001,7 +1062,7 @@ await describe({
         },),).rejects.toThrow('required provider hyper is not ready: key missing',);
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=0 done=0 `
-            + 'soft=259200000ms hard=25200000ms',
+            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
         ],);
         expect(watched.clients,).toEqual([],);
       },
@@ -1056,6 +1117,7 @@ await describe({
                 ...runClientFrom({
                   env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: INVENTED_KEY, },
                   transport: unreachedTransport,
+                  maxHoldMs: TEST_MAX_HOLD_MS,
                 },),
                 chatText: async () => {
                   throw dry;
@@ -1207,6 +1269,76 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'REFUSES THE PASS BEFORE ANY PROVIDER IS ASKED when a stage schema carries a keyword the Claude route '
+        + 'cannot send, naming each schema and its keyword, with nothing '
+        + 'printed, no client built, no entry settled and no lock taken',
+      fn: async (ctx) => {
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [{
+          id: 'tabby',
+          sourceText: '猫睡觉。\n',
+          targetText: 'The cat naps.\n',
+        },], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        /**
+         What the procedure did.
+         */
+        const watched = nothingWatched();
+
+        /**
+         What the pass refused with.
+         */
+        const refusal = await rejectionOf(async function asked(): Promise<void> {
+          await runPass({
+            typed: [],
+            clone,
+            runsDir: runs.path,
+            pipelineDir: built.dir,
+            watched,
+            overrides: {
+              schemaProducers: [
+                oneOfProducer({ file: 'cat/src/pick-wire.ts', name: 'pick', },),
+                oneOfProducer({ file: 'cat/src/choose-wire.ts', name: 'choose', },),
+              ],
+            },
+          },);
+        },);
+
+        expect((refusal as Error).message,).toContain('cat/src/pick-wire.ts (pick)',);
+        expect((refusal as Error).message,).toContain('cat/src/choose-wire.ts (choose)',);
+        expect((refusal as Error).message,).toContain('"oneOf" at root.pick',);
+        expect(printed.lines,).toEqual([],);
+        expect(watched.clients,).toEqual([],);
+        expect(watched.settled,).toEqual([],);
+        expect(await readdir(runs.path,),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'REFUSES UNDER --plan TOO, which promises zero quota and so verifies the schemas it will send',
+      fn: async (ctx) => {
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        /**
+         What the procedure did.
+         */
+        const watched = nothingWatched();
+
+        await expect(runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched,
+          overrides: { schemaProducers: [oneOfProducer({ file: 'cat/src/pick-wire.ts', name: 'pick', },),], },
+        },),).rejects.toThrow('cat/src/pick-wire.ts (pick)',);
+        expect(printed.lines,).toEqual([],);
+        expect(watched.clients,).toEqual([],);
       },
     },),
   ],

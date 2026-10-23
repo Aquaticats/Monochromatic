@@ -19,6 +19,7 @@ export {
   type DirectClient,
   type DirectRoute,
 } from './direct-client.ts';
+export { withoutRefusedKeyBody, } from './refused-key-body.ts';
 export {
   DIRECT_COST_UNREPORTED,
   deepSeekCostOf,
@@ -38,11 +39,19 @@ export {
   NOT_REPORTED,
   systemFingerprintOf,
 } from './direct-usage.ts';
+export * from './index-claude.ts';
+export { DEFAULT_SLOT_LIMITS, } from './provider-slot-limits.ts';
+export {
+  RETRY_AFTER_HEADER,
+  retryAfterHeaderMsOf,
+} from './retry-after-header.ts';
 export { requireWholeStream, } from './require-whole-stream.ts';
 export {
   DEEPSEEK_DRY_FLOOR_USD,
   deepSeekIsDry,
   deepSeekMeterLevel,
+  claudeIsDry,
+  claudeMeterLevel,
   xiaomiIsDry,
   xiaomiMeterLevel,
 } from './budget-routing.ts';

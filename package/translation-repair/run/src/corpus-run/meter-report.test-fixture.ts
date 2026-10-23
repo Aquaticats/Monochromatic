@@ -196,6 +196,11 @@ type SampleOverrides = {
   readonly xiaomi?: MeterSample['xiaomi'];
 
   /**
+   What the Claude key's meter said.
+   */
+  readonly anthropic?: MeterSample['anthropic'];
+
+  /**
    Numbers beside the states.
    */
   readonly levels?: MeterSample['levels'];
@@ -229,6 +234,7 @@ export function sampleOf({ overrides, }: { readonly overrides: SampleOverrides; 
     bedrock: 'wet',
     deepseek: 'absent',
     xiaomi: 'absent',
+    anthropic: 'absent',
     levels: [],
     ...overrides,
   };

@@ -7,6 +7,7 @@ import {
   type NeuralWattEnergy,
 } from '@monochromatic-dev/translation-repair-provider';
 import type { RunClient, } from '../../dist/final/node/index.mjs';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -154,6 +155,7 @@ export function clientBefore(
    The real budgets over the stub meters.
    */
   const budgets = createProviderBudgets({
+    maxHoldMs: TEST_MAX_HOLD_MS,
     neuralwatt: {
       energy: function energy(): Promise<NeuralWattEnergy> {
         reads.count += 1;

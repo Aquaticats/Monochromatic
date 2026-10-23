@@ -87,6 +87,7 @@ export function createStreamBoundHolds(
     bedrock: new Map<string, number>(),
     deepseek: new Map<string, number>(),
     xiaomi: new Map<string, number>(),
+    anthropic: new Map<string, number>(),
     openrouter: new Map<string, number>(),
   };
   return {
@@ -203,6 +204,7 @@ export function reachPastBoundHolds(
       bedrock: open('bedrock',),
       deepseek: open('deepseek',),
       xiaomi: open('xiaomi',),
+      anthropic: open('anthropic',),
       openrouter: open('openrouter',),
     },
     heldMs: PROVIDER_ORDER.reduce(

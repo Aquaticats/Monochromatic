@@ -42,7 +42,14 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @example
  ```ts
- await runProbeRelabel({ dir, pin, production: 'withheld', newClient: createRunClient, gather: { damaged: gatherRelabelCases, controls: gatherControlCases, }, stageSettings, },);
+ await runProbeRelabel({
+   dir,
+   pin,
+   production: 'withheld',
+   newClient: createProbeRunClient,
+   gather: { damaged: gatherRelabelCases, controls: gatherControlCases, },
+   stageSettings,
+ },);
  ```
  */
 export async function runProbeRelabel(

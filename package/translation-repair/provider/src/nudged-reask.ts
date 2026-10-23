@@ -8,7 +8,10 @@ import type {
   ChatTextReply,
   ChatTextRequest,
 } from './chat-contract.ts';
-import { readJsonOutcome, } from './chat-json-outcome.ts';
+import {
+  readJsonOutcome,
+  responseFormatSpreadOf,
+} from './chat-json-outcome.ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
 
@@ -143,6 +146,7 @@ export async function reaskElsewhereNudged<ValueT,>(
       modelId: request.modelId,
       reply,
       validate: request.validate,
+      ...responseFormatSpreadOf({ request, },),
     },);
     if (second.kind === 'ok') {
       rl.info(`${request.modelId}: ${reply.servedBy ?? 'another provider'} answered usably on the re-ask`,);

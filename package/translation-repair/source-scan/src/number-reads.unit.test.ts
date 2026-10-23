@@ -120,6 +120,11 @@ const HELD_READS: Readonly<Record<string, {
   readonly calls: number;
   readonly why: string;
 }>> = {
+  'provider/retry-after-header.ts#retryAfterHeaderMsOf: Number': {
+    calls: 1,
+    why: 'reads the seconds figure Anthropic writes in retry-after, and a value that is not finite and positive reads '
+      + 'as no wait, so a spelled or signed form asks for nothing',
+  },
   'provider/deepseek-balance.ts#readBalanceText: Number': {
     calls: 1,
     why: 'reads only an amount isUnsignedNumberText took, so a signed, spelled or exponent form is refused before it',

@@ -105,7 +105,7 @@ export type BenchCall = CallTokens & {
 
  @example
  ```ts
- const { client, calls, } = recordingClient({ inner: createRunClient(), },);
+ const { client, calls, } = recordingClient({ inner: createProbeRunClient(), },);
  ```
  */
 export type RecordingClient = {
@@ -195,7 +195,7 @@ function usageOf(
 
  @example
  ```ts
- const recorder = recordingClient({ inner: createRunClient(), },);
+ const recorder = recordingClient({ inner: createProbeRunClient(), },);
  ```
  */
 export function recordingClient(

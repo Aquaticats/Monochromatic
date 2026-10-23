@@ -14,6 +14,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  ANTHROPIC_SERVED_IDS,
   DECISION_ONLY_ROSTER_IDS,
   ROSTER_MODEL_IDS,
 } from '@monochromatic-dev/translation-repair-shared-contract';
@@ -70,6 +71,11 @@ await describe({
               // is not this catalog.
               if (DECISION_ONLY_ROSTER_IDS.includes(modelId,))
                 return false;
+              // The Claude cards are served by the owner's own Claude key alone (`claude-reach.ts`).
+              if (ANTHROPIC_SERVED_IDS.some(function isClaude(id,): boolean {
+                return id === modelId;
+              },))
+                return false;
               return !BEDROCK_ONLY_ROSTER_IDS.some(function isBedrockOnly(id,): boolean {
                 return id === modelId;
               },);
@@ -91,6 +97,10 @@ await describe({
               },))
                 continue;
               if (DECISION_ONLY_ROSTER_IDS.includes(modelId,))
+                continue;
+              if (ANTHROPIC_SERVED_IDS.some(function isClaude(id,): boolean {
+                return id === modelId;
+              },))
                 continue;
               expect(reachOf({ modelId, },).openrouter,).toBe(
                 (!OPENROUTER_DROPPED_SEATS.has(modelId,)) && (!OPENROUTER_WITHHELD.has(modelId,)),

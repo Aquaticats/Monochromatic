@@ -352,18 +352,32 @@ export const RENDERING_AUDIT_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
             type: 'object',
             required: [...FINDING_FIELDS,],
             additionalProperties: false,
+            // THE CATEGORY IS THE CLOSED VOCABULARY THE SCREEN FINDS IT IN, as an enum (P1 of the second review of the
+            // Claude route); every other field is the text the screen quotes.
             properties: Object.fromEntries(FINDING_FIELDS.map(function toStringField(field,): readonly [
               string,
-              { readonly type: 'string'; },
+              {
+                readonly type: 'string';
+                readonly enum?: readonly string[];
+              },
             ] {
               return [
                 field,
-                { type: 'string', },
+                (field === 'category')
+                  ? {
+                    type: 'string',
+                    enum: [...RENDERING_AUDIT_CATEGORIES,],
+                  }
+                  : { type: 'string', },
               ];
             },),),
           },
         },
-        verdict: { type: 'string', },
+        // THE VERDICT IS THE CLOSED VOCABULARY THE SCREEN READS; a verdict outside it would read as `uncertain`.
+        verdict: {
+          type: 'string',
+          enum: [...RENDERING_AUDIT_VERDICTS,],
+        },
       },
     },
   },

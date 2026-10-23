@@ -1,7 +1,7 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import {
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   RUN_MODELS,
@@ -40,7 +40,7 @@ if (import.meta.main)
       return probeTranslate({
         entryId: PROBE_ENTRY,
         pin,
-        newClient: createRunClient,
+        newClient: createProbeRunClient,
         editorModelIds: RUN_MODELS.editorModelIds,
         perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
         log: tagged({ tag: 'translate-probe', },),

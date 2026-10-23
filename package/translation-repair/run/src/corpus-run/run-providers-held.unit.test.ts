@@ -25,6 +25,7 @@ import {
 import { consoleLinesDuring, } from '@monochromatic-dev/translation-repair-provider/ts/neuralwatt-ledger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { configureProviders, } from '../../dist/final/node/index.mjs';
+import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 
 await describe({
   name: configureProviders.name,
@@ -40,6 +41,7 @@ await describe({
          Providers with Bedrock on, its ledger and credit in the scratch directory.
          */
         const providers = configureProviders({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           env: {
             TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: 'calico-not-a-real-key',
             [BEDROCK_LEDGER_PATH_VAR]: join(scratch.path, 'bedrock-spend.jsonl',),

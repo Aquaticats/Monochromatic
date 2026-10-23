@@ -2,7 +2,7 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import { runCoverageStage, } from '@monochromatic-dev/translation-repair-archive/ts';
 import {
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   resolveRunsDir,
@@ -64,7 +64,7 @@ if (import.meta.main)
       return runCoverageProbe({
         line,
         pin,
-        newClient: createRunClient,
+        newClient: createProbeRunClient,
         stage: runCoverageStage,
         roster: RUN_ROSTER,
         exchangeTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,

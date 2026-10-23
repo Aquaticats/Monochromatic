@@ -53,7 +53,7 @@ function routingFixture(dry: BudgetView) {
   const client = createRoutingClient({ callers: { neuralwatt: unsupported, synthetic: unsupported, bedrock: unsupported, hyper, openrouter },
     budgets: { read: async () => dry,
       markRefused: async () => { throw new Error('No transport refusal is scripted'); },
-      holds: () => ({ neuralwatt: 0, synthetic: 0, bedrock: 0, deepseek: 0, xiaomi: 0, hyper: 0, openrouter: 0 }) } });
+      holds: () => ({ neuralwatt: 0, synthetic: 0, bedrock: 0, deepseek: 0, xiaomi: 0, anthropic: 0, hyper: 0, openrouter: 0 }) } });
   return { client, exchanges };
 }
 
@@ -74,7 +74,7 @@ await describe({
     ].map(row => it({
       name: row.name,
       fn: async () => {
-        const { client, exchanges } = routingFixture({ neuralwatt: true, synthetic: false, bedrock: false, deepseek: true, xiaomi: true,
+        const { client, exchanges } = routingFixture({ neuralwatt: true, synthetic: false, bedrock: false, deepseek: true, xiaomi: true, anthropic: true,
           hyper: row.hyper, openrouter: row.openrouter });
         const result = await client.chatJson({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
           messages: [{ role: 'user', content: 'Return animal cat and count 7.' }], responseFormat: FORMAT,
@@ -89,8 +89,8 @@ await describe({
       },
     })),
     ...[
-      { name: 'refuses when only unrelated providers are wet', dry: { neuralwatt: true, synthetic: false, bedrock: false, deepseek: true, xiaomi: true, hyper: true, openrouter: true }, error: NoProviderForModelError },
-      { name: 'reports the all-provider-dry boundary separately', dry: { neuralwatt: true, synthetic: true, bedrock: true, deepseek: true, xiaomi: true, hyper: true, openrouter: true }, error: EveryProviderDryError },
+      { name: 'refuses when only unrelated providers are wet', dry: { neuralwatt: true, synthetic: false, bedrock: false, deepseek: true, xiaomi: true, anthropic: true, hyper: true, openrouter: true }, error: NoProviderForModelError },
+      { name: 'reports the all-provider-dry boundary separately', dry: { neuralwatt: true, synthetic: true, bedrock: true, deepseek: true, xiaomi: true, anthropic: true, hyper: true, openrouter: true }, error: EveryProviderDryError },
     ].map(row => it({
       name: row.name,
       fn: async () => {

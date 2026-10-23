@@ -1,5 +1,5 @@
 import {
-  createRunClient,
+  createProbeRunClient,
   reportingRefusals,
 } from '@monochromatic-dev/translation-repair-run/ts';
 import {
@@ -44,7 +44,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 function main(): Promise<void> {
   return runSensitivity({
     // One client for the whole instrument, counted on the run-wide seat tally.
-    client: createRunClient(),
+    client: createProbeRunClient(),
     arms: SENSITIVITY_ARMS,
     production: PRODUCTION_LIST,
     stageSettings: readStageSettings({ env: process.env, },),

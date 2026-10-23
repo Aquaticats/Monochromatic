@@ -48,8 +48,9 @@ const AGREEMENT_NEEDED = 2;
 
 /**
  Schema the reply must satisfy before it reaches the reader.
+ Exported so the family's schema scan (`corpus-pass/src/claude-schemas.unit.test.ts`) reads the schema the stage sends.
  */
-const SECTION_PAIRING_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
+export const SECTION_PAIRING_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
   type: 'json_schema',
   json_schema: {
     name: 'section_pairing',

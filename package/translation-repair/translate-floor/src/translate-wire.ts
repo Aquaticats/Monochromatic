@@ -14,7 +14,8 @@ import {
 import { selectFence, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
   type BreakRendering,
-  renderedBreakPrompt,
+  renderedBreakContract,
+  renderedBreakFacts,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { sourceBreakDisplay, } from './source-break-display.ts';
 import { PAGE_APPARATUS_IS_KEPT, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -358,11 +359,12 @@ export function buildTranslateMessages(
     lineStructured ? TRANSLATE_LINE_STRUCTURE_RULE : '',
     (attestedLines.length === 0) ? '' : TRANSLATE_ATTESTED_RULE,
     (pictureContext === '') ? '' : TRANSLATE_PICTURE_SCOPE_RULE,
-    renderedBreakPrompt({
+    // THE INSTRUCTION ONLY. The measured counts are this call's own values, so they ride in the user turn
+    // (R4): a system prompt that carried them would be a new cache entry for every passage.
+    renderedBreakContract({
       sourceText,
       archiveText: existingText,
       ...((syntax === undefined) ? {} : { syntax, }),
-      renderings: rejectedRenderings,
     },),
     TRANSLATE_REPLY_RULE,
   ]
@@ -379,6 +381,16 @@ export function buildTranslateMessages(
       return `${fence} ${rendering.label} ${fence}\n${rendering.text}`;
     },)
     .join('\n',);
+  /**
+   Measured break counts of the original and of the rejected candidates, none where the
+   instruction is not due.
+   */
+  const breakFacts = renderedBreakFacts({
+    sourceText,
+    archiveText: existingText,
+    ...((syntax === undefined) ? {} : { syntax, }),
+    renderings: rejectedRenderings,
+  },);
   /**
    Latest structured findings as prompt text.
    */
@@ -434,7 +446,13 @@ ${attestedLines.join('\n',)}`
             : `
 ${fence} DECLARED NAMES ${fence}
 ${identityContext}`
-        }${followupSection}
+        }${followupSection}${
+          breakFacts === ''
+            ? ''
+            : `
+${fence} RENDERED LINE STRUCTURE, measured facts ${fence}
+${breakFacts}`
+        }
 ${fence} END ${fence}`,
       },
     ],

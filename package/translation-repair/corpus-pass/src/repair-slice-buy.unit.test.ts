@@ -227,7 +227,7 @@ await describe({
         // The refusal's own words, at any level, stand on the reading's line
         // alone.
         expect(lines.filter(function namesTheRefusal(line,): boolean {
-          return line.includes('editors 0 of 3 reachable',);
+          return line.includes('editors 0 of 4 reachable',);
         },),).toEqual([`error ${BEDROCK_ALONE_STOP_LINE}`,],);
       },
     },),

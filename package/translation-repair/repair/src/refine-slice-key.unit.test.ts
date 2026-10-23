@@ -36,6 +36,7 @@ import {
 
 import type { AdjudicatedIssue, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  REFINE_CACHE_VERSION,
   refineRunShape,
   refineSliceKey,
 } from '../dist/final/node/index.mjs';
@@ -90,6 +91,15 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
+          name: 'IS AT VERSION 16: the reader of a model\'s reply takes a value that differs from a listed enum or '
+            + 'const value only in capitalization as the listed value, and the key hashes the version, the shape of '
+            + 'the run and the texts, not the reader, so only this number retires a record written under '
+            + 'the reader before',
+          fn: async () => {
+            expect(REFINE_CACHE_VERSION,).toBe(16,);
+          },
+        },),
+        it({
           name: 'ANSWERS THE SAME KEY for the same question asked twice, which is '
             + 'the property the whole resume rests on: without it every run rebuys '
             + 'a lane it already paid for',
@@ -99,22 +109,27 @@ await describe({
         },),
 
         it({
-          name: 'ANSWERS THE PINNED KEY for the base question, so a change to the version, the shape or the '
-            + 'fields moves it on purpose (the version moved from 6 to 7 with the n159 readers: a stored refinement '
-            + 'was decided by quote and word-edge readers that changed; and from 7 to 8 with n166: a stored refinement '
-            + 'was written under a house tense rule that gave quoted words no exception in the sentence that puts the life in the past; '
-            + 'and from 8 to 9 with the XingZ6015 read: a stored refinement was written under reader protection that reached '
-            + 'past the account of how a death or an attempt happened, and under the old declared-name floor; and from 9 to 10 '
-            + 'with the cut of a translators\' note alone on a quoted line: a stored refinement was chosen from a slate that '
-            + 'showed a bare quote line where the note had stood; and from 10 to 11 with the cut of the notes from the prober, '
-            + 'the resolution checker and the objection correction\'s slate: a stored refinement was judged over texts that '
-            + 'showed every note between translators; and from 11 to 12 with the ballots that give their reason first (owner, 2026-10-21): '
-            + 'a stored refinement was chosen on a selection ballot that asked for the candidate before its reason; '
-            + 'and from 12 to 13 with the answer schemas in alphabetical order (ledger B762): a stored refinement was '
-            + 'answered under the old reply keys; and from 13 to 14 with the quorum rule of 2026-10-22 (ledger B816): a '
-            + 'stored refinement was gathered before a short bench could close one voice fewer than every live seat)',
+          name: 'ANSWERS THE PINNED KEY for the base question, so a change to the version, the shape or the fields '
+            + 'moves it on purpose (the version moved from 6 to 7 with the n159 readers: a stored refinement was '
+            + 'decided by quote and word-edge readers that changed; and from 7 to 8 with n166: a stored refinement '
+            + 'was written under a house tense rule that gave quoted words no exception in the sentence that puts the '
+            + 'life in the past; and from 8 to 9 with the XingZ6015 read: a stored refinement was written under '
+            + 'reader protection that reached past the account of how a death or an attempt happened, and under the '
+            + 'old declared-name floor; and from 9 to 10 with the cut of a translators\' note alone on a quoted line: '
+            + 'a stored refinement was chosen from a slate that showed a bare quote line where the note had stood; '
+            + 'and from 10 to 11 with the cut of the notes from the prober, the resolution checker and the objection '
+            + 'correction\'s slate: a stored refinement was judged over texts that showed every note between '
+            + 'translators; and from 11 to 12 with the ballots that give their reason first (owner, 2026-10-21): a '
+            + 'stored refinement was chosen on a selection ballot that asked for the candidate before its reason; and '
+            + 'from 12 to 13 with the answer schemas in alphabetical order (ledger B762): a stored refinement was '
+            + 'answered under the old reply keys; and from 13 to 14 with the quorum rule of 2026-10-22 (ledger B816): '
+            + 'a stored refinement was gathered before a short bench could close one voice fewer than every live '
+            + 'seat; and from 14 to 15 with the fence length moved out of the system text of the slates, R4 of the '
+            + 'third review of the Claude route; and from 15 to 16 with the reader that takes a capitalization-only '
+            + 'difference from a listed value as the listed value: a stored refinement may rest on a round that lost '
+            + 'such a voice)',
           fn: async () => {
-            expect(refineSliceKey(BASE,),).toBe('8a6031524ebe923e2a759203d39ff0d6e4834935e5c4d19bc240f0fcc06064de',);
+            expect(refineSliceKey(BASE,),).toBe('dc6b56d4e49a54a9744cc6a573b1cdcf864df31b53ab2fbdb612cee43ab2bb97',);
           },
         },),
 
@@ -257,10 +272,9 @@ await describe({
         },),
 
         it({
-          name: 'SEPARATES TWO CHECKER ROSTERS even though checkers never rewrite '
-            + 'anything. They decide whether a rewrite is rolled back for breaking '
-            + 'a confirmed repair, so a different checker roster ships wording this '
-            + 'one refused',
+          name: 'SEPARATES TWO CHECKER ROSTERS even though checkers never rewrite anything. They decide whether a '
+            + 'rewrite is rolled back for breaking a confirmed repair, so a different checker roster ships wording '
+            + 'this one refused',
           fn: async () => {
             expect(
               refineRunShape({
@@ -273,9 +287,8 @@ await describe({
         },),
 
         it({
-          name: 'SEPARATES TWO IDENTITY CONTEXTS, which is front-matter-derived '
-            + 'prompt content that varies per pair and measurably changes what a '
-            + 'rewriter produces',
+          name: 'SEPARATES TWO IDENTITY CONTEXTS, which is front-matter-derived prompt content that varies per pair '
+            + 'and measurably changes what a rewriter produces',
           fn: async () => {
             expect(
               refineRunShape({
@@ -333,11 +346,9 @@ await describe({
         },),
 
         it({
-          name: 'READS AN EMPTY WINDOW AS AN ABSENT ONE, because a slice with no '
-            + 'neighbours is asked exactly what a caller without the parameter '
-            + 'asks: `introduced-defect-wire` renders no nearby block for either. '
-            + 'Keying them apart would rebuy every document-edge slice to reach '
-            + 'the identical answer',
+          name: 'READS AN EMPTY WINDOW AS AN ABSENT ONE, because a slice with no neighbours is asked exactly what a '
+            + 'caller without the parameter asks: `introduced-defect-wire` renders no nearby block for either. Keying '
+            + 'them apart would rebuy every document-edge slice to reach the identical answer',
           fn: async () => {
             expect(
               refineSliceKey({

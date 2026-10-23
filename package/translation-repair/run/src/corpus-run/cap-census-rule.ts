@@ -174,6 +174,8 @@ const SEAT_OF_SERVED: ReadonlyMap<string, RosterModelId> = new Map(
         .id}`,]),
       ...((card.xiaomi === undefined) ? [] : [`xiaomi ${card.xiaomi
         .id}`,]),
+      ...((card.anthropic === undefined) ? [] : [`anthropic ${card.anthropic
+        .id}`,]),
     ].map(function keyed(key,): readonly [
       string,
       RosterModelId

@@ -55,6 +55,7 @@ await describe({
           bedrock: false,
           deepseek: false,
           xiaomi: false,
+          anthropic: false,
           openrouter: false,
         },);
         expect(readsImages({ modelId: SEAT_OPENROUTER_DECISIONS, },),).toBe(false,);
@@ -109,6 +110,7 @@ await describe({
             bedrock: true,
             deepseek: false,
             xiaomi: false,
+            anthropic: false,
             openrouter: false,
           },
         },);
@@ -126,6 +128,7 @@ await describe({
             bedrock: false,
             deepseek: true,
             xiaomi: true,
+            anthropic: true,
             openrouter: true,
           },
         },);

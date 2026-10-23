@@ -76,7 +76,10 @@ export {
   settleUnflooredSlice,
   unflooredFinding,
 } from './translate-unfloored.ts';
-export { translatedSlateCriteria, } from './translated-slate-criteria.ts';
+export {
+  translatedSlateBreakEvidence,
+  translatedSlateCriteria,
+} from './translated-slate-criteria.ts';
 export { TranslationRepairInterruptedError, } from './translation-repair-interrupted-error.ts';
 
 //endregion Public index

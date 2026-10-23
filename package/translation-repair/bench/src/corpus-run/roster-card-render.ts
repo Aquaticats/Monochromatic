@@ -1,7 +1,7 @@
 import { isDeepStrictEqual, } from 'node:util';
 
 import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import type { CardProvider, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { ListedCardProvider, } from './roster-card-ask.ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { isUnsignedNumberText, } from '@monochromatic-dev/translation-repair-markup/ts';
 
@@ -302,7 +302,7 @@ export function cardFieldsFrom(
     provider,
     row,
   }: {
-    readonly provider: CardProvider;
+    readonly provider: ListedCardProvider;
     readonly row: ListingRow;
   },
 ): CardFields {
@@ -489,7 +489,7 @@ export function renderProviderCard(
     servedId,
     fields,
   }: {
-    readonly provider: CardProvider;
+    readonly provider: ListedCardProvider;
     readonly servedId: string;
     readonly fields: CardFields;
   },
@@ -514,7 +514,7 @@ export function renderProviderCard(
   /**
    Lines only some providers' sides carry.
    */
-  const own: Readonly<Record<CardProvider, readonly string[]>> = {
+  const own: Readonly<Record<ListedCardProvider, readonly string[]>> = {
     synthetic: [
       `      family: /* 'zai' | 'qwen' | 'moonshot' | 'openai' */,`,
       cardLine({

@@ -12,6 +12,7 @@ import type {
 import type { StageDecision, } from './stage-decision-call.ts';
 import {
   attemptStageCall,
+  isRequestFault,
   type StageVoice,
 } from './stage-call.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -117,10 +118,11 @@ export type RoundOutcome<ValueT,> = {
  Waits for the next of the pending asks to settle, reporting an ask's
  rejection as the caller's own abort.
 
- AN ASK REJECTS ONLY ONCE THE CALLER'S SIGNAL HAS ABORTED: `askOnce` turns
- every other failure into a lost voice, bar the router's every-provider-dry
- refusal, which it rethrows as it is. What it rejects with is whatever ITS
- call caught, which is the caller's forwarded reason unless the call's own
+ AN ASK REJECTS ONLY ONCE THE CALLER'S SIGNAL HAS ABORTED, or the route refused
+ its request as malformed: `askOnce` turns every other failure into a lost
+ voice, bar the router's every-provider-dry refusal, which it rethrows as it
+ is. What it rejects with is whatever ITS call caught, which is the caller's
+ forwarded reason unless the call's own
  deadline or transport failure landed as the caller aborted. So two asks
  could reject with different values, and the race handed the round whichever
  ended first. The asks share no rejection value; they share the caller's
@@ -144,7 +146,7 @@ export type RoundOutcome<ValueT,> = {
 
  @throws Whatever the ask rejected with, unchanged, where the caller had not
  aborted, which only a failure inside `askOnce`'s own catch produces, such as
- a logger that cannot write
+ a logger that cannot write, or a request the route refused as malformed
 
  @example
  ```ts
@@ -513,6 +515,12 @@ export async function runGatherRound<ValueT,>(
   const taken: RosterModelId[] = [];
 
   /**
+   Requests the route refused as malformed that the asks met, in the order
+   they ended, which the round throws once its asks have settled.
+   */
+  const requestFaults: unknown[] = [];
+
+  /**
    Refusals that end the run, as the asks that met them raised them, kept so the grace window's wait, which swallows a
    rejected ask, can raise the first.
    */
@@ -572,6 +580,10 @@ export async function runGatherRound<ValueT,>(
 
    @throws Whatever the seat's call raised, once the caller aborted, having
    written it on the seat's line unless it is the caller's reason itself
+
+   @throws The request fault the seat's call raised, where the route refused
+   the request as malformed (`isRequestFault`), having cut the round's other
+   seats with it
 
    @throws `EveryProviderDryError`, unchanged, when the router found no
    provider with budget left, which ends the round and the run instead of
@@ -637,6 +649,18 @@ export async function runGatherRound<ValueT,>(
             `${stage} ${modelId}: ${exchangeFailureLogText({ error, },)}, as the caller stopped the round`,
           );
         }
+        throw error;
+      }
+
+      // A REQUEST THE ROUTE REFUSED AS MALFORMED ENDS THE ROUND, before
+      // quorum and after it: it is no straggler the window cut, and the
+      // quiet settling of an ask in the grace window would otherwise take it
+      // for one. The other seats are cut with the fault as the reason, which
+      // the seat tally reads as no seat's loss, and it is kept to be thrown
+      // once the asks have settled.
+      if (isRequestFault({ error, },)) {
+        requestFaults.push(error,);
+        abandon.abort(error,);
         throw error;
       }
       l.warn(
@@ -767,6 +791,12 @@ export async function runGatherRound<ValueT,>(
   // ABORTED WITH A REASON THE SEAT TALLY READS: a call this cuts is the straggler window closing, which counts against
   // its seat when the call had delivered nothing (`seat-tally.ts`), where a caller leaving never does.
   abandon.abort(new StragglerCutError(),);
+
+  // A seat that met a refused request in the grace window settled quietly in
+  // the wait for the window, so the fault is thrown here and not left as a thin
+  // roster.
+  if (requestFaults.length > 0)
+    throw requestFaults[0];
 
   // The caller's abort has to leave this round as a FAILURE, not as a thin
   // roster. `allSettled` swallows every ask the abort tore down, so a

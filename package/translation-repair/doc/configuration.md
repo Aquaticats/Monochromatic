@@ -652,7 +652,8 @@ Record each pipeline digest and corpus commit separately.
 
 Every corpus read resolves through one pin,
 a clone directory and a commit (`readRunCorpusPinSetting` in
-`package/translation-repair/run/src/corpus-run/run-config.ts`).
+`package/translation-repair/run/src/corpus-run/run-corpus-pin.ts`,
+moved out of `run-config.ts` on 2026-10-22).
 Either half can be overridden without editing source,
 which is what a fixture run against an unmerged corpus pull request needs.
 Both are read once per command,

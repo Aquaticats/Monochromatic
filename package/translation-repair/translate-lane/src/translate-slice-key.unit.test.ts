@@ -19,6 +19,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 import {
+  TRANSLATE_SLICE_CACHE_VERSION,
   translateRunShape,
   translateSliceKey,
 } from '../dist/final/node/index.mjs';
@@ -87,11 +88,15 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  Version 24 declares the answer schemas of the translate lane in alphabetical order (ledger B762).
  Version 25 gathers under the quorum rule that lets a short bench close one voice fewer than every live seat once the
  straggler grace ends (ledger B816).
+ Version 26 moves the fence length and the rendered-break counts out of the system text into the user turn (R4 of the
+ third review of the Claude route).
+ Version 27 reads a reply value that differs from a listed enum or const value only in
+ capitalization as the listed value.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = 'c5ea936a36263365fc3bf62b366b1b203ef650ab75ee9e8eeca5cb35c58702ee';
+const LEGACY_WINDOWLESS_KEY = '3aafcd70beafc75dd298bc1c1f9ef3aa58bc95bbe69cbfe076d2eddb55e3bb44';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -123,6 +128,14 @@ function keyFor(
 await describe({
   name: translateSliceKey.name,
   children: [
+    it({
+      name: 'IS AT VERSION 27: the reader of a model\'s reply takes a value that differs from a listed enum or const '
+        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
+        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      fn: async () => {
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(27,);
+      },
+    },),
     it({
       name: 'SEPARATES a run shown the pages the original cites from one shown none, and keeps the run '
         + 'shape of an entry that cites nothing (class thirty-six, 2026-09-16)',
@@ -276,10 +289,9 @@ await describe({
       },
     },),
     it({
-      name: 'HASHES A WINDOWLESS SLICE TO A PINNED STRING, which is what stands between a change '
-        + 'to this serialization and the silent rebuying of every settled slice in the corpus. '
-        + 'A deliberate cache-version bump moves this value and should; an accidental one is what '
-        + 'this catches',
+      name: 'HASHES A WINDOWLESS SLICE TO A PINNED STRING, which is what stands between a change to this '
+        + 'serialization and the silent rebuying of every settled slice in the corpus. A deliberate cache-version '
+        + 'bump moves this value and should; an accidental one is what this catches',
       fn: async () => {
         expect(keyFor({},),).toBe(LEGACY_WINDOWLESS_KEY,);
       },

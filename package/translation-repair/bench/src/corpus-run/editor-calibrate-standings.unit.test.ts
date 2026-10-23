@@ -167,6 +167,41 @@ await describe({
             ],);
           },
         },),
+        it({
+          name: 'ACCOUNTS THE REFINER TABLE FOR THE REFINER ROSTER WHEN ONE IS GIVEN (C4): a model seated as an editor and '
+            + 'not as a refiner is not named as a refiner that answered nothing',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+
+            printEditorCalibrateStandings({
+              roster: ROSTER,
+              refinerRoster: [WRITER, JUDGE,],
+              perSlice: [
+                {
+                  editor: [],
+                  refiner: [VOTED_ROUND,],
+                  refineAsked: true,
+                  editorShipped: [],
+                  refinerShipped: [WRITER,],
+                  refinerHeard: [JUDGE,],
+                },
+              ],
+            },);
+
+            /**
+             The lines the refiner table printed.
+             */
+            const refinerLines = printed.lines.slice(
+              printed.lines.findIndex(function isRefinerHeading(line,): boolean {
+                return line.startsWith('\nREFINER standing',);
+              },),
+            );
+            expect(refinerLines.some(function namesIdle(line,): boolean {
+              return line.includes(IDLE,);
+            },),).toBe(false,);
+            expect(refinerLines.length,).toBeGreaterThan(1,);
+          },
+        },),
       ],
     },),
   ],

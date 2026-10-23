@@ -99,7 +99,8 @@ export {
 } from './prepared-sheet-facts.ts';
 export {
   type BreakRendering,
-  renderedBreakPrompt,
+  renderedBreakContract,
+  renderedBreakFacts,
 } from './rendered-break-prompt.ts';
 export {
   BREAK,

@@ -3,6 +3,7 @@ import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
 import { withoutTranslatorsNotes, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { citedReferenceBlockText, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { labelsSentenceOf, } from './consistency-label-sentence.ts';
+import { marksSentenceOf, } from './consistency-marks-sentence.ts';
 import {
   aroundBlocksOf,
   type CarryChosenPlace,
@@ -143,8 +144,6 @@ export type CarryChoiceSubject = {
 /**
  The rules of the choice sheet, read by every judge.
 
- @param marks - marks the paragraph carries
-
  @param runOff - whether this is the run-off among the finalists of a first round that had no strict majority, whose rules say
  so, so that its messages differ from the first ask's even when every candidate is a finalist
 
@@ -152,20 +151,11 @@ export type CarryChoiceSubject = {
 
  @example
  ```ts
- const rules = choiceRules({ marks, runOff: false, },);
+ const rules = choiceRules({ runOff: false, },);
  ```
  */
 function choiceRules(
-  {
-    marks,
-    runOff,
-  }: {
-    readonly marks: {
-      readonly open: string;
-      readonly close: string;
-    };
-    readonly runOff: boolean;
-  },
+  { runOff, }: { readonly runOff: boolean; },
 ): string {
   return `You are shown the Chinese ORIGINAL of one place, or of several places that one English paragraph holds, each with a wording the page repeats, the CHOSEN RENDERING that a panel of judges has chosen for that wording so that every place of the page reads alike, the chosen place's own ORIGINAL and English paragraph, and several candidate English texts for the paragraph. One of them is the paragraph as the page has it now; the others carry the chosen rendering into it, some by moving the chosen words in as they stand and some rewritten by a translator.
 
@@ -175,7 +165,8 @@ ${
 
 `
       : ''
-  }Your task is to choose the candidate that renders the ORIGINAL best under the house rules while rendering the repeated wording as the CHOSEN RENDERING renders it in every receiving place. In each ORIGINAL the repeated wording is enclosed between ${marks.open} and ${marks.close}; the marks are not part of the text.
+  }Your task is to choose the candidate that renders the ORIGINAL best under the house rules while rendering the \
+repeated wording as the CHOSEN RENDERING renders it in every receiving place.
 
 The words of the current paragraph that now render the repeated wording in each receiving place are shown as THE WORDS TO REPLACE (numbered, one for each receiving place, when there are several); they are what a candidate replaces.
 
@@ -388,7 +379,6 @@ export function buildCarryChoiceMessages(
       role: 'system',
       content: `${
         choiceRules({
-          marks,
           runOff,
         },)
       }${
@@ -397,7 +387,12 @@ export function buildCarryChoiceMessages(
     },
     {
       role: 'user',
-      content: `${identityBlock}${referenceBlock}${
+      content: `${
+        marksSentenceOf({
+          marks,
+          shown: 'ORIGINAL',
+        },)
+      }\n\n${identityBlock}${referenceBlock}${
         repeatBlockOf({
           repeat: subject.repeat,
           fence,

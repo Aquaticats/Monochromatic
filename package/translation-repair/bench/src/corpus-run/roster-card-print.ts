@@ -1,8 +1,10 @@
-import type { CardProvider, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/ts';
-import { readAsk, } from './roster-card-ask.ts';
+import {
+  type ListedCardProvider,
+  readAsk,
+} from './roster-card-ask.ts';
 import {
   fetchListing,
   LISTING_URL,
@@ -30,7 +32,7 @@ import {
 /**
  List constant in `roster-id.ts` each provider's spellings go on.
  */
-const SERVED_LIST: Readonly<Record<CardProvider, string>> = {
+const SERVED_LIST: Readonly<Record<ListedCardProvider, string>> = {
   synthetic: 'SYNTHETIC_SERVED_IDS',
   hyper: 'HYPER_SERVED_IDS',
   openrouter: 'OPENROUTER_SERVED_IDS',

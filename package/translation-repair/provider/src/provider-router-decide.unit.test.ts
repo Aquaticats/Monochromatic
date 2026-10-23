@@ -82,6 +82,7 @@ function budgetsReading({ openrouterDry, }: { readonly openrouterDry: boolean; }
           bedrock: true,
           deepseek: true,
           xiaomi: true,
+          anthropic: true,
           openrouter: openrouterDry,
         };
       },

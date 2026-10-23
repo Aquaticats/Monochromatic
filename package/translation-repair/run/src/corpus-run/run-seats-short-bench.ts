@@ -52,7 +52,7 @@ import {
 
  @example
  ```ts
- const client: SeatReadingClient = createRunClient();
+ const client: SeatReadingClient = createRunClient({ maxHoldMs: 25_200_000, },);
  ```
  */
 export type SeatReadingClient = Pick<

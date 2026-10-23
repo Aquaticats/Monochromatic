@@ -28,9 +28,10 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'SPENDS ON NEURALWATT, THEN SYNTHETIC, THEN BEDROCK, THEN DEEPSEEK, THEN XIAOMI, THEN HYPER, THEN '
-            + 'OPENROUTER, which is the owner\'s order of 2026-09-03 with the 2026-09-07 insertion, the '
-            + '2026-10-20 one and the 2026-10-22 pair (open to the owner\'s veto): the free daily energy that '
+          name: 'SPENDS ON NEURALWATT, THEN SYNTHETIC, THEN BEDROCK, THEN DEEPSEEK, THEN XIAOMI, THEN ANTHROPIC, '
+            + 'THEN HYPER, THEN OPENROUTER, which is the owner\'s order of 2026-09-03 with the 2026-09-07 insertion, '
+            + 'the 2026-10-20 one, the 2026-10-22 pair and the 2026-10-22 Claude key, the last two open to the '
+            + 'owner\'s veto: the free daily energy that '
             + 'does not carry over first ("Use the neuralwatt free energy front and center."), the '
             + 'subscription next, the expiring credits that will never be topped up after it, the prepaid '
             + 'DeepSeek balance given to use "as you wish", the per-token Xiaomi route that serves only the '
@@ -43,6 +44,7 @@ await describe({
               'bedrock',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -74,8 +76,9 @@ await describe({
               bedrock: 3,
               deepseek: 4,
               xiaomi: 5,
-              hyper: 6,
-              openrouter: 7,
+              anthropic: 6,
+              hyper: 7,
+              openrouter: 8,
             },);
             expect(asked,).toEqual(PROVIDER_ORDER,);
           },
@@ -96,6 +99,7 @@ await describe({
               'bedrock',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'openrouter',
             ],);
             expect(otherProviders({ provider: 'synthetic', },),).toEqual([
@@ -103,6 +107,7 @@ await describe({
               'bedrock',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -111,6 +116,7 @@ await describe({
               'synthetic',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -119,6 +125,7 @@ await describe({
               'synthetic',
               'bedrock',
               'xiaomi',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -127,6 +134,7 @@ await describe({
               'synthetic',
               'bedrock',
               'deepseek',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -136,13 +144,24 @@ await describe({
               'bedrock',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'hyper',
+            ],);
+            expect(otherProviders({ provider: 'anthropic', },),).toEqual([
+              'neuralwatt',
+              'synthetic',
+              'bedrock',
+              'deepseek',
+              'xiaomi',
+              'hyper',
+              'openrouter',
             ],);
             expect(otherProviders({ provider: 'neuralwatt', },),).toEqual([
               'synthetic',
               'bedrock',
               'deepseek',
               'xiaomi',
+              'anthropic',
               'hyper',
               'openrouter',
             ],);
@@ -164,7 +183,8 @@ await describe({
             expect(isProviderName('neuralwatt',),).toBe(true,);
             expect(isProviderName('deepseek',),).toBe(true,);
             expect(isProviderName('xiaomi',),).toBe(true,);
-            expect(isProviderName('anthropic',),).toBe(false,);
+            expect(isProviderName('anthropic',),).toBe(true,);
+            expect(isProviderName('claude',),).toBe(false,);
             expect(isProviderName('',),).toBe(false,);
           },
         },),

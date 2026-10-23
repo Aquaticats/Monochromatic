@@ -9,6 +9,7 @@ import {
   type ChatTextRequest,
   readJsonOutcome,
   reaskElsewhereNudged,
+  responseFormatSpreadOf,
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { MalformedCompletionError, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
@@ -269,6 +270,7 @@ export function promptUniqueClient(
             modelId: request.modelId,
             reply,
             validate: request.validate,
+            ...responseFormatSpreadOf({ request, },),
           },),
         },
         ask: claimedReply,

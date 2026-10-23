@@ -1,7 +1,7 @@
 import { sampleBenchSlices, } from './bench-sample.ts';
 import {
   type CommandLineOf,
-  createRunClient,
+  createProbeRunClient,
   readHeadSha,
   readRunCorpusPinSetting,
   reportingRefusals,
@@ -43,7 +43,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-width-prob
   const { pin, } = readRunCorpusPinSetting({ env: process.env, },);
   await runEditorWidthProbe({
     line,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     drawSample: sampleBenchSlices,
     pin,
     readHeadSha,

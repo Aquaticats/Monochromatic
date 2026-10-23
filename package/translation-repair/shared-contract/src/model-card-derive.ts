@@ -1,4 +1,5 @@
 import type {
+  AnthropicCard,
   BedrockCard,
   DecisionsCard,
   DeepSeekCard,
@@ -12,6 +13,7 @@ import type {
 } from './model-card.ts';
 import { MODEL_CARDS, } from './model-cards.ts';
 import {
+  ANTHROPIC_SERVED_IDS,
   BEDROCK_SERVED_IDS,
   DEEPSEEK_SERVED_IDS,
   HYPER_SERVED_IDS,
@@ -35,7 +37,7 @@ import {
 
  @example
  ```ts
- CARD_PROVIDERS.join('|',); // 'synthetic|hyper|openrouter|bedrock|neuralwatt|deepseek|xiaomi'
+ CARD_PROVIDERS.join('|',); // 'synthetic|hyper|openrouter|bedrock|neuralwatt|deepseek|xiaomi|anthropic'
  ```
  */
 export const CARD_PROVIDERS = [
@@ -46,6 +48,7 @@ export const CARD_PROVIDERS = [
   'neuralwatt',
   'deepseek',
   'xiaomi',
+  'anthropic',
 ] as const;
 
 /**
@@ -135,6 +138,9 @@ const SIDE_OF: SideReaders = {
   xiaomi: function xiaomiSide(card,): XiaomiCard {
     return card.xiaomi;
   },
+  anthropic: function anthropicSide(card,): AnthropicCard {
+    return card.anthropic;
+  },
 };
 
 /**
@@ -148,6 +154,7 @@ const SERVED_IDS: ServedIdLists = {
   neuralwatt: NEURALWATT_SERVED_IDS,
   deepseek: DEEPSEEK_SERVED_IDS,
   xiaomi: XIAOMI_SERVED_IDS,
+  anthropic: ANTHROPIC_SERVED_IDS,
 };
 
 /**

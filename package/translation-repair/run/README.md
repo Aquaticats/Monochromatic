@@ -119,11 +119,13 @@ The groups that follow name the main ones.
   `refusingCulledSeats`,
   `createDecisionsClient`,
   `readCorpusPinSetting`,
+  `readRunCorpusPinSetting`,
   `runFidelityTrial`.
   Declared in `corpus-run/required-providers.ts`,
   `culled-seat-guard.ts`,
   `decisions-client.ts`,
   `corpus-run/corpus-pin-override.ts`,
+  `corpus-run/run-corpus-pin.ts`,
   and `judge-fidelity.ts`.
 
 ## Runners

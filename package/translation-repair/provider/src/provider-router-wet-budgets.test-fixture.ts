@@ -31,6 +31,7 @@ function readWetBudgets(): Promise<BudgetView> {
     bedrock: false,
     deepseek: false,
     xiaomi: false,
+    anthropic: false,
     openrouter: false,
   },);
 }
@@ -55,6 +56,7 @@ export function readOlderProvidersWet(): Promise<BudgetView> {
     bedrock: false,
     deepseek: false,
     xiaomi: false,
+    anthropic: false,
     openrouter: false,
   },);
 }
@@ -89,6 +91,7 @@ export function holdNothing(): ProviderRecord<number> {
     bedrock: 0,
     deepseek: 0,
     xiaomi: 0,
+    anthropic: 0,
     openrouter: 0,
   };
 }

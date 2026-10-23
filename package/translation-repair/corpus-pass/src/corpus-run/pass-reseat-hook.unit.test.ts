@@ -38,6 +38,7 @@ const ALL_WET: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   hyper: false,
   openrouter: false,
 };
@@ -89,6 +90,7 @@ function hookBefore(
         bedrock: 0,
         deepseek: 0,
         xiaomi: 0,
+        anthropic: 0,
         hyper: 0,
         openrouter: 0,
       }),
@@ -113,6 +115,7 @@ const WIDE_ONE_SHORT: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -160,6 +163,7 @@ function hookUnderDeepSeekHold({ lines, }: { readonly lines: string[]; },) {
           bedrock: 0,
           deepseek: hold.running ? leftAfter({ asks: hold.asks, },) : 0,
           xiaomi: 0,
+          anthropic: 0,
           hyper: 0,
           openrouter: 0,
         };
@@ -201,6 +205,7 @@ const SLATE_AND_WIDE_SHORT: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };

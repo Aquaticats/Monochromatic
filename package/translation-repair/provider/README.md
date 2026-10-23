@@ -326,6 +326,61 @@ Prices are in `direct-cost.ts` (DeepSeek always at peak),
 the cache split and `system_fingerprint` readers are in `direct-usage.ts`,
 and the record is `doc/decision/translation-repair-direct-providers.md`.
 
+## The owner's Claude key, called directly
+
+`claude-client.ts` speaks the Messages protocol to `https://api.anthropic.com/v1/messages` with an `x-api-key` header
+and `anthropic-version: 2023-06-01`,
+for Sonnet 5.5 and Haiku 5.5 only
+(`TRANSLATION_REPAIR_CLAUDE_API_KEY`,
+about $200 a month,
+no hard cap in code).
+`claude-catalog.ts` and `claude-reach.ts` read the eight Claude cards of `shared-contract/src/claude-card-sides.ts`
+(each model with no effort,
+and at `low`,
+`medium` and `high`),
+and `cardFor` throws `ClaudeModelNotServedError` for any other model before a request is built.
+`claude-body.ts` builds the request:
+`thinking: {type: "adaptive", display: "summarized"}` always,
+so the stream carries `thinking_delta` events while the model thinks
+(the default `omitted` streams empty thinking blocks,
+and the stream idle guard would read a long think as a stalled stream),
+the card's effort in `output_config.effort`,
+structured output by `output_config.format` and never a forced tool,
+no `temperature`,
+`top_p`,
+`top_k` or assistant prefill,
+and one ephemeral cache breakpoint on the system block.
+`claude-schema.ts` narrows each stage schema to what structured outputs accept before it is sent:
+`additionalProperties: false` on every object,
+and the numeric,
+string and array bounds dropped
+and told to the model in the field's description (`{minimum: 1}`),
+which the reply guards of the stages still enforce.
+A keyword outside the supported list that no SDK strips (`oneOf`,
+`not`,
+`if`,
+`pattern` and the like) throws `ClaudeSchemaKeywordError`,
+naming the keyword and its path,
+instead of answering HTTP 400 on every call of the stage.
+A Claude call's deadline is the larger of the caller's and `claudeCallDeadlineMs` of its ceiling
+(460,000 ms at the 32,000-token cap).
+`claude-stream-facts.ts` reads the stop reason,
+a refusal's category and the four usage counts,
+`claude-cost.ts` prices them in USD (`SPEND` line),
+and a `stop_reason` of `refusal` is its own outcome,
+never an outage.
+The client logs the `anthropic-ratelimit-*` headers once on the first reply that carries them,
+paces itself at 1000 requests a minute,
+and records a billing error (402,
+or the older 400 naming a low credit balance) on itself,
+which `claudeIsDry` reads as dry for the rest of the run (`claude-spend.ts`).
+`retry-after-header.ts` and status 529 extend the retry ladder for Anthropic's 429 and 529 replies.
+A `retry-after` past the ladder's reach rides on the failure as `retryAfterMs`,
+and `statedWaitMsOf` takes the larger of that and the body's stated wait,
+so the budget layer holds Anthropic out for the wait the header names.
+The 401 guard shared with the DeepSeek and Xiaomi routes is `refused-key-body.ts`.
+The record is the last section of `doc/decision/translation-repair-direct-providers.md`.
+
 ## Thinking-parameter evidence
 
 The owner's rulings of 2026-10-22 decide which providers may be sent a thinking parameter:

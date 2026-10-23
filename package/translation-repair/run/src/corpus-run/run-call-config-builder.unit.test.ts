@@ -56,7 +56,22 @@ await describe({
           perCallTimeoutMs: 360_000,
           streamFirstContentMs: 120_000,
           streamIdleMs: 90_000,
+          claudeCallTimeoutMs: 460_000,
         },);
+      },
+    },),
+
+    it({
+      name: 'STAMPS THE LARGER OF THE CALLER\'S DEADLINE AND THE CLAUDE DEADLINE as the one a Claude call runs under '
+        + '(F2 '
+        + 'of the re-check of the second fix round)',
+      fn: async () => {
+        await Promise.resolve();
+        expect(runCallConfigOf({
+          perCallTimeoutMs: 900_000,
+          streamFirstContentMs: 120_000,
+          streamIdleMs: 90_000,
+        },).claudeCallTimeoutMs,).toBe(900_000,);
       },
     },),
   ],

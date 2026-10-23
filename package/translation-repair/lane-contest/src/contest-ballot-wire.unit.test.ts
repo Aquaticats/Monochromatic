@@ -113,6 +113,7 @@ await describe({
           fn: async () => {
             expect(contestResponseFormat({
               schemaName: 'cat_contest',
+              verdicts: ['tabby', CONTEST_REFUSAL,],
               asksArchive: false,
             },)
               .json_schema
@@ -124,6 +125,7 @@ await describe({
           fn: async () => {
             expect(contestResponseFormat({
               schemaName: 'cat_contest',
+              verdicts: ['tabby', CONTEST_REFUSAL,],
               asksArchive: false,
             },)
               .json_schema
@@ -132,11 +134,48 @@ await describe({
           },
         },),
         it({
+          name: 'LISTS THE VERDICTS A BALLOT MAY CAST AS AN enum (P1), the vocabulary the contest\'s guard reads and the '
+            + 'archive vocabulary where it asks one, and leaves the findings as plain strings, since a finding may '
+            + 'annotate the candidate it names ("repair (adds a season)") and the reader takes the name from its start',
+          fn: async () => {
+            expect(contestResponseFormat({
+              schemaName: 'cat_contest',
+              verdicts: ['tabby', 'tortoiseshell', CONTEST_REFUSAL,],
+              asksArchive: true,
+              archiveVerdicts: ['publishable', 'flawed',],
+            },)
+              .json_schema
+              .schema
+              .properties,).toEqual({
+                assessment: { type: 'string', },
+                dropped: { type: 'array', items: { type: 'string', }, },
+                unsupported: { type: 'array', items: { type: 'string', }, },
+                verdict: { type: 'string', enum: ['tabby', 'tortoiseshell', CONTEST_REFUSAL,], },
+                verdictOnArchive: { type: 'string', enum: ['publishable', 'flawed',], },
+              },);
+            expect(contestResponseFormat({
+              schemaName: 'cat_contest',
+              verdicts: ['tabby', CONTEST_REFUSAL,],
+              asksArchive: false,
+            },)
+              .json_schema
+              .schema
+              .properties,).toEqual({
+                assessment: { type: 'string', },
+                dropped: { type: 'array', items: { type: 'string', }, },
+                unsupported: { type: 'array', items: { type: 'string', }, },
+                verdict: { type: 'string', enum: ['tabby', CONTEST_REFUSAL,], },
+              },);
+          },
+        },),
+        it({
           name: 'ASKS FOR THE ARCHIVE VERDICT ONLY WHERE THE CONTEST WANTS ONE, so the gate is not made to answer a question whose answer its own choice already carries',
           fn: async () => {
             expect(contestResponseFormat({
               schemaName: 'cat_contest',
+              verdicts: ['tabby', CONTEST_REFUSAL,],
               asksArchive: true,
+              archiveVerdicts: ['publishable', 'flawed',],
             },)
               .json_schema
               .schema

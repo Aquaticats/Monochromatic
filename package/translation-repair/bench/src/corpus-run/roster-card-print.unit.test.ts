@@ -347,9 +347,28 @@ await describe({
 
         expect(String(refusal,),).toBe(
           'StatedRefusalError: roster-card\'s provider is one of synthetic, hyper, openrouter, bedrock, neuralwatt, '
-            + 'deepseek, xiaomi, '
+            + 'deepseek, xiaomi, anthropic, '
             + 'and "bogus" is none of them',
         );
+      },
+    },),
+    it({
+      name: 'REFUSES as stated, before any request, the Claude key: its card sides are fixed by the owner\'s lock to '
+        + 'two models and its listing needs the x-api-key header, which the bearer reader here does not send',
+      fn: async (ctx) => {
+        const refusal = await rejectionOf(async function printClaudeCard(): Promise<void> {
+          await printReplying({
+            provider: 'anthropic',
+            servedId: 'claude-sonnet-5-5',
+            status: 200,
+            bodyText: HYPER_LISTING,
+            sinon: ctx.sinon,
+          },);
+        },);
+
+        expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+        expect(String(refusal,),).toContain('roster-card does not read the Claude key',);
+        expect(String(refusal,),).toContain('claude-card-sides.ts',);
       },
     },),
     it({

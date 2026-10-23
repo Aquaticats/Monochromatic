@@ -53,6 +53,11 @@ export type ProviderPaces = {
   readonly xiaomi?: Pick<RequestPace, 'waitMs'>;
 
   /**
+   The Claude key's window, when it paces: 1000 requests a minute.
+   */
+  readonly anthropic?: Pick<RequestPace, 'waitMs'>;
+
+  /**
    OpenRouter's window, when it paces.
    */
   readonly openrouter?: Pick<RequestPace, 'waitMs'>;
@@ -111,6 +116,7 @@ export function paceWaitsOf(
     bedrock: waitOf('bedrock',),
     deepseek: waitOf('deepseek',),
     xiaomi: waitOf('xiaomi',),
+    anthropic: waitOf('anthropic',),
     openrouter: waitOf('openrouter',),
   };
 }
@@ -146,6 +152,7 @@ export function withFullWindows(
     bedrock: saturated.bedrock || (waits.bedrock > 0),
     deepseek: saturated.deepseek || (waits.deepseek > 0),
     xiaomi: saturated.xiaomi || (waits.xiaomi > 0),
+    anthropic: saturated.anthropic || (waits.anthropic > 0),
     openrouter: saturated.openrouter || (waits.openrouter > 0),
   };
 }

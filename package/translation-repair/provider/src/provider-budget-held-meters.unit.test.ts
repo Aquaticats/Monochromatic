@@ -19,6 +19,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import { createProviderBudgets, } from '../dist/final/node/index.mjs';
 import { consoleLinesDuring, } from './neuralwatt-ledger.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -79,6 +80,7 @@ function budgetsOnClock(
   { clock, }: { readonly clock: { now: number; }; },
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
+    maxHoldMs: TEST_MAX_HOLD_MS,
     ...WET_METERS,
     freshForMs: FRESH_MS,
     rateLimitBackoffMs: FRESH_MS,
@@ -102,6 +104,7 @@ await describe({
         const lines = await consoleLinesDuring({
           run: async function readOnce(): Promise<void> {
             const budgets = createProviderBudgets({
+              maxHoldMs: TEST_MAX_HOLD_MS,
               ...WET_METERS,
               heldOut: function refused(provider,): boolean {
                 return provider === 'openrouter';

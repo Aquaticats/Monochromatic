@@ -33,6 +33,7 @@ import {
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 
 /**
  Plain text conversation reused across routed calls.
@@ -108,6 +109,7 @@ const ONE_SYNTHETIC_SLOT = {
   bedrock: Number.POSITIVE_INFINITY,
   deepseek: Number.POSITIVE_INFINITY,
   xiaomi: Number.POSITIVE_INFINITY,
+  anthropic: Number.POSITIVE_INFINITY,
   openrouter: Number.POSITIVE_INFINITY,
 };
 
@@ -122,6 +124,7 @@ type PerProvider<ValueT,> = {
   readonly bedrock?: ValueT;
   readonly deepseek?: ValueT;
   readonly xiaomi?: ValueT;
+  readonly anthropic?: ValueT;
   readonly openrouter?: ValueT;
 };
 
@@ -172,6 +175,7 @@ function stubProviders(
     bedrock: text.bedrock ?? '{"spot":"cat tree"}',
     deepseek: text.deepseek ?? '{"spot":"laundry basket"}',
     xiaomi: text.xiaomi ?? '{"spot":"laundry basket"}',
+    anthropic: text.anthropic ?? '{"spot":"laundry basket"}',
     openrouter: text.openrouter ?? '{"spot":"laundry basket"}',
   };
 
@@ -185,6 +189,7 @@ function stubProviders(
     bedrock: refusals.bedrock ?? (((status.bedrock ?? 0) === 0) ? 0 : Number.POSITIVE_INFINITY),
     deepseek: refusals.deepseek ?? (((status.deepseek ?? 0) === 0) ? 0 : Number.POSITIVE_INFINITY),
     xiaomi: refusals.xiaomi ?? (((status.xiaomi ?? 0) === 0) ? 0 : Number.POSITIVE_INFINITY),
+    anthropic: refusals.anthropic ?? (((status.anthropic ?? 0) === 0) ? 0 : Number.POSITIVE_INFINITY),
     openrouter: refusals.openrouter ?? (((status.openrouter ?? 0) === 0) ? 0 : Number.POSITIVE_INFINITY),
   };
 
@@ -221,6 +226,7 @@ function stubProviders(
       bedrock: callerFor('bedrock',),
       deepseek: callerFor('deepseek',),
       xiaomi: callerFor('xiaomi',),
+      anthropic: callerFor('anthropic',),
       openrouter: callerFor('openrouter',),
     },
   };
@@ -254,6 +260,7 @@ function stubBudgets(
       bedrock: 0,
       deepseek: 0,
       xiaomi: 0,
+      anthropic: 0,
       openrouter: 0,
     },
     onHoldEnd,
@@ -293,6 +300,8 @@ function stubBudgets(
     // each serve one model, and `direct-routing.unit.test.ts` has their cases.
     deepseek: dry.deepseek ?? true,
     xiaomi: dry.xiaomi ?? true,
+    // DRY UNLESS A CASE SAYS OTHERWISE, like the direct providers: the Claude key serves only its eight cards.
+    anthropic: dry.anthropic ?? true,
     openrouter: dry.openrouter ?? false,
   };
 
@@ -547,6 +556,7 @@ await describe({
             bedrock: 0,
             deepseek: 0,
             xiaomi: 0,
+            anthropic: 0,
             openrouter: 402,
           },
         },);
@@ -608,6 +618,7 @@ await describe({
             bedrock: true,
             deepseek: true,
             xiaomi: true,
+            anthropic: true,
             openrouter: true,
           },
           holdsMs: {
@@ -617,6 +628,7 @@ await describe({
             bedrock: 0,
             deepseek: 0,
             xiaomi: 0,
+            anthropic: 0,
             openrouter: 20,
           },
           onHoldEnd: function syntheticComesBack(): void {
@@ -657,6 +669,7 @@ await describe({
             bedrock: 0,
             deepseek: 0,
             xiaomi: 0,
+            anthropic: 0,
             openrouter: 0,
           },
           onHoldEnd: function syntheticComesBack(): void {
@@ -690,6 +703,7 @@ await describe({
          Bedrock has no meter, so it reads dry.
          */
         const budgets = createProviderBudgets({
+          maxHoldMs: TEST_MAX_HOLD_MS,
           synthetic: {
             quotas: async function quotas() {
               return {
@@ -738,6 +752,7 @@ await describe({
           bedrock: 0,
           deepseek: 0,
           xiaomi: 0,
+          anthropic: 0,
           hyper: 0,
           openrouter: 0,
         },);
@@ -757,6 +772,7 @@ await describe({
             bedrock: true,
             deepseek: true,
             xiaomi: true,
+            anthropic: true,
             openrouter: true,
           },
           // The XingZ6018 account: its day starts at 19:15:08 UTC.
@@ -780,15 +796,16 @@ await describe({
             + 'Synthetic has no weekly credit left (or no five-hour request left, on a reply '
             + 'that still carries that window), Charm Hyper has no balance left, Amazon Bedrock has no credit left '
             + 'short of the owner\'s card, DeepSeek has no balance left (or says its account is unavailable), Xiaomi '
-            + 'has refused a call for payment, and OpenRouter has no credit left. Nothing further can be bought, so '
+            + 'has refused a call for payment, the Claude key has met a billing error this run, and OpenRouter has no '
+            + 'credit left. Nothing further can be bought, so '
             + 'this run ends. NeuralWatt\'s free energy returns when its day starts again, at 19:15:08 UTC, the day '
             + 'start this run decided or learned; Synthetic regenerates on its own '
             + 'schedule; Hyper, DeepSeek and OpenRouter refill on purchase; Xiaomi, once refused for payment, is '
             + 'read again only after one of its calls settles, so a top-up is seen on the next launch; '
             + 'Bedrock\'s credit is never topped up. '
             + 'Measured at the decision: meters read neuralwatt dry, synthetic dry, bedrock dry, deepseek dry, '
-            + 'xiaomi dry, hyper dry, openrouter dry; '
-            + 'holds neuralwatt 0ms, synthetic 0ms, bedrock 0ms, deepseek 0ms, xiaomi 0ms, hyper 0ms, openrouter 0ms.',
+            + 'xiaomi dry, anthropic dry, hyper dry, openrouter dry; '
+            + 'holds neuralwatt 0ms, synthetic 0ms, bedrock 0ms, deepseek 0ms, xiaomi 0ms, anthropic 0ms, hyper 0ms, openrouter 0ms.',
         );
         expect(called,).toEqual([],);
         expect(holdReads.count,).toBe(1,);
@@ -809,6 +826,7 @@ await describe({
             bedrock: true,
             deepseek: true,
             xiaomi: false,
+            anthropic: false,
             openrouter: true,
           },
         },);
@@ -893,6 +911,7 @@ await describe({
           bedrock: true,
           deepseek: true,
           xiaomi: false,
+          anthropic: true,
           openrouter: true,
         };
         const dry = {
@@ -987,7 +1006,7 @@ await describe({
         expect(String(outcome.thrown,),).toBe(
           'NoProviderForModelError: no provider can take deepseek-v4.1-flash: every provider serving this model '
             + 'is out of budget (neuralwatt dry, deepseek dry, hyper dry, openrouter dry); the providers that do not '
-            + 'serve it read synthetic wet, bedrock dry, xiaomi dry',
+            + 'serve it read synthetic wet, bedrock dry, xiaomi dry, anthropic dry',
         );
         expect(called,).toEqual([],);
       },
@@ -1421,6 +1440,40 @@ await describe({
         expect(
           outcome.kind === 'ok' ? outcome.value : undefined,
         ).toEqual({ spot: 'radiator', },);
+      },
+    },),
+
+    it({
+      name: 'TAKES THE SCHEMA\'S SPELLING of a routed answer that differs from a listed value only in its capital, '
+        + 'so the guard reads the voice and no second provider is asked',
+      fn: async () => {
+        const { callers, called, } = stubProviders({ text: { synthetic: '{"spot":"Windowsill"}', }, },);
+        const { budgets, } = stubBudgets({},);
+        const client = createRoutingClient({
+          callers,
+          budgets,
+        },);
+        const outcome = await client.chatJson({
+          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          messages: MESSAGES,
+          signal: SIGNAL,
+          responseFormat: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'nap_spot',
+              schema: {
+                type: 'object',
+                properties: { spot: { type: 'string', enum: ['windowsill', 'radiator',], }, },
+              },
+            },
+          },
+          validate: function isListedSpot(value: unknown,): value is { readonly spot: string; } {
+            return isJsonRecord(value,) && ((value.spot === 'windowsill') || (value.spot === 'radiator'));
+          },
+        },);
+
+        expect(called,).toEqual(['synthetic',],);
+        expect(outcome.kind === 'ok' ? outcome.value : undefined,).toEqual({ spot: 'windowsill', },);
       },
     },),
 

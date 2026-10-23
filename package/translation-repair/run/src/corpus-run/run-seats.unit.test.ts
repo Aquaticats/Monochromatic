@@ -19,7 +19,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { ROSTER_MODEL_IDS, } from '@monochromatic-dev/translation-repair-shared-contract';
+import {
+  ANTHROPIC_SERVED_IDS,
+  ROSTER_MODEL_IDS,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type BudgetView,
   OPENROUTER_WITHHELD,
@@ -82,6 +85,7 @@ const ALL_WET: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 };
 
@@ -95,6 +99,7 @@ const SYNTHETIC_DRY: BudgetView = {
   bedrock: false,
   deepseek: false,
   xiaomi: false,
+  anthropic: false,
   openrouter: false,
 };
 
@@ -108,6 +113,9 @@ const OPENROUTER_ONLY: BudgetView = {
   bedrock: true,
   deepseek: false,
   xiaomi: false,
+  // DRY: no Claude key in this reading, so Haiku does not take the second checker place a served Haiku would; a wet
+  // Claude key is held by `run-config-seating.unit.test.ts` (the seat) and `pass-reseat.unit.test.ts` (the pass-level hook).
+  anthropic: true,
   openrouter: false,
 };
 
@@ -215,6 +223,11 @@ await describe({
         },).toSorted(),).toEqual([
           SEAT_BEDROCK_ONLY_VISION_UNSEATED,
           SEAT_OPENROUTER_DECISIONS,
+          // The Claude cards other than Haiku 5.5: Sonnet 5.5 is an editor and sits on no derived bench, and the six
+          // effort cards wait for the effort bench to name a level.
+          ...ANTHROPIC_SERVED_IDS.filter(function notHaiku(id,): boolean {
+            return id !== 'claude-haiku-5-5';
+          },),
           // Measured as a checker on 2026-09-27 and nowhere else yet.
           SEAT_OPENROUTER_ONLY_CHECKER,
           // Culled from every role by the owner on 2026-09-24; its card
@@ -375,6 +388,7 @@ await describe({
           bedrock: false,
           deepseek: false,
           xiaomi: false,
+          anthropic: false,
           openrouter: false,
         };
         /** Benches read under that view. */

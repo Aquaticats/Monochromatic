@@ -128,6 +128,19 @@ await describe({
             expect(error.bodyExcerpt,).toBe('the cat knocked the bowl over',);
           },
         },),
+        it({
+          name: 'CARRIES THE WAIT A HEADER NAMED as retryAfterMs, zero when none was read, so a router can hold the '
+            + 'provider out for a wait the body does not state',
+          fn: async () => {
+            expect(new ProviderHttpError({
+              provider: 'anthropic',
+              status: 429,
+              bodyText: '{}',
+              retryAfterMs: 3_600_000,
+            },).retryAfterMs,).toBe(3_600_000,);
+            expect(new ProviderHttpError({ provider: 'anthropic', status: 429, bodyText: '{}', },).retryAfterMs,).toBe(0,);
+          },
+        },),
       ],
     },),
   ],

@@ -109,6 +109,7 @@ function budgetsWhereBedrockComesFirst(
         bedrock: alsoDry.includes('bedrock',),
         deepseek: alsoDry.includes('deepseek',),
         xiaomi: alsoDry.includes('xiaomi',),
+        anthropic: alsoDry.includes('anthropic',),
         openrouter: alsoDry.includes('openrouter',),
       };
     },

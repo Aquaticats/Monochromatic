@@ -82,17 +82,19 @@ await describe({
           openrouter: 'whisker-key-0004',
           deepseek: '',
           xiaomi: '',
+          anthropic: '',
         },);
       },
     },),
     it({
-      name: 'READS the two direct providers\' keys when set and refuses nothing when they are not',
+      name: 'READS the three direct providers\' keys when set and refuses nothing when they are not',
       fn: async () => {
         expect(readProviderKeys({
           env: {
             ...ALL_FIVE,
             DEEPSEEK_API_KEY: 'whisker-key-0006',
             TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY: 'whisker-key-0007',
+            TRANSLATION_REPAIR_CLAUDE_API_KEY: 'whisker-key-0008',
           },
         },),).toEqual({
           neuralwatt: 'whisker-key-0005',
@@ -102,6 +104,7 @@ await describe({
           openrouter: 'whisker-key-0004',
           deepseek: 'whisker-key-0006',
           xiaomi: 'whisker-key-0007',
+          anthropic: 'whisker-key-0008',
         },);
       },
     },),

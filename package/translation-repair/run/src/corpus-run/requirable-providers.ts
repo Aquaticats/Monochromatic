@@ -5,14 +5,14 @@ import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared
 // loading the clients `required-providers.ts` reads meters with.
 
 /**
- Provider identities a validation arm may require before calls: every provider but the two optional direct ones.
+ Provider identities a validation arm may require before calls: every provider but the three optional direct ones.
  */
-export type RequiredProvider = Exclude<ProviderName, 'deepseek' | 'xiaomi'>;
+export type RequiredProvider = Exclude<ProviderName, 'anthropic' | 'deepseek' | 'xiaomi'>;
 
 /**
  Providers a validation arm may require wet, in the order the pass names them.
 
- DeepSeek and Xiaomi are left out on purpose: both are optional direct routes that a run uses when
+ DeepSeek, Xiaomi and the Claude key are left out on purpose: all three are optional direct routes that a run uses when
  their key is set and passes over otherwise (`doc/decision/translation-repair-direct-providers.md`),
  so no arm can depend on one being ready.
  */

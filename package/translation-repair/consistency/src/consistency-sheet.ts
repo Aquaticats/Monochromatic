@@ -2,6 +2,7 @@ import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
 
 import { longestRunOf, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { labelsSentenceOf, } from './consistency-label-sentence.ts';
+import { marksSentenceOf, } from './consistency-marks-sentence.ts';
 import { viewsWithoutNotes, } from './consistency-shown-notes.ts';
 import { consistencyTenseLines, } from './consistency-tense.ts';
 import { citedReferenceBlockText, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
@@ -305,26 +306,15 @@ export function markedParagraph(
 
  @param repeat - the repeated wording or frame
 
- @param marks - marks the paragraphs carry
-
  @returns Rule text, without the house rules that follow it
 
  @example
  ```ts
- const rules = consistencyRules({ repeat, marks, },);
+ const rules = consistencyRules({ repeat, },);
  ```
  */
 function consistencyRules(
-  {
-    repeat,
-    marks,
-  }: {
-    readonly repeat: ConsistencyRepeat;
-    readonly marks: {
-      readonly open: string;
-      readonly close: string;
-    };
-  },
+  { repeat, }: { readonly repeat: ConsistencyRepeat; },
 ): string {
   /**
    What the page repeats, in the sheet's own words.
@@ -343,8 +333,6 @@ function consistencyRules(
   return `You are shown a Chinese ORIGINAL wording that one page repeats, and, for each place it stands, the Chinese paragraph holding it and the whole English of that paragraph's slice as it now stands (the TRANSLATION). ${situation}
 
 Your task is to say whether the places render it alike, which rendering the whole page should use, and which places must keep their own wording because their surroundings call for it. A reader of the page meets all the places, so a refrain or a repeated sentence that changes its English from place to place reads as a mistake.
-
-In each paragraph the repeated wording is enclosed between ${marks.open} and ${marks.close}; the marks are not part of the text.
 
 Reply with one JSON object whose keys come in this order: assessment, candidateQuotes, choice, keep. Write the assessment first and choose after it:
 - "assessment": one to three sentences. Say whether the renderings differ in meaning or only in wording, which rendering is the most faithful to the ORIGINAL under the house rules, name any word of the rendering you choose that renders ORIGINAL outside the marked wording (the other places must not be given such a word), and, for any OCCURRENCE you list in "keep", what in its surroundings calls for different wording.
@@ -500,16 +488,18 @@ export function buildConsistencyMessages(
   return [
     {
       role: 'system',
-      content: `${consistencyRules({
-        repeat: subject.repeat,
-        marks,
-      },)}${identityRules}\n\n${JUDGE_POLICY_BLOCK}`,
+      content: `${consistencyRules({ repeat: subject.repeat, },)}${identityRules}\n\n${JUDGE_POLICY_BLOCK}`,
     },
     {
       role: 'user',
       // THE REPLY SHAPE NAMES NO REAL LABEL, since the rules forbid choosing by
       // position and a label in the example would be a first place offered.
-      content: `${identityBlock}${referenceBlock}${repeatBlock}${placeBlocks.join('',)}${tenseBlock}${fence} END ${fence}\n${
+      content: `${
+        marksSentenceOf({
+          marks,
+          shown: 'paragraph',
+        },)
+      }\n\n${identityBlock}${referenceBlock}${repeatBlock}${placeBlocks.join('',)}${tenseBlock}${fence} END ${fence}\n${
         labelsSentenceOf({
           labels: subject.occurrences
             .map(function labelAt(

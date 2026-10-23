@@ -1,4 +1,5 @@
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { CLAUDE_SCHEMA_PRODUCERS, } from '../claude-schema-producers.ts';
 import {
   declinedEntryIds,
   digestPipeline,
@@ -19,6 +20,7 @@ import {
   passStartLine,
 } from './corpus-pass-lines.ts';
 import { assertPassResumable, } from './corpus-pass-guards.ts';
+import { assertSchemasSendable, } from './pass-schema-check.ts';
 import { runPassQueue, } from './corpus-pass-queue.ts';
 import { createPassDryStop, } from './pass-dry-stop.ts';
 import { floorLimitedByEntry, } from './pass-floor-limited.ts';
@@ -36,6 +38,7 @@ import {
   prepareRunsLayout,
   PROVIDERS_LEFT_OFF,
   readRequiredProviders,
+  RUN_CALL_CONFIG,
   RUN_PER_CALL_TIMEOUT_MS,
 } from '@monochromatic-dev/translation-repair-run/ts';
 
@@ -67,6 +70,9 @@ const republishLog = contextRoot({ tag: 'republish', },);
  runs directory another pass holds, a required provider that is not ready, or a flag naming
  an entry the corpus does not hold
 
+ @throws {@link UnsendableSchemasError} when a stage schema carries what the Claude route cannot send, before the
+ lock is taken, anything is printed or any provider is asked
+
  @example
  ```ts
  await runCorpusPassOver({ ...input, },);
@@ -89,6 +95,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    Corpus clone and commit this run reads.
    */
   const { pin, } = pinSetting;
+
+  // FIRST OF ALL, before the lock, the guards, the START line and every provider: a stage schema the Claude route
+  // cannot send is a fault in the code that no document causes, and each entry that reached its stage would otherwise
+  // record one `status=ERROR` after the paid calls of the stages before it. `--plan` is checked too, since it
+  // promises to verify setup at zero quota.
+  assertSchemasSendable({ producers: input.schemaProducers ?? CLAUDE_SCHEMA_PRODUCERS, },);
 
   // Taken before anything is read, and held for the whole pass. Two passes
   // sharing one directory overwrite each other attempt counts, delete each
@@ -176,6 +188,8 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
       done: done.size,
       softBudgetMs: SOFT_BUDGET_MS,
       hardCapMs,
+      perCallMs: RUN_PER_CALL_TIMEOUT_MS,
+      claudeCallMs: RUN_CALL_CONFIG.claudeCallTimeoutMs,
     },
   },),);
 
@@ -183,6 +197,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     hardCapMs,
     builtInCapMinutes: HARD_CAP_MINUTES,
     perCallMs: RUN_PER_CALL_TIMEOUT_MS,
+    claudeCallMs: RUN_CALL_CONFIG.claudeCallTimeoutMs,
     spendCeilingUsd,
     graceNote: input.graceNote,
     writerNote: input.writerNote,
@@ -241,6 +256,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    */
   const client = dryStop.guard({ client: input.newClient({
     promptPayloadDir,
+    maxHoldMs: hardCapMs,
     passLeftMs,
   },), },);
 

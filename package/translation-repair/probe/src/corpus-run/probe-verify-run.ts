@@ -135,7 +135,13 @@ export const VERIFY_BLIND_NOTE: string = 'NOTE the sheet is blind and its manife
 
  @example
  ```ts
- await runProbeVerify({ dir, pin, newClient: createRunClient, gather: { damaged: gatherRelabelCases, controls: gatherControlCases, }, stageSettings, },);
+ await runProbeVerify({
+   dir,
+   pin,
+   newClient: createProbeRunClient,
+   gather: { damaged: gatherRelabelCases, controls: gatherControlCases, },
+   stageSettings,
+ },);
  ```
  */
 export async function runProbeVerify(

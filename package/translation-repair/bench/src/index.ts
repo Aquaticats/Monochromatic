@@ -63,7 +63,12 @@ export {
   printEditorCalibrateShipped,
 } from './corpus-run/editor-calibrate-closing.ts';
 export { driveEditorCalibrate, } from './corpus-run/editor-calibrate-drive.ts';
-export { runEditorLane, } from './corpus-run/editor-calibrate-lane.ts';
+export {
+  editorLaneChairOf,
+  EDITOR_LANE_EDITORS,
+  EDITOR_LANE_REFINERS,
+  runEditorLane,
+} from './corpus-run/editor-calibrate-lane.ts';
 export { runEditorCalibrate, } from './corpus-run/editor-calibrate-run.ts';
 export {
   shippedAuthors,

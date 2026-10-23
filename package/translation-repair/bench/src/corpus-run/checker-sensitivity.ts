@@ -1,5 +1,5 @@
 import {
-  createRunClient,
+  createProbeRunClient,
   reportingRefusals,
 } from '@monochromatic-dev/translation-repair-run/ts';
 import { runCheckerSensitivity, } from './checker-sensitivity-run.ts';
@@ -37,7 +37,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
  */
 function main(): Promise<void> {
   return runCheckerSensitivity({
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     stageSettings: readStageSettings({ env: process.env, },),
   },);
 }

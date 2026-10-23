@@ -43,20 +43,23 @@ export {
   RequiredProviderError,
 } from './corpus-run/required-providers.ts';
 export { type RunClient, } from './corpus-run/run-client-contract.ts';
+export {
+  createProbeRunClient,
+  PROBE_MAX_HOLD_MS,
+  probeRunClientFrom,
+} from './corpus-run/run-probe-client.ts';
 export { RunConfigError, } from './corpus-run/run-config-error.ts';
 export {
   createRunClient,
   OWNER_CULLED,
   readHeadSha,
-  readRunCorpusPinSetting,
   RECALL_JUDGE_MODEL_IDS,
   resolveRunsDir,
-  RUN_CALL_CONFIG,
+  RUN_BENCHES,
   RUN_CHECKER_ORDER,
   RUN_DECISION_JUDGES,
   RUN_LATE_JUDGES,
   RUN_MODELS,
-  RUN_PER_CALL_TIMEOUT_MS,
   RUN_READER_MODELS,
   RUN_ROSTER,
   RUN_SELECT_JUDGES,
@@ -64,12 +67,18 @@ export {
   RUN_WRITING_PROVIDERS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
-  runCallConfigOf,
   runClientFrom,
   type RunRepairModels,
   TRANSLATOR_DROPPED,
   WRITER_UNMEASURED,
 } from './corpus-run/run-config.ts';
+export {
+  RUN_CALL_CONFIG,
+  RUN_PER_CALL_TIMEOUT_MS,
+  runCallConfigOf,
+} from './corpus-run/run-call-config.ts';
+export { readRunCorpusPinSetting, } from './corpus-run/run-corpus-pin.ts';
+export { unconfiguredSyntheticQuota, } from './corpus-run/run-unconfigured-quota.ts';
 export {
   belowFloorWritingBenches,
   benchesOf,

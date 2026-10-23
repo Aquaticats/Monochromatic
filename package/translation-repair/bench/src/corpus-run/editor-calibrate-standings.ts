@@ -13,7 +13,11 @@ import type { SliceRounds, } from './editor-calibrate-slice.ts';
 /**
  Prints the editor standing and then the refiner standing.
 
- @param roster - every model the run seated, which each table accounts for
+ @param roster - every model the run seated as an editor, which the editor table accounts for, and the refiner table
+ too where no refiner roster is given
+
+ @param refinerRoster - every model the run seated as a refiner, which the refiner table accounts for; absent reads as
+ {@link roster}
 
  @param perSlice - what every slice produced, in sample order
 
@@ -25,9 +29,11 @@ import type { SliceRounds, } from './editor-calibrate-slice.ts';
 export function printEditorCalibrateStandings(
   {
     roster,
+    refinerRoster = roster,
     perSlice,
   }: {
     readonly roster: readonly RosterModelId[];
+    readonly refinerRoster?: readonly RosterModelId[];
     readonly perSlice: readonly SliceRounds[];
   },
 ): void {
@@ -72,7 +78,7 @@ export function printEditorCalibrateStandings(
   for (
     const standingLine of standingReportLines({
       seat: 'REFINER',
-      roster,
+      roster: refinerRoster,
       perSlice: refinerPerSlice,
       produced: [
         ...slatedAuthors({ perSlice: refinerPerSlice, },),

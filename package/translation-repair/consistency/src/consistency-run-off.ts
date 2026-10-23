@@ -18,6 +18,7 @@ import {
   selectMarks,
 } from './consistency-sheet.ts';
 import { labelsSentenceOf, } from './consistency-label-sentence.ts';
+import { marksSentenceOf, } from './consistency-marks-sentence.ts';
 import { viewsWithoutNotes, } from './consistency-shown-notes.ts';
 import { consistencyTenseLines, } from './consistency-tense.ts';
 import {
@@ -73,30 +74,17 @@ type ShownPlace = {
 /**
  The rules of the run-off sheet, read by every judge.
 
- @param marks - marks the paragraphs carry
-
  @returns Rule text, without the house rules that follow it
 
  @example
  ```ts
- const rules = runOffRules({ marks: { open: '⟦', close: '⟧', }, },);
+ const rules = runOffRules();
  ```
  */
-function runOffRules(
-  {
-    marks,
-  }: {
-    readonly marks: {
-      readonly open: string;
-      readonly close: string;
-    };
-  },
-): string {
+function runOffRules(): string {
   return `You are shown a Chinese ORIGINAL wording that one page repeats, and, for each of the places in the fenced content, the Chinese paragraph holding it, the whole English of that paragraph's slice as it now stands (the TRANSLATION) and the words of the TRANSLATION that render the repeated wording. The English of the page was settled one passage at a time, so the places render the same wording differently, and a first round of judges was split between the places in the fenced content on which place's rendering the whole page should follow. You are asked to settle it between these places only.
 
 Your task is to say which one of these places renders the repeated wording best, so that every other place can be made to read as it does. A reader of the page meets all the places, so a refrain or a repeated sentence that changes its English from place to place reads as a mistake.
-
-In each paragraph the repeated wording is enclosed between ${marks.open} and ${marks.close}; the marks are not part of the text.
 
 Reply with one JSON object whose keys come in this order: assessment, choice. Write the assessment first and choose after it:
 - "assessment": one to three sentences. Say how the renderings differ, which rendering is the most faithful to the ORIGINAL under the house rules, and name any word of the rendering you choose that renders ORIGINAL outside the marked wording (the other places must not be given such a word).
@@ -279,13 +267,18 @@ export function buildConsistencyRunOffMessages(
   return [
     {
       role: 'system',
-      content: `${runOffRules({ marks, },)}${
+      content: `${runOffRules()}${
         (identityBlock === '') ? '' : `\n\n${DECLARED_IDENTITY_RULES}`
       }\n\n${JUDGE_POLICY_BLOCK}`,
     },
     {
       role: 'user',
-      content: `${identityBlock}${referenceBlock}${
+      content: `${
+        marksSentenceOf({
+          marks,
+          shown: 'paragraph',
+        },)
+      }\n\n${identityBlock}${referenceBlock}${
         repeatBlockOf({
           repeat: subject.repeat,
           fence,

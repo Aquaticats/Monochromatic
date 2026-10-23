@@ -1,5 +1,5 @@
 import {
-  createRunClient,
+  createProbeRunClient,
   readRunCorpusPinSetting,
   reportingRefusals,
   resolveRunsDir,
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   await runProbeVerify({
     dir: await resolveRunsDir(),
     pin,
-    newClient: createRunClient,
+    newClient: createProbeRunClient,
     gather: {
       damaged: gatherRelabelCases,
       controls: gatherControlCases,

@@ -18,6 +18,17 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import {
+  claudeModelClientOver,
+  claudeStreamOf,
+  PLAIN_USAGE,
+} from '@monochromatic-dev/translation-repair-provider/ts/claude-client.test-fixture.ts';
+import {
+  transportLandingAfter,
+} from '@monochromatic-dev/translation-repair-provider/ts/delayed-transport.test-fixture.ts';
+import {
+  walkOnFakeClock,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/fake-clock-walk.test-fixture.ts';
 import { askModelHealth, } from '../../dist/final/node/index.mjs';
 import { capturingLoggerPair, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
@@ -42,11 +53,16 @@ const TIMEOUT_MS = 4_321;
 const PREVIEW_UNITS = 300;
 
 /**
- Reply in the shape asked for.
+ Text of a reply in the shape asked for.
+ */
+const HEALTHY_TEXT = '{"count":2,"first":"Mittens"}';
+
+/**
+ Reply in the shape asked for, as the scripted client answers it.
  */
 const HEALTHY: ScriptedModelReply = {
   kind: 'ok',
-  text: '{"count":2,"first":"Mittens"}',
+  text: HEALTHY_TEXT,
 };
 
 /**
@@ -81,9 +97,162 @@ async function askWith(
   };
 }
 
+/**
+ The per-call figure the run hands every call, which a caller-side cut would use.
+ */
+const RUN_PER_CALL_MS = 360_000;
+
+/**
+ The Claude deadline the cap, the floor rate and the allowance give.
+ */
+const CLAUDE_DEADLINE_MS = 460_000;
+
+/**
+ Longest the fake clock is ticked for a reply that is meant to be heard: past the Claude deadline and a minute more.
+ */
+const LONGEST_TICKING_MS = 520_000;
+
+/**
+ Asks the probe about a Claude seat whose reply lands after a delay, on a fake clock, ticking the given steps.
+
+ @param landMs - delay before the scripted reply lands
+
+ @param ticks - fake milliseconds to advance, one step after another
+
+ @param waitForEnd - whether to wait for the probe to end once the ticking is done, which a probe meant to outlast the
+ ticking does not
+
+ @param sinon - case's own sandbox
+
+ @returns Lines logged, the reasons exchanges were cut for, the cuts counted after each tick, whether the probe ended by
+ itself, and what the probe threw
+
+ @example
+ ```ts
+ const asked = await askClaudeLandingAfter({
+   landMs: 400_000,
+   ticks: [LONGEST_TICKING_MS,],
+   waitForEnd: true,
+   sinon: ctx.sinon,
+ },);
+ ```
+ */
+async function askClaudeLandingAfter(
+  {
+    landMs,
+    ticks,
+    waitForEnd,
+    sinon,
+  }: {
+    readonly landMs: number;
+    readonly ticks: readonly number[];
+    readonly waitForEnd: boolean;
+    readonly sinon: Parameters<typeof walkOnFakeClock>[0]['sinon'];
+  },
+): Promise<{
+  readonly lines: readonly string[];
+  readonly cut: readonly unknown[];
+  readonly cutsAfterEachTick: readonly number[];
+  readonly endedByItself: boolean;
+  readonly thrown: readonly unknown[];
+}> {
+  const { transport, firstCall, cut, release, } = transportLandingAfter({
+    landMs,
+    reply: {
+      status: 200,
+      bodyText: claudeStreamOf({ text: HEALTHY_TEXT, stopReason: 'end_turn', usage: PLAIN_USAGE, },),
+    },
+  },);
+  const client = claudeModelClientOver({ transport, },);
+  const { logger, lines, } = capturingLoggerPair();
+
+  /**
+   What the probe threw, in a list of none or one.
+   */
+  const thrown: unknown[] = [];
+  const walk = await walkOnFakeClock({
+    sinon,
+    walkOnce: async function askOnce(): Promise<void> {
+      try {
+        await askModelHealth({
+          client,
+          modelId: 'claude-haiku-5-5',
+          timeoutMs: RUN_PER_CALL_MS,
+          l: logger,
+        },);
+      }
+      catch (error) {
+        thrown.push(error,);
+      }
+    },
+    firstCall,
+    release,
+    ticks,
+    cutCount: () => cut.length,
+    waitForEnd,
+  },);
+  return {
+    lines,
+    cut,
+    cutsAfterEachTick: walk.cutsAfterEachTick,
+    endedByItself: walk.endedByItself,
+    thrown,
+  };
+}
+
 await describe({
   name: askModelHealth.name,
+  // SEQUENTIAL: one case spies on the process-wide signal factory.
+  concurrency: 1,
   children: [
+    it({
+      name: 'ARMS NO CALLER-SIDE TIMEOUT SIGNAL (F1 of the re-check of the second fix round): the client arms the '
+        + 'deadline '
+        + 'from `exchangeTimeoutMs`, and a signal that aborts at the same figure would cut a Claude call before the '
+        + 'Claude deadline',
+      fn: async (ctx) => {
+        const timeoutSignal = ctx.sinon.spy(
+          AbortSignal,
+          'timeout',
+        );
+        const { requests, } = await askWith({ reply: HEALTHY, },);
+
+        expect(requests[0]?.exchangeTimeoutMs,).toBe(TIMEOUT_MS,);
+        expect(timeoutSignal.callCount,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'HEARS A CLAUDE REPLY THAT LANDS AT 400,000 MS: the probe hands '
+        + 'the client no signal that aborts before the Claude deadline of 460,000 ms, whether it is built from '
+        + 'AbortSignal.timeout, from setTimeout or from AbortSignal.any',
+      fn: async (ctx) => {
+        const asked = await askClaudeLandingAfter({
+          landMs: 400_000,
+          ticks: [LONGEST_TICKING_MS,],
+          waitForEnd: true,
+          sinon: ctx.sinon,
+        },);
+
+        expect(asked.thrown,).toEqual([],);
+        expect(asked.cut,).toEqual([],);
+        expect(asked.endedByItself,).toBe(true,);
+        expect(asked.lines[0],).toBe('claude-haiku-5-5: ok',);
+      },
+    },),
+    it({
+      name: 'CUTS A CLAUDE REPLY THAT LANDS AT 500,000 MS AT 460,000 MS, not before (the positive control): the '
+        + 'rig shows the client\'s own deadline firing, so the heard reply at 400,000 ms is a measurement',
+      fn: async (ctx) => {
+        const asked = await askClaudeLandingAfter({
+          landMs: 500_000,
+          ticks: [CLAUDE_DEADLINE_MS - 1, 1,],
+          waitForEnd: false,
+          sinon: ctx.sinon,
+        },);
+
+        expect(asked.cutsAfterEachTick,).toEqual([0, 1,],);
+      },
+    },),
     it({
       name: 'LOGS the outcome kind and the whole raw reply for an answer in the shape asked for',
       fn: async () => {

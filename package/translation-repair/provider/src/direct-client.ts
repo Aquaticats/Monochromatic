@@ -19,8 +19,6 @@ import {
   type ExtractedCompletion,
   formatUsageNote,
   type ModelTransport,
-  type TransportExchange,
-  type TransportReply,
 } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { armCallDeadline, } from './call-deadline.ts';
 import type {
@@ -35,6 +33,7 @@ import {
   systemFingerprintOf,
 } from './direct-usage.ts';
 import { requireWholeStream, } from './require-whole-stream.ts';
+import { withoutRefusedKeyBody, } from './refused-key-body.ts';
 import { failureForReply, } from './request-size-refusal.ts';
 import { withSchemaInSystemPrompt, } from './schema-prompt.ts';
 import { reportSpend, } from './spend-line.ts';
@@ -155,43 +154,6 @@ function fingerprintNoteOf({ bodyText, }: { readonly bodyText: string; },): stri
       text: fingerprint,
       units: FINGERPRINT_LOG_UNITS,
     },),)}`;
-}
-
-/**
- Status a provider answers when it rejects the credential its request carried.
- */
-const HTTP_UNAUTHORIZED = 401;
-
-/**
- Wraps a transport so a 401 reaches the caller without the provider's words.
-
- A PROVIDER'S REFUSAL OF A KEY MAY ECHO A FRAGMENT OF IT (DeepSeek's documented 401 shows the key's last four
- characters), and the transport's mask finds whole credentials, not tails: masking every four-unit piece of a key would
- rewrite ordinary words in the answers that carry no refusal. The status alone says everything the router and an
- operator act on (the provider is held out and the credential renewed), so the body is dropped.
-
- @param transport - transport the exchange would otherwise go over
-
- @returns Transport answering the same, with an empty body on a 401
-
- @example
- ```ts
- const guarded = withoutRefusedKeyBody({ transport: fetchTransport, },);
- ```
- */
-export function withoutRefusedKeyBody({ transport, }: { readonly transport: ModelTransport; },): ModelTransport {
-  return async function wordlessOnRefusedKey(exchange: TransportExchange,): Promise<TransportReply> {
-    /**
-     Reply as the wire answered it.
-     */
-    const reply = await transport(exchange,);
-    if (reply.status !== HTTP_UNAUTHORIZED)
-      return reply;
-    return {
-      ...reply,
-      bodyText: '',
-    };
-  };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { logger, } from '@monochromatic-dev/module-logger/ts';
 
 import {
-  createRunClient,
+  createProbeRunClient,
   reportingRefusals,
   RUN_PER_CALL_TIMEOUT_MS,
   RUN_ROSTER,
@@ -23,7 +23,7 @@ import { reportModelHealth, } from './model-health-report.ts';
  */
 async function askRoster(): Promise<void> {
   process.exitCode = await reportModelHealth({
-    client: createRunClient(),
+    client: createProbeRunClient(),
     roster: RUN_ROSTER,
     timeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     l: logger,

@@ -44,7 +44,8 @@ import {
 //
 // A MODEL THE MEASUREMENT HOLDS NO COMPLETED CALL FOR takes the pooled 99th
 // percentile (13,082) until its own calls are read, as Mercury 2.5 did
-// between its seating and 20:05 UTC on 2026-09-09.
+// between its seating and 20:05 UTC on 2026-09-09. THE EIGHT CLAUDE CARDS ARE THE ONE EXCEPTION: thinking counts toward
+// `max_tokens` on both Claude models, so they carry a larger starting cap of their own (`claude-card-sides.ts`).
 //
 // RE-READ ON 2026-09-28 (ledger P10) over the pass-run logs alone, 499,820
 // completed calls; the caps and the pooled numbers stand. Every call since the

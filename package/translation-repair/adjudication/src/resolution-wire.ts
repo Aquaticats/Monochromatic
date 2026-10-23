@@ -433,7 +433,11 @@ export const RESOLUTION_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
             additionalProperties: false,
             properties: {
               issue: { type: 'integer', },
-              verdict: { type: 'string', },
+              // THE CLOSED VOCABULARY `isResolutionVerdict` reads, as an enum (P1 of the second review of the Claude route).
+              verdict: {
+                type: 'string',
+                enum: [...RESOLUTION_VERDICTS,],
+              },
             },
           },
         },

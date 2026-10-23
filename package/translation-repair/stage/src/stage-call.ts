@@ -2,10 +2,22 @@ import type { Logger, } from '@monochromatic-dev/module-logger/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type { DeepReadonlyData, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
-import type {
-  ChatJsonOutcome,
-  JsonSchemaResponseFormat,
-  ModelClient,
+import {
+  BedrockModelNotServedError,
+  type ChatJsonOutcome,
+  ClaudeModelNotServedError,
+  ClaudePrefillError,
+  ClaudeSchemaKeywordError,
+  DeepSeekModelNotServedError,
+  EmptyConversationError,
+  type JsonSchemaResponseFormat,
+  type ModelClient,
+  ModelNotServedError,
+  NeuralWattModelNotServedError,
+  OpenRouterModelNotServedError,
+  SyntheticModelNotServedError,
+  UnnameableToolError,
+  XiaomiModelNotServedError,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
@@ -245,6 +257,64 @@ function lostVoiceCause(
 }
 
 /**
+ The classes of error that are a fault in the request our own code built, each thrown from local state before any
+ exchange is made.
+
+ Four are the Claude route refusing the request: a schema keyword it cannot send, a conversation that ends on an
+ assistant turn, a conversation that holds no turn to answer, and a seat that is no Claude card. Eight more are
+ thrown by the same kind of local lookup or build: the seven clients other than Claude's each refuse a seat their
+ roster lookup does not serve (`servedIdFor`, or `syntheticServes` for Synthetic) before the request body is built,
+ and `UnnameableToolError` refuses the name the stage's own schema carries. None of them reads a provider's answer,
+ and each recurs on every call of the stage until the code or the roster wiring is changed.
+ */
+const REQUEST_FAULT_CLASSES: readonly (new (...parameters: never) => Error)[] = [
+  ClaudeSchemaKeywordError,
+  ClaudePrefillError,
+  EmptyConversationError,
+  ClaudeModelNotServedError,
+  BedrockModelNotServedError,
+  DeepSeekModelNotServedError,
+  ModelNotServedError,
+  NeuralWattModelNotServedError,
+  OpenRouterModelNotServedError,
+  SyntheticModelNotServedError,
+  XiaomiModelNotServedError,
+  UnnameableToolError,
+];
+
+/**
+ Whether an error is a request our own code built wrong, refused before any exchange was made.
+
+ The twelve classes are listed with `REQUEST_FAULT_CLASSES`. Each was classified by its throw site, and the rule is
+ that a class thrown only from local state is a fault of the request, while a class that can come from a live answer,
+ or from the data one document carries, is a lost voice.
+
+ What stays a lost voice, and why. `ProviderHttpError` and every other transport failure are a provider's answer or
+ a connection that dropped; a deadline, an idle stream and a runaway or degenerate stream are a model or a network
+ being slow or wrong; `NoProviderForModelError` is a fact about which providers the bench holds wet, and the call
+ reports it as an unreachable seat. `MalformedImageUriError` is thrown by the request builder from the data URI of
+ one picture. `encodeImageAsset` refuses a zero-byte file with its own error before a URI exists, so the URIs the
+ stages build from a document's bytes always carry a payload; a URI that is malformed in another way came from a
+ caller's own content part, and ending the round would stop the seats that carry it correctly. It recurs for that
+ caller and not for the stage, so the seat's voice is lost for the call and the warning names it.
+
+ @param error - caught value, of unknown type by construction
+
+ @returns Whether the error is one of the twelve classes
+
+ @example
+ ```ts
+ if (isRequestFault({ error, },))
+   throw error;
+ ```
+ */
+export function isRequestFault({ error, }: { readonly error: unknown; },): boolean {
+  return REQUEST_FAULT_CLASSES.some(function isInstance(faultClass,): boolean {
+    return error instanceof faultClass;
+  },);
+}
+
+/**
  Runs one schema-validated exchange for a pipeline stage.
 
  @param client - injected model client
@@ -272,15 +342,27 @@ function lostVoiceCause(
  seat on the bench; absent on a stage that has none, which loses that
  seat's voice rather than asking it for prose
 
- @returns Voice as data; a lost voice never throws unless the caller aborted
- or every provider read dry
+ @returns Voice as data; a lost voice never throws unless the caller aborted, the route refused the request as
+ malformed, or every provider read dry
 
- @throws The caller's abort reason, or whatever the exchange raised under it,
- once the caller aborted
+ @throws Whatever the caller's abort carried, once the caller aborted
 
- @throws `EveryProviderDryError` when the router refused the call because
- no provider has budget left, which ends the run at the owner's instruction and
- so is never recorded as one seat's lost voice
+ @throws `EveryProviderDryError` when the router refused the call because no provider has budget left, which ends the
+ run at the owner's instruction and so is never recorded as one seat's lost voice
+
+ @throws {@link ClaudeSchemaKeywordError} when the response format carries a keyword the Claude route cannot send
+
+ @throws {@link ClaudePrefillError} when the conversation ends on an assistant turn
+
+ @throws {@link EmptyConversationError} when the conversation holds no turn to answer
+
+ @throws {@link ClaudeModelNotServedError} when the seat is no Claude card
+
+ @throws {@link BedrockModelNotServedError}, {@link DeepSeekModelNotServedError}, {@link ModelNotServedError},
+ {@link NeuralWattModelNotServedError}, {@link OpenRouterModelNotServedError}, {@link SyntheticModelNotServedError}
+ or {@link XiaomiModelNotServedError} when the seat is handed to a client that does not serve it
+
+ @throws {@link UnnameableToolError} when the schema's own name is one the protocol rejects
 
  @example
  ```ts
@@ -371,6 +453,15 @@ export async function attemptStageCall<ValueT,>(
   catch (error) {
     // Aborts must always win so user steering can stop a fan-out.
     if (signal.aborted)
+      throw error;
+
+    // A REQUEST THE ROUTE REFUSED AS MALFORMED IS NOT A LOST VOICE. It is a
+    // fault in our own stage code that every later call of the stage meets
+    // again, so counting it as a seat that failed would carry the pass on
+    // without the seat, with one warn line for each call, in place of the
+    // refusal at build time that exists to stop it (F5 of the re-check of the
+    // second fix round).
+    if (isRequestFault({ error, },))
       throw error;
 
     // EVERY PROVIDER DRY ENDS THE RUN, at the owner's instruction, so it is not one seat's lost voice. XingZ6018

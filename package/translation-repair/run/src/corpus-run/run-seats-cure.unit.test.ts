@@ -5,10 +5,12 @@
  THE SHAPE, from the second review of the Claude route (round 3): with one provider's key dry the wide bench stands one
  seat short of its quorum, and a hold on a provider that serves no seat the bench lacks is waited out in full (a
  refusal's cooldown is 300,000 ms, a stated return can be hours) and the bench is seated short all the same. Here the
- fleet is the live roster of this tree, NeuralWatt and Bedrock wet and the rest dry: the wide bench is 3 of 7 against a
- quorum of 4. Synthetic, Hyper or OpenRouter back reach the quorum; DeepSeek or Xiaomi back leave it at 3 of 7
- (DeepSeek's one wide seat is one Bedrock or NeuralWatt already reach). THE CLAUDE KEY IS NOT IN THIS TREE (its route
- is another branch), so the case where that key is the dry one is added when the branches meet; the rule is the same.
+ fleet is the live roster of this tree, NeuralWatt and Bedrock wet and the rest dry, the Claude key included: the wide
+ bench is 3 of 8 against a quorum of 4. Synthetic, Hyper, OpenRouter or the Claude key back reach the quorum; DeepSeek
+ or Xiaomi back leave it at 3 of 8 (DeepSeek's one wide seat is one Bedrock or NeuralWatt already reach). The Claude key
+ is dry in every view here, so its own hold is the one held in the cases that name it: waited out where its return
+ reaches the quorum (the one-short view) and skipped where it leaves the bench short (the three-short view); the rule
+ is the same.
 
  TWO HOLDS THAT EACH CURE ALONE (round 5): a hold counts when the held set cures the bench between them and that
  provider's return adds a reachable seat to it. A rule asking that the bench stay short without the provider counted
@@ -42,7 +44,7 @@ import {
 import { readJudgeSeats, } from '../../dist/final/node/index.mjs';
 
 /**
- NeuralWatt and Bedrock wet and every other provider dry: the wide bench is 3 of 7 reachable against a quorum of 4.
+ NeuralWatt and Bedrock wet and every other provider dry: the wide bench is 3 of 8 reachable against a quorum of 4.
  */
 const WIDE_ONE_SHORT: BudgetView = {
   neuralwatt: false,
@@ -50,6 +52,7 @@ const WIDE_ONE_SHORT: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -63,6 +66,7 @@ const NO_HOLDS = {
   bedrock: 0,
   deepseek: 0,
   xiaomi: 0,
+  anthropic: 0,
   hyper: 0,
   openrouter: 0,
 };
@@ -73,10 +77,10 @@ const NO_HOLDS = {
 const SHORT_HOLD_MS = 40;
 
 /**
- NeuralWatt wet and every other provider dry: the wide bench is 1 of 7 reachable against a quorum of 4, three seats
- short. Hyper back alone reaches the quorum (4 of 6), and so do Synthetic and Bedrock back together (5 of 7), while
- Synthetic alone or Bedrock alone leaves it short (3 of 7): with the three held, each one is unnecessary given the
- others, yet every one of them adds a seat to the bench the held set cures.
+ NeuralWatt wet and every other provider dry: the wide bench stands three seats short of its quorum of 4. Hyper back
+ alone reaches the quorum, and so do Synthetic and Bedrock back together, while Synthetic alone or Bedrock alone leaves
+ it short: with the three held, each one is unnecessary given the others, yet every one of them adds a seat to the bench
+ the held set cures.
  */
 const WIDE_THREE_SHORT: BudgetView = {
   neuralwatt: false,
@@ -84,6 +88,7 @@ const WIDE_THREE_SHORT: BudgetView = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   hyper: true,
   openrouter: true,
 };
@@ -198,7 +203,7 @@ await describe({
   children: [
     it({
       name: 'WAITS OUT A HOLD ON A PROVIDER WHOSE RETURN CURES THE SHORTFALL (the control): with Synthetic, Hyper or '
-        + 'OpenRouter back the wide bench is 4 of 7 against a quorum of 4, so the wait buys the quorum',
+        + 'OpenRouter back the wide bench is 4 of 8 against a quorum of 4, so the wait buys the quorum',
       fn: async () => {
         expect(await readsUnderHold({ held: 'synthetic', lines: [], },),).toBe(2,);
         expect(await readsUnderHold({ held: 'hyper', lines: [], },),).toBe(2,);
@@ -208,7 +213,7 @@ await describe({
 
     it({
       name: 'DOES NOT WAIT OUT A HOLD ON A PROVIDER WHOSE RETURN LEAVES THE BENCH SHORT: with DeepSeek or Xiaomi back '
-        + 'the wide bench is still 3 of 7, so the wait buys nothing',
+        + 'the wide bench is still 3 of 8, so the wait buys nothing',
       fn: async () => {
         expect(await readsUnderHold({ held: 'deepseek', lines: [], },),).toBe(1,);
         expect(await readsUnderHold({ held: 'xiaomi', lines: [], },),).toBe(1,);
@@ -217,9 +222,38 @@ await describe({
 
     it({
       name: 'WAITS WHEN TWO HOLDS EACH CURE THE BENCH ALONE: Synthetic and Hyper both held, and either back makes the '
-        + 'wide bench 4 of 7, so the wait is for the shorter of them',
+        + 'wide bench 4 of 8, so the wait is for the shorter of them',
       fn: async () => {
         expect(await readsUnderHolds({ held: ['synthetic', 'hyper',], lines: [], },),).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'WAITS OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN CURES THE SHORTFALL (the control for the Claude key as '
+        + 'the held provider): with the Claude key back the wide bench is 4 of 8 against a quorum of 4, so the wait '
+        + 'buys the quorum and the line announcing it prints the Claude key\'s hold',
+      fn: async () => {
+        const lines: string[] = [];
+        expect(await readsUnderHold({ held: 'anthropic', lines, },),).toBe(2,);
+        /**
+         The line announcing the wait, which prints each provider's hold as the wait counts it.
+         */
+        const waiting = lines.find(function isWaiting(line,): boolean {
+          return line.includes('waiting ',);
+        },);
+        expect(waiting,).toContain('anthropic 40ms',);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT WAIT OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LEAVES THE BENCH SHORT: with only '
+        + 'NeuralWatt wet the wide bench is three seats short of its quorum of 4, the Claude key back adds a '
+        + 'seat and the bench is still short, so the wait buys nothing and the line says the hold would not help',
+      fn: async () => {
+        const lines: string[] = [];
+        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_THREE_SHORT, },),).toBe(1,);
+        const warning = noWaitWarningOf({ lines, },);
+        expect(warning,).toContain('held: anthropic (1 s); it would not help cure a short bench',);
       },
     },),
 
@@ -231,9 +265,9 @@ await describe({
     },),
 
     it({
-      name: 'WAITS WHEN THREE HOLDS EACH LEAVE THE OTHERS ENOUGH: NeuralWatt wet makes the wide bench 1 of 7, Hyper '
-        + 'cures it alone and Synthetic with Bedrock cure it together, so with all three held none is necessary '
-        + 'and every one adds a seat',
+      name: 'WAITS WHEN THREE HOLDS EACH LEAVE THE OTHERS ENOUGH: NeuralWatt wet leaves the wide bench three seats '
+        + 'short, Hyper cures it alone and Synthetic with Bedrock cure it together, so with all three held none is '
+        + 'necessary and every one adds a seat',
       fn: async () => {
         expect(
           await readsUnderHolds({
@@ -264,8 +298,8 @@ await describe({
 
     it({
       name: 'NAMES THE BENCH, THE COUNTS AND THE PROVIDERS THAT COULD CURE IT when it seats a bench short after the '
-        + 'waits: the Synthetic hold is waited out, the view does not change, and the warning says wide 3 of 7, '
-        + 'quorum 4, and that Synthetic, Hyper or OpenRouter back would reach it',
+        + 'waits: the Synthetic hold is waited out, the view does not change, and the warning says wide 3 of 8, '
+        + 'quorum 4, and that Synthetic, the Claude key, Hyper or OpenRouter back would reach it',
       fn: async () => {
         const lines: string[] = [];
         await readsUnderHold({ held: 'synthetic', lines, },);
@@ -275,8 +309,8 @@ await describe({
         const warning = lines.find(function isSeatedShort(line,): boolean {
           return line.startsWith('warn JUDGE SEATS phase=lane contest seated short',);
         },);
-        expect(warning,).toContain('wide 3 of 7 reachable, quorum 4',);
-        expect(warning,).toContain('synthetic, hyper, openrouter',);
+        expect(warning,).toContain('wide 3 of 8 reachable, quorum 4',);
+        expect(warning,).toContain('synthetic, anthropic, hyper, openrouter',);
         expect(warning,).not.toContain('deepseek',);
       },
     },),
@@ -288,7 +322,7 @@ await describe({
         const lines: string[] = [];
         await readsUnderHold({ held: 'deepseek', lines, },);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('synthetic, hyper, openrouter',);
+        expect(warning,).toContain('synthetic, anthropic, hyper, openrouter',);
       },
     },),
 

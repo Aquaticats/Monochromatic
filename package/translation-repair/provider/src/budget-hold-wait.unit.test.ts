@@ -159,6 +159,7 @@ const ALL_DRY: BudgetView = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   openrouter: true,
 };
 
@@ -172,6 +173,7 @@ const SYNTHETIC_BACK: BudgetView = {
   bedrock: true,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
   openrouter: true,
 };
 
@@ -191,6 +193,7 @@ const XIAOMI_CHECKER_ONLY: WritingReach = {
   bedrock: true,
   deepseek: true,
   xiaomi: false,
+  anthropic: true,
   openrouter: true,
 };
 
@@ -214,6 +217,7 @@ const NO_HOLDS: ProviderRecord<number> = {
   bedrock: 0,
   deepseek: 0,
   xiaomi: 0,
+  anthropic: 0,
   openrouter: 0,
 };
 
@@ -260,6 +264,7 @@ await describe({
                 bedrock: 0,
                 deepseek: 0,
                 xiaomi: 0,
+                anthropic: 0,
                 openrouter: 0,
               },
             },),).toBe(4_000,);
@@ -271,6 +276,7 @@ await describe({
                 bedrock: 0,
                 deepseek: 0,
                 xiaomi: 0,
+                anthropic: 0,
                 openrouter: 900,
               },
             },),).toBe(300,);
@@ -339,6 +345,7 @@ await describe({
               bedrock: true,
               deepseek: true,
               xiaomi: false,
+              anthropic: true,
               openrouter: true,
             };
             const { budgets, } = scriptedBudgets({ views: [view,], holds: NO_HOLDS, },);
@@ -519,6 +526,7 @@ await describe({
                 bedrock: false,
                 deepseek: false,
                 xiaomi: false,
+                anthropic: false,
                 openrouter: false,
               },],
               holds: NO_HOLDS,
@@ -536,6 +544,7 @@ await describe({
               bedrock: false,
               deepseek: false,
               xiaomi: false,
+              anthropic: false,
               openrouter: false,
             },);
             expect(reads.count,).toBe(1,);
@@ -556,6 +565,7 @@ await describe({
                 bedrock: 0,
                 deepseek: 0,
                 xiaomi: 0,
+                anthropic: 0,
                 openrouter: 0,
               },
             },);
@@ -588,6 +598,7 @@ await describe({
                 bedrock: true,
                 deepseek: true,
                 xiaomi: true,
+                anthropic: true,
                 openrouter: true,
               },],
               holds: {
@@ -597,6 +608,7 @@ await describe({
                 bedrock: 0,
                 deepseek: 0,
                 xiaomi: 0,
+                anthropic: 0,
                 openrouter: 0,
               },
             },);
@@ -613,6 +625,7 @@ await describe({
               bedrock: true,
               deepseek: true,
               xiaomi: true,
+              anthropic: true,
               openrouter: true,
             },);
             expect(reads.count,).toBe(2,);
@@ -635,6 +648,7 @@ await describe({
               bedrock: true,
               deepseek: true,
               xiaomi: true,
+              anthropic: true,
               openrouter: true,
             };
             const { budgets, reads, holdAsks, } = scriptedBudgets({
@@ -670,6 +684,7 @@ await describe({
                 bedrock: 0,
                 deepseek: 0,
                 xiaomi: 0,
+                anthropic: 0,
                 openrouter: 0,
               }, NO_HOLDS,], 2,],
             ] as const).map(async function endsTheRun([holdsByAsk, expectedReads,],): Promise<{
@@ -710,7 +725,7 @@ await describe({
               // exhaustion from refusal holds.
               expect((outcome.thrown as Error).message,)
                 .toContain(
-                'meters read neuralwatt dry, synthetic dry, bedrock dry, deepseek dry, xiaomi dry, hyper dry, '
+                'meters read neuralwatt dry, synthetic dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, hyper dry, '
                   + 'openrouter dry; holds neuralwatt',
                 );
             }

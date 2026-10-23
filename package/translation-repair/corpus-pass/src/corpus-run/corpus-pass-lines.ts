@@ -85,7 +85,17 @@ export function passIncompleteLine({ gap, }: { readonly gap: IncompleteEntry; },
 
  @example
  ```ts
- const facts: PassStartFacts = { tip, pipelineDigest, fileCount: 189, pending: 2, done: 0, softBudgetMs: 259_200_000, hardCapMs: 25_200_000, };
+ const facts: PassStartFacts = {
+   tip,
+   pipelineDigest,
+   fileCount: 189,
+   pending: 2,
+   done: 0,
+   softBudgetMs: 259_200_000,
+   hardCapMs: 25_200_000,
+   perCallMs: 360_000,
+   claudeCallMs: 460_000,
+ };
  ```
  */
 export type PassStartFacts = {
@@ -123,6 +133,16 @@ export type PassStartFacts = {
    Ceiling one entry runs under.
    */
   readonly hardCapMs: number;
+
+  /**
+   Deadline one model exchange is allowed.
+   */
+  readonly perCallMs: number;
+
+  /**
+   Deadline a Claude exchange is allowed, which the Claude client arms in place of a shorter one.
+   */
+  readonly claudeCallMs: number;
 };
 
 /**
@@ -140,7 +160,9 @@ export type PassStartFacts = {
 export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },): string {
   return `START tip=${facts.tip} pipeline=${facts.pipelineDigest} files=${String(facts.fileCount,)} pending=${
     String(facts.pending,)
-  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms`;
+  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms call=${
+    String(facts.perCallMs,)
+  }ms claude-call=${String(facts.claudeCallMs,)}ms`;
 }
 
 /**
@@ -155,6 +177,8 @@ export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },):
 
  @param perCallMs - deadline one model exchange is allowed
 
+ @param claudeCallMs - deadline a Claude exchange is allowed, which the ceiling must outlast too
+
  @param spendCeilingUsd - spend allowance, after any override
 
  @param graceNote - note naming the straggler window, empty for the built-in one
@@ -167,7 +191,16 @@ export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },):
 
  @example
  ```ts
- const lines = passLaunchLines({ hardCapMs, builtInCapMinutes: 420, perCallMs, spendCeilingUsd, graceNote, writerNote, pinSetting, },);
+ const lines = passLaunchLines({
+   hardCapMs,
+   builtInCapMinutes: 420,
+   perCallMs,
+   claudeCallMs,
+   spendCeilingUsd,
+   graceNote,
+   writerNote,
+   pinSetting,
+ },);
  ```
  */
 export function passLaunchLines(
@@ -175,6 +208,7 @@ export function passLaunchLines(
     hardCapMs,
     builtInCapMinutes,
     perCallMs,
+    claudeCallMs,
     spendCeilingUsd,
     graceNote,
     writerNote,
@@ -183,6 +217,7 @@ export function passLaunchLines(
     readonly hardCapMs: number;
     readonly builtInCapMinutes: number;
     readonly perCallMs: number;
+    readonly claudeCallMs: number;
     readonly spendCeilingUsd: number;
     readonly graceNote: string;
     readonly writerNote: string;
@@ -213,11 +248,13 @@ export function passLaunchLines(
   const tightLine = capOutlastsOneCall({
     capMs: hardCapMs,
     perCallMs,
+    claudeCallMs,
   },)
     ? ''
     : capTooTightNote({
       capMs: hardCapMs,
       perCallMs,
+      claudeCallMs,
     },);
 
   return [
