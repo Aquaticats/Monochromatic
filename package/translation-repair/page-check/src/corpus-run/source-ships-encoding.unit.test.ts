@@ -114,6 +114,14 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['display math on one line', '$$a < {b}$$ 与 {\n'],
   ['display math that never closes', '$$\n{x\n'],
   ['inline math with an escaped less-than sign', '$a \\< b$ {\n'],
+  [
+    'a byte order mark line before a setext heading starting with import',
+    'x\n\n\uFEFF\nimport data from the old system\n===\n',
+  ],
+  ['a byte order mark line before an import line in a paragraph', 'x\n\n\uFEFF\nimport data\n'],
+  ['a no-break space line before an export line', 'x\n\n\u00A0\nexport to PDF\n---\n'],
+  ['a zero-width space line before an import line', 'x\n\n\u200B\nimport data\n'],
+  ['two byte order mark lines before an import line', '\uFEFF\n\uFEFF\nimport data\n'],
 ];
 
 await describe({
@@ -290,6 +298,19 @@ await describe({
             expect(encoded({ text: 'import x from y\nabc\n===\n', },),).toBe('&#105;mport x from y\nabc\n===\n',);
             // An ATX heading starts with its marker, which no module word follows.
             expect(encoded({ text: '# import x\n', },),).toBe('# import x\n',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE FIRST LETTER OF AN ES MODULE LINE THAT FOLLOWS A LINE OF INVISIBLE CHARACTERS AS A '
+            + 'CHARACTER REFERENCE too, since the strict grammar starts the module there and the plain reading '
+            + 'continues the paragraph',
+          fn: async () => {
+            expect(encoded({ text: 'x\n\n\uFEFF\nimport data\n', },),).toBe('x\n\n\uFEFF\n&#105;mport data\n',);
+            expect(encoded({ text: 'x\n\n\u00A0\nexport to PDF\n---\n', },),)
+              .toBe('x\n\n\u00A0\n&#101;xport to PDF\n---\n',);
+            // A line of visible characters before it leaves it a line of the paragraph.
+            expect(encoded({ text: 'x\n\n\uFEFFy\nimport data\n', },),).toBe('x\n\n\uFEFFy\nimport data\n',);
           },
         },),
 
