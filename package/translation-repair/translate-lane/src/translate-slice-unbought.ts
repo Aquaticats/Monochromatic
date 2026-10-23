@@ -1,4 +1,7 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 import { absenceFinding, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 import type { TranslateSliceSettlement, } from './translate-slice-settle.ts';
 
@@ -29,7 +32,15 @@ export function carriedElsewhere(
     readonly l: Logger;
   },
 ): TranslateSliceSettlement {
-  l.info(`slice ${String(sliceIndex,)}: source passage already carried elsewhere`,);
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const cl = tagged({
+    tag: carriedElsewhere.name,
+    l,
+  },);
+
+  cl.info(`slice ${String(sliceIndex,)}: source passage already carried elsewhere`,);
   return {
     outcome: {
       kind: 'carried',
@@ -67,7 +78,15 @@ export function notCorroborated(
     readonly l: Logger;
   },
 ): TranslateSliceSettlement {
-  l.warn(
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const nl = tagged({
+    tag: notCorroborated.name,
+    l,
+  },);
+
+  nl.warn(
     `slice ${String(sliceIndex,)}: an original with no translation beside it, but the page `
       + 'has no room to be missing it; nothing was bought and the passage stays as it is',
   );

@@ -1,4 +1,7 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 
 import { benchBelowFloorStageFinding, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
@@ -173,7 +176,15 @@ export function skippedBelowFloor(
     readonly l: Logger;
   },
 ): BoughtSlice {
-  l.warn(
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const sl = tagged({
+    tag: skippedBelowFloor.name,
+    l,
+  },);
+
+  sl.warn(
     [
       `slice ${String(sliceIndex,)}: ${String(reachable,)} of ${String(benchSize,)} select `,
       `${
@@ -345,6 +356,14 @@ export function notAskedAgain(
     readonly l: Logger;
   },
 ): AskDecision {
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const al = tagged({
+    tag: notAskedAgain.name,
+    l,
+  },);
+
   if (memory === undefined)
     return { kind: 'ask', };
   /**
@@ -362,7 +381,7 @@ export function notAskedAgain(
      Why the earlier attempt left the slice unfilled.
      */
     const { reason, } = remembered.unfilled;
-    l.info(
+    al.info(
       [
         `slice ${String(sliceIndex,)}: not asked again; it ended unfilled (${reason}) with `,
         `${String(remembered.reachable,)} of ${String(benchSize,)} select `,
