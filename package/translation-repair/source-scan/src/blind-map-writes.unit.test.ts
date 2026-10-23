@@ -613,6 +613,12 @@ const ALLOWED_BLIND_SETS: ReadonlyMap<string, string> = new Map<string, string>(
     'one write per slice of a loop over the prepared slices, whose indexes `assertSliceIndexing` holds distinct',
   ],
   [
+    'page-check/corpus-run/source-ships-spans.ts#spansOf: footnotes.set(parent,...)',
+    'the key is the container (the root, a block quote or a list item) a block belongs to, and the write replaces that '
+      + 'container\'s state with its state after the block, which the pass read through `footnoteStateOf` right before '
+      + 'it, once per block',
+  ],
+  [
     'corpus-pass/corpus-run/pass-consistency-apply-gains.ts#gainedBy: sides.set(edit.id,...)',
     'the id names a group and a place, a place belongs to exactly one replacement, and a slice lists each replacement '
       + 'once, so each id is written once',

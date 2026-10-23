@@ -61,6 +61,7 @@ import {
  */
 const BYTE_OFFSET_OR_NOTHING = "(at === OFFSET_UNSTATED) ? '' : ` at byte $"
   + '{String(at,)}`';
+
 /**
  Every class permitted to declare the marker, with nothing else allowed to.
 
