@@ -927,10 +927,10 @@ await describe({
           logger: capturing,
         },);
         expect(warnings.filter(function recorded(message,): boolean {
-          return message.startsWith('alignment finding recorded: ',);
+          return message.includes('alignment finding recorded: ',);
         },),).toEqual([
-          `alignment finding recorded: ${structure}`,
-          `alignment finding recorded: ${sections}`,
+          `[${runDocumentLanes.name}] alignment finding recorded: ${structure}`,
+          `[${runDocumentLanes.name}] alignment finding recorded: ${sections}`,
         ],);
       },
     },),
