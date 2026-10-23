@@ -358,10 +358,11 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
 const NESTING_PAST_BOUND = 300;
 
 /**
- The source page of the entries whose rows nest a run past the bound, which the page itself is read for destinations
- without the nesting (the preparation of a real source refuses such a text before a page is composed).
+ The source page of the entries whose rows no writing makes parse, read for destinations as the plain page it is (the
+ preparation of a real source refuses a text nested past the bound before a page is composed, and the page itself
+ never holds a fence that its rows split).
  */
-const NESTED_RUN_SOURCE_PAGE = '一只虎斑猫。\n\n她说\n\n她睡在柜台上。\n\n她又说\n';
+const PLAIN_SOURCE_PAGE = '一只虎斑猫。\n\n她说\n\n她睡在柜台上。\n\n她又说\n';
 
 /**
  Lone paragraph that parses as written, the control for the sources the grammar refuses.
@@ -764,7 +765,7 @@ await describe({
             ];
             const { page, artifact, checks, warnings, } = await publishRows({
               rows,
-              sourceText: NESTED_RUN_SOURCE_PAGE,
+              sourceText: PLAIN_SOURCE_PAGE,
             },);
             expect(checks,).toEqual(['page-source-unparseable',],);
             expect(page,).not.toContain('她说',);
@@ -793,6 +794,55 @@ await describe({
         },),
 
         it({
+          name: 'SHIPS A PAGE WITHOUT BOTH RUNS WHEN A FENCE ONE OPENS THE NEXT CLOSES, which falls over the English '
+            + 'between them: each run parses alone and writing it as literal text changes nothing, so the third step '
+            + 'is the first taken, and the page read back agrees with its artifact and weighs what it should',
+          fn: async () => {
+            /**
+             Two runs that parse alone, the first opening a fence and the second holding a closing tag and the fence's
+             other end, with a paragraph the archive covers between them.
+             */
+            const rows: readonly SourceShippedRow[] = [
+              OPENING_ROW,
+              {
+                incumbentText: '',
+                sourceText: '```\n',
+              },
+              MIDDLE_ROW,
+              {
+                incumbentText: '',
+                sourceText: '```\n</\n',
+              },
+            ];
+            const { page, artifact, checks, warnings, } = await publishRows({
+              rows,
+              sourceText: PLAIN_SOURCE_PAGE,
+            },);
+            expect(checks,).toEqual(['page-source-unparseable',],);
+            expect(page,).toBe(`${OPENING_ROW.incumbentText}${MIDDLE_ROW.incumbentText}`,);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.length,).toBe(1,);
+            expect(lines[0],).toContain('step 3 of 3',);
+            expect(lines[0],).toContain('slices [1, 3]',);
+            expect(lines[0],).toContain('the page with its source text as written does not parse',);
+            const judged = pageAgreement({
+              artifact: {
+                ...artifact,
+                preparation: {
+                  archiveText: {
+                    kind: 'stored',
+                    text: sourceShippedArchive({ rows, },),
+                  },
+                },
+              },
+              pageText: page,
+            },);
+            expect(judged.agreement,).toBe('agreed-weighed',);
+            expect(judged.sourceDropped,).toEqual([1, 3,],);
+          },
+        },),
+
+        it({
           name: 'STILL REPORTS TEXT LOST ELSEWHERE ON A PAGE SHIPPED WITHOUT A RUN, the positive control for the page '
             + 'that agrees: the sentence of a paragraph the archive covers is gone, and so the page disagrees',
           fn: async () => {
@@ -806,7 +856,7 @@ await describe({
             ];
             const { page, artifact, } = await publishRows({
               rows,
-              sourceText: NESTED_RUN_SOURCE_PAGE,
+              sourceText: PLAIN_SOURCE_PAGE,
             },);
             const judged = pageAgreement({
               artifact: {
