@@ -1,7 +1,7 @@
 # Preventing this package's mistakes
 
 The audit of 2026-09-27 and 2026-09-28 recorded every mistake made while fixing this package
-as an M entry in [the audit ledger](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit),
+as an M entry in [the audit ledger][process-mistakes-ledger],
 and every defect found while fixing as an X entry.
 The ledger is the record,
 in the order things happened.
@@ -326,3 +326,6 @@ not a memory of having done it.
 
 [fleet-shape]:
   mistake-prevention-sheets-quorums-and-outcome-rules.md#a-test-fleet-models-every-provider-shape-of-the-live-roster
+
+[process-mistakes-ledger]:
+  audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit

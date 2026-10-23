@@ -625,3 +625,36 @@ and the deep case does not warn where it must),
 fix `6d4f2cd78b`.
 The audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+fix round 5:
+the reach check ended the audit for a root the filesystem refuses to resolve.
+`searchReaches` raised the filesystem's error for a root behind a file (`ENOTDIR`),
+a loop of links (`ELOOP`) or a directory nobody may enter (`EACCES`),
+while the walk of runs directories reports such a root as one it could not list and goes on,
+so the audit stopped with a stack trace before it printed the newest record and the versions set after it,
+the two lines it exists to print.
+`reportSliceCaches` now checks each root on its own:
+a refusal is logged as one warning with the root and the filesystem's code (never its message,
+which quotes the path),
+the root counts as not reaching the runbook's runs root,
+and the warning on stdout ends by naming the roots it could not resolve.
+A root that does reach still settles the answer,
+so a refusal beside it leaves a line in the log and no warning on stdout.
+`searchReaches` itself still raises for these roots and says so in its `@throws`.
+Two edges went with it.
+The path is no longer folded by name before it is resolved,
+so `base/lnk/../d` goes to the parent of the link's target,
+as the kernel and the walk read it,
+where it read `base/d`.
+A root equal to the directory now obeys the depth rule,
+so runs five levels below it are not reached,
+as the walk stops at four.
+The branch for a relative path that is absolute was removed;
+the module states that it takes one filesystem root.
+Red `3050fca34f` (six cases fail at the parent:
+four in the report and two in the reach module;
+two cases of the reach module pass there as guards that the refusals still raise),
+fix `93990e5e0d`.
+The audit reads versions and writes none,
+so no cache version moved.

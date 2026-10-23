@@ -140,6 +140,26 @@ fix `bdea8b354e`).
 No cached record holds the clause and no key covers it,
 so no cache version moved.
 
+Later,
+fix round 5:
+the cases of `run-seats-cure.unit.test.ts` and `run-seats-ceiling.unit.test.ts` scripted holds of 40 ms and let the
+reader wait them out on the real clock,
+in slices of 5 ms.
+The listing of `real-clock-bounds.unit.test.ts` cannot carry them:
+its scan reads holds of 1000 ms or more,
+and an entry for a hold below that is reported as a listed key the source no
+longer holds.
+Both files now read the seats through `run-seats-fake-clock.test-fixture.ts`,
+which fakes `setTimeout` and `clearTimeout`,
+moves the clock past one hold and one poll,
+and aborts the reading,
+so a reading still waiting afterwards fails instead of hanging.
+The two suites took 677 ms and 834 ms in the run package's `test:unit` before and 158 ms and 178 ms after
+(`ac27c68dc6`).
+A scratch copy of the fixture that moved the clock by 1 ms failed every waiting case of both suites.
+No cached record holds a hold and no key covers one,
+so no cache version moved.
+
 ## B838: a wait judged a return against the quorum alone
 
 Status:
