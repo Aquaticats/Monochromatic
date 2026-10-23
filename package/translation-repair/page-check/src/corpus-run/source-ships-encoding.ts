@@ -50,7 +50,8 @@ import {
 // - An HTML comment is masked before the grammar reads the page (`document-structure/src/mask-html-comments.ts`), so a
 //   comment that closes is copied. One that never closes would hide the rest of the page from the package's own
 //   parser, and no backslash stops that (the mask looks for the four characters and not for an escape), so its
-//   opener is written as `&lt;!--`, which shows as the same characters and masks nothing.
+//   opener, and each later `<!--` inside it, is written as `&lt;!--`, which shows as the same characters and masks
+//   nothing (a second opener left in place opens a comment of its own, and the English after the run is hidden).
 //
 // WHAT IS NOT ENCODED, AND WHY. A source run that parses as written ships as written, `<Foo />` and a balanced
 // `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there
@@ -208,6 +209,48 @@ function blanking(
 }
 
 /**
+ Where each `<!--` of a text stands from an index on.
+
+ @param text - the text
+
+ @param from - index to look from
+
+ @returns Index of the `<` of each, in text order
+
+ @example
+ ```ts
+ const starts = openerStarts({ text: '<!-- a <!-- b', from: 0, },);
+ ```
+ */
+function openerStarts(
+  {
+    text,
+    from,
+  }: {
+    readonly text: string;
+    readonly from: number;
+  },
+): readonly number[] {
+  /**
+   Indices found.
+   */
+  const starts: number[] = [];
+  for (
+    let at = text.indexOf(
+      COMMENT_OPEN,
+      from,
+    );
+    at !== (-1);
+    at = text.indexOf(
+      COMMENT_OPEN,
+      at + COMMENT_OPEN.length,
+    )
+  )
+    starts.push(at,);
+  return starts;
+}
+
+/**
  Reads what a text holds, with its comments out of the way.
 
  @param text - text without a leading byte order mark
@@ -238,13 +281,20 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       };
     },);
   /**
-   Openers of comments that never close, which the page would hide the rest of itself behind.
+   Openers of comments that never close, which the page would hide the rest of itself behind: the one that starts such a
+   comment and each later one inside it, since the mask opens a comment of its own at every one that stays.
    */
   const openers = regions
     .filter(function open({ terminated, },): boolean {
       return !terminated;
     },)
-    .map(function toOpener({ startOffset, },): TextEdit {
+    .flatMap(function openersIn({ startOffset, },): readonly number[] {
+      return openerStarts({
+        text,
+        from: startOffset,
+      },);
+    },)
+    .map(function toOpener(startOffset,): TextEdit {
       // A backslash the original wrote before the opener goes with it, since `\&lt;` would show the reference.
       /**
        Whether the opener's `<` is preceded by a backslash that is not itself escaped.

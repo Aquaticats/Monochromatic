@@ -408,8 +408,8 @@ await describe({
             // A backslash before a later opener goes with it, as it does before the first.
             expect(encoded({ text: String.raw`猫 <!-- 一 \<!-- 二`, },),).toBe('猫 &lt;!-- 一 &lt;!-- 二',);
             // A comment that closes keeps its opener, and the opener of one that does not is written whole.
-            expect(encoded({ text: '<!-- 一 --> 猫 <!-- 二 <!-- 三\n', },),)
-              .toBe('<!-- 一 --> 猫 &lt;!-- 二 &lt;!-- 三\n',);
+            expect(encoded({ text: '猫 <!-- 一 --> 猫 <!-- 二 <!-- 三\n', },),)
+              .toBe('猫 <!-- 一 --> 猫 &lt;!-- 二 &lt;!-- 三\n',);
           },
         },),
 
