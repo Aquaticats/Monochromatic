@@ -516,12 +516,15 @@ await describe({
         },),
 
         it({
-          name: 'KEEPS THE ORIGINAL OUT OF THE SPELLING AND QUOTE PASSES TOO, shown on an original with '
-            + 'English-looking words and straight quotes and no footnote definition at all, where the footnote guard '
-            + 'has nothing to withdraw and so cannot be what hides a rewrite',
+          name: 'SHIPS AN ORIGINAL WITH ENGLISH-LOOKING WORDS AND STRAIGHT QUOTES AS RECORDED, with no footnote '
+            + 'definition at all, where the footnote guard has nothing to withdraw; measured with the guard made to '
+            + 'carry the original: no page pass rewrites a row at a slice the archive holds no text for, so this case '
+            + 'fails on no change to the default and the footnote case, KEEPS THE ORIGINAL OUT OF THE PAGE-ASSEMBLY '
+            + 'PASSES AND THE FOOTNOTE GUARD, is the one that shows it',
           fn: async () => {
             /**
-             Original built to be rewritten by the Canadian-spelling and quote passes, and to give the guard nothing.
+             Original with words and quotes that a spelling or quote pass would rewrite in English, and nothing for
+             the guard.
              */
             const english = '\nThe color of the day was "grey", a neighbour\'s note.\n';
             /**
