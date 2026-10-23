@@ -5,7 +5,6 @@ import {
   isAbsolute,
   join,
   relative,
-  resolve,
   sep,
 } from 'node:path';
 
@@ -25,6 +24,9 @@ import {
 
  A BOUNDED STRUCTURAL WALK up the path, one level per call, so the number of names in the path is also the stack bound.
 
+ THE `..` OF A PATH IS LEFT TO THE FILESYSTEM. Folding it away by name first reads `base/lnk/../d` as `base/d`,
+ where the kernel, and so the walk's own listing, reads the parent of `lnk`'s target plus `d`.
+
  @param path - directory to resolve, which need not exist
 
  @returns Absolute path with every link on the way to the existing part resolved
@@ -38,9 +40,9 @@ import {
  */
 async function realPathOf({ path, }: { readonly path: string; },): Promise<string> {
   /**
-   The path as an absolute one.
+   The path as an absolute one, joined onto the working directory by name and never folded.
    */
-  const absolute = resolve(path,);
+  const absolute = isAbsolute(path,) ? path : `${process.cwd()}${sep}${path}`;
   try {
     return await realpath(absolute,);
   }
@@ -50,6 +52,8 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
      The parent directory, which has the same answer to give for the part that exists.
      */
     const parent = dirname(absolute,);
+    // THE STOP OF THE WALK, NOT A CASE: the parent of the filesystem root is the root itself, and a root that does not
+    // exist is no machine this runs on, so this return only keeps the recursion finite.
     if (parent === absolute)
       return absolute;
     return join(
@@ -66,7 +70,9 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
  THE ROOT AND THE DIRECTORY ARE COMPARED BY REAL PATH, since the home directory of the process and its real place are
  both spellings of one directory. THE WALK STOPS `RUNS_SEARCH_DEPTH` LEVELS BELOW A ROOT, so a root holding the
  directory farther up than the runs' own depth allows leaves the deepest runs unread, and it enters no hidden directory
- and no dependency tree, so a directory behind one is not reached at all.
+ and no dependency tree, so a directory behind one is not reached at all. THE ROOT AND THE DIRECTORY ARE TAKEN TO SHARE
+ ONE FILESYSTEM ROOT, as the paths under a home directory on a POSIX system do; a pair of paths on two drives is not
+ compared.
 
  @param root - directory the search starts at
 
@@ -76,7 +82,8 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
 
  @returns Whether `directory` is the root or lies below it, and the deepest runs of it are within the walk
 
- @throws What `realpath` raises for any failure but an absent path
+ @throws What `realpath` raises for any failure but an absent path, such as a path through a file (`ENOTDIR`), a loop
+ of links (`ELOOP`) or a directory nobody may enter (`EACCES`), which the caller decides what to make of
 
  @example
  ```ts
@@ -107,7 +114,7 @@ export async function searchReaches(
    */
   const to = await realPathOf({ path: directory, },);
   if (from === to)
-    return true;
+    return runsLevels <= RUNS_SEARCH_DEPTH;
   /**
    The way down from the root to the directory.
    */
@@ -118,8 +125,6 @@ export async function searchReaches(
   if (way === '..')
     return false;
   if (way.startsWith(`..${sep}`,))
-    return false;
-  if (isAbsolute(way,))
     return false;
   /**
    The names the search would have to enter on the way down.

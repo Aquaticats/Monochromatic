@@ -140,6 +140,17 @@ and each task sets it to its own name.
   A root reaches it when the two are the same directory by real path,
   or when the root holds it and the runs two levels below it sit within the four levels the search walks,
   through no hidden directory and no `node_modules`.
+  The path is read as the kernel reads it,
+  so a `..` after a link goes to the parent of the link's target.
+  A root the filesystem refuses to resolve
+  (a path through a file,
+  a loop of links,
+  a directory the process may not enter)
+  does not end the audit:
+  it counts as not reaching the runs root,
+  one warning is logged with the root and the filesystem's code,
+  and the warning on stdout ends by naming it,
+  so the newest-record and versions-set-after lines are still printed.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.

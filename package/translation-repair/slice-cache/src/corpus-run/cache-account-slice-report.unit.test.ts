@@ -132,10 +132,18 @@ type RootFailure = {
 function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootFailure[]; },): string {
   if (failures.length === 0)
     return '';
-  return ' Roots the check could not resolve, and so counted as not reaching it: '
-    + `${failures.map(function named({ root, code, },): string {
-      return `${root} (${code})`;
-    },).join(', ',)}.`;
+  /**
+   Each root with its code.
+   */
+  const named = failures.map(function withCode(
+    {
+      root,
+      code,
+    },
+  ): string {
+    return `${root} (${code})`;
+  },);
+  return ` Roots the check could not resolve, and so counted as not reaching it: ${named.join(', ',)}.`;
 }
 
 /**
@@ -205,12 +213,16 @@ function unreachedRootWarning(
     'temp',
     'agent',
   );
-  return `the runbook's runs root ${runbookRoot} is not reached by the roots searched: ${roots.join(', ',)}. A search `
+  /**
+   The sentence about the roots that were read.
+   */
+  const reached = `the runbook's runs root ${runbookRoot} is not reached by the roots searched: `
+    + `${roots.join(', ',)}. A search `
     + 'reaches runs directories at most 4 levels below a root, and the runbook\'s runs sit up to 2 levels below its '
     + 'root; it enters no hidden directory or node_modules, and a directory counts by its real path. The newest record '
     + 'and the versions set after it speak only for those roots, and a launch that follows the runbook writes its '
-    + `runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`
-    + unresolvedRootsWords({ failures, },);
+    + `runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+  return `${reached}${unresolvedRootsWords({ failures, },)}`;
 }
 
 /**

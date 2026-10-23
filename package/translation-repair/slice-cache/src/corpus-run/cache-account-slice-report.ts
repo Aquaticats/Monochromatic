@@ -4,7 +4,11 @@ import {
   join,
 } from 'node:path';
 
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
+import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   contextRoot,
   wordForCount,
@@ -105,6 +109,93 @@ function noRecordWords(
 }
 
 /**
+ A searched root whose real path could not be resolved, and the filesystem's code.
+
+ @example
+ ```ts
+ const unresolved: UnresolvedRoot = { root: '/cats/file/below', code: 'ENOTDIR', };
+ ```
+ */
+type UnresolvedRoot = {
+  /**
+   The root as it was given.
+   */
+  readonly root: string;
+
+  /**
+   Filesystem code, such as `ENOTDIR`, or the class name of a failure that carries none.
+   */
+  readonly code: string;
+};
+
+/**
+ What the check found for one searched root.
+
+ @example
+ ```ts
+ const reading: RootReading = { kind: 'unresolved', root: '/cats/sealed/below', code: 'EACCES', };
+ ```
+ */
+type RootReading =
+  | {
+    /**
+     The root reaches the runbook's runs root.
+     */
+    readonly kind: 'reached';
+  }
+    | {
+    /**
+     The root was resolved and does not reach it.
+     */
+      readonly kind: 'not-reached';
+    }
+    | {
+    /**
+     The root could not be resolved, so it counts as not reaching it.
+     */
+      readonly kind: 'unresolved';
+
+    /**
+     The root as it was given.
+     */
+      readonly root: string;
+
+    /**
+     Filesystem code of the failure, or its class name where it carries none.
+     */
+      readonly code: string;
+    };
+
+/**
+ The clause that names the roots the check could not resolve, which the warning ends with.
+
+ @param unresolved - roots the check could not resolve to a real path, each with the filesystem's code
+
+ @returns Clause with its leading space, or nothing where every root resolved
+
+ @example
+ ```ts
+ const words = unresolvedRootWords({ unresolved: [{ root: '/cats/file/below', code: 'ENOTDIR', },], },);
+ ```
+ */
+function unresolvedRootWords({ unresolved, }: { readonly unresolved: readonly UnresolvedRoot[]; },): string {
+  if (unresolved.length === 0)
+    return '';
+  /**
+   Each root with its code.
+   */
+  const named = unresolved.map(function withCode(
+    {
+      root,
+      code,
+    },
+  ): string {
+    return `${root} (${code})`;
+  },);
+  return ` Roots the check could not resolve, and so counted as not reaching it: ${named.join(', ',)}.`;
+}
+
+/**
  Words for records read when no searched root reaches the runbook's runs root.
 
  THE COUNT IS TRUE OF THE ROOTS SEARCHED AND SAYS NOTHING OF THE REST. A stale record under the default roots gives a
@@ -115,29 +206,106 @@ function noRecordWords(
 
  @param runbookRoot - where a launch that follows the runbook writes its runs
 
+ @param unresolved - roots the check could not resolve to a real path, each with the filesystem's code
+
  @returns Sentence, without a prefix, for the log and for stdout alike
 
  @example
  ```ts
- const words = uncoveredRootWords({ searched: ['/cats/runs',], runbookRoot: '/cats/home/temp/agent', },);
+ const words = uncoveredRootWords({
+   searched: ['/cats/runs',],
+   runbookRoot: '/cats/home/temp/agent',
+   unresolved: [],
+ },);
  ```
  */
 function uncoveredRootWords(
   {
     searched,
     runbookRoot,
+    unresolved,
   }: {
     readonly searched: readonly string[];
     readonly runbookRoot: string;
+    readonly unresolved: readonly UnresolvedRoot[];
   },
 ): string {
-  return `the runbook's runs root ${runbookRoot} is not reached by the roots searched: ${searched.join(', ',)}. `
-    + `A search reaches runs directories at most ${String(RUNS_SEARCH_DEPTH,)} levels below a root, and the runbook's `
-    + `runs sit up to ${String(RUNBOOK_RUNS_LEVELS,)} levels below its root; it enters no hidden directory or `
-    + 'node_modules, and a directory counts by its real path. The newest record and the versions set after it speak '
-    + 'only for those roots, '
+  /**
+   The sentence about the roots that were read.
+   */
+  const reached = `the runbook's runs root ${runbookRoot} is not reached by the roots searched: `
+    + `${searched.join(', ',)}. A search reaches runs directories at most ${String(RUNS_SEARCH_DEPTH,)} levels below `
+    + `a root, and the runbook's runs sit up to ${String(RUNBOOK_RUNS_LEVELS,)} levels below its root; `
+    + 'it enters no hidden directory or node_modules, and a directory counts by its real path. The newest record and '
+    + 'the versions set after it speak only for those roots, '
     + `and a launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} `
     + 'after -- to read them.';
+  return `${reached}${unresolvedRootWords({ unresolved, },)}`;
+}
+
+/**
+ Whether one searched root reaches the runbook's runs root, a root the filesystem refuses to resolve counting as not.
+
+ THE REFUSAL DOES NOT END THE AUDIT. The walk reports a directory it cannot list and goes on, and a root named on the
+ command line can sit behind a file, a loop of links or a directory the process may not enter; the check logs the
+ failure with the root and says so in the warning, so the newest record and the versions set after it are still
+ printed.
+
+ @param root - searched root
+
+ @param runbookRoot - where a launch that follows the runbook writes its runs
+
+ @param l - logger the refusal is written to
+
+ @returns That the root reaches it, that it does not, or that it could not be resolved and why
+
+ @example
+ ```ts
+ const reading = await reachOfRoot({ root: '/cats/runs', runbookRoot: '/cats/home/temp/agent', l, },);
+ ```
+ */
+async function reachOfRoot(
+  {
+    root,
+    runbookRoot,
+    l,
+  }: {
+    readonly root: string;
+    readonly runbookRoot: string;
+    readonly l: Logger;
+  },
+): Promise<RootReading> {
+  /**
+   Logger tagged with this function's name.
+   */
+  const rl = tagged({
+    l,
+    tag: reachOfRoot.name,
+  },);
+  try {
+    if (await searchReaches({
+      root,
+      directory: runbookRoot,
+      runsLevels: RUNBOOK_RUNS_LEVELS,
+    },))
+      return { kind: 'reached', };
+    return { kind: 'not-reached', };
+  }
+  catch (error) {
+    /**
+     The filesystem's code for the refusal, never its message, which quotes the path.
+     */
+    const code = failureName({ error, },);
+    rl.warn(
+      `${root} could not be compared with the runbook's runs root ${runbookRoot} (${code}); `
+        + 'it counts as not reaching it',
+    );
+    return {
+      kind: 'unresolved',
+      root,
+      code,
+    };
+  }
 }
 
 /**
@@ -152,11 +320,13 @@ function uncoveredRootWords(
 
  @param home - home directory the runbook's runs root sits under
 
+ @param l - logger the roots the check could not resolve are written to
+
  @returns Sentence alone, or none where the count says all it should
 
  @example
  ```ts
- const words = await warningWordsOf({ count: 1, searched: ['/cats/runs',], home: '/cats/home', },);
+ const words = await warningWordsOf({ count: 1, searched: ['/cats/runs',], home: '/cats/home', l, },);
  ```
  */
 async function warningWordsOf(
@@ -164,10 +334,12 @@ async function warningWordsOf(
     count,
     searched,
     home,
+    l,
   }: {
     readonly count: number;
     readonly searched: readonly string[];
     readonly home: string;
+    readonly l: Logger;
   },
 ): Promise<readonly string[]> {
   if (count === 0) {
@@ -183,23 +355,40 @@ async function warningWordsOf(
    */
   const runbookRoot = runbookRootOf({ home, },);
   /**
-   Whether each root searched reaches the runbook's runs root, in the order searched.
+   Logger tagged with this function's name.
    */
-  const reaching = await allInInputOrder({
-    members: searched.map(async function reachesRunbookRoot(root,): Promise<boolean> {
-      return await searchReaches({
+  const wl = tagged({
+    l,
+    tag: warningWordsOf.name,
+  },);
+  /**
+   What the check found for each root searched, in the order searched.
+   */
+  const readings = await allInInputOrder({
+    members: searched.map(async function readReachOf(root,): Promise<RootReading> {
+      return await reachOfRoot({
         root,
-        directory: runbookRoot,
-        runsLevels: RUNBOOK_RUNS_LEVELS,
+        runbookRoot,
+        l: wl,
       },);
     },),
   },);
-  if (reaching.includes(true,))
+  if (readings.some(function reaches({ kind, },): boolean {
+    return kind === 'reached';
+  },))
     return [];
   return [
     uncoveredRootWords({
       searched,
       runbookRoot,
+      unresolved: readings.flatMap(function unresolvedIn(reading,): readonly UnresolvedRoot[] {
+        if (reading.kind !== 'unresolved')
+          return [];
+        return [{
+          root: reading.root,
+          code: reading.code,
+        },];
+      },),
     },),
   ];
 }
@@ -275,6 +464,7 @@ async function printSliceCacheAccount(
     count,
     searched,
     home,
+    l,
   },);
   for (const words of warnings) {
     l.warn(words,);
