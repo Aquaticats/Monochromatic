@@ -7,7 +7,9 @@
  reader that counts it as returning waits for nothing. Here the wide bench stands one seat short of its quorum with
  NeuralWatt and Bedrock wet, and Hyper, whose return would reach the quorum, is refused for payment while its meter
  reads wet. The budgets are the real ones over stub meters, as the router's own are, so the states and the holds reach
- the reader the way a run's do; the hold is a quarter second on the real clock.
+ the reader the way a run's do. The hold is a minute and a half on a fake clock that both cases tick past, so no case
+ sleeps and a stalled machine changes nothing: the hold is read running before the reading starts, and the clock
+ passes its end while the reading runs, so a reader that waited for it would read twice in either case.
 
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
@@ -18,9 +20,10 @@ import {
   describe,
   expect,
   it,
+  type DisposableSandbox,
 } from '@monochromatic-dev/module-test/ts';
 
-import { createProviderBudgets, } from '@monochromatic-dev/translation-repair-provider';
+import { createProviderBudgets, HOLD_POLL_MS, } from '@monochromatic-dev/translation-repair-provider';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 import {
   levelCapturingLogger,
@@ -28,20 +31,15 @@ import {
 import { readJudgeSeats, } from '../../dist/final/node/index.mjs';
 
 /**
- Abort signal every read here carries.
+ The wait the refusals here state, longer than the rate-limit backoff of a minute so the control case's hold is the
+ stated wait, and read on the fake clock, which only the cases move.
  */
-const SIGNAL = new AbortController().signal;
-
-/**
- A stated wait short enough for the control case to wait out on the real clock and long enough to be running when the
- reader first asks for the holds, whatever a loaded machine does between the refusal and that read.
- */
-const SHORT_HOLD_MS = 250;
+const STATED_HOLD_MS = 90_000;
 
 /**
  Budgets over stub meters with NeuralWatt, Bedrock and Hyper wet and every other provider unconfigured, so dry.
 
- @returns The real budgets, reading on the real clock
+ @returns The real budgets, reading on whichever clock is global when they are asked, which the cases fake
 
  @example
  ```ts
@@ -76,60 +74,93 @@ function budgetsWithHyperWet(): ReturnType<typeof createProviderBudgets> {
 }
 
 /**
- Refuses Hyper once, then reads the lane contest's seats and counts the dryness reads the reading took.
+ Refuses Hyper once, reads the lane contest's seats while a fake clock passes the end of the hold, and counts the
+ dryness reads the reading took.
+
+ THE HOLD IS READ RUNNING FIRST, then the reading starts and the clock moves past the hold's end and one poll: a reader
+ that waits for the hold finishes its wait inside that tick and reads twice, one that does not has finished before it.
+ An abort at the end turns a reading that is still waiting into a failure, never a hang.
 
  @param paymentRequired - whether the refusal said the balance cannot pay for the call
 
  @param lines - receives what the reading logs
 
+ @param sinon - case's own sandbox, which restores the clock when the case ends
+
  @returns Dryness reads taken: 1 without a wait, 2 with one
 
  @example
  ```ts
- const reads = await readsAfterRefusal({ paymentRequired: true, lines: [], },);
+ const reads = await readsAfterRefusal({ paymentRequired: true, lines: [], sinon: ctx.sinon, },);
  ```
  */
 async function readsAfterRefusal(
   {
     paymentRequired,
     lines,
+    sinon,
   }: {
     readonly paymentRequired: boolean;
     readonly lines: string[];
+    readonly sinon: DisposableSandbox;
   },
 ): Promise<number> {
+  /**
+   The fake clock the budgets count the hold down on and the wait sleeps on.
+   */
+  const clock = sinon.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'performance',],
+    shouldClearNativeTimers: true,
+  },);
+  /**
+   Abort every read here carries, raised once the clock has passed the hold.
+   */
+  const abort = new AbortController();
   /**
    The real budgets whose Hyper meter reads wet.
    */
   const budgets = budgetsWithHyperWet();
   await budgets.markRefused({
     provider: 'hyper',
-    signal: SIGNAL,
-    statedWaitMs: SHORT_HOLD_MS,
+    signal: abort.signal,
+    statedWaitMs: STATED_HOLD_MS,
     paymentRequired,
   },);
+  // THE HOLD IS OBSERVED RUNNING, not assumed: the clock has not moved since the refusal, so it stands at the stated
+  // wait.
+  expect(budgets.holds().hyper,).toBe(STATED_HOLD_MS,);
   /**
    Dryness reads taken so far.
    */
   const counted = { reads: 0, };
-  await readJudgeSeats({
+  /**
+   The reading, started on the fake clock.
+   */
+  const reading = readJudgeSeats({
     client: {
       providerDryness: async function providerDryness() {
         counted.reads += 1;
-        return await budgets.read({ signal: SIGNAL, },);
+        return await budgets.read({ signal: abort.signal, },);
       },
       providerMeterStates: async function providerMeterStates() {
-        return await budgets.readStates({ signal: SIGNAL, },);
+        return await budgets.readStates({ signal: abort.signal, },);
       },
       providerHolds: budgets.holds,
     },
     phase: 'lane contest',
-    signal: SIGNAL,
+    signal: abort.signal,
     l: levelCapturingLogger({ lines, },),
-    pollMs: 5,
   },);
+  await clock.tickAsync(STATED_HOLD_MS + HOLD_POLL_MS,);
+  abort.abort();
+  await clock.tickAsync(HOLD_POLL_MS,);
+  await reading;
   return counted.reads;
 }
+
+// THE LOGGER STARTS ON ITS FIRST LINE, and its start sleeps on a timer: begun under the fake clock it writes an internal
+// error to stderr. One reading on the real clock starts it before any case fakes the timers.
+await budgetsWithHyperWet().read({ signal: new AbortController().signal, },);
 
 await describe({
   name: 'the seat reader and a provider refused for payment',
@@ -138,8 +169,8 @@ await describe({
     it({
       name: 'WAITS OUT THE STATED HOLD OF A PROVIDER REFUSED FOR A REASON OTHER THAN PAYMENT (the control): Hyper back '
         + 'makes the wide bench 4 of 8 against a quorum of 4, and its meter reads wet, so the wait buys the quorum',
-      fn: async () => {
-        expect(await readsAfterRefusal({ paymentRequired: false, lines: [], },),).toBe(2,);
+      fn: async (ctx) => {
+        expect(await readsAfterRefusal({ paymentRequired: false, lines: [], sinon: ctx.sinon, },),).toBe(2,);
       },
     },),
 
@@ -147,12 +178,12 @@ await describe({
       name: 'DOES NOT WAIT FOR A PROVIDER REFUSED FOR PAYMENT whose stated hold ends and whose meter reads wet: it '
         + 'stays dry until the meter moves, so the hold ending brings nothing back and the reader seats the bench '
         + 'short at once',
-      fn: async () => {
+      fn: async (ctx) => {
         /**
          What the reading logged.
          */
         const lines: string[] = [];
-        expect(await readsAfterRefusal({ paymentRequired: true, lines, },),).toBe(1,);
+        expect(await readsAfterRefusal({ paymentRequired: true, lines, sinon: ctx.sinon, },),).toBe(1,);
         expect(lines.some(function waitLine(line,): boolean {
           return line.includes('waiting ',);
         },),).toBe(false,);

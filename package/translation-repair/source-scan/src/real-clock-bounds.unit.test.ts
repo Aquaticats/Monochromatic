@@ -579,11 +579,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: SCRIPTED_CLOCK,
   },
-  'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: SHORT_HOLD_MS': {
+  'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: STATED_HOLD_MS': {
     count: 1,
     bound: 'other',
-    reason: 'the wait a refusal states, which the control case waits out on the real clock because the reading sleeps '
-      + 'it, so no machine ends it early, and the payment case never waits for',
+    reason: 'the wait a refusal states, counted down on a fake clock that the case ticks past: the control case\'s '
+      + 'reading sleeps it on that clock and the payment case\'s never waits for it, so no real time passes in either',
   },
   'provider/provider-budget-defaults.unit.test.ts#cut: statedWaitMs: STATED_MS': {
     count: 1,
