@@ -31,7 +31,7 @@ import {
 
  @param node - subtree to list
 
- @returns The node and its descendants
+ @returns Node and its descendants
 
  @example
  ```ts

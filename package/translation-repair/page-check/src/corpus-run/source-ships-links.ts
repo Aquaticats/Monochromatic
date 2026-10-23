@@ -34,7 +34,7 @@ const HEX = 16;
 
  @param character - one character of the destination
 
- @returns The character, or its escape
+ @returns Character, or its escape
 
  @example
  ```ts
@@ -79,8 +79,7 @@ function destinationCharacter({ character, }: { readonly character: string; },):
 
  @param target - where the link goes
 
- @returns The link, the characters Markdown reads written with a backslash in the text and as a percent escape in the
- target
+ @returns Link, the characters Markdown reads written with a backslash in the text and as a percent escape in the target
 
  @example
  ```ts
@@ -125,7 +124,7 @@ export function explicitLink(
 
  @param range - where the autolink stands
 
- @returns The link in Markdown's own link syntax
+ @returns Link in Markdown's own link syntax
 
  @example
  ```ts

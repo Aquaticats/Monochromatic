@@ -139,7 +139,7 @@ await describe({
     it({
       name: 'PAUSES when only the original an unfilled anchor ships carries the region, since that original is no '
         + 'wording of the pipeline and keeps no passage the lanes admitted',
-      fn: () => {
+      fn: async () => {
         /**
          An archive slice without the region, and an anchor nobody filled whose original holds it.
          */

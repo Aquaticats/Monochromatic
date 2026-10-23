@@ -4,7 +4,9 @@ import {
   parseMdxBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure';
-import { parseGfmMathBody, } from '@monochromatic-dev/translation-repair-document-structure/ts/gfm-math-reading.test-fixture.ts';
+import {
+  parseGfmMathBody,
+} from '@monochromatic-dev/translation-repair-document-structure/ts/gfm-math-reading.test-fixture.ts';
 
 //region Reader text of a source run
 // WHAT A READER OF A PAGE SEES OF A TEXT, put side by side for the text as the artifact records it and the text as the
@@ -60,7 +62,7 @@ const BLOCK_PARENTS: ReadonlySet<string> = new Set([
 
  @param node - node with children
 
- @returns The leaves of the children, in order
+ @returns Leaves of the children, in order
 
  @example
  ```ts

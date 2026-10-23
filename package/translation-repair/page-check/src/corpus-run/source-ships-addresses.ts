@@ -220,8 +220,7 @@ function within(
 }
 
 /**
- Finds the bare addresses inside the stretches a reader sees as text, apart from those in the text of a link, where GFM
- reads none.
+ Finds the bare addresses in the stretches a reader sees as text, apart from those in link text, where GFM reads none.
 
  @param text - the text
 
@@ -289,7 +288,7 @@ export function bareAddresses(
 
  @param character - one character
 
- @returns The count
+ @returns Count
 
  @example
  ```ts
@@ -388,7 +387,7 @@ function linkEnd(
 
  @param address - where the address stands
 
- @returns The edit that replaces the address; the less-than sign after it is escaped as any other
+ @returns Edit that replaces the address; the less-than sign after it is escaped as any other
 
  @example
  ```ts

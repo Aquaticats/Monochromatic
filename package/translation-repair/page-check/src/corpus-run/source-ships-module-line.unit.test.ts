@@ -25,7 +25,7 @@ import {
 
  @param isTopLevel - whether the block stands directly under the root
 
- @returns The answer
+ @returns Answer
 
  @example
  ```ts

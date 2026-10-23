@@ -537,7 +537,7 @@ await describe({
             /**
              Original built to be rewritten by the Canadian-spelling and quote passes, or withdrawn by the guard.
              */
-            const english = '\n[^9]: The color of the day was "grey", a neighbour\'s note.\n';
+            const english = '\n[^9]: The colour of the day was "grey", a neighbour\'s note.\n';
             /**
              Rows with that original as the one untranslated slice.
              */
@@ -717,8 +717,8 @@ await describe({
         },),
 
         it({
-          name: 'WRITES THE OPENER OF A COMMENT THAT NEVER CLOSES AS A CHARACTER REFERENCE, so the English after the run '
-            + 'stays a paragraph of the page and the package finds no unterminated comment in it',
+          name: 'WRITES THE OPENER OF A COMMENT THAT NEVER CLOSES AS A CHARACTER REFERENCE, so the English after the '
+            + 'run stays a paragraph of the page and the package finds no unterminated comment in it',
           fn: async () => {
             const { page, checks, warnings, } = await publishRows({
               rows: [
@@ -749,7 +749,8 @@ await describe({
             + 'should, so a later pass does not publish it again',
           fn: async () => {
             /**
-             A run nested past the bound the plain reading keeps, then a paragraph the archive covers and a run that parses.
+             A run nested past the bound the plain reading keeps, then a paragraph the archive covers and a run that
+             parses.
              */
             const rows: readonly SourceShippedRow[] = [
               OPENING_ROW,
@@ -843,9 +844,9 @@ await describe({
         },),
 
         it({
-          name: 'STILL REPORTS A PAGE THAT NEVER CARRIED ORIGINALS THE GRAMMAR ACCEPTS, the control for the pages shipped '
-            + 'without a run: the archive alone, as a page shipped before the originals were carried is, disagrees with '
-            + 'an artifact whose runs parse, so a pass publishes it again with them',
+          name: 'STILL REPORTS A PAGE THAT NEVER CARRIED ORIGINALS THE GRAMMAR ACCEPTS, the control for the pages '
+            + 'shipped without a run: the archive alone, as a page shipped before the originals were carried is, '
+            + 'disagrees with an artifact whose runs parse, so a pass publishes it again with them',
           fn: async () => {
             const { artifact, } = await publishRows({ rows: TWO_RUNS, },);
             const judged = pageAgreement({

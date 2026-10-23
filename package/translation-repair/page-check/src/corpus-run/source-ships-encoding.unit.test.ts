@@ -7,8 +7,9 @@
  links, headings, block quotes, code in any container, math, comments and an escape the original already wrote.
 
  EVERY CASE OF THE SECOND GROUP COMPARES WHAT A READER SEES: the text of the page's leaves after the note, read by
- the strict grammar, against the text of the source's leaves read as plain Markdown (`source-reader-text.test-fixture.ts`).
- A pinned string says what the encoder wrote; only the comparison says a reader sees the source text.
+ the strict grammar, against the text of the source's leaves read as plain Markdown
+ (`source-reader-text.test-fixture.ts`). A pinned string says what the encoder wrote; only the comparison says a
+ reader sees the source text.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -143,9 +144,9 @@ await describe({
         },),
 
         it({
-          name: 'LEAVES THE GREATER-THAN SIGN ALONE, since it is syntax only inside a tag and a tag cannot open once its '
-            + 'less-than sign is escaped; escaping it would turn a block quote of the original into a line starting '
-            + 'with the sign',
+          name: 'LEAVES THE GREATER-THAN SIGN ALONE, since it is syntax only inside a tag and a tag cannot open once '
+            + 'its less-than sign is escaped; escaping it would turn a block quote of the original into a line '
+            + 'starting with the sign',
           fn: async () => {
             expect(encoded({ text: '> 引文 <b>粗</b>\n', },),).toBe('> 引文 \\<b>粗\\</b>\n',);
           },
@@ -161,8 +162,8 @@ await describe({
         },),
 
         it({
-          name: 'COPIES CODE AS IT IS, a fenced block and a span closed on its own line, since the grammar reads no syntax '
-            + 'there and a backslash written into code would show',
+          name: 'COPIES CODE AS IT IS, a fenced block and a span closed on its own line, since the grammar reads no '
+            + 'syntax there and a backslash written into code would show',
           fn: async () => {
             /**
              Text with braces in a span, in a tilde fence, in a backtick fence closed by a longer run, and outside all
@@ -245,8 +246,8 @@ await describe({
         },),
 
         it({
-          name: 'COPIES AN HTML COMMENT AS IT IS, across lines too, since it is masked before the grammar reads the page '
-            + 'and an escaped opening would turn the comment into visible text',
+          name: 'COPIES AN HTML COMMENT AS IT IS, across lines too, since it is masked before the grammar reads the '
+            + 'page and an escaped opening would turn the comment into visible text',
           fn: async () => {
             expect(encoded({ text: '<!-- <p> {a} --> {b} <!-- <q>\n{c}\n--> {d}\n', },),)
               .toBe('<!-- <p> {a} --> \\{b\\} <!-- <q>\n{c}\n--> \\{d\\}\n',);
@@ -405,8 +406,12 @@ await describe({
           return it({
             name: `SHOWS THE SOURCE TEXT FOR ${name.toUpperCase()}: the page parses and its leaves equal the source's`,
             fn: async () => {
-              expect(readPageGrammar({ pageText: `${BEFORE}${encoded({ text, },)}\n`, },),).toEqual({ kind: 'parses', },);
-              expect(readerOfPage({ carried: encoded({ text, },), },),).toBe(readerOfSource({ source: text, },),);
+              /**
+               The run as the encoder writes it.
+               */
+              const written = encoded({ text, },);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
             },
           },);
         },),
@@ -435,7 +440,9 @@ await describe({
             expect(readPageGrammar({ pageText: `${BEFORE}<details>\n\n她说\n`, },).kind,).toBe('refused',);
             expect(readPageGrammar({ pageText: `${BEFORE}<https://example.net/a>\n`, },).kind,).toBe('refused',);
             expect(readPageGrammar({ pageText: `${BEFORE}export to PDF 的步骤如下。\n`, },).kind,).toBe('refused',);
-            expect(readPageGrammar({ pageText: `${BEFORE}- \`\`\`\n  {\n  \`\`\`\n\n然后 {\n`, },).kind,).toBe('refused',);
+            expect(readPageGrammar({
+              pageText: `${BEFORE}- \`\`\`\n  {\n  \`\`\`\n\n然后 {\n`,
+            },).kind,).toBe('refused',);
           },
         },),
       ],

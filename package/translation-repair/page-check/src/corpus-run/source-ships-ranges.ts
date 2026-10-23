@@ -43,7 +43,7 @@ export const FENCE_MARKS: readonly string[] = [
 
  @param node - node of the parse
 
- @returns The range its position gives
+ @returns Range its position gives
 
  @throws {@link Error} when the node has no position, which the reading used never builds
 
@@ -248,7 +248,7 @@ export function originalStretches(
 
  @param textFrom - index just past the bracket that opens the text
 
- @returns The label between the second brackets
+ @returns Label between the second brackets
 
  @example
  ```ts

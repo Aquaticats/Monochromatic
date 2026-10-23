@@ -26,7 +26,7 @@ import {
 
  @param text - the text
 
- @returns The addresses found
+ @returns Addresses found
 
  @example
  ```ts

@@ -14,6 +14,36 @@ import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
 // the page where the two are the same text.
 
 /**
+ The tree the package's plain reading returns, which this reading returns too.
+ */
+type PlainRoot = ReturnType<typeof parseMarkdownMathBody>;
+
+/**
+ Whether a parse returned a root node, the one thing the parser's own types promise and the built types of the package
+ spell differently.
+
+ @param value - what the parser returned
+
+ @returns Whether it is a root node with children
+
+ @example
+ ```ts
+ const isTree = isRoot(parsed,);
+ ```
+ */
+function isRoot(value: unknown,): value is PlainRoot {
+  if ((typeof value) !== 'object')
+    return false;
+  if (value === null)
+    return false;
+  if (!('type' in value))
+    return false;
+  if (value.type !== 'root')
+    return false;
+  return ('children' in value) && Array.isArray(value.children,);
+}
+
+/**
  Parses body text as CommonMark with GFM and the site's math.
 
  @param body - markdown source with front matter split away
@@ -28,12 +58,18 @@ import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
  */
 export function parseGfmMathBody(
   { body, }: { readonly body: string; },
-): ReturnType<typeof parseMarkdownMathBody> {
-  return unified()
+): PlainRoot {
+  /**
+   What the parser returned, before it is known to be a root.
+   */
+  const parsed: unknown = unified()
     .use(remarkParse,)
     .use(remarkGfm,)
     .use(remarkMath,)
     .parse(body,);
+  if (!isRoot(parsed,))
+    throw new Error('the parser returned something that is not a root node',);
+  return parsed;
 }
 
 //endregion GFM and math reading

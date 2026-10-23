@@ -30,7 +30,7 @@ import {
 
  @param source - the text
 
- @returns The root's children
+ @returns Root's children
 
  @example
  ```ts
@@ -46,7 +46,7 @@ function blocksOf({ source, }: { readonly source: string; },): readonly TreeNode
 
  @param source - the text
 
- @returns The block
+ @returns Block
 
  @throws {@link Error} when the text does not read as one block
 
@@ -172,7 +172,7 @@ await describe({
 
              @param source - the text, of which the whole is the block
 
-             @returns The kept characters joined
+             @returns Kept characters joined
              */
             function kept({ source, }: { readonly source: string; },): string {
               return withoutIndentation({

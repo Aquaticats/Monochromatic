@@ -258,8 +258,9 @@ export async function publishFixedPage(
   // as one is among them, a defect no slice floor can see since a slice holds
   // one heading (yulianNyanner, 2026-09-06).
   /**
-   The artifact the page is weighed against: itself, or without its record of the originals the page was shipped without,
-   whose missing originals `page-source-unparseable` already names (the lanes' record stays the artifact's own).
+   The artifact the page is weighed against: itself, or without its record of the originals the page was shipped
+   without, whose missing originals `page-source-unparseable` already names (the lanes' record stays the artifact's
+   own).
    */
   const { weighed, } = composed;
   /**

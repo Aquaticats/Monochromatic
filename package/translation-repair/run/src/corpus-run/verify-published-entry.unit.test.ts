@@ -96,8 +96,8 @@ await describe({
       },
     },),
     it({
-      name: 'PRINTS THE SOURCE-DROPPED LINE for a page the composition ships without the original of a slice: the entry, '
-        + 'page-source-unparseable and the slice, and agrees',
+      name: 'PRINTS THE SOURCE-DROPPED LINE for a page the composition ships without the original of a slice: the '
+        + 'entry, page-source-unparseable and the slice, and agrees',
       fn: async () => {
         await using published = await publishedRun();
         const {

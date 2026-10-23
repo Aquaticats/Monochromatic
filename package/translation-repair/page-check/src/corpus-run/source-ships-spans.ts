@@ -80,7 +80,7 @@ export type SourceSpans = {
 
  @param indices - indices of the characters, in order
 
- @returns The characters joined
+ @returns Characters joined
 
  @example
  ```ts
@@ -112,7 +112,7 @@ function charactersAt(
 
  @param indices - the indices of the whole text that make up the block, in order
 
- @returns The spans of the block at the offsets of the whole text
+ @returns Spans of the block at the offsets of the whole text
 
  @throws {@link Error} when a node of the block has no position, which the reading used never builds
 
@@ -216,7 +216,7 @@ type Pending = {
 
  @param isNested - whether the text is a block nested in another, none of whose nodes MDX reads as an ES module
 
- @returns The stretches a reader sees as text, the stretches rewritten whole and the links
+ @returns Stretches a reader sees as text, the stretches rewritten whole and the links
 
  @throws {@link Error} when a node has no position, which the reading used never builds
 

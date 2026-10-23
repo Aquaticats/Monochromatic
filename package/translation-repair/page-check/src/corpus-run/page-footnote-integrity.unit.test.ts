@@ -41,7 +41,7 @@ await describe({
     it({
       name: 'DOES NOT READ THE ORIGINAL AN UNFILLED ANCHOR SHIPS, which is the original as the artifact records it and '
         + 'no wording of the pipeline: the reference to a note it does not define is not blamed on the page',
-      fn: () => {
+      fn: async () => {
         expect(() => assertPageFootnotesIntact({
           artifact: sourceShippedArtifact({ rows: ROWS, },),
           slices: sourceShippedSlices({ rows: ROWS, },),

@@ -5,7 +5,7 @@ import type { UnfilledSlice, } from '@monochromatic-dev/translation-repair-trans
 // passage silently: it carries the passage's original text under a note, and the finding records it. The exceptions
 // are a passage whose recorded original renders as nothing, which has nothing to carry, an artifact that records no
 // original, and a page the grammar refuses with the original on it, which ships without it under the defect
-// `page-source-unparseable` (`source-ships-compose.ts`).
+// `page-source-unparseable` (see `source-ships-compose.ts`) and `verify-published` names its slices.
 //
 // THE SILENT GAP IS GONE FOR A SLICE WITH NO ARCHIVE TEXT AND NO BACKED WORDING.
 // The owner, 2026-10-23, asked what a shipped page carries for such a slice,

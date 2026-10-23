@@ -1,15 +1,19 @@
 /**
  Tests for the steps that make a page carrying the original of untranslated passages parse.
 
- The page-level cases that drive the real grammar are in `source-shipped-page.unit.test.ts`. Under the real grammar the
- first step makes parse every refusal found in braces, tags and the other syntax of a run. The second step is reached
- by no text found (a search of forty thousand pairs of runs built from a pool of fragments, seeded, found it in none):
- every character it would escape that the first step did not is inside a fence, which the encoding copies, so the page
- it makes equals the page the first step made and the step is not taken. The third step is reached by a fence one run
- opens and a later run closes, with the English between them falling inside it (each run parses alone), and by a run
- nested past the bound the plain reading keeps; the page-level cases for both are in that file. The cases here hand the
- composition a grammar that answers by a rule written in the case, which reaches the second step and the choices of
- the third on text the real grammar accepts, so they are cases of the ladder and not of the grammar.
+ The page-level cases that drive the real grammar are in `source-shipped-page.unit.test.ts`. A seeded search of forty
+ thousand pairs of runs built from a pool of fragments took the first step for 31868 pairs and it made the page parse
+ for 26457 of them, the refusals found in braces, tags and the other syntax of a run. The second step is taken when
+ every run parses alone, the page does not, and writing every run as literal text changes some run; the search took it
+ for 838 pairs, and it made the page parse for 32 of them, a fence mark indented four spaces in both runs among them,
+ because MDX reads a fence there and the plain reading does not. In the rest it was taken and did not. The third step is
+ taken when no writing makes the page parse: a run nested past the bound the plain reading keeps, a `$$` flow or a fence
+ one run opens and a later run closes with the English between them falling inside it and a tag after the closing line,
+ a raw HTML block that runs to a closing marker, a fence mark indented four spaces or more, and the shapes named in the
+ module comment of `source-ships-encoding.ts`. The page-level cases for the nested run and the fence pair are in
+ `source-shipped-page.unit.test.ts`. The cases here hand the composition a grammar that answers by a rule written in the
+ case, which takes the second step and the choices of the third on text the real grammar accepts, so they are cases of
+ the ladder and not of the grammar.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -362,7 +366,8 @@ await describe({
 
         it({
           name: 'WRITES A RUN HOLDING A COMMENT THAT NEVER CLOSES AS LITERAL TEXT EVEN WHEN THE GRAMMAR PARSES THE '
-            + 'PAGE, the first step, since the package masks everything after such an opener and no grammar vouches for it',
+            + 'PAGE, the first step, since the package masks everything after such an opener and no grammar vouches '
+            + 'for it',
           fn: async () => {
             const { composed, warnings, } = composeRows({
               rows: [

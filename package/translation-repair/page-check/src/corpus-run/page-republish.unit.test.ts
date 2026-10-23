@@ -460,8 +460,6 @@ await describe({
           run.pagePath,
           pageText,
         );
-        expect(await verdictOf({ run, },),).toBe('agreed-weighed',);
-
         expect(await republishIn({
           run,
           readPair: SAME_PAIR,
@@ -470,6 +468,7 @@ await describe({
           run.pagePath,
           'utf8',
         ),).toBe(pageText,);
+        expect(await verdictOf({ run, },),).toBe('agreed-weighed',);
       },
     },),
     it({

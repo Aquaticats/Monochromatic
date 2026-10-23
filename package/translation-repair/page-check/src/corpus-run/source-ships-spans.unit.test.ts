@@ -48,7 +48,7 @@ function spansIn({ source, }: { readonly source: string; },): SourceSpans {
 
  @param range - stretch to cut out
 
- @returns The characters of the stretch
+ @returns Characters of the stretch
 
  @example
  ```ts

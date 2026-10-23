@@ -1,4 +1,7 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import {
+  createLogger,
+  sinks,
+} from '@monochromatic-dev/module-logger/ts';
 import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import {
@@ -18,38 +21,17 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // composition on the same text up to that gap.
 
 /**
- A logger that writes nothing, for a composition run to judge a page and not to ship one.
+ A logger that writes nothing, for a composition run to judge a page and not to ship one: the logger of the repository's
+ no-op sink.
  */
-const SILENT: Logger = {
-  debug: ignore,
-  error: ignore,
-  fatal: ignore,
-  flush: async function flushNothing(): Promise<void> {
-    // Nothing is buffered.
-  },
-  info: ignore,
-  trace: ignore,
-  warn: ignore,
-};
-
-/**
- Discards a message.
-
- @example
- ```ts
- ignore();
- ```
- */
-function ignore(): void {
-  // The composition is run to judge a page, which writes no line.
-}
+const { logger: SILENT, } = createLogger({ sinks: [sinks.createNoopSink(),], },);
 
 /**
  Slices and archive an artifact's comparison rows tile.
 
  @param artifact - settled entry, read for each slice's archive wording
 
- @returns The pairs and the archive end to end
+ @returns Pairs and the archive end to end
 
  @example
  ```ts
@@ -124,7 +106,7 @@ export function tilingOf(
 
  @param readGrammar - what the grammar says of a text, the strict MDX grammar the site compiles with by default
 
- @returns The composition: the step taken, the slices it left off and the artifact it weighs against
+ @returns Composition: the step taken, the slices it left off and the artifact it weighs against
 
  @example
  ```ts

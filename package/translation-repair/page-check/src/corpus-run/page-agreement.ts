@@ -96,7 +96,7 @@ export type PageAgreement = {
 
  @param pageText - page as it sits on disk
 
- @returns The verdict and what decided it, with no slice recorded as left off
+ @returns Verdict and what decided it, with no slice recorded as left off
 
  @example
  ```ts
@@ -178,7 +178,7 @@ function judgeAgainst(
 
  @param readGrammar - what the grammar says of a text, the strict MDX grammar the site compiles with by default
 
- @returns The verdict and what decided it
+ @returns Verdict and what decided it
 
  @example
  ```ts

@@ -248,7 +248,7 @@ const NESTED_ORIGINAL = `${ '> '.repeat(NESTED_PAST_BOUND,) }猫猫有自己的�
 
  @param entryId - entry the artifact settles
 
- @returns The artifact's JSON text and the page text (the archive the first section covers), the page the third step of
+ @returns Artifact's JSON text and the page text (the archive the first section covers), the page the third step of
  the composition ships
 
  @example
@@ -271,25 +271,44 @@ export function sourceDroppedRunOf(
     includeFrontMatter: true,
     sealArchiveOriginal: true,
   },);
-  const [covered, cut,] = whole.slices;
+  /**
+   The slice of the first section, which the archive keeps.
+   */
+  const covered = nonNullishOrThrow(whole.slices[0],);
+  /**
+   The slice of the second section, which the archive loses.
+   */
+  const cut = nonNullishOrThrow(whole.slices[1],);
   /**
    Where the archive stops, after the first section.
    */
-  const stop = nonNullishOrThrow(covered,).target.endOffset;
+  const { endOffset: stop, } = covered.target;
+  /**
+   The second section's side of the original, read as the nested original.
+   */
+  const { source: cutSource, } = cut;
+  /**
+   The archive of the whole pair.
+   */
+  const { targetText, } = whole;
+  /**
+   The archive the first section covers.
+   */
+  const archiveText = targetText.slice(
+    0,
+    stop,
+  );
   /**
    The preparation with the second section cut from the archive and carrying the nested original.
    */
   const prepared = {
     ...whole,
-    targetText: whole.targetText.slice(
-      0,
-      stop,
-    ),
+    targetText: archiveText,
     slices: [
-      nonNullishOrThrow(covered,),
+      covered,
       {
         source: {
-          ...nonNullishOrThrow(cut,).source,
+          ...cutSource,
           text: NESTED_ORIGINAL,
         },
         target: makeInsertionChunk({
@@ -302,49 +321,67 @@ export function sourceDroppedRunOf(
   /**
    What both lanes report: the first section kept, the anchor unfilled.
    */
-  const rows = prepared.slices.map(function toRow({
-    source,
-    target,
-  },): SliceDeliveryRecord {
-    return (target.kind === 'insertion')
-      ? {
-        sliceIndex: target.sliceIndex,
-        sourceText: source.text,
-        incumbentKind: 'absent',
-        incumbentText: '',
-        outcome: { kind: 'unfilled', },
-        shippedText: '',
-        delivery: { kind: 'gap-remains', },
-      }
-      : {
-        sliceIndex: target.sliceIndex,
-        sourceText: source.text,
-        incumbentKind: 'present',
-        incumbentText: target.text,
-        outcome: {
-          kind: 'decided',
-          acceptedText: target.text,
-        },
-        shippedText: target.text,
-        delivery: { kind: 'incumbent-retained', },
-      };
-  },);
+  const rows = prepared
+    .slices
+    .map(function toRow({
+      source,
+      target,
+    },): SliceDeliveryRecord {
+      return (target.kind === 'insertion')
+        ? {
+          sliceIndex: target.sliceIndex,
+          sourceText: source.text,
+          incumbentKind: 'absent',
+          incumbentText: '',
+          outcome: { kind: 'unfilled', },
+          shippedText: '',
+          delivery: { kind: 'gap-remains', },
+        }
+        : {
+          sliceIndex: target.sliceIndex,
+          sourceText: source.text,
+          incumbentKind: 'present',
+          incumbentText: target.text,
+          outcome: {
+            kind: 'decided',
+            acceptedText: target.text,
+          },
+          shippedText: target.text,
+          delivery: { kind: 'incumbent-retained', },
+        };
+    },);
   /**
    The artifact as the builder writes it.
    */
-  const built = JSON.parse(JSON.stringify(settledArtifactOverRows({
+  const built = settledArtifactOverRows({
     prepared,
     entryId,
     corpusSha: 'b'.repeat(GIT_COMMIT_HEX_LENGTH,),
     rows,
-  },),),) as {
-    lanes: { translate: { result: { status: string; }; }; };
-  };
-  // The translate lane records the slice it reached and could not fill, which its status says.
-  built.lanes.translate.result.status = 'unfilled';
+  },);
+  /**
+   The lanes the artifact records.
+   */
+  const { lanes, } = built;
+  /**
+   The translate lane, which records the slice it reached and could not fill, as its status says.
+   */
+  const { translate, } = lanes;
   return {
-    artifactText: JSON.stringify(built,),
-    pageText: prepared.targetText,
+    artifactText: JSON.stringify({
+      ...built,
+      lanes: {
+        ...lanes,
+        translate: {
+          ...translate,
+          result: {
+            ...translate.result,
+            status: 'unfilled',
+          },
+        },
+      },
+    },),
+    pageText: archiveText,
   };
 }
 

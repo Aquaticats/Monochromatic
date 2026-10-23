@@ -30,8 +30,8 @@ import {
 // (`&#105;mport` shows as `import`), and an angle autolink, which MDX reads as a tag, is written as a link with the
 // same text and target. Everything else is copied, which is the point of reading the structure from a parse and not
 // from lines: a fence is found wherever it stands (in a list item, in a block quote), as are code spans across lines,
-// math, link destinations and titles, bare addresses and escapes the original wrote, none of which a backslash
-// may touch.
+// math, link destinations and titles, bare addresses and escapes the original wrote, none of which a backslash may
+// touch.
 //
 // WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is met).
 // GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark takes for link
@@ -52,22 +52,37 @@ import {
 //   opener is written as `&lt;!--`, which shows as the same characters and masks nothing.
 //
 // WHAT IS NOT ENCODED, AND WHY. A source run that parses as written ships as written, `<Foo />` and a balanced
-// `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there as
-// it does upstream, and encoding it would show the reader a tag the site would have rendered. Only a run the grammar
-// refuses (or that holds an unclosed comment) comes through here, and there every brace and every less-than sign that
-// the parse reads as text is escaped, a component and a balanced expression included, since a run refused as a whole
-// cannot be told apart piece by piece.
+// `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there
+// as it does upstream, and encoding it would show the reader a tag the site would have rendered. Only a run the
+// grammar refuses (or that holds an unclosed comment) comes through here, and there every brace and every less-than
+// sign that the parse reads as text is escaped, a component and a balanced expression included, since a run refused
+// as a whole cannot be told apart piece by piece.
 //
-// LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original
-// for a text this does not make parse: a fence one run opens and a later run closes, with the English between them
-// falling inside it, is one that does (each run parses alone, and a fence is copied), and a run nested past the bound
-// the plain reading keeps is the other found. The text of a node is escaped whole, so a backslash the original wrote
-// before a character in indented code (which MDX reads as a paragraph, escapes included) is read as an escape and the
-// reader sees the character without it. A raw HTML block that holds Markdown-looking lines is escaped as text and its
-// lines are then read as Markdown. The reach of a bare address is taken as up to the next space or less-than sign, as
-// the GFM autolink-literal pattern does. A text nested past that bound cannot be parsed, and is escaped as text
-// throughout; the strict grammar refuses such a text all the same. An opener of a comment that never closes is
-// written as a character reference wherever it stands, inside code too, where it shows as written.
+// LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
+// a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments took
+// step 3 for 6624 pairs; its causes were a run nested past the bound the plain reading keeps (the 300-deep case in
+// `source-shipped-page.unit.test.ts` pins it), a `$$` flow one run opens and a later run closes with the English
+// between them falling inside it and a tag after the closing line (a fence does the same, which the fence case in that
+// file pins), a raw HTML block that runs to a closing marker (`<script>`, a comment never closed), a fence mark
+// indented four spaces or more (MDX reads a fence there, the plain parse a paragraph or indented code), and the shapes
+// under SHAPES THE PLAIN PARSE HIDES. Step 2 was taken for 838 pairs and made the page parse for 32 of them (a fence
+// mark indented in both runs; one pair of module lines with a bare address); in the rest it was taken and did not, a
+// run nested past the bound beside a run holding a character step 2 escapes among them.
+//
+// SHAPES THE PLAIN PARSE HIDES. These are texts the encoder does not make parse: the plain parse reads a node as one
+// text and the strict grammar reads more in it. A raw HTML block or indented code holding
+// `[https://example.net/a{ b](u)` has its address taken for a bare one. A line CommonMark reads as a link reference
+// definition right after a footnote definition is a line of the footnote to the strict grammar. A bare address after a
+// bracket nothing closes is not read as an address by the strict grammar. A code span or inline math across lines, a
+// later one of which starts with `{` or `<`, is cut by the strict grammar. A byte order mark line before a setext
+// heading starting `import` hides the module line from the plain parse.
+//
+// Smaller limits. The text of a node is escaped whole, so a backslash the original wrote before a character in indented
+// code (which MDX reads as a paragraph, escapes included) is read as an escape and the reader sees the character
+// without it. A raw HTML block that holds Markdown-looking lines is escaped as text and its lines are then read as
+// Markdown. The reach of a bare address is taken as up to the next space or less-than sign, as the GFM autolink-literal
+// pattern does. An opener of a comment that never closes is written as a character reference wherever it stands, inside
+// code too, where it shows as written.
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
