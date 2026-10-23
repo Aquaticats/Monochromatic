@@ -2,7 +2,7 @@ import { introducedFootnoteFindings, } from '@monochromatic-dev/translation-repa
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
-import { shippableReplacements, } from './publish-fixed.ts';
+import { shippableReplacements, } from './shippable-replacements.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Page footnote integrity

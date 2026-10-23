@@ -386,6 +386,26 @@ export function pageWeightRefutes(
 }
 
 /**
+ One form of a slice's wording and where the page carries it.
+
+ @example
+ ```ts
+ const found: FormOnPage = { at: 120, form: '她说', };
+ ```
+ */
+type FormOnPage = {
+  /**
+   Index in the page where the form starts at or after the cursor.
+   */
+  readonly at: number;
+
+  /**
+   The form searched for.
+   */
+  readonly form: string;
+};
+
+/**
  Checks that a page carries every wording its artifact says would ship, in
  slice order.
 
@@ -479,14 +499,51 @@ export function pageCarriesEveryWording(
     const wording = fragmentBody({ fragment: textOnPage({ reading, },), },);
 
     /**
-     Where this wording sits, or that the page does not carry it here.
+     What the page may carry for this slice instead of that wording: an original written as literal text, which the
+     publisher does where the page with the original as recorded does not parse (`source-ships-compose.ts`). It is the
+     same words with a backslash before a brace or a less-than sign, and the scan stays one-sided by accepting either.
      */
-    const at = pageText.indexOf(
-      wording,
-      cursor.at,
-    );
+    const alternatives = (reading.kind === 'source-ships')
+      ? [fragmentBody({
+        fragment: textOnPage({
+          reading,
+          encoding: 'literal',
+        },),
+      },),]
+      : [];
 
-    if (at === NOT_IN_PAGE) {
+    /**
+     Where each form of this wording sits at or after the cursor, the ones the page does not carry left out.
+     */
+    const found = [
+      wording,
+      ...alternatives,
+    ]
+      .map(function foundAt(form,): FormOnPage {
+        return {
+          at: pageText.indexOf(
+            form,
+            cursor.at,
+          ),
+          form,
+        };
+      },)
+      .filter(function carried({ at, },): boolean {
+        return at !== NOT_IN_PAGE;
+      },)
+      .toSorted(function byPosition(
+        left,
+        right,
+      ): number {
+        return left.at - right.at;
+      },);
+
+    /**
+     The form the page carries first, or that it carries none here.
+     */
+    const [first,] = found;
+
+    if (first === undefined) {
       missing.push({
         sliceIndex: slice.sliceIndex,
         characters: codePointLength({ text: wording, },),
@@ -498,7 +555,9 @@ export function pageCarriesEveryWording(
     // match inside it. Two adjacent slices whose wordings share a suffix and
     // a prefix would otherwise both find the same stretch of page. An index
     // into the page, so in UTF-16 units, as `indexOf` counts.
-    cursor.at = at + wording.length;
+    cursor.at = first.at
+      + first.form
+        .length;
   }
 
   /**

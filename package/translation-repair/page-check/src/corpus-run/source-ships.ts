@@ -1,6 +1,7 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import { fragmentBody, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { encodeAsLiteralMdx, } from './source-ships-encoding.ts';
 import type {
   WouldShipReading,
   WouldShipSlice,
@@ -18,6 +19,13 @@ import type {
 // and the other 30, 31.5 percent of the original, left no trace on the page);
 // and unbacked wording marked as unreviewed, which would break the standing
 // rule that one judge alone never decides.
+//
+// WHAT THE PAGE CARRIES OF A SLICE IS THE SLICE'S TEXT AS THE ARTIFACT RECORDS IT, with the blank lines and spaces at
+// its ends trimmed, and the slices of one run joined by one blank line (the splice composes the separator, whatever
+// separated them in the original). Text that sits between slices in the original, an HTML comment among it, belongs to
+// no slice and is not carried. The text is written as recorded whenever the page with it parses; otherwise the braces
+// and less-than signs that are syntax are escaped (`source-ships-encoding.ts`), run by run and then everywhere, and
+// the last resort ships the page without the original (`source-ships-compose.ts`).
 //
 // A READING AND NOT A RECORD OF ITS OWN: the original of every slice is already
 // in the artifact (`lanes.translate.delivery[].sourceText`), and the slice's
@@ -39,9 +47,9 @@ export const UNTRANSLATED_PASSAGE_NOTE = '> This passage has not been translated
 
  ONLY AN ANCHOR NOTHING FILLED: a content span the deciders emptied keeps its
  silence, since the archive had wording there and they removed it. A source
- that renders as nothing has no passage to carry, and a source with no lanes
- to record it (the consistency pass composes the English alone) reads as it
- always did.
+ that renders as nothing has no passage to carry. A source with no lanes to
+ record it (the consistency pass composes the English alone) is read as it
+ was before this reading existed.
 
  @param artifact - source being read
 
@@ -49,7 +57,7 @@ export const UNTRANSLATED_PASSAGE_NOTE = '> This passage has not been translated
 
  @param reading - what the stages left at the slice
 
- @returns The reading, or the slice shipping its original text
+ @returns Reading unchanged, or the slice shipping its original text
 
  @example
  ```ts
@@ -91,6 +99,31 @@ export function carryingSource(
 }
 
 /**
+ The same artifact without its record of the originals, which reads every slice shipping its original as silent.
+
+ @param artifact - source being read
+
+ @returns Artifact whose slices nothing fills are silent again
+
+ @example
+ ```ts
+ const english = withoutSourceRecord({ artifact, },);
+ ```
+ */
+export function withoutSourceRecord(
+  { artifact, }: { readonly artifact: WouldShipSource; },
+): WouldShipSource {
+  /**
+   Everything the artifact holds but the lanes.
+   */
+  const {
+    lanes: _record,
+    ...rest
+  } = artifact;
+  return rest;
+}
+
+/**
  Marks which slices continue a run of slices shipping their original, so the
  note stands once before a contiguous run and not once per slice.
 
@@ -99,7 +132,7 @@ export function carryingSource(
 
  @param slices - every slice's reading, in comparison-row order
 
- @returns The same readings, the ones that continue a run no longer opening one
+ @returns Same readings, the ones that continue a run no longer opening one
 
  @example
  ```ts
@@ -157,12 +190,22 @@ export function carriesText(reading: WouldShipReading,): reading is TextCarrying
 }
 
 /**
+ How a slice's original is written onto the page.
+
+ `as-written` is the text the artifact records, and `literal` the same text with the braces and less-than signs that
+ are syntax escaped (`source-ships-encoding.ts`).
+ */
+export type SourceEncoding = 'as-written' | 'literal';
+
+/**
  Text a reading puts on the page at its slice, the note included where the
  slice opens a run.
 
  @param reading - what the slice would carry, other than a silence
 
- @returns The exact text the splice receives
+ @param encoding - how an original is written; wording is never encoded
+
+ @returns Exact text the splice receives
 
  @example
  ```ts
@@ -170,14 +213,24 @@ export function carriesText(reading: WouldShipReading,): reading is TextCarrying
  ```
  */
 export function textOnPage(
-  { reading, }: { readonly reading: TextCarryingReading; },
+  {
+    reading,
+    encoding = 'as-written',
+  }: {
+    readonly reading: TextCarryingReading;
+    readonly encoding?: SourceEncoding;
+  },
 ): string {
   if (reading.kind === 'wording')
     return reading.text;
   /**
    The original without the blank lines around it, which the note's own blank line replaces.
    */
-  const body = fragmentBody({ fragment: reading.text, },);
+  const body = fragmentBody({
+    fragment: (encoding === 'literal')
+      ? encodeAsLiteralMdx({ text: reading.text, },)
+      : reading.text,
+  },);
   return reading.opensRun ? `${UNTRANSLATED_PASSAGE_NOTE}\n\n${body}` : body;
 }
 

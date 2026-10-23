@@ -122,7 +122,7 @@ export class PageFootnoteResolutionError extends Error {
 /**
  Identifiers of the findings of one kind, each once, in page order.
 
- @param findings - the page's footnote graph findings
+ @param findings - page's footnote graph findings
 
  @param kind - which kind to keep
 

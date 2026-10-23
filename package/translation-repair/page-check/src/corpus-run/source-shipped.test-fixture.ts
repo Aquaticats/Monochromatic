@@ -37,7 +37,7 @@ export type SourceShippedRow = {
 /**
  Comparison row of one slice.
 
- @param row - the slice
+ @param row - slice
 
  @param sliceIndex - its index
 
@@ -105,7 +105,7 @@ function comparisonRowOf(
  they left empty, so the only deciders that speak are the lanes' agreement and
  nobody backs a wording at an anchor.
 
- @param rows - the slices, anchors among them
+ @param rows - slices, anchors among them
 
  @returns Artifact the publisher and the page checks read
 
@@ -152,7 +152,7 @@ export function sourceShippedArtifact(
  Builds the slices of the archive the rows cover, in order, an anchor at the
  offset where the archive stands when it is reached.
 
- @param rows - the slices, anchors among them
+ @param rows - slices, anchors among them
 
  @returns Pairs covering the archive end to end, whose source side carries each row's original
 
@@ -209,9 +209,9 @@ export function sourceShippedSlices(
 /**
  Whole archive the rows cover, which is their archive wordings end to end.
 
- @param rows - the slices, anchors among them
+ @param rows - slices, anchors among them
 
- @returns The archive English
+ @returns Archive English
 
  @example
  ```ts

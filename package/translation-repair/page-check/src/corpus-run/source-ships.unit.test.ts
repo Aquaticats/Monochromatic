@@ -62,7 +62,7 @@ function recording({ sourceText, }: { readonly sourceText: string; },): WouldShi
         },],
       },
     },
-  } as unknown as WouldShipSource;
+  };
 }
 
 /**
@@ -71,14 +71,22 @@ function recording({ sourceText, }: { readonly sourceText: string; },): WouldShi
  @param sliceIndex - slice index
  @param opensRun - whether the note stands before it
 
- @returns The slice
+ @returns Slice
 
  @example
  ```ts
  const slice = shipping({ sliceIndex: 1, opensRun: true, },);
  ```
  */
-function shipping({ sliceIndex, opensRun, }: { readonly sliceIndex: number; readonly opensRun: boolean; },): WouldShipSlice {
+function shipping(
+  {
+    sliceIndex,
+    opensRun,
+  }: {
+    readonly sliceIndex: number;
+    readonly opensRun: boolean;
+  },
+): WouldShipSlice {
   return {
     sliceIndex,
     reading: {
@@ -96,7 +104,7 @@ function shipping({ sliceIndex, opensRun, }: { readonly sliceIndex: number; read
 
  @param opensRun - whether the note stands before it
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts
@@ -136,13 +144,14 @@ function runRoleOf(slice: WouldShipSlice,): 'continues' | 'opens' | 'other' {
 }
 
 await describe({
-  name: '',
+  name: 'source ships',
   children: [
     describe({
       name: carryingSource.name,
       children: [
         it({
-          name: 'GIVES AN UNFILLED ANCHOR THE ORIGINAL THE ARTIFACT RECORDS FOR IT, keeping the silence it had as the reason',
+          name: 'GIVES AN UNFILLED ANCHOR THE ORIGINAL THE ARTIFACT RECORDS FOR IT, keeping the silence it had as '
+            + 'the reason',
           fn: async () => {
             expect(carryingSource({
               artifact: recording({ sourceText: '猫\n', },),
@@ -255,7 +264,8 @@ await describe({
         },),
 
         it({
-          name: 'ENDS A RUN AT A SILENT SLICE TOO, so a gap between two slices that ship their original opens a second run',
+          name: 'ENDS A RUN AT A SILENT SLICE TOO, so a gap between two slices that ship their original opens a '
+            + 'second run',
           fn: async () => {
             /**
              Slices: one shipping, one silent, one shipping.
@@ -282,8 +292,8 @@ await describe({
       name: textOnPage.name,
       children: [
         it({
-          name: 'PUTS THE NOTE, A BLANK LINE AND THE ORIGINAL ON THE PAGE for a slice that opens a run, and the original '
-            + 'alone for one that continues it, with no blank line of the original\'s own around it',
+          name: 'PUTS THE NOTE, A BLANK LINE AND THE ORIGINAL ON THE PAGE for a slice that opens a run, and the '
+            + 'original alone for one that continues it, with no blank line of the original\'s own around it',
           fn: async () => {
             expect(textOnPage({ reading: originalOf({ opensRun: true, },), },),)
               .toBe(`${UNTRANSLATED_PASSAGE_NOTE}\n\n猫`,);

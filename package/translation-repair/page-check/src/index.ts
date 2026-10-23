@@ -100,6 +100,8 @@ export {
 } from './corpus-run/page-footnote-resolution.ts';
 export {
   assertPageParses,
+  type PageGrammarReading,
+  readPageGrammar,
   UnparseablePageError,
 } from './corpus-run/page-grammar.ts';
 export {
@@ -128,8 +130,8 @@ export {
   fixedPagePath,
   PEOPLE_DIR,
   publishFixedPage,
-  shippableReplacements,
 } from './corpus-run/publish-fixed.ts';
+export { shippableReplacements, } from './corpus-run/shippable-replacements.ts';
 export {
   type MissingWording,
   pageCarriesEveryWording,
@@ -156,9 +158,20 @@ export {
   carryingSource,
   markRuns,
   type TextCarryingReading,
+  type SourceEncoding,
   textOnPage,
   UNTRANSLATED_PASSAGE_NOTE,
+  withoutSourceRecord,
 } from './corpus-run/source-ships.ts';
+export { encodeAsLiteralMdx, } from './corpus-run/source-ships-encoding.ts';
+export {
+  type ComposedPage,
+  composeSourcePage,
+  type GrammarReader,
+  SourcePageCompositionError,
+  type SourcePageStep,
+  sourceRunsOf,
+} from './corpus-run/source-ships-compose.ts';
 export { unifyQuoteStyle, } from './corpus-run/quote-style-unify.ts';
 export {
   applySpanRewrites,

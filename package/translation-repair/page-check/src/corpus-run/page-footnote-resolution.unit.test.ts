@@ -27,7 +27,7 @@ import {
 
  @param pageText - page to check
 
- @returns The refusal, or none when the page resolves
+ @returns Refusal, or none when the page resolves
 
  @example
  ```ts
