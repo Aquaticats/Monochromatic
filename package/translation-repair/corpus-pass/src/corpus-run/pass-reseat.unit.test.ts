@@ -360,14 +360,51 @@ await describe({
              What a reading of this view seats on the translate lane.
              */
             const { translateModels, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            /**
+             Select judges of that reading a wet provider would serve.
+             */
+            const selectReachable = reachableSeats({
+              seats: translateModels.judgeModelIds,
+              dry: BEDROCK_AND_OPENROUTER,
+            },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
             },).toEqual({
-              underHold: { translateModels, },
-              afterHold: { translateModels, },
+              underHold: { translateModels, selectReachable, },
+              afterHold: { translateModels, selectReachable, },
               reads: 1,
+            },);
+          },
+        },),
+        it({
+          name: 'HANDS THE TRANSLATE LANE THE SELECT REACH IT STARTED ON while nothing is held, with no dryness '
+            + 'read, and the XingZ6020 view reads one select judge reachable of seven',
+          fn: async () => {
+            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 1,
+            },);
+            /**
+             Select bench of that view and the judges of it a wet provider would serve.
+             */
+            const { translateModels, } = judgeSeatsFor({ dry: XINGZ6020_VIEW, },);
+            expect({
+              handed: await hooks.beforeSlice({ lane: 'translate', },),
+              repair: await hooks.beforeSlice({ lane: 'repair', },),
+              reads: rig.counter.reads,
+              benchSize: translateModels.judgeModelIds.length,
+              reachable: reachableSeats({ seats: translateModels.judgeModelIds, dry: XINGZ6020_VIEW, },).length,
+            },).toEqual({
+              handed: { selectReachable: 1, },
+              repair: {},
+              reads: 0,
+              benchSize: 7,
+              reachable: 1,
             },);
           },
         },),
