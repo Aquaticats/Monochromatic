@@ -77,11 +77,22 @@ function runbookRootOf({ home, }: { readonly home: string; },): string {
  const covered = isAmongOrUnder({ ancestor: '/cats/home', path: '/cats/home/temp/agent', },); // true
  ```
  */
-function isAmongOrUnder({ ancestor, path, }: { readonly ancestor: string; readonly path: string; },): boolean {
+function isAmongOrUnder(
+  {
+    ancestor,
+    path,
+  }: {
+    readonly ancestor: string;
+    readonly path: string;
+  },
+): boolean {
   /**
-   The two directories as absolute paths.
+   The ancestor as an absolute path.
    */
   const from = resolve(ancestor,);
+  /**
+   The directory asked about as an absolute path.
+   */
   const to = resolve(path,);
   if (from === to)
     return true;
@@ -92,7 +103,11 @@ function isAmongOrUnder({ ancestor, path, }: { readonly ancestor: string; readon
     from,
     to,
   );
-  return (way !== '..') && (!way.startsWith(`..${sep}`,)) && (!isAbsolute(way,));
+  if (way === '..')
+    return false;
+  if (way.startsWith(`..${sep}`,))
+    return false;
+  return !isAbsolute(way,);
 }
 
 /**
@@ -176,7 +191,7 @@ function uncoveredRootWords(
 
  @param home - home directory the runbook's runs root sits under
 
- @returns Sentence, absent where the count says all it should
+ @returns The sentence alone, or none where the count says all it should
 
  @example
  ```ts
@@ -193,12 +208,14 @@ function warningWordsOf(
     readonly searched: readonly string[];
     readonly home: string;
   },
-): string | undefined {
+): readonly string[] {
   if (count === 0) {
-    return noRecordWords({
-      searched,
-      home,
-    },);
+    return [
+      noRecordWords({
+        searched,
+        home,
+      },),
+    ];
   }
   /**
    Where a launch that follows the runbook writes its runs.
@@ -210,11 +227,13 @@ function warningWordsOf(
       path: runbookRoot,
     },);
   },))
-    return undefined;
-  return uncoveredRootWords({
-    searched,
-    runbookRoot,
-  },);
+    return [];
+  return [
+    uncoveredRootWords({
+      searched,
+      runbookRoot,
+    },),
+  ];
 }
 
 /**
@@ -282,14 +301,14 @@ function printSliceCacheAccount(
   } of unlisted)
     console.log(`  ${dir} (${reason})`,);
   /**
-   What the count does not say, absent where it says all it should.
+   What the count does not say, none where it says all it should.
    */
-  const words = warningWordsOf({
+  const warnings = warningWordsOf({
     count,
     searched,
     home,
   },);
-  if (words !== undefined) {
+  for (const words of warnings) {
     l.warn(words,);
     console.log(`WARNING: ${words}`,);
   }

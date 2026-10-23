@@ -330,17 +330,22 @@ await describe({
         await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
         await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
         const logged: string[] = [];
-
-        for (const searched of [[RUNBOOK_ROOT,], [HOME,],]) {
-          await reportSliceCaches({
-            root: root.path,
-            runsDir: runs.path,
-            searched,
-            settings: [],
-            l: levelCapturingLogger({ lines: logged, },),
-            home: HOME,
-          },);
-        }
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [RUNBOOK_ROOT,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [HOME,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
 
         expect({
           warned: warningsIn({ lines: logged, },),
