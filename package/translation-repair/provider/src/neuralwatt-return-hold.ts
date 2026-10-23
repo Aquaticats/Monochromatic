@@ -147,7 +147,7 @@ const MS_PER_HOUR = 3_600_000;
 /**
  Milliseconds since 00:00 UTC at an instant.
 
- @param at - the instant
+ @param at - instant
 
  @returns Milliseconds after the UTC midnight that began its day
 
@@ -172,9 +172,9 @@ function msOfDayUtc({ at, }: { readonly at: Date; },): number {
  holds release in seconds, so waiting to the day start would wait hours for energy that is there. A day that has just
  started reads as a whole day away, since the energy of that day is what is spent.
 
- @param energy - the reading the dryness was drawn from
+ @param energy - reading the dryness was drawn from
 
- @param now - the wall clock's instant, whose time of day the distance is taken from
+ @param now - wall clock's instant, whose time of day the distance is taken from
 
  @param marginMs - milliseconds added to a return that is waited for
 

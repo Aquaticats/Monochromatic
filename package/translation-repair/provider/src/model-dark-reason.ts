@@ -24,7 +24,7 @@ import {
 
  @param dry - which providers read dry
 
- @returns The provider's name and `dry` or `wet`
+ @returns Provider's name and `dry` or `wet`
 
  @example
  ```ts

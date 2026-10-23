@@ -109,11 +109,11 @@ export type NeuralWattReturnMark = {
 /**
  Builds the mark of one budget layer.
 
- @param now - the monotonic clock the budget layer reads
+ @param now - monotonic clock the budget layer reads
 
  @param l - logger the line is written to; the package's root by default
 
- @returns A mark that names no return until a reading names one
+ @returns Mark that names no return until a reading names one
 
  @example
  ```ts

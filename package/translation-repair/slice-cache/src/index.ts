@@ -61,6 +61,7 @@ export { runAttemptQueue, } from './corpus-run/entry-attempt-queue.ts';
 export {
   type EntryErrorOutcome,
   entryErrorOutcome,
+  type ParkAnswer,
   ReturnTimeNotUtcError,
   tallyCaughtEntry,
 } from './corpus-run/entry-error-outcome.ts';

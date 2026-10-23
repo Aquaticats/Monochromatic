@@ -313,10 +313,30 @@ and with it whether the wide seats keep Qwen.
 ## B826: the writing-bench floor stopped an entry for want of a named return, though NeuralWatt's return was 48 s away
 
 Status:
-open,
+fixed on 2026-10-23 (UTC),
 found by the lead's read of `XingZ6019` on 2026-10-22 (UTC) (the brief's E2).
-A fix is in progress in the briefs the lead labelled D4 and E2 and has not landed;
-this entry records no design for it.
+The fix landed on main in `9eea0009d1`,
+the merge of the work the lead labelled D4 and E2 with its fix rounds 1 to 9;
+fix rounds 10 and 11 follow it on the branch that took that merge
+(round 10 ends at `e9d79e6f0d`).
+The design that landed
+(the decision doc `doc/decision/translation-repair-direct-providers.md` states it,
+open to the owner's veto):
+the seat reader waits for a hold only if it would cure a short bench,
+and no longer than the smaller of what the pass has left and what the entry's hard cap has left.
+A NeuralWatt return inside what the pass has left but past what the entry has left parks the pass between entries:
+the gate records a park instead of tripping,
+the queue puts the entry back at the front,
+and the gate waits for the return and resumes.
+The writing bench error carries the return,
+and so parks the pass,
+only when the return would lift the bench to its floor.
+The entry's `TALLY` line says `PARKED`,
+with `returnsInMs=` and `returnsAt=` taken from the park,
+which `parkedFor` answers for the failure the entry ended with,
+and never from that failure's own fields.
+When the budget ends the pass after the wait,
+the queue prints `NOT RESUMED <id>` for the entry the park cut short.
 The D4 of those briefs is the model-level dryness work of B822,
 not the D4 candidate of the `XingZ6018` read.
 
@@ -369,13 +389,49 @@ which are not among its ancestors,
 and the source was read at the branch tip `b18a4f7a40`,
 which holds them.
 
-What is left:
-the fix,
-its red case (a writing bench below the floor with NeuralWatt dry and its return known waits for the return),
-and the prevention rule,
-which are owed when the fix lands.
+The red cases:
+`67513d8de3` (`run-seats-neuralwatt-return.unit.test.ts`:
+a NeuralWatt return 301 away with 600 left waits,
+one 700 away with 600 left refuses at once),
+`a17a70dc00` (the bench error names the return,
+so a return past the entry's cap but inside the pass parks the pass instead of stopping the entry),
+`0309ef74b1` (the park waits for an instant on the gate's clock,
+and a refusal for a day start already waited out trips the gate),
+and `02cb04bfb4` (two held providers that each cure the bench alone are waited for).
+
+Prevention rules
+(recorded in `mistake-prevention-sheets-quorums-and-outcome-rules.md` where they concern test fleets):
+a bound names the deadline that forces it and applies only where that deadline applies,
+so a wait longer than a call deadline belongs between calls;
+when a brief names a bound,
+the code implements that bound,
+since "bounded by the abort" is not "bounded by what the pass has left";
+a refusal field that a later stage reads is set from the final reading,
+never from the path that reached it;
+a wait that may start later than the reading it came from stores an instant,
+not a duration;
+and a test fleet models every provider shape of the live roster:
+a provider dry,
+held,
+wet,
+absent,
+or the only one serving a seat,
+and two holds that each cure a bench alone.
+
 Cache versions:
-not known until the fix lands.
+none moved.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `495341919a^..263312b539`
+(the D4 and E2 commits)
+and over `263312b539..581597e62d`
+(the fix rounds and the main they merged)
+lists no commit,
+and the same search over `c265e8df95~1..c265e8df95` lists that commit
+(it set `SLICE_CACHE_VERSION = 44`),
+so the search can find a bump.
+The work decides when the seat reader waits,
+when the pass parks and what the `TALLY` line prints;
+no commit of it touches a cache key,
+store or version file.
 
 Recurrence:
 the thirteenth and fifteenth classes of the defect-class history (the hold wait and the writing-bench floor),

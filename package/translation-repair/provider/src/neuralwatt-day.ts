@@ -305,7 +305,7 @@ const WHOLE_SECOND_MILLIS = '.000';
 
  @param msOfDay - milliseconds after 00:00 UTC
 
- @returns The time as `HH:MM:SS`, or `HH:MM:SS.sss` where it has milliseconds
+ @returns Time as `HH:MM:SS`, or `HH:MM:SS.sss` where it has milliseconds
 
  @example
  ```ts

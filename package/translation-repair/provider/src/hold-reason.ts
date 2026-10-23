@@ -24,14 +24,14 @@ import {
 
  @param holds - milliseconds of hold left per provider
 
- @param shortest - the shortest running hold, as `shortestHold` read it
+ @param shortest - shortest running hold, as `shortestHold` read it
 
  @param neuralwatt - what the run knows of NeuralWatt's day
 
  @param neuralwattHeldByReturn - whether NeuralWatt's hold is its day start and not a refusal's, since a refusal that
  holds it longer is the hold that won and the day start is not its reason (default: it is)
 
- @returns The providers in spending order, or `no provider` where nothing is held
+ @returns Providers in spending order, or `no provider` where nothing is held
 
  @example
  ```ts

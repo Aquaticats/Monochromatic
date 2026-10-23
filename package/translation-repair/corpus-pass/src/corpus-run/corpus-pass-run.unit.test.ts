@@ -1171,7 +1171,7 @@ await describe({
         /**
          What the entry was told about its park, per attempt.
          */
-        const told: { forRefusal?: boolean; forOther?: boolean; } = {};
+        const told: { forRefusal?: unknown; forOther?: unknown; } = {};
         await runPass({
           typed: [],
           clone,
@@ -1199,7 +1199,10 @@ await describe({
           },
         },);
 
-        expect(told,).toEqual({ forRefusal: true, forOther: false, },);
+        expect(told,).toEqual({
+          forRefusal: { parked: true, returnsInMs: 5, returnsAt: '19:15:08 UTC', },
+          forOther: { parked: false, },
+        },);
         expect(watched.settled,).toEqual(['tabby', 'tabby',],);
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);

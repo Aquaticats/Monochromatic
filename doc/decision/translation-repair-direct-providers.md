@@ -373,8 +373,16 @@ the gate keeps the failure it chose to park for,
 and every other parking failure it sees while the park lasts
 (attempts run one at a time,
 so each belongs to the attempt that parked),
-and answers true for those very objects only,
+and answers for those very objects only,
 never from whether the gate happens to be parked or from the class of the failure.
+The answer is the return the park waits for,
+its distance and its time of day,
+and the line prints those and never its own failure's,
+since a further parking failure may name no return,
+or another distance than the one the park waits for,
+and the operator reads the line as the wait the pass is in.
+That was the lead's ruling after the ninth re-check,
+open to the owner's veto.
 It answers for all of them because the layers that choose which failure an entry ends with
 (`runGatherRound` in `stage-round.ts`,
 `image-reading-contain.ts`,

@@ -3437,9 +3437,9 @@ await describe({
               overlap: PASS_FALLBACK_OVERLAP,
               stageSettings: SCRIPTED_STAGE_SETTINGS,
               endRun: function endRun(): void {},
-              parked: function parked({ error, },): boolean {
+              parked: function parked({ error, },) {
                 asked.push(error,);
-                return true;
+                return { parked: true, returnsInMs: 301_000, returnsAt: '19:15:08 UTC', };
               },
             },);
           },

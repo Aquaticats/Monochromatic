@@ -333,7 +333,7 @@ function notHeldOut(): boolean {
 /**
  The system clock, the wall clock outside a test.
 
- @returns The current instant
+ @returns Current instant
 
  @example
  ```ts
@@ -376,7 +376,7 @@ function systemClock(): Date {
  default, since a hold read on the system clock lasted an hour longer when
  it was set back (ledger B78)
 
- @param wallNow - the wall clock, read only for the time of day a spent NeuralWatt day starts again, since that day
+ @param wallNow - wall clock, read only for the time of day a spent NeuralWatt day starts again, since that day
  starts at a time of day in UTC and not after a duration; the system clock by default
 
  @param returnMarginMs - milliseconds added to a NeuralWatt return so the meter is read after the day has started

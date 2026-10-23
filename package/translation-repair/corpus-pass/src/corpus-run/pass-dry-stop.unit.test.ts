@@ -22,7 +22,10 @@ import {
   readBudgetsPastHolds,
 } from '@monochromatic-dev/translation-repair-provider';
 import { WritingBenchUnreachableError, } from '@monochromatic-dev/translation-repair-run';
-import { createPassDryStop, } from '../../dist/final/node/index.mjs';
+import {
+  createPassDryStop,
+  recordOnPark,
+} from '../../dist/final/node/index.mjs';
 import { modelDarkRefusal, } from '@monochromatic-dev/translation-repair-provider/ts/model-dark-refusal.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
@@ -618,15 +621,21 @@ await describe({
          The bench error with a return that fits.
          */
         const bench = benchErrorBefore({ returnsInMs: 301_000, },);
-        expect(dryStop.parkedFor({ error: bench, },),).toBe(false,);
+        expect(dryStop.parkedFor({ error: bench, },),).toEqual({ parked: false, },);
         dryStop.trip({ error: bench, },);
         expect(dryStop.parked(),).toBe(true,);
-        expect(dryStop.parkedFor({ error: bench, },),).toBe(true,);
+        expect(dryStop.parkedFor({ error: bench, },),).toEqual({
+          parked: true,
+          returnsInMs: 301_000,
+          returnsAt: '19:15:08 UTC',
+        },);
         // Another entry's parking failure, with the same class and the same return, is not the park's own.
-        expect(dryStop.parkedFor({ error: spentDayRefusal({ dayStart: DAY_ONE, },), },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: benchErrorBefore({ returnsInMs: 301_000, }), },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: new Error('connection reset',), },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: benchErrorBefore({}), },),).toBe(false,);
+        expect(dryStop.parkedFor({ error: spentDayRefusal({ dayStart: DAY_ONE, },), },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: benchErrorBefore({ returnsInMs: 301_000, }), },),).toEqual(
+          { parked: false, },
+        );
+        expect(dryStop.parkedFor({ error: new Error('connection reset',), },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: benchErrorBefore({}), },),).toEqual({ parked: false, },);
       },
     },),
 
@@ -660,11 +669,11 @@ await describe({
         dryStop.trip({ error: second, },);
         dryStop.trip({ error: ordinary, },);
         dryStop.trip({ error: noReturn, },);
-        expect(dryStop.parkedFor({ error: first, },),).toBe(true,);
-        expect(dryStop.parkedFor({ error: second, },),).toBe(true,);
-        expect(dryStop.parkedFor({ error: ordinary, },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: noReturn, },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: unseen, },),).toBe(false,);
+        expect(dryStop.parkedFor({ error: first, },),).toMatchObject({ parked: true, },);
+        expect(dryStop.parkedFor({ error: second, },),).toMatchObject({ parked: true, },);
+        expect(dryStop.parkedFor({ error: ordinary, },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: noReturn, },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: unseen, },),).toEqual({ parked: false, },);
 
         await dryStop.awaitPark();
         /**
@@ -672,9 +681,102 @@ await describe({
          */
         const late = spentDayRefusal({ dayStart: DAY_ONE, },);
         dryStop.trip({ error: late, },);
-        expect(dryStop.parkedFor({ error: first, },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: second, },),).toBe(false,);
-        expect(dryStop.parkedFor({ error: late, },),).toBe(false,);
+        expect(dryStop.parkedFor({ error: first, },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: second, },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: late, },),).toEqual({ parked: false, },);
+      },
+    },),
+
+    it({
+      name: 'CARRIES NO FAILURE OF AN EARLIER PARK INTO A LATER ONE: after the first park has ended and the gate parks '
+        + 'again for a refusal of another spent day, the failures the first park saw are not the second\'s',
+      fn: async () => {
+        const dryStop = createPassDryStop({ passLeftMs: () => 3_600_000, waitMs: async () => {}, },);
+        /**
+         The refusal that parks the pass the first time.
+         */
+        const first = spentDayRefusal({ dayStart: DAY_ONE, },);
+        /**
+         A further parking failure the first park saw.
+         */
+        const second = benchErrorBefore({ returnsInMs: 301_000, },);
+        /**
+         The refusal for the next spent day, which parks the pass again.
+         */
+        const again = spentDayRefusal({ dayStart: DAY_TWO, },);
+        dryStop.trip({ error: first, },);
+        dryStop.trip({ error: second, },);
+        expect(dryStop.parkedFor({ error: second, },).parked,).toBe(true,);
+        await dryStop.awaitPark();
+        dryStop.trip({ error: again, },);
+        expect(dryStop.parked(),).toBe(true,);
+        expect(dryStop.parkedFor({ error: again, },).parked,).toBe(true,);
+        expect(dryStop.parkedFor({ error: first, },),).toEqual({ parked: false, },);
+        expect(dryStop.parkedFor({ error: second, },),).toEqual({ parked: false, },);
+      },
+    },),
+
+    it({
+      name: 'ANSWERS THE PARK\'S OWN RETURN for every failure it answers for, never the failure\'s: a second parking '
+        + 'refusal that carries no NeuralWatt return and one that carries another distance, met during the park, '
+        + 'get the distance and the time the park waits for, and an ordinary failure gets none',
+      fn: async () => {
+        const dryStop = createPassDryStop({ passLeftMs: () => 3_600_000, waitMs: async () => {}, },);
+        /**
+         The refusal that parks the pass, 301 s from its return.
+         */
+        const first = spentDayRefusal({ dayStart: DAY_ONE, },);
+        /**
+         A parking refusal of the same entry from a router that had no day information, so it names no return.
+         */
+        const noReturn = new EveryProviderDryError({ measured: 'every meter dry', },);
+        /**
+         A parking bench error of the same entry that names a nearer return than the park waits for.
+         */
+        const nearer = benchErrorBefore({ returnsInMs: 120_000, },);
+        dryStop.trip({ error: first, },);
+        dryStop.trip({ error: noReturn, },);
+        dryStop.trip({ error: nearer, },);
+        /**
+         What the park waits for.
+         */
+        const parkReturn = { parked: true, returnsInMs: 301_000, returnsAt: '19:15:08 UTC', };
+        expect(dryStop.parkedFor({ error: first, },),).toEqual(parkReturn,);
+        expect(dryStop.parkedFor({ error: noReturn, },),).toEqual(parkReturn,);
+        expect(dryStop.parkedFor({ error: nearer, },),).toEqual(parkReturn,);
+        expect(dryStop.parkedFor({ error: new Error('connection reset',), },),).toEqual({ parked: false, },);
+      },
+    },),
+
+    it({
+      name: 'RECORDS ONLY THE PARKING FAILURES OTHER THAN THE PARK\'S OWN REFUSAL, once each: the refusal that parked '
+        + 'the pass, handed in again by the entry\'s catch, leaves the list empty',
+      fn: async () => {
+        /**
+         The refusal that parks the pass.
+         */
+        const refusal = spentDayRefusal({ dayStart: DAY_ONE, },);
+        /**
+         A further parking failure of the same entry.
+         */
+        const other = benchErrorBefore({ returnsInMs: 301_000, },);
+        /**
+         The park in force, as the gate builds it.
+         */
+        const park: Parameters<typeof recordOnPark>[0]['park'] = {
+          refusal,
+          seen: [],
+          returnsInMs: 301_000,
+          atMs: 301_000,
+          returnsAt: '19:15:08 UTC',
+          dayStart: DAY_ONE,
+        };
+        recordOnPark({ park, error: refusal, },);
+        expect(park.seen,).toEqual([],);
+        recordOnPark({ park, error: other, },);
+        recordOnPark({ park, error: other, },);
+        recordOnPark({ park, error: refusal, },);
+        expect(park.seen,).toEqual([other,],);
       },
     },),
 

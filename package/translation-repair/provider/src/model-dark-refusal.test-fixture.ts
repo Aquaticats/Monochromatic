@@ -32,7 +32,7 @@ const HYPER_DRY = HYPER_ALONE;
 
  @param modelId - model the call was addressed to
 
- @returns The lost-seat refusal, whose reason names Hyper dry and every other provider wet
+ @returns Lost-seat refusal, whose reason names Hyper dry and every other provider wet
 
  @example
  ```ts

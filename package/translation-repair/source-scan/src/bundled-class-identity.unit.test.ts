@@ -181,7 +181,7 @@ function withoutChain({ value, }: { readonly value: unknown; },): unknown {
  The forms read: `x instanceof Class`, and a `.constructor` read (plain, through `?.`, or by a string key) compared
  with `Class` on either side by `===`, `!==`, `==` or `!=`.
 
- Outside the scan, each shown by a planted file to give no site (round 8 re-check), and the reason for each:
+ Outside the scan, each shown by a planted file to give no site, and the reason for each:
  a namespace import (`p.BError`), because the class is a member read and not a name the file imports; a re-export hop
  (the file imports the name from a local file that re-exports it from the workspace package), because the scan
  follows no import past the file; a class held in a variable or passed as a parameter (`const A = BError`,
@@ -190,6 +190,16 @@ function withoutChain({ value, }: { readonly value: unknown; },): unknown {
  `await import()`, because the binding is a destructuring of a call result and not an import declaration; and the
  thrower side (`extends B` or `new B` in a package that bundles `b`), because it derives from or builds the copy and
  compares nothing, so no test is made there.
+
+ Also outside the scan, each shown by a planted file to give no site, one reason each:
+ - a conditional class operand (`e instanceof (c ? B : Error)`): the operand is a conditional, not a name
+ - an operand in parentheses (`e instanceof (B)`, `(e.constructor) === B`): only an optional chain is unwrapped
+ - an operand under an `as` assertion (`(e.constructor as unknown) === B`): the assertion wraps the node it reads
+ - an operand under a `!` assertion (`e.constructor! === B`, `e.constructor === B!`): wrapped as the `as` form is
+ - `B.prototype.isPrototypeOf(e)`: a method call on a prototype, not a comparison
+ - `B[Symbol.hasInstance](e)`: a call on a computed member, not a comparison
+ - `switch (e.constructor) { case B: }`: the class is a `case` label, not a comparison
+ - `[B].includes(e.constructor)`: the class is an array element, not a comparison
 
  @param node - node read
 

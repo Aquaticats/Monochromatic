@@ -42,7 +42,7 @@ export type RefusalClient = Pick<
 
  @param client - run client, whose NeuralWatt day is read when it reports one
 
- @returns The day, or that none was decided where the client reports none
+ @returns Day, or that none was decided where the client reports none
 
  @example
  ```ts
@@ -78,7 +78,7 @@ export function writingProvidersOfClient(
 
  @param clauses - one clause per writing bench below its floor
 
- @param dry - the dryness view the reading stopped on
+ @param dry - dryness view the reading stopped on
 
  @param client - run client, whose NeuralWatt day is read when it reports one
 
