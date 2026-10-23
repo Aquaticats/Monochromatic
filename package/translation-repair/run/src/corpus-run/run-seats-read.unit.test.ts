@@ -810,6 +810,7 @@ await describe({
               warned: [
                 'warn JUDGE SEATS phase=page consistency short of quorum: wide 0 of 7 reachable, quorum 4 '
                   + '(reached again with the return of hyper, openrouter); '
+                  + 'wide reads under its floor of 2 and no hold runs that could lift it; '
                   + 'no provider has named a return the pass can wait for, so the phase runs on what is reachable',
               ],
             },);
