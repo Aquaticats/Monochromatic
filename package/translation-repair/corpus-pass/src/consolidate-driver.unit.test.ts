@@ -2687,6 +2687,46 @@ await describe({
         },),
 
         it({
+          name: 'STILL POLISHES AN ENDORSED STANDING when the slate bench is below the floor, since the final '
+            + 'naturalness check refuses a body slice with no settled polish: the writers and the slate judges '
+            + 'are not asked, and the naturalness roles are',
+          fn: async () => {
+            /**
+             Seat of every call the driver made.
+             */
+            const asked: RosterModelId[] = [];
+            await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: roleAnsweringClient({ asked, },),
+              judgeModelIds: [SEAT_HYPER_ONLY,],
+              polishConfig: polishOn({
+                seats: [
+                  SEAT_OPENROUTER_ONLY,
+                  SEAT_OPENROUTER_DECISIONS,
+                  SEAT_OPENROUTER_ONLY_CHECKER,
+                ],
+              },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 1, }),
+            },);
+            /**
+             Writers the driver started on, as a plain list of seats.
+             */
+            const writers: readonly RosterModelId[] = ROSTER;
+            expect({
+              askedWriter: asked.some(function isWriter(seat,): boolean {
+                return writers.includes(seat,);
+              },),
+              askedSlateJudge: asked.includes(SEAT_HYPER_ONLY,),
+              askedPolish: asked.includes(SEAT_OPENROUTER_ONLY,),
+            },).toEqual({
+              askedWriter: false,
+              askedSlateJudge: false,
+              askedPolish: true,
+            },);
+          },
+        },),
+
+        it({
           name: 'WRITES A LATER SLICE\'S OWN FAILURE UNDER THE CALLER\'S STOP, its hook refused by an unreachable '
             + 'bench as the stop landed while the first slice ended in the caller\'s reason, and refuses with that '
             + 'reason',

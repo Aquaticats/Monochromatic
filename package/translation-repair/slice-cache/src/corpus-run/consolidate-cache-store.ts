@@ -416,6 +416,9 @@ function isConsolidationSettlement(value: unknown,): value is ConsolidationSettl
     // NEVER PERSISTED: `consolidationWorthResuming` refuses an archive-kept
     // settlement, and its mark is what makes the archive ship.
     && (value.archiveKept === undefined)
+    // NEVER PERSISTED either: a settlement bought on a bench below the floor asked no judge, so a copy resumed
+    // later would keep a standing nobody judged.
+    && (value.benchBelowFloor === undefined)
     && Array.isArray(findings,)
     && findings.every(function isText(finding,): boolean {
       return (typeof finding) === 'string';

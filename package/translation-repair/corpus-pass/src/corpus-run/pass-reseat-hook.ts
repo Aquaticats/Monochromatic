@@ -71,7 +71,10 @@ export type Reseated<SeatingT,> = {
  @param staleWhen - whether the seating last handed over must be read again
  although no hold runs, for a phase whose seating states a shortfall that a
  provider returning after its hold ended would cure; absent keeps the memo
- until a hold runs
+ until a hold runs. Such a read costs a cached budget reading (trusted for
+ sixty seconds, `BUDGET_FRESH_MS` in `provider-budget.ts`) and the reading's
+ own `JUDGE SEATS` line, so it holds the file header's no-read guarantee only
+ while the reach is at or above the floor
 
  @param l - entry logger, which records every re-seating
 
@@ -110,10 +113,13 @@ export function reseatHookFor<SeatingT,>(
    */
   const warned: WarnedState = { signature: '', };
   return async function reseatBeforeSlice(): Promise<SeatingT> {
-    if (shortestHold({ holds: holdsWithinPass({ client, },), },) === 0) {
+    /**
+     Whether a hold runs, which is what the memo of the last no-wait line is forgotten on.
+     */
+    const held = shortestHold({ holds: holdsWithinPass({ client, },), },) !== 0;
+    if ((!held) && ((staleWhen === undefined) || (!staleWhen(latest.seating,)))) {
       warned.signature = '';
-      if ((staleWhen === undefined) || (!staleWhen(latest.seating,)))
-        return latest.seating;
+      return latest.seating;
     }
     /**
      Benches as of this slice, the reading waiting out a named hold when a
@@ -131,7 +137,10 @@ export function reseatHookFor<SeatingT,>(
      */
     const reseated = seatingOf({ seats, },);
     latest.seating = reseated.seating;
-    l.info(`JUDGE SEATS phase=${phase} ${reseated.line}`,);
+    // A READING TAKEN WITH NO HOLD RUNNING says nothing of a hold: the reading wrote its own JUDGE SEATS line, and
+    // this one would name a hold that is not there, once for every slice the shortfall lasts.
+    if (held)
+      l.info(`JUDGE SEATS phase=${phase} ${reseated.line}`,);
     return latest.seating;
   };
 }
