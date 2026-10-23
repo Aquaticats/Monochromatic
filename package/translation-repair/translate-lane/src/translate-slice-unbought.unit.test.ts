@@ -42,7 +42,7 @@ await describe({
             refusedCacheFindings: [],
             unfilledFindings: [],
           },
-          lines: ['slice 5: source passage already carried elsewhere',],
+          lines: ['[carriedElsewhere] slice 5: source passage already carried elsewhere',],
         },);
       },
     },),
@@ -60,7 +60,8 @@ await describe({
           },),
           findingCount: settlement.unfilledFindings.length,
           said: lines.some(function saysNothingBought(line,): boolean {
-            return line.includes('nothing was bought and the passage stays as it is',);
+            return line.startsWith('[notCorroborated] slice 6: ',)
+              && line.includes('nothing was bought and the passage stays as it is',);
           },),
         },).toEqual({
           outcome: {

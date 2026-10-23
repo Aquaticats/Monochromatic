@@ -312,7 +312,7 @@ await describe({
           status: result.status,
           said: whyLines({ lines: sink.lines, },).length,
           saidFloor: sink.lines.some(function names(line,): boolean {
-            return line.includes('1 of 6 select judges reachable, below the floor of 2',);
+            return line.includes('[skippedBelowFloor] slice 0: 1 of 6 select judges reachable, below the floor of 2',);
           },),
           findingBench: result.findings.includes(
             'stage-bench-below-floor (translate-select reachable 1 of 6, floor 2, no call made)',
