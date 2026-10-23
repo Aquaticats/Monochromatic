@@ -9,6 +9,7 @@ import {
   contextRoot,
   wordForCount,
 } from '@monochromatic-dev/translation-repair-typography/ts';
+import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { searchReaches, } from './cache-account-search-reach.ts';
 import {
   MS_PER_SECOND,
@@ -184,13 +185,15 @@ async function warningWordsOf(
   /**
    Whether each root searched reaches the runbook's runs root, in the order searched.
    */
-  const reaching = await Promise.all(searched.map(async function reachesRunbookRoot(root,): Promise<boolean> {
-    return await searchReaches({
-      root,
-      directory: runbookRoot,
-      runsLevels: RUNBOOK_RUNS_LEVELS,
-    },);
-  },),);
+  const reaching = await allInInputOrder({
+    members: searched.map(async function reachesRunbookRoot(root,): Promise<boolean> {
+      return await searchReaches({
+        root,
+        directory: runbookRoot,
+        runsLevels: RUNBOOK_RUNS_LEVELS,
+      },);
+    },),
+  },);
   if (reaching.includes(true,))
     return [];
   return [

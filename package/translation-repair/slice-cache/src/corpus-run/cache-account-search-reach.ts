@@ -47,7 +47,7 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
   catch (error) {
     rethrowUnlessMissingPath({ error, },);
     /**
-     The directory above, which has the same answer to give for the part that exists.
+     The parent directory, which has the same answer to give for the part that exists.
      */
     const parent = dirname(absolute,);
     if (parent === absolute)
@@ -80,7 +80,11 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
 
  @example
  ```ts
- const reached = await searchReaches({ root: '/cats/home', directory: '/cats/home/temp/agent', runsLevels: 2, },); // true
+ const reached = await searchReaches({
+   root: '/cats/home',
+   directory: '/cats/home/temp/agent',
+   runsLevels: 2,
+ },); // true
  ```
  */
 export async function searchReaches(
@@ -95,14 +99,22 @@ export async function searchReaches(
   },
 ): Promise<boolean> {
   /**
+   The root by its real path.
+   */
+  const from = await realPathOf({ path: root, },);
+  /**
+   The directory by its real path.
+   */
+  const to = await realPathOf({ path: directory, },);
+  if (from === to)
+    return true;
+  /**
    The way down from the root to the directory.
    */
   const way = relative(
-    await realPathOf({ path: root, },),
-    await realPathOf({ path: directory, },),
+    from,
+    to,
   );
-  if (way === '')
-    return true;
   if (way === '..')
     return false;
   if (way.startsWith(`..${sep}`,))
