@@ -81,7 +81,8 @@ export function viewWithBack(
 
 /**
  The providers whose meter says dry, read from the meter states and not from the dryness view, which folds a hold in
- and so cannot tell a provider held out from one the meter keeps out.
+ and so cannot tell a provider held out from one the meter keeps out. A provider refused for payment counts: the
+ states report it dry until its meter moves, so its stated hold ending brings nothing back.
 
  @param meters - what each provider's meter said
 

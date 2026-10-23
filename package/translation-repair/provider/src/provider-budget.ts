@@ -250,7 +250,15 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
    BESIDE THE VIEW, NOT IN IT: the view is one routed bit per provider, in
    which an unreadable meter already counts as spendable, so a seat reading
    that prints the bit alone prints `wet` for a meter that said nothing. A
-   hold or a payment refusal changes the routed bit and never this state.
+   hold changes the routed bit and never this state.
+
+   A PAYMENT REFUSAL READS `dry` HERE until the meter moves, as it does in
+   the routed bit: that refusal keeps the provider dry however wet the meter
+   reads and however long the hold it stated, so a reader that takes the
+   states for the meters alone, and counts a provider whose hold ends as
+   returning only when its meter is not dry, would otherwise wait out a hold
+   for a provider that stays dry. The reading a refusal is judged against
+   (`markRefused`) keeps what the meter said.
    */
   readonly readStates: (args: { readonly signal: AbortSignal; },) => Promise<ProviderRecord<MeterState>>;
 
@@ -607,9 +615,10 @@ export function createProviderBudgets(
       // it. Three things hold a provider out beyond its meter, and the router
       // and the seat readers fold all three in: a refused credential, a timed
       // hold after a refusal and a refusal for payment. ONLY THE PRINTED WORD
-      // MOVES: the state `readStates` returns stays what the meter said,
+      // MOVES in the reading: the state it keeps stays what the meter said,
       // because `markRefused` judges a refusal against it (a wet meter makes
-      // it a rate limit).
+      // it a rate limit). `readStates` folds the payment refusal in on the way
+      // out and nothing else.
       if (heldOut(provider,) || (holdLeft({ provider, },) > 0)
         || paidOut({
           provider,
@@ -766,8 +775,22 @@ export function createProviderBudgets(
       /**
        Meter reading this call reports the states of.
        */
-      const { states, } = await currentReading({ signal, },);
-      return states;
+      const {
+        states,
+        levels,
+      } = await currentReading({ signal, },);
+
+      // A PAYMENT REFUSAL IS DRY UNTIL THE METER MOVES, whatever the meter read when it was refused.
+      return providerRecord({
+        of: function stateOrPaidOut(provider,): MeterState {
+          return paidOut({
+            provider,
+            levels,
+          },)
+            ? 'dry'
+            : states[provider];
+        },
+      },);
     },
 
     read: async function read({ signal, },): Promise<BudgetView> {
