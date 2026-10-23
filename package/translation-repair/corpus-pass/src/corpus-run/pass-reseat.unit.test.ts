@@ -379,8 +379,31 @@ await describe({
           },
         },),
         it({
-          name: 'HANDS THE TRANSLATE LANE THE SELECT REACH IT STARTED ON while nothing is held, with no dryness '
-            + 'read, and the XingZ6020 view reads one select judge reachable of seven',
+          name: 'HANDS THE TRANSLATE LANE THE SELECT REACH IT STARTED ON while nothing is held and the reach meets the '
+            + 'floor, with no dryness read',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 5,
+            },);
+            expect({
+              handed: await hooks.beforeSlice({ lane: 'translate', },),
+              repair: await hooks.beforeSlice({ lane: 'repair', },),
+              reads: rig.counter.reads,
+            },).toEqual({
+              handed: { selectReachable: 5, },
+              repair: {},
+              reads: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'READS THE TRANSLATE LANE\'S BENCH AGAIN while the select reach it hands is below the floor, though no '
+            + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one select '
+            + 'judge reachable of seven and the slice is handed that reading, not the reach it started on',
           fn: async () => {
             const rig = viewClient({ view: XINGZ6020_VIEW, },);
             const hooks = lanesHooksFor({
@@ -396,16 +419,37 @@ await describe({
             expect({
               handed: await hooks.beforeSlice({ lane: 'translate', },),
               repair: await hooks.beforeSlice({ lane: 'repair', },),
-              reads: rig.counter.reads,
+              readsOnce: rig.counter.reads > 0,
               benchSize: translateModels.judgeModelIds.length,
               reachable: reachableSeats({ seats: translateModels.judgeModelIds, dry: XINGZ6020_VIEW, },).length,
             },).toEqual({
-              handed: { selectReachable: 1, },
+              handed: { translateModels, selectReachable: 1, },
               repair: {},
-              reads: 0,
+              readsOnce: true,
               benchSize: 7,
               reachable: 1,
             },);
+          },
+        },),
+        it({
+          name: 'LIFTS THE FLOOR FOR THE SLICES AFTER A PROVIDER THAT CAME BACK AFTER ITS HOLD ENDED: the translate '
+            + 'lane started on a select reach of one, no hold runs, and the next slice is handed the fresh reading',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 1,
+            },);
+            const { translateModels, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({ seats: translateModels.judgeModelIds, dry: BEDROCK_AND_OPENROUTER, },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect(await hooks.beforeSlice({ lane: 'translate', },),).toEqual({
+              translateModels,
+              selectReachable: fresh,
+            },);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
           },
         },),
         it({
