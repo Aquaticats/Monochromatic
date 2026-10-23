@@ -167,10 +167,41 @@ which lists every file of these commitments.
   One note stands before each contiguous run of such slices,
   in Canadian English as a block quote on its own lines:
   `> This passage has not been translated yet. The original text follows.`
-  The source text follows as written.
+  The source text follows as the artifact records it:
+  each slice's text exactly,
+  the slices of one run joined by one blank line,
+  and no text between slices (an HTML comment the original holds between two blocks,
+  for instance),
+  since that text belongs to no slice.
   No page pass,
   floor or footnote guard rewrites it,
-  since each of them reads or edits English.
+  since each of them reads or edits English;
+  the helper that lists what each slice contributes to a page leaves the source text out
+  unless its caller asks,
+  and only the writer of the published page asks.
+  The page grammar is strict MDX,
+  so a bare `{`,
+  an unclosed tag or an unmatched closing tag in the original can make the composed page unparseable.
+  The writer of the page therefore ships each run as recorded whenever the composed page parses,
+  and otherwise takes up to three steps,
+  parsing the page after each:
+  first it writes,
+  as literal text,
+  only the runs that do not parse as a fragment of their own
+  (a backslash before each `{`,
+  `}` and `<`;
+  code,
+  comments and an escape the original already wrote stay as they are);
+  then it writes every run so;
+  then it ships the page without the source text and adds the defect `page-source-unparseable` naming the slices.
+  Each step taken writes one warn line naming the slices and the step,
+  and the entry never stops on this path.
+  The bytes of the original differ from the artifact's only on those paths.
+  The known limit of the last step:
+  the page then differs from what the artifact says it ships,
+  and the page-agreement check reads it as disagreeing on a later republish
+  or `verify-published`;
+  no marker was added to the page to prevent that (ledger B832).
   The artifact keeps its record of the slice (`lanes.translate.delivery`),
   and the would-ship reading names the role,
   `source-ships` (`page-check/src/corpus-run/source-ships.ts`),

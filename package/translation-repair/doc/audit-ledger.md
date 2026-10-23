@@ -114,6 +114,13 @@ named for that subject and listed here.
   a refinement rolled back with no line in the log (B829),
   alignment findings that reached the artifact and not the log (B830),
   and standings kept without contest endorsement that no `TALLY` field counted (B831).
+- [Audit ledger: the source text under a note and the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md):
+  The second re-check of the round that made a page carry the original of an untranslated passage,
+  a page the grammar refuses with the original on it (B832),
+  and the corrections it made to A8,
+  B827,
+  B830
+  and B831.
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

@@ -152,6 +152,7 @@ so the README says such a passage ships its source text under a note,
 and the header of `page-check/src/corpus-run/publish-completeness.ts` records the ruling and the date.
 The outage half of this entry stands:
 an outage still stops the entry `INCOMPLETE`.
+The finding text and the header of `publish-completeness.ts` were qualified afterwards (ledger B832).
 
 ### A9: the `DONE` line undercounts on a resume into a directory holding a decline
 
@@ -864,6 +865,9 @@ Recurrence:
 a report that a shipped page "records the gap" is checked against what a reader of the page sees.
 A finding in a log and an artifact field are not on the page.
 
+Follow-up of 2026-10-23 (UTC):
+the second re-check corrected parts of this entry (ledger B832).
+
 ## B828: the footnote check on the shipped page was relative to the archive, so an archive that lacked the notes passed
 
 Status:
@@ -937,6 +941,9 @@ roster and section-pairing findings,
 once the driver has run the lanes over the preparation.
 Block-pairing and stage findings stay out because other code logs them.
 
+Follow-up of 2026-10-23 (UTC):
+the second re-check corrected the subject of the fix (ledger B832).
+
 ## B831: the `TALLY` line did not count the standings kept without contest endorsement
 
 Status:
@@ -955,3 +962,6 @@ On the real artifact it reads 56.
 The log's 58 lines are 58 distinct slices,
 two of which a later round consolidated,
 so the field counts the standings that still stand at the end of the run.
+
+Follow-up of 2026-10-23 (UTC):
+the second re-check corrected the comment at the call (ledger B832).

@@ -216,7 +216,7 @@ await describe({
   children: [
     it({
       name: 'READS THE LAST SLICE AS SHIPPING ITS ORIGINAL, the positive control: the page writer would place the '
-        + 'original there, so the cases below are about a slice that does ship it',
+        + 'original there, so the other cases are about a slice that does ship it',
       fn: async () => {
         const { projected, } = pageWithUnfilledLastSection();
         const { reading, } = nonNullishOrThrow(
@@ -281,7 +281,7 @@ await describe({
           stageSettings: SCRIPTED_STAGE_SETTINGS,
         },);
 
-        // The positive control: the pass did write English elsewhere on the page, so the cases below are not about a
+        // The positive control: the pass did write English elsewhere on the page, so the other cases are not about a
         // pass that wrote nothing.
         expect(consistency.slices.length,).toBeGreaterThan(0,);
 

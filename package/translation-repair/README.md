@@ -523,6 +523,14 @@ the artifact records it (`lanes.translate.unfilled`),
 the log names each one (`corpus-run/pass-entry.ts`),
 and the page carries the original text of the passage after one block-quote note per contiguous run,
 `> This passage has not been translated yet. The original text follows.`
+The text is each slice's original as the artifact records it,
+the slices of a run joined by one blank line;
+text between slices is not carried.
+Where the composed page does not parse as MDX with the original as recorded,
+the publisher writes the runs that do not parse as literal text,
+then every run,
+and last ships the page without the original under the defect `page-source-unparseable`,
+with a warn line for each step (ledger B832).
 A later run replaces the text once a wording is backed.
 Under the no-loop design of 2026-09-01 an insertion is recovered supplementary content,
 so the entry still ships rather than failing for want of it.

@@ -46,13 +46,38 @@ The groups that follow name the main ones.
   one block-quote note before each contiguous run (owner,
   2026-10-23,
   "Source text + note").
+  The text is each slice's original as the artifact records it,
+  the slices of a run joined by one blank line,
+  and text between slices is not carried.
   Names:
   `UNTRANSLATED_PASSAGE_NOTE`,
   `carryingSource`,
   `markRuns`,
   `carriesText`,
-  `textOnPage`.
+  `textOnPage`,
+  `withoutSourceRecord`.
   Declared in `corpus-run/source-ships.ts`.
+- Page composition under the grammar:
+  ship each source run as recorded whenever the page parses,
+  and otherwise write the runs that do not parse alone as literal text,
+  then every run,
+  then ship the page without the original and report `page-source-unparseable`.
+  Names:
+  `composeSourcePage`,
+  `sourceRunsOf`,
+  `encodeAsLiteralMdx`,
+  `SourcePageCompositionError`,
+  `readPageGrammar`.
+  Declared in `corpus-run/source-ships-compose.ts`,
+  `corpus-run/source-ships-encoding.ts`
+  and `corpus-run/page-grammar.ts`.
+- Shippable replacements:
+  turn a settled entry's per-slice readings into the replacements that assemble its page.
+  The original of a slice that ships it is left out unless the caller passes `includeSource: true`,
+  which only the writer of the published page does.
+  Names:
+  `shippableReplacements`.
+  Declared in `corpus-run/shippable-replacements.ts`.
 - Page assembly guards:
   run the composed page through the guards each lane runs,
   and refuse a page that does not parse or breaks its footnotes.
