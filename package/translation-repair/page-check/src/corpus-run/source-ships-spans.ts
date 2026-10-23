@@ -15,6 +15,7 @@ import { linkInsteadOfAutolink, } from './source-ships-links.ts';
 import { endsInLiteral, } from './source-ships-literal-end.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import { moduleEdits, } from './source-ships-module-line.ts';
+import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -312,18 +313,24 @@ export function spansOf(
       continue;
     }
     // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the
-    // reader sees them as they stand.
+    // reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
     if (node.type === 'code') {
-      if (!startsAny({
+      if (startsAny({
         text: source,
         at: range.start,
         candidates: FENCE_MARKS,
       },))
+        edits.push(...fenceLengthEdits({
+          source,
+          range,
+        },),);
+      else {
         literal.push(...contentStretches({
           source,
           node,
           range,
         },),);
+      }
       continue;
     }
     // A FOOTNOTE DEFINITION CommonMark READS AS A LINK REFERENCE DEFINITION is a footnote to the strict grammar, whose

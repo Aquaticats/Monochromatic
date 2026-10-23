@@ -186,6 +186,7 @@ export {
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
+export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
 export {
   holdsIndentedFenceMark,
   indentedFenceMarkEnd,
