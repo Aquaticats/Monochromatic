@@ -140,6 +140,10 @@ This trial adds to three letters:
 B for a defect in the package (the ledger's "Recurring code families" section),
 M for a mistake made while fixing ("Process mistakes in this audit"),
 and T for a gap in the tests ("Test suite").
+These three sections moved on 2026-10-23 from `audit-ledger.md`
+to the [areas file][ledger-areas] of the ledger,
+`audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md`,
+where each stands under the same heading.
 
 ## Where things stand on 2026-10-03
 
@@ -173,7 +177,9 @@ and T for a gap in the tests ("Test suite").
   The cut of the other bundles was never committed,
   so the next batch starts from a fresh whole-suite census
   (the ledger's T8 entry,
-  its last paragraphs).
+  its last paragraphs;
+  the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+  under "Test suite").
 - B123 is open:
   on a page holding a footnote and a `www.` link literal the parser leaves unpositioned,
   the footnote relabel refuses the whole page.
