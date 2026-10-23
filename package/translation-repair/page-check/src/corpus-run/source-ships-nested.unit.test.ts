@@ -1,0 +1,108 @@
+/**
+ Tests for a block nested in another, read as a text of its own and mapped back to the offsets of the whole text.
+
+ A footnote definition holds blocks under it indented, which the plain parse reads as indented code and the strict
+ grammar as blocks of the footnote; the nested reading parses them as a text of their own and says where they stand in
+ the whole text.
+
+ Fixtures are cat-themed invention. No corpus content appears here.
+
+ @module
+ */
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/module-test/ts';
+
+import {
+  nestedSpans,
+  spansOf,
+  withoutIndentation,
+} from '../../dist/final/node/index.mjs';
+
+/**
+ A footnote definition with a paragraph and a fenced block indented under it.
+ */
+const SOURCE = '[^1]: x\n\n    注 {b} [c](u)\n\n    ```\n    {y}\n    ```\n';
+
+await describe({
+  name: nestedSpans.name,
+  children: [
+    it({
+      name: 'READS THE BLOCKS INDENTED UNDER A FOOTNOTE AS A TEXT OF THEIR OWN and says where each stretch stands in the '
+        + 'whole text: the paragraph is text, the link holds its text, the fence is code and no stretch of it is text',
+      fn: async () => {
+        expect(nestedSpans({
+          source: SOURCE,
+          readable: SOURCE,
+          indices: withoutIndentation({
+            source: SOURCE,
+            range: {
+              start: 9,
+              end: SOURCE.length,
+            },
+          },),
+          readSpans: spansOf,
+        },),).toEqual({
+          text: [
+            {
+              start: 13,
+              end: 19,
+            },
+            {
+              start: 20,
+              end: 21,
+            },
+          ],
+          edits: [],
+          insideLinks: [
+            {
+              start: 19,
+              end: 25,
+            },
+          ],
+          streamStarts: [13,],
+        },);
+      },
+    },),
+
+    it({
+      name: 'READS NO MODULE LINE IN A NESTED BLOCK, and gives a stretch that crosses the indentation cut away as one '
+        + 'stretch for each unbroken run of the whole text',
+      fn: async () => {
+        /**
+         A footnote whose indented paragraph holds a module word at the start of its second line.
+         */
+        const source = '[^1]: x\n\n    a\n    import b\n';
+        expect(nestedSpans({
+          source,
+          readable: source,
+          indices: withoutIndentation({
+            source,
+            range: {
+              start: 9,
+              end: source.length,
+            },
+          },),
+          readSpans: spansOf,
+        },),).toEqual({
+          text: [
+            {
+              start: 13,
+              end: 15,
+            },
+            {
+              start: 19,
+              end: 27,
+            },
+          ],
+          edits: [],
+          insideLinks: [],
+          streamStarts: [13,],
+        },);
+      },
+    },),
+  ],
+},);

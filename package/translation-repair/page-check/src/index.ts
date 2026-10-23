@@ -188,6 +188,10 @@ export {
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';
 export {
+  nestedSpans,
+  type SpansReader,
+} from './corpus-run/source-ships-nested.ts';
+export {
   laterModuleLines,
   moduleLetterEdit,
   startsEsModule,
