@@ -32,6 +32,7 @@ import type {
   TranslateSliceSeating,
   UnfilledSlice,
 } from './translate-document-contract.ts';
+import type { FloorLimitedMemory, } from './translate-floor-limited.ts';
 import { resumeReuseOrBuyTranslateSlice, } from './translate-slice-settle.ts';
 import { translateRunShape, } from './translate-slice-key.ts';
 
@@ -146,6 +147,7 @@ export async function translateDocument(
     overlap = 1,
     beforeSlice,
     archiveDisputes,
+    floorLimited,
     l,
     stageSettings,
   }: ForeignBorrowed<{
@@ -173,6 +175,13 @@ export async function translateDocument(
      the repair lane's chunks).
      */
     readonly beforeSlice?: () => Promise<TranslateSliceSeating>;
+
+    /**
+     What earlier attempts of this pass left for slices that ended unfilled on a
+     select bench below its floor, which this attempt does not ask again unless
+     the bench has grown; absent for a caller that keeps none.
+     */
+    readonly floorLimited?: FloorLimitedMemory;
     readonly l: Logger;
     readonly stageSettings: StageSettings;
   }>,
@@ -326,6 +335,8 @@ export async function translateDocument(
             runShape: (seating.translateModels === undefined) ? runShape : shapeFor({ seated: sliceModels, },),
             ...((sliceCache === undefined) ? {} : { sliceCache, }),
             twins,
+            ...((floorLimited === undefined) ? {} : { floorLimited, }),
+            ...((seating.selectReachable === undefined) ? {} : { selectReachable: seating.selectReachable, }),
             ...((archiveDispute === undefined) ? {} : { archiveDispute, }),
             signal,
             perCallTimeoutMs,

@@ -458,6 +458,13 @@ export type TranslateSliceSeating = {
    Roster read since the lane started, absent while the given one stands.
    */
   readonly translateModels?: TranslateModels;
+
+  /**
+   Select judges a wet provider would serve as of the reading, which the lane
+   holds a floor-limited slice's earlier outcome against; absent where the hook
+   counted none.
+   */
+  readonly selectReachable?: number;
 };
 
 /**

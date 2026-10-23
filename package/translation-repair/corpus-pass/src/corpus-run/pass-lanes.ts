@@ -7,6 +7,7 @@ import type {
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
   type DocumentLanesResult,
+  type FloorLimitedMemory,
   runDocumentLanes,
   type TranslateSliceRecord,
 } from '@monochromatic-dev/translation-repair-translate-lane/ts';
@@ -72,6 +73,9 @@ export type LanesSeating = {
 
  @param translateInsertionAdmission - source-only passages licensed for translation
 
+ @param floorLimited - what earlier attempts of this pass left for translate slices that ended unfilled on a
+ select bench below its floor
+
  @param entryId - entry the log lines are tagged with
 
  @param stageSettings - straggler windows and contest ledger the entry file
@@ -96,6 +100,7 @@ export async function runPassLanes(
     refineSliceCache,
     translateSliceCache,
     translateInsertionAdmission,
+    floorLimited,
     entryId,
     stageSettings,
   }: {
@@ -109,6 +114,7 @@ export async function runPassLanes(
     readonly refineSliceCache?: SliceCache<RefinedSliceSettlement>;
     readonly translateSliceCache?: SliceCache<TranslateSliceRecord>;
     readonly translateInsertionAdmission?: InsertionAdmission;
+    readonly floorLimited?: FloorLimitedMemory;
     readonly entryId: string;
     readonly stageSettings: StageSettings;
   },
@@ -143,6 +149,7 @@ export async function runPassLanes(
     ...((refineSliceCache === undefined) ? {} : { refineSliceCache, }),
     ...((translateSliceCache === undefined) ? {} : { translateSliceCache, }),
     ...((translateInsertionAdmission === undefined) ? {} : { translateInsertionAdmission, }),
+    ...((floorLimited === undefined) ? {} : { floorLimited, }),
     l,
     stageSettings,
   },);

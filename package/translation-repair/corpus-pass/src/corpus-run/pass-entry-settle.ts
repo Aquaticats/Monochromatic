@@ -10,6 +10,7 @@ import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { retireSettledEntryCache, } from './pass-entry-caches.ts';
 import { withEntryBound, } from './pass-entry-bound.ts';
 import { runEntryPipeline, } from './pass-entry.ts';
@@ -88,6 +89,9 @@ import type {
  @param parked - asked after `endRun`: whether the pass is now parked for the failure and the entry goes back to the
  front of its queue, which the TALLY line prints as `PARKED`
 
+ @param floorLimited - this entry's memory of translate slices that ended unfilled on a select bench below its
+ floor, held by the pass so a later attempt of the entry finds what an earlier one left
+
  @returns Settlement, resumable operational failure, or stopped incomplete work
 
  @example
@@ -118,6 +122,7 @@ export async function settleEntry(
     stageSettings,
     endRun,
     parked,
+    floorLimited,
   }: {
     readonly client: RunClient;
     readonly entry: CorpusPair;
@@ -137,6 +142,7 @@ export async function settleEntry(
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
     readonly parked?: (args: { readonly error: unknown; },) => boolean;
+    readonly floorLimited?: FloorLimitedMemory;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -190,6 +196,7 @@ export async function settleEntry(
     ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     ...((endRun === undefined) ? {} : { endRun, }),
     ...((parked === undefined) ? {} : { parked, }),
+    ...((floorLimited === undefined) ? {} : { floorLimited, }),
   },);
   if (outcome.kind !== 'settled') {
     // The cache is what makes operational resume cheaper. Stopped quality work

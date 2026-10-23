@@ -34,6 +34,12 @@ import {
   type BoughtSlice,
   buyTranslateSlice,
 } from './translate-slice-buy.ts';
+import {
+  floorLimitedKey,
+  type FloorLimitedMemory,
+  notAskedAgain,
+  rememberFloorLimited,
+} from './translate-floor-limited.ts';
 import { translateSliceKey, } from './translate-slice-key.ts';
 import {
   heardNobody,
@@ -178,6 +184,13 @@ export type TranslateSliceSettlement = {
 
  @param twins - memo of purchases in this run, shared by every slice
 
+ @param floorLimited - what earlier attempts of this pass left for slices that
+ ended unfilled on a select bench below its floor, absent for a caller that
+ keeps none
+
+ @param selectReachable - select judges a wet provider would serve now, which
+ a floor-limited slice is asked again only when it has grown past
+
  @param signal - entry deadline and caller abort
 
  @param perCallTimeoutMs - deadline per exchange
@@ -210,6 +223,8 @@ export async function resumeReuseOrBuyTranslateSlice(
     runShape,
     sliceCache,
     twins,
+    floorLimited,
+    selectReachable,
     archiveDispute,
     signal,
     perCallTimeoutMs,
@@ -228,6 +243,8 @@ export async function resumeReuseOrBuyTranslateSlice(
     readonly runShape: string;
     readonly sliceCache?: SliceCache<TranslateSliceRecord>;
     readonly twins: TwinMemo<TranslateSliceRecord>;
+    readonly floorLimited?: FloorLimitedMemory;
+    readonly selectReachable?: number;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -423,6 +440,41 @@ export async function resumeReuseOrBuyTranslateSlice(
   }
 
   /**
+   Question this slice answers for the pass's memory of floor-limited slices.
+   */
+  const floorKey = floorLimitedKey({
+    sliceIndex,
+    sourceText: slice.source
+      .text,
+    incumbentText: standIn ?? pageWording,
+  },);
+  /**
+   The pass's memory and this slice's select reach, each absent where the caller kept or counted none.
+   */
+  const floorFacts = {
+    ...((floorLimited === undefined) ? {} : { memory: floorLimited, }),
+    ...((selectReachable === undefined) ? {} : { reachable: selectReachable, }),
+  };
+  /**
+   Whether an earlier attempt of this pass left the slice its outcome while its bench has not grown.
+   */
+  const decision = notAskedAgain({
+    ...floorFacts,
+    key: floorKey,
+    benchSize: models.judgeModelIds
+      .length,
+    sliceIndex,
+    l,
+  },);
+  if (decision.kind === 'kept') {
+    cost.left({ exit: 'unfilled', },);
+    return {
+      ...decision.settlement,
+      refusedCacheFindings,
+    };
+  }
+
+  /**
    A twin's stored record, or this slice's own purchase.
    */
   const asked = await reuseTwinOrBuy({
@@ -471,6 +523,11 @@ export async function resumeReuseOrBuyTranslateSlice(
    This slice's own purchase.
    */
   const { bought, } = asked;
+  rememberFloorLimited({
+    ...floorFacts,
+    key: floorKey,
+    bought,
+  },);
   if (bought.kind === 'unfilled') {
     cost.left({ exit: 'unfilled', },);
     return {

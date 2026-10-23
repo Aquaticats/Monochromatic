@@ -14,6 +14,7 @@ import {
 } from './pass-reseat-hook.ts';
 import {
   type JudgeSeats,
+  reachableSeats,
   readJudgeSeats,
   type SeatReadingClient,
 } from '@monochromatic-dev/translation-repair-run/ts';
@@ -134,6 +135,30 @@ function repairSeatingOf(
 }
 
 /**
+ Select judges of one reading a wet provider would serve, which the translate lane
+ holds a slice that ended unfilled against before it asks the slice again.
+
+ @param seats - benches as of this slice
+
+ @returns Reachable select judges, counted
+
+ @example
+ ```ts
+ const reachable = selectReachOf({ seats, },);
+ ```
+ */
+export function selectReachOf(
+  { seats, }: { readonly seats: JudgeSeats; },
+): number {
+  return reachableSeats({
+    seats: seats.translateModels
+      .judgeModelIds,
+    dry: seats.dry,
+  },)
+    .length;
+}
+
+/**
  What the translate lane takes from a seat reading: its writers and judges,
  whose writers the line names.
 
@@ -161,7 +186,10 @@ function translateSeatingOf(
     .translatorModelIds
     .join(',',);
   return {
-    seating: { translateModels: seats.translateModels, },
+    seating: {
+      translateModels: seats.translateModels,
+      selectReachable: selectReachOf({ seats, },),
+    },
     line: `slice re-seated under a hold: writers=${writers}`,
   };
 }
@@ -194,6 +222,10 @@ export type LanesHooks = {
 
  @param entryId - entry the log lines are tagged with
 
+ @param startedSelectReachable - reachable select judges in the reading the
+ attempt started on, which a translate slice keeps until a hold makes the hook
+ read again; absent where the caller did not count
+
  @param l - logger the lines go to, the entry's tagged logger when absent
 
  @returns Re-seating and per-chunk wait for both lanes
@@ -208,11 +240,13 @@ export function lanesHooksFor(
     client,
     signal,
     entryId,
+    startedSelectReachable,
     l = tagged({ tag: entryId, },),
   }: {
     readonly client: SeatReadingClient;
     readonly signal: AbortSignal;
     readonly entryId: string;
+    readonly startedSelectReachable?: number;
     readonly l?: Logger;
   },
 ): LanesHooks {
@@ -233,7 +267,7 @@ export function lanesHooksFor(
       client,
       signal,
       phase: 'translate lane',
-      unseated: {},
+      unseated: (startedSelectReachable === undefined) ? {} : { selectReachable: startedSelectReachable, },
       seatingOf: translateSeatingOf,
       l,
     },),
@@ -302,6 +336,7 @@ export async function readLanesSeats(
       client,
       signal,
       entryId,
+      startedSelectReachable: selectReachOf({ seats, },),
     },),
   };
 }

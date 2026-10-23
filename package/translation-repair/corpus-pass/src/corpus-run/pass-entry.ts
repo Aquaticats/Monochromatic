@@ -36,6 +36,7 @@ import type {
 } from './pass-visual-evidence.ts';
 import { openEntryCaches, } from './pass-entry-caches.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
+import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { runPassLanes, } from './pass-lanes.ts';
 import {
   type CorpusPin,
@@ -107,6 +108,9 @@ import {
  @param parked - asked after `endRun`: whether the pass is now parked for the failure and the entry goes back to the
  front of its queue, which the TALLY line prints as `PARKED`
 
+ @param floorLimited - what earlier attempts of this pass left for this entry's translate slices that ended unfilled
+ on a select bench below its floor
+
  @returns Whether an artifact was written
 
  @example
@@ -134,6 +138,7 @@ export async function runEntryPipeline(
     stageSettings,
     endRun,
     parked,
+    floorLimited,
   }: {
     readonly client: RunClient;
     readonly entry: CorpusPair;
@@ -153,6 +158,7 @@ export async function runEntryPipeline(
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
     readonly parked?: (args: { readonly error: unknown; },) => boolean;
+    readonly floorLimited?: FloorLimitedMemory;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -350,6 +356,7 @@ export async function runEntryPipeline(
       refineSliceCache,
       translateSliceCache,
       translateInsertionAdmission,
+      ...((floorLimited === undefined) ? {} : { floorLimited, }),
       entryId: entry.id,
       stageSettings,
     },);
