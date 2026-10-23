@@ -59,7 +59,7 @@ await describe({
         },);
         expect(warnings,).toEqual([
           'alignment finding recorded: section-pairing paired 1 of 2 original and 1 translation sections, '
-          + 'from 4 usable voices of 4 heard',
+            + 'from 4 usable voices of 4 heard',
           'alignment finding recorded: alignment structure-mismatch (source section 1: source-only (roster-unpaired))',
           'alignment finding recorded: section-pairing fell back to the deterministic aligner',
         ],);
