@@ -15,6 +15,11 @@ import { linkInsteadOfAutolink, } from './source-ships-links.ts';
 import { endsInLiteral, } from './source-ships-literal-end.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import { moduleEdits, } from './source-ships-module-line.ts';
+import {
+  type FootnoteState,
+  footnoteStateOf,
+  type Pending,
+} from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
@@ -73,31 +78,6 @@ const INLINE_CONTENT: ReadonlySet<string> = new Set([
  How many characters `![` takes.
  */
 const IMAGE_OPENER_LENGTH = 2;
-
-/**
- A node still to read, and where it stands.
- */
-type Pending = {
-  /**
-   The node.
-   */
-  readonly node: TreeNode;
-
-  /**
-   Whether its parent is the root of the text being read.
-   */
-  readonly isRootChild: boolean;
-
-  /**
-   Whether it stands inside the text of a link, where a link cannot be written.
-   */
-  readonly insideLink: boolean;
-
-  /**
-   Type of its parent, which says whether it stands among blocks or among inline content.
-   */
-  readonly parentType: string;
-};
 
 /**
  Reads where a text holds syntax, from the parse of it.
@@ -173,14 +153,10 @@ export function spansOf(
   }
 
   /**
-   Whether the block read last at the top is part of a footnote definition, which blocks indented under it continue,
-   and the line it ends on.
+   For each container, whether the block read last in it is part of a footnote definition, which blocks indented under
+   it continue at the top, and the line it ends on.
    */
-  const footnote = {
-    open: false,
-    endLine: 0,
-    endsInLiteral: false,
-  };
+  const footnotes = new Map<TreeNode, FootnoteState>();
   /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
@@ -192,6 +168,7 @@ export function spansOf(
           isRootChild: true,
           insideLink: false,
           parentType: 'root',
+          parent: root,
         };
       },)
       .toReversed()
@@ -205,14 +182,22 @@ export function spansOf(
       isRootChild,
       insideLink,
       parentType,
+      parent,
     } = next;
     /**
      Where its characters are.
      */
     const range = rangeOf({ node, },);
+    /**
+     What the block read last in its parent was.
+     */
+    const footnote = footnoteStateOf({
+      footnotes,
+      parent,
+    },);
     // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a paragraph to
-    // the strict grammar, and a text.
-    if (isRootChild && isLazyDefinition({
+    // the strict grammar, and a text, at the top and in a block quote or a list item.
+    if (BLOCK_PARENTS.has(parentType,) && isLazyDefinition({
       node,
       footnoteOpen: footnote.open || footnote.endsInLiteral,
       previousEndLine: footnote.endLine,
@@ -235,7 +220,7 @@ export function spansOf(
         node,
         range,
       },);
-    if (isRootChild) {
+    if (BLOCK_PARENTS.has(parentType,)) {
       footnote.endsInLiteral = endsInLiteral({
         source,
         node,
@@ -420,6 +405,7 @@ export function spansOf(
             || (node.type === 'link')
             || (node.type === 'linkReference'),
           parentType: node.type,
+          parent: node,
         },);
     }
   }
