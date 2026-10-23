@@ -66,9 +66,9 @@ function liftWordsOf(
 /**
  The clause for one short bench with a hold running.
 
- @param now - the bench as it reads now
+ @param now - bench as it reads now
 
- @param after - the same bench read with the returning providers back
+ @param after - same bench read with the returning providers back
 
  @param returning - providers whose return a wait can bring back
 
@@ -168,7 +168,8 @@ function ceilingClauseOf(
  @example
  ```ts
  const said = ceilingWordsOf({ running, dry, meterDry, names: phaseBenches({ phase, },), },);
- // => ['wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but not to the quorum (the return brings back hf:moonshotai/Kimi-K3, hf:Qwen/Qwen3.8-27B)',]
+ // => ['wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but not
+ // to the quorum (the return brings back hf:moonshotai/Kimi-K3, hf:Qwen/Qwen3.8-27B)',]
  ```
  */
 export function ceilingWordsOf(
@@ -213,7 +214,9 @@ export function ceilingWordsOf(
         return reachable.length < benchFloorOf({ name, },);
       },)
       .map(function floorWordsOf({ name, },): string {
-        return `${name} reads under its floor of ${String(benchFloorOf({ name, },),)} and no hold runs that could lift it`;
+        return `${name} reads under its floor of ${
+          String(benchFloorOf({ name, },),)
+        } and no hold runs that could lift it`;
       },);
   }
   /**

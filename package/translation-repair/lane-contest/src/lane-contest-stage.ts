@@ -426,8 +426,9 @@ export async function contestLaneSlice(
     tag: contestLaneSlice.name,
   },);
 
-  // A BENCH BELOW THE FLOOR IS NOT ASKED. Fewer reachable seats than the voices a verdict needs cannot settle, and each
-  // such round still bought its calls. The slice keeps its incumbent, as an unheard roster does, and the findings say why.
+  // A BENCH BELOW THE FLOOR IS NOT ASKED. Fewer reachable seats than the voices a verdict needs cannot settle, and
+  // each such round still bought its calls. The slice keeps its incumbent, as an unheard roster does, and the
+  // findings say why.
   if ((reachable !== undefined) && (reachable < LANE_CONTEST_QUORUM)) {
     cl.warn(
       `lane contest: ${String(reachable,)} of ${String(modelIds.length,)} ${

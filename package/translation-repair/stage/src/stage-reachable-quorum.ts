@@ -174,6 +174,7 @@ export function shortBenchStageFinding(
     String(quorum.needed,)
   })`;
 }
+
 /**
  Finding a stage carries when it made no call because the seats a wet provider
  would serve were fewer than the voices it needs, told apart from a gather

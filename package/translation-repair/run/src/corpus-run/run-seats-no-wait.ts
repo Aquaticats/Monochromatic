@@ -57,7 +57,7 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
 
  @param running - how long each provider's refusal still holds it out, as the pass allows it to be waited for
 
- @param holds - the holds among them that the reader waits for, none here
+ @param holds - holds among them that the reader waits for, none here
 
  @param meterDry - providers dry by their meter, which no hold ending brings back
 
@@ -71,13 +71,15 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
 
  @mutates warned - holds the signature of the state this reading found
 
- @returns The dryness unchanged, no wait, and the writing benches below the floor
+ @returns Dryness unchanged, no wait, and the writing benches below the floor
 
  @throws {@link WritingBenchUnreachableError} when a writing bench is below its floor in a phase that stops for it
 
  @example
  ```ts
- return seatWithoutWaiting({ client, phase, l, warned, dry: first, running, holds, meterDry, names, benches, unreachable, goesOn, },);
+ return seatWithoutWaiting({
+   client, phase, l, warned, dry: first, running, holds, meterDry, names, benches, unreachable, goesOn,
+ },);
  ```
  */
 export function seatWithoutWaiting(

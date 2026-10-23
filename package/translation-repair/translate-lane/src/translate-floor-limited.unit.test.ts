@@ -39,7 +39,9 @@ import {
   type TranslateModels,
   type TranslateSliceSeating,
 } from '../dist/final/node/index.mjs';
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  capturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_HYPER_OPENROUTER_UNMEASURED,
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -49,7 +51,9 @@ import {
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
-import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
+import {
+  SCRIPTED_STAGE_SETTINGS,
+} from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 
 /**
  Passage the archive never translated, carried by the insertion slice.
@@ -293,8 +297,9 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'BUYS NO CANDIDATE FOR A PASSAGE THE ARCHIVE NEVER TRANSLATED while the select bench reads under the floor: '
-        + 'no call, the unfilled outcome it would have ended with, the finding that names the bench and one line saying why',
+      name: 'BUYS NO CANDIDATE FOR A PASSAGE THE ARCHIVE NEVER TRANSLATED while the select bench reads under the '
+        + 'floor: no call, the unfilled outcome it would have ended with, the finding that names the bench and one '
+        + 'line saying why',
       fn: async () => {
         const memory = new Map<string, unknown>();
         const sink = { calls: { count: 0, }, lines: [] as string[], };
@@ -569,7 +574,8 @@ await describe({
       },
     },),
     it({
-      name: 'IS ASKED AGAIN once the select bench has grown to the floor, and not while it has grown but stays under it',
+      name: 'IS ASKED AGAIN once the select bench has grown to the floor, and not while it has grown but stays '
+        + 'under it',
       fn: async () => {
         const memory = new Map<string, unknown>();
         await attempt({ memory, selectReachable: 0, calls: { count: 0, }, lines: [], },);
@@ -604,8 +610,9 @@ await describe({
       },
     },),
     it({
-      name: 'KEEPS WHAT THE SLICE WAS TOLD when a purchase that did not skip it ends unfilled again at a reach under the '
-        + 'floor, so a repeat of the same ending does not unsay the one line, and forgets the slice once it settles',
+      name: 'KEEPS WHAT THE SLICE WAS TOLD when a purchase that did not skip it ends unfilled again at a reach under '
+        + 'the floor, so a repeat of the same ending does not unsay the one line, and forgets the slice once it '
+        + 'settles',
       fn: async () => {
         const memory: FloorLimitedMemory = new Map();
         const unfilledBy = {

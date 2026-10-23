@@ -28,7 +28,9 @@ import {
   reportSliceCaches,
   type VersionSetting,
 } from '../../dist/final/node/index.mjs';
-import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  levelCapturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { writeSliceRecord, } from './cache-account-repo.test-fixture.ts';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
@@ -48,7 +50,7 @@ const HOME = '/cats/home';
 
  @param lines - every line the logger kept, behind its level
 
- @returns The warning lines, each without its level
+ @returns Warning lines, each without its level
 
  @example
  ```ts
@@ -70,7 +72,7 @@ function warningsIn({ lines, }: { readonly lines: readonly string[]; },): readon
 
  @param roots - every root it searched, in the order it printed them
 
- @returns The sentence, without the stdout prefix
+ @returns Sentence, without the stdout prefix
 
  @example
  ```ts

@@ -48,7 +48,7 @@ const sliceReportLog = contextRoot({ tag: 'cache-account-slice-report', },);
 
  @param home - home directory the runbook's runs root sits under
 
- @returns The sentence, without a prefix, for the log and for stdout alike
+ @returns Sentence, without a prefix, for the log and for stdout alike
 
  @example
  ```ts

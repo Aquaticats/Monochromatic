@@ -84,7 +84,7 @@ const PREPARED: PreparedDocumentPair = {
 
  @param benchBelowFloor - whether the translate lane never bought a candidate for the gap
 
- @returns The artifact read back from its bytes
+ @returns Artifact read back from its bytes
 
  @example
  ```ts

@@ -720,8 +720,8 @@ await describe({
     },),
 
     it({
-      name: 'READS A SLICE THE SLATE FLOOR KEPT apart from a slate that declined: with the mark recorded the slice reads '
-        + 'back as kept for want of a bench, and the same slice with no mark is a real decline',
+      name: 'READS A SLICE THE SLATE FLOOR KEPT apart from a slate that declined: with the mark recorded the slice '
+        + 'reads back as kept for want of a bench, and the same slice with no mark is a real decline',
       fn: async () => {
         /**
          The settled stage as parsed, with the mark on one slice and none on the other.
@@ -786,7 +786,7 @@ await describe({
 
          @param slice - slice as recorded
 
-         @returns The refusal
+         @returns Refusal
          */
         function refusalOf(slice: Readonly<Record<string, unknown>>,): string {
           return readingOf({

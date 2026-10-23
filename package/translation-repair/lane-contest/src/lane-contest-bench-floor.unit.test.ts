@@ -27,7 +27,9 @@ import {
   reachableQuorum,
   shortBenchStageFinding,
 } from '@monochromatic-dev/translation-repair-stage';
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  capturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
@@ -36,7 +38,9 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { ballot, } from '@monochromatic-dev/translation-repair-test-fixture/ts/structural-ballot.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
-import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
+import {
+  SCRIPTED_STAGE_SETTINGS,
+} from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 import {
   contestLaneSlice,
   LANE_CONTEST_QUORUM,
@@ -189,7 +193,8 @@ await describe({
                 return line.includes('below the floor',);
               },),
             ).toEqual([
-              '[contestLaneSlice] lane contest: 0 of 4 seats reachable, below the floor of 2; no round is opened and the slice keeps its incumbent',
+              '[contestLaneSlice] lane contest: 0 of 4 seats reachable, below the floor of 2; no round is opened '
+                + 'and the slice keeps its incumbent',
             ],);
           },
         },),

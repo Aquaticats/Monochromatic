@@ -197,7 +197,9 @@ export type UndecidedSlicePolicy =
 
  @example
  ```ts
- const outcome = outcomeOf({ sliceIndex, byIndex, unfilledHere, belowFloorHere, unheardHere, notApplicableHere, undecided, },);
+ const outcome = outcomeOf({
+   sliceIndex, byIndex, unfilledHere, belowFloorHere, unheardHere, notApplicableHere, undecided,
+ },);
  ```
  */
 function outcomeOf(

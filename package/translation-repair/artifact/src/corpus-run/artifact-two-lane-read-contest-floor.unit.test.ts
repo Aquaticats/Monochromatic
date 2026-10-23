@@ -43,7 +43,7 @@ await describe({
          @param value - recorded mark
          @param ballotCount - ballots the record carries
 
-         @returns The refusal
+         @returns Refusal
          */
         function refusalOf(
           {

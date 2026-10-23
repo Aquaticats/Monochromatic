@@ -48,7 +48,7 @@ const BENCH_FLOORS: Readonly<Record<BenchName, number>> = {
 
  @param name - bench asked about
 
- @returns The floor, in voices
+ @returns Floor, in voices
 
  @example
  ```ts
@@ -82,9 +82,9 @@ export type BenchLift = {
 /**
  Reads what a return does to a bench: the thresholds it lifts the bench across.
 
- @param now - the bench as it reads now
+ @param now - bench as it reads now
 
- @param after - the same bench read with the providers back
+ @param after - same bench read with the providers back
 
  @returns Thresholds crossed
 

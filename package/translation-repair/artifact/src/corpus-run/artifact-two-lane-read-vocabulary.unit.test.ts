@@ -127,7 +127,7 @@ await describe({
 
              @param benchFloorRecorded - whether the generation records the mark
 
-             @returns The refusal
+             @returns Refusal
              */
             function refusalOf(
               {

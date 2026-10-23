@@ -14,7 +14,9 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  capturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   carriedElsewhere,
   notCorroborated,

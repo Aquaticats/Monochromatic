@@ -114,7 +114,7 @@ function keptEverything(
 /**
  Slices a lane shipped a replacement at.
 
- @param rows - the lane's rows
+ @param rows - lane's rows
 
  @returns Their indices
 
@@ -138,7 +138,7 @@ function changedBy(
 /**
  What each slice was decided to carry, as a lane's raw result reports it.
 
- @param rows - the lane's rows
+ @param rows - lane's rows
 
  @returns One evidence row per slice
 
@@ -400,7 +400,7 @@ export function settledArtifactOverRows(
 
  @param benchBelowFloor - whether the translate lane never bought a candidate for the gaps
 
- @returns The artifact object, unserialized
+ @returns Artifact object, unserialized
 
  @example
  ```ts

@@ -336,7 +336,9 @@ export function benchShortfalls(
         {
           name,
           seats,
-          clause: `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${String(quorum,)}`,
+          clause: `${name} ${String(reachable.length,)} of ${String(seats.length,)} reachable, quorum ${
+            String(quorum,)
+          }`,
         },
       ];
     },);

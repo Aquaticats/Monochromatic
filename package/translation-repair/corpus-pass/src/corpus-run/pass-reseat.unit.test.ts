@@ -402,8 +402,8 @@ await describe({
         },),
         it({
           name: 'READS THE TRANSLATE LANE\'S BENCH AGAIN while the select reach it hands is below the floor, though no '
-            + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one select '
-            + 'judge reachable of seven and the slice is handed that reading, not the reach it started on',
+            + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one '
+            + 'select judge reachable of seven and the slice is handed that reading, not the reach it started on',
           fn: async () => {
             const rig = viewClient({ view: XINGZ6020_VIEW, },);
             const hooks = lanesHooksFor({
@@ -443,7 +443,10 @@ await describe({
               startedSelectReachable: 1,
             },);
             const { translateModels, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
-            const fresh = reachableSeats({ seats: translateModels.judgeModelIds, dry: BEDROCK_AND_OPENROUTER, },).length;
+            const fresh = reachableSeats({
+              seats: translateModels.judgeModelIds,
+              dry: BEDROCK_AND_OPENROUTER,
+            },).length;
             expect(fresh,).toBeGreaterThanOrEqual(2,);
             expect(await hooks.beforeSlice({ lane: 'translate', },),).toEqual({
               translateModels,
@@ -780,9 +783,9 @@ await describe({
           name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
             + 'short of its floor of two',
           fn: async () => {
-            // THE HOLD ENDS WITH THE FIRST WAIT: Synthetic's return lifts the wide bench from 1 to 3, over the floor of two
-            // voices, so the reading waits for it, and a hold that never ends is not a hold. The view stays the same
-            // after it, which is the XingZ6020 pass where Synthetic was refused again as soon as it returned.
+            // THE HOLD ENDS WITH THE FIRST WAIT: Synthetic's return lifts the wide bench from 1 to 3, over the floor
+            // of two voices, so the reading waits for it, and a hold that never ends is not a hold. The view stays
+            // the same after it, which is the XingZ6020 pass where Synthetic was refused again as soon as it returned.
             const rig = viewClient({ view: XINGZ6020_VIEW, holdEndsAtRead: 2, },);
             rig.holds.synthetic = SHORT_HOLD_MS;
             const hooks = contestHooksFor({

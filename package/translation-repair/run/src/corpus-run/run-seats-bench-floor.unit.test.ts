@@ -32,7 +32,7 @@ import {
  @param reachable - how many of the three seats a wet provider serves
  @param quorum - voices the bench settles on
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts
@@ -95,7 +95,8 @@ await describe({
         },),
         it({
           name: 'READS A RETURN THAT LIFTS A BENCH OVER ITS FLOOR BUT NOT TO ITS QUORUM as a lift to the floor only: '
-            + 'one reachable seat of three with a quorum of four becomes two, which is the floor and short of the quorum',
+            + 'one reachable seat of three with a quorum of four becomes two, which is the floor and short of the '
+            + 'quorum',
           fn: async () => {
             expect(liftOf({
               now: readingOf({ reachable: 1, quorum: 4, },),

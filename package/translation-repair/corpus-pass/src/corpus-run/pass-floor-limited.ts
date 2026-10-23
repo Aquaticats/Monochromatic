@@ -3,8 +3,8 @@ import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-
 //region Pass memory of floor-limited slices
 // ONE MEMORY PER ENTRY, HELD FOR THE WHOLE PASS, so a later attempt of the same entry finds the slices an earlier one
 // left unfilled on a select bench below its floor and does not ask them again unless the bench has grown
-// (`translate-floor-limited.ts` in the translate lane holds the rule). Another entry gets its own, and a new pass starts
-// with none, since the bench may be healthy by then.
+// (`translate-floor-limited.ts` in the translate lane holds the rule). Another entry gets its own, and a new pass
+// starts with none, since the bench may be healthy by then.
 
 /**
  The pass's memories, one per entry.

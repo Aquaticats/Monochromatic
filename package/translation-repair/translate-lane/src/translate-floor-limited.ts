@@ -15,7 +15,7 @@ import type { TranslateSliceSettlement, } from './translate-slice-settle.ts';
 // A SLICE THAT ENDED UNFILLED BECAUSE THE BENCH THAT DECIDES IT COULD NOT REACH ITS FLOOR is not asked again by a
 // later attempt of the same pass unless that bench has grown (XingZ6020, 2026-10-22: slices 88 to 105 were tried
 // with one select judge reachable of seven, each ended unfilled for want of a second ballot, and the next attempt
-// asked all eighteen again).
+// asked all eighteen again, which is the repeat this memory stops).
 //
 // THE PASS HOLDS THE MEMORY, one per entry, so a later attempt of the same entry finds what an earlier one left. A
 // later pass starts with none and asks as it always did, since the bench may be healthy by then; it runs this entry
@@ -153,7 +153,7 @@ export function selectBelowFloor(
 
  @param l - lane logger
 
- @returns The unfilled purchase, with no call made
+ @returns Unfilled purchase, with no call made
 
  @example
  ```ts
@@ -226,7 +226,7 @@ export function skippedBelowFloor(
  A SLICE RECORDED AGAIN KEEPS WHAT IT WAS TOLD: the line that says why a slice makes no call is said once per slice, so
  a repeat of the same ending does not unsay it.
 
- @param memory - the entry's memory, absent for a caller that keeps none
+ @param memory - entry's memory, absent for a caller that keeps none
 
  @param key - question the slice answered
 
@@ -309,7 +309,7 @@ export type AskDecision = {
 /**
  Decides whether a slice is asked again, or keeps the outcome an earlier attempt left it while its bench has not grown.
 
- @param memory - the entry's memory, absent for a caller that keeps none
+ @param memory - entry's memory, absent for a caller that keeps none
 
  @param key - question the slice answers
 
@@ -321,7 +321,7 @@ export type AskDecision = {
 
  @param l - lane logger
 
- @returns The unfilled outcome the slice keeps, or that it is to be asked
+ @returns Unfilled outcome the slice keeps, or that it is to be asked
 
  @example
  ```ts

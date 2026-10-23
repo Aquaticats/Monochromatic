@@ -31,14 +31,18 @@ import {
   type ConsolidationSettlement,
   consolidationWorthResuming,
 } from '../dist/final/node/index.mjs';
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  capturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
-import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
+import {
+  SCRIPTED_STAGE_SETTINGS,
+} from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 
 /**
  Writers and slate judges of the cases.
@@ -69,7 +73,7 @@ const SUBJECT = {
 /**
  Builds a client that refuses every call and counts them.
 
- @returns The client and its call counter
+ @returns Client and its call counter
 
  @example
  ```ts
@@ -114,7 +118,7 @@ function refusingClient(): { readonly client: ModelClient; readonly calls: { cou
 
  @param judgeModelIds - slate judges seated, the whole roster where absent
 
- @returns The settlement
+ @returns Settlement
 
  @example
  ```ts
@@ -239,7 +243,8 @@ await describe({
           },
         },),
         it({
-          name: 'COUNTS THE SLATE JUDGES BY THE SINGULAR where one judge is seated, so the line reads 0 of 1 slate judge',
+          name: 'COUNTS THE SLATE JUDGES BY THE SINGULAR where one judge is seated, so the line reads 0 of 1 '
+            + 'slate judge',
           fn: async () => {
             const { client, } = refusingClient();
             const lines: string[] = [];

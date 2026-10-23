@@ -16,7 +16,7 @@ import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artif
 
  @param path - artifact path of the value, for refusals
 
- @returns The mark as a record fragment, empty when the slice carries none
+ @returns Mark as a record fragment, empty when the slice carries none
 
  @throws {@link ArtifactParseError} when the value is anything but true, or the slice carries ballots
 

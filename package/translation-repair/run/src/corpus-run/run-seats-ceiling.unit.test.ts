@@ -40,8 +40,8 @@ import {
 //region Ceiling tests
 
 /**
- The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, and every other provider dry (Synthetic by its hold, the rest by
- their meters or the owner's switch).
+ The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, and every other provider dry (Synthetic by its hold, the
+ rest by their meters or the owner's switch).
  */
 const SYNTHETIC_HELD: BudgetView = {
   neuralwatt: false,
@@ -204,20 +204,26 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'WAITS IN THE LANE CONTEST AND THE CONSOLIDATION WITH SYNTHETIC HELD, the XingZ6020 shape: the return lifts '
-        + 'the wide bench from 1 to 3, over the floor of 2 though under the quorum of 4, so the reader waits for it '
-        + '(the case that stood here read no wait, against the quorum alone)',
+      name: 'WAITS IN THE LANE CONTEST AND THE CONSOLIDATION WITH SYNTHETIC HELD, the XingZ6020 shape: the return '
+        + 'lifts the wide bench from 1 to 3, over the floor of 2 though under the quorum of 4, so the reader waits for '
+        + 'it (the case that stood here read no wait, against the quorum alone)',
       fn: async () => {
-        expect((await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
-        expect((await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
+        expect(
+          (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+        ).toBe(2,);
+        expect(
+          (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+        ).toBe(2,);
       },
     },),
 
     it({
-      name: 'WAITS IN THE TRANSLATE LANE WITH SYNTHETIC HELD, the XingZ6020 shape: the hold ends in a return that lifts '
-        + 'the translators to their quorum',
+      name: 'WAITS IN THE TRANSLATE LANE WITH SYNTHETIC HELD, the XingZ6020 shape: the hold ends in a return that '
+        + 'lifts the translators to their quorum',
       fn: async () => {
-        expect((await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,).toBe(2,);
+        expect(
+          (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+        ).toBe(2,);
       },
     },),
 
@@ -281,9 +287,9 @@ await describe({
     },),
 
     it({
-      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and the return lifts '
-        + 'each over the floor, the slate to 2 of 7 (Qwen sits on the wide bench only, ledger B815) and the wide bench '
-        + 'to 3 of 7',
+      name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the wide bench both read 1 of 7 and the return '
+        + 'lifts each over the floor, the slate to 2 of 7 (Qwen sits on the wide bench only, ledger B815) and the wide '
+        + 'bench to 3 of 7',
       fn: async () => {
         const warning = shortBenchWarningOf({
           lines: (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
@@ -343,8 +349,9 @@ await describe({
 
     it({
       name: 'DOES NOT COUNT A PROVIDER DRY BY ITS METER AS COMING BACK: NeuralWatt is held by a refusal and its meter '
-        + 'reads dry, the translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if the '
-        + 'hold ending brought it back, which a dry meter does not, so no wait is taken and the line brings back no seat',
+        + 'reads dry, the translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if '
+        + 'the hold ending brought it back, which a dry meter does not, so no wait is taken and the line brings back '
+        + 'no seat',
       fn: async () => {
         const { lines, reads, } = await readingOf({
           phase: 'translate lane',
@@ -363,9 +370,9 @@ await describe({
     },),
 
     it({
-      name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK, and NeuralWatt whose hold is '
-        + 'its day start although its meter reads dry: the same view and hold wait, and the line names the seats of the '
-        + 'return',
+      name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK, and NeuralWatt whose hold '
+        + 'is its day start although its meter reads dry: the same view and hold wait, and the line names the seats '
+        + 'of the return',
       fn: async () => {
         const wet = await readingOf({ phase: 'translate lane', view: BEDROCK_ALONE, held: 'neuralwatt', },);
         expect(wet.reads,).toBe(2,);

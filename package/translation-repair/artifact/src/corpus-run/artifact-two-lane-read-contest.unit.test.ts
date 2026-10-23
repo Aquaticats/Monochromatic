@@ -572,8 +572,9 @@ await describe({
     },),
 
     it({
-      name: 'READS A SLICE THE FLOOR KEPT FROM THE ROSTER apart from a roster that declined: with generation twenty-one '
-        + 'the mark is read back as true, and a quorum-not-met slice with no ballots and no mark is a real decline',
+      name: 'READS A SLICE THE FLOOR KEPT FROM THE ROSTER apart from a roster that declined: with generation '
+        + 'twenty-one the mark is read back as true, and a quorum-not-met slice with no ballots and no mark is a '
+        + 'real decline',
       fn: async () => {
         /**
          Selection with one skipped slice, as the writer records it.
@@ -623,7 +624,8 @@ await describe({
     },),
 
     it({
-      name: 'REFUSES THE FLOOR MARK in generation twenty, which did not record it, naming the keys that generation allows',
+      name: 'REFUSES THE FLOOR MARK in generation twenty, which did not record it, naming the keys that '
+        + 'generation allows',
       fn: async () => {
         const refusal = caught(function markBeforeTwentyOne() {
           return parseLaneSelection({
@@ -660,7 +662,7 @@ await describe({
 
          @param slice - slice as recorded
 
-         @returns The refusal
+         @returns Refusal
          */
         function refusalOf(slice: Readonly<Record<string, unknown>>,): string {
           return String(caught(function readMarked() {
