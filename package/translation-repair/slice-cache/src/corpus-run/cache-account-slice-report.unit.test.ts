@@ -15,6 +15,7 @@
 import {
   chmod,
   mkdir,
+  symlink,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
@@ -22,6 +23,7 @@ import {
   describe,
   expect,
   it,
+  type DisposableSandbox,
 } from '@monochromatic-dev/module-test/ts';
 
 import {
@@ -110,6 +112,95 @@ function uncoveredRootWarning({ roots, }: { readonly roots: readonly string[]; }
   return `the runbook's runs root ${RUNBOOK_ROOT} is neither among nor under the roots searched: ${roots.join(', ',)}. `
     + 'The newest record and the versions set after it speak only for those roots, and a launch that follows the '
     + `runbook writes its runs under ${RUNBOOK_ROOT}; pass --runs-under ${RUNBOOK_ROOT} after -- to read them.`;
+}
+
+/**
+ What the audit says when it read records and no root it searched reaches the runbook's runs root: by its real path,
+ within the depth the search walks and through no directory it skips.
+
+ @param roots - every root it searched, in the order it printed them
+
+ @param home - home directory the runbook's runs root sits under
+
+ @returns Sentence, without the stdout prefix
+
+ @example
+ ```ts
+ const words = unreachedRootWarning({ roots: ['/cats/runs',], home: '/cats/home', },);
+ ```
+ */
+function unreachedRootWarning(
+  {
+    roots,
+    home,
+  }: {
+    readonly roots: readonly string[];
+    readonly home: string;
+  },
+): string {
+  /**
+   Where a launch that follows the runbook writes its runs.
+   */
+  const runbookRoot = join(
+    home,
+    'temp',
+    'agent',
+  );
+  return `the runbook's runs root ${runbookRoot} is not reached by the roots searched: ${roots.join(', ',)}. A search `
+    + 'reaches runs directories at most 4 levels below a root, and the runbook\'s runs sit up to 2 levels below its '
+    + 'root; it enters no hidden directory or node_modules, and a directory counts by its real path. The newest record '
+    + 'and the versions set after it speak only for those roots, and a launch that follows the runbook writes its '
+    + `runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
+}
+
+/**
+ The warnings the audit logs when it reads one record and searches the given roots for a given home directory.
+
+ @param searched - directories named after --runs-under
+
+ @param home - home directory the runbook's runs root sits under
+
+ @param sinon - case's own sandbox, which restores the console
+
+ @returns Warning lines, each without its level, and the roots searched in the order the audit printed them
+
+ @example
+ ```ts
+ const { warned, } = await warningsOverHome({ searched: [], home: '/cats/home', sinon: ctx.sinon, },);
+ ```
+ */
+async function warningsOverHome(
+  {
+    searched,
+    home,
+    sinon,
+  }: {
+    readonly searched: readonly string[];
+    readonly home: string;
+    readonly sinon: DisposableSandbox;
+  },
+): Promise<{ readonly warned: readonly string[]; readonly roots: readonly string[]; }> {
+  using _printed = divertingConsoleLog({ sinon, },);
+  await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+  await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+  await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+  const logged: string[] = [];
+  await reportSliceCaches({
+    root: root.path,
+    runsDir: runs.path,
+    searched,
+    settings: [],
+    l: levelCapturingLogger({ lines: logged, },),
+    home,
+  },);
+  return {
+    warned: warningsIn({ lines: logged, },),
+    roots: [
+      join(root.path, 'node_modules', '.monochromatic',),
+      runs.path,
+      ...searched,
+    ],
+  };
 }
 
 /**
@@ -400,6 +491,66 @@ await describe({
             },),
           ],
           printedWarnings: 1,
+        },);
+      },
+    },),
+    it({
+      name: 'COUNTS A SEARCHED ROOT BY ITS REAL PATH: the home directory reached through a link and the real directory '
+        + 'it points to are the same root, whichever one the audit was given and whichever one the home names',
+      fn: async (ctx) => {
+        await using real = await scratchDir({ prefix: 'cache-account-slice-real-', },);
+        await using links = await scratchDir({ prefix: 'cache-account-slice-links-', },);
+        await mkdir(
+          join(real.path, 'temp', 'agent',),
+          { recursive: true, },
+        );
+        /**
+         A link to the real home directory, beside nothing it covers by name.
+         */
+        const link = join(
+          links.path,
+          'home-link',
+        );
+        await symlink(
+          real.path,
+          link,
+          'dir',
+        );
+
+        const rootIsReal = await warningsOverHome({ searched: [real.path,], home: link, sinon: ctx.sinon, },);
+        const rootIsLink = await warningsOverHome({ searched: [link,], home: real.path, sinon: ctx.sinon, },);
+        expect({
+          rootIsRealHomeIsLink: rootIsReal.warned,
+          rootIsLinkHomeIsReal: rootIsLink.warned,
+        },).toEqual({
+          rootIsRealHomeIsLink: [],
+          rootIsLinkHomeIsReal: [],
+        },);
+      },
+    },),
+    it({
+      name: 'WARNS WHERE A SEARCHED ROOT HOLDS THE RUNBOOK\'S ROOT BEYOND THE DEPTH THE SEARCH WALKS: the home '
+        + 'directory itself reaches the runs two levels under temp/agent, one level more of home above it does not, '
+        + 'so the audit says the runs root was not reached',
+      fn: async (ctx) => {
+        await using searchedRoot = await scratchDir({ prefix: 'cache-account-slice-deep-', },);
+        /**
+         A home directory one level below the searched root, so the runbook's root lies three levels below it.
+         */
+        const deepHome = join(
+          searchedRoot.path,
+          'cats',
+        );
+        const searched = [searchedRoot.path,];
+        const reached = await warningsOverHome({ searched, home: searchedRoot.path, sinon: ctx.sinon, },);
+        const beyond = await warningsOverHome({ searched, home: deepHome, sinon: ctx.sinon, },);
+
+        expect({
+          reached: reached.warned,
+          beyond: beyond.warned,
+        },).toEqual({
+          reached: [],
+          beyond: [unreachedRootWarning({ roots: beyond.roots, home: deepHome, },),],
         },);
       },
     },),
