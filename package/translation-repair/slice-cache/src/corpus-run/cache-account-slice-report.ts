@@ -1,11 +1,7 @@
 import { homedir, } from 'node:os';
 import {
   dirname,
-  isAbsolute,
   join,
-  relative,
-  resolve,
-  sep,
 } from 'node:path';
 
 import type { Logger, } from '@monochromatic-dev/module-logger/ts';
@@ -13,12 +9,14 @@ import {
   contextRoot,
   wordForCount,
 } from '@monochromatic-dev/translation-repair-typography/ts';
+import { searchReaches, } from './cache-account-search-reach.ts';
 import {
   MS_PER_SECOND,
   utcMinutes,
   type VersionSetting,
 } from './cache-account-commits.ts';
 import {
+  RUNS_SEARCH_DEPTH,
   type RunsDirSearch,
   runsDirsIn,
   runsDirsUnder,
@@ -34,9 +32,9 @@ import { defaultRunsDirIn, } from '@monochromatic-dev/translation-repair-run/ts'
 // search could not list, the newest record and how many versions were set
 // after it, which every account stated from a hand-written `find` until then.
 // The entry (`cache-account-audit.ts`) prints the version accounts first and
-// hands this the settings it read. A WARNING FOLLOWS WHENEVER THE RUNBOOK'S RUNS ROOT IS NOT COVERED by the roots
+// hands this the settings it read. A WARNING FOLLOWS WHENEVER THE RUNBOOK'S RUNS ROOT IS NOT REACHED by the roots
 // searched, whatever the count: a stale record under the default roots gives a non-zero count that says nothing of the
-// runs a launch that follows the runbook writes.
+// runs a launch that follows the runbook writes. A root reaches it by real path, within the depth the search walks.
 
 /**
  Logger for the report's progress lines, apart from the report on stdout.
@@ -48,7 +46,7 @@ const sliceReportLog = contextRoot({ tag: 'cache-account-slice-report', },);
 
  @param home - home directory the runbook's runs root sits under
 
- @returns The runbook's runs root
+ @returns Runbook's runs root
 
  @example
  ```ts
@@ -64,51 +62,10 @@ function runbookRootOf({ home, }: { readonly home: string; },): string {
 }
 
 /**
- Whether one directory is the other or lies below it.
-
- @param ancestor - directory that may hold the other
-
- @param path - directory asked about
-
- @returns Whether `path` is `ancestor` itself or below it
-
- @example
- ```ts
- const covered = isAmongOrUnder({ ancestor: '/cats/home', path: '/cats/home/temp/agent', },); // true
- ```
+ How many levels below the runbook's runs root its runs directories sit, at the most: `<root>/<run>` and
+ `<root>/<run>/runs`.
  */
-function isAmongOrUnder(
-  {
-    ancestor,
-    path,
-  }: {
-    readonly ancestor: string;
-    readonly path: string;
-  },
-): boolean {
-  /**
-   The ancestor as an absolute path.
-   */
-  const from = resolve(ancestor,);
-  /**
-   The directory asked about as an absolute path.
-   */
-  const to = resolve(path,);
-  if (from === to)
-    return true;
-  /**
-   The way from the one to the other.
-   */
-  const way = relative(
-    from,
-    to,
-  );
-  if (way === '..')
-    return false;
-  if (way.startsWith(`..${sep}`,))
-    return false;
-  return !isAbsolute(way,);
-}
+const RUNBOOK_RUNS_LEVELS = 2;
 
 /**
  Words for a zero count, so the absence of records is never read as an empty cache.
@@ -147,7 +104,7 @@ function noRecordWords(
 }
 
 /**
- Words for records read when no searched root covers the runbook's runs root.
+ Words for records read when no searched root reaches the runbook's runs root.
 
  THE COUNT IS TRUE OF THE ROOTS SEARCHED AND SAYS NOTHING OF THE REST. A stale record under the default roots gives a
  non-zero count while the runs of a launch that follows the runbook, under `temp/agent` of the home directory, were
@@ -173,17 +130,20 @@ function uncoveredRootWords(
     readonly runbookRoot: string;
   },
 ): string {
-  return `the runbook's runs root ${runbookRoot} is neither among nor under the roots searched: `
-    + `${searched.join(', ',)}. The newest record and the versions set after it speak only for those roots, and a `
-    + `launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after `
-    + '-- to read them.';
+  return `the runbook's runs root ${runbookRoot} is not reached by the roots searched: ${searched.join(', ',)}. `
+    + `A search reaches runs directories at most ${String(RUNS_SEARCH_DEPTH,)} levels below a root, and the runbook's `
+    + `runs sit up to ${String(RUNBOOK_RUNS_LEVELS,)} levels below its root; it enters no hidden directory or `
+    + 'node_modules, and a directory counts by its real path. The newest record and the versions set after it speak '
+    + 'only for those roots, '
+    + `and a launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} `
+    + 'after -- to read them.';
 }
 
 /**
  What the account's count does not say, for the warning that follows it.
 
- The empty case keeps its own sentence; a count above zero warns only when no searched root is the runbook's runs root
- or holds it.
+ The empty case keeps its own sentence; a count above zero warns only when no searched root reaches the runbook's runs
+ root (`searchReaches`).
 
  @param count - records read
 
@@ -191,14 +151,14 @@ function uncoveredRootWords(
 
  @param home - home directory the runbook's runs root sits under
 
- @returns The sentence alone, or none where the count says all it should
+ @returns Sentence alone, or none where the count says all it should
 
  @example
  ```ts
- const words = warningWordsOf({ count: 1, searched: ['/cats/runs',], home: '/cats/home', },);
+ const words = await warningWordsOf({ count: 1, searched: ['/cats/runs',], home: '/cats/home', },);
  ```
  */
-function warningWordsOf(
+async function warningWordsOf(
   {
     count,
     searched,
@@ -208,7 +168,7 @@ function warningWordsOf(
     readonly searched: readonly string[];
     readonly home: string;
   },
-): readonly string[] {
+): Promise<readonly string[]> {
   if (count === 0) {
     return [
       noRecordWords({
@@ -221,12 +181,17 @@ function warningWordsOf(
    Where a launch that follows the runbook writes its runs.
    */
   const runbookRoot = runbookRootOf({ home, },);
-  if (searched.some(function coversRunbookRoot(root,): boolean {
-    return isAmongOrUnder({
-      ancestor: root,
-      path: runbookRoot,
+  /**
+   Whether each root searched reaches the runbook's runs root, in the order searched.
+   */
+  const reaching = await Promise.all(searched.map(async function reachesRunbookRoot(root,): Promise<boolean> {
+    return await searchReaches({
+      root,
+      directory: runbookRoot,
+      runsLevels: RUNBOOK_RUNS_LEVELS,
     },);
-  },))
+  },),);
+  if (reaching.includes(true,))
     return [];
   return [
     uncoveredRootWords({
@@ -257,10 +222,10 @@ function warningWordsOf(
 
  @example
  ```ts
- printSliceCacheAccount({ account, searched, unlisted, settings, l, home, },);
+ await printSliceCacheAccount({ account, searched, unlisted, settings, l, home, },);
  ```
  */
-function printSliceCacheAccount(
+async function printSliceCacheAccount(
   {
     account,
     searched,
@@ -276,7 +241,7 @@ function printSliceCacheAccount(
     readonly l: Logger;
     readonly home: string;
   },
-): void {
+): Promise<void> {
   /**
    Runs directories read, records read, and the one written last.
    */
@@ -303,7 +268,7 @@ function printSliceCacheAccount(
   /**
    What the count does not say, none where it says all it should.
    */
-  const warnings = warningWordsOf({
+  const warnings = await warningWordsOf({
     count,
     searched,
     home,
@@ -416,7 +381,7 @@ export async function reportSliceCaches(
    */
   const account = await sliceCacheAccount({ runsDirs, },);
   l.info(`slice-cache records read: ${String(account.count,)}`,);
-  printSliceCacheAccount({
+  await printSliceCacheAccount({
     account,
     searched: [
       runsParent,

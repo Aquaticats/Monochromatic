@@ -40,6 +40,7 @@ export {
   sourcesPathspecOf,
   withoutTestsPathspecOf,
 } from './corpus-run/cache-account-sources.ts';
+export { searchReaches, } from './corpus-run/cache-account-search-reach.ts';
 export { reportSliceCaches, } from './corpus-run/cache-account-slice-report.ts';
 export {
   type NewestSliceRecord,

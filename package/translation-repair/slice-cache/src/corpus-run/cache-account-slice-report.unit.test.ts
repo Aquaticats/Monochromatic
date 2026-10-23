@@ -97,24 +97,6 @@ function noRecordWarning({ roots, }: { readonly roots: readonly string[]; },): s
 }
 
 /**
- What the audit says when it read records and the runbook's runs root is neither among nor under the roots it searched.
-
- @param roots - every root it searched, in the order it printed them
-
- @returns Sentence, without the stdout prefix
-
- @example
- ```ts
- const words = uncoveredRootWarning({ roots: ['/cats/runs',], },);
- ```
- */
-function uncoveredRootWarning({ roots, }: { readonly roots: readonly string[]; },): string {
-  return `the runbook's runs root ${RUNBOOK_ROOT} is neither among nor under the roots searched: ${roots.join(', ',)}. `
-    + 'The newest record and the versions set after it speak only for those roots, and a launch that follows the '
-    + `runbook writes its runs under ${RUNBOOK_ROOT}; pass --runs-under ${RUNBOOK_ROOT} after -- to read them.`;
-}
-
-/**
  What the audit says when it read records and no root it searched reaches the runbook's runs root: by its real path,
  within the depth the search walks and through no directory it skips.
 
@@ -374,7 +356,7 @@ await describe({
       },
     },),
     it({
-      name: 'WARNS WHERE RECORDS WERE READ BUT THE RUNBOOK\'S RUNS ROOT IS NEITHER AMONG NOR UNDER THE ROOTS SEARCHED: '
+      name: 'WARNS WHERE RECORDS WERE READ BUT NO ROOT SEARCHED REACHES THE RUNBOOK\'S RUNS ROOT: '
         + 'a non-zero count then speaks for the roots searched and says nothing of the runs a launch that follows the '
         + 'runbook writes, so the warning names every root searched and the runbook\'s root',
       fn: async (ctx) => {
@@ -396,11 +378,12 @@ await describe({
         /**
          What the warning says, on stdout after the prefix and in the log without it.
          */
-        const warning = uncoveredRootWarning({
+        const warning = unreachedRootWarning({
           roots: [
             join(root.path, 'node_modules', '.monochromatic',),
             runs.path,
           ],
+          home: HOME,
         },);
         expect({
           logged: warningsIn({ lines: logged, },),
@@ -482,12 +465,13 @@ await describe({
           },).length,
         },).toEqual({
           logged: [
-            uncoveredRootWarning({
+            unreachedRootWarning({
               roots: [
                 join(root.path, 'node_modules', '.monochromatic',),
                 runs.path,
                 underRunbookRoot,
               ],
+              home: HOME,
             },),
           ],
           printedWarnings: 1,

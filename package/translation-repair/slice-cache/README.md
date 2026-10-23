@@ -135,9 +135,11 @@ and each task sets it to its own name.
   A count of zero records prints a `WARNING:` line on stdout and a warning through the package logger,
   naming every root searched and that runs root,
   because the newest-record and versions-set-after lines then say nothing about the caches.
-  The same pair of warnings follows a count above zero when that runs root is neither among nor under the roots
-  searched,
+  The same pair of warnings follows a count above zero when no root searched reaches that runs root,
   because a stale record under the default roots makes the count non-zero while the runs of a launch were never read.
+  A root reaches it when the two are the same directory by real path,
+  or when the root holds it and the runs two levels below it sit within the four levels the search walks,
+  through no hidden directory and no `node_modules`.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.
