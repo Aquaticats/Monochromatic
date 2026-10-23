@@ -3,6 +3,8 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   type BudgetView,
   durationWordsOf,
+  type MeterState,
+  routesAsDry,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import {
   PROVIDER_ORDER,
@@ -16,6 +18,7 @@ import {
   unreachableWritingBenches,
 } from './run-seats-floor.ts';
 import { judgeSeatsFor, } from './run-seats.ts';
+import { liftOf, } from './run-seats-bench-floor.ts';
 import {
   type BenchName,
   benchReadings,
@@ -24,20 +27,26 @@ import {
 } from './run-seats-wait.ts';
 
 //region Holds that cure a short bench
-// A HOLD IS WAITED FOR ONLY WHEN THE PROVIDER, BACK, WOULD HELP CURE A BENCH THAT STANDS SHORT. The seat reader waits
-// while a bench the phase leans on stands short and a hold runs; a hold on a provider whose return leaves every such
-// bench as short as it is (it serves no seat of the bench, or only seats the wet providers already reach) buys
-// nothing, however long it is waited for, so it is left out of what the reader waits on. The question is asked of the
-// roster itself: the seats are derived again with the providers back (`judgeSeatsFor`, which reads each seat's reach
-// through `reachOf`), never from a list of provider names, so a roster change moves the answer without an edit here.
+// A HOLD IS WAITED FOR ONLY WHEN THE PROVIDER, BACK, WOULD LIFT A SHORT BENCH ACROSS A THRESHOLD THAT CHANGES WHAT THE
+// STAGES DO. The seat reader waits while a bench the phase leans on stands short and a hold runs; a hold on a provider
+// whose return leaves every such bench on the same side of its floor and of its quorum (it serves no seat of the bench,
+// or only seats the wet providers already reach, or too few to reach either) buys nothing, however long it is waited
+// for, so it is left out of what the reader waits on. The two thresholds and the stage code that makes each matter are
+// in `run-seats-bench-floor.ts`. The question is asked of the roster itself: the seats are derived again with the
+// providers back (`judgeSeatsFor`, which reads each seat's reach through `reachOf`), never from a list of provider
+// names, so a roster change moves the answer without an edit here.
 //
-// THE TEST IS "WOULD HELP", NOT "IS NECESSARY" (round 5, the ruling open to the owner's veto). The held providers are
-// judged together: the benches they cure between them are the ones that matter, and a held provider counts when its
-// own return adds a reachable seat to one of those benches. Two holds that only cure a bench jointly are both waited
-// for, and so are two holds that each cure it alone; a necessity test (the bench stays short without this provider)
-// counted neither of the second pair and seated the bench short without a wait. The cost of the looser test is a
-// counted hold that turns out not to be needed: the loop reads the benches again after every wait, so that costs one
-// extra read and no extra wall time, since the wait was for the shortest counted hold and the loop ends as soon as
+// A PROVIDER DRY BY ITS METER IS NOT BROUGHT BACK BY ITS HOLD ENDING. The dryness view folds holds into the meters and
+// cannot tell the two apart, so the meter states are read beside it and a provider whose meter says dry is left out of
+// the returning providers, in the wait and in the ceiling alike.
+//
+// THE TEST IS "WOULD HELP", NOT "IS NECESSARY". The returning providers
+// are judged together: the benches they lift between them are the ones that matter, and a returning provider counts
+// when its own return adds a reachable seat to one of those benches. Two holds that only lift a bench jointly are both
+// waited for, and so are two holds that each lift it alone; a necessity test (the bench stays short without this
+// provider) counted neither of the second pair and seated the bench short without a wait. The cost of the looser test
+// is a counted hold that turns out not to be needed: the loop reads the benches again after every wait, so that costs
+// one extra read and no extra wall time, since the wait was for the shortest counted hold and the loop ends as soon as
 // the benches are met.
 
 /**
@@ -54,7 +63,7 @@ import {
  const after = viewWithBack({ dry, back: ['hyper',], },);
  ```
  */
-function viewWithBack(
+export function viewWithBack(
   {
     dry,
     back,
@@ -67,6 +76,56 @@ function viewWithBack(
     of: function dryAfter(provider,): boolean {
       return dry[provider] && (!back.includes(provider,));
     },
+  },);
+}
+
+/**
+ The providers whose meter says dry, read from the meter states and not from the dryness view, which folds a hold in
+ and so cannot tell a provider held out from one the meter keeps out.
+
+ @param meters - what each provider's meter said
+
+ @returns Providers the router holds out for their meter alone, whatever their holds
+
+ @example
+ ```ts
+ const meterDry = meterDryOf({ meters, });
+ ```
+ */
+export function meterDryOf(
+  { meters, }: { readonly meters: ProviderRecord<MeterState>; },
+): ReadonlySet<ProviderName> {
+  return new Set(PROVIDER_ORDER.filter(function isDryByMeter(provider,): boolean {
+    return routesAsDry({ state: meters[provider], },);
+  },),);
+}
+
+/**
+ The providers whose return a wait can bring back: held out for some time, and not kept out by their meter, since a
+ provider whose meter reads dry stays dry however its hold ends.
+
+ @param holds - how long each provider's refusal still holds it out
+
+ @param meterDry - providers dry by their meter
+
+ @returns Providers a hold running on them can end in a return for, in provider order
+
+ @example
+ ```ts
+ const back = returningProvidersOf({ holds: running, meterDry, });
+ ```
+ */
+export function returningProvidersOf(
+  {
+    holds,
+    meterDry,
+  }: {
+    readonly holds: ProviderRecord<number>;
+    readonly meterDry: ReadonlySet<ProviderName>;
+  },
+): readonly ProviderName[] {
+  return PROVIDER_ORDER.filter(function returns(provider,): boolean {
+    return (holds[provider] > 0) && (!meterDry.has(provider,));
   },);
 }
 
@@ -193,12 +252,15 @@ export function returnLiftsWritingBenches(
 }
 
 /**
- How long each provider's hold counts for the seat reader's wait: the hold itself where the held providers cure a bench
- between them and this provider's return adds a reachable seat to it, none otherwise.
+ How long each provider's hold counts for the seat reader's wait: the hold itself where the returning providers lift a
+ bench across its floor or its quorum between them and this provider's return adds a reachable seat to it, none
+ otherwise.
 
  @param holds - how long each provider's refusal still holds it out
 
  @param dry - dryness per provider, holds folded in, the reading the benches were read from
+
+ @param meterDry - providers dry by their meter, whose return no hold brings about
 
  @param names - benches the phase leans on
 
@@ -206,52 +268,78 @@ export function returnLiftsWritingBenches(
 
  @example
  ```ts
- const waitFor = holdsThatCureShortBenches({ holds, dry, names: phaseBenches({ phase, },), },);
+ const waitFor = holdsThatCureShortBenches({ holds, dry, meterDry, names: phaseBenches({ phase, },), },);
  ```
  */
 export function holdsThatCureShortBenches(
   {
     holds,
     dry,
+    meterDry,
     names,
   }: {
     readonly holds: ProviderRecord<number>;
     readonly dry: BudgetView;
+    readonly meterDry: ReadonlySet<ProviderName>;
     readonly names: readonly BenchName[];
   },
 ): ProviderRecord<number> {
   /**
-   Providers held out for some time.
+   Providers held out for some time whose return a wait can bring back.
    */
-  const held = PROVIDER_ORDER.filter(function isHeld(provider,): boolean {
-    return holds[provider] > 0;
+  const returning = returningProvidersOf({
+    holds,
+    meterDry,
   },);
   /**
-   Benches that stand unmet now.
+   Each bench as it reads now.
    */
-  const unmet = unmetBenchNames({
+  const reading = benchReadings({
+    benches: benchesOf({ seats: judgeSeatsFor({ dry, }), },),
+    names,
     dry,
-    names,
   },);
   /**
-   Benches still unmet once every held provider is back.
+   The view once every returning provider is back.
    */
-  const unmetAfterAll = unmetBenchNames({
-    dry: viewWithBack({
-      dry,
-      back: held,
-    },),
-    names,
+  const afterAll = viewWithBack({
+    dry,
+    back: returning,
   },);
   /**
-   Benches the held providers cure between them.
+   Each bench as it reads once they are back.
    */
-  const cured = [...unmet,].filter(function isCured(name,): boolean {
-    return !unmetAfterAll.has(name,);
+  const readingAfter = benchReadings({
+    benches: benchesOf({ seats: judgeSeatsFor({ dry: afterAll, }), },),
+    names,
+    dry: afterAll,
   },);
+  /**
+   Benches the returning providers lift across a threshold between them: their floor, or their quorum.
+   */
+  const cured = reading
+    .filter(function isCrossed(now,): boolean {
+      /**
+       The same bench read with the providers back.
+       */
+      const after = nonNullishOrThrow(readingAfter.find(function isThisBench(candidate,): boolean {
+        return candidate.name === now.name;
+      },),);
+      /**
+       What the return lifts the bench across.
+       */
+      const lift = liftOf({
+        now,
+        after,
+      },);
+      return lift.toFloor || lift.toQuorum;
+    },)
+    .map(function nameOf({ name, },): BenchName {
+      return name;
+    },);
   return providerRecord({
     of: function holdWorthWaiting(provider,): number {
-      if (!held.includes(provider,))
+      if (!returning.includes(provider,))
         return 0;
       /**
        The view with this provider alone back.
@@ -334,108 +422,6 @@ export function noWaitWordsOf(
     },)
       .join(', ',)
   }; ${why}${neuralwatt}`;
-}
-
-/**
- What each bench that stands short could read once every running hold had ended: the seats the return of the held
- providers would bring back, the count they would lift the bench to against its quorum, and whether that reaches it.
-
- THE CEILING OF A BENCH IS WHAT IT READS WITH THE HELD PROVIDERS BACK AND EVERY OTHER PROVIDER AS IT IS NOW, so a
- provider dry by its meter stays dry. `wide 3 of 7, quorum 4` under a Synthetic hold means Synthetic's return cannot
- lift the wide bench however long it is waited for, which is what the corpus pass `XingZ6020` waited 228 times to
- find out.
-
- @param running - how long each provider's refusal still holds it out, as the reader read it
-
- @param dry - dryness per provider, holds folded in
-
- @param names - benches the clauses are for
-
- @returns One clause per short bench, in the order the benches are named; none when no hold runs, since a bench's
- ceiling is then what it reads
-
- @example
- ```ts
- const said = ceilingWordsOf({ running, dry, names: phaseBenches({ phase, },), },);
- // => ['wide ceiling 3 of 7 with synthetic back, quorum 4, so no return lifts it (the return brings back hf:moonshotai/Kimi-K3, hf:Qwen/Qwen3.8-27B)',]
- ```
- */
-export function ceilingWordsOf(
-  {
-    running,
-    dry,
-    names,
-  }: {
-    readonly running: ProviderRecord<number>;
-    readonly dry: BudgetView;
-    readonly names: readonly BenchName[];
-  },
-): readonly string[] {
-  /**
-   Providers held out for some time.
-   */
-  const held = PROVIDER_ORDER.filter(function isHeld(provider,): boolean {
-    return running[provider] > 0;
-  },);
-  // NO HOLD RUNNING, NO CEILING TO STATE: a bench's ceiling is then what it reads, which its own clause already says.
-  if (held.length === 0)
-    return [];
-  /**
-   The view once every held provider is back.
-   */
-  const after = viewWithBack({
-    dry,
-    back: held,
-  },);
-  /**
-   Each bench as it reads once they are back.
-   */
-  const ceilings = benchReadings({
-    benches: benchesOf({ seats: judgeSeatsFor({ dry: after, }), },),
-    names,
-    dry: after,
-  },);
-  return benchReadings({
-    benches: benchesOf({ seats: judgeSeatsFor({ dry, }), },),
-    names,
-    dry,
-  },)
-    .filter(function isShort({
-      quorum,
-      reachable,
-    },): boolean {
-      return reachable.length < quorum;
-    },)
-    .map(function ceilingWordsOfBench({
-      name,
-      reachable,
-    },): string {
-      /**
-       The same bench with the held providers back: its seats, the quorum it needs and the seats a wet provider serves.
-       */
-      const {
-        seats: benchSeats,
-        quorum: needed,
-        reachable: reached,
-      } = nonNullishOrThrow(ceilings.find(function isThisBench(candidate,): boolean {
-        return candidate.name === name;
-      },),);
-      /**
-       Seats the return would bring back.
-       */
-      const brought = reached.filter(function isNotReachableNow(modelId,): boolean {
-        return !reachable.includes(modelId,);
-      },);
-      /**
-       Whether the return lifts the bench to its quorum.
-       */
-      const lifted = reached.length >= needed;
-      return `${name} ceiling ${String(reached.length,)} of ${String(benchSeats.length,)} with ${
-        held.join(', ',)
-      } back, quorum ${String(needed,)}, so ${
-        lifted ? 'the return lifts it' : 'no return lifts it'
-      } (the return brings back ${(brought.length === 0) ? 'no seat' : brought.join(', ',)})`;
-    },);
 }
 
 /**

@@ -3,11 +3,12 @@ import type { Logger, } from '@monochromatic-dev/module-logger/ts';
 import type { BudgetView, } from '@monochromatic-dev/translation-repair-provider/ts';
 import {
   PROVIDER_ORDER,
+  type ProviderName,
   type ProviderRecord,
   type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import { ceilingWordsOf, } from './run-seats-ceiling.ts';
 import {
-  ceilingWordsOf,
   noWaitWordsOf,
   shortBenchesWithCure,
   unmetBenchNames,
@@ -58,6 +59,8 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
 
  @param holds - the holds among them that the reader waits for, none here
 
+ @param meterDry - providers dry by their meter, which no hold ending brings back
+
  @param names - benches the phase leans on, in the order the line prints them
 
  @param benches - each bench as first read, keyed by name
@@ -74,7 +77,7 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
 
  @example
  ```ts
- return seatWithoutWaiting({ client, phase, l, warned, dry: first, running, holds, names, benches, unreachable, goesOn, },);
+ return seatWithoutWaiting({ client, phase, l, warned, dry: first, running, holds, meterDry, names, benches, unreachable, goesOn, },);
  ```
  */
 export function seatWithoutWaiting(
@@ -86,6 +89,7 @@ export function seatWithoutWaiting(
     dry,
     running,
     holds,
+    meterDry,
     names,
     benches,
     unreachable,
@@ -98,6 +102,7 @@ export function seatWithoutWaiting(
     readonly dry: BudgetView;
     readonly running: ProviderRecord<number>;
     readonly holds: ProviderRecord<number>;
+    readonly meterDry: ReadonlySet<ProviderName>;
     readonly names: readonly BenchName[];
     readonly benches: Readonly<Record<BenchName, readonly RosterModelId[]>>;
     readonly unreachable: readonly string[];
@@ -220,6 +225,7 @@ export function seatWithoutWaiting(
           ...ceilingWordsOf({
             running,
             dry,
+            meterDry,
             names: namesElsewhere,
           },),
           noWait,

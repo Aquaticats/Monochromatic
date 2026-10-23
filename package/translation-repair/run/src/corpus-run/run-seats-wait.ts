@@ -135,7 +135,7 @@ const BENCHES_BY_PHASE: Readonly<Record<JudgeSeatPhase, readonly BenchName[]>> =
  vote, and holding them to it would call a Bedrock-only pass with its two
  measured readers short before every pictures phase (2026-09-08).
  */
-const READER_QUORUM = 2;
+export const READER_QUORUM = 2;
 
 /**
  Names the benches one phase cannot run without.
