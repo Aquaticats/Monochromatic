@@ -2645,6 +2645,48 @@ await describe({
         },),
 
         it({
+          name: 'BUYS NOTHING FOR A SLICE whose hook reports fewer reachable slate judges than the ballots a '
+            + 'winner needs, keeps the standing as the incumbent-only exit does, and writes nothing to the '
+            + 'cache, so a later pass on a healthier bench asks again (XingZ6020: 54 slices, 164 calls)',
+          fn: async () => {
+            /**
+             Seat of every call the driver made under a bench below the floor.
+             */
+            const asked: RosterModelId[] = [];
+            const { slices, written, } = await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: seatRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 1, }),
+            },);
+            expect({
+              calls: asked.length,
+              terminal: slices[0]?.terminal,
+              written: written.length,
+            },).toEqual({
+              calls: 0,
+              terminal: 'incumbent-only',
+              written: 0,
+            },);
+          },
+        },),
+
+        it({
+          name: 'ASKS A SLICE AS BEFORE once its hook reports the slate floor reachable',
+          fn: async () => {
+            /**
+             Seat of every call the driver made with the floor met.
+             */
+            const asked: RosterModelId[] = [];
+            await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: seatRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 2, }),
+            },);
+            expect(asked.length,).toBeGreaterThan(0,);
+          },
+        },),
+
+        it({
           name: 'WRITES A LATER SLICE\'S OWN FAILURE UNDER THE CALLER\'S STOP, its hook refused by an unreachable '
             + 'bench as the stop landed while the first slice ended in the caller\'s reason, and refuses with that '
             + 'reason',

@@ -491,14 +491,18 @@ await describe({
              */
             const reseatLine = `JUDGE SEATS phase=consolidation slice re-seated under a hold: writers=${seats.writers.join(',',)} `
               + `slateJudges=${seats.slateJudges.join(',',)} polishGate=${seats.lateJudges.join(',',)}`;
+            /**
+             Slate judges of that reading a wet provider would serve.
+             */
+            const slateReachable = reachableSeats({ seats: seats.slateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
               logged: lines.includes(reseatLine,),
             },).toEqual({
-              underHold: { roster, },
-              afterHold: { roster, },
+              underHold: { roster, slateReachable, },
+              afterHold: { roster, slateReachable, },
               reads: 1,
               logged: true,
             },);
@@ -517,6 +521,41 @@ await describe({
             },);
             expect(await hooks.beforeSlice(),).toEqual({},);
             expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'HANDS THE STARTING SLATE REACH to a slice while nothing is held and the slate bench meets the '
+            + 'floor: no dryness read, the reach the consolidation started on',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = consolidationHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              prepared: PREPARED,
+              l,
+              startedSlateReachable: 5,
+            },);
+            expect(await hooks.beforeSlice(),).toEqual({ slateReachable: 5, },);
+            expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'READS THE BENCH AGAIN while the slate reach it hands is below the floor, though no hold runs, so '
+            + 'a provider that came back after its hold ended lifts the floor for the slices after it',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = consolidationHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              prepared: PREPARED,
+              l,
+              startedSlateReachable: 1,
+            },);
+            const { slateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({ seats: slateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect((await hooks.beforeSlice()).slateReachable,).toBe(fresh,);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
           },
         },),
       ],
