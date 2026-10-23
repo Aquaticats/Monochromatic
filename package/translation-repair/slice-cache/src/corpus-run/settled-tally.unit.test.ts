@@ -274,6 +274,72 @@ function trimmedArtifact({ trimmedText, }: { readonly trimmedText: string; },): 
 }
 
 /**
+ The same entry after the contest and the consolidation ran, with the contest backing no lane at the first slice and
+ the translate lane at the second.
+
+ @param firstTerminal - how the consolidation ended at the first slice
+ @param firstShipped - what the consolidation shipped at the first slice
+ @param firstVerdict - what the contest recorded at the first slice
+
+ @returns Artifact whose consolidation record the unendorsed standing count reads
+
+ @example
+ ```ts
+ const artifact = consolidatedArtifact({ firstTerminal: 'slate-declined-standing', firstShipped: { kind: 'unchanged', }, firstVerdict: { kind: 'quorum-not-met', }, },);
+ ```
+ */
+function consolidatedArtifact(
+  {
+    firstTerminal,
+    firstShipped,
+    firstVerdict,
+  }: {
+    readonly firstTerminal: string;
+    readonly firstShipped: Record<string, unknown>;
+    readonly firstVerdict: Record<string, unknown>;
+  },
+): SettledArtifact {
+  return {
+    ...catArtifact(),
+    laneSelection: {
+      kind: 'contested',
+      slices: [
+        {
+          sliceIndex: 0,
+          verdict: firstVerdict,
+          ballots: [],
+          usable: 1,
+        },
+        {
+          sliceIndex: 1,
+          verdict: {
+            kind: 'lane-won',
+            lane: 'translate',
+          },
+          ballots: [],
+          usable: 3,
+        },
+      ],
+    },
+    consolidation: {
+      kind: 'settled',
+      slices: [
+        {
+          sliceIndex: 0,
+          terminal: firstTerminal,
+          shipped: firstShipped,
+        },
+        {
+          sliceIndex: 1,
+          terminal: 'gate-kept-standing',
+          shipped: { kind: 'unchanged', },
+        },
+      ],
+    },
+  } as unknown as SettledArtifact;
+}
+
+/**
  Splits the line into its `key=value` pairs.
 
  @returns Every field of the rendered line, keyed
@@ -448,6 +514,74 @@ await describe({
         // The slice with no incumbent at all: nothing stands there, which is
         // neither a change nor a retention and would be invisible inside either.
         expect(fields.pageSilent,).toBe('1',);
+      },
+    },),
+    it({
+      name: 'COUNTS the slices whose consolidation kept a standing text the contest did not endorse, which the '
+        + 'stage logs as "remains retryable" and nothing else on the line carried (XingZ6020: 58 log lines)',
+      fn: async () => {
+        // Nothing consolidated yet: no standing was kept, so nothing is unendorsed.
+        expect(renderedFields().standingUnendorsed,).toBe('0',);
+
+        // The contest backed no lane at the first slice and the consolidation kept the standing; it backed the
+        // translate lane at the second, whose standing is endorsed.
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'slate-declined-standing',
+            firstShipped: { kind: 'unchanged', },
+            firstVerdict: { kind: 'quorum-not-met', },
+          },),
+        },).standingUnendorsed,).toBe('1',);
+      },
+    },),
+    it({
+      name: 'LEAVES OUT a standing the contest endorsed, a slice the consolidation rewrote, and a slice that kept the '
+        + 'archive for want of a valid wording, none of which remains retryable on an unendorsed standing',
+      fn: async () => {
+        // The contest settled on neither lane and endorsed the archive: the standing may ship as it is.
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'slate-declined-standing',
+            firstShipped: { kind: 'unchanged', },
+            firstVerdict: {
+              kind: 'settled-neither',
+              archive: 'endorsed',
+            },
+          },),
+        },).standingUnendorsed,).toBe('0',);
+
+        // The settled-neither verdict that declined the archive is unendorsed, the positive control for the case above.
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'slate-declined-standing',
+            firstShipped: { kind: 'unchanged', },
+            firstVerdict: {
+              kind: 'settled-neither',
+              archive: 'declined',
+            },
+          },),
+        },).standingUnendorsed,).toBe('1',);
+
+        // The consolidation wrote fresh wording, so no unendorsed standing was kept.
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'consolidated',
+            firstShipped: {
+              kind: 'consolidated',
+              text: MENDED_NAP,
+            },
+            firstVerdict: { kind: 'quorum-not-met', },
+          },),
+        },).standingUnendorsed,).toBe('0',);
+
+        // No wording passed the deterministic rule, so the archive kept the slice: the defects line reports it.
+        expect(fieldsOf({
+          artifact: consolidatedArtifact({
+            firstTerminal: 'incumbent-only',
+            firstShipped: { kind: 'archive', },
+            firstVerdict: { kind: 'quorum-not-met', },
+          },),
+        },).standingUnendorsed,).toBe('0',);
       },
     },),
     it({
