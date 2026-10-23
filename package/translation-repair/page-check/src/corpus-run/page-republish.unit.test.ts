@@ -16,7 +16,10 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import {
@@ -38,6 +41,7 @@ import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-tes
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
 import { settledArtifactText, } from '@monochromatic-dev/translation-repair-artifact/ts/corpus-run/settled-artifact.test-fixture.ts';
+import { sourceDroppedRunOf, } from './published-run.test-fixture.ts';
 
 /**
  Original with two sections.
@@ -430,6 +434,42 @@ await describe({
           run.pagePath,
           'utf8',
         ),).toBe(written,);
+      },
+    },),
+    it({
+      name: 'LEAVES A PAGE THE COMPOSITION SHIPS WITHOUT THE ORIGINAL OF A SLICE, which reads as agreed against the '
+        + 'artifact without that original and is not published again',
+      fn: async () => {
+        await using run = await settledRun({ strip: [], },);
+        const {
+          artifactText,
+          pageText,
+        } = sourceDroppedRunOf({ entryId: ENTRY, },);
+        await writeFile(
+          join(
+            run.artifactsDir,
+            `${ENTRY}.json`,
+          ),
+          artifactText,
+        );
+        await mkdir(
+          dirname(run.pagePath,),
+          { recursive: true, },
+        );
+        await writeFile(
+          run.pagePath,
+          pageText,
+        );
+        expect(await verdictOf({ run, },),).toBe('agreed-weighed',);
+
+        expect(await republishIn({
+          run,
+          readPair: SAME_PAIR,
+        },),).toStrictEqual({ kind: 'agreed', },);
+        expect(await readFile(
+          run.pagePath,
+          'utf8',
+        ),).toBe(pageText,);
       },
     },),
     it({

@@ -17,6 +17,12 @@ import {
   assertCarriedInsertionsRemain,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
+import {
+  sourceShippedArchive,
+  sourceShippedArtifact,
+  type SourceShippedRow,
+  sourceShippedSlices,
+} from './source-shipped.test-fixture.ts';
 
 /**
  Archive wording carrying proof region.
@@ -126,6 +132,31 @@ await describe({
           artifact: artifactShipping({ text: 'The cat waits by the window.\n', }),
           slices: SLICES,
           targetText: TARGET,
+          carried: CARRIED,
+        },),).toThrow(TranslationRepairInterruptedError,);
+      },
+    },),
+    it({
+      name: 'PAUSES when only the original an unfilled anchor ships carries the region, since that original is no '
+        + 'wording of the pipeline and keeps no passage the lanes admitted',
+      fn: () => {
+        /**
+         An archive slice without the region, and an anchor nobody filled whose original holds it.
+         */
+        const rows: readonly SourceShippedRow[] = [
+          {
+            incumbentText: 'The cat waits by the window.\n',
+            sourceText: '猫在等。\n',
+          },
+          {
+            incumbentText: '',
+            sourceText: 'The cat sleeps in warm sunlight.\n',
+          },
+        ];
+        expect(() => assertCarriedInsertionsRemain({
+          artifact: sourceShippedArtifact({ rows, },),
+          slices: sourceShippedSlices({ rows, },),
+          targetText: sourceShippedArchive({ rows, },),
           carried: CARRIED,
         },),).toThrow(TranslationRepairInterruptedError,);
       },

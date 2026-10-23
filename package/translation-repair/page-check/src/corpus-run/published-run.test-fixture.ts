@@ -20,6 +20,8 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
+import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
+import type { SliceDeliveryRecord, } from '@monochromatic-dev/translation-repair-translate-floor';
 import {
   assertPipelineDigest,
   digestPipeline,
@@ -29,7 +31,10 @@ import { republishSettledPages, } from '../../dist/final/node/index.mjs';
 import { builtDirectoryOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/built-package-directory.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
-import { settledArtifactOver, } from '@monochromatic-dev/translation-repair-artifact/ts/corpus-run/settled-artifact.test-fixture.ts';
+import {
+  settledArtifactOver,
+  settledArtifactOverRows,
+} from '@monochromatic-dev/translation-repair-artifact/ts/corpus-run/settled-artifact.test-fixture.ts';
 
 /**
  Original with two sections.
@@ -50,6 +55,11 @@ export const ENTRY = 'CatEntry1';
  Hex digits in a tree digest.
  */
 const DIGEST_HEX_LENGTH = 64;
+
+/**
+ Hex digits in a git commit id.
+ */
+const GIT_COMMIT_HEX_LENGTH = 40;
 
 /**
  Digest the fixture artifacts claim to have been settled by, before it is
@@ -219,6 +229,123 @@ export function artifactTextWithoutArchive({ entryId, }: { readonly entryId: str
       return (key === 'archiveText') ? undefined : value;
     },
   );
+}
+
+/**
+ How many block quote markers the original of the unfilled slice is nested under, past the bound of 256 that the plain
+ reading keeps, so no writing of it makes a page parse.
+ */
+const NESTED_PAST_BOUND = 300;
+
+/**
+ Original of the second section in the artifact that ships no source: a block quote nested past the bound.
+ */
+const NESTED_ORIGINAL = `${ '> '.repeat(NESTED_PAST_BOUND,) }猫猫有自己的碗。\n`;
+
+/**
+ An artifact whose last slice is an anchor nobody filled, with an original no writing makes parse, and the page the
+ composition ships for it: the archive without that original.
+
+ @param entryId - entry the artifact settles
+
+ @returns The artifact's JSON text and the page text (the archive the first section covers), the page the third step of
+ the composition ships
+
+ @example
+ ```ts
+ const { artifactText, pageText, } = sourceDroppedRunOf({ entryId: ENTRY, },);
+ ```
+ */
+export function sourceDroppedRunOf(
+  { entryId, }: { readonly entryId: string; },
+): {
+  readonly artifactText: string;
+  readonly pageText: string;
+} {
+  /**
+   The pair as the archive covers it whole.
+   */
+  const whole = prepareDocumentPair({
+    sourceText: SOURCE_DOC,
+    targetText: TARGET_DOC,
+    includeFrontMatter: true,
+    sealArchiveOriginal: true,
+  },);
+  const [covered, cut,] = whole.slices;
+  /**
+   Where the archive stops, after the first section.
+   */
+  const stop = nonNullishOrThrow(covered,).target.endOffset;
+  /**
+   The preparation with the second section cut from the archive and carrying the nested original.
+   */
+  const prepared = {
+    ...whole,
+    targetText: whole.targetText.slice(
+      0,
+      stop,
+    ),
+    slices: [
+      nonNullishOrThrow(covered,),
+      {
+        source: {
+          ...nonNullishOrThrow(cut,).source,
+          text: NESTED_ORIGINAL,
+        },
+        target: makeInsertionChunk({
+          sliceIndex: 1,
+          offset: stop,
+        },),
+      },
+    ],
+  };
+  /**
+   What both lanes report: the first section kept, the anchor unfilled.
+   */
+  const rows = prepared.slices.map(function toRow({
+    source,
+    target,
+  },): SliceDeliveryRecord {
+    return (target.kind === 'insertion')
+      ? {
+        sliceIndex: target.sliceIndex,
+        sourceText: source.text,
+        incumbentKind: 'absent',
+        incumbentText: '',
+        outcome: { kind: 'unfilled', },
+        shippedText: '',
+        delivery: { kind: 'gap-remains', },
+      }
+      : {
+        sliceIndex: target.sliceIndex,
+        sourceText: source.text,
+        incumbentKind: 'present',
+        incumbentText: target.text,
+        outcome: {
+          kind: 'decided',
+          acceptedText: target.text,
+        },
+        shippedText: target.text,
+        delivery: { kind: 'incumbent-retained', },
+      };
+  },);
+  /**
+   The artifact as the builder writes it.
+   */
+  const built = JSON.parse(JSON.stringify(settledArtifactOverRows({
+    prepared,
+    entryId,
+    corpusSha: 'b'.repeat(GIT_COMMIT_HEX_LENGTH,),
+    rows,
+  },),),) as {
+    lanes: { translate: { result: { status: string; }; }; };
+  };
+  // The translate lane records the slice it reached and could not fill, which its status says.
+  built.lanes.translate.result.status = 'unfilled';
+  return {
+    artifactText: JSON.stringify(built,),
+    pageText: prepared.targetText,
+  };
 }
 
 /**

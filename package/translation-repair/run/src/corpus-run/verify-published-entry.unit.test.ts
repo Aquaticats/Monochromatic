@@ -32,6 +32,7 @@ import {
   OTHER_BUILD,
   publishedRun,
   SETTLED_BY,
+  sourceDroppedRunOf,
   TARGET_DOC,
 } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/published-run.test-fixture.ts';
 
@@ -90,6 +91,45 @@ await describe({
           lines: [
             'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
               + 'missing=0 consistency-groups=0 read-at-generation=20',
+          ],
+        },);
+      },
+    },),
+    it({
+      name: 'PRINTS THE SOURCE-DROPPED LINE for a page the composition ships without the original of a slice: the entry, '
+        + 'page-source-unparseable and the slice, and agrees',
+      fn: async () => {
+        await using published = await publishedRun();
+        const {
+          runsDir,
+          pagePath,
+        } = published;
+        const {
+          artifactText,
+          pageText,
+        } = sourceDroppedRunOf({ entryId: ENTRY, },);
+        await writeFile(
+          artifactPathOf({
+            runsDir,
+            entryId: ENTRY,
+          },),
+          artifactText,
+        );
+        await writeFile(
+          pagePath,
+          pageText,
+        );
+
+        expect(await judgePublishedEntry({
+          runsDir,
+          entryId: ENTRY,
+          thisBuild: SETTLED_BY,
+        },),).toEqual({
+          agreement: 'agreed-weighed',
+          lines: [
+            'CatEntry1: wordings=1 silent=1 source-shipped=0 chars=43=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=20',
+            'CatEntry1: page-source-unparseable, the page ships without the source text of slices [1]',
           ],
         },);
       },
