@@ -2,14 +2,16 @@ import type { Logger, } from '@monochromatic-dev/module-logger/ts';
 
 import type { ConsolidateSliceSeating, } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { configuredConsolidationPolish, } from '@monochromatic-dev/translation-repair-consolidate/ts';
+import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
   type Reseated,
   reseatHookFor,
 } from './pass-reseat-hook.ts';
-import type {
-  JudgeSeats,
-  SeatReadingClient,
+import {
+  type JudgeSeats,
+  reachableSeats,
+  type SeatReadingClient,
 } from '@monochromatic-dev/translation-repair-run/ts';
 
 //region Consolidation re-seating
@@ -40,6 +42,48 @@ import type {
 export type ConsolidationHooks = {
   readonly beforeSlice: () => Promise<ConsolidateSliceSeating>;
 };
+
+/**
+ Slate judges of one reading a wet provider would serve, which an eligible
+ standing is held to the selection's floor by before a slate is bought.
+
+ @param seats - benches as of this slice
+
+ @returns Reachable slate judges, counted
+
+ @example
+ ```ts
+ const reachable = slateReachOf({ seats, },);
+ ```
+ */
+export function slateReachOf(
+  { seats, }: { readonly seats: JudgeSeats; },
+): number {
+  return reachableSeats({
+    seats: seats.slateJudges,
+    dry: seats.dry,
+  },)
+    .length;
+}
+
+/**
+ Whether the seating last handed over states a slate reach below the floor.
+
+ READ AGAIN EVEN WHEN NO HOLD RUNS, since a provider whose hold ended is wet
+ again and the reach handed over would otherwise stay the one read before it.
+
+ @param seating - seating the hook last handed over
+
+ @returns True when an eligible standing would buy no slate on it
+
+ @example
+ ```ts
+ const stale = slateReachBelowFloor({ slateReachable: 1, },);
+ ```
+ */
+function slateReachBelowFloor(seating: ConsolidateSliceSeating,): boolean {
+  return (seating.slateReachable !== undefined) && (seating.slateReachable < MIN_SELECTION_BALLOTS);
+}
 
 /**
  What the consolidation takes from a seat reading: the writers, slate judges
@@ -85,6 +129,7 @@ function consolidationSeatingOf(
     .join(',',);
   return {
     seating: {
+      slateReachable: slateReachOf({ seats, },),
       roster: {
         modelIds: seats.writers,
         judgeModelIds: seats.slateJudges,
@@ -111,6 +156,10 @@ function consolidationSeatingOf(
 
  @param l - entry logger
 
+ @param startedSlateReachable - reachable slate judges in the reading the
+ consolidation started on, which a slice keeps until a hold or a reach below
+ the floor makes the hook read again; absent where the caller did not count
+
  @returns Per-slice wait, handing the slice the roster it runs on
 
  @example
@@ -124,11 +173,13 @@ export function consolidationHooksFor(
     signal,
     prepared,
     l,
+    startedSlateReachable,
   }: {
     readonly client: SeatReadingClient;
     readonly signal: AbortSignal;
     readonly prepared: PreparedDocumentPair;
     readonly l: Logger;
+    readonly startedSlateReachable?: number;
   },
 ): ConsolidationHooks {
   return {
@@ -136,7 +187,8 @@ export function consolidationHooksFor(
       client,
       signal,
       phase: 'consolidation',
-      unseated: {},
+      unseated: (startedSlateReachable === undefined) ? {} : { slateReachable: startedSlateReachable, },
+      staleWhen: slateReachBelowFloor,
       seatingOf: function seatingOfThisPage(
         { seats, }: { readonly seats: JudgeSeats; },
       ): Reseated<ConsolidateSliceSeating> {

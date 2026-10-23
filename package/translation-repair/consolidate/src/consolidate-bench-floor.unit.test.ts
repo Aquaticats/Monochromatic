@@ -151,6 +151,46 @@ async function buyWithReach(
   },);
 }
 
+/**
+ Counts the calls a purchase makes against a client that refuses them all,
+ whatever the purchase then does about the refusals.
+
+ @param slateReachable - slate judges a wet provider would serve, absent when not counted
+
+ @param standingEligible - whether the standing passed the deterministic gate
+
+ @returns Calls made
+
+ @example
+ ```ts
+ const made = await callsMade({ slateReachable: 2, },);
+ ```
+ */
+async function callsMade(
+  {
+    slateReachable,
+    standingEligible,
+  }: {
+    readonly slateReachable?: number;
+    readonly standingEligible?: boolean;
+  },
+): Promise<number> {
+  const { client, calls, } = refusingClient();
+  try {
+    await buyWithReach({
+      client,
+      lines: [],
+      ...((slateReachable === undefined) ? {} : { slateReachable, }),
+      ...((standingEligible === undefined) ? {} : { standingEligible, }),
+    },);
+  }
+  catch (error) {
+    // A purchase whose producers all refuse ends in the stage's interruption, which is not what this counts.
+    expect(Error.isError(error,),).toBe(true,);
+  }
+  return calls.count;
+}
+
 await describe({
   name: '',
   concurrency: 1,
@@ -167,6 +207,11 @@ await describe({
             const { client, calls, } = refusingClient();
             const lines: string[] = [];
             const settlement = await buyWithReach({ client, lines, slateReachable: 1, },);
+            /**
+             The line the skip writes.
+             */
+            const skipLine = '[consolidate-bench-floor-test] slice 7: 1 of 3 slate judges reachable, '
+              + 'below the floor of 2; no slate is bought and the standing is kept';
             expect({
               calls: calls.count,
               terminal: settlement.terminal,
@@ -184,10 +229,7 @@ await describe({
               text: STANDING,
               benchBelowFloor: true,
               floorFinding: true,
-              said: [
-                '[consolidate-bench-floor-test] slice 7: 1 of 3 slate judges reachable, '
-                + 'below the floor of 2; no slate is bought and the standing is kept',
-              ],
+              said: [skipLine,],
             },);
           },
         },),
@@ -209,21 +251,10 @@ await describe({
           name: 'ASKS AS BEFORE once the slate bench meets the floor, when the caller did not count, and when the '
             + 'standing is ineligible, since an ineligible standing is withheld and its slate may still ship',
           fn: async () => {
-            const met = refusingClient();
-            const uncounted = refusingClient();
-            const ineligible = refusingClient();
-            await buyWithReach({ client: met.client, lines: [], slateReachable: 2, },).catch(() => undefined);
-            await buyWithReach({ client: uncounted.client, lines: [], },).catch(() => undefined);
-            await buyWithReach({
-              client: ineligible.client,
-              lines: [],
-              slateReachable: 1,
-              standingEligible: false,
-            },).catch(() => undefined);
             expect({
-              metAsked: met.calls.count > 0,
-              uncountedAsked: uncounted.calls.count > 0,
-              ineligibleAsked: ineligible.calls.count > 0,
+              metAsked: (await callsMade({ slateReachable: 2, },)) > 0,
+              uncountedAsked: (await callsMade({},)) > 0,
+              ineligibleAsked: (await callsMade({ slateReachable: 1, standingEligible: false, },)) > 0,
             },).toEqual({
               metAsked: true,
               uncountedAsked: true,

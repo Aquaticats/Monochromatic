@@ -16,10 +16,14 @@ import {
   type LaneText,
 } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 import {
+  MIN_SELECTION_BALLOTS,
   TranslationRepairInterruptedError,
   unflooredFinding,
 } from '@monochromatic-dev/translation-repair-translate-stage/ts';
-import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  benchBelowFloorStageFinding,
+  type StageSettings,
+} from '@monochromatic-dev/translation-repair-stage/ts';
 
 //region Consolidate slice buy
 
@@ -55,6 +59,12 @@ type ConsolidationBuyInput = {
    seventy-seven); both widened to the majority on 2026-10-11.
    */
   readonly runoffOverStanding?: boolean;
+  /**
+   Slate judges a wet provider would serve right now, absent where the caller
+   did not count; fewer than the ballots a winner needs buy no slate for an
+   eligible standing.
+   */
+  readonly slateReachable?: number;
   readonly signal: AbortSignal;
   readonly perCallTimeoutMs: number;
   readonly l: Logger;
@@ -96,6 +106,10 @@ type ConsolidationBuyInput = {
 
  @param standingRefusal - why the deterministic gate refused the baseline,
  shown to the gate judges
+
+ @param slateReachable - slate judges a wet provider would serve, which an
+ eligible standing keeps itself on, unasked, when they are fewer than the
+ ballots a winner needs (XingZ6020: 54 slices, 164 calls)
 
  @param signal - caller abort honored by every exchange
 
@@ -144,6 +158,7 @@ async function buyConsolidationAttempt(
     standingFindings = [],
     laneTexts = [],
     runoffOverStanding = false,
+    slateReachable,
     signal,
     perCallTimeoutMs,
     l,
@@ -224,6 +239,51 @@ async function buyConsolidationAttempt(
       validity: [],
       producedFindings: standingFindings,
     },);
+  }
+
+  // A SLATE BENCH BELOW THE FLOOR BUYS NO SLATE FOR AN ELIGIBLE STANDING. Fewer reachable judges than the ballots a
+  // winner needs can only name a winner alone, which the selection declines, so the writers and the judges would be
+  // paid for a slate that settles on the standing it started from (XingZ6020: 54 slices, 164 calls). An ineligible
+  // standing is still asked, since its slate may be the only wording that ships. The settlement is marked so a later
+  // pass on a healthier bench asks again.
+  /**
+   Whether the slate bench reads below the floor for a standing that may be kept unasked.
+   */
+  const benchBelowFloor = (slateReachable !== undefined)
+    && (slateReachable < MIN_SELECTION_BALLOTS)
+    && standingEligible
+    && (laneTexts.length === 0);
+  if (benchBelowFloor) {
+    /**
+     The line saying why no slate is bought.
+     */
+    const skipped = [
+      `slice ${String(sliceIndex,)}: ${String(slateReachable,)} of ${String(judgeModelIds.length,)} slate judges `
+        + `reachable, below the floor of ${String(MIN_SELECTION_BALLOTS,)}`,
+      'no slate is bought and the standing is kept',
+    ].join('; ',);
+    l.warn(skipped,);
+    /**
+     The standing kept on the incumbent-only exit, before the mark.
+     */
+    const kept = await settleConsolidation({
+      ...question,
+      voices: [],
+      validity: [],
+      producedFindings: [
+        ...standingFindings,
+        benchBelowFloorStageFinding({
+          stage: 'consolidate-slate',
+          reachable: slateReachable,
+          benchSize: judgeModelIds.length,
+          floor: MIN_SELECTION_BALLOTS,
+        },),
+      ],
+    },);
+    return {
+      ...kept,
+      benchBelowFloor: true,
+    };
   }
 
   /**
