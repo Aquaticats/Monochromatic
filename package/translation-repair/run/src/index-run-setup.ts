@@ -85,6 +85,10 @@ export {
   type SeatReadingClient,
   type WarnedState,
 } from './corpus-run/run-seats-read.ts';
+export {
+  benchFloorOf,
+  liftOf,
+} from './corpus-run/run-seats-bench-floor.ts';
 export { ceilingWordsOf, } from './corpus-run/run-seats-ceiling.ts';
 export { meterDryOf, } from './corpus-run/run-seats-hold-need.ts';
 export { seatWithoutWaiting, } from './corpus-run/run-seats-no-wait.ts';

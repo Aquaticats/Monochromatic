@@ -413,9 +413,9 @@ await describe({
 
     it({
       name: 'ceilingWordsOf STATES ONE CLAUSE PER SHORT BENCH IN THE ORDER THE BENCHES ARE NAMED, and none for a bench '
-        + 'that reads its quorum: with Synthetic held the wide bench reads 1 of 7 and the readers, which Synthetic does '
-        + 'not serve, are not short',
-      fn: () => {
+        + 'that reads its quorum: with Synthetic held the wide and select benches read 1 of 7 and 3 of 7 back, and '
+        + 'with Bedrock, Hyper and OpenRouter wet the wide bench reads its quorum and has no clause',
+      fn: async () => {
         const clauses = ceilingWordsOf({
           running: providerRecord({ of: (provider) => (provider === 'synthetic') ? SHORT_HOLD_MS : 0, },),
           dry: SYNTHETIC_HELD,
@@ -440,7 +440,7 @@ await describe({
     it({
       name: 'ceilingWordsOf LEAVES A METER-DRY HELD PROVIDER OUT OF THE RETURN and says so, and says nothing of the '
         + 'ceiling for a bench over its floor when no hold runs',
-      fn: () => {
+      fn: async () => {
         const clauses = ceilingWordsOf({
           running: providerRecord({ of: (provider) => (provider === 'neuralwatt') ? SHORT_HOLD_MS : 0, },),
           dry: BEDROCK_ALONE,
@@ -449,8 +449,8 @@ await describe({
         },);
         expect(clauses,).toEqual([
           'translators ceiling 2 of 8 with no held provider back, floor 2 and quorum 4, so no return lifts it to the '
-          + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter, which a hold ending does not '
-          + 'change)',
+            + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter, which a hold ending does not '
+            + 'change)',
         ],);
         expect(ceilingWordsOf({
           running: NO_HOLDS,
