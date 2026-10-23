@@ -16,10 +16,12 @@ import {
 import {
   droppedRunSets,
   type PageGrammarReading,
+  slicesRefusedAsLiteral,
   withoutSourceRecordAt,
   wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
 import {
+  refusingNope,
   sourceShippedArtifact,
   type SourceShippedRow,
 } from './source-shipped.test-fixture.ts';
@@ -47,27 +49,6 @@ const ROWS: readonly SourceShippedRow[] = [
 ];
 
 /**
- A grammar that refuses a text holding NOPE, written or not.
-
- @param pageText - page or fragment
-
- @returns Refusal for a text holding the word, a parse otherwise
-
- @example
- ```ts
- const reading = refusingNope({ pageText: 'NOPE', },);
- ```
- */
-function refusingNope({ pageText, }: { readonly pageText: string; },): PageGrammarReading {
-  return pageText.includes('NOPE',)
-    ? {
-      kind: 'refused',
-      refusal: 'at 1:1 (test/nope)',
-    }
-    : { kind: 'parses', };
-}
-
-/**
  A grammar that refuses a text holding a brace that nothing escapes.
 
  @param pageText - page or fragment
@@ -80,12 +61,14 @@ function refusingNope({ pageText, }: { readonly pageText: string; },): PageGramm
  ```
  */
 function refusingBareBrace({ pageText, }: { readonly pageText: string; },): PageGrammarReading {
-  return pageText
-      .replaceAll(
-        String.raw`\{`,
-        '',
-      )
-      .includes('{',)
+  /**
+   The text without the braces that are escaped.
+   */
+  const unescaped = pageText.replaceAll(
+    String.raw`\{`,
+    '',
+  );
+  return unescaped.includes('{',)
     ? {
       kind: 'refused',
       refusal: 'at 1:1 (test/brace)',
@@ -133,10 +116,16 @@ await describe({
                     incumbentText: '',
                     sourceText: '{ 她说\n',
                   },
+                  ROWS[2] as SourceShippedRow,
+                  ROWS[3] as SourceShippedRow,
                 ],
               },),
               readGrammar: refusingBareBrace,
-            },),).toEqual([[1,],],);
+            },),).toEqual([[1, 3,],],);
+            expect(slicesRefusedAsLiteral({
+              artifact: sourceShippedArtifact({ rows: ROWS, },),
+              readGrammar: refusingNope,
+            },),).toEqual([1,],);
           },
         },),
 

@@ -2,8 +2,6 @@ import {
   type Logger,
   tagged,
 } from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
-import { commentRegionsOf, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   type SliceReplacement,
   spliceSlices,
@@ -15,9 +13,16 @@ import {
 } from './page-grammar.ts';
 import type { PublishDefect, } from './publish-defects.ts';
 import { shippableReplacements, } from './shippable-replacements.ts';
-import { textOnPage, } from './source-ships.ts';
+import { withoutSourceRecordAt, } from './source-ships.ts';
 import {
-  type WouldShipSlice,
+  droppedRunSets,
+  type GrammarReader,
+  holdsOpenComment,
+  namedSlices,
+  runTextOf,
+  sourceRunsOf,
+} from './source-ships-runs.ts';
+import {
   type WouldShipSource,
   wouldShipTextPerSlice,
 } from './would-ship-text.ts';
@@ -32,17 +37,21 @@ import {
 // written as the artifact records it, and it is the page whenever it parses. Otherwise:
 //
 // 1. Only the source runs that do not parse as a text of their own, and those holding an HTML comment that never
-//    closes, are written as literal text (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping their original, the unit the note
-//    stands before, so a tag opened in one slice and closed in the next is read as the pair it is.
+//    closes, are written as literal text (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping
+//    their original, the unit the note stands before, so a tag opened in one slice and closed in the next is read as
+//    the pair it is.
 // 2. If the page still does not parse, every source run is written as literal text.
-// 3. If it still does not, the page ships without its source runs, the silent gap the pages had before the ruling, and
-//    the defect `page-source-unparseable` names the slices.
+// 3. If it still does not, the page ships without the source runs no writing makes parse (the runs the grammar refuses
+//    even as literal text, `source-ships-runs.ts`), and where that does not help or no such run is found, without
+//    every source run, the silent gap the pages had before the ruling. The defect `page-source-unparseable` names the
+//    slices left off, and the page is weighed against the artifact without those slices' originals
+//    (`ComposedPage.weighed`), the same sets a page on disk is judged against (`page-agreement.ts`).
 //
 // Each step that is taken writes one warn line naming the step and the slices. A step whose page equals the page last
 // tried changed nothing and is not taken. A run holding a comment that never closes is one no grammar reading can
 // vouch for: the package masks everything after such an opener, so a page that "parses" with it hides the rest of the
-// page from the package's own parser, and it never ships as written. The original differs from the artifact's record only on these paths; with
-// the page parsing as recorded, nothing here touches a byte of it.
+// page from the package's own parser, and it never ships as written. The original differs from the artifact's record
+// only on these paths; with the page parsing as recorded, nothing here touches a byte of it.
 
 /**
  Names a step of the composition.
@@ -51,11 +60,6 @@ import {
  written as literal text, `encoded-every-run` all of them, and `dropped` the page without any.
  */
 export type SourcePageStep = 'as-written' | 'dropped' | 'encoded-every-run' | 'encoded-failing-runs';
-
-/**
- What the grammar says of a text, handed to the composition so a case can stand in for it.
- */
-export type GrammarReader = (arguments_: { readonly pageText: string; },) => PageGrammarReading;
 
 /**
  A page composed, and how.
@@ -86,6 +90,12 @@ export type ComposedPage = {
    Defects the composition reports, the page without its originals among them.
    */
   readonly defects: readonly PublishDefect[];
+
+  /**
+   The artifact the page is weighed against: the settled one itself, or without its record of the originals the page
+   was shipped without, whose absence `page-source-unparseable` already names.
+   */
+  readonly weighed: WouldShipSource;
 };
 
 /**
@@ -116,11 +126,6 @@ type Step = {
    Slices the step writes as literal text.
    */
   readonly encoded: readonly number[];
-
-  /**
-   Whether originals are on the page at all.
-   */
-  readonly includeSource: boolean;
 };
 
 /**
@@ -170,133 +175,6 @@ export class SourcePageCompositionError extends Error {
     this.name = 'SourcePageCompositionError';
     this.entryId = entryId;
   }
-}
-
-/**
- Groups the slices that ship their original into runs.
-
- @param slices - every slice's reading, in comparison-row order
-
- @returns Slice indices of each run, in page order; none when no slice ships its original
-
- @example
- ```ts
- const runs = sourceRunsOf({ slices: wouldShipTextPerSlice({ artifact, },), },);
- ```
- */
-export function sourceRunsOf(
-  { slices, }: { readonly slices: readonly WouldShipSlice[]; },
-): readonly (readonly number[])[] {
-  /**
-   Runs found so far, the last of which a continuing slice joins.
-   */
-  const runs: number[][] = [];
-  for (const slice of slices) {
-    /**
-     What the slice ships.
-     */
-    const { reading, } = slice;
-    if (reading.kind !== 'source-ships')
-      continue;
-    if (reading.opensRun) {
-      runs.push([slice.sliceIndex,],);
-      continue;
-    }
-    /**
-     The run this slice continues.
-     */
-    const run = nonNullishOrThrow(runs.at(-1,),);
-    run.push(slice.sliceIndex,);
-  }
-  return runs;
-}
-
-/**
- Text a run of slices would make of a page of its own, as the page carries it.
-
- @param run - slice indices of the run
-
- @param slices - every slice's reading, in comparison-row order
-
- @returns Note and originals, one blank line apart
-
- @example
- ```ts
- const text = runTextOf({ run: [88, 89,], slices, },);
- ```
- */
-function runTextOf(
-  {
-    run,
-    slices,
-  }: {
-    readonly run: readonly number[];
-    readonly slices: readonly WouldShipSlice[];
-  },
-): string {
-  /**
-   What each slice of the run puts on the page.
-   */
-  const texts = slices.flatMap(function textOf(slice,): readonly string[] {
-    /**
-     What the slice ships.
-     */
-    const { reading, } = slice;
-    return (run.includes(slice.sliceIndex,) && (reading.kind === 'source-ships'))
-      ? [textOnPage({ reading, },),]
-      : [];
-  },);
-  return `${texts.join('\n\n',)}\n`;
-}
-
-/**
- Whether the text a run puts on the page opens an HTML comment that never closes.
-
- @param run - slice indices of the run
-
- @param slices - every slice's reading, in comparison-row order
-
- @returns Whether the run's own text has such an opener
-
- @example
- ```ts
- const open = holdsOpenComment({ run: [88, 89,], slices, },);
- ```
- */
-function holdsOpenComment(
-  {
-    run,
-    slices,
-  }: {
-    readonly run: readonly number[];
-    readonly slices: readonly WouldShipSlice[];
-  },
-): boolean {
-  return commentRegionsOf({
-    text: runTextOf({
-      run,
-      slices,
-    },),
-  },)
-    .some(function neverCloses({ terminated, },): boolean {
-      return !terminated;
-    },);
-}
-
-/**
- Names slices the way every line of the composition prints them.
-
- @param indices - slice indices
-
- @returns `[1, 3]`
-
- @example
- ```ts
- const named = namedSlices({ indices: [1, 3,], },);
- ```
- */
-function namedSlices({ indices, }: { readonly indices: readonly number[]; },): string {
-  return `[${indices.join(', ',)}]`;
 }
 
 /**
@@ -362,34 +240,41 @@ export function composeSourcePage(
   const everySource = runs.flat();
 
   /**
-   Composes the page with the given slices written as literal text, or without any original.
+   Composes the page with the given slices written as literal text and the given slices left off it.
 
    @param encoded - slices to write as literal text
 
-   @param includeSource - whether originals are on the page at all
+   @param dropped - slices whose original is not on the page
 
-   @returns Page and what it was spliced from
+   @returns Page, what it was spliced from and the artifact it is weighed against
 
    @example
    ```ts
-   const page = pageWith({ encoded: [], includeSource: true, },);
+   const page = pageWith({ encoded: [], dropped: [], },);
    ```
    */
   function pageWith(
     {
       encoded,
-      includeSource,
+      dropped,
     }: {
       readonly encoded: readonly number[];
-      readonly includeSource: boolean;
+      readonly dropped: readonly number[];
     },
-  ): Pick<ComposedPage, 'pageText' | 'replacements'> {
+  ): Pick<ComposedPage, 'pageText' | 'replacements' | 'weighed'> {
+    /**
+     The artifact the page is read from: the settled one, or without its record of the originals left off.
+     */
+    const weighed = withoutSourceRecordAt({
+      artifact,
+      slices: dropped,
+    },);
     /**
      What each slice contributes.
      */
     const replacements = shippableReplacements({
-      artifact,
-      includeSource,
+      artifact: weighed,
+      includeSource: true,
       encodedSlices: new Set(encoded,),
     },);
     return {
@@ -399,6 +284,7 @@ export function composeSourcePage(
         replacements,
       },),
       replacements,
+      weighed,
     };
   }
 
@@ -407,7 +293,7 @@ export function composeSourcePage(
    */
   const written = pageWith({
     encoded: [],
-    includeSource: true,
+    dropped: [],
   },);
   /**
    What the grammar says of it, which is not asked where no slice ships its original.
@@ -455,7 +341,7 @@ export function composeSourcePage(
     },)
     .flat();
   /**
-   Steps in order.
+   Steps that write originals as literal text, in order.
    */
   const steps: readonly Step[] = [
     {
@@ -464,7 +350,6 @@ export function composeSourcePage(
       does: 'writing the source runs that do not parse alone as literal text',
       makes: 'the page with the source runs that do not parse alone written as literal text',
       encoded: failingAlone,
-      includeSource: true,
     },
     {
       step: 'encoded-every-run',
@@ -472,15 +357,6 @@ export function composeSourcePage(
       does: 'writing every source run as literal text',
       makes: 'the page with every source run written as literal text',
       encoded: everySource,
-      includeSource: true,
-    },
-    {
-      step: 'dropped',
-      number: 3,
-      does: 'shipping the page without its source runs',
-      makes: 'the page without its source runs',
-      encoded: [],
-      includeSource: false,
     },
   ];
   /**
@@ -499,36 +375,16 @@ export function composeSourcePage(
      */
     const candidate = pageWith({
       encoded: attempt.encoded,
-      includeSource: attempt.includeSource,
+      dropped: [],
     },);
-    // A STEP THAT CHANGES NOTHING IS NOT TAKEN: the page is the one the grammar has just refused. The last step is
-    // taken whatever it changes, since it is the one that always ships.
-    if ((candidate.pageText === last.pageText) && (attempt.step !== 'dropped'))
+    // A STEP THAT CHANGES NOTHING IS NOT TAKEN: the page is the one the grammar has just refused.
+    if (candidate.pageText === last.pageText)
       continue;
-    /**
-     Slices the step touches, in page order.
-     */
-    const touched = (attempt.step === 'dropped') ? everySource : attempt.encoded;
     log.warn(
       `entry ${entryId}: ${last.what} ${last.problem}; step ${String(attempt.number,)} of 3: ${
         attempt.does
-      }, slices ${namedSlices({ indices: touched, },)}`,
+      }, slices ${namedSlices({ indices: attempt.encoded, },)}`,
     );
-    if (attempt.step === 'dropped') {
-      return {
-        ...candidate,
-        step: attempt.step,
-        slices: touched,
-        defects: [
-          {
-            check: 'page-source-unparseable',
-            message: `entry ${entryId} ships without the source text of slices ${
-              namedSlices({ indices: touched, },)
-            }, since the page did not parse with it as written or as literal text`,
-          },
-        ],
-      };
-    }
     /**
      What the grammar says of the page this step makes.
      */
@@ -537,13 +393,66 @@ export function composeSourcePage(
       return {
         ...candidate,
         step: attempt.step,
-        slices: touched,
+        slices: attempt.encoded,
         defects: [],
       };
     }
     last.pageText = candidate.pageText;
     last.what = attempt.makes;
     last.problem = `does not parse (${reading.refusal})`;
+  }
+
+  // THE THIRD STEP SHIPS WITHOUT THE RUNS NO WRITING MAKES PARSE, then without every run. It is taken whatever it
+  // changes, since it is the one that always ships, and the sets are the ones a page on disk is judged against.
+  /**
+   Sets of slices to leave off, the last of which is every run.
+   */
+  const dropSets = droppedRunSets({
+    artifact,
+    readGrammar,
+  },);
+  for (const [
+    at,
+    dropped,
+  ] of dropSets.entries()) {
+    /**
+     The page without these slices, the ones failing alone and still on it written as literal text.
+     */
+    const candidate = pageWith({
+      encoded: failingAlone.filter(function stillOnPage(slice,): boolean {
+        return !dropped.includes(slice,);
+      },),
+      dropped,
+    },);
+    // A SET BEFORE THE LAST IS TAKEN ONLY WHEN THE PAGE WITHOUT IT PARSES.
+    if (at < (dropSets.length - 1)) {
+      /**
+       What the grammar says of the page without these slices.
+       */
+      const without = readGrammar({ pageText: candidate.pageText, },);
+      if (without.kind === 'refused')
+        continue;
+    }
+    log.warn(
+      `entry ${entryId}: ${last.what} ${last.problem}; step 3 of 3: ${
+        (dropped.length === everySource.length)
+          ? 'shipping the page without its source runs'
+          : 'shipping the page without the source runs no writing makes parse'
+      }, slices ${namedSlices({ indices: dropped, },)}`,
+    );
+    return {
+      ...candidate,
+      step: 'dropped',
+      slices: dropped,
+      defects: [
+        {
+          check: 'page-source-unparseable',
+          message: `entry ${entryId} ships without the source text of slices ${
+            namedSlices({ indices: dropped, },)
+          }, since the page did not parse with it as written or as literal text`,
+        },
+      ],
+    };
   }
   throw new SourcePageCompositionError({ entryId, },);
 }

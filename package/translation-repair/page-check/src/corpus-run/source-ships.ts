@@ -99,28 +99,55 @@ export function carryingSource(
 }
 
 /**
- The same artifact without its record of the originals, which reads every slice shipping its original as silent.
+ The same artifact without its record of the originals of some slices, which reads those slices as silent and the others
+ as they were.
 
  @param artifact - source being read
 
- @returns Artifact whose slices nothing fills are silent again
+ @param slices - slice indices whose original the page is shipped without
+
+ @returns Artifact whose named slices nothing fills are silent again; the artifact itself where none is named
 
  @example
  ```ts
- const english = withoutSourceRecord({ artifact, },);
+ const weighed = withoutSourceRecordAt({ artifact, slices: [88, 89,], },);
  ```
  */
-export function withoutSourceRecord(
-  { artifact, }: { readonly artifact: WouldShipSource; },
-): WouldShipSource {
+export function withoutSourceRecordAt<Artifact extends WouldShipSource>(
+  {
+    artifact,
+    slices,
+  }: {
+    readonly artifact: Artifact;
+    readonly slices: readonly number[];
+  },
+): Artifact {
   /**
-   Everything the artifact holds but the lanes.
+   The record of the originals, absent for a source composing the English alone.
    */
-  const {
-    lanes: _record,
-    ...rest
-  } = artifact;
-  return rest;
+  const { lanes, } = artifact;
+  if ((lanes === undefined) || (slices.length === 0))
+    return artifact;
+  /**
+   The rows recording the originals.
+   */
+  const { delivery: rows, } = lanes.translate;
+  /**
+   The rows of the slices whose original stays on the page.
+   */
+  const delivery = rows.filter(function stays(row,): boolean {
+    return !slices.includes(row.sliceIndex,);
+  },);
+  return {
+    ...artifact,
+    lanes: {
+      ...lanes,
+      translate: {
+        ...lanes.translate,
+        delivery,
+      },
+    },
+  };
 }
 
 /**

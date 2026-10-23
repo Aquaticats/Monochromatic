@@ -161,7 +161,7 @@ export {
   type SourceEncoding,
   textOnPage,
   UNTRANSLATED_PASSAGE_NOTE,
-  withoutSourceRecord,
+  withoutSourceRecordAt,
 } from './corpus-run/source-ships.ts';
 export { encodeAsLiteralMdx, } from './corpus-run/source-ships-encoding.ts';
 export {
@@ -173,11 +173,16 @@ export {
 export {
   type ComposedPage,
   composeSourcePage,
-  type GrammarReader,
   SourcePageCompositionError,
   type SourcePageStep,
-  sourceRunsOf,
 } from './corpus-run/source-ships-compose.ts';
+export {
+  droppedRunSets,
+  type GrammarReader,
+  namedSlices,
+  slicesRefusedAsLiteral,
+  sourceRunsOf,
+} from './corpus-run/source-ships-runs.ts';
 export { unifyQuoteStyle, } from './corpus-run/quote-style-unify.ts';
 export {
   applySpanRewrites,

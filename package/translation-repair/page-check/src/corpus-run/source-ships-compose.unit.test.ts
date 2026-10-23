@@ -34,6 +34,7 @@ import {
   wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
 import {
+  refusingNope,
   sourceShippedArchive,
   sourceShippedArtifact,
   type SourceShippedRow,
@@ -144,29 +145,6 @@ function refusingBadBraces({ pageText, }: { readonly pageText: string; },): Page
     ? {
       kind: 'refused',
       refusal: 'at 1:1 (test/braces)',
-    }
-    : { kind: 'parses', };
-}
-
-/**
- A grammar that refuses a text, whether a page or a fragment of its own, that holds the word NOPE.
-
- STANDS FOR A RUN THAT NO WRITING MAKES PARSE, which the real grammar has for nesting past a bound.
-
- @param pageText - page or fragment
-
- @returns Refusal for a text holding the word, a parse otherwise
-
- @example
- ```ts
- const reading = refusingNope({ pageText: 'NOPE', },);
- ```
- */
-function refusingNope({ pageText, }: { readonly pageText: string; },): PageGrammarReading {
-  return pageText.includes('NOPE',)
-    ? {
-      kind: 'refused',
-      refusal: 'at 1:1 (test/nope)',
     }
     : { kind: 'parses', };
 }

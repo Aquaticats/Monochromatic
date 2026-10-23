@@ -24,7 +24,6 @@ import {
 } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { composeSourcePage, } from './source-ships-compose.ts';
-import { withoutSourceRecord, } from './source-ships.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 import {
   assertFrontMatterComplete,
@@ -259,10 +258,10 @@ export async function publishFixedPage(
   // as one is among them, a defect no slice floor can see since a slice holds
   // one heading (yulianNyanner, 2026-09-06).
   /**
-   The artifact the page is weighed against: itself, or without its record of the originals for the page shipped without
-   them, whose missing originals `page-source-unparseable` already names (the lanes' record stays the artifact's own).
+   The artifact the page is weighed against: itself, or without its record of the originals the page was shipped without,
+   whose missing originals `page-source-unparseable` already names (the lanes' record stays the artifact's own).
    */
-  const weighed = (composed.step === 'dropped') ? withoutSourceRecord({ artifact, },) : artifact;
+  const { weighed, } = composed;
   /**
    Failed content checks the page ships with.
    */

@@ -1,7 +1,10 @@
 import type { ArtifactComparisonRow, } from '@monochromatic-dev/translation-repair-artifact-pool';
 import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
-import type { WouldShipSource, } from '../../dist/final/node/index.mjs';
+import type {
+  PageGrammarReading,
+  WouldShipSource,
+} from '../../dist/final/node/index.mjs';
 
 //region Source shipped fixtures
 // AN ENTRY WHOSE ARCHIVE STOPS BEFORE THE ORIGINAL DOES: the slices the archive
@@ -226,6 +229,29 @@ export function sourceShippedArchive(
       return incumbentText;
     },)
     .join('',);
+}
+
+/**
+ A grammar that refuses a text, whether a page or a fragment of its own, that holds the word NOPE.
+
+ STANDS FOR A RUN THAT NO WRITING MAKES PARSE, which the real grammar has for nesting past a bound.
+
+ @param pageText - page or fragment
+
+ @returns Refusal for a text holding the word, a parse otherwise
+
+ @example
+ ```ts
+ const reading = refusingNope({ pageText: 'NOPE', },);
+ ```
+ */
+export function refusingNope({ pageText, }: { readonly pageText: string; },): PageGrammarReading {
+  return pageText.includes('NOPE',)
+    ? {
+      kind: 'refused',
+      refusal: 'at 1:1 (test/nope)',
+    }
+    : { kind: 'parses', };
 }
 
 //endregion Source shipped fixtures

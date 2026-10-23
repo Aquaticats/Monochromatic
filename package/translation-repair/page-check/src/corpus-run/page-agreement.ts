@@ -1,4 +1,10 @@
 import type { ParsedArchiveText, } from '@monochromatic-dev/translation-repair-artifact/ts';
+import { withoutSourceRecordAt, } from './source-ships.ts';
+import {
+  droppedRunSets,
+  type GrammarReader,
+  slicesRefusedAsLiteral,
+} from './source-ships-runs.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 import {
   type PageLengthCheck,
@@ -78,24 +84,29 @@ export type PageAgreement = {
    Whether the length says text no slice decided on was lost or added.
    */
   readonly wrongLength: boolean;
+
+  /**
+   Slices whose original the page was shipped without because no writing of it parses (`page-source-unparseable`), none
+   for a page that carries what its artifact says or lost something else.
+   */
+  readonly sourceDropped: readonly number[];
 };
 
 /**
- Judges one page against its artifact.
+ Judges one page against one reading of its artifact.
 
- @param artifact - settled artifact, read for what each slice ships and the
- archive text it stored
+ @param artifact - settled artifact, read for what each slice ships and the archive text it stored
 
  @param pageText - page as it sits on disk
 
- @returns The verdict and what decided it
+ @returns The verdict and what decided it, with no slice recorded as left off
 
  @example
  ```ts
- if (pageAgreement({ artifact, pageText, },).agreement === 'disagreed') republish();
+ const judged = judgeAgainst({ artifact, pageText, },);
  ```
  */
-export function pageAgreement(
+function judgeAgainst(
   {
     artifact,
     pageText,
@@ -146,7 +157,90 @@ export function pageAgreement(
     wording,
     weight,
     wrongLength,
+    sourceDropped: [],
   };
+}
+
+/**
+ Judges one page against its artifact.
+
+ A PAGE SHIPPED WITHOUT A SOURCE RUN IS JUDGED AGAINST THE ARTIFACT WITHOUT THAT RUN'S ORIGINAL. The composition ships
+ such a page (`source-ships-compose.ts`) when no writing of the run makes the grammar accept it, and it names the sets
+ it leaves off through `droppedRunSets`, the function asked here. The sets are tried only for a page that disagrees as
+ recorded, so a page agreeing with every original costs no grammar read, and a page that lost text elsewhere still
+ disagrees under each of them.
+
+ @param artifact - settled artifact, read for what each slice ships and the
+ archive text it stored
+
+ @param pageText - page as it sits on disk
+
+ @param readGrammar - what the grammar says of a text, the strict MDX grammar the site compiles with by default
+
+ @returns The verdict and what decided it
+
+ @example
+ ```ts
+ if (pageAgreement({ artifact, pageText, },).agreement === 'disagreed') republish();
+ ```
+ */
+export function pageAgreement(
+  {
+    artifact,
+    pageText,
+    readGrammar,
+  }: {
+    readonly artifact: AgreementSource;
+    readonly pageText: string;
+    readonly readGrammar?: GrammarReader;
+  },
+): PageAgreement {
+  /**
+   The page against every original the artifact records.
+   */
+  const asRecorded = judgeAgainst({
+    artifact,
+    pageText,
+  },);
+  if (asRecorded.agreement !== 'disagreed')
+    return asRecorded;
+  /**
+   What the grammar says of each run, handed on only where a case stands in for it.
+   */
+  const grammar = (readGrammar === undefined) ? {} : { readGrammar, };
+  // ONLY AN ARTIFACT WITH A RUN NO WRITING MAKES PARSE can have been shipped without one, so a page lacking runs the
+  // grammar accepts is a page that lost them.
+  /**
+   Slices of the runs no writing makes parse.
+   */
+  const unwritable = slicesRefusedAsLiteral({
+    artifact,
+    ...grammar,
+  },);
+  if (unwritable.length === 0)
+    return asRecorded;
+  for (const dropped of droppedRunSets({
+    artifact,
+    ...grammar,
+  },)) {
+    /**
+     The page against the artifact without the originals of these slices.
+     */
+    const judged = judgeAgainst({
+      artifact: withoutSourceRecordAt({
+        artifact,
+        slices: dropped,
+      },),
+      pageText,
+    },);
+    if (judged.agreement !== 'disagreed') {
+      return {
+        ...judged,
+        sourceDropped: dropped,
+      };
+    }
+  }
+  return asRecorded;
 }
 
 //endregion Page agreement
