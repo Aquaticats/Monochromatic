@@ -202,6 +202,9 @@ export {
   lineJoinsOf,
 } from './corpus-run/source-ships-lines.ts';
 export {
+  autolinkAsText,
+  autolinkWritten,
+  escapedLabel,
   explicitLink,
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';

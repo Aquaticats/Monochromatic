@@ -10,7 +10,7 @@ import {
   contentStretches,
   lineJoinsOf,
 } from './source-ships-lines.ts';
-import { linkInsteadOfAutolink, } from './source-ships-links.ts';
+import { autolinkWritten, } from './source-ships-links.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import { moduleEdits, } from './source-ships-module-line.ts';
 import {
@@ -54,7 +54,8 @@ export {
 // its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
 // the footnote and the plain parse for indented code. A label of a reference definition and of the references to it
 // are written alike, so the reference still resolves. An angle autolink inside the text of a link cannot become a link
-// of its own, which a link cannot hold: it is written as text there, and the reader sees the address as typed.
+// of its own, which a link cannot hold: its address is written as text there, without the brackets, and the reader
+// sees the address as the source shows it.
 
 /**
  Node types whose children are blocks, among which a raw HTML node is a block of its own.
@@ -78,11 +79,11 @@ const INLINE_CONTENT: ReadonlySet<string> = new Set([
 /**
  Reads where a text holds syntax, from the parse of it.
 
- @param source - the text, which edits and rewrites are made from
+ @param source - text, which edits and rewrites are made from
 
  @param root - parse of the text by the plain reading with the site's math
 
- @param readable - the text as the parse read it, with its comments blanked, the source itself where none is; a block
+ @param readable - text as the parse read it, with its comments blanked, the source itself where none is; a block
  nested in another is parsed from this
 
  @param isNested - whether the text is a block nested in another, none of whose nodes MDX reads as an ES module
@@ -219,8 +220,8 @@ export function spansOf(
       node,
     },);
     /**
-     Whether the node is indented code under a footnote definition, which the strict grammar reads as the blocks of the
-     definition.
+     Whether the node is indented code under a footnote definition, which the
+     strict grammar reads as the blocks of the definition.
      */
     const continuesFootnote = isRootChild
       && footnote.open
@@ -255,8 +256,8 @@ export function spansOf(
       text.push(range,);
       continue;
     }
-    // A RAW HTML BLOCK, which MDX does not have: it reads such lines as a paragraph, and the reader sees them as they
-    // stand.
+    // A RAW HTML BLOCK, which MDX does not have: it reads such lines as a
+    // paragraph, and the reader sees them as they stand.
     if (node.type === 'html') {
       literal.push(...contentStretches({
         source,
@@ -353,20 +354,17 @@ export function spansOf(
       continue;
     }
     // AN ANGLE AUTOLINK, which MDX reads as a tag, becomes a link, except inside the text of a link, which holds none:
-    // it is written as text there. Any other link keeps everything but its text.
+    // its address is written as text there, without the brackets. Any other link keeps everything but its text.
     if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
-      if (insideLink)
-        text.push(range,);
-      else {
-        edits.push({
-          ...range,
-          replacement: linkInsteadOfAutolink({
-            source,
-            url: node.url,
-            range,
-          },),
-        },);
-      }
+      edits.push({
+        ...range,
+        replacement: autolinkWritten({
+          source,
+          url: node.url,
+          range,
+          insideLink,
+        },),
+      },);
       continue;
     }
     if ((node.type === 'link') || (node.type === 'linkReference')) {

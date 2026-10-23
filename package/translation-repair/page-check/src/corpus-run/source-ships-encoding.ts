@@ -31,8 +31,8 @@ import {
 // (`&#105;mport` shows as `import`), and an angle autolink, which MDX reads as a tag, is written as a link with the
 // same text and target. Everything else is copied, which is the point of reading the structure from a parse and not
 // from lines: a fence is found wherever it stands (in a list item, in a block quote), as are code spans across lines,
-// math, link destinations and titles, bare addresses and escapes the original wrote, none of which a backslash may
-// touch.
+// math, link destinations and titles, bare addresses and escapes the
+// original wrote, none of which a backslash may touch.
 //
 // WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is met).
 // GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark takes for link
@@ -40,7 +40,7 @@ import {
 // footnote definition is a block of the footnote and no indented code. A bare address that a less-than sign ends is
 // written as a link with the same text and target (`source-ships-addresses.ts`), since a backslash written before the
 // sign is read as part of the address and an entity written for it is read as part of the address too. An angle
-// autolink inside the text of a link is written as text, since a link cannot hold a link.
+// autolink inside the text of a link is written as its address alone, since a link cannot hold a link.
 //
 // - `>` stays. It is syntax in MDX only inside a tag, and a `<` written as `\<` opens none; at the start of a line it
 //   is a block quote of the original, which encoding would turn into a line starting with a greater-than sign.
@@ -93,7 +93,10 @@ import {
 //
 // Smaller limits. The reach of a bare address is taken as up to the next space or less-than sign, as the GFM
 // autolink-literal pattern does. An opener of a comment that never closes is written as a character reference wherever
-// it stands, inside code too, where it shows as written.
+// it stands, inside code too, where it shows as written. An angle autolink inside the alternative text of an image is
+// written with a backslash before its less-than sign, as any text is, and the page shows the brackets there: the
+// alternative text of an image is a string to the plain parse, which holds no autolink node to write as its address
+// (`source-ships-encoding.unit.test.ts` pins the case).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
@@ -226,7 +229,7 @@ function blanking(
 /**
  Writes the stand-in of an opener over each place an opener stands.
 
- @param text - the text
+ @param text - text
 
  @param starts - index of the `<` of each opener, in text order
 
@@ -271,7 +274,7 @@ function standingIn(
 /**
  Where each `<!--` of a text stands from an index on.
 
- @param text - the text
+ @param text - text
 
  @param from - index to look from
 
@@ -313,7 +316,7 @@ function openerStarts(
 /**
  Gives a text to the parse as the page holds it: a byte order mark that opens it is an ordinary character there.
 
- @param text - the text
+ @param text - text
 
  @returns Text of the same length, with a letter in place of a mark that opens it
 
@@ -329,7 +332,7 @@ function asTheParseReadsIt({ text, }: { readonly text: string; },): string {
 /**
  Reads what a text holds, with its comments out of the way.
 
- @param text - the text
+ @param text - text
 
  @returns Stretches a reader sees as text, rewrites, comments that close, and the openers of comments that never close
 
@@ -451,7 +454,7 @@ function readText({ text, }: { readonly text: string; },): TextReading {
 /**
  Whether a backslash at an index escapes the character after it, both being characters the encoder may touch.
 
- @param text - the text
+ @param text - text
 
  @param at - index of the character read
 
@@ -513,8 +516,8 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     literal: reading.literal,
   },);
   /**
-   Characters a backslash may go before: the stretches read as text, less the comments that close and the bare
-   addresses.
+   Characters a backslash may go before: the stretches read as text, less
+   the comments that close and the bare addresses.
    */
   const touchable = new Uint8Array(text.length,);
   /**

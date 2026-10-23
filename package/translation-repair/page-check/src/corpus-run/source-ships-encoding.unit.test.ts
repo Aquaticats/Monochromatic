@@ -741,6 +741,17 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'WRITES AN ANGLE AUTOLINK INSIDE THE ALTERNATIVE TEXT OF AN IMAGE WITH A BACKSLASH LIKE ANY TEXT, '
+            + 'so the page shows its brackets (a limit the module comment names)',
+          fn: async () => {
+            expect(encoded({ text: '![<https://example.net/a>](u.png) {', },),)
+              .toBe(String.raw`![\<https://example.net/a>](u.png) \{`,);
+            expect(readerOfPage({ carried: encoded({ text: '![<https://example.net/a>](u.png) {', },), },),)
+              .toBe('<https://example.net/a> {',);
+          },
+        },),
+
+        it({
           name: 'KEEPS THE LINE ENDINGS OF A CARRIAGE-RETURN TEXT, a closing fence among them',
           fn: async () => {
             expect(encoded({ text: '```\r\n{a}\r\n```\r\n{b}\r\n', },),).toBe('```\r\n{a}\r\n```\r\n\\{b\\}\r\n',);
