@@ -102,6 +102,25 @@ const TWO_RUNS: readonly SourceShippedRow[] = [
 ];
 
 /**
+ Rows of the XingZ6020 shape: the archive holds a paragraph with five footnote references and stops, while the
+ original goes on to define them in two slices, one of them also defining a sixth note nothing references.
+ */
+const FIVE_REFERENCES: readonly SourceShippedRow[] = [
+  {
+    incumbentText: 'A tabby[^1] kept the shop[^2] company[^4], napped[^5] and purred[^6].\n',
+    sourceText: '一只虎斑猫[^1]陪着书店[^2]，打盹[^5]、咕噜[^6]。[^4]\n',
+  },
+  {
+    incumbentText: '',
+    sourceText: '\n[^1]: 一。\n[^2]: 二。\n[^3]: 三。\n',
+  },
+  {
+    incumbentText: '',
+    sourceText: '\n[^4]: 四。\n[^5]: 五。\n[^6]: 六。\n',
+  },
+];
+
+/**
  Publishes the rows' entry and reads the page back.
 
  @param rows - the slices, anchors among them
@@ -127,6 +146,7 @@ async function publishRows(
   readonly page: string;
   readonly artifact: WouldShipSource;
   readonly checks: readonly string[];
+  readonly footnoteDefects: readonly string[];
 }> {
   await using tree = await scratchDir({ prefix: 'source-shipped-', },);
   /**
@@ -154,6 +174,13 @@ async function publishRows(
     checks: published.defects.map(function checkOf({ check, },): string {
       return check;
     },),
+    footnoteDefects: published.defects
+      .filter(function footnoteCheck({ check, },): boolean {
+        return check === 'page-footnotes';
+      },)
+      .map(function messageOf({ message, },): string {
+        return message;
+      },),
   };
 }
 
@@ -325,6 +352,30 @@ await describe({
         },);
         const { page, } = await publishRows({ rows, },);
         expect(page,).toContain(`${NOTE}\n\n${english.trim()}`,);
+      },
+    },),
+
+    it({
+      name: 'RESOLVES THE FIVE FOOTNOTE REFERENCES OF THE XINGZ6020 SHAPE once the original ships, where an '
+        + 'artifact that records no original leaves all five unresolved; either way the page-level footnote check '
+        + 'reports and the page ships, and with the original the one note nothing references is the only thing named',
+      fn: async () => {
+        const withSource = await publishRows({ rows: FIVE_REFERENCES, },);
+        expect(withSource.footnoteDefects,).toEqual([
+          'entry BookshopCat: page footnotes do not resolve; definitions without a reference: 3',
+        ],);
+        for (const identifier of ['1', '2', '4', '5', '6',])
+          expect(withSource.page,).toContain(`[^${identifier}]: `,);
+        const { lanes: _lanes, ...recordless } = sourceShippedArtifact({ rows: FIVE_REFERENCES, },) as
+          & WouldShipSource
+          & { readonly lanes: unknown; };
+        const withoutSource = await publishRows({
+          rows: FIVE_REFERENCES,
+          artifact: recordless,
+        },);
+        expect(withoutSource.footnoteDefects,).toEqual([
+          'entry BookshopCat: page footnotes do not resolve; references without a definition: 1, 2, 4, 5, 6',
+        ],);
       },
     },),
 
