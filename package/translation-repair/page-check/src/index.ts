@@ -184,6 +184,10 @@ export {
   withoutIndentation,
 } from './corpus-run/source-ships-footnote.ts';
 export {
+  joinedLines,
+  lineJoinsOf,
+} from './corpus-run/source-ships-lines.ts';
+export {
   explicitLink,
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';

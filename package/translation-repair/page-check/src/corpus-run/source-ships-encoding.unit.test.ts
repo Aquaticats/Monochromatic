@@ -222,7 +222,10 @@ await describe({
             expect(encoded({ text: '1. ```js\n   const a = {};\n   ```\n\n</details>', },),)
               .toBe('1. ```js\n   const a = {};\n   ```\n\n\\</details>',);
             expect(encoded({ text: '> ```\n> {a}\n> ```\n\n{b}', },),).toBe('> ```\n> {a}\n> ```\n\n\\{b\\}',);
-            expect(encoded({ text: '`a\n{b}` 与 {c}', },),).toBe('`a\n{b}` 与 \\{c\\}',);
+            // A span across lines whose later line starts with a brace is joined to one line, which the strict
+            // grammar would otherwise cut at.
+            expect(encoded({ text: '`a\n{b}` 与 {c}', },),).toBe('`a {b}` 与 \\{c\\}',);
+            expect(encoded({ text: '`a\nb {c}` 与 {d}', },),).toBe('`a\nb {c}` 与 \\{d\\}',);
           },
         },),
 
@@ -367,10 +370,10 @@ await describe({
           fn: async () => {
             expect(encoded({ text: '`a\n{b` {c', },),).toBe('`a {b` \\{c',);
             expect(encoded({ text: '`a\n  <b` {c', },),).toBe('`a <b` \\{c',);
-            expect(encoded({ text: '$a\n{b$ {c', },),).toBe('$a {b$ \\{c',);
+            expect(encoded({ text: '$a\n{b$ {c', },),).toBe(String.raw`$a {b$ \{c`,);
             expect(encoded({ text: '- `a\n  {b` {c', },),).toBe('- `a {b` \\{c',);
             expect(encoded({ text: '> `a\n> {b` {c', },),).toBe('> `a {b` \\{c',);
-            expect(encoded({ text: '[a](u "t\n{b") {c', },),).toBe('[a](u "t {b") \\{c',);
+            expect(encoded({ text: '[a](u "t\n{b") {c', },),).toBe(String.raw`[a](u "t {b") \{c`,);
             // A closed brace joins too, since a line holding only it is an expression of its own to the strict grammar.
             expect(encoded({ text: '`a\n{b}` {c', },),).toBe('`a {b}` \\{c',);
             // A later line that does not start with a brace or a less-than sign keeps its line ending.

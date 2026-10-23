@@ -7,6 +7,7 @@ import {
   opensFootnote,
   withoutIndentation,
 } from './source-ships-footnote.ts';
+import { lineJoinsOf, } from './source-ships-lines.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import {
@@ -220,6 +221,11 @@ export function spansOf(
         fallback: footnote.endLine,
       },);
     }
+    edits.push(...lineJoinsOf({
+      source,
+      node,
+      range,
+    },),);
     // A TEXT AND A RAW HTML NODE are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || (node.type === 'html')) {
       text.push(range,);
