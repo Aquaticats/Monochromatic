@@ -20,6 +20,7 @@ import {
   describe,
   expect,
   it,
+  type DisposableSandbox,
 } from '@monochromatic-dev/module-test/ts';
 
 import type {
@@ -38,6 +39,7 @@ import {
   type JudgeSeatPhase,
   readJudgeSeats,
 } from '../../dist/final/node/index.mjs';
+import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
 
 //region Ceiling tests
 
@@ -105,9 +107,15 @@ const METERS_WET: Readonly<Record<keyof BudgetView, MeterState>> = {
 const NO_HOLDS = providerRecord({ of: (): number => 0, },);
 
 /**
- A hold short enough for a case to wait out on the real clock.
+ The hold the scripted provider states, waited out in slices of `POLL_MS` on a fake clock the helper moves past it, so
+ no case sleeps.
  */
 const SHORT_HOLD_MS = 40;
+
+/**
+ How often the reader's wait checks for abort here.
+ */
+const POLL_MS = 5;
 
 /**
  What one reading logged and how many dryness reads it took.
@@ -118,7 +126,8 @@ type Reading = {
 };
 
 /**
- Reads one phase's seats over a scripted view with a hold on one provider that ends with the first wait.
+ Reads one phase's seats over a scripted view with a hold on one provider that ends with the first wait, which runs
+ on a fake clock.
 
  @param phase - phase the reading is for
 
@@ -130,11 +139,18 @@ type Reading = {
 
  @param refusalHold - whether NeuralWatt's hold is a refusal's and not its day start, the day start being the default
 
+ @param sinon - case's own sandbox, which fakes the clock the wait sleeps on
+
  @returns What the reading logged and the dryness reads it took (1 without a wait, 2 with one)
 
  @example
  ```ts
- const { lines, reads, } = await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },);
+ const { lines, reads, } = await readingOf({
+   phase: 'lane contest',
+   view: SYNTHETIC_HELD,
+   held: 'synthetic',
+   sinon: ctx.sinon,
+ },);
  ```
  */
 async function readingOf(
@@ -144,12 +160,14 @@ async function readingOf(
     held,
     meters = METERS_WET,
     refusalHold = false,
+    sinon,
   }: {
     readonly phase: JudgeSeatPhase;
     readonly view: BudgetView;
     readonly held?: ProviderName;
     readonly meters?: Readonly<Record<keyof BudgetView, MeterState>>;
     readonly refusalHold?: boolean;
+    readonly sinon: DisposableSandbox;
   },
 ): Promise<Reading> {
   /**
@@ -160,29 +178,36 @@ async function readingOf(
    Reads taken so far, and how often the holds were asked (they end with the first wait).
    */
   const counted = { reads: 0, asks: 0, };
-  await readJudgeSeats({
-    client: {
-      providerDryness: async () => {
-        counted.reads += 1;
-        return view;
-      },
-      providerMeterStates: () => Promise.resolve(meters,),
-      neuralwattHeldByReturn: () => !refusalHold,
-      providerHolds: () => {
-        counted.asks += 1;
-        return ((counted.asks === 1) && (held !== undefined))
-          ? providerRecord({
-            of: function holdOf(provider,): number {
-              return (provider === held) ? SHORT_HOLD_MS : 0;
-            },
-          },)
-          : NO_HOLDS;
-      },
+  await readOnFakeClock({
+    sinon,
+    holdMs: SHORT_HOLD_MS,
+    pollMs: POLL_MS,
+    reading: async function readSeats({ signal, },): Promise<unknown> {
+      return await readJudgeSeats({
+        client: {
+          providerDryness: async () => {
+            counted.reads += 1;
+            return view;
+          },
+          providerMeterStates: () => Promise.resolve(meters,),
+          neuralwattHeldByReturn: () => !refusalHold,
+          providerHolds: () => {
+            counted.asks += 1;
+            return ((counted.asks === 1) && (held !== undefined))
+              ? providerRecord({
+                of: function holdOf(provider,): number {
+                  return (provider === held) ? SHORT_HOLD_MS : 0;
+                },
+              },)
+              : NO_HOLDS;
+          },
+        },
+        phase,
+        signal,
+        l: levelCapturingLogger({ lines, },),
+        pollMs: POLL_MS,
+      },);
     },
-    phase,
-    signal: new AbortController().signal,
-    l: levelCapturingLogger({ lines, },),
-    pollMs: 5,
   },);
   return { lines, reads: counted.reads, };
 }
@@ -213,12 +238,22 @@ await describe({
       name: 'WAITS IN THE LANE CONTEST AND THE CONSOLIDATION WITH SYNTHETIC HELD, the XingZ6020 shape: the return '
         + 'lifts the late bench from 1 to 2, over the floor of 2 though under the quorum of 4, so the reader waits for '
         + 'it (the case that stood here read no wait, against the quorum alone)',
-      fn: async () => {
+      fn: async (ctx) => {
         expect(
-          (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+          (await readingOf({
+            phase: 'lane contest',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).reads,
         ).toBe(2,);
         expect(
-          (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+          (await readingOf({
+            phase: 'consolidation',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).reads,
         ).toBe(2,);
       },
     },),
@@ -226,9 +261,14 @@ await describe({
     it({
       name: 'WAITS IN THE TRANSLATE LANE WITH SYNTHETIC HELD, the XingZ6020 shape: the hold ends in a return that '
         + 'lifts the translators to their quorum',
-      fn: async () => {
+      fn: async (ctx) => {
         expect(
-          (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).reads,
+          (await readingOf({
+            phase: 'translate lane',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).reads,
         ).toBe(2,);
       },
     },),
@@ -236,9 +276,14 @@ await describe({
     it({
       name: 'STATES BOTH READINGS OF A BENCH THE RETURN LIFTS OVER ITS FLOOR BUT NOT TO ITS QUORUM, the case the '
         + 'quorum-only rule misjudged: late reads 1 of 7, Synthetic back it reads 2, floor 2, quorum 4',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'lane contest',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(warning,).toContain('late 1 of 7 reachable, quorum 4',);
         expect(warning,).toContain(
@@ -252,11 +297,12 @@ await describe({
     it({
       name: 'TAKES NO WAIT FOR A HOLD WHOSE RETURN CROSSES NEITHER THRESHOLD: the late bench reads 3 of 7, over its '
         + 'floor, and Xiaomi, which serves no seat of it, cannot lift it to the quorum',
-      fn: async () => {
+      fn: async (ctx) => {
         const { lines, reads, } = await readingOf({
           phase: 'lane contest',
           view: BEDROCK_AND_DEEPSEEK,
           held: 'xiaomi',
+          sinon: ctx.sinon,
         },);
         expect(reads,).toBe(1,);
         expect(shortBenchWarningOf({ lines, },),).toContain(
@@ -268,11 +314,12 @@ await describe({
     it({
       name: 'WAITS FOR A HOLD THAT LIFTS A BENCH FROM OVER ITS FLOOR TO ITS QUORUM: the late bench reads 3 of 7 and '
         + 'Synthetic back it reads 4',
-      fn: async () => {
+      fn: async (ctx) => {
         const { lines, reads, } = await readingOf({
           phase: 'lane contest',
           view: BEDROCK_AND_DEEPSEEK,
           held: 'synthetic',
+          sinon: ctx.sinon,
         },);
         expect(reads,).toBe(2,);
         expect(shortBenchWarningOf({ lines, },),).toContain(
@@ -285,18 +332,28 @@ await describe({
       name: 'NAMES THE SEATS A RETURN WOULD BRING BACK, by their model ids, from the bench the phase seats: the '
         + 'late bench of the lane contest has the one Synthetic seat Kimi-K3 and not Qwen3.8-27B, which sits on the '
         + 'wide bench the translate lane\'s select bench is read from',
-      fn: async () => {
+      fn: async (ctx) => {
         /**
          The warning of the lane contest, whose late bench holds no Qwen seat.
          */
         const contest = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'lane contest',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         /**
          The warning of the translate lane, whose select bench holds both.
          */
         const translate = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'translate lane',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(contest,).toContain('hf:moonshotai/Kimi-K3',);
         expect(contest,).not.toContain('hf:Qwen/Qwen3.8-27B',);
@@ -309,9 +366,14 @@ await describe({
       name: 'STATES EACH BENCH OF THE CONSOLIDATION: the slate and the late bench both read 1 of 7, and the return '
         + 'lifts each over the floor to 2 of 7 (Qwen sits on the wide bench only, ledger B815, and the late bench '
         + 'gates the consolidation)',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'consolidation', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'consolidation',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(warning,).toContain(
           'slate ceiling 2 of 7 with synthetic back, floor 2 and quorum 4, '
@@ -328,9 +390,14 @@ await describe({
       name: 'STATES WHICH BENCH THE WAIT CAN LIFT AND WHICH IT CANNOT in the line that announces it: the translate '
         + 'lane waits for the translators, whose return lifts them to their quorum, and says the select bench stays '
         + 'under its quorum at 3 of 8 after lifting over the floor',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'translate lane',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(warning,).toContain('waiting 40ms for the shortest hold to end',);
         expect(warning,).toContain('translators ceiling',);
@@ -343,9 +410,9 @@ await describe({
       name: 'STATES NO CEILING WHEN NO HOLD RUNS, but says a bench under its floor is under it: the ceiling of a short '
         + 'bench is then what it reads, which its clause already says, and the clause did not say that a stage under '
         + 'the floor buys no call',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, },)).lines,
+          lines: (await readingOf({ phase: 'lane contest', view: SYNTHETIC_HELD, sinon: ctx.sinon, },)).lines,
         },);
         expect(warning,).toContain('late 1 of 7 reachable, quorum 4',);
         expect(warning,).toContain('late reads under its floor of 2 and no hold runs that could lift it',);
@@ -357,9 +424,9 @@ await describe({
     it({
       name: 'SAYS NOTHING OF THE FLOOR OF A BENCH OVER IT WHEN NO HOLD RUNS: the late bench reads 3 of 7 and only its '
         + 'clause is said',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, },)).lines,
+          lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, sinon: ctx.sinon, },)).lines,
         },);
         expect(warning,).toContain('late 3 of 7 reachable, quorum 4',);
         expect(warning,).not.toContain('floor',);
@@ -371,13 +438,14 @@ await describe({
         + 'reads dry, the translators read 2 of 8, and its two seats would lift them to their quorum of 4 only if '
         + 'the hold ending brought it back, which a dry meter does not, so no wait is taken and the line brings back '
         + 'no seat',
-      fn: async () => {
+      fn: async (ctx) => {
         const { lines, reads, } = await readingOf({
           phase: 'translate lane',
           view: BEDROCK_ALONE,
           held: 'neuralwatt',
           meters: { ...METERS_WET, neuralwatt: 'dry', },
           refusalHold: true,
+          sinon: ctx.sinon,
         },);
         expect(reads,).toBe(1,);
         const warning = shortBenchWarningOf({ lines, },);
@@ -395,8 +463,13 @@ await describe({
       name: 'COUNTS A HELD PROVIDER WHOSE METER READS WET OR UNREADABLE AS COMING BACK, and NeuralWatt whose hold '
         + 'is its day start although its meter reads dry: the same view and hold wait, and the line names the seats '
         + 'of the return',
-      fn: async () => {
-        const wet = await readingOf({ phase: 'translate lane', view: BEDROCK_ALONE, held: 'neuralwatt', },);
+      fn: async (ctx) => {
+        const wet = await readingOf({
+          phase: 'translate lane',
+          view: BEDROCK_ALONE,
+          held: 'neuralwatt',
+          sinon: ctx.sinon,
+        },);
         expect(wet.reads,).toBe(2,);
         expect(shortBenchWarningOf({ lines: wet.lines, },),).toContain('hf:zai-org/GLM-5.3-Flash',);
         const unreadable = await readingOf({
@@ -404,6 +477,7 @@ await describe({
           view: BEDROCK_ALONE,
           held: 'neuralwatt',
           meters: { ...METERS_WET, neuralwatt: 'unreadable', },
+          sinon: ctx.sinon,
         },);
         expect(unreadable.reads,).toBe(2,);
         const dayStart = await readingOf({
@@ -411,6 +485,7 @@ await describe({
           view: BEDROCK_ALONE,
           held: 'neuralwatt',
           meters: { ...METERS_WET, neuralwatt: 'dry', },
+          sinon: ctx.sinon,
         },);
         expect(dayStart.reads,).toBe(2,);
       },
@@ -419,9 +494,14 @@ await describe({
     it({
       name: 'SAYS THE RETURN BRINGS BACK NO SEAT where the held provider serves none of the bench: Xiaomi held, the '
         + 'wide bench reads 3 of 8, and the line closes on the words that name no seat',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'lane contest', view: BEDROCK_AND_DEEPSEEK, held: 'xiaomi', },)).lines,
+          lines: (await readingOf({
+            phase: 'lane contest',
+            view: BEDROCK_AND_DEEPSEEK,
+            held: 'xiaomi',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(warning,).toContain('(the return brings back no seat)',);
       },
@@ -430,9 +510,14 @@ await describe({
     it({
       name: 'STATES THE DIGITS OF THE TRANSLATORS CEILING: with Synthetic back the translators read 4 of 8 against a '
         + 'floor of 2 and a quorum of 4, which is the quorum exactly',
-      fn: async () => {
+      fn: async (ctx) => {
         const warning = shortBenchWarningOf({
-          lines: (await readingOf({ phase: 'translate lane', view: SYNTHETIC_HELD, held: 'synthetic', },)).lines,
+          lines: (await readingOf({
+            phase: 'translate lane',
+            view: SYNTHETIC_HELD,
+            held: 'synthetic',
+            sinon: ctx.sinon,
+          },)).lines,
         },);
         expect(warning,).toContain(
           'translators ceiling 4 of 8 with synthetic back, floor 2 and quorum 4, so the return lifts it to the quorum',
@@ -478,8 +563,8 @@ await describe({
         },);
         expect(clauses,).toEqual([
           'translators ceiling 2 of 8 with no held provider back, floor 2 and quorum 4, so no return lifts it to the '
-            + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter or by a payment refusal that stands '
-            + 'until the meter moves, which a hold ending does not change)',
+            + 'quorum (the return brings back no seat; neuralwatt reads dry by its meter or by a payment refusal that '
+            + 'stands until the meter moves, which a hold ending does not change)',
         ],);
         expect(ceilingWordsOf({
           running: NO_HOLDS,
