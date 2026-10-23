@@ -92,7 +92,8 @@ await describe({
     it({
       name: 'CALLS INDENTED CODE TEXT, which MDX reads as a paragraph, and a fence inside a list item code',
       fn: async () => {
-        expect(spansIn({ source: '猫\n\n    {x}\n', },).text.length,).toBe(2,);
+        expect(spansIn({ source: '猫\n\n    {x}\n', },).text.length,).toBe(1,);
+        expect(spansIn({ source: '猫\n\n    {x}\n', },).literal.length,).toBe(1,);
         expect(spansIn({ source: '- ```\n  {\n  ```\n', },).text,).toEqual([],);
       },
     },),

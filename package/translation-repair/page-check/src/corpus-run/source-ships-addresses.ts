@@ -229,6 +229,26 @@ function within(
 }
 
 /**
+ A stretch of the text to read for addresses, and whether it is literal.
+ */
+type Stretch = {
+  /**
+   Where it stands.
+   */
+  readonly range: TextRange;
+
+  /**
+   Where it starts, for ordering.
+   */
+  readonly start: number;
+
+  /**
+   Whether it is a raw HTML block or indented code.
+   */
+  readonly isLiteral: boolean;
+};
+
+/**
  Where the run of inline content that holds an index starts.
 
  @param streamStarts - where each run starts, in any order
@@ -274,6 +294,9 @@ function streamStartAt(
 
  @param streamStarts - where each paragraph, heading or table cell starts, which a label opened before does not reach
 
+ @param literal - stretches of raw HTML blocks and indented code, where a bracket is escaped in the page and so opens no
+ label, and a backslash is a character of the address and no escape
+
  @returns Where each address stands, from its protocol to the next space or less-than sign
 
  @example
@@ -287,11 +310,13 @@ export function bareAddresses(
     ranges,
     insideLinks,
     streamStarts = [],
+    literal = [],
   }: {
     readonly text: string;
     readonly ranges: readonly TextRange[];
     readonly insideLinks: readonly TextRange[];
     readonly streamStarts?: readonly number[];
+    readonly literal?: readonly TextRange[];
   },
 ): readonly BareAddress[] {
   /**
@@ -305,12 +330,38 @@ export function bareAddresses(
     stream: -1,
     open: 0,
   };
-  for (const range of ranges.toSorted(function byStart(
-    left,
-    right,
+  /**
+   Every stretch to read, with whether it is literal, in text order.
+   */
+  const stretches: readonly Stretch[] = [
+    ...ranges.map(function inline(range,): Stretch {
+      return {
+        range,
+        start: range.start,
+        isLiteral: false,
+      };
+    },),
+    ...literal.map(function raw(range,): Stretch {
+      return {
+        range,
+        start: range.start,
+        isLiteral: true,
+      };
+    },),
+  ].toSorted(function byStart(
+    left: Stretch,
+    right: Stretch,
   ): number {
     return left.start - right.start;
-  },)) {
+  },);
+  for (const stretch of stretches) {
+    /**
+     The stretch's range and whether it is literal.
+     */
+    const {
+      range,
+      isLiteral,
+    } = stretch;
     /**
      The run of inline content the stretch belongs to.
      */
@@ -327,17 +378,19 @@ export function bareAddresses(
        Character read.
        */
       const character = text.charAt(at,);
-      if ((character === '\\') && ESCAPABLE.includes(text.charAt(at + 1,),)) {
-        at += 1;
-        continue;
+      if (!isLiteral) {
+        if ((character === '\\') && ESCAPABLE.includes(text.charAt(at + 1,),)) {
+          at += 1;
+          continue;
+        }
+        if (character === '[')
+          labels.open += 1;
+        if (character === ']')
+          labels.open = Math.max(
+            0,
+            labels.open - 1,
+          );
       }
-      if (character === '[')
-        labels.open += 1;
-      if (character === ']')
-        labels.open = Math.max(
-          0,
-          labels.open - 1,
-        );
       if (!startsAddress({
         text,
         at,
@@ -358,7 +411,17 @@ export function bareAddresses(
       },);
       // AFTER AN OPEN LABEL ONLY THE TRANSFORM READS AN ADDRESS, and it reads one up to a less-than sign that a tag
       // starts at, where the page, with that sign escaped, has it run on; so such an address is a link of its own.
-      if ((labels.open > 0) && (text.charAt(stop,) !== '<'))
+      /**
+       Whether a tag's less-than sign ends the address.
+       */
+      const endsAtTag = text.charAt(stop,) === '<';
+      /**
+       Whether the address stands clear of any label that is still open.
+       */
+      const isClear = isLiteral
+        || endsAtTag
+        || (labels.open === 0);
+      if (!isClear)
         continue;
       found.push({
         start: at,

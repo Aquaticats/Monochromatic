@@ -110,6 +110,13 @@ const COMMENT_OPEN = '<!--';
 const SYNTAX = '{}<';
 
 /**
+ Characters a backslash goes before in a raw HTML block or indented code, where the strict grammar reads a paragraph:
+ those that start inline syntax or a block (a backslash, a code span, emphasis, a link, an image, an entity, a tag, a
+ table, strikethrough, math, a heading, a list item, a quote, a setext underline) and the braces.
+ */
+const LITERAL_SYNTAX = '\\`*_{}[]#+-.!<>&|~$=)';
+
+/**
  What a text holds that the encoder acts on.
  */
 type TextReading = SourceSpans & {
@@ -277,6 +284,7 @@ function readText({ text, }: { readonly text: string; },): TextReading {
           end: text.length,
         },
       ],
+      literal: [],
       edits: openers,
       insideLinks: [],
       streamStarts: [],
@@ -293,6 +301,7 @@ function readText({ text, }: { readonly text: string; },): TextReading {
   },);
   return {
     text: spans.text,
+    literal: spans.literal,
     edits: [
       ...spans.edits,
       ...openers,
@@ -373,14 +382,31 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     ranges: reading.text,
     insideLinks: reading.insideLinks,
     streamStarts: reading.streamStarts,
+    literal: reading.literal,
   },);
   /**
    Characters a backslash may go before: the stretches read as text, less the comments that close and the bare
    addresses.
    */
   const touchable = new Uint8Array(text.length,);
+  /**
+   One mark per character, set where every character Markdown reads as syntax is escaped.
+   */
+  const literal = new Uint8Array(text.length,);
   for (const range of reading.text) {
     touchable.fill(
+      1,
+      range.start,
+      range.end,
+    );
+  }
+  for (const range of reading.literal) {
+    touchable.fill(
+      1,
+      range.start,
+      range.end,
+    );
+    literal.fill(
       1,
       range.start,
       range.end,
@@ -442,6 +468,11 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     const character = text.charAt(at,);
     if (touchable[at] !== 1) {
       pieces.push(character,);
+      continue;
+    }
+    // IN A RAW HTML BLOCK OR INDENTED CODE a backslash is a character of the source, and is escaped as any other.
+    if (literal[at] === 1) {
+      pieces.push(LITERAL_SYNTAX.includes(character,) ? `\\${character}` : character,);
       continue;
     }
     // A BACKSLASH BEFORE PUNCTUATION IS AN ESCAPE ALREADY, and is stepped over as the pair it is.

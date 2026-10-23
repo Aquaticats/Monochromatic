@@ -122,6 +122,14 @@ export function nestedSpans(
           indices,
         },);
       },),
+    literal: inner
+      .literal
+      .flatMap(function original(range,): readonly TextRange[] {
+        return originalStretches({
+          range,
+          indices,
+        },);
+      },),
     edits: inner
       .edits
       .map(function original(edit,): TextEdit {

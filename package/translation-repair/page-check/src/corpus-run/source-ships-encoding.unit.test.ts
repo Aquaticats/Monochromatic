@@ -242,7 +242,7 @@ await describe({
           fn: async () => {
             expect(encoded({ text: '- ```\n  {\n  ```\n\n然后 { 走了', },),).toBe('- ```\n  {\n  ```\n\n然后 \\{ 走了',);
             expect(encoded({ text: '1. ```js\n   const a = {};\n   ```\n\n</details>', },),)
-              .toBe('1. ```js\n   const a = {};\n   ```\n\n\\</details>',);
+              .toBe('1. ```js\n   const a = {};\n   ```\n\n\\</details\\>',);
             expect(encoded({ text: '> ```\n> {a}\n> ```\n\n{b}', },),).toBe('> ```\n> {a}\n> ```\n\n\\{b\\}',);
             // A span across lines whose later line starts with a brace is joined to one line, which the strict
             // grammar would otherwise cut at.
@@ -271,7 +271,7 @@ await describe({
         it({
           name: 'READS INDENTED CODE AS TEXT, since MDX has no indented code and reads such a line as a paragraph',
           fn: async () => {
-            expect(encoded({ text: '猫\n\n    {x} <y>\n', },),).toBe('猫\n\n    \\{x\\} \\<y>\n',);
+            expect(encoded({ text: '猫\n\n    {x} <y>\n', },),).toBe('猫\n\n    \\{x\\} \\<y\\>\n',);
           },
         },),
 
@@ -374,7 +374,7 @@ await describe({
             + 'strict grammar reads the line as the footnote it is and its body as text',
           fn: async () => {
             expect(encoded({ text: '[^1]: {', },),).toBe(String.raw`[^1]: \{`,);
-            expect(encoded({ text: '[^1]: <b>', },),).toBe(String.raw`[^1]: \<b>`,);
+            expect(encoded({ text: '[^1]: <b>', },),).toBe(String.raw`[^1]: \<b\>`,);
             expect(encoded({ text: '[^1]: a{b', },),).toBe(String.raw`[^1]: a\{b`,);
             expect(encoded({ text: '[^1]: a<b', },),).toBe(String.raw`[^1]: a\<b`,);
             expect(encoded({ text: '[^1]: 注 ({)', },),).toBe(String.raw`[^1]: 注 (\{)`,);
@@ -432,7 +432,7 @@ https://example.net/b{c`,);
           fn: async () => {
             expect(encoded({ text: '<div>\n[a](u) *b* {c}\n</div>\n', },),)
               .toBe(String.raw`\<div\>
-\[a](u) \*b\* \{c\}
+\[a\](u\) \*b\* \{c\}
 \</div\>
 `,);
             expect(encoded({ text: '猫\n\n    - a {\n    # b\n', },),).toBe(String.raw`猫

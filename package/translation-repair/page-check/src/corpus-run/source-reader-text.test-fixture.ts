@@ -231,6 +231,9 @@ export function withoutLinkTargets({ account, }: { readonly account: string; },)
    Characters kept, and whether the one read is inside a target's marks.
    */
   const kept: string[] = [];
+  /**
+   Whether the character read stands inside a target's marks.
+   */
   const target = { inside: false, };
   for (const character of account) {
     if (character === '⟦') {

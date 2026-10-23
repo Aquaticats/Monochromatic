@@ -19,6 +19,7 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
+  contentStretches,
   joinedLines,
   lineJoinsOf,
   rangeOf,
@@ -120,9 +121,136 @@ function joinsOfFirst(
   },);
 }
 
+/**
+ The content stretches of the first raw HTML or code node of a text.
+
+ @param source - the text
+
+ @returns Stretches of the content of the node's lines
+
+ @throws {@link Error} when the text holds no such node
+
+ @example
+ ```ts
+ const stretches = contentOfFirst({ source: '> <div>\n> a\n', },);
+ ```
+ */
+function contentOfFirst({ source, }: { readonly source: string; },): ReturnType<typeof contentStretches> {
+  /**
+   Nodes still to read, the first of them on top.
+   */
+  const pending: TreeNode[] = [parseMarkdownMathBody({ body: source, },),];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if ((node.type === 'html') || (node.type === 'code')) {
+      return contentStretches({
+        source,
+        node,
+        range: rangeOf({ node, },),
+      },);
+    }
+    if ('children' in node)
+      pending.push(...node.children.toReversed(),);
+  }
+  throw new Error('the text holds no raw HTML or code node',);
+}
+
 await describe({
   name: 'source ships lines',
   children: [
+    describe({
+      name: contentStretches.name,
+      children: [
+        it({
+          name: 'GIVES THE CONTENT OF EACH LINE OF A RAW HTML BLOCK, the marks of a block quote left out',
+          fn: async () => {
+            expect(contentOfFirst({ source: '> <div>\n> a\n', },),).toEqual([
+              {
+                start: 2,
+                end: 7,
+              },
+              {
+                start: 10,
+                end: 11,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'GIVES THE CONTENT OF EACH LINE OF INDENTED CODE, the indentation left out and an empty line given '
+            + 'none',
+          fn: async () => {
+            expect(contentOfFirst({ source: '猫\n\n    a\n\n     b\n', },),).toEqual([
+              {
+                start: 7,
+                end: 8,
+              },
+              {
+                start: 14,
+                end: 16,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'KEEPS THE CARRIAGE RETURN OF A LINE IN ITS CONTENT, which the value of the node keeps too',
+          fn: async () => {
+            expect(contentOfFirst({ source: '<div>\r\nab\r\n</div>\r\n', },),).toEqual([
+              {
+                start: 0,
+                end: 6,
+              },
+              {
+                start: 7,
+                end: 10,
+              },
+              {
+                start: 11,
+                end: 17,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'GIVES THE WHOLE RANGE FOR A NODE WITH NO VALUE, and for lines that do not correspond to its value',
+          fn: async () => {
+            /**
+             A paragraph, which holds no value of its own.
+             */
+            const [paragraph,] = parseMarkdownMathBody({ body: 'ab\n', },).children;
+            if (paragraph === undefined)
+              throw new Error('the text holds no block',);
+            expect(contentStretches({
+              source: 'ab\n',
+              node: paragraph,
+              range: rangeOf({ node: paragraph, },),
+            },),).toEqual([rangeOf({ node: paragraph, },),],);
+            /**
+             A code node read from other text than the lines it is given.
+             */
+            const [code,] = parseMarkdownMathBody({ body: '```\nabcdef\n```\n', },).children;
+            if (code === undefined)
+              throw new Error('the text holds no block',);
+            expect(contentStretches({
+              source: 'x\ny\n',
+              node: code,
+              range: {
+                start: 0,
+                end: 1,
+              },
+            },),).toEqual([
+              {
+                start: 0,
+                end: 1,
+              },
+            ],);
+          },
+        },),
+      ],
+    },),
+
     describe({
       name: joinedLines.name,
       children: [

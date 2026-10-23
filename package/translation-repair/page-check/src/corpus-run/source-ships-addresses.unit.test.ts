@@ -152,6 +152,33 @@ await describe({
         },),
 
         it({
+          name: 'READS AN ADDRESS IN A LITERAL STRETCH WHATEVER BRACKETS STAND BEFORE IT, a bracket there being '
+            + 'escaped in the page and a backslash a character of the address',
+          fn: async () => {
+            /**
+             Text with a bracket and then an address, as raw HTML holds it.
+             */
+            const text = String.raw`[ https://example.net/a\{ b`;
+            expect(bareAddresses({
+              text,
+              ranges: [],
+              literal: [
+                {
+                  start: 0,
+                  end: text.length,
+                },
+              ],
+              insideLinks: [],
+            },).map(function textOf({ start, end, },): string {
+              return text.slice(
+                start,
+                end,
+              );
+            },),).toEqual([String.raw`https://example.net/a\{`,],);
+          },
+        },),
+
+        it({
           name: 'KEEPS AN ADDRESS A LESS-THAN SIGN ENDS AFTER AN OPEN LABEL, since only the transform reads it '
             + 'there and it runs on past the sign',
           fn: async () => {

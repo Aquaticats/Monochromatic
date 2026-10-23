@@ -148,4 +148,79 @@ export function lineJoinsOf(
   return [];
 }
 
+/**
+ The stretches of a raw HTML block or of indented code that are its content: each line less the marks of the containers
+ and the indentation before it.
+
+ @param source - the text, or the text the parse was given with its comments blanked, of the same length
+
+ @param node - a `code` or `html` node of the parse
+
+ @param range - where the node stands
+
+ @returns One stretch for each line that has content; the whole range when the lines of the node and of the text do not
+ correspond, which a parse of this reading does not give
+
+ @example
+ ```ts
+ const stretches = contentStretches({ source: '> <div>\n> a', node, range: { start: 2, end: 12, }, },);
+ ```
+ */
+export function contentStretches(
+  {
+    source,
+    node,
+    range,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+  },
+): readonly TextRange[] {
+  if (!('value' in node))
+    return [range,];
+  /**
+   Stretches found.
+   */
+  const stretches: TextRange[] = [];
+  /**
+   Where the line being read starts.
+   */
+  const line = { start: range.start, };
+  /**
+   The value of the node.
+   */
+  const { value, } = node;
+  /**
+   The lines of the node's value.
+   */
+  const contents = value.split('\n',);
+  for (const content of contents) {
+    /**
+     Index of the line ending, or the end of the node for its last line.
+     */
+    const ending = source.indexOf(
+      '\n',
+      line.start,
+    );
+    /**
+     Index just past the line, its carriage return included.
+     */
+    const lineEnd = ((ending === (-1)) || (ending >= range.end)) ? range.end : ending;
+    /**
+     Where the content starts: the node's value keeps the line's carriage return only where the text has one.
+     */
+    const start = lineEnd - content.length;
+    if (start < line.start)
+      return [range,];
+    if (start < lineEnd)
+      stretches.push({
+        start,
+        end: lineEnd,
+      },);
+    line.start = lineEnd + 1;
+  }
+  return stretches;
+}
+
 //endregion Source ships lines

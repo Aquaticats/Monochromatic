@@ -56,6 +56,7 @@ await describe({
               end: 21,
             },
           ],
+          literal: [],
           edits: [],
           insideLinks: [
             {
@@ -98,6 +99,7 @@ await describe({
               end: 27,
             },
           ],
+          literal: [],
           edits: [],
           insideLinks: [],
           streamStarts: [13,],

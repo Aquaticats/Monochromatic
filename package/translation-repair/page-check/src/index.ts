@@ -184,6 +184,7 @@ export {
   withoutIndentation,
 } from './corpus-run/source-ships-footnote.ts';
 export {
+  contentStretches,
   joinedLines,
   lineJoinsOf,
 } from './corpus-run/source-ships-lines.ts';

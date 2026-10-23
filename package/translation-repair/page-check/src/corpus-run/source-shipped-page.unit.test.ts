@@ -318,12 +318,12 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
   {
     name: 'an unclosed details tag',
     source: '<details>\n\n她说\n',
-    carried: '\\<details>\n\n她说',
+    carried: '\\<details\\>\n\n她说',
   },
   {
     name: 'a lone closing details tag',
     source: '她说\n\n</details>\n',
-    carried: '她说\n\n\\</details>',
+    carried: '她说\n\n\\</details\\>',
   },
   {
     name: 'an indented line holding an expression and an unclosed tag',

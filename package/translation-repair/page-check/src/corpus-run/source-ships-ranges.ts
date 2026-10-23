@@ -41,6 +41,12 @@ export type SourceSpans = {
   readonly text: readonly TextRange[];
 
   /**
+   Stretches of raw HTML blocks and indented code, which the strict grammar reads as a paragraph and a reader must see
+   as they stand: every character Markdown reads as syntax there is escaped, and no address is read in them.
+   */
+  readonly literal: readonly TextRange[];
+
+  /**
    Stretches rewritten whole, in text order and not overlapping.
    */
   readonly edits: readonly TextEdit[];

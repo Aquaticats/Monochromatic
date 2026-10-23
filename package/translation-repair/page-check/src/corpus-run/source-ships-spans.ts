@@ -7,7 +7,10 @@ import {
   opensFootnote,
   withoutIndentation,
 } from './source-ships-footnote.ts';
-import { lineJoinsOf, } from './source-ships-lines.ts';
+import {
+  contentStretches,
+  lineJoinsOf,
+} from './source-ships-lines.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import {
@@ -50,6 +53,16 @@ export {
 // of its own, which a link cannot hold: it is written as text there, and the reader sees the address as typed.
 
 /**
+ Node types whose children are blocks, among which a raw HTML node is a block of its own.
+ */
+const BLOCK_PARENTS: ReadonlySet<string> = new Set([
+  'root',
+  'blockquote',
+  'listItem',
+  'footnoteDefinition',
+],);
+
+/**
  Node types whose children are inline content, a run of which a label opened in one does not reach into the next.
  */
 const INLINE_CONTENT: ReadonlySet<string> = new Set([
@@ -81,6 +94,11 @@ type Pending = {
    Whether it stands inside the text of a link, where a link cannot be written.
    */
   readonly insideLink: boolean;
+
+  /**
+   Type of its parent, which says whether it stands among blocks or among inline content.
+   */
+  readonly parentType: string;
 };
 
 /**
@@ -122,6 +140,10 @@ export function spansOf(
    */
   const text: TextRange[] = [];
   /**
+   Stretches of raw HTML blocks and indented code.
+   */
+  const literal: TextRange[] = [];
+  /**
    Stretches rewritten.
    */
   const edits: TextEdit[] = [];
@@ -146,6 +168,7 @@ export function spansOf(
    */
   function absorb({ nested, }: { readonly nested: SourceSpans; },): void {
     text.push(...nested.text,);
+    literal.push(...nested.literal,);
     edits.push(...nested.edits,);
     insideLinks.push(...nested.insideLinks,);
     streamStarts.push(...nested.streamStarts,);
@@ -169,6 +192,7 @@ export function spansOf(
           node,
           isRootChild: true,
           insideLink: false,
+          parentType: 'root',
         };
       },)
       .toReversed()
@@ -181,6 +205,7 @@ export function spansOf(
       node,
       isRootChild,
       insideLink,
+      parentType,
     } = next;
     /**
      Where its characters are.
@@ -226,9 +251,19 @@ export function spansOf(
       node,
       range,
     },),);
-    // A TEXT AND A RAW HTML NODE are what MDX reads a brace and a less-than sign in.
-    if ((node.type === 'text') || (node.type === 'html')) {
+    // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
+    if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {
       text.push(range,);
+      continue;
+    }
+    // A RAW HTML BLOCK, which MDX does not have: it reads such lines as a paragraph, and the reader sees them as they
+    // stand.
+    if (node.type === 'html') {
+      literal.push(...contentStretches({
+        source,
+        node,
+        range,
+      },),);
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
@@ -266,14 +301,19 @@ export function spansOf(
       },);
       continue;
     }
-    // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph.
+    // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the
+    // reader sees them as they stand.
     if (node.type === 'code') {
       if (!startsAny({
         text: source,
         at: range.start,
         candidates: FENCE_MARKS,
       },))
-        text.push(range,);
+        literal.push(...contentStretches({
+          source,
+          node,
+          range,
+        },),);
       continue;
     }
     // A FOOTNOTE DEFINITION CommonMark READS AS A LINK REFERENCE DEFINITION is a footnote to the strict grammar, whose
@@ -375,11 +415,13 @@ export function spansOf(
           insideLink: insideLink
             || (node.type === 'link')
             || (node.type === 'linkReference'),
+          parentType: node.type,
         },);
     }
   }
   return {
     text,
+    literal,
     edits: edits.toSorted(function byStart(
       left,
       right,
