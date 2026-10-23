@@ -12,6 +12,7 @@ import {
   lineJoinsOf,
 } from './source-ships-lines.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
+import { endsInLiteral, } from './source-ships-literal-end.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
 import { moduleEdits, } from './source-ships-module-line.ts';
 import {
@@ -177,6 +178,7 @@ export function spansOf(
   const footnote = {
     open: false,
     endLine: 0,
+    endsInLiteral: false,
   };
   /**
    Nodes still to read, the last of the root's children on top so they come out in order.
@@ -207,10 +209,11 @@ export function spansOf(
      Where its characters are.
      */
     const range = rangeOf({ node, },);
-    // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION is a line of the footnote's paragraph, and a text.
+    // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a paragraph to
+    // the strict grammar, and a text.
     if (isRootChild && isLazyDefinition({
       node,
-      footnoteOpen: footnote.open,
+      footnoteOpen: footnote.open || footnote.endsInLiteral,
       previousEndLine: footnote.endLine,
     },)) {
       text.push(range,);
@@ -232,6 +235,10 @@ export function spansOf(
         range,
       },);
     if (isRootChild) {
+      footnote.endsInLiteral = endsInLiteral({
+        source,
+        node,
+      },);
       footnote.open = continuesFootnote || opensFootnote({
         source,
         node,
