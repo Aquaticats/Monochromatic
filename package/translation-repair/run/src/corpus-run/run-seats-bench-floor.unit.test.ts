@@ -73,14 +73,16 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'GIVES EVERY BENCH THE FLOOR OF THE STAGES THAT LEAN ON IT: two voices for the wide, select, slate and '
-            + 'writing benches, and the reading pair for the readers',
+          name: 'GIVES EVERY BENCH THE FLOOR OF THE STAGES THAT LEAN ON IT: two voices for the wide, late, roster, '
+            + 'select, slate and writing benches, and the reading pair for the readers',
           fn: async () => {
             /**
              Every bench name, in the order the lines print them.
              */
             const names: readonly BenchName[] = [
               'wide',
+              'late',
+              'roster',
               'select',
               'slate',
               'editors',
@@ -90,7 +92,7 @@ await describe({
             ];
             expect(names.map(function floorOfName(name,): number {
               return benchFloorOf({ name, },);
-            },),).toEqual([2, 2, 2, 2, 2, 2, 2,],);
+            },),).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2,],);
           },
         },),
         it({

@@ -36,7 +36,8 @@ import {
 //region No-wait reading tests
 
 /**
- The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, every other provider dry. The wide bench reads 1 of 8.
+ The XingZ6020 view: NeuralWatt, DeepSeek and Xiaomi wet, every other provider dry. The late bench of the lane
+ contest reads 1 of 7.
  */
 const SYNTHETIC_HELD: BudgetView = {
   neuralwatt: false,
@@ -186,9 +187,9 @@ await describe({
         expect(unreachableWriters,).toEqual([],);
         expect(lines.length,).toBe(1,);
         expect(lines[0],).toContain(
-          'warn JUDGE SEATS phase=lane contest short of quorum: wide 1 of 8 reachable, quorum 4',
+          'warn JUDGE SEATS phase=lane contest short of quorum: late 1 of 7 reachable, quorum 4',
         );
-        expect(lines[0],).toContain('wide reads under its floor of 2 and no hold runs that could lift it',);
+        expect(lines[0],).toContain('late reads under its floor of 2 and no hold runs that could lift it',);
         expect(lines[0],).toContain(
           'no provider has named a return the pass can wait for, so the phase runs on what is reachable',
         );
@@ -256,7 +257,7 @@ await describe({
         },);
         expect(lines.length,).toBe(1,);
         expect(lines[0],).toContain(
-          'wide ceiling 1 of 8 with xiaomi back, floor 2 and quorum 4, so no return lifts it',
+          'late ceiling 1 of 7 with xiaomi back, floor 2 and quorum 4, so no return lifts it',
         );
         expect(lines[0],).toContain('held: xiaomi (',);
         expect(lines[0],).toContain('it would lift no short bench over its floor or to its quorum',);

@@ -14,10 +14,11 @@ import {
 //
 // THE FLOOR IS TWO VOICES FOR EVERY BENCH, FOR A DIFFERENT REASON EACH, read from the stage code:
 //
-// - `wide` serves the gathers (`stage-quorum.ts`): below `MIN_STAGE_VOICES` the quorum a short bench closes on,
-//   `max(MIN_STAGE_VOICES, majority of the reachable)`, exceeds the reachable seats, so no gather meets its quorum
-//   (`reachableQuorum`, `stage-reachable-quorum.ts`), and it serves the lane contest, which opens no round under
-//   `LANE_CONTEST_QUORUM` and whose verdict tallies need two ballots on a side (`lane-contest-stage.ts`).
+// - `wide`, `late` and `roster` serve the gathers (`stage-quorum.ts`): below `MIN_STAGE_VOICES` the quorum a short
+//   bench closes on, `max(MIN_STAGE_VOICES, majority of the reachable)`, exceeds the reachable seats, so no gather meets
+//   its quorum (`reachableQuorum`, `stage-reachable-quorum.ts`). `late` also serves the lane contest, which opens no
+//   round under `LANE_CONTEST_QUORUM` and whose verdict tallies need two ballots on a side (`lane-contest-stage.ts`);
+//   `roster` serves the preparation's pairing rounds and the admission question.
 // - `select` and `slate` serve the selection rounds (`candidate-select.ts`): a leader needs `MIN_SELECTION_BALLOTS`
 //   ballots whatever the weight, one judge alone never deciding, and the consolidation buys no slate for a standing
 //   under that reach (`consolidate-slice-buy.ts`).
@@ -27,14 +28,18 @@ import {
 // BETWEEN THE FLOOR AND THE QUORUM the stage runs on the reachable bench: a gather closes on the reduced voices with
 // a `stage-short-bench` finding, a selection scales its minimum weight by reachable over quorum
 // (`selectionMinimum`, `candidate-select-minimum.ts`). A return that lifts a bench over its floor changes whether the
-// stages call at all; one that lifts it to its quorum changes the voices they settle on and drops the short mark.
-// Both change the result, so both are waited for.
+// stages call at all; one that lifts it to its quorum changes the voices they settle on. A BENCH AT EXACTLY ITS QUORUM,
+// above two voices, KEEPS THE SHORT MARK all the same: a gather closes one voice below the quorum there and carries the
+// finding (`reachableQuorum`, `stage-reachable-quorum.ts:112-123`), so only a lift past the quorum drops the mark.
+// Both lifts change the result, so both are waited for.
 
 /**
  The fewest reachable voices at which the stages leaning on each bench decide anything.
  */
 const BENCH_FLOORS: Readonly<Record<BenchName, number>> = {
   wide: MIN_STAGE_VOICES,
+  late: MIN_STAGE_VOICES,
+  roster: MIN_STAGE_VOICES,
   select: MIN_SELECTION_BALLOTS,
   slate: MIN_SELECTION_BALLOTS,
   editors: WRITING_BENCH_FLOOR,

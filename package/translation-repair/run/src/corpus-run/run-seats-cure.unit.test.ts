@@ -282,7 +282,9 @@ await describe({
       fn: async () => {
         const lines: string[] = [];
         expect(await readsUnderHold({ held: 'anthropic', lines, },),).toBe(1,);
-        expect(noWaitWarningOf({ lines, },),).toContain('held: anthropic (1 s); it would not help cure a short bench',);
+        expect(noWaitWarningOf({ lines, },),).toContain(
+          'held: anthropic (1 s); it would lift no short bench over its floor or to its quorum',
+        );
         expect(noWaitWarningOf({ lines, },),).toContain(' late 3 of 7 reachable, quorum 4',);
       },
     },),
@@ -328,7 +330,9 @@ await describe({
         const lines: string[] = [];
         expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_THREE_SHORT, },),).toBe(1,);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: anthropic (1 s); it would not help cure a short bench',);
+        expect(warning,).toContain(
+          'held: anthropic (1 s); it would lift no short bench over its floor or to its quorum',
+        );
       },
     },),
 
@@ -430,24 +434,29 @@ await describe({
 
     it({
       name: 'NAMES THE RUNNING HOLDS IT DID NOT WAIT FOR and why, in place of saying no provider named a return: the '
-        + 'DeepSeek hold is listed with its length and "would help cure a short bench" is the reason',
+        + 'DeepSeek hold is listed with its length and "would lift no short bench over its floor or to its quorum" is '
+        + 'the reason',
       fn: async () => {
         const lines: string[] = [];
         await readsUnderHolds({ held: ['deepseek',], lines, },);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: deepseek (1 s); it would not help cure a short bench',);
+        expect(warning,).toContain(
+          'held: deepseek (1 s); it would lift no short bench over its floor or to its quorum',
+        );
         expect(warning,).not.toContain('no provider has named a return',);
       },
     },),
 
     it({
-      name: 'NAMES BOTH SKIPPED HOLDS WITH "neither": DeepSeek and Xiaomi held, and neither would help cure '
-        + 'the late bench',
+      name: 'NAMES BOTH SKIPPED HOLDS WITH "neither": DeepSeek and Xiaomi held, and neither would lift '
+        + 'the late bench over its floor or to its quorum',
       fn: async () => {
         const lines: string[] = [];
         await readsUnderHolds({ held: ['deepseek', 'xiaomi',], lines, },);
         const warning = noWaitWarningOf({ lines, },);
-        expect(warning,).toContain('held: deepseek (1 s), xiaomi (1 s); neither would help cure a short bench',);
+        expect(warning,).toContain(
+          'held: deepseek (1 s), xiaomi (1 s); neither would lift a short bench over its floor or to its quorum',
+        );
       },
     },),
 
