@@ -7,7 +7,7 @@
  reader that counts it as returning waits for nothing. Here the wide bench stands one seat short of its quorum with
  NeuralWatt and Bedrock wet, and Hyper, whose return would reach the quorum, is refused for payment while its meter
  reads wet. The budgets are the real ones over stub meters, as the router's own are, so the states and the holds reach
- the reader the way a run's do; the hold is a few milliseconds on the real clock.
+ the reader the way a run's do; the hold is a quarter second on the real clock.
 
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
@@ -33,9 +33,10 @@ import { readJudgeSeats, } from '../../dist/final/node/index.mjs';
 const SIGNAL = new AbortController().signal;
 
 /**
- A stated wait short enough for a case to wait out on the real clock.
+ A stated wait short enough for the control case to wait out on the real clock and long enough to be running when the
+ reader first asks for the holds, whatever a loaded machine does between the refusal and that read.
  */
-const SHORT_HOLD_MS = 40;
+const SHORT_HOLD_MS = 250;
 
 /**
  Budgets over stub meters with NeuralWatt, Bedrock and Hyper wet and every other provider unconfigured, so dry.

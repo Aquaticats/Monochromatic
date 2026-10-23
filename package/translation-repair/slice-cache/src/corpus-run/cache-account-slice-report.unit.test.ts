@@ -365,7 +365,7 @@ await describe({
         /**
          A directory below the runbook's root.
          */
-        const below = join(
+        const underRunbookRoot = join(
           RUNBOOK_ROOT,
           'corpus-pass-cats',
         );
@@ -373,7 +373,7 @@ await describe({
         await reportSliceCaches({
           root: root.path,
           runsDir: runs.path,
-          searched: [below,],
+          searched: [underRunbookRoot,],
           settings: [],
           l: levelCapturingLogger({ lines: logged, },),
           home: HOME,
@@ -390,7 +390,7 @@ await describe({
               roots: [
                 join(root.path, 'node_modules', '.monochromatic',),
                 runs.path,
-                below,
+                underRunbookRoot,
               ],
             },),
           ],

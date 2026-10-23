@@ -79,13 +79,20 @@ function runbookRootOf({ home, }: { readonly home: string; },): string {
  */
 function isAmongOrUnder({ ancestor, path, }: { readonly ancestor: string; readonly path: string; },): boolean {
   /**
+   The two directories as absolute paths.
+   */
+  const from = resolve(ancestor,);
+  const to = resolve(path,);
+  if (from === to)
+    return true;
+  /**
    The way from the one to the other.
    */
   const way = relative(
-    resolve(ancestor,),
-    resolve(path,),
+    from,
+    to,
   );
-  return (way === '') || ((way !== '..') && (!way.startsWith(`..${sep}`,)) && (!isAbsolute(way,)));
+  return (way !== '..') && (!way.startsWith(`..${sep}`,)) && (!isAbsolute(way,));
 }
 
 /**
@@ -169,7 +176,7 @@ function uncoveredRootWords(
 
  @param home - home directory the runbook's runs root sits under
 
- @returns Sentence, empty where the count says all it should
+ @returns Sentence, absent where the count says all it should
 
  @example
  ```ts
@@ -186,7 +193,7 @@ function warningWordsOf(
     readonly searched: readonly string[];
     readonly home: string;
   },
-): string {
+): string | undefined {
   if (count === 0) {
     return noRecordWords({
       searched,
@@ -203,7 +210,7 @@ function warningWordsOf(
       path: runbookRoot,
     },);
   },))
-    return '';
+    return undefined;
   return uncoveredRootWords({
     searched,
     runbookRoot,
@@ -275,14 +282,14 @@ function printSliceCacheAccount(
   } of unlisted)
     console.log(`  ${dir} (${reason})`,);
   /**
-   What the count does not say, empty where it says all it should.
+   What the count does not say, absent where it says all it should.
    */
   const words = warningWordsOf({
     count,
     searched,
     home,
   },);
-  if (words !== '') {
+  if (words !== undefined) {
     l.warn(words,);
     console.log(`WARNING: ${words}`,);
   }

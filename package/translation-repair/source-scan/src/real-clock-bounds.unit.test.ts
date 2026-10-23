@@ -559,6 +559,32 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: SCRIPTED_CLOCK,
   },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: freshForMs: FRESH_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: rateLimitBackoffMs: FRESH_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: cooldownMs: 30 * FRESH_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: statedWaitMs: 5 * FRESH_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: SHORT_HOLD_MS': {
+    count: 1,
+    bound: 'other',
+    reason: 'the wait a refusal states, which the control case waits out on the real clock because the reading sleeps '
+      + 'it, so no machine ends it early, and the payment case never waits for',
+  },
   'provider/provider-budget-defaults.unit.test.ts#cut: statedWaitMs: STATED_MS': {
     count: 1,
     bound: 'other',
