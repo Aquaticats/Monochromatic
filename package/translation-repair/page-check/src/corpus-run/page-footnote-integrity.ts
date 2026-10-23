@@ -51,7 +51,10 @@ export function assertPageFootnotesIntact(
   const finalText = spliceSlices({
     targetText,
     slices,
-    replacements: shippableReplacements({ artifact, },),
+    replacements: shippableReplacements({
+      artifact,
+      includeSource: false,
+    },),
   },);
   /**
    Footnote defects the page carries and the archive did not.

@@ -71,7 +71,10 @@ export function guardPageAssembly(
    wording.
    */
   const replacements = rowsChangingArchive({
-    replacements: shippableReplacements({ artifact, },),
+    replacements: shippableReplacements({
+      artifact,
+      includeSource: false,
+    },),
     incumbentBySlice,
   },);
   /**

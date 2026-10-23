@@ -25,6 +25,7 @@ import {
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import {
+  guardPageAssembly,
   pageAgreement,
   publishFixedPage,
   type WouldShipSource,
@@ -177,8 +178,14 @@ await describe({
         const { page, } = await publishRows({ rows: TWO_RUNS, },);
         expect(page.split(NOTE,).length - 1,).toBe(2,);
         expect(page,).toContain('She slept on the counter.',);
-        expect(page.indexOf(FIRST_SOURCE.trim(),),).toBeLessThan(page.indexOf('She slept on the counter.',),);
-        expect(page.indexOf('She slept on the counter.',),).toBeLessThan(page.indexOf(SECOND_SOURCE.trim(),),);
+        /**
+         Where each part of the page starts.
+         */
+        const first = page.indexOf(FIRST_SOURCE.trim(),);
+        const middle = page.indexOf('She slept on the counter.',);
+        const second = page.indexOf(SECOND_SOURCE.trim(),);
+        expect(first,).toBeLessThan(middle,);
+        expect(middle,).toBeLessThan(second,);
       },
     },),
 
@@ -278,6 +285,46 @@ await describe({
         ];
         const { page, } = await publishRows({ rows, },);
         expect(page,).toContain(`${NOTE}\n\n${hostile.trim()}`,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE ORIGINAL OUT OF THE PAGE-ASSEMBLY PASSES AND THE FOOTNOTE GUARD, which rewrite English and '
+        + 'withdraw what breaks the archive\'s footnote graph: an original that holds English-looking words, straight '
+        + 'quotes and a footnote definition no archive reference answers (which the guard trims from a slice of definitions alone) comes back untouched, and the guard '
+        + 'records nothing against any slice',
+      fn: async () => {
+        /**
+         Original built to be rewritten by the Canadian-spelling and quote passes, or withdrawn by the guard.
+         */
+        const english = '\n[^9]: The color of the day was "grey", a neighbour\'s note.\n';
+        /**
+         Rows with that original as the one untranslated slice.
+         */
+        const rows: readonly SourceShippedRow[] = [
+          OPENING_ROW,
+          {
+            incumbentText: '',
+            sourceText: english,
+          },
+        ];
+        const assembly = guardPageAssembly({
+          artifact: sourceShippedArtifact({ rows, },),
+          slices: sourceShippedSlices({ rows, },),
+          sourceText: rows
+            .map(function sourceOf({ sourceText, },): string {
+              return sourceText;
+            },)
+            .join('',),
+          targetText: sourceShippedArchive({ rows, },),
+        },);
+        expect(assembly,).toEqual({
+          trimmed: [],
+          withdrawn: [],
+          findings: [],
+        },);
+        const { page, } = await publishRows({ rows, },);
+        expect(page,).toContain(`${NOTE}\n\n${english.trim()}`,);
       },
     },),
 

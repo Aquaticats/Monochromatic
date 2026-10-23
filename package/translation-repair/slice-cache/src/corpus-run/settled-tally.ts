@@ -257,6 +257,20 @@ export function settledTallyLine(
     return reading.kind === 'nothing-ships';
   },);
 
+  /**
+   Slices whose page carries the original text of a passage nobody translated, under a note (the owner,
+   2026-10-23, "Source text + note").
+
+   COUNTED BESIDE `pageSilent` AND NOT INSIDE IT, because the two say opposite things: a silent slice is a
+   passage the page does not carry at all, and this is one it carries untranslated. Folding them together
+   would have kept a run that ships its whole tail as the original reading as a run that lost the tail,
+   and a reader of the line could not tell the gap from the page that names it. A later run replaces these
+   once a wording is backed.
+   */
+  const pageSourceShipped = shipped.filter(function pageCarriesTheOriginal({ reading, }: ShippedSlice,): boolean {
+    return reading.kind === 'source-ships';
+  },);
+
   return [
     `TALLY ${artifact.id}`,
     'status=SETTLED',
@@ -279,6 +293,7 @@ export function settledTallyLine(
     `documentsDiffer=${String(differing.length,)}`,
     `pageChanged=${String(pageChanged.length,)}`,
     `pageSilent=${String(pageSilent.length,)}`,
+    `pageSourceShipped=${String(pageSourceShipped.length,)}`,
     `standingUnendorsed=${String(standingsKeptUnendorsed({ artifact, },),)}`,
     `alignmentFindings=${String(artifact.preparation
       .alignmentFindings

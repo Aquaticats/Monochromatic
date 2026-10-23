@@ -511,9 +511,32 @@ await describe({
 
         expect(fields.pageChanged,).toBe('0',);
 
-        // The slice with no incumbent at all: nothing stands there, which is
-        // neither a change nor a retention and would be invisible inside either.
-        expect(fields.pageSilent,).toBe('1',);
+        // The slice with no incumbent at all: no English stands there, which is neither a change nor a
+        // retention and would be invisible inside either. The artifact records its original, so the page
+        // carries that under a note (the owner, 2026-10-23, "Source text + note") and the slice is counted
+        // as carrying the original, not as silent.
+        expect(fields.pageSilent,).toBe('0',);
+        expect(fields.pageSourceShipped,).toBe('1',);
+
+        // Positive control: the same artifact with the original of that slice recorded blank has no passage to
+        // carry, and the slice is silent again.
+        const base = catArtifact();
+        const silent = fieldsOf({
+          artifact: {
+            ...base,
+            lanes: {
+              ...base.lanes,
+              translate: {
+                ...base.lanes.translate,
+                delivery: base.lanes.translate.delivery.map(function blanked(row,) {
+                  return (row.sliceIndex === 1) ? { ...row, sourceText: '', } : row;
+                },),
+              },
+            },
+          },
+        },);
+        expect(silent.pageSilent,).toBe('1',);
+        expect(silent.pageSourceShipped,).toBe('0',);
       },
     },),
     it({

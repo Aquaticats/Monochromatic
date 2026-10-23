@@ -240,6 +240,7 @@ export async function judgePublishedEntry(
     wording: {
       wordings,
       silentSlices,
+      sourceShipped,
       missing,
     },
     weight,
@@ -261,7 +262,9 @@ export async function judgePublishedEntry(
   return {
     agreement,
     lines: [
-      `${entryId}: wordings=${String(wordings,)} silent=${String(silentSlices,)} `
+      `${entryId}: wordings=${String(wordings,)} silent=${String(silentSlices,)} source-shipped=${
+        String(sourceShipped,)
+      } `
         + `${weighedAs({ weight, },)} missing=${String(missing.length,)} ${
         consistencyColumnOf({
           groups: read.artifact

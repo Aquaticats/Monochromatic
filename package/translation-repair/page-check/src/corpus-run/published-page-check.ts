@@ -10,6 +10,10 @@ import {
 import { matchSpanEdges, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { fragmentBody, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { PublishedPageDisagreesError, } from './published-page-disagreement.ts';
+import {
+  carriesText,
+  textOnPage,
+} from './source-ships.ts';
 
 //region Published page check
 // Reads the DELIVERABLE back, which until now nothing did.
@@ -83,17 +87,25 @@ export type MissingWording = {
 
  @example
  ```ts
- const check: PageWordingCheck = { wordings: 9, silentSlices: 1, missing: [], };
+ const check: PageWordingCheck = { wordings: 9, silentSlices: 1, sourceShipped: 2, missing: [], };
  ```
  */
 export type PageWordingCheck = {
   /**
-   Slices whose reading carries wording, so the page must contain it.
+   Slices whose reading carries English wording, so the page must contain it.
    */
   readonly wordings: number;
 
   /**
-   Slices where nothing ships, which the page must simply not invent.
+   Slices whose reading carries the original text of an untranslated passage, so the page must contain it
+   too (the owner, 2026-10-23, "Source text + note"). Counted apart from the wordings because they are not
+   English, and apart from the silent slices because the page does carry them.
+   */
+  readonly sourceShipped: number;
+
+  /**
+   Slices where nothing ships, which the page must simply not invent. A passage the page carries as its
+   original text is not among them.
 
    COUNTED RATHER THAN CHECKED. An anchor nobody filled leaves the page exactly
    as the archive had it, and a content span the deciders emptied leaves a hole
@@ -193,7 +205,7 @@ function sliceDelta(
    */
   const { reading, } = slice;
 
-  if (reading.kind !== 'wording')
+  if (!carriesText(reading,))
     return -held;
 
   /**
@@ -205,7 +217,7 @@ function sliceDelta(
   const ships = codePointLength({
     text: matchSpanEdges({
       replaced: nonNullishOrThrow(incumbentBySlice.get(slice.sliceIndex,),),
-      text: reading.text,
+      text: textOnPage({ reading, },),
     },),
   },);
 
@@ -241,7 +253,7 @@ function filledAnAnchor(
    */
   const { reading, } = slice;
 
-  if (reading.kind !== 'wording')
+  if (!carriesText(reading,))
     return false;
 
   return nonNullishOrThrow(incumbentBySlice.get(slice.sliceIndex,),) === '';
@@ -415,13 +427,24 @@ export function pageCarriesEveryWording(
   const slices = wouldShipTextPerSlice({ artifact, },);
 
   /**
-   Slices contributing no wording at all, which the scan walks past.
+   Slices contributing no text at all, which the scan walks past.
    */
   const silentSlices = slices
     .filter(function saysNothing(slice,): boolean {
       return slice.reading
         .kind
-        !== 'wording';
+        === 'nothing-ships';
+    },)
+    .length;
+
+  /**
+   Slices carrying the original of a passage nobody translated, which the scan looks for beside the wordings.
+   */
+  const sourceShipped = slices
+    .filter(function carriesOriginal(slice,): boolean {
+      return slice.reading
+        .kind
+        === 'source-ships';
     },)
     .length;
 
@@ -440,7 +463,7 @@ export function pageCarriesEveryWording(
      What this slice would carry, or that it carries nothing.
      */
     const { reading, } = slice;
-    if (reading.kind !== 'wording')
+    if (!carriesText(reading,))
       continue;
 
     /**
@@ -453,7 +476,7 @@ export function pageCarriesEveryWording(
      archive span's line-ending edges. The body is inside both, so the scan
      asks for what either path leaves on the page and stays one-sided.
      */
-    const wording = fragmentBody({ fragment: reading.text, },);
+    const wording = fragmentBody({ fragment: textOnPage({ reading, },), },);
 
     /**
      Where this wording sits, or that the page does not carry it here.
@@ -478,8 +501,13 @@ export function pageCarriesEveryWording(
     cursor.at = at + wording.length;
   }
 
+  /**
+   Slices carrying English wording: those that carry any text, less the ones carrying the original.
+   */
+  const withText = slices.length - silentSlices;
   return {
-    wordings: slices.length - silentSlices,
+    wordings: withText - sourceShipped,
+    sourceShipped,
     silentSlices,
     missing,
   };

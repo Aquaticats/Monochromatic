@@ -1,0 +1,184 @@
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { fragmentBody, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
+import type {
+  WouldShipReading,
+  WouldShipSlice,
+  WouldShipSource,
+} from './would-ship-text.ts';
+
+//region Source ships
+// WHAT A PAGE CARRIES WHERE THE ARCHIVE HAS NO TEXT AND NO WORDING WAS BACKED.
+// The owner, 2026-10-23, asked what a shipped page carries for such a slice,
+// chose "Source text + note": the page carries the original text of the
+// passage, preceded by a note saying it has not been translated yet and the
+// original follows, footnote definitions included; a later run replaces it
+// once a wording is backed. Options offered and not chosen: the note alone;
+// the silent gap the pages shipped before (XingZ6020 shipped 88 of 118 slices
+// and the other 30, 31.5 percent of the original, left no trace on the page);
+// and unbacked wording marked as unreviewed, which would break the standing
+// rule that one judge alone never decides.
+//
+// A READING AND NOT A RECORD OF ITS OWN: the original of every slice is already
+// in the artifact (`lanes.translate.delivery[].sourceText`), and the slice's
+// silence is already decided by the stages, so this file only reads the two
+// together. The page, the page check, the tally and `verify-published` all
+// read the same reading and so agree.
+
+/**
+ The note a run of untranslated slices carries before the original text,
+ as a Markdown block quote on its own line.
+
+ CANADIAN ENGLISH AND PLAIN TEXT, so it needs no encoding at any boundary it
+ crosses: it holds no angle bracket, brace, backtick or link.
+ */
+export const UNTRANSLATED_PASSAGE_NOTE = '> This passage has not been translated yet. The original text follows.';
+
+/**
+ Turns the silence at an anchor into the slice shipping its original text.
+
+ ONLY AN ANCHOR NOTHING FILLED: a content span the deciders emptied keeps its
+ silence, since the archive had wording there and they removed it. A source
+ that renders as nothing has no passage to carry, and a source with no lanes
+ to record it (the consistency pass composes the English alone) reads as it
+ always did.
+
+ @param artifact - source being read
+
+ @param sliceIndex - slice the reading is for
+
+ @param reading - what the stages left at the slice
+
+ @returns The reading, or the slice shipping its original text
+
+ @example
+ ```ts
+ const carried = carryingSource({ artifact, sliceIndex: 3, reading, },);
+ ```
+ */
+export function carryingSource(
+  {
+    artifact,
+    sliceIndex,
+    reading,
+  }: {
+    readonly artifact: WouldShipSource;
+    readonly sliceIndex: number;
+    readonly reading: WouldShipReading;
+  },
+): WouldShipReading {
+  if ((reading.kind !== 'nothing-ships') || (reading.incumbentKind !== 'absent'))
+    return reading;
+  /**
+   The row recording the original of this slice, absent when the source carries no lanes or no row for it.
+   */
+  const recorded = artifact.lanes
+    ?.translate
+    .delivery
+    .find(function namesIt(row,): boolean {
+      return row.sliceIndex === sliceIndex;
+    },);
+  if ((recorded === undefined) || rendersAsNothing({ text: recorded.sourceText, },))
+    return reading;
+  return {
+    kind: 'source-ships',
+    reason: reading.reason,
+    incumbentKind: 'absent',
+    text: recorded.sourceText,
+    // A SLICE READ ALONE OPENS ITS OWN RUN; `markRuns` closes it where a neighbour carries the same note.
+    opensRun: true,
+  };
+}
+
+/**
+ Marks which slices continue a run of slices shipping their original, so the
+ note stands once before a contiguous run and not once per slice.
+
+ A RUN IS SLICES NEXT TO EACH OTHER IN THE ORDER THE ROWS GIVE, and any slice
+ that ships English or nothing between two of them ends it.
+
+ @param slices - every slice's reading, in comparison-row order
+
+ @returns The same readings, the ones that continue a run no longer opening one
+
+ @example
+ ```ts
+ const marked = markRuns({ slices, },);
+ ```
+ */
+export function markRuns(
+  { slices, }: { readonly slices: readonly WouldShipSlice[]; },
+): readonly WouldShipSlice[] {
+  return slices.map(function markIt(
+    slice,
+    at,
+  ): WouldShipSlice {
+    /**
+     What this slice ships.
+     */
+    const { reading, } = slice;
+    if ((at === 0) || (reading.kind !== 'source-ships'))
+      return slice;
+    /**
+     What the slice before it ships.
+     */
+    const { reading: previous, } = nonNullishOrThrow(slices[at - 1],);
+    if (previous.kind !== 'source-ships')
+      return slice;
+    return {
+      ...slice,
+      reading: {
+        ...reading,
+        opensRun: false,
+      },
+    };
+  },);
+}
+
+/**
+ A reading that puts text on the page, which is every reading but the silent one.
+ */
+export type TextCarryingReading = Exclude<WouldShipReading, { readonly kind: 'nothing-ships'; }>;
+
+/**
+ Whether a reading puts any text on the page at its slice.
+
+ @param reading - what the slice would carry
+
+ @returns Whether the reading carries wording or the original, false for a silence
+
+ @example
+ ```ts
+ if (carriesText(reading,)) page.push(textOnPage({ reading, },),);
+ ```
+ */
+export function carriesText(reading: WouldShipReading,): reading is TextCarryingReading {
+  return reading.kind !== 'nothing-ships';
+}
+
+/**
+ Text a reading puts on the page at its slice, the note included where the
+ slice opens a run.
+
+ @param reading - what the slice would carry, other than a silence
+
+ @returns The exact text the splice receives
+
+ @example
+ ```ts
+ const text = textOnPage({ reading, },);
+ ```
+ */
+export function textOnPage(
+  { reading, }: { readonly reading: TextCarryingReading; },
+): string {
+  if (reading.kind === 'wording')
+    return reading.text;
+  /**
+   The original without the blank lines around it, which the note's own blank line replaces.
+   */
+  const body = fragmentBody({ fragment: reading.text, },);
+  return reading.opensRun ? `${UNTRANSLATED_PASSAGE_NOTE}\n\n${body}` : body;
+}
+
+//endregion Source ships

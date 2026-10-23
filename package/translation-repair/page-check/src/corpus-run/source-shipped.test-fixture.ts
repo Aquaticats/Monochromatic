@@ -1,3 +1,5 @@
+import type { ArtifactComparisonRow, } from '@monochromatic-dev/translation-repair-artifact-pool';
+import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
 import type { WouldShipSource, } from '../../dist/final/node/index.mjs';
 
@@ -33,6 +35,70 @@ export type SourceShippedRow = {
 };
 
 /**
+ Comparison row of one slice.
+
+ @param row - the slice
+
+ @param sliceIndex - its index
+
+ @returns Row the artifact records for it
+
+ @example
+ ```ts
+ const comparison = comparisonRowOf({ row, sliceIndex: 0, },);
+ ```
+ */
+function comparisonRowOf(
+  {
+    row,
+    sliceIndex,
+  }: {
+    readonly row: SourceShippedRow;
+    readonly sliceIndex: number;
+  },
+): ArtifactComparisonRow {
+  if (row.incumbentText === '')
+    return {
+      sliceIndex,
+      incumbentKind: 'absent',
+      incumbentText: '',
+      repairText: '',
+      translateText: '',
+      laneRelation: 'gap-remains',
+      repairOutcome: { kind: 'unfilled', },
+      translateOutcome: { kind: 'unfilled', },
+      decisionComparison: {
+        kind: 'comparable',
+        verdict: 'same',
+      },
+      repairDelivery: { kind: 'gap-remains', },
+      translateDelivery: { kind: 'gap-remains', },
+    };
+  return {
+    sliceIndex,
+    incumbentKind: 'present',
+    incumbentText: row.incumbentText,
+    repairText: row.incumbentText,
+    translateText: row.incumbentText,
+    laneRelation: 'archive-stands',
+    repairOutcome: {
+      kind: 'decided',
+      acceptedText: row.incumbentText,
+    },
+    translateOutcome: {
+      kind: 'decided',
+      acceptedText: row.incumbentText,
+    },
+    decisionComparison: {
+      kind: 'comparable',
+      verdict: 'same',
+    },
+    repairDelivery: { kind: 'incumbent-retained', },
+    translateDelivery: { kind: 'incumbent-retained', },
+  };
+}
+
+/**
  Builds the artifact of an entry whose rows are given, in slice order.
 
  EVERY ROW IS A SLICE BOTH LANES LEFT AS THE ARCHIVE HAD IT, an anchor being one
@@ -45,27 +111,21 @@ export type SourceShippedRow = {
 
  @example
  ```ts
- const artifact = sourceShippedArtifact({ rows: [{ incumbentText: 'A cat.\n', sourceText: '猫\n', },], },);
+ const artifact = sourceShippedArtifact({ rows: [{ incumbentText: 'A cat.\\n', sourceText: '猫\\n', },], },);
  ```
  */
 export function sourceShippedArtifact(
   { rows, }: { readonly rows: readonly SourceShippedRow[]; },
 ): WouldShipSource {
   return {
-    comparison: rows.map(function toComparison({ incumbentText, }, sliceIndex,) {
-      return {
+    comparison: rows.map(function toComparison(
+      row,
+      sliceIndex,
+    ) {
+      return comparisonRowOf({
+        row,
         sliceIndex,
-        incumbentKind: (incumbentText === '') ? 'absent' : 'present',
-        incumbentText,
-        repairText: incumbentText,
-        translateText: incumbentText,
-        laneRelation: (incumbentText === '') ? 'gap-remains' : 'archive-stands',
-        repairOutcome: (incumbentText === '') ? { kind: 'unfilled', } : { kind: 'decided', acceptedText: incumbentText, },
-        translateOutcome: (incumbentText === '') ? { kind: 'unfilled', } : { kind: 'decided', acceptedText: incumbentText, },
-        decisionComparison: { kind: 'not-comparable', undecidedLanes: ['repair', 'translate',], },
-        repairDelivery: (incumbentText === '') ? { kind: 'gap-remains', } : { kind: 'incumbent-retained', },
-        translateDelivery: (incumbentText === '') ? { kind: 'gap-remains', } : { kind: 'incumbent-retained', },
-      };
+      },);
     },),
     consolidation: { kind: 'not-run', },
     laneSelection: {
@@ -74,17 +134,18 @@ export function sourceShippedArtifact(
     },
     lanes: {
       translate: {
-        delivery: rows.map(function toDelivery({ incumbentText, sourceText, }, sliceIndex,) {
+        delivery: rows.map(function toDelivery(
+          { sourceText, },
+          sliceIndex,
+        ) {
           return {
             sliceIndex,
             sourceText,
-            incumbentKind: (incumbentText === '') ? 'absent' : 'present',
-            incumbentText,
           };
         },),
       },
     },
-  } as unknown as WouldShipSource;
+  };
 }
 
 /**
@@ -107,7 +168,13 @@ export function sourceShippedSlices(
    Offset in the archive the next slice starts at, advanced by every content span.
    */
   const cursor = { at: 0, };
-  return rows.map(function toPair({ incumbentText, sourceText, }, sliceIndex,): ChunkPair {
+  return rows.map(function toPair(
+    {
+      incumbentText,
+      sourceText,
+    },
+    sliceIndex,
+  ): ChunkPair {
     /**
      Where this slice's span starts.
      */
@@ -115,21 +182,27 @@ export function sourceShippedSlices(
     cursor.at += incumbentText.length;
     return {
       source: {
+        kind: 'content',
         sliceIndex,
         nodes: [],
         startOffset: 0,
         endOffset: 0,
         text: sourceText,
       },
-      target: {
-        ...((incumbentText === '') ? { kind: 'insertion', } : {}),
-        sliceIndex,
-        nodes: [],
-        startOffset,
-        endOffset: cursor.at,
-        text: incumbentText,
-      },
-    } as unknown as ChunkPair;
+      target: (incumbentText === '')
+        ? makeInsertionChunk({
+          sliceIndex,
+          offset: startOffset,
+        },)
+        : {
+          kind: 'content',
+          sliceIndex,
+          nodes: [],
+          startOffset,
+          endOffset: cursor.at,
+          text: incumbentText,
+        },
+    };
   },);
 }
 

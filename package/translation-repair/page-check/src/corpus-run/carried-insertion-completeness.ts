@@ -79,7 +79,10 @@ export function assertCarriedInsertionsRemain(
   const finalText = spliceSlices({
     targetText,
     slices,
-    replacements: shippableReplacements({ artifact, },),
+    replacements: shippableReplacements({
+      artifact,
+      includeSource: false,
+    },),
   },);
   /**
    The page as the anchoring reads it.

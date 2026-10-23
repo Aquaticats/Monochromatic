@@ -25,6 +25,7 @@ import {
   spliceSlices,
 } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { textOnPage, } from './source-ships.ts';
 import {
   type WouldShipSource,
   wouldShipTextPerSlice,
@@ -156,7 +157,15 @@ export function fixedPagePath(
  text would conflate an anchor with a content span whose archive wording
  genuinely is blank.
 
+ A SLICE THAT SHIPS ITS ORIGINAL CONTRIBUTES THAT TEXT, with the note before the first of a run (the owner,
+ 2026-10-23, "Source text + note"), unless the caller asks for the English alone. The guards that weigh the page
+ against the archive (the page-assembly passes, the footnote and carried-evidence checks) ask for the English
+ alone: the passes rewrite English and must leave the original alone, and the original's own footnote graph is
+ the page check's to report, not a reason to withdraw a slice the archive does not hold.
+
  @param artifact - settled entry, read for what each slice would carry
+
+ @param includeSource - whether a slice shipping its original contributes it, true for the page that publishes
 
  @returns Replacement per slice that contributes one, in comparison order
 
@@ -166,7 +175,13 @@ export function fixedPagePath(
  ```
  */
 export function shippableReplacements(
-  { artifact, }: { readonly artifact: WouldShipSource; },
+  {
+    artifact,
+    includeSource = true,
+  }: {
+    readonly artifact: WouldShipSource;
+    readonly includeSource?: boolean;
+  },
 ): readonly SliceReplacement[] {
   return wouldShipTextPerSlice({ artifact, },)
     .flatMap(function toReplacement(slice,): readonly SliceReplacement[] {
@@ -180,6 +195,14 @@ export function shippableReplacements(
           sliceIndex: slice.sliceIndex,
           replacementText: reading.text,
         },];
+
+      if (reading.kind === 'source-ships')
+        return includeSource
+          ? [{
+            sliceIndex: slice.sliceIndex,
+            replacementText: textOnPage({ reading, },),
+          },]
+          : [];
 
       // NOTHING SHIPS HERE, and at an anchor nothing is also what the assembler
       // must be told: a row carrying blank text claims a rendering was written

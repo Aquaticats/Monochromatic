@@ -147,6 +147,14 @@ export {
   type VerifiableRun,
   whatThereIsToVerify,
 } from './corpus-run/published-tree-listing.ts';
+export {
+  carriesText,
+  carryingSource,
+  markRuns,
+  type TextCarryingReading,
+  textOnPage,
+  UNTRANSLATED_PASSAGE_NOTE,
+} from './corpus-run/source-ships.ts';
 export { unifyQuoteStyle, } from './corpus-run/quote-style-unify.ts';
 export {
   applySpanRewrites,

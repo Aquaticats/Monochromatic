@@ -29,7 +29,29 @@ import {
   shippableReplacements,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
+import {
+  sourceShippedArtifact,
+  type SourceShippedRow,
+} from './source-shipped.test-fixture.ts';
 import { artifactWithAnUnfilledAnchor, } from './would-ship-unfilled-anchor.test-fixture.ts';
+
+/**
+ An archive paragraph and two anchors past its end, whose original the artifact records.
+ */
+const ROWS_WITH_A_TAIL: readonly SourceShippedRow[] = [
+  {
+    incumbentText: 'A tabby.\n',
+    sourceText: '虎斑猫。\n',
+  },
+  {
+    incumbentText: '',
+    sourceText: '## 后记\n',
+  },
+  {
+    incumbentText: '',
+    sourceText: '[^1]: 注\n',
+  },
+];
 
 /**
  Archive's own wording at the slice every case reads.
@@ -182,7 +204,7 @@ await describe({
       children: [
         it({
           name:
-            'NAMES AN UNFILLED ANCHOR NOWHERE, because a row carrying blank text there claims a '
+            'NAMES AN UNFILLED ANCHOR NOWHERE WHEN THE ARTIFACT RECORDS NO ORIGINAL, because a row carrying blank text there claims a '
               + 'rendering was written where none was, and `spliceSlices` refuses that outright. It used '
               + 'to emit one, and the refusal landed in `publishFixedPage`, which runs before the '
               + 'artifact is written: `XIEPT2` recorded the slice unfilled three and a half hours in and '
@@ -190,6 +212,45 @@ await describe({
               + 'with no page and no artifact kept',
           fn: async () => {
             expect(shippableReplacements({ artifact: artifactWithAnUnfilledAnchor(), },),).toEqual([],);
+          },
+        },),
+
+        it({
+          name:
+            'WRITES THE ORIGINAL AT AN UNFILLED ANCHOR THE ARTIFACT RECORDS IT FOR, with the note before the first slice '
+              + 'of the run only (the owner, 2026-10-23, "Source text + note")',
+          fn: async () => {
+            expect(shippableReplacements({ artifact: sourceShippedArtifact({ rows: ROWS_WITH_A_TAIL, },), },),).toEqual([
+              {
+                sliceIndex: 0,
+                replacementText: 'A tabby.\n',
+              },
+              {
+                sliceIndex: 1,
+                replacementText: '> This passage has not been translated yet. The original text follows.\n\n## 后记',
+              },
+              {
+                sliceIndex: 2,
+                replacementText: '[^1]: 注',
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name:
+            'WRITES THE ENGLISH ALONE WHEN ASKED, so the passes that rewrite English and the guards that weigh the page '
+              + 'against the archive never meet the original',
+          fn: async () => {
+            expect(shippableReplacements({
+              artifact: sourceShippedArtifact({ rows: ROWS_WITH_A_TAIL, },),
+              includeSource: false,
+            },),).toEqual([
+              {
+                sliceIndex: 0,
+                replacementText: 'A tabby.\n',
+              },
+            ],);
           },
         },),
 
