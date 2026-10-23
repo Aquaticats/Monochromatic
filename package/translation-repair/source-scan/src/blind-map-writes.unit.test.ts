@@ -656,10 +656,6 @@ const ALLOWED_BLIND_SETS: ReadonlyMap<string, string> = new Map<string, string>(
     'the key is the file name without its prefix and suffix, which no two names of one directory share, and the file\'s own `cacheKey` must equal it',
   ],
   [
-    'translate-lane/translate-floor-limited.ts#rememberFloorLimited: memory.set(key,...)',
-    'the key holds the slice index and its two texts, and the record of the latest attempt is meant to replace the earlier one',
-  ],
-  [
     'translate-lane/document-readings.ts#readDocumentPictures: readings.set(assetName,...)',
     'the names come from a set of the document\'s pictures, each visited once',
   ],

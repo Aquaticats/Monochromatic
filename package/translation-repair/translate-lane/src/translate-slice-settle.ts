@@ -13,7 +13,6 @@ import {
   neighbouringSource,
 } from '@monochromatic-dev/translation-repair-repair/ts';
 import {
-  absenceFinding,
   armSliceCost,
   type IncumbentKind,
   resumedSliceDiscardFinding,
@@ -39,8 +38,14 @@ import {
   type FloorLimitedMemory,
   notAskedAgain,
   rememberFloorLimited,
+  selectBelowFloor,
+  skippedBelowFloor,
 } from './translate-floor-limited.ts';
 import { translateSliceKey, } from './translate-slice-key.ts';
+import {
+  carriedElsewhere,
+  notCorroborated,
+} from './translate-slice-unbought.ts';
 import {
   heardNobody,
   unheardCacheDiscardFinding,
@@ -256,42 +261,17 @@ export async function resumeReuseOrBuyTranslateSlice(
    */
   const { sliceIndex, } = slice.target;
 
-  if (isInsertionChunk(slice.target,) && insertionCarried) {
-    l.info(`slice ${String(sliceIndex,)}: source passage already carried elsewhere`,);
-    return {
-      outcome: {
-        kind: 'carried',
-        sliceIndex,
-      },
-      refusedCacheFindings: [],
-      unfilledFindings: [],
-    };
-  }
+  if (isInsertionChunk(slice.target,) && insertionCarried)
+    return carriedElsewhere({
+      sliceIndex,
+      l,
+    },);
 
-  if (isInsertionChunk(slice.target,) && (!insertionAdmitted)) {
-    // NOTHING IS BOUGHT HERE. The pairing says this original went unrendered,
-    // but the page carries at least as much English as its source predicts, so
-    // the likelier reading is that the passage was merged into a neighbour and
-    // writing it in would put a second rendering of it into the document.
-    l.warn(
-      `slice ${String(sliceIndex,)}: an original with no translation beside it, but the page `
-        + 'has no room to be missing it; nothing was bought and the passage stays as it is',
-    );
-    return {
-      outcome: {
-        kind: 'unfilled',
-        unfilled: {
-          sliceIndex,
-          reason: 'not-corroborated',
-          findings: [],
-        },
-      },
-      refusedCacheFindings: [],
-      unfilledFindings: [
-        `${absenceFinding({ reason: 'not-corroborated', },)} chunk ${String(sliceIndex,)}`,
-      ],
-    };
-  }
+  if (isInsertionChunk(slice.target,) && (!insertionAdmitted))
+    return notCorroborated({
+      sliceIndex,
+      l,
+    },);
 
   /**
    What this slice cost, reported however this function is left.
@@ -475,12 +455,30 @@ export async function resumeReuseOrBuyTranslateSlice(
   }
 
   /**
+   Whether this passage's select bench reads under the floor, so nothing bought for it could be backed. Asked after the
+   cache and the pass's memory have answered what they can, and acted on only where a purchase would start: a twin's
+   stored record is reused before it.
+   */
+  const belowFloor = selectBelowFloor({
+    incumbentKind,
+    ...((selectReachable === undefined) ? {} : { reachable: selectReachable, }),
+  },);
+  /**
    A twin's stored record, or this slice's own purchase.
    */
   const asked = await reuseTwinOrBuy({
     key,
     memo: twins,
     buy: async function buyThisSlice(): Promise<BoughtSlice> {
+      if (belowFloor && (selectReachable !== undefined)) {
+        return skippedBelowFloor({
+          reachable: selectReachable,
+          benchSize: models.judgeModelIds
+            .length,
+          sliceIndex,
+          l,
+        },);
+      }
       return await buyTranslateSlice({
         client,
         slice,
@@ -527,6 +525,7 @@ export async function resumeReuseOrBuyTranslateSlice(
     ...floorFacts,
     key: floorKey,
     bought,
+    toldWhy: belowFloor,
   },);
   if (bought.kind === 'unfilled') {
     cost.left({ exit: 'unfilled', },);

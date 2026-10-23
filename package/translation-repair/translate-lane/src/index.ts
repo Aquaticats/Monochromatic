@@ -38,8 +38,13 @@ export { translateDocument, } from './translate-document.ts';
 export {
   type FloorLimitedMemory,
   type FloorLimitedRecord,
+  rememberFloorLimited,
 } from './translate-floor-limited.ts';
 export { translateLaneWordings, } from './translate-lane-wordings.ts';
+export {
+  carriedElsewhere,
+  notCorroborated,
+} from './translate-slice-unbought.ts';
 export {
   attemptTranslateSlice,
   type SliceAttempt,
