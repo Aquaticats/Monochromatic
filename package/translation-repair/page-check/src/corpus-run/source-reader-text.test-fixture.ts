@@ -1,16 +1,17 @@
 import {
   commentRegionsOf,
   maskHtmlComments,
-  parseMarkdownBody,
   parseMdxBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure';
+import { parseGfmMathBody, } from '@monochromatic-dev/translation-repair-document-structure/ts/gfm-math-reading.test-fixture.ts';
 
 //region Reader text of a source run
 // WHAT A READER OF A PAGE SEES OF A TEXT, put side by side for the text as the artifact records it and the text as the
 // page carries it. A page is read the way the package admits it (HTML comments masked, then the strict MDX grammar),
-// the source the way any Markdown reader would read it (the plain grammar), and both are reduced to the same account:
-// the text of every leaf, with a link's target marked where the link stands and math between its dollar signs. The
+// the source the way any Markdown reader would read it on the site's flavour (CommonMark with GFM and the site's math,
+// `gfm-math-reading.test-fixture.ts` in `document-structure`), and both are reduced to the same account: the text
+// of every leaf, with a link's target marked where the link stands and the formula of a math node as it is. The
 // account of a page that holds a construct the strict grammar reads as syntax (an expression, a tag) is refused rather
 // than guessed at, since such a page does not show the source text.
 //
@@ -99,10 +100,8 @@ function leavesOf({ node, }: { readonly node: TreeNode; },): string {
     throw new Error(`the page holds a ${type} node, which the strict grammar reads as syntax`,);
   if (VALUE_TYPES.has(type,) && ('value' in node))
     return node.value;
-  if ((type === 'inlineMath') && ('value' in node))
-    return `$${node.value}$`;
-  if ((type === 'math') && ('value' in node))
-    return `$$\n${node.value}\n$$`;
+  if (((type === 'inlineMath') || (type === 'math')) && ('value' in node))
+    return node.value;
   if (node.type === 'image')
     return node.alt ?? '';
   if (node.type === 'break')
@@ -207,7 +206,7 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
    when one does not, since the plain grammar reads that comment as it stands.
    */
   const readable = allClose ? masked : source;
-  return accountOf({ root: parseMarkdownBody({ body: readable, },), },);
+  return accountOf({ root: parseGfmMathBody({ body: readable, },), },);
 }
 
 //endregion Reader text of a source run

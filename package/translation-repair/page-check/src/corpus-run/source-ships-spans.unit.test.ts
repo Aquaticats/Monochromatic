@@ -154,6 +154,95 @@ await describe({
     },),
 
     it({
+      name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD as a character reference too, '
+        + 'and of no ATX heading',
+      fn: async () => {
+        expect(spansIn({ source: 'import a\n===\n', },).edits,).toEqual([
+          {
+            start: 0,
+            end: 1,
+            replacement: '&#105;',
+          },
+        ],);
+        expect(spansIn({ source: '# import a\n', },).edits,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'READS THE BODY OF A FOOTNOTE DEFINITION CommonMark TAKES FOR A LINK REFERENCE DEFINITION as the blocks it is '
+        + 'made of, at the offsets of the whole text',
+      fn: async () => {
+        /**
+         A definition made of one brace, and one made of an address in angle brackets.
+         */
+        const source = '[^1]: {\n\n[^2]: <https://example.net/x>\n';
+        const { text, edits, } = spansIn({ source, },);
+        expect(text.map(function textOf(range,): string {
+          return cut({
+            source,
+            range,
+          },);
+        },),).toEqual(['{',],);
+        expect(edits,).toEqual([
+          {
+            start: 15,
+            end: 38,
+            replacement: '[https://example.net/x](https://example.net/x)',
+          },
+        ],);
+      },
+    },),
+
+    it({
+      name: 'READS THE LABEL OF A LINK REFERENCE DEFINITION AS TEXT and its destination and title as no text',
+      fn: async () => {
+        /**
+         A definition whose label, destination and title all hold a brace.
+         */
+        const source = '[a {b]: u{c "t {d"\n';
+        expect(spansIn({ source, },).text.map(function textOf(range,): string {
+          return cut({
+            source,
+            range,
+          },);
+        },),).toEqual(['a {b',],);
+      },
+    },),
+
+    it({
+      name: 'READS INDENTED BLOCKS UNDER A FOOTNOTE DEFINITION BY THEIR OWN STRUCTURE: text for a paragraph, nothing for a '
+        + 'fence',
+      fn: async () => {
+        /**
+         A footnote with a paragraph and a fence indented under it.
+         */
+        const source = '[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n';
+        expect(spansIn({ source, },).text.map(function textOf(range,): string {
+          return cut({
+            source,
+            range,
+          },);
+        },),).toEqual(['注 {',],);
+      },
+    },),
+
+    it({
+      name: 'REPORTS WHERE THE LINKS OF A TEXT STAND, so an address inside the text of one is not read as an address',
+      fn: async () => {
+        /**
+         A link whose text is an address, then an address of its own.
+         */
+        const source = '[https://example.net/a](u) https://example.net/b';
+        expect(spansIn({ source, },).insideLinks.map(function textOf(range,): string {
+          return cut({
+            source,
+            range,
+          },);
+        },),).toEqual(['[https://example.net/a](u)',],);
+      },
+    },),
+
+    it({
       name: 'REFUSES A NODE WITH NO POSITION, which the reading it is given never builds',
       fn: async () => {
         expect(caught(function readUnpositioned(): void {

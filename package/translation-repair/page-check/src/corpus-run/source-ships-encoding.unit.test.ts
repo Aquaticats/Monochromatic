@@ -88,6 +88,28 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['an ES module word later in a paragraph', '她说\nimport data from the old system {\n'],
   ['a comment that closes beside a brace', '<!-- 注释 {a} -->\n\n她说 {b}\n'],
   ['a comment that never closes', '<!-- 注释\n她说\n'],
+  ['a footnote definition that is only a brace', '她[^1]说\n\n[^1]: {\n'],
+  ['a footnote definition that is only a tag', '她[^1]说\n\n[^1]: <b>\n'],
+  ['a footnote definition that is only an address in angle brackets', '她[^1]说\n\n[^1]: <https://example.net/x>\n'],
+  ['a footnote definition of one word holding a brace', '她[^1]说\n\n[^1]: a{b\n'],
+  ['a footnote definition of one word holding a less-than sign', '她[^1]说\n\n[^1]: a<b\n'],
+  ['a footnote definition with a title holding a brace', '她[^1]说\n\n[^1]: 注 ({)\n'],
+  ['a footnote definition with a fenced block in its body', '她[^1]说\n\n[^1]: x\n\n    ```\n    {\n    ```\n'],
+  ['a footnote definition with a paragraph and a fenced block in its body', '她[^1]说\n\n[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n'],
+  ['a setext heading starting with import', 'import data from the old system\n===\n'],
+  ['a setext heading starting with export', 'export to PDF\n---\n'],
+  ['a setext heading of two lines starting with import', 'import x from y\nabc\n===\n'],
+  ['a bare address ended by a tag', 'https://example.net/a<b> {\n'],
+  ['a bare address ended by a tag after text', '见 https://example.net/a_b<c> 与 {d}\n'],
+  ['a bare www address ended by a tag', 'www.example.net/a<b> {\n'],
+  ['a bare address inside link text', '[https://example.net/a{ b](u)\n'],
+  ['a protocol with a brace right after it', '见 https://{x\n'],
+  ['a protocol with nothing after it', '见 https:// {\n'],
+  ['a reference label holding a brace, collapsed', '[a {b][]\n\n[a {b]: u\n'],
+  ['a reference label holding a brace, full', '[x][a {b]\n\n[a {b]: u\n'],
+  ['display math on one line', '$$a < {b}$$ 与 {\n'],
+  ['display math that never closes', '$$\n{x\n'],
+  ['inline math with an escaped less-than sign', '$a \\< b$ {\n'],
 ];
 
 await describe({
@@ -251,6 +273,90 @@ await describe({
             expect(encoded({ text: 'Import data', },),).toBe('Import data',);
             expect(encoded({ text: ' import data', },),).toBe(' import data',);
             expect(encoded({ text: '> import data', },),).toBe('> import data',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD AS A CHARACTER REFERENCE '
+            + 'too, since MDX reads the heading line as the module before it reads the underline',
+          fn: async () => {
+            expect(encoded({ text: 'import data from the old system\n===\n', },),)
+              .toBe('&#105;mport data from the old system\n===\n',);
+            expect(encoded({ text: 'export to PDF\n---\n', },),).toBe('&#101;xport to PDF\n---\n',);
+            expect(encoded({ text: 'import x from y\nabc\n===\n', },),).toBe('&#105;mport x from y\nabc\n===\n',);
+            // An ATX heading starts with its marker, which no module word follows.
+            expect(encoded({ text: '# import x\n', },),).toBe('# import x\n',);
+          },
+        },),
+
+        it({
+          name: 'ENCODES THE BODY OF A FOOTNOTE DEFINITION CommonMark READS AS A LINK REFERENCE DEFINITION, since the '
+            + 'strict grammar reads the line as the footnote it is and its body as text',
+          fn: async () => {
+            expect(encoded({ text: '[^1]: {', },),).toBe(String.raw`[^1]: \{`,);
+            expect(encoded({ text: '[^1]: <b>', },),).toBe(String.raw`[^1]: \<b>`,);
+            expect(encoded({ text: '[^1]: a{b', },),).toBe(String.raw`[^1]: a\{b`,);
+            expect(encoded({ text: '[^1]: a<b', },),).toBe(String.raw`[^1]: a\<b`,);
+            expect(encoded({ text: '[^1]: 注 ({)', },),).toBe(String.raw`[^1]: 注 (\{)`,);
+            expect(encoded({ text: '[^1]: <https://example.net/x>', },),)
+              .toBe('[^1]: [https://example.net/x](https://example.net/x)',);
+            // A link reference definition that is no footnote keeps its destination and its title.
+            expect(encoded({ text: '[r]: u{b "t {"\n', },),).toBe('[r]: u{b "t {"\n',);
+          },
+        },),
+
+        it({
+          name: 'READS THE BODY OF A FOOTNOTE DEFINITION BY ITS OWN BLOCKS: a paragraph indented under it is text, a '
+            + 'fence indented under it is code, which keeps its braces without a backslash',
+          fn: async () => {
+            expect(encoded({ text: '[^1]: x\n\n    ```\n    {\n    ```\n', },),).toBe('[^1]: x\n\n    ```\n    {\n    ```\n',);
+            expect(encoded({ text: '[^1]: x\n\n    注 {\n\n    ```\n    {y}\n    ```\n', },),)
+              .toBe('[^1]: x\n\n    注 \\{\n\n    ```\n    {y}\n    ```\n',);
+            // Indented code that follows no footnote is still text, as it was.
+            expect(encoded({ text: '猫\n\n    {x}\n', },),).toBe('猫\n\n    \\{x\\}\n',);
+          },
+        },),
+
+        it({
+          name: 'REWRITES A BARE ADDRESS THAT A LESS-THAN SIGN ENDS AS A LINK WITH THE SAME TEXT AND TARGET, since a '
+            + 'backslash written after it is read as part of the address and an entity is read as part of it too',
+          fn: async () => {
+            expect(encoded({ text: 'https://example.net/a<b> {', },),)
+              .toBe(String.raw`[https://example.net/a](https://example.net/a)\<b> \{`,);
+            expect(encoded({ text: 'www.example.net/a<b>', },),)
+              .toBe(String.raw`[www.example.net/a](http://www.example.net/a)\<b>`,);
+            expect(encoded({ text: '见 https://example.net/a_b<c>', },),)
+              .toBe(String.raw`见 [https://example.net/a\_b](https://example.net/a_b)\<c>`,);
+          },
+        },),
+
+        it({
+          name: 'READS A BARE ADDRESS AS GFM DOES: none inside link text, none with a punctuation mark right after the '
+            + 'protocol, so a brace there is escaped as any other',
+          fn: async () => {
+            expect(encoded({ text: '[https://example.net/a{ b](u)', },),).toBe(String.raw`[https://example.net/a\{ b](u)`,);
+            expect(encoded({ text: '见 https://{x', },),).toBe(String.raw`见 https://\{x`,);
+            expect(encoded({ text: '见 https:// {', },),).toBe(String.raw`见 https:// \{`,);
+            expect(encoded({ text: '见 https://example.net/b{c}', },),).toBe('见 https://example.net/b{c}',);
+          },
+        },),
+
+        it({
+          name: 'ENCODES A REFERENCE LABEL THE SAME IN ITS USE AND IN ITS DEFINITION, so the reference still resolves',
+          fn: async () => {
+            expect(encoded({ text: '[a {b][]\n\n[a {b]: u\n', },),).toBe('[a \\{b][]\n\n[a \\{b]: u\n',);
+            expect(encoded({ text: '[x][a {b]\n\n[a {b]: u\n', },),).toBe('[x][a \\{b]\n\n[a \\{b]: u\n',);
+          },
+        },),
+
+        it({
+          name: 'KEEPS THE LINK AROUND AN ANGLE AUTOLINK INSIDE LINK TEXT and writes the angle autolink as text, since a '
+            + 'link cannot hold a link and MDX reads the autolink as a tag: the reader sees the outer link, '
+            + 'and the address as typed (a limit the module comment names)',
+          fn: async () => {
+            expect(encoded({ text: '[<https://example.net/a>](u) {', },),).toBe(String.raw`[\<https://example.net/a>](u) \{`,);
+            expect(readerOfPage({ carried: encoded({ text: '[<https://example.net/a>](u) {', },), },),)
+              .toBe('⟦u⟧<https://example.net/a> {',);
           },
         },),
 
