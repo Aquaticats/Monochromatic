@@ -46,6 +46,8 @@ import { rosterQuorumSize, } from '@monochromatic-dev/translation-repair-stage/t
 export type BenchName =
   | 'wide'
     | 'select'
+    | 'late'
+    | 'roster'
     | 'slate'
     | 'editors'
     | 'refiners'
@@ -75,38 +77,43 @@ export type JudgeSeatPhase =
     | 'page consistency';
 
 /**
- Which benches each phase cannot run without.
+ Which benches each phase cannot run without, each by the bench its stage seats.
 
- Preparation pairs blocks and reviews the archive with the wide bench; the
- pictures phase reads with the readers; the lanes need critics, panel and
- judges (wide), editors and refiners for repair and writers for translate
- (the writing benches since the fifteenth class, `run-seats-floor.ts`); the translate lane
- needs its writers and its slate judges; the contest judges with the wide
- bench; consolidation writes with the roster and judges with the slate and
- gates with the late bench, of which the slate is the narrower. The
- insertion admission, which asks the roster whether the archive already
- covers each source-only passage, re-reads its seats under a hold as its own
- phase (ledger X12) and leans on the wide bench, as the preparation does. The
- page consistency pass asks the late judge bench (`seats.lateJudges`) which
- rendering of a repeated wording every place should follow. The table has no
- name for the late bench and reads the wide bench in its place, as the lane
- contest's row does; the late bench holds every seat of the wide bench and one
- more (`RUN_LATE_JUDGES` against `RUN_WIDE_SEATS`), so the wide bench's
- shortfall is the conservative reading of the late bench's. The pass leans on
- the translators as well: it asks the translate stage's writer bench
- (`seats.translators`) to carry the chosen rendering into each receiving block, so a
- phase that read only the wide bench would neither wait for the writers nor
- check them before the carry asks for them. A writer bench below its floor
- with no hold to wait out does not stop this phase
- (`PHASES_WITHOUT_WRITER_STOP` in `run-seats-floor.ts`): the reading says so
- once and the pass goes on without writers, choosing between the English a
- place has and the chosen words moved in by code, and records that the
+ THE ROW NAMES THE BENCH THE STAGE SEATS, not a neighbour that looks like it. The wide bench (`seats.wideSeats`),
+ the late bench (`seats.lateJudges`), the select judges (`seats.selectJudges`) and the roster (`seats.roster`) are
+ different lists. Neither of the first two holds the other: the wide bench is the roster less the two GLM-5.3 models
+ that hold `wide-seat-dropped`, and the late bench is the roster less GLM-5.3-Flash, Qwen3.8-27B and Haiku 5.5, which
+ hold `late-judge-dropped` (the owner's answer of 2026-10-22 for Qwen; `RUN_WIDE_SEATS` and `RUN_LATE_JUDGES` in
+ `run-config.ts`). So `glm-5.3` is a late seat and no wide one, and Qwen3.8-27B and Haiku are wide seats and no late
+ ones. A row that read the wide bench for a stage that seats the late one waited out a Claude hold for a quorum the
+ stage never gained, because Haiku is a wide seat served by the Claude key alone (the re-check of fix round 9).
+
+ Preparation pairs blocks and reviews the archive with the roster (`seats.roster`, `pass-prepare-reseat.ts`); the
+ pictures phase reads with the readers; the lanes seat critics and panel from the wide bench, editors and refiners
+ for repair and writers for translate (the writing benches since the fifteenth class, `run-seats-floor.ts`), and the
+ slate judges of both lanes from the select judges, which the row leaves to the wide bench because across all 256
+ dryness views the select judges stand short only where the wide bench does (`run-seats-phase-bench.unit.test.ts`);
+ the translate lane needs its writers and its slate judges, a bench of its own there; the contest
+ judges with the late bench (`pass-contest.ts`); consolidation writes with the writers, judges with the slate and
+ gates with the late bench, of which the slate is the narrower. The insertion admission, which asks the roster
+ whether the archive already covers each source-only passage, re-reads its seats under a hold as its own phase
+ (ledger X12) and leans on the roster, as the preparation does. The page consistency pass asks the late judge
+ bench (`seats.lateJudges`) which rendering of a repeated wording every place should follow, and leans on the
+ translators as well: it asks the translate stage's writer bench (`seats.translators`) to carry the chosen rendering
+ into each receiving block, so a phase that read only the late bench would neither wait for the writers nor check
+ them before the carry asks for them. A writer bench below its floor with no hold to wait out does not stop this
+ phase (`PHASES_WITHOUT_WRITER_STOP` in `run-seats-floor.ts`): the reading says so once and the pass goes on without
+ writers, choosing between the English a place has and the chosen words moved in by code, and records that the
  writers were not asked.
+
+ NOT READ, BY DESIGN OF THIS TABLE: the consolidation's writers, its polish refiners and its polish judges (the select
+ judges), and the lanes' checkers. They are benches the stages seat, but a phase here waits for the benches that
+ decide its verdicts, and adding one is a change to when a phase waits.
  */
 const BENCHES_BY_PHASE: Readonly<Record<JudgeSeatPhase, readonly BenchName[]>> = {
-  preparation: ['wide',],
+  preparation: ['roster',],
   pictures: ['readers',],
-  'insertion admission': ['wide',],
+  'insertion admission': ['roster',],
   lanes: [
     'wide',
     'editors',
@@ -117,13 +124,13 @@ const BENCHES_BY_PHASE: Readonly<Record<JudgeSeatPhase, readonly BenchName[]>> =
     'translators',
     'select',
   ],
-  'lane contest': ['wide',],
+  'lane contest': ['late',],
   consolidation: [
     'slate',
-    'wide',
+    'late',
   ],
   'page consistency': [
-    'wide',
+    'late',
     'translators',
   ],
 };

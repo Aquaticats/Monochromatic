@@ -555,11 +555,11 @@ await describe({
              The line that names the shortfall, if the reading said so.
              */
             const said = lines.find(function namesShortfall(line: string,): boolean {
-              return line.includes(`JUDGE SEATS phase=preparation short of quorum: wide ${
-            String(reachableSeats({ seats: RUN_WIDE_SEATS, dry: BEDROCK_ALONE, },).length,)
+              return line.includes(`JUDGE SEATS phase=preparation short of quorum: roster ${
+            String(reachableSeats({ seats: seats.roster, dry: BEDROCK_ALONE, },).length,)
           } of ${
-            String(RUN_WIDE_SEATS.length,)
-          } reachable, quorum ${String(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),)}`,);
+            String(seats.roster.length,)
+          } reachable, quorum ${String(rosterQuorumSize({ rosterSize: seats.roster.length, },),)}`,);
             },);
             expect(said === undefined,).toBe(false,);
             expect(said?.includes('no provider has named a return the pass can wait for',),).toBe(true,);
@@ -817,7 +817,7 @@ await describe({
               ],
               stops: [],
               warned: [
-                'warn JUDGE SEATS phase=page consistency short of quorum: wide 0 of 8 reachable, quorum 4 '
+                'warn JUDGE SEATS phase=page consistency short of quorum: late 0 of 7 reachable, quorum 4 '
                   + '(reached again with the return of hyper, openrouter); '
                   + 'no provider has named a return the pass can wait for, so the phase runs on what is reachable',
               ],

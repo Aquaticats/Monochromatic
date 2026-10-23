@@ -21,9 +21,11 @@ import {
 import type { BudgetView, } from '@monochromatic-dev/translation-repair-provider';
 import { rosterQuorumSize, } from '@monochromatic-dev/translation-repair-stage';
 import {
+  benchesOf,
   judgeSeatsFor,
   phaseBenches,
   reachableSeats,
+  RUN_LATE_JUDGES,
   RUN_MODELS,
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
@@ -114,16 +116,7 @@ const HYPER_ALONE: BudgetView = {
 function benchesUnder(
   { dry, }: { readonly dry: BudgetView; },
 ) {
-  const seats = judgeSeatsFor({ dry, },);
-  return {
-    wide: seats.wideSeats,
-    select: seats.selectJudges,
-    slate: seats.slateJudges,
-    editors: seats.repairModels.editorModelIds,
-    refiners: seats.repairModels.refinerModelIds,
-    translators: seats.translators,
-    readers: seats.readers,
-  };
+  return benchesOf({ seats: judgeSeatsFor({ dry, },), },);
 }
 
 await describe({
@@ -325,7 +318,7 @@ await describe({
         },),
         it({
           name: 'NAMES EVERY PHASE\'S BENCHES as the table in `run-seats-wait.ts` documents them, the insertion '
-            + 'admission on the wide bench it asks as the preparation does (ledger X12), so a phase never waits on '
+            + 'admission on the roster it asks as the preparation does (ledger X12), so a phase never waits on '
             + 'a bench it does not ask nor starts past one it does',
           fn: async () => {
             /**
@@ -342,31 +335,31 @@ await describe({
               'page consistency',
             ] as const;
             expect(
-              Object.fromEntries(phases.map(function benchesOf(phase,) {
+              Object.fromEntries(phases.map(function benchesOfPhase(phase,) {
                 return [phase, phaseBenches({ phase, },),];
               },),),
             ).toEqual({
-              preparation: ['wide',],
+              preparation: ['roster',],
               pictures: ['readers',],
-              'insertion admission': ['wide',],
+              'insertion admission': ['roster',],
               lanes: ['wide', 'editors', 'refiners', 'translators',],
               'translate lane': ['translators', 'select',],
-              'lane contest': ['wide',],
-              consolidation: ['slate', 'wide',],
-              'page consistency': ['wide', 'translators',],
+              'lane contest': ['late',],
+              consolidation: ['slate', 'late',],
+              'page consistency': ['late', 'translators',],
             },);
           },
         },),
         it({
-          name: 'NAMES THE WRITER BENCH BESIDE THE WIDE BENCH when the page consistency phase starts with Bedrock '
+          name: 'NAMES THE WRITER BENCH BESIDE THE LATE BENCH when the page consistency phase starts with Bedrock '
             + 'alone wet, since its carry asks the translate stage\'s writers after its judges, and names nothing '
             + 'when every provider is wet',
           fn: async () => {
             /**
-             Wide seats Bedrock serves under that view.
+             Late judges Bedrock serves under that view.
              */
-            const wideReachable = reachableSeats({
-              seats: RUN_WIDE_SEATS,
+            const lateReachable = reachableSeats({
+              seats: RUN_LATE_JUDGES,
               dry: BEDROCK_ALONE,
             },).length;
             /**
@@ -382,8 +375,8 @@ await describe({
               names: phaseBenches({ phase: 'page consistency', },),
               dry: BEDROCK_ALONE,
             },),).toEqual([
-              `wide ${String(wideReachable,)} of ${String(RUN_WIDE_SEATS.length,)} reachable, quorum ${
-            String(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),)
+              `late ${String(lateReachable,)} of ${String(RUN_LATE_JUDGES.length,)} reachable, quorum ${
+            String(rosterQuorumSize({ rosterSize: RUN_LATE_JUDGES.length, },),)
           }`,
               `translators ${String(writersReachable,)} of ${String(RUN_TRANSLATORS.length,)} reachable, quorum ${
             String(rosterQuorumSize({ rosterSize: RUN_TRANSLATORS.length, },),)
