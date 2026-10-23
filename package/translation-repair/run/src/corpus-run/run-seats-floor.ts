@@ -32,7 +32,8 @@ import {
  Benches that write text rather than judge it, which the floor applies to: a
  DELIBERATE SUBSET of `BenchName`.
 
- LEFT OUT are `wide`, `select` and `slate`, which judge, and `readers`, which
+ LEFT OUT are `wide`, `select`, `late` and `slate`, which judge, `roster`, which
+ pairs blocks and answers admission questions, and `readers`, which
  transcribe pictures and are held to a pair by their own quorum in
  `run-seats-wait.ts`. A bench gained later is therefore not a writing bench
  until it is added here.
@@ -178,6 +179,8 @@ export function benchesOf(
   return {
     wide: seats.wideSeats,
     select: seats.selectJudges,
+    late: seats.lateJudges,
+    roster: seats.roster,
     slate: seats.slateJudges,
     editors: editorModelIds,
     refiners: refinerModelIds,

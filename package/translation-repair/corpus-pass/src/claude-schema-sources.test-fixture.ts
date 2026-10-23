@@ -4,9 +4,26 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import {
+  codeLinesOf,
+  type FunctionDeclaration,
+  functionDeclarationsOf,
+  returnsCallOf,
+  usesFunction,
+} from './claude-schema-code.test-fixture.ts';
+
 //region Sources that declare an answer schema
 // What `claude-schemas.unit.test.ts` reads to keep the list of schema producers honest: the family's own source files,
 // the files among them that write a `json_schema` response format, and the files that call a function which writes one.
+//
+// A BUILDER IS A FUNCTION THAT WRITES THE FORMAT IN ITS BODY, or returns the result of one that does (a wrapper), so
+// each call can make a different schema. It is declared at the top level, with `function` or as a constant holding an
+// arrow function, and a file uses it by calling it, calling it with type arguments, or handing it over by reference
+// (`claude-schema-code.test-fixture.ts` says which shapes are read). A format held in a constant is one schema however
+// many files read it, and the producer list holds it once. That is why `blockPairingProtocol`
+// (`slice-reading/src/block-pairing-protocol.ts`) is left out of the builders: it returns a clone of the constant
+// `PAIRING_RESPONSE_FORMAT`, so every caller sends the same schema, the format text is not in its body, and its one
+// caller (`pair-blocks-stage.ts`) is covered by the producer list's entry for the constant.
 
 /**
  One source file of the family.
@@ -54,24 +71,9 @@ const FAMILY_ROOT = join(
 const PRODUCER_LIST_FILE = 'corpus-pass/src/claude-schema-producers.ts';
 
 /**
- The characters a name can hold, so a name found inside a longer name is no call.
+ What an answer schema's format writes, which makes a function that holds it a builder.
  */
-const IDENTIFIER_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$';
-
-/**
- What `indexOf` answers when the line it looks for is not there.
- */
-const NOT_FOUND = -1;
-
-/**
- What opens a top-level function declaration in the family's source, whatever else the line says.
- */
-const FUNCTION_OPENINGS: readonly string[] = [
-  'function ',
-  'export function ',
-  'async function ',
-  'export async function ',
-];
+const FORMAT_TEXT = 'type: \'json_schema\'';
 
 /**
  Every non-test source file of the family, with its text.
@@ -85,176 +87,249 @@ const FUNCTION_OPENINGS: readonly string[] = [
  */
 export async function familySources(): Promise<readonly SourceFile[]> {
   /**
-   Files read so far.
+   Every file under a package's `src`, tests and fixtures not yet left out.
    */
-  const found: SourceFile[] = [];
-  for await (
-    const file of glob(
-      '*/src/**/*.ts',
-      { cwd: FAMILY_ROOT, },
-    )
-  ) {
-    if (file.includes('node_modules',) || file.includes('.test',))
-      continue;
+  const files = await Array.fromAsync(glob(
+    '*/src/**/*.ts',
+    { cwd: FAMILY_ROOT, },
+  ),);
+  return await Promise.all(
+    files
+      .filter(function isSource(file,): boolean {
+        return !(file.includes('node_modules',) || file.includes('.test',));
+      },)
+      .map(async function sourceOf(file,): Promise<SourceFile> {
+        return {
+          file,
+          text: await readFile(
+            join(
+              FAMILY_ROOT,
+              file,
+            ),
+            'utf8',
+          ),
+        };
+      },),
+  );
+}
+
+/**
+ A source file read once: its code, and the functions it declares.
+ */
+type ParsedSource = SourceFile & {
+  /**
+   Lines of code, once comments and import and export lists are out.
+   */
+  readonly code: readonly string[];
+
+  /**
+   The top-level functions the file declares.
+   */
+  readonly functions: readonly FunctionDeclaration[];
+};
+
+/**
+ Reads each source file once.
+
+ @param sources - files read
+
+ @returns One entry per file, in order
+
+ @example
+ ```ts
+ const parsed = parseSources({ sources: await familySources(), },);
+ ```
+ */
+function parseSources({ sources, }: { readonly sources: readonly SourceFile[]; },): readonly ParsedSource[] {
+  return sources.map(function parsedOf(source,): ParsedSource {
     /**
-     The file's text.
+     The file's code.
      */
-    const text = await readFile(
-      join(
-        FAMILY_ROOT,
-        file,
-      ),
-      'utf8',
-    );
-    found.push({
-      file,
-      text,
-    },);
-  }
-  return found;
-}
-
-/**
- A file's code with the comments that sit on their own lines taken out, so a call shown in documentation is no call.
-
- @param text - the file's text
-
- @returns Lines outside block comments and line comments that start a line
-
- @example
- ```ts
- const lines = codeLinesOf({ text: '// contestResponseFormat(\nexport const A = 1;\n', },);
- // => ['export const A = 1;', '']
- ```
- */
-function codeLinesOf({ text, }: { readonly text: string; },): readonly string[] {
-  /**
-   Whether the scan is inside a block comment.
-   */
-  const block = { open: false, };
-  return text
-    .split('\n',)
-    .filter(function isCode(line,): boolean {
-      /**
-       The line without its indentation.
-       */
-      const trimmed = line.trimStart();
-      if (block.open) {
-        block.open = !trimmed.includes('*/',);
-        return false;
-      }
-      if (trimmed.startsWith('/*',)) {
-        block.open = !trimmed.includes('*/',);
-        return false;
-      }
-      return !trimmed.startsWith('//',);
-    },);
-}
-
-/**
- The name of the function a line opens, empty when the line opens none.
-
- @param line - one line of code
-
- @returns Name, without type parameters or parameters
-
- @example
- ```ts
- const name = functionNameOpenedBy({ line: 'export function contestResponseFormat(', },);
- // => 'contestResponseFormat'
- ```
- */
-function functionNameOpenedBy({ line, }: { readonly line: string; },): string {
-  /**
-   The opening the line starts with, absent when it starts with none.
-   */
-  const opening = FUNCTION_OPENINGS.find(function startsLine(candidate,): boolean {
-    return line.startsWith(candidate,);
+    const code = codeLinesOf({ text: source.text, },);
+    return {
+      ...source,
+      code,
+      functions: functionDeclarationsOf({ code, },),
+    };
   },);
-  if (opening === undefined)
-    return '';
-  /**
-   What follows the opening, up to the end of the line.
-   */
-  const afterOpening = line.slice(opening.length,);
-  /**
-   The name and what follows it up to the first parameter list.
-   */
-  const [beforeParameters = '',] = afterOpening.split('(',);
-  /**
-   The name alone, cut before type parameters.
-   */
-  const [name = '',] = beforeParameters.split('<',);
-  return name;
 }
 
 /**
- Whether code calls a function: its name, not part of a longer name, then an opening parenthesis.
+ The functions that write a `json_schema` response format inside their body, and the wrappers of them that return a
+ builder's result, so each call can make a different schema.
 
- @param code - lines of code
+ @param parsed - files searched
 
- @param name - the function's name
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
- @returns Whether some occurrence of the name is a call
+ @returns One entry per function, in the order of the sources, the wrappers after the functions they wrap
 
  @example
  ```ts
- const calls = callsFunction({ code: ['const a = build({});',], name: 'build', },);
- // => true
+ const builders = buildersIn({ parsed, notStageSchemas: new Set(), },);
  ```
  */
-function callsFunction(
+function buildersIn(
   {
-    code,
-    name,
+    parsed,
+    notStageSchemas,
   }: {
-    readonly code: readonly string[];
-    readonly name: string;
+    readonly parsed: readonly ParsedSource[];
+    readonly notStageSchemas: ReadonlySet<string>;
   },
-): boolean {
-  return code.some(function lineCalls(line,): boolean {
-    /**
-     The line cut at every occurrence of the name.
-     */
-    const pieces = line.split(name,);
-    /**
-     The pieces that have an occurrence of the name after them.
-     */
-    const beforeOccurrences = pieces.slice(
-      0,
-      -1,
-    );
-    return beforeOccurrences.some(function occurrenceIsCall(
-      before,
-      index,
-    ): boolean {
-      /**
-       The character before the occurrence, empty at the start of the line.
-       */
-      const previous = before.at(-1,) ?? '';
-      /**
-       What follows the occurrence, without its indentation.
-       */
-      const after = (pieces[index + 1] ?? '').trimStart();
-      /**
-       Whether the name stands alone and is followed by an opening parenthesis.
-       */
-      const standsAlone = (previous === '') || (!IDENTIFIER_CHARACTERS.includes(previous,));
-      return standsAlone && after.startsWith('(',);
+): readonly SchemaBuilder[] {
+  /**
+   Every function the searched files declare, with its file.
+   */
+  const declared = parsed
+    .filter(function isSearched(source,): boolean {
+      return !notStageSchemas.has(source.file,);
+    },)
+    .flatMap(function functionsOf(source,): readonly (FunctionDeclaration & { readonly file: string; })[] {
+      return source.functions
+        .map(function withFile(declaration,) {
+          return {
+            ...declaration,
+            file: source.file,
+          };
+        },);
     },);
+  return withWrappers({
+    declared,
+    known: declared
+      .filter(function writesFormat({ text, },): boolean {
+        return text.includes(FORMAT_TEXT,);
+      },)
+      .map(function builderOf(
+        {
+          name,
+          file,
+        },
+      ): SchemaBuilder {
+        return {
+          name,
+          file,
+        };
+      },),
   },);
 }
 
 /**
- The functions that write a `json_schema` response format inside their body, so each call can make a different schema.
+ The builders and every function that returns one of their results, and so on until no function is added.
 
- A format in a constant is one schema however many files read it, so a constant is no builder.
+ @param declared - every function the searched files declare
+
+ @param known - builders found so far
+
+ @returns Known builders followed by the wrappers found, in the order of the declarations
+
+ @example
+ ```ts
+ const builders = withWrappers({ declared, known: [{ name: 'contestResponseFormat', file: 'a.ts', },], },);
+ ```
+ */
+function withWrappers(
+  {
+    declared,
+    known,
+  }: {
+    readonly declared: readonly (FunctionDeclaration & { readonly file: string; })[];
+    readonly known: readonly SchemaBuilder[];
+  },
+): readonly SchemaBuilder[] {
+  /**
+   Functions not yet known that return the result of a known builder.
+   */
+  const wrappers = declared
+    .filter(function isNewWrapper(declaration,): boolean {
+      /**
+       Whether the function is a builder already.
+       */
+      const isKnown = known.some(function sameFunction(builder,): boolean {
+        return (builder.name === declaration.name) && (builder.file === declaration.file);
+      },);
+      /**
+       Whether the function returns the result of a known builder.
+       */
+      const isWrapper = known.some(function isWrapped(builder,): boolean {
+        return returnsCallOf({
+          text: declaration.text,
+          name: builder.name,
+        },);
+      },);
+      return (!isKnown) && isWrapper;
+    },)
+    .map(function builderOf(
+      {
+        name,
+        file,
+      },
+    ): SchemaBuilder {
+      return {
+        name,
+        file,
+      };
+    },);
+  return (wrappers.length === 0)
+    ? known
+    : withWrappers({
+      declared,
+      known: [
+        ...known,
+        ...wrappers,
+      ],
+    },);
+}
+
+/**
+ The files that use a builder, the one that declares it and the producer list left out.
+
+ @param parsed - files searched
+
+ @param builder - builder whose uses are looked for
+
+ @returns Paths, in the order of the sources
+
+ @example
+ ```ts
+ const users = usersIn({ parsed, builder: { name: 'contestResponseFormat', file: 'a.ts', }, },);
+ ```
+ */
+function usersIn(
+  {
+    parsed,
+    builder,
+  }: {
+    readonly parsed: readonly ParsedSource[];
+    readonly builder: SchemaBuilder;
+  },
+): readonly string[] {
+  return parsed
+    .filter(function usesBuilder(source,): boolean {
+      return (source.file !== builder.file)
+        && (source.file !== PRODUCER_LIST_FILE)
+        && usesFunction({
+          code: source.code,
+          name: builder.name,
+        },);
+    },)
+    .map(function pathOf(source,): string {
+      return source.file;
+    },);
+}
+
+/**
+ The functions that build an answer schema when called: those that write a `json_schema` response format in their
+ body, and those that return the result of such a function.
+
+ A format in a constant is one schema however many files read it, so a constant is no builder. A function is read as a
+ builder when it is declared at the top level of a file, with `function` or as a constant holding an arrow function.
 
  @param sources - files searched
 
  @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
- @returns One entry per function, in the order of the sources
+ @returns One entry per function, in the order of the sources, the wrappers after the functions they wrap
 
  @example
  ```ts
@@ -270,61 +345,19 @@ export function buildersOf(
     readonly notStageSchemas: ReadonlySet<string>;
   },
 ): readonly SchemaBuilder[] {
-  return sources.flatMap(function buildersInFile(source,): readonly SchemaBuilder[] {
-    if (notStageSchemas.has(source.file,))
-      return [];
-    /**
-     The file's code.
-     */
-    const code = codeLinesOf({ text: source.text, },);
-    return code.flatMap(function builderOpenedAt(
-      line,
-      index,
-    ): readonly SchemaBuilder[] {
-      /**
-       The function the line opens, empty when it opens none.
-       */
-      const name = functionNameOpenedBy({ line, },);
-      if (name === '')
-        return [];
-      /**
-       Where the declaration ends: the next line that is a closing brace and nothing else.
-       */
-      const end = code.indexOf(
-        '}',
-        index,
-      );
-      /**
-       Where the slice of the declaration stops: after the closing brace, or at the end of the file when none follows.
-       */
-      const stop = (end === NOT_FOUND) ? code.length : (end + 1);
-      /**
-       The declaration's lines.
-       */
-      const body = code.slice(
-        index,
-        stop,
-      );
-      return body.some(function writesFormat(bodyLine,): boolean {
-        return bodyLine.includes('type: \'json_schema\'',);
-      },)
-        ? [
-          {
-            name,
-            file: source.file,
-          },
-        ]
-        : [];
-    },);
+  return buildersIn({
+    parsed: parseSources({ sources, },),
+    notStageSchemas,
   },);
 }
 
 /**
- The files that call a builder, the one that declares it and the producer list left out.
+ The files that use a builder, the one that declares it and the producer list left out. A use is a call, a call that
+ names type arguments, or the builder handed over by reference.
 
  @param sources - files searched
 
- @param builder - the builder whose calls are looked for
+ @param builder - builder whose uses are looked for
 
  @returns Paths, in the order of the sources
 
@@ -342,22 +375,14 @@ export function callersOf(
     readonly builder: SchemaBuilder;
   },
 ): readonly string[] {
-  return sources
-    .filter(function callsBuilder(source,): boolean {
-      return (source.file !== builder.file)
-        && (source.file !== PRODUCER_LIST_FILE)
-        && callsFunction({
-          code: codeLinesOf({ text: source.text, },),
-          name: builder.name,
-        },);
-    },)
-    .map(function pathOf(source,): string {
-      return source.file;
-    },);
+  return usersIn({
+    parsed: parseSources({ sources, },),
+    builder,
+  },);
 }
 
 /**
- The files that write a `json_schema` response format, or call a builder of one.
+ The files that write a `json_schema` response format, or use a builder of one.
 
  @param sources - files searched
 
@@ -380,37 +405,32 @@ export function declaringFilesOf(
   },
 ): readonly string[] {
   /**
-   Builders found in the sources.
+   Each file read once.
    */
-  const builders = buildersOf({
-    sources,
-    notStageSchemas,
-  },);
+  const parsed = parseSources({ sources, },);
   /**
-   Files that call some builder.
+   Files that use some builder.
    */
-  const calling = new Set(
-    builders.flatMap(function callersOfBuilder(builder,): readonly string[] {
-      return callersOf({
-        sources,
-        builder,
-      },);
-    },),
+  const using = new Set(
+    buildersIn({
+      parsed,
+      notStageSchemas,
+    },)
+      .flatMap(function usersOfBuilder(builder,): readonly string[] {
+        return usersIn({
+          parsed,
+          builder,
+        },);
+      },),
   );
-  return sources
-    .filter(function writesOrCalls(source,): boolean {
-      /**
-       The file's path and text.
-       */
-      const {
+  return parsed
+    .filter(function writesOrUses(
+      {
         file,
         text,
-      } = source;
-      /**
-       Whether the file writes the format itself.
-       */
-      const writes = text.includes('type: \'json_schema\'',);
-      return writes || calling.has(file,);
+      },
+    ): boolean {
+      return text.includes(FORMAT_TEXT,) || using.has(file,);
     },)
     .map(function pathOf(source,): string {
       return source.file;

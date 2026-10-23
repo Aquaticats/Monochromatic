@@ -205,7 +205,7 @@ type SchemaNode = {
  @param schema - schema read
  @param path - where it sits
 
- @returns The nodes, the root first
+ @returns Nodes, the root first
 
  @example
  ```ts
@@ -252,7 +252,7 @@ function schemaNodesOf(
 
  @param schema - schema read
 
- @returns The paths of the open objects
+ @returns Paths of the open objects
 
  @example
  ```ts
@@ -497,14 +497,87 @@ const IMAGINARY_SOURCES: readonly SourceFile[] = [
   },
 ];
 
+/**
+ Files that build or reach an answer schema in a form the search read as no call before: a builder written as an arrow
+ function with a caller, a call that names a type argument, a builder handed over by reference, and a wrapper of a
+ builder with a caller. Three files beside them mention the contest builder without building anything: an import, a
+ re-export and a `typeof`.
+ */
+const FORM_SOURCES: readonly SourceFile[] = [
+  {
+    file: 'imaginary/src/arrow-wire.ts',
+    text: [
+      'export const arrowResponseFormat = ({ moods, }: { readonly moods: readonly string[]; },) => ({',
+      '  type: \'json_schema\',',
+      '  json_schema: {',
+      '    name: \'arrow_mood\',',
+      '    schema: { type: \'object\', properties: { mood: { enum: moods, }, }, },',
+      '  },',
+      '});',
+    ].join('\n',),
+  },
+  {
+    file: 'imaginary/src/arrow-gate-stage.ts',
+    text: 'export const ARROW_GATE_RESPONSE_FORMAT = arrowResponseFormat({ moods: [\'wags\',], },);\n',
+  },
+  {
+    file: 'imaginary/src/generic-gate-stage.ts',
+    text: [
+      'export const GENERIC_GATE_RESPONSE_FORMAT = contestResponseFormat<string>({',
+      '  schemaName: \'generic_gate\',',
+      '  verdicts: [],',
+      '  asksArchive: false,',
+      '},);',
+    ].join('\n',),
+  },
+  {
+    file: 'imaginary/src/reference-gate-stage.ts',
+    text: [
+      'export const FORMATS = [',
+      '  { schemaName: \'a\', verdicts: [], asksArchive: false, },',
+      '].map(contestResponseFormat);',
+    ].join('\n',),
+  },
+  {
+    file: 'imaginary/src/wrapped-wire.ts',
+    text: [
+      'export function wrappedResponseFormat(schemaName: string,) {',
+      '  return contestResponseFormat({ schemaName, verdicts: [], asksArchive: false, },);',
+      '}',
+    ].join('\n',),
+  },
+  {
+    file: 'imaginary/src/wrapped-gate-stage.ts',
+    text: 'export const WRAPPED_GATE_RESPONSE_FORMAT = wrappedResponseFormat(\'wrapped_gate\',);\n',
+  },
+  {
+    file: 'imaginary/src/import-only.ts',
+    text: [
+      'import {',
+      '  contestResponseFormat,',
+      '} from \'../../lane-contest/src/contest-ballot-wire.ts\';',
+      '',
+      'export const NOTHING = 2;',
+    ].join('\n',),
+  },
+  {
+    file: 'imaginary/src/re-export.ts',
+    text: 'export {\n  contestResponseFormat,\n} from \'../../lane-contest/src/contest-ballot-wire.ts\';\n',
+  },
+  {
+    file: 'imaginary/src/type-only.ts',
+    text: 'export type Maker = typeof contestResponseFormat;\n',
+  },
+];
+
 await describe({
   name: 'the answer schemas the Claude route sends',
   concurrency: 1,
   children: [
     it({
       name: 'LISTS EVERY FILE OF THE FAMILY THAT DECLARES AN ANSWER SCHEMA, so a stage schema added later cannot skip '
-        + 'the schema cases of this file: the family\'s source is searched for a json_schema format, and each file found is a '
-        + 'producer here or a named exception',
+        + 'the schema cases of this file: the family\'s source is searched for a json_schema format, and each '
+        + 'file found is a producer here or a named exception',
       fn: async () => {
         /**
          Files of the family's source that write a `json_schema` response format.
@@ -527,8 +600,8 @@ await describe({
     it({
       name: 'FINDS A STAGE THAT BUILDS ITS ANSWER SCHEMA THROUGH A BUILDER OTHER STAGES SHARE, which the search '
         + 'for the text json_schema alone misses: a file that calls the contest builder, a file that calls a '
-        + 'builder of its own kind that a second file calls, and not a file that only shows the builder in its '
-        + 'documentation',
+        + 'builder of its own kind that a second file calls, and not a file that only shows the builder in '
+        + 'its documentation',
       fn: async () => {
         /**
          Files found over the family's source with the imaginary files beside it.
@@ -544,6 +617,45 @@ await describe({
           'imaginary/src/dog-gate-stage.ts',
           'imaginary/src/dog-wire.ts',
         ],);
+      },
+    },),
+
+    it({
+      name: 'FOLLOWS A BUILDER WHATEVER FORM IT TAKES AND WHATEVER WAY IT IS REACHED: a builder written as an arrow '
+        + 'function and the file that calls it, a call that names a type argument, a builder handed over by '
+        + 'reference, and a wrapper of a builder and the file that calls the wrapper, and not a file that only '
+        + 'imports, re-exports or names the type of the contest builder',
+      fn: async () => {
+        /**
+         The sources searched: the family's own, which hold the contest builder, with the imaginary files beside them.
+         */
+        const sources = [...await familySources(), ...FORM_SOURCES,];
+        /**
+         Imaginary files found, whatever way they reach a schema.
+         */
+        const declaring = declaringFilesOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+          .filter(function isImaginary(file,): boolean {
+            return file.startsWith('imaginary/',);
+          },);
+        expect(declaring.toSorted(),).toEqual([
+          'imaginary/src/arrow-gate-stage.ts',
+          'imaginary/src/arrow-wire.ts',
+          'imaginary/src/generic-gate-stage.ts',
+          'imaginary/src/reference-gate-stage.ts',
+          'imaginary/src/wrapped-gate-stage.ts',
+          'imaginary/src/wrapped-wire.ts',
+        ],);
+        /**
+         Builders found among the imaginary files, by name.
+         */
+        const builders = buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+          .filter(function isImaginary({ file, },): boolean {
+            return file.startsWith('imaginary/',);
+          },)
+          .map(function nameOf({ name, },): string {
+            return name;
+          },);
+        expect(builders.toSorted(),).toEqual(['arrowResponseFormat', 'wrappedResponseFormat',],);
       },
     },),
 
@@ -669,9 +781,10 @@ await describe({
 
     it({
       name: 'DROPS ONE BOUND IN THE WHOLE FAMILY, minimum 1 on the paragraph of a naturalness finding, which '
-        + '`isAbsoluteNaturalnessReviewWire` still enforces (its case "REFUSES A FINDING WITH paragraph BELOW ONE"), and '
-        + 'tells the model it in the field\'s description (R6); a keyword outside the allowlist added to any other '
-        + 'schema lists here, which is also the positive control that the allowlist finds what it is there to find',
+        + '`isAbsoluteNaturalnessReviewWire` still enforces (its case "REFUSES A FINDING WITH paragraph BELOW '
+        + 'ONE"), and tells the model it in the field\'s description (R6); a keyword outside the allowlist added '
+        + 'to any other schema lists here, which is also the positive control that the allowlist finds what it is '
+        + 'there to find',
       fn: async () => {
         /**
          The schema the body sends for the naturalness review, whose one bound is stripped and told.

@@ -436,3 +436,77 @@ store or version file.
 Recurrence:
 the thirteenth and fifteenth classes of the defect-class history (the hold wait and the writing-bench floor),
 and B819 (a NeuralWatt time the router knew and a text did not state).
+
+## B860: the seat reader judged the lane contest and four other phases against a bench their stage does not seat
+
+Status:
+fixed on 2026-10-23 (UTC),
+found by the re-check of fix round 9 of the Claude route (its finding on the lane contest row).
+The id is the lead's allocation for fix round 10 and may be renumbered at merge time.
+The design that landed is open to the owner's veto.
+
+The defect:
+the phase table in `run/src/corpus-run/run-seats-wait.ts` named,
+for each phase,
+the benches the seat reader holds to a quorum.
+Five rows named a bench the phase's stage does not seat.
+The lane contest judges with `seats.lateJudges` (`pass-contest.ts`) but its row read the wide bench,
+on the premise that the late bench holds every seat of the wide bench and one more.
+That is false:
+the wide bench is the roster less the two GLM-5.3 models that hold `wide-seat-dropped`,
+the late bench is the roster less GLM-5.3-Flash,
+Qwen3.8-27B and Haiku 5.5,
+which hold `late-judge-dropped`,
+and Haiku is a wide seat served by the Claude key alone.
+With NeuralWatt and Bedrock wet and the rest dry the Claude key back takes the wide bench from 3 of 8 to 4 of 8
+and leaves the late bench at 3 of 7 against a quorum of 4,
+so the reader waited out a Claude hold for a quorum the contest never gained.
+The same mismatch stood in the page consistency pass and the consolidation gate (late bench read as wide),
+and in the preparation and the insertion admission
+(the whole roster,
+`seats.roster`,
+read as the wide bench).
+
+The fix:
+`BenchName` gains `late` and `roster`,
+the names the `JUDGE SEATS` line prints,
+`benchesOf` returns them,
+and the table reads the late bench for the lane contest,
+the slate and the late bench for the consolidation,
+the late bench and the translators for the page consistency pass,
+and the roster for the preparation and the insertion admission.
+The lanes row stays on the wide bench:
+the lanes also seat the select judges,
+and across all 256 dryness views the select judges are short only where the wide bench is,
+which `run-seats-phase-bench.unit.test.ts` checks.
+The table leaves the consolidation's writers,
+polish refiners and polish judges,
+and the lanes' checkers,
+unread by design,
+which the TSDoc of the table says.
+
+The red cases:
+`602c813204` and `74ffa8bb48` (a Claude hold in the lane contest and the page consistency pass is waited out,
+the preparation and the insertion admission name no roster shortfall,
+the consolidation and the page consistency warnings name no late bench,
+and the phase table names the wide bench for five phases).
+The first of them expected a roster quorum of 6 and a select shortfall.
+The quorum is the rounded-up half (5),
+and no view shows a select shortfall,
+so the second corrected both.
+The control that the same hold still waits where the wide bench is the one short is the lanes phase,
+and the pictures phase holds the case where another hold cures the readers and the Claude key adds no reader.
+
+Prevention rule:
+a table of benches per phase is checked against the call that seats each phase,
+and the relation between two lists of seats is measured from the lists
+(`RUN_WIDE_SEATS`,
+`RUN_LATE_JUDGES`),
+never assumed.
+
+Cache versions:
+none moved.
+The reader decides when a phase waits and holds no cached record.
+
+Recurrence:
+the thirteenth class of the defect-class history (the hold wait).

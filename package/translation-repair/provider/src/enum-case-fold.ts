@@ -46,6 +46,29 @@ import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-st
 // operator's call (`pass-schema-guard.ts:58-60`). The way to run them again, if the owner wants it, is the one the
 // quorum rule of B816 took: move the artifact generation, as `repair/src/repair-slice-key.ts:616` records for
 // version 43 of `SLICE_CACHE_VERSION`.
+//
+// WHAT A RESUME MEETS AFTER THE FOLD, read from the guards on 2026-10-23, which bears on how much the ruling saves.
+// Each claim is quoted from the code it names:
+// - A resume into the same artifacts directory is refused by default, because the build differs. The guard
+//   "Refuses to RESUME an accumulation into a directory whose settled entries were produced by a different build of
+//   the pipeline" (`slice-cache/src/corpus-run/pass-generation-guard.ts:11-12`), and the build is identified by a
+//   digest over the built output, "a directory" under `dist/final/node`
+//   (`glossary/src/corpus-run/pipeline-digest.ts:37-39`), which holds this reader (`rg --text "function foldEnumCase"`
+//   finds it once in `corpus-pass/dist/final/node/corpus-pass.mjs`, built 2026-10-23). `assertBuildGenerationResumable`
+//   throws `GenerationDriftError` (`:377`) unless the launch carries `TRANSLATION_REPAIR_ALLOW_GENERATION_DRIFT=yes`
+//   (`:32`, `:38`, `:360`, `:125`). So only an operator who opted in resumes into the old directory, and that
+//   operator is the one for whom settled entries keep their outcome.
+// - The runbook says the usual path is a new directory: "the rule is always kill and relaunch: ... relaunch the entry
+//   into a fresh runs dir on the new build. The old runs dir holds what the old digest bought and is not resumed"
+//   (`doc/runbook/translation-repair-corpus-pass.md:714-719`). A fresh directory has no settled entry, so every entry
+//   runs on the new reader whatever the generation says; the slice caches answer by key, and the versions this header
+//   names moved.
+// - Moving the artifact generation would not re-run anything by itself. `SchemaGenerationError` is "Raised when a
+//   resume would settle a second artifact generation into one pool" (`pass-schema-guard.ts:203`), its message says
+//   "The pipeline drift opt-in does not cover this and is not asked about" (`:253`), and its first way forward is a
+//   fresh directory and its third "Move the incompatible artifacts to an archive directory and resume here" (`:188`,
+//   `:194`). The move would refuse the opted-in resume until an operator archives the old artifacts, and only the
+//   artifacts archived are run again.
 
 /**
  One value taken back to the schema's spelling.

@@ -81,6 +81,17 @@ await describe({
   name: repairSliceKey.name,
   children: [
     it({
+      name: 'IS AT VERSION 46: the reader of a model\'s reply takes a value that differs from a listed enum or const '
+        + 'value only in capitalization as the listed value (the move to 45 on the Claude route), and the number is '
+        + '46 and not 45 because main moved the settlement a cache may hold, with `silentStages`, to 44 on a line of '
+        + 'its own, so a merge that kept either number would serve a record the other line wrote; the key hashes the '
+        + 'version, the shape of the run and the texts, not the reader, so only this number retires a record written '
+        + 'under the reader before',
+      fn: async () => {
+        expect(SLICE_CACHE_VERSION,).toBe(46,);
+      },
+    },),
+    it({
       name:
         'produces a KNOWN hash for known inputs, which is the only thing standing between a change '
           + 'to this derivation and every settled slice in the corpus silently missing the cache. '

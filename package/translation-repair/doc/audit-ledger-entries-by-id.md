@@ -428,6 +428,7 @@ which lists every file of this record.
 - [B836, NeuralWatt replies cut at the default effort and the energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
 - [B837 to B840, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [B841, process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md)
+- [B860, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

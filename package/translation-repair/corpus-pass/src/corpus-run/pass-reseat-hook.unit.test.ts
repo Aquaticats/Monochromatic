@@ -106,10 +106,10 @@ function hookBefore(
 }
 
 /**
- NeuralWatt and Bedrock wet and every other provider dry: the wide bench is 3 of 7 reachable against a quorum of 4,
+ NeuralWatt and Bedrock wet and every other provider dry: the late bench is 3 of 7 reachable against a quorum of 4,
  which DeepSeek back leaves as it is.
  */
-const WIDE_ONE_SHORT: BudgetView = {
+const LATE_ONE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: false,
@@ -153,7 +153,7 @@ function hookUnderDeepSeekHold({ lines, }: { readonly lines: string[]; },) {
   const hold = { running: true, asks: 0, };
   const hook = reseatHookFor({
     client: {
-      providerDryness: async () => WIDE_ONE_SHORT,
+      providerDryness: async () => LATE_ONE_SHORT,
       providerMeterStates: metersAllWet,
       providerHolds: () => {
         hold.asks += 1;
@@ -197,9 +197,9 @@ function shortWarningsOf({ lines, }: { readonly lines: readonly string[]; },): r
 }
 
 /**
- Bedrock the only wet provider: the consolidation's slate and wide benches are both short, and NeuralWatt reads dry.
+ Bedrock the only wet provider: the consolidation's slate and late benches are both short, and NeuralWatt reads dry.
  */
-const SLATE_AND_WIDE_SHORT: BudgetView = {
+const SLATE_AND_LATE_SHORT: BudgetView = {
   neuralwatt: true,
   synthetic: true,
   bedrock: false,
@@ -211,16 +211,22 @@ const SLATE_AND_WIDE_SHORT: BudgetView = {
 };
 
 /**
- Bedrock and Synthetic wet: only the consolidation's slate bench is short, and NeuralWatt reads dry.
+ Bedrock and Synthetic wet: the consolidation's slate and late benches are still both short (the slate is the late
+ bench less the select-slow judges, so it is short wherever the late bench is), and NeuralWatt reads dry.
  */
-const SLATE_SHORT: BudgetView = { ...SLATE_AND_WIDE_SHORT, synthetic: false, };
+const SLATE_AND_LATE_SHORT_WITH_SYNTHETIC: BudgetView = { ...SLATE_AND_LATE_SHORT, synthetic: false, };
+
+/**
+ NeuralWatt and Bedrock wet: the page consistency pass's late bench is short and its translators are at their quorum.
+ */
+const LATE_ONLY_SHORT: BudgetView = { ...SLATE_AND_LATE_SHORT, neuralwatt: false, };
 
 /**
  DeepSeek and Xiaomi the only wet providers: the translators of the page consistency, a phase that goes on without its
  writers, stand below the floor of two.
  */
 const WRITERS_BELOW_FLOOR: BudgetView = {
-  ...SLATE_AND_WIDE_SHORT,
+  ...SLATE_AND_LATE_SHORT,
   bedrock: true,
   deepseek: false,
   xiaomi: false,
@@ -258,7 +264,7 @@ function hookOverDayEnd(
     waitHold: boolean;
     waitReads: number;
   } = {
-    view: SLATE_AND_WIDE_SHORT,
+    view: SLATE_AND_LATE_SHORT,
     held: [],
     asks: 0,
     waitHold: false,
@@ -400,10 +406,11 @@ await describe({
       name: 'KEYS THE ONE WARNING ON WHAT IT IS ABOUT, NOT ON ITS TEXT: with NeuralWatt dry on a spent day whose '
         + 'return is named past the pass, and every figure in the text shrinking from slice to slice, 40 slices under '
         + 'a Xiaomi hold write one warning; a change of the held providers, a change of the short benches, and the '
-        + 'holds ending and coming back each write one more',
+        + 'holds ending and coming back each write one more (read in the page consistency pass, whose late bench and '
+        + 'translators fall short apart)',
       fn: async () => {
         const lines: string[] = [];
-        const { hook, state, } = hookOverDayEnd({ lines, },);
+        const { hook, state, } = hookOverDayEnd({ lines, phase: 'page consistency', },);
         state.held = ['xiaomi',];
         await runSlices({ hook, count: 40, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(1,);
@@ -418,8 +425,8 @@ await describe({
         await runSlices({ hook, count: 5, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(3,);
 
-        // The same hold, fewer short benches (the slate alone): another change.
-        state.view = SLATE_SHORT;
+        // The same hold, fewer short benches (the late bench alone): another change.
+        state.view = LATE_ONLY_SHORT;
         await runSlices({ hook, count: 5, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(4,);
 
@@ -447,7 +454,7 @@ await describe({
         await runSlices({ hook, count: 5, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(1,);
 
-        state.view = SLATE_AND_WIDE_SHORT;
+        state.view = SLATE_AND_LATE_SHORT;
         await runSlices({ hook, count: 5, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(2,);
       },
@@ -460,7 +467,7 @@ await describe({
       fn: async () => {
         const lines: string[] = [];
         const { hook, state, } = hookOverDayEnd({ lines, },);
-        state.view = SLATE_SHORT;
+        state.view = SLATE_AND_LATE_SHORT_WITH_SYNTHETIC;
         state.held = ['xiaomi',];
         await runSlices({ hook, count: 3, },);
         expect(shortWarningsOf({ lines, },),).toHaveLength(1,);

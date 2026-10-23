@@ -564,7 +564,8 @@ named for that subject and listed here.
   a meter line that read a held provider differently from the router (B763),
   a model the owner's answer took off the lane-contest and consolidation benches
   after the grace cut 40 of its 95 streams (B815),
-  and a writing-bench floor that stopped an entry for want of a named return though NeuralWatt's return was 48 s away (B826).
+  a writing-bench floor that stopped an entry for want of a named return though NeuralWatt's return was 48 s away (B826),
+  and five phases judged against a bench their stage does not seat (B860).
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,
