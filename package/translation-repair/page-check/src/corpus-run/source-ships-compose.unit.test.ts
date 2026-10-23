@@ -290,6 +290,53 @@ await describe({
         },),
 
         it({
+          name: 'WRITES A RUN HOLDING A COMMENT THAT NEVER CLOSES AS LITERAL TEXT EVEN WHEN THE GRAMMAR PARSES THE PAGE, '
+            + 'the first step, since the package masks everything after such an opener and no grammar vouches for it',
+          fn: async () => {
+            const { composed, warnings, } = composeRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: '<!-- 注释\n她说\n',
+                },
+                MIDDLE_ROW,
+              ],
+              readGrammar: parsingEverything,
+            },);
+            expect(composed.step,).toBe('encoded-failing-runs',);
+            expect(composed.slices,).toEqual([1,],);
+            expect(composed.pageText,).toContain(`${UNTRANSLATED_PASSAGE_NOTE}\n\n&lt;!-- 注释\n她说`,);
+            expect(composed.pageText,).not.toContain('<!--',);
+            expect(composed.defects,).toEqual([],);
+            expect(warnings.length,).toBe(1,);
+            expect(warnings[0],).toContain('step 1 of 3',);
+            expect(warnings[0],).toContain('slices [1]',);
+            expect(warnings[0],).toContain('never closes',);
+          },
+        },),
+
+        it({
+          name: 'SHIPS A RUN WHOSE COMMENT CLOSES AS WRITTEN, the control for the run whose comment never does',
+          fn: async () => {
+            const { composed, warnings, } = composeRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: '<!-- 注释 -->\n她说\n',
+                },
+                MIDDLE_ROW,
+              ],
+              readGrammar: parsingEverything,
+            },);
+            expect(composed.step,).toBe('as-written',);
+            expect(composed.pageText,).toContain('<!-- 注释 -->',);
+            expect(warnings,).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'ENDS AT THE THIRD STEP, so the error for an exhausted ladder names the entry and nothing of the page',
           fn: async () => {
             expect(new SourcePageCompositionError({ entryId: 'BookshopCat', },).message,).toBe(

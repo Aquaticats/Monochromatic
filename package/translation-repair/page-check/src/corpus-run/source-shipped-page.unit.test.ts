@@ -35,6 +35,7 @@ import {
   type WouldShipSource,
   wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
+import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   sourceShippedArchive,
@@ -699,6 +700,33 @@ await describe({
             const lines = compositionLines({ warnings, },);
             expect(lines.length,).toBe(1,);
             expect(lines[0],).toContain('slices [3]',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE OPENER OF A COMMENT THAT NEVER CLOSES AS A CHARACTER REFERENCE, so the English after the run '
+            + 'stays a paragraph of the page and the package finds no unterminated comment in it',
+          fn: async () => {
+            const { page, checks, warnings, } = await publishRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: '<!-- 注释\n她说\n',
+                },
+                MIDDLE_ROW,
+              ],
+            },);
+            expect(page,).toContain(`${NOTE}\n\n&lt;!-- 注释\n她说\n`,);
+            expect(page,).toContain('She slept on the counter.',);
+            expect(checks,).toEqual([],);
+            expect(parseDocument({ text: page, },).parseFindings.map(function kindOf({ kind, },): string {
+              return kind;
+            },),).toEqual([],);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.length,).toBe(1,);
+            expect(lines[0],).toContain('step 1 of 3',);
+            expect(lines[0],).toContain('slices [1]',);
           },
         },),
 
