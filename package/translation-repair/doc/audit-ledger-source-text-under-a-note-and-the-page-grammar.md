@@ -182,8 +182,12 @@ gave these counts:
 Step 2 is taken when every run parses alone,
 the page does not,
 and writing every run as literal text changes some run.
-It made the page parse for 32 pairs,
-31 of them with a fence mark indented four spaces in both runs:
+It made the page parse for 32 pairs.
+One of them is two runs that import the same name:
+each parses alone,
+the strict grammar refuses the second declaration of the page,
+and writing every run so gives the first letter of each module line as a character reference.
+The other 31 hold a fence mark indented four spaces in both runs:
 MDX has no indented code and reads such a mark as a fence,
 the plain parse reads a paragraph or indented code there,
 so a brace between two such marks is text to the strict grammar once the marks pair across the runs,
@@ -191,7 +195,9 @@ which writing every run so escapes.
 The older statement that step 2 is taken by no text was wrong:
 it was taken for 838 pairs,
 for the most part a run nested past the bound beside a run holding a character that step 2 escapes,
-and for the rest a pair of fence marks.
+and for the rest a fence mark indented four spaces,
+a raw HTML block that runs to a closing marker,
+a `$$` flow and the shapes named under "Shapes the encoder does not make parse".
 
 Step 3 is taken for these causes,
 the counts being the pairs of the search that name each cause by the fragments they hold:

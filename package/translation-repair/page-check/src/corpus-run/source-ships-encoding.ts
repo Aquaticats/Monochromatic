@@ -66,8 +66,8 @@ import {
 // file pins), a raw HTML block that runs to a closing marker (`<script>`, a comment never closed), a fence mark
 // indented four spaces or more (MDX reads a fence there, the plain parse a paragraph or indented code), and the shapes
 // under SHAPES THE PLAIN PARSE HIDES. Step 2 was taken for 838 pairs and made the page parse for 32 of them (a fence
-// mark indented in both runs; one pair of module lines with a bare address); in the rest it was taken and did not, a
-// run nested past the bound beside a run holding a character step 2 escapes among them.
+// mark indented in both runs; two runs that import the same name); in the rest it was taken and did not, a run
+// nested past the bound beside a run holding a character step 2 escapes among them.
 //
 // SHAPES THE PLAIN PARSE HIDES. These are texts the encoder does not make parse: the plain parse reads a node as one
 // text and the strict grammar reads more in it. A raw HTML block or indented code holding

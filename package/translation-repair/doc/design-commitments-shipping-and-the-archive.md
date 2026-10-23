@@ -204,7 +204,8 @@ which lists every file of these commitments.
   and the entry never stops on this path.
   The bytes of the original differ from the artifact's only on those paths.
   A seeded search of forty thousand pairs of runs under the real grammar took the second step for 838 pairs,
-  and it made the page parse for 32 of them (a fence mark indented four spaces in both runs).
+  and it made the page parse for 32 of them (a fence mark indented four spaces in both runs,
+  and two runs that import the same name).
   The third step is taken when no writing makes the page parse:
   a run nested past the bound of the plain reading,
   a `$$` flow or a fence that one run opens and a later run closes with the English between them,
