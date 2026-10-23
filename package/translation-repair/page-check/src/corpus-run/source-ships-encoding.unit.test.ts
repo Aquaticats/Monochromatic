@@ -192,6 +192,34 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['a raw HTML block holding an import line after a blank line, then more text', '<script>\n\nimport a\n\nb {\n'],
 ];
 
+/**
+ Texts whose definition line the plain reading takes for a definition and the strict grammar for the lazy line of a
+ paragraph, which a raw HTML block or indented code above it is to the strict grammar: the page parses and shows the
+ characters of the line, which no reader of plain Markdown sees as text. Each case has what the page shows.
+ */
+const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
+  [
+    'a definition line right after a list item holding a raw HTML block',
+    '* </details> [^1]: 注\n[b]: u{ "t"\n',
+    '</details> [^1]: 注 [b]: u{ "t"',
+  ],
+  [
+    'a definition line right after a block quote holding a raw HTML block',
+    '> <div>\n[b]: u{ "t"\n',
+    '<div> [b]: u{ "t"',
+  ],
+  [
+    'a definition line right after indented code',
+    '猫\n\n    code {\n[b]: u{ "t"\n',
+    '猫 code { [b]: u{ "t"',
+  ],
+  [
+    'a definition line right after indented code, then a definition after a blank line',
+    '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
+    '猫 code { [b]: u{ "t"',
+  ],
+];
+
 await describe({
   name: encodeAsLiteralMdx.name,
   children: [
@@ -596,6 +624,20 @@ https://example.net/b{c`,);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
               expect(withoutLinkTargets({ account: readerOfPage({ carried: written, },), },),)
                 .toBe(withoutLinkTargets({ account: readerOfSource({ source: text, },), },),);
+            },
+          },);
+        },),
+
+        ...SHOWN_CASES.map(function shownCase([name, source, shown,],) {
+          return it({
+            name: `SHOWS THE CHARACTERS OF THE LINE FOR ${name.toUpperCase()}: the page parses and shows ${shown}`,
+            fn: async () => {
+              /**
+               The run as the encoder writes it.
+               */
+              const written = encoded({ text: source, },);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(readerOfPage({ carried: written, },).startsWith(shown,),).toBe(true,);
             },
           },);
         },),
