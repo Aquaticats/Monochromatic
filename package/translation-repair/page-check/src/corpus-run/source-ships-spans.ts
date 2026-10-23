@@ -13,11 +13,7 @@ import {
 } from './source-ships-lines.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
-import {
-  laterModuleLines,
-  moduleLetterEdit,
-  startsEsModule,
-} from './source-ships-module-line.ts';
+import { moduleEdits, } from './source-ships-module-line.ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -264,6 +260,13 @@ export function spansOf(
         node,
         range,
       },),);
+      edits.push(...moduleEdits({
+        source,
+        node,
+        range,
+        isTopLevel: false,
+        isNested,
+      },),);
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
@@ -381,26 +384,13 @@ export function spansOf(
       streamStarts.push(range.start,);
     // A PARAGRAPH OR SETEXT HEADING STARTING AT THE FIRST COLUMN WITH `import ` OR `export `, which MDX reads as an ES
     // module and no backslash makes plain; a character reference for the first letter does.
-    if (startsEsModule({
+    edits.push(...moduleEdits({
       source,
       node,
-      isTopLevel: isRootChild && (!isNested),
       range,
-    },))
-      edits.push(moduleLetterEdit({
-        source,
-        at: range.start,
-      },),);
-    for (const at of laterModuleLines({
-      source,
-      node,
       isTopLevel: isRootChild && (!isNested),
-      range,
-    },))
-      edits.push(moduleLetterEdit({
-        source,
-        at,
-      },),);
+      isNested,
+    },),);
     if ('children' in node) {
       /**
        The node's children, the last first so they come out in order.

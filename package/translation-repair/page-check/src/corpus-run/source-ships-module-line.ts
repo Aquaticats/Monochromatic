@@ -16,13 +16,18 @@ import {
 // zero-width joiner alone on the line, and with a soft hyphen, a left-to-right mark and a variation selector, which end
 // no paragraph; every separator and format character is taken for invisible here, so a line the grammar keeps in the
 // paragraph is written as a character reference too, which shows the same.
+//
+// THE LINE NEED NOT BE IN A PARAGRAPH AT THE TOP. A line at the first column ends every container it stands in, so one
+// that follows such a line in a list item or a block quote (a lazy line of its paragraph) starts a module as well, and
+// so does one in a raw HTML block, which the plain reading keeps whole across blank lines and the strict grammar, which
+// has no such block, reads as paragraphs.
 
 /* oxlint-disable no-restricted-syntax/no-regex -- the input is one line tested whole against one class, so the test is
 bounded and cannot backtrack; the Unicode categories have no string API */
 /**
- A line of separators and format characters only, which shows nothing.
+ A line of separators and format characters only, or no characters at all, which shows nothing.
  */
-const INVISIBLE_LINE = /^[\p{Z}\p{Cf}\t]+$/u;
+const INVISIBLE_LINE = /^[\p{Z}\p{Cf}\t]*$/u;
 /* oxlint-enable no-restricted-syntax/no-regex */
 
 /**
@@ -32,6 +37,16 @@ const ES_MODULE_STARTS: readonly string[] = [
   'import ',
   'export ',
 ];
+
+/**
+ Node types whose later lines can start a module: the paragraph and the setext heading, whose lines the plain reading
+ keeps together, and the raw HTML block, which it keeps whole across blank lines.
+ */
+const LINE_BLOCKS: ReadonlySet<string> = new Set([
+  'paragraph',
+  'heading',
+  'html',
+],);
 
 /**
  Whether MDX reads the node as an ES module: a paragraph or a setext heading at the first column of the document's own
@@ -86,40 +101,42 @@ export function startsEsModule(
 }
 
 /**
- Where the lines of a paragraph or setext heading start that follow a line of invisible characters and begin with
- `import ` or `export `, each of which the strict grammar reads as an ES module.
+ Where the lines of a paragraph, setext heading or raw HTML block start that follow a line of invisible characters or
+ no characters and begin with `import ` or `export ` at the first column, each of which the strict grammar reads as an
+ ES module.
 
  @param source - the text
 
  @param node - node of the parse
 
- @param isTopLevel - whether the node's parent is the root
-
  @param range - where the node stands
+
+ @param isNested - whether the text is a block read apart from the document, none of whose lines stands at the first
+ column of it
 
  @returns Index of the first letter of each such line, in text order
 
  @example
  ```ts
- const at = laterModuleLines({ source, node, isTopLevel: true, range, },);
+ const at = laterModuleLines({ source, node, range, isNested: false, },);
  ```
  */
 export function laterModuleLines(
   {
     source,
     node,
-    isTopLevel,
     range,
+    isNested,
   }: {
     readonly source: string;
     readonly node: TreeNode;
-    readonly isTopLevel: boolean;
     readonly range: TextRange;
+    readonly isNested: boolean;
   },
 ): readonly number[] {
-  if ((node.type !== 'paragraph') && (node.type !== 'heading'))
+  if (isNested)
     return [];
-  if (!isTopLevel)
+  if (!LINE_BLOCKS.has(node.type,))
     return [];
   /**
    Index of the first letter of each line found.
@@ -191,6 +208,73 @@ export function moduleLetterEdit(
     end: at + 1,
     replacement: `&#${String(source.codePointAt(at,),)};`,
   };
+}
+
+/**
+ The edits that keep a node from starting an ES module: its first word and the first word of each later line, as
+ character references.
+
+ @param source - the text
+
+ @param node - node of the parse
+
+ @param range - where the node stands
+
+ @param isTopLevel - whether the node's parent is the root of the document
+
+ @param isNested - whether the text is a block read apart from the document
+
+ @returns The edits, none for a node that starts no module
+
+ @example
+ ```ts
+ const edits = moduleEdits({ source, node, range, isTopLevel: true, isNested: false, },);
+ ```
+ */
+export function moduleEdits(
+  {
+    source,
+    node,
+    range,
+    isTopLevel,
+    isNested,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+    readonly isTopLevel: boolean;
+    readonly isNested: boolean;
+  },
+): readonly TextEdit[] {
+  /**
+   Index of the first letter of the node, when it starts a module.
+   */
+  const first = startsEsModule({
+    source,
+    node,
+    isTopLevel,
+    range,
+  },)
+    ? [range.start,]
+    : [];
+  /**
+   Index of the first letter of each later line that starts one.
+   */
+  const later = laterModuleLines({
+    source,
+    node,
+    range,
+    isNested,
+  },);
+  return [
+    ...first,
+    ...later,
+  ].map(function letter(at,): TextEdit {
+    return moduleLetterEdit({
+      source,
+      at,
+    },);
+  },);
 }
 
 //endregion Source ships module line

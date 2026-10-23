@@ -204,6 +204,7 @@ export {
 } from './corpus-run/source-ships-nested.ts';
 export {
   laterModuleLines,
+  moduleEdits,
   moduleLetterEdit,
   startsEsModule,
 } from './corpus-run/source-ships-module-line.ts';

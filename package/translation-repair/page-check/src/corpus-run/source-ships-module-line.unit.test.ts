@@ -15,6 +15,7 @@ import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-do
 
 import {
   laterModuleLines,
+  moduleEdits,
   moduleLetterEdit,
   rangeOf,
   startsEsModule,
@@ -59,6 +60,8 @@ function firstBlockIsModule(
 
  @param source - the text
 
+ @param isNested - whether the text is read apart from the document
+
  @returns Indices of the first letters
 
  @example
@@ -66,15 +69,23 @@ function firstBlockIsModule(
  const at = laterLinesOf({ source: 'x\n\n\u200B\nimport a\n', },);
  ```
  */
-function laterLinesOf({ source, }: { readonly source: string; },): readonly number[] {
+function laterLinesOf(
+  {
+    source,
+    isNested = false,
+  }: {
+    readonly source: string;
+    readonly isNested?: boolean;
+  },
+): readonly number[] {
   const [, node,] = parseMarkdownMathBody({ body: source, },).children;
   if (node === undefined)
     throw new Error('the text holds no second block',);
   return laterModuleLines({
     source,
     node,
-    isTopLevel: true,
     range: rangeOf({ node, },),
+    isNested,
   },);
 }
 
@@ -96,6 +107,26 @@ await describe({
         },),
 
         it({
+          name: 'FINDS AN import OR export LINE IN A RAW HTML BLOCK THAT FOLLOWS A BLANK LINE OR A LINE OF FORMAT '
+            + 'CHARACTERS, which the plain reading keeps in the block and the strict grammar reads as a paragraph',
+          fn: async () => {
+            expect(laterLinesOf({ source: 'x\n\n<script>\n\nimport a\n', },),).toEqual([13,],);
+            expect(laterLinesOf({ source: 'x\n\n<details>\n\uFEFF\nexport to PDF\n', },),).toEqual([15,],);
+          },
+        },),
+
+        it({
+          name: 'FINDS NOTHING IN A TEXT READ APART FROM THE DOCUMENT, a block none of whose lines stands at the first '
+            + 'column of it',
+          fn: async () => {
+            expect(laterLinesOf({
+              source: 'x\n\n\uFEFF\nimport q\n',
+              isNested: true,
+            },),).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'FINDS NOTHING AFTER A LINE OF VISIBLE CHARACTERS, in a block that is not top level, or in another '
             + 'kind of block, and none that start with a word of another spelling',
           fn: async () => {
@@ -103,6 +134,65 @@ await describe({
             expect(laterLinesOf({ source: 'x\n\n\uFEFF\nimported a\n', },),).toEqual([],);
             expect(laterLinesOf({ source: 'x\n\n\uFEFF\n  import a\n', },),).toEqual([],);
             expect(laterLinesOf({ source: 'x\n\n# \uFEFF\nimport a\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'x\n\n> a\n> \uFEFF\n> import q\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'x\n\n<script>\n\n  import a\n', },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: moduleEdits.name,
+      children: [
+        it({
+          name: 'WRITES THE FIRST WORD OF A MODULE PARAGRAPH AND THE FIRST WORD OF EACH LATER MODULE LINE, each as a '
+            + 'character reference',
+          fn: async () => {
+            /**
+             The text and its first block.
+             */
+            const source = 'import a\n\uFEFF\nimport b\n';
+            const [node,] = parseMarkdownMathBody({ body: source, },).children;
+            if (node === undefined)
+              throw new Error('the text holds no block',);
+            expect(moduleEdits({
+              source,
+              node,
+              range: rangeOf({ node, },),
+              isTopLevel: true,
+              isNested: false,
+            },),).toEqual([
+              {
+                start: 0,
+                end: 1,
+                replacement: '&#105;',
+              },
+              {
+                start: 11,
+                end: 12,
+                replacement: '&#105;',
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'WRITES NOTHING FOR A BLOCK THAT STARTS NO MODULE, a word that only begins like the keyword',
+          fn: async () => {
+            /**
+             The text and its first block.
+             */
+            const source = 'imported a\n';
+            const [node,] = parseMarkdownMathBody({ body: source, },).children;
+            if (node === undefined)
+              throw new Error('the text holds no block',);
+            expect(moduleEdits({
+              source,
+              node,
+              range: rangeOf({ node, },),
+              isTopLevel: true,
+              isNested: false,
+            },),).toEqual([],);
           },
         },),
       ],
