@@ -425,8 +425,8 @@ which lists every file of this record.
 - [B824 to B825, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
 - [B826, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B833 to B835, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
-- [B836, NeuralWatt replies cut at the default effort and the energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
-- [B837 to B840, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
+- [B836, NeuralWatt replies cut at the default effort and the energy estimate][b836-neuralwatt-ledger]
+- [B837 to B840, short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md)
 - [B841, process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md)
 - [B860, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
@@ -648,3 +648,5 @@ which lists every file of this record.
 - [X19, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
 - [X20 to X22, found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md)
 - [X23 to X24, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
+
+[b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md

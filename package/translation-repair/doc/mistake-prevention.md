@@ -228,17 +228,21 @@ not a memory of having done it.
     M45).
 4.  Every cache version is accounted for (M25,
     M28):
-    `mise run //package/translation-repair/slice-cache:cache-account-audit` lists every constant the source declares,
+    `mise run //package/translation-repair/slice-cache:cache-account-audit -- --runs-under "${HOME}/temp/agent"`
+    lists every constant the source declares,
     the commit that set each value,
     and every non-test source commit since the earliest of them that no version's account names;
     read each unnamed commit against the files its stage's sheets and floors import,
     the house rules and prose ranges included;
     a change that alters what the stage asks or accepts moves the version,
     unless no cache file was written after the change.
-    Run the audit with `-- --runs-under "${HOME}/temp/agent"`,
-    because a launch that follows the runbook writes its runs there and the default roots do not reach them.
+    The `--runs-under` argument is there because a launch that follows the runbook writes its runs there
+    and the default roots do not reach them.
     Its `slice-cache records under N runs directories` line must end in a count above zero;
-    a zero count prints a `WARNING:` line and means the audit read nothing about the caches a launch would resume.
+    a zero count prints a `WARNING:` line and means the audit read nothing about the caches a launch would resume,
+    and a `WARNING:` line naming the runbook's runs root beside a count above zero means the roots searched do not
+    cover that root,
+    so the count speaks for other runs.
     Its `newest slice-cache record` line gives the time of the cache file written last,
     and its `cache versions set after it` line counts the versions whose current value was set after that time.
     A change made after the newest record is one that no cache file was written after,

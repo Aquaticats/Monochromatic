@@ -537,8 +537,9 @@ named for that subject and listed here.
   the ceiling a hold could lift a short bench to,
   which the seat reader's line never stated (B833),
   a slice bought again by the next attempt for want of a second ballot (B834),
-  the contest and consolidation rounds opened for slices their bench could not settle (B835),
-  the ceiling that counted a provider its meter keeps dry as coming back (B837),
+  and the contest and consolidation rounds opened for slices their bench could not settle (B835).
+- [Audit ledger: short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
+  The ceiling that counted a provider its meter keeps dry as coming back (B837),
   the wait that judged a return against the quorum alone (B838),
   the translate lane's first-time buys on a select bench under its floor (B839),
   and the artifact's record of why such a slice was kept (B840).
@@ -887,6 +888,7 @@ Filed in:
 - [Audit ledger: composed operations and checks on a part](audit-ledger-composed-operations-and-partial-checks.md)
 - [Audit ledger: which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
 - [Audit ledger: short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
+- [Audit ledger: short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md)
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md)
 - [Audit ledger: the every-provider-dry refusal, what it stops and what it says](audit-ledger-the-every-provider-dry-refusal.md)
 - [Audit ledger: a stage that heard nobody, recorded as data](audit-ledger-silent-stages-recorded-as-data.md)

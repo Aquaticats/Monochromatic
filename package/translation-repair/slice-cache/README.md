@@ -135,6 +135,9 @@ and each task sets it to its own name.
   A count of zero records prints a `WARNING:` line on stdout and a warning through the package logger,
   naming every root searched and that runs root,
   because the newest-record and versions-set-after lines then say nothing about the caches.
+  The same pair of warnings follows a count above zero when that runs root is neither among nor under the roots
+  searched,
+  because a stale record under the default roots makes the count non-zero while the runs of a launch were never read.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.

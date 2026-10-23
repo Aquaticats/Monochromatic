@@ -569,3 +569,33 @@ and a check that passes on zero input requires a count above zero.
 Cache account:
 the audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+the same day:
+the warning fired on a count of exactly zero,
+and a count above zero is no proof that the roots searched hold the runs a launch writes.
+The default roots read the worktree's own runs directory and any `translation-repair-runs*` beside it,
+so one stale record there gives a non-zero count that says nothing of `${HOME}/temp/agent/corpus-pass-<entry>`,
+the audit stayed silent,
+and step 4 of the checklist passed on "count above zero".
+`reportSliceCaches` now also warns,
+in the log and on stdout,
+whenever the runbook's runs root is neither among nor under the roots searched,
+whatever the count,
+and names every root searched and the runbook's root;
+the sentence of the empty case is unchanged and is the only one a zero count prints.
+A root searched that lies below the runbook's root covers its own runs and not the rest of it,
+so it does not silence the warning.
+`auditCacheAccounts` takes the home directory as an optional argument,
+the process's own by default,
+so its cases state one.
+Red `b3ad54afb3` (two cases fail at the parent;
+the case with the root among or under the searched roots and the case of the empty count with the root searched pass
+there as controls),
+fix `f9c6ddde3f`.
+Step 4 now puts the whole command,
+`--runs-under` included,
+in one code span,
+and says what a `WARNING:` line beside a non-zero count means.
+The audit reads versions and writes none,
+so no cache version moved.
