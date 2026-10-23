@@ -59,9 +59,10 @@ import { PROMPT_BYTES_PER_TOKEN, } from './openrouter-abandoned-spend.ts';
 // THE LIMITS OF THIS RUN'S MEASUREMENT. It is one entry, so the per-entry
 // spread seen in the rotation (0.0936 to 0.2347 Wh across entries for
 // DeepSeek) applies to it as well. The GLM means describe text at `low`: the
-// one GLM picture read of the run (0.0221 Wh at 8,188 prompt tokens) fell in
-// the 4,096 to 16,384 token bucket too and is held at the same mean, a single
-// call that says nothing of a picture's cost. Were the `low` effort lifted,
+// one GLM picture read of the run (0.0221 Wh; the provider reported 8,188 prompt
+// tokens and the energy line held it for 8,264) fell in the 4,096 to 16,384
+// token bucket too and is held at the same mean, a single call that says
+// nothing of a picture's cost. Were the `low` effort lifted,
 // the GLM hold would be too small, by about 13 and 22 times in the two main
 // buckets, until a run measured it again, and the settlement would correct
 // each call. The other buckets keep the matrix's figures: this run held at
@@ -221,6 +222,7 @@ const ENERGY_BUCKETS: readonly EnergyBucket[] = [
     // and why the GLM figure fell).
     meanWh: {
       'deepseek-v4.1-flash': 0.3044,
+      // MEASURED AT THE `low` EFFORT: were it lifted to `max` this hold would fall short by about 13 times.
       'glm-5.3-flash': 0.0714,
     },
   },
@@ -229,6 +231,7 @@ const ENERGY_BUCKETS: readonly EnergyBucket[] = [
     // MEASURED, NOT THE MATRIX'S: the same run.
     meanWh: {
       'deepseek-v4.1-flash': 0.3237,
+      // MEASURED AT THE `low` EFFORT: were it lifted to `max` this hold would fall short by about 22 times.
       'glm-5.3-flash': 0.0556,
     },
   },
