@@ -56,8 +56,9 @@ import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-st
 //   (`glossary/src/corpus-run/pipeline-digest.ts:37-39`), which holds this reader (`rg --text "function foldEnumCase"`
 //   finds it once in `corpus-pass/dist/final/node/corpus-pass.mjs`, built 2026-10-23). `assertBuildGenerationResumable`
 //   throws `GenerationDriftError` (`:377`) unless the launch carries `TRANSLATION_REPAIR_ALLOW_GENERATION_DRIFT=yes`
-//   (`:32`, `:38`, `:360`, `:125`). So only an operator who opted in resumes into the old directory, and that
-//   operator is the one for whom settled entries keep their outcome.
+//   (the name and the value at `:32` and `:38`, the read of the variable at `:58-59`, the test of it at `:360`, and
+//   the refusal's advice to set it at `:125`). So only an operator who opted in resumes into the old directory, and
+//   that operator is the one for whom settled entries keep their outcome.
 // - The runbook says the usual path is a new directory: "the rule is always kill and relaunch: ... relaunch the entry
 //   into a fresh runs dir on the new build. The old runs dir holds what the old digest bought and is not resumed"
 //   (`doc/runbook/translation-repair-corpus-pass.md:714-719`). A fresh directory has no settled entry, so every entry

@@ -11,7 +11,17 @@
  THREE QUESTIONS, ASKED OF EACH SCHEMA PRODUCER: is every object of the schema as the stage writes it closed, does the
  body the Claude client builds send a schema that meets every rule, and which bounds does the body drop (only the one
  the reader of its stage enforces). A FOURTH CASE KEEPS THE LIST HONEST: it reads the source of the family for files
- that declare a `json_schema` and fails when one is missing here, so a new stage schema cannot skip the check.
+ that declare a `json_schema` and fails when one is missing here, so a new stage schema cannot skip the check. THAT
+ SEARCH IS HELD IN TURN BY ONE CASE PER FORM IT FOLLOWS, each with imaginary files: a call that names a type argument,
+ a builder handed over by reference, a spread of its result, a call through a namespace import or an import alias, a
+ builder written as an arrow function, a function expression, the default export, a method of an object, an argument
+ of a call, an async arrow with one bare parameter, a generic arrow or an async default export, and a wrapper of a
+ function, of a method of an object or of a default export (returned at once, awaited, in parentheses, with a type
+ argument, as an arrow function body, or through another wrapper). Wrappers of the other builder forms have no case
+ of their own. The fixtures `claude-schema-call-forms.test-fixture.ts`,
+ `claude-schema-builder-forms.test-fixture.ts`, `claude-schema-wrapper-forms.test-fixture.ts` and
+ `claude-schema-wrapped-builder-forms.test-fixture.ts` hold the files, and the header of
+ `claude-schema-code.test-fixture.ts` lists the shapes the search does not read.
 
  A FIFTH CASE HOLDS THE LIMIT OF THE ENUM CASE FOLD (`provider/src/enum-case-fold.ts`): the fold takes a reply value
  back to the spelling its schema lists only along `properties` and `items`, and leaves `anyOf`, `oneOf`, `allOf`,
@@ -31,6 +41,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import { ABSOLUTE_NATURALNESS_REVIEW_RESPONSE_FORMAT, } from '@monochromatic-dev/translation-repair-archive';
 import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure';
 import {
@@ -39,6 +50,8 @@ import {
   type JsonSchemaResponseFormat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
+import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
+import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test-fixture.ts';
 import {
   buildersOf,
   callersOf,
@@ -47,6 +60,11 @@ import {
   type SchemaBuilder,
   type SourceFile,
 } from './claude-schema-sources.test-fixture.ts';
+import {
+  WRAPPED_BUILDER_CASES,
+  WRAPPER_OPENING_CASES,
+} from './claude-schema-wrapped-builder-forms.test-fixture.ts';
+import { NO_BUILDER_CASES, WRAPPER_FORM_CASES, } from './claude-schema-wrapper-forms.test-fixture.ts';
 
 //region Not stage schemas
 // Files that are listed beside the producers without being one.
@@ -498,77 +516,19 @@ const IMAGINARY_SOURCES: readonly SourceFile[] = [
 ];
 
 /**
- Files that build or reach an answer schema in a form the search read as no call before: a builder written as an arrow
- function with a caller, a call that names a type argument, a builder handed over by reference, and a wrapper of a
- builder with a caller. Three files beside them mention the contest builder without building anything: an import, a
- re-export and a `typeof`.
+ The file of the family that declares the contest builder, which every form case is given beside its imaginary
+ files.
  */
-const FORM_SOURCES: readonly SourceFile[] = [
-  {
-    file: 'imaginary/src/arrow-wire.ts',
-    text: [
-      'export const arrowResponseFormat = ({ moods, }: { readonly moods: readonly string[]; },) => ({',
-      '  type: \'json_schema\',',
-      '  json_schema: {',
-      '    name: \'arrow_mood\',',
-      '    schema: { type: \'object\', properties: { mood: { enum: moods, }, }, },',
-      '  },',
-      '});',
-    ].join('\n',),
+const CONTEST_BUILDER_FILE = 'lane-contest/src/contest-ballot-wire.ts';
+
+/**
+ The source of the file that declares the contest builder.
+ */
+const CONTEST_BUILDER_SOURCE: SourceFile = nonNullishOrThrow((await familySources()).find(
+  function declaresContestBuilder({ file, },): boolean {
+    return file === CONTEST_BUILDER_FILE;
   },
-  {
-    file: 'imaginary/src/arrow-gate-stage.ts',
-    text: 'export const ARROW_GATE_RESPONSE_FORMAT = arrowResponseFormat({ moods: [\'wags\',], },);\n',
-  },
-  {
-    file: 'imaginary/src/generic-gate-stage.ts',
-    text: [
-      'export const GENERIC_GATE_RESPONSE_FORMAT = contestResponseFormat<string>({',
-      '  schemaName: \'generic_gate\',',
-      '  verdicts: [],',
-      '  asksArchive: false,',
-      '},);',
-    ].join('\n',),
-  },
-  {
-    file: 'imaginary/src/reference-gate-stage.ts',
-    text: [
-      'export const FORMATS = [',
-      '  { schemaName: \'a\', verdicts: [], asksArchive: false, },',
-      '].map(contestResponseFormat);',
-    ].join('\n',),
-  },
-  {
-    file: 'imaginary/src/wrapped-wire.ts',
-    text: [
-      'export function wrappedResponseFormat(schemaName: string,) {',
-      '  return contestResponseFormat({ schemaName, verdicts: [], asksArchive: false, },);',
-      '}',
-    ].join('\n',),
-  },
-  {
-    file: 'imaginary/src/wrapped-gate-stage.ts',
-    text: 'export const WRAPPED_GATE_RESPONSE_FORMAT = wrappedResponseFormat(\'wrapped_gate\',);\n',
-  },
-  {
-    file: 'imaginary/src/import-only.ts',
-    text: [
-      'import {',
-      '  contestResponseFormat,',
-      '} from \'../../lane-contest/src/contest-ballot-wire.ts\';',
-      '',
-      'export const NOTHING = 2;',
-    ].join('\n',),
-  },
-  {
-    file: 'imaginary/src/re-export.ts',
-    text: 'export {\n  contestResponseFormat,\n} from \'../../lane-contest/src/contest-ballot-wire.ts\';\n',
-  },
-  {
-    file: 'imaginary/src/type-only.ts',
-    text: 'export type Maker = typeof contestResponseFormat;\n',
-  },
-];
+),);
 
 await describe({
   name: 'the answer schemas the Claude route sends',
@@ -620,43 +580,38 @@ await describe({
       },
     },),
 
-    it({
-      name: 'FOLLOWS A BUILDER WHATEVER FORM IT TAKES AND WHATEVER WAY IT IS REACHED: a builder written as an arrow '
-        + 'function and the file that calls it, a call that names a type argument, a builder handed over by '
-        + 'reference, and a wrapper of a builder and the file that calls the wrapper, and not a file that only '
-        + 'imports, re-exports or names the type of the contest builder',
-      fn: async () => {
-        /**
-         The sources searched: the family's own, which hold the contest builder, with the imaginary files beside them.
-         */
-        const sources = [...await familySources(), ...FORM_SOURCES,];
-        /**
-         Imaginary files found, whatever way they reach a schema.
-         */
-        const declaring = declaringFilesOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
-          .filter(function isImaginary(file,): boolean {
-            return file.startsWith('imaginary/',);
-          },);
-        expect(declaring.toSorted(),).toEqual([
-          'imaginary/src/arrow-gate-stage.ts',
-          'imaginary/src/arrow-wire.ts',
-          'imaginary/src/generic-gate-stage.ts',
-          'imaginary/src/reference-gate-stage.ts',
-          'imaginary/src/wrapped-gate-stage.ts',
-          'imaginary/src/wrapped-wire.ts',
-        ],);
-        /**
-         Builders found among the imaginary files, by name.
-         */
-        const builders = buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
-          .filter(function isImaginary({ file, },): boolean {
-            return file.startsWith('imaginary/',);
-          },)
-          .map(function nameOf({ name, },): string {
-            return name;
-          },);
-        expect(builders.toSorted(),).toEqual(['arrowResponseFormat', 'wrappedResponseFormat',],);
-      },
+    ...[
+      ...CALL_FORM_CASES,
+      ...BUILDER_FORM_CASES,
+      ...WRAPPER_FORM_CASES,
+      ...WRAPPER_OPENING_CASES,
+      ...WRAPPED_BUILDER_CASES,
+      ...NO_BUILDER_CASES,
+    ].map(function caseOfForm(formCase: FormCase,) {
+      return it({
+        name: formCase.name,
+        fn: async () => {
+          /**
+           The sources searched: the contest builder's file and the form's imaginary files.
+           */
+          const sources = [CONTEST_BUILDER_SOURCE, ...formCase.files,];
+          expect({
+            found: declaringFilesOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+              .filter(function isImaginary(file,): boolean {
+                return file.startsWith('imaginary/',);
+              },)
+              .toSorted(),
+            builders: buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+              .filter(function isImaginary({ file, },): boolean {
+                return file.startsWith('imaginary/',);
+              },)
+              .map(function nameOf({ name, },): string {
+                return name;
+              },)
+              .toSorted(),
+          },).toEqual({ found: formCase.found, builders: formCase.builders, },);
+        },
+      },);
     },),
 
     it({

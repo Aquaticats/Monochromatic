@@ -11,19 +11,32 @@ import {
   returnsCallOf,
   usesFunction,
 } from './claude-schema-code.test-fixture.ts';
+import {
+  type ImportBindings,
+  importsOf,
+  namesOfFunctionIn,
+} from './claude-schema-import.test-fixture.ts';
 
 //region Sources that declare an answer schema
 // What `claude-schemas.unit.test.ts` reads to keep the list of schema producers honest: the family's own source files,
 // the files among them that write a `json_schema` response format, and the files that call a function which writes one.
 //
 // A BUILDER IS A FUNCTION THAT WRITES THE FORMAT IN ITS BODY, or returns the result of one that does (a wrapper), so
-// each call can make a different schema. It is declared at the top level, with `function` or as a constant holding an
-// arrow function, and a file uses it by calling it, calling it with type arguments, or handing it over by reference
-// (`claude-schema-code.test-fixture.ts` says which shapes are read). A format held in a constant is one schema however
-// many files read it, and the producer list holds it once. That is why `blockPairingProtocol`
-// (`slice-reading/src/block-pairing-protocol.ts`) is left out of the builders: it returns a clone of the constant
-// `PAIRING_RESPONSE_FORMAT`, so every caller sends the same schema, the format text is not in its body, and its one
-// caller (`pair-blocks-stage.ts`) is covered by the producer list's entry for the constant.
+// each call can make a different schema. `claude-schema-code.test-fixture.ts` says which declarations are read as
+// functions (a function, a constant that holds one, a method of an object a constant holds) and which wrappers (the
+// call is returned at once), and what it does not read. A file uses a builder by calling it, calling it with type
+// arguments, handing it over by reference, spreading its result, calling it through a namespace import, or calling
+// it under the alias or the default import name it gave it (`claude-schema-import.test-fixture.ts`). A format held in
+// a constant is one schema however many files read it, and the producer list holds it once. That is why
+// `blockPairingProtocol` (`slice-reading/src/block-pairing-protocol.ts`) is left out of the builders: it returns a
+// clone of the constant `PAIRING_RESPONSE_FORMAT`, so every caller sends the same schema, the format text is not in
+// its body, and its one caller (`pair-blocks-stage.ts`) is covered by the producer list's entry for the function.
+//
+// THE SEARCH IS BY NAME, NOT BY MODULE: a file that imports a name from some other module and calls it is read as a
+// use of a builder of that name, and a file that uses a name it declared itself is read as a use too. It over-reads,
+// never under-reads, for the forms it knows; the forms it does not know are listed in the header of
+// `claude-schema-code.test-fixture.ts`. The format is found by the text `type: 'json_schema'` in single quotes, the
+// spelling the repository's formatter writes, so a format written another way is not seen as a format.
 
 /**
  One source file of the family.
@@ -45,7 +58,7 @@ export type SourceFile = {
  */
 export type SchemaBuilder = {
   /**
-   The function's name.
+   The function's name, `object.member` for the member of an object.
    */
   readonly name: string;
 
@@ -53,6 +66,11 @@ export type SchemaBuilder = {
    Path of the file that declares it.
    */
   readonly file: string;
+
+  /**
+   Whether it is the default export of that file.
+   */
+  readonly exportedAsDefault: boolean;
 };
 
 /**
@@ -114,7 +132,7 @@ export async function familySources(): Promise<readonly SourceFile[]> {
 }
 
 /**
- A source file read once: its code, and the functions it declares.
+ A source file read once: its code, the functions it declares and the names it imports.
  */
 type ParsedSource = SourceFile & {
   /**
@@ -126,6 +144,26 @@ type ParsedSource = SourceFile & {
    The top-level functions the file declares.
    */
   readonly functions: readonly FunctionDeclaration[];
+
+  /**
+   The names the file imports.
+   */
+  readonly imports: ImportBindings;
+};
+
+/**
+ A function a searched file declares, with the file and the names the file imports.
+ */
+type DeclaredFunction = FunctionDeclaration & {
+  /**
+   Path of the file that declares it.
+   */
+  readonly file: string;
+
+  /**
+   The names that file imports, by which it may call a builder.
+   */
+  readonly imports: ImportBindings;
 };
 
 /**
@@ -150,8 +188,92 @@ function parseSources({ sources, }: { readonly sources: readonly SourceFile[]; }
       ...source,
       code,
       functions: functionDeclarationsOf({ code, },),
+      imports: importsOf({ text: source.text, },),
     };
   },);
+}
+
+/**
+ A declared function as a builder.
+
+ @param declared - function and the file that declares it
+
+ @returns Builder with the three fields and no other
+
+ @example
+ ```ts
+ const builder = builderOf({ name: 'build', file: 'a.ts', exportedAsDefault: false, },);
+ ```
+ */
+function builderOf(declared: SchemaBuilder,): SchemaBuilder {
+  return {
+    name: declared.name,
+    file: declared.file,
+    exportedAsDefault: declared.exportedAsDefault,
+  };
+}
+
+/**
+ The builders and every function that returns one of their results, and so on until no function is added.
+
+ @param declared - every function the searched files declare
+
+ @param known - builders found so far
+
+ @returns Known builders followed by the wrappers found, in the order of the declarations
+
+ @example
+ ```ts
+ const builders = withWrappers({ declared, known: [{ name: 'build', file: 'a.ts', exportedAsDefault: false, },], },);
+ ```
+ */
+function withWrappers(
+  {
+    declared,
+    known,
+  }: {
+    readonly declared: readonly DeclaredFunction[];
+    readonly known: readonly SchemaBuilder[];
+  },
+): readonly SchemaBuilder[] {
+  /**
+   Functions not yet known that return the result of a known builder, by any name their file calls it by.
+   */
+  const wrappers = declared
+    .filter(function isNewWrapper(declaration,): boolean {
+      /**
+       Whether the function is a builder already.
+       */
+      const isKnown = known.some(function sameFunction(builder,): boolean {
+        return (builder.name === declaration.name) && (builder.file === declaration.file);
+      },);
+      /**
+       Whether the function returns the result of a known builder.
+       */
+      const isWrapper = known.some(function isWrapped(builder,): boolean {
+        return namesOfFunctionIn({
+          imported: builder,
+          imports: declaration.imports,
+        },)
+          .some(function returnsCall(name,): boolean {
+            return returnsCallOf({
+              text: declaration.text,
+              name,
+            },);
+          },);
+      },);
+      return (!isKnown) && isWrapper;
+    },)
+    .map(builderOf,);
+  return (wrappers.length === 0)
+    ? known
+    : withWrappers({
+      declared,
+      known: [
+        ...known,
+        ...wrappers,
+      ],
+    },);
 }
 
 /**
@@ -179,18 +301,19 @@ function buildersIn(
   },
 ): readonly SchemaBuilder[] {
   /**
-   Every function the searched files declare, with its file.
+   Every function the searched files declare, with its file and imports.
    */
   const declared = parsed
     .filter(function isSearched(source,): boolean {
       return !notStageSchemas.has(source.file,);
     },)
-    .flatMap(function functionsOf(source,): readonly (FunctionDeclaration & { readonly file: string; })[] {
+    .flatMap(function functionsOf(source,): readonly DeclaredFunction[] {
       return source.functions
-        .map(function withFile(declaration,) {
+        .map(function withFile(declaration,): DeclaredFunction {
           return {
             ...declaration,
             file: source.file,
+            imports: source.imports,
           };
         },);
     },);
@@ -200,85 +323,8 @@ function buildersIn(
       .filter(function writesFormat({ text, },): boolean {
         return text.includes(FORMAT_TEXT,);
       },)
-      .map(function builderOf(
-        {
-          name,
-          file,
-        },
-      ): SchemaBuilder {
-        return {
-          name,
-          file,
-        };
-      },),
+      .map(builderOf,),
   },);
-}
-
-/**
- The builders and every function that returns one of their results, and so on until no function is added.
-
- @param declared - every function the searched files declare
-
- @param known - builders found so far
-
- @returns Known builders followed by the wrappers found, in the order of the declarations
-
- @example
- ```ts
- const builders = withWrappers({ declared, known: [{ name: 'contestResponseFormat', file: 'a.ts', },], },);
- ```
- */
-function withWrappers(
-  {
-    declared,
-    known,
-  }: {
-    readonly declared: readonly (FunctionDeclaration & { readonly file: string; })[];
-    readonly known: readonly SchemaBuilder[];
-  },
-): readonly SchemaBuilder[] {
-  /**
-   Functions not yet known that return the result of a known builder.
-   */
-  const wrappers = declared
-    .filter(function isNewWrapper(declaration,): boolean {
-      /**
-       Whether the function is a builder already.
-       */
-      const isKnown = known.some(function sameFunction(builder,): boolean {
-        return (builder.name === declaration.name) && (builder.file === declaration.file);
-      },);
-      /**
-       Whether the function returns the result of a known builder.
-       */
-      const isWrapper = known.some(function isWrapped(builder,): boolean {
-        return returnsCallOf({
-          text: declaration.text,
-          name: builder.name,
-        },);
-      },);
-      return (!isKnown) && isWrapper;
-    },)
-    .map(function builderOf(
-      {
-        name,
-        file,
-      },
-    ): SchemaBuilder {
-      return {
-        name,
-        file,
-      };
-    },);
-  return (wrappers.length === 0)
-    ? known
-    : withWrappers({
-      declared,
-      known: [
-        ...known,
-        ...wrappers,
-      ],
-    },);
 }
 
 /**
@@ -292,7 +338,7 @@ function withWrappers(
 
  @example
  ```ts
- const users = usersIn({ parsed, builder: { name: 'contestResponseFormat', file: 'a.ts', }, },);
+ const users = usersIn({ parsed, builder: { name: 'build', file: 'a.ts', exportedAsDefault: false, }, },);
  ```
  */
 function usersIn(
@@ -308,10 +354,16 @@ function usersIn(
     .filter(function usesBuilder(source,): boolean {
       return (source.file !== builder.file)
         && (source.file !== PRODUCER_LIST_FILE)
-        && usesFunction({
-          code: source.code,
-          name: builder.name,
-        },);
+        && namesOfFunctionIn({
+          imported: builder,
+          imports: source.imports,
+        },)
+          .some(function usedByName(name,): boolean {
+            return usesFunction({
+              code: source.code,
+              name,
+            },);
+          },);
     },)
     .map(function pathOf(source,): string {
       return source.file;
@@ -323,7 +375,9 @@ function usersIn(
  body, and those that return the result of such a function.
 
  A format in a constant is one schema however many files read it, so a constant is no builder. A function is read as a
- builder when it is declared at the top level of a file, with `function` or as a constant holding an arrow function.
+ builder in the forms `claude-schema-code.test-fixture.ts` lists: declared at the top level with `function` or as the
+ default export, held by a top-level constant as an arrow function, a function expression or an argument of a call, or
+ a member of an object such a constant holds.
 
  @param sources - files searched
 
@@ -353,7 +407,8 @@ export function buildersOf(
 
 /**
  The files that use a builder, the one that declares it and the producer list left out. A use is a call, a call that
- names type arguments, or the builder handed over by reference.
+ names type arguments, the builder handed over by reference, its result spread, a call through a namespace import, or
+ a call under the alias or default import name a file gave it.
 
  @param sources - files searched
 
@@ -363,7 +418,7 @@ export function buildersOf(
 
  @example
  ```ts
- const callers = callersOf({ sources, builder: { name: 'contestResponseFormat', file: 'a.ts', }, },);
+ const callers = callersOf({ sources, builder: { name: 'build', file: 'a.ts', exportedAsDefault: false, }, },);
  ```
  */
 export function callersOf(

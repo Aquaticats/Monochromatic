@@ -429,6 +429,8 @@ which lists every file of this record.
 - [B837 to B840, short bench floors and the waits that cross them][b837-floors-ledger]
 - [B841, process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md)
 - [B860, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
+- [B861, the producer-list search and the shapes it read](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
+- [B862, the producer-list search and the readings no case held](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

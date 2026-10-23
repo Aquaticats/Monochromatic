@@ -649,8 +649,10 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  `silentStages` and its own gate is unchanged. The pairing version (3) stays by its own account of 2026-10-18
  (`slice-reading/src/pairing-cache-version.ts`). The artifact schema stays because no source under `artifact/src`
  names the field. (The sentence as main wrote it also gave a reason about artifacts that was false, corrected on
- 2026-10-23: the scheduler counts every `*.json` as settled, so settled entries are not run again; see the artifact
- generation paragraph of `provider/src/enum-case-fold.ts`.) The every-provider-dry stop of the same day
+ 2026-10-23: the scheduler counts every `*.json` as settled, so settled entries are not run again by a resume into the
+ same directory, and the pipeline drift guard refuses that resume unless the launch opts in
+ (`slice-cache/src/corpus-run/pass-generation-guard.ts:58-59, 360, 377`); see the artifact generation paragraphs of
+ `provider/src/enum-case-fold.ts`.) The every-provider-dry stop of the same day
  (`bae1bb310e`) moves no version: it changes whether the next entry starts, not what a settlement may be cached
  as. No record has been written at 44, which this change sets first.
 

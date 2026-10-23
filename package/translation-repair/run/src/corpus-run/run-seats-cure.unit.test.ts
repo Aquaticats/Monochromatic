@@ -51,7 +51,7 @@ import { shortWarningOf, } from './run-seats-short-warning.test-fixture.ts';
  NeuralWatt and Bedrock wet and every other provider dry: the late bench is 3 of 7 reachable against a quorum of 4,
  and the wide bench 3 of 8.
  */
-const WIDE_ONE_SHORT: BudgetView = {
+const LATE_ONE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: false,
@@ -85,9 +85,10 @@ const SHORT_HOLD_MS = 40;
  NeuralWatt wet and every other provider dry: the late bench stands three seats short of its quorum of 4. Hyper back
  alone reaches the quorum, and so do Synthetic and Bedrock back together, while Synthetic alone or Bedrock alone leaves
  it short: with the three held, each one is unnecessary given the others, yet every one of them adds a seat to the bench
- the held set cures.
+ the held set cures. The lanes phase also reads the wide bench over this view, at 1 of 8 reachable against a floor of
+ 2 and a quorum of 4: the floor-lift case uses it for that bench, where the Claude key back makes the wide bench 2.
  */
-const WIDE_THREE_SHORT: BudgetView = {
+const LATE_THREE_SHORT: BudgetView = {
   neuralwatt: false,
   synthetic: true,
   bedrock: true,
@@ -151,7 +152,7 @@ async function readsUnderHolds(
   {
     held,
     lines,
-    view = WIDE_ONE_SHORT,
+    view = LATE_ONE_SHORT,
     phase = 'lane contest',
   }: {
     readonly held: readonly ProviderName[];
@@ -329,7 +330,7 @@ await describe({
         + 'makes it 2, the floor of 2 voices the stages decide on, so the wait buys a decision and not the quorum',
       fn: async () => {
         expect(
-          await readsUnderHolds({ held: ['anthropic',], lines: [], view: WIDE_THREE_SHORT, phase: 'lanes', },),
+          await readsUnderHolds({ held: ['anthropic',], lines: [], view: LATE_THREE_SHORT, phase: 'lanes', },),
         ).toBe(2,);
       },
     },),
@@ -340,7 +341,7 @@ await describe({
         + 'late seat and the bench is still short, so the wait buys nothing and the line says the hold would not help',
       fn: async () => {
         const lines: string[] = [];
-        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: WIDE_THREE_SHORT, },),).toBe(1,);
+        expect(await readsUnderHolds({ held: ['anthropic',], lines, view: LATE_THREE_SHORT, },),).toBe(1,);
         const warning = noWaitWarningOf({ lines, },);
         expect(warning,).toContain(
           'held: anthropic (1 s); it would lift no short bench over its floor or to its quorum',
@@ -364,7 +365,7 @@ await describe({
           await readsUnderHolds({
             held: ['synthetic', 'bedrock', 'hyper',],
             lines: [],
-            view: WIDE_THREE_SHORT,
+            view: LATE_THREE_SHORT,
           },),
         ).toBe(2,);
       },
@@ -489,8 +490,8 @@ await describe({
           },);
           return noWaitWarningOf({ lines, },);
         }
-        expect(await warningOver({ view: WIDE_ONE_SHORT, },),).not.toContain('no NeuralWatt return',);
-        expect(await warningOver({ view: { ...WIDE_ONE_SHORT, neuralwatt: true, }, },),).toContain(
+        expect(await warningOver({ view: LATE_ONE_SHORT, },),).not.toContain('no NeuralWatt return',);
+        expect(await warningOver({ view: { ...LATE_ONE_SHORT, neuralwatt: true, }, },),).toContain(
           '; no NeuralWatt return inside what the pass has left,',
         );
       },
