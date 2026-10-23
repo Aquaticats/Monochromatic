@@ -279,6 +279,7 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       ],
       edits: openers,
       insideLinks: [],
+      streamStarts: [],
       closedComments,
     };
   }
@@ -302,6 +303,7 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       return left.start - right.start;
     },),
     insideLinks: spans.insideLinks,
+    streamStarts: spans.streamStarts,
     closedComments,
   };
 }
@@ -370,6 +372,7 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     text,
     ranges: reading.text,
     insideLinks: reading.insideLinks,
+    streamStarts: reading.streamStarts,
   },);
   /**
    Characters a backslash may go before: the stretches read as text, less the comments that close and the bare

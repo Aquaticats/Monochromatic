@@ -139,6 +139,11 @@ export function nestedSpans(
           indices,
         },);
       },),
+    streamStarts: inner
+      .streamStarts
+      .map(function original(start,): number {
+        return nonNullishOrThrow(indices[start],);
+      },),
   };
 }
 

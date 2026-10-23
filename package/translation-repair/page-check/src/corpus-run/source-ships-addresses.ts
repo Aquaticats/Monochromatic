@@ -1,7 +1,8 @@
 import { explicitLink, } from './source-ships-links.ts';
-import type {
-  TextEdit,
-  TextRange,
+import {
+  ESCAPABLE,
+  type TextEdit,
+  type TextRange,
 } from './source-ships-ranges.ts';
 
 //region Source ships addresses
@@ -11,8 +12,16 @@ import type {
 // domain, or with `www.`. An address that a less-than sign ends is the one the encoder cannot leave alone: MDX reads
 // the sign as the start of a tag, a backslash written before it becomes part of the address, and an entity written
 // for it is read as part of the address too (GFM ends the address at an entity only when nothing follows), so the
-// address is written as a
-// link with the same text and target and the sign after it is escaped as any other.
+// address is written as a link with the same text and target and the sign after it is escaped as any other.
+//
+// NO ADDRESS STANDS AFTER A LABEL NOTHING HAS CLOSED, TO THE TOKENIZER. The micromark extension that reads GFM autolink
+// literals looks back through the events of the run of inline content for a `[` or `![` whose `]` has not come by
+// the time the address starts, and reads no address then (`previousUnbalanced` in
+// `micromark-extension-gfm-autolink-literal`), so the text after such a bracket is text to the strict grammar and a
+// brace in it is an expression. The brackets of the text are counted from the start of each paragraph, heading or table
+// cell, a backslash before a bracket taking it out of the count. The transform of `mdast-util-gfm-autolink-literal`
+// reads the text nodes afterwards and links an address there whatever brackets stand before it, which the reader of
+// the page sees as a link whose text holds an escaped brace and shows as written.
 //
 // LIMITS. The domain is checked at its first character only (not white space, a control character, punctuation or a
 // symbol, a hyphen excepted), not for its dots and underscores, and the trailing punctuation left out of the link is
@@ -220,13 +229,50 @@ function within(
 }
 
 /**
- Finds the bare addresses in the stretches a reader sees as text, apart from those in link text, where GFM reads none.
+ Where the run of inline content that holds an index starts.
+
+ @param streamStarts - where each run starts, in any order
+
+ @param at - index to look at
+
+ @returns The last start at or before the index, or negative one when none is
+
+ @example
+ ```ts
+ const stream = streamStartAt({ streamStarts: [0, 10,], at: 12, },);
+ ```
+ */
+function streamStartAt(
+  {
+    streamStarts,
+    at,
+  }: {
+    readonly streamStarts: readonly number[];
+    readonly at: number;
+  },
+): number {
+  return streamStarts.reduce(
+    function latest(
+      found,
+      start,
+    ): number {
+      return ((start <= at) && (start > found)) ? start : found;
+    },
+    -1,
+  );
+}
+
+/**
+ Finds the bare addresses in the stretches a reader sees as text, apart from those in link text, where GFM reads none,
+ and those after a label nothing has closed.
 
  @param text - the text
 
  @param ranges - stretches read as text
 
  @param insideLinks - stretches holding a link
+
+ @param streamStarts - where each paragraph, heading or table cell starts, which a label opened before does not reach
 
  @returns Where each address stands, from its protocol to the next space or less-than sign
 
@@ -240,18 +286,58 @@ export function bareAddresses(
     text,
     ranges,
     insideLinks,
+    streamStarts = [],
   }: {
     readonly text: string;
     readonly ranges: readonly TextRange[];
     readonly insideLinks: readonly TextRange[];
+    readonly streamStarts?: readonly number[];
   },
 ): readonly BareAddress[] {
   /**
    Addresses found.
    */
   const found: BareAddress[] = [];
-  for (const range of ranges) {
+  /**
+   The run of inline content being read, and how many labels it has opened that nothing has closed.
+   */
+  const labels = {
+    stream: -1,
+    open: 0,
+  };
+  for (const range of ranges.toSorted(function byStart(
+    left,
+    right,
+  ): number {
+    return left.start - right.start;
+  },)) {
+    /**
+     The run of inline content the stretch belongs to.
+     */
+    const stream = streamStartAt({
+      streamStarts,
+      at: range.start,
+    },);
+    if (stream !== labels.stream) {
+      labels.stream = stream;
+      labels.open = 0;
+    }
     for (let at = range.start; at < range.end; at += 1) {
+      /**
+       Character read.
+       */
+      const character = text.charAt(at,);
+      if ((character === '\\') && ESCAPABLE.includes(text.charAt(at + 1,),)) {
+        at += 1;
+        continue;
+      }
+      if (character === '[')
+        labels.open += 1;
+      if (character === ']')
+        labels.open = Math.max(
+          0,
+          labels.open - 1,
+        );
       if (!startsAddress({
         text,
         at,
@@ -270,6 +356,10 @@ export function bareAddresses(
         from: at,
         limit: range.end,
       },);
+      // AFTER AN OPEN LABEL ONLY THE TRANSFORM READS AN ADDRESS, and it reads one up to a less-than sign that a tag
+      // starts at, where the page, with that sign escaped, has it run on; so such an address is a link of its own.
+      if ((labels.open > 0) && (text.charAt(stop,) !== '<'))
+        continue;
       found.push({
         start: at,
         end: stop,

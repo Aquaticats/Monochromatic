@@ -356,8 +356,9 @@ await describe({
             expect(encoded({ text: 'x ![ www.example.net/b{c', },),).toBe(String.raw`x ![ www.example.net/b\{c`,);
             expect(encoded({ text: '[a [b](u) https://example.net/c{d', },),)
               .toBe(String.raw`[a [b](u) https://example.net/c\{d`,);
+            // An address a tag ends is a link of its own there too, since only the transform reads it and it runs on.
             expect(encoded({ text: '[a https://example.net/a<b> {', },),)
-              .toBe(String.raw`[a https://example.net/a\<b> \{`,);
+              .toBe(String.raw`[a [https://example.net/a](https://example.net/a)\<b> \{`,);
             // A pair of brackets, a new paragraph and an escaped bracket leave the address one.
             expect(encoded({ text: 'x [y] https://example.net/b{c', },),).toBe('x [y] https://example.net/b{c',);
             expect(encoded({ text: '[ x\n\nhttps://example.net/b{c', },),).toBe(String.raw`[ x

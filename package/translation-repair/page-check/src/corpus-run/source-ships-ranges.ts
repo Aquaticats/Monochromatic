@@ -50,7 +50,18 @@ export type SourceSpans = {
    address.
    */
   readonly insideLinks: readonly TextRange[];
+
+  /**
+   Where each run of inline content starts (a paragraph, a heading, a table cell), in the order the parse gives them:
+   a label opened in one is not open in the next.
+   */
+  readonly streamStarts: readonly number[];
 };
+
+/**
+ Characters a backslash escapes in Markdown: the ASCII punctuation.
+ */
+export const ESCAPABLE = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
 
 /**
  What a fenced code block starts with, as the parse positions one: the fence itself.

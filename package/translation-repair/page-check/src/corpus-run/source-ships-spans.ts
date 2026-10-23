@@ -26,10 +26,11 @@ import {
   type TextRange,
 } from './source-ships-ranges.ts';
 
-export type {
-  SourceSpans,
-  TextEdit,
-  TextRange,
+export {
+  ESCAPABLE,
+  type SourceSpans,
+  type TextEdit,
+  type TextRange,
 } from './source-ships-ranges.ts';
 
 //region Source ships spans
@@ -48,9 +49,13 @@ export type {
 // of its own, which a link cannot hold: it is written as text there, and the reader sees the address as typed.
 
 /**
- Characters a backslash escapes in Markdown: the ASCII punctuation.
+ Node types whose children are inline content, a run of which a label opened in one does not reach into the next.
  */
-export const ESCAPABLE = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
+const INLINE_CONTENT: ReadonlySet<string> = new Set([
+  'paragraph',
+  'heading',
+  'tableCell',
+],);
 
 /**
  How many characters `![` takes.
@@ -123,6 +128,10 @@ export function spansOf(
    Links.
    */
   const insideLinks: TextRange[] = [];
+  /**
+   Where each run of inline content starts.
+   */
+  const streamStarts: number[] = [];
 
   /**
    Adds what the parse of a nested block says of it.
@@ -138,6 +147,7 @@ export function spansOf(
     text.push(...nested.text,);
     edits.push(...nested.edits,);
     insideLinks.push(...nested.insideLinks,);
+    streamStarts.push(...nested.streamStarts,);
   }
 
   /**
@@ -321,6 +331,8 @@ export function spansOf(
         },),);
       }
     }
+    if (INLINE_CONTENT.has(node.type,))
+      streamStarts.push(range.start,);
     // A PARAGRAPH OR SETEXT HEADING STARTING AT THE FIRST COLUMN WITH `import ` OR `export `, which MDX reads as an ES
     // module and no backslash makes plain; a character reference for the first letter does.
     if (startsEsModule({
@@ -369,6 +381,7 @@ export function spansOf(
       return left.start - right.start;
     },),
     insideLinks,
+    streamStarts,
   };
 }
 

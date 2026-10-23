@@ -116,6 +116,54 @@ await describe({
         },),
 
         it({
+          name: 'FINDS NO ADDRESS AFTER A LABEL NOTHING HAS CLOSED, to the tokenizer: a closed pair of brackets, an '
+            + 'escaped bracket, an image opener and the start of the next paragraph change the count',
+          fn: async () => {
+            expect(shownAddresses({ text: '[ https://example.net/b{c', },),).toEqual([],);
+            expect(shownAddresses({ text: 'x ![ www.example.net/b{c', },),).toEqual([],);
+            expect(shownAddresses({ text: '[a [b] https://example.net/c', },),).toEqual([],);
+            expect(shownAddresses({ text: '[a] https://example.net/c', },),).toEqual(['https://example.net/c',],);
+            expect(shownAddresses({ text: '[a] [b [c] https://example.net/c', },),).toEqual([],);
+            expect(shownAddresses({ text: String.raw`\[ https://example.net/c`, },),)
+              .toEqual(['https://example.net/c',],);
+            expect(shownAddresses({ text: 'x ] https://example.net/c', },),).toEqual(['https://example.net/c',],);
+            /**
+             Two paragraphs, the first of which opens a label.
+             */
+            const text = '[ x\n\nhttps://example.net/c';
+            expect(bareAddresses({
+              text,
+              ranges: [
+                {
+                  start: 0,
+                  end: 3,
+                },
+                {
+                  start: 5,
+                  end: text.length,
+                },
+              ],
+              insideLinks: [],
+              streamStarts: [0, 5,],
+            },).map(function startOf({ start, },): number {
+              return start;
+            },),).toEqual([5,],);
+          },
+        },),
+
+        it({
+          name: 'KEEPS AN ADDRESS A LESS-THAN SIGN ENDS AFTER AN OPEN LABEL, since only the transform reads it '
+            + 'there and it runs on past the sign',
+          fn: async () => {
+            expect(addressesOf({ text: '[a https://example.net/a<b> {', },).map(function ends(
+              { endsAtTag, },
+            ): boolean {
+              return endsAtTag;
+            },),).toEqual([true,],);
+          },
+        },),
+
+        it({
           name: 'FINDS NO ADDRESS INSIDE THE TEXT OF A LINK, where GFM reads none',
           fn: async () => {
             /**
