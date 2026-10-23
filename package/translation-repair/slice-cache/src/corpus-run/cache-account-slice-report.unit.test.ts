@@ -46,6 +46,15 @@ const NEWEST_SECONDS = 1_788_343_200;
 const HOME = '/cats/home';
 
 /**
+ Where a launch that follows the runbook writes its runs, under the home directory the cases state.
+ */
+const RUNBOOK_ROOT = join(
+  HOME,
+  'temp',
+  'agent',
+);
+
+/**
  The warnings among the lines a level-keeping logger kept.
 
  @param lines - every line the logger kept, behind its level
@@ -83,6 +92,24 @@ function noRecordWarning({ roots, }: { readonly roots: readonly string[]; },): s
   return 'no slice-cache record was read, so the newest record and the versions set after it say nothing of the caches '
     + `a launch would resume. Roots searched: ${roots.join(', ',)}. A launch that follows the runbook writes its `
     + `runs under ${HOME}/temp/agent; pass --runs-under ${HOME}/temp/agent after -- to read them.`;
+}
+
+/**
+ What the audit says when it read records and the runbook's runs root is neither among nor under the roots it searched.
+
+ @param roots - every root it searched, in the order it printed them
+
+ @returns Sentence, without the stdout prefix
+
+ @example
+ ```ts
+ const words = uncoveredRootWarning({ roots: ['/cats/runs',], },);
+ ```
+ */
+function uncoveredRootWarning({ roots, }: { readonly roots: readonly string[]; },): string {
+  return `the runbook's runs root ${RUNBOOK_ROOT} is neither among nor under the roots searched: ${roots.join(', ',)}. `
+    + 'The newest record and the versions set after it speak only for those roots, and a launch that follows the '
+    + `runbook writes its runs under ${RUNBOOK_ROOT}; pass --runs-under ${RUNBOOK_ROOT} after -- to read them.`;
 }
 
 /**
@@ -137,6 +164,8 @@ await describe({
             settingAt({ name: 'STAGE_CACHE_VERSION', seconds: NEWEST_SECONDS - 1, },),
             settingAt({ name: 'PAIRING_CACHE_VERSION', seconds: NEWEST_SECONDS + 1, },),
           ],
+          // The runbook's runs root of this home lies under the runs directory, which is a root searched.
+          home: runs.path,
         },);
 
         expect(printed.lines,).toEqual([
@@ -238,7 +267,8 @@ await describe({
           searched: [],
           settings: [],
           l: levelCapturingLogger({ lines: logged, },),
-          home: HOME,
+          // The runbook's runs root of this home lies under the runs directory, which is a root searched.
+          home: runs.path,
         },);
 
         expect({
@@ -249,6 +279,159 @@ await describe({
         },).toEqual({
           warned: [],
           printedWarning: false,
+        },);
+      },
+    },),
+    it({
+      name: 'WARNS WHERE RECORDS WERE READ BUT THE RUNBOOK\'S RUNS ROOT IS NEITHER AMONG NOR UNDER THE ROOTS SEARCHED: '
+        + 'a non-zero count then speaks for the roots searched and says nothing of the runs a launch that follows the '
+        + 'runbook writes, so the warning names every root searched and the runbook\'s root',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        /**
+         What the warning says, on stdout after the prefix and in the log without it.
+         */
+        const warning = uncoveredRootWarning({
+          roots: [
+            join(root.path, 'node_modules', '.monochromatic',),
+            runs.path,
+          ],
+        },);
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          printed: printed.lines.filter(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+        },).toEqual({
+          logged: [warning,],
+          printed: [`WARNING: ${warning}`,],
+        },);
+      },
+    },),
+    it({
+      name: 'DOES NOT WARN OF THE RUNBOOK\'S RUNS ROOT WHERE IT IS A ROOT SEARCHED OR LIES UNDER ONE, whatever the count',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const logged: string[] = [];
+
+        for (const searched of [[RUNBOOK_ROOT,], [HOME,],]) {
+          await reportSliceCaches({
+            root: root.path,
+            runsDir: runs.path,
+            searched,
+            settings: [],
+            l: levelCapturingLogger({ lines: logged, },),
+            home: HOME,
+          },);
+        }
+
+        expect({
+          warned: warningsIn({ lines: logged, },),
+          printedWarning: printed.lines.some(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+        },).toEqual({
+          warned: [],
+          printedWarning: false,
+        },);
+      },
+    },),
+    it({
+      name: 'WARNS WHERE THE ONLY ROOT NEAR THE RUNBOOK\'S IS ONE UNDER IT: a searched directory below the runbook\'s '
+        + 'root covers its own runs and not the rest of the root',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const logged: string[] = [];
+        /**
+         A directory below the runbook's root.
+         */
+        const below = join(
+          RUNBOOK_ROOT,
+          'corpus-pass-cats',
+        );
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [below,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          printedWarnings: printed.lines.filter(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },).length,
+        },).toEqual({
+          logged: [
+            uncoveredRootWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                below,
+              ],
+            },),
+          ],
+          printedWarnings: 1,
+        },);
+      },
+    },),
+    it({
+      name: 'KEEPS THE ZERO-COUNT SENTENCE ALONE WHERE NO RECORD WAS READ AND THE RUNBOOK\'S ROOT IS SEARCHED: one '
+        + 'warning, the sentence of the empty case, and no second one about the root',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [RUNBOOK_ROOT,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: HOME,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          printedWarnings: printed.lines.filter(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },).length,
+        },).toEqual({
+          logged: [
+            noRecordWarning({
+              roots: [
+                join(root.path, 'node_modules', '.monochromatic',),
+                runs.path,
+                RUNBOOK_ROOT,
+              ],
+            },),
+          ],
+          printedWarnings: 1,
         },);
       },
     },),
@@ -284,6 +467,8 @@ await describe({
           runsDir: runs.path,
           searched: [under.path,],
           settings: [settingAt({ name: 'STAGE_CACHE_VERSION', seconds: NEWEST_SECONDS, },),],
+          // The runbook's runs root of this home lies under a directory searched.
+          home: under.path,
         },);
 
         expect(printed.lines,).toEqual([
