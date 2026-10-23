@@ -30,6 +30,7 @@ import {
 import {
   readerOfPage,
   readerOfSource,
+  withoutLinkTargets,
 } from './source-reader-text.test-fixture.ts';
 
 /**
@@ -152,6 +153,27 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a definition title whose second line starts with a brace', '[r]: u "t\n{b"\n\n{c\n'],
   ['a code span whose second line starts with a closed brace', '`a\n{b}` {c\n'],
   ['a code span whose second line holds a brace after a word', '`a\nb {c` {d\n'],
+];
+
+/**
+ Texts the strict grammar reads as plain paragraphs and a reader of plain Markdown sees as raw HTML or code, whose
+ characters the page must show as they stand: the page parses and its text, links aside, equals the source's.
+ */
+const LITERAL_CASES: readonly (readonly [string, string])[] = [
+  [
+    'a raw HTML block holding a link whose text is an address with a brace',
+    '<div>\n[https://example.net/a{ b](u)\n</div>\n',
+  ],
+  ['a raw HTML block on one line holding that link', '<div>[https://example.net/a{ b](u)\n'],
+  ['indented code holding that link', '猫\n\n    [https://example.net/a{ b](u)\n'],
+  ['indented code holding emphasis and a bare address with a brace', '猫\n\n    *粗* https://example.net/a{b\n'],
+  ['a raw HTML block in a block quote holding that link', '> <div>\n> [https://example.net/a{ b](u)\n'],
+  ['indented code in a list item holding that link', '- 猫\n\n      [https://example.net/a{ b](u)\n'],
+  ['a raw HTML block holding backslash escapes', '<div>\\{ \\\\ {x}\n'],
+  ['a raw HTML block holding entities', '<p>&lt; &amp; &#123; {x}</p>\n'],
+  ['indented code holding block marks', '猫\n\n    - a {\n    # b {\n    > c {\n    1. d {\n'],
+  ['indented code holding a setext underline and a table', '猫\n\n    a {\n    ===\n    | b | c |\n    | - | - |\n'],
+  ['a raw HTML block holding emphasis and a code span', '<div>\n*a* _b_ `{c}`\n</div>\n'],
 ];
 
 await describe({
@@ -404,6 +426,26 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'ESCAPES EVERY CHARACTER OF A RAW HTML BLOCK OR INDENTED CODE THAT MARKDOWN READS AS SYNTAX, since the '
+            + 'strict grammar reads such lines as a paragraph and the reader must see them as they stand: the '
+            + 'backslash itself, a block mark and a link among them',
+          fn: async () => {
+            expect(encoded({ text: '<div>\n[a](u) *b* {c}\n</div>\n', },),)
+              .toBe(String.raw`\<div\>
+\[a](u) \*b\* \{c\}
+\</div\>
+`,);
+            expect(encoded({ text: '猫\n\n    - a {\n    # b\n', },),).toBe(String.raw`猫
+
+    \- a \{
+    \# b
+`,);
+            expect(encoded({ text: '<div>\\{ &lt;</div>\n', },),).toBe(String.raw`\<div\>\\\{ \&lt;\</div\>
+`,);
+          },
+        },),
+
+        it({
           name: 'READS A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION AS A LINE OF THE FOOTNOTE, since the strict '
             + 'grammar continues the paragraph of the footnote with it, where CommonMark reads a second definition',
           fn: async () => {
@@ -522,6 +564,22 @@ https://example.net/b{c`,);
               const written = encoded({ text, },);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
               expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
+            },
+          },);
+        },),
+
+        ...LITERAL_CASES.map(function literalCase([name, text,],) {
+          return it({
+            name: `SHOWS THE CHARACTERS OF THE SOURCE FOR ${name.toUpperCase()}: the page parses and its text, `
+              + 'links aside, equals the source\'s',
+            fn: async () => {
+              /**
+               The run as the encoder writes it.
+               */
+              const written = encoded({ text, },);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(withoutLinkTargets({ account: readerOfPage({ carried: written, },), },),)
+                .toBe(withoutLinkTargets({ account: readerOfSource({ source: text, },), },),);
             },
           },);
         },),

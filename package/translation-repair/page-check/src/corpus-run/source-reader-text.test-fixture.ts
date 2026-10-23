@@ -211,4 +211,40 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
   return accountOf({ root: parseGfmMathBody({ body: readable, },), },);
 }
 
+/**
+ An account with the marks of the links' targets taken out, so that two accounts compare by their text alone.
+
+ A raw HTML block and indented code are text to the strict grammar, whose autolink literals turn an address in it into a
+ link where a reader of plain Markdown sees the raw characters; the text they show is the same.
+
+ @param account - account of a page or of a source
+
+ @returns The account without the mark and the target of each link
+
+ @example
+ ```ts
+ const text = withoutLinkTargets({ account: '⟦u⟧见', },);
+ ```
+ */
+export function withoutLinkTargets({ account, }: { readonly account: string; },): string {
+  /**
+   Characters kept, and whether the one read is inside a target's marks.
+   */
+  const kept: string[] = [];
+  const target = { inside: false, };
+  for (const character of account) {
+    if (character === '⟦') {
+      target.inside = true;
+      continue;
+    }
+    if (character === '⟧') {
+      target.inside = false;
+      continue;
+    }
+    if (!target.inside)
+      kept.push(character,);
+  }
+  return kept.join('',);
+}
+
 //endregion Reader text of a source run
