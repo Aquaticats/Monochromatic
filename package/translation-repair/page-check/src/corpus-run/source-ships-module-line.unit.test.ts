@@ -155,11 +155,11 @@ await describe({
             + 'DEFINITION INSIDE THE PARAGRAPH, at any indentation, since the strict grammar lets a definition '
             + 'interrupt a paragraph and keeps it open for the line after it',
           fn: async () => {
-            expect(laterLinesOf({ source: 'x\n[^1]: 注\n*\nexport to PDF\n', },),).toEqual([12,],);
-            expect(laterLinesOf({ source: 'x\n   [^1]: 注\n2.\nimport a\n', },),).toEqual([16,],);
-            expect(laterLinesOf({ source: 'x\n    [^1]: 注\n*\nexport to PDF\n', },),).toEqual([16,],);
-            expect(laterLinesOf({ source: 'x\n[^1]: 注\nfoo\n*\nexport to PDF\n', },),).toEqual([16,],);
-            expect(laterLinesOf({ source: 'x\n[^1]: 注\n[^2]: 注\n-\nimport a\n', },),).toEqual([21,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\n*\nexport to PDF\n', },),).toEqual([15,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n   [^1]: 注\n2.\nimport a\n', },),).toEqual([19,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n    [^1]: 注\n*\nexport to PDF\n', },),).toEqual([19,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\nfoo\n*\nexport to PDF\n', },),).toEqual([19,],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\n[^2]: 注\n*\nimport a\n', },),).toEqual([23,],);
           },
         },),
 
@@ -167,10 +167,10 @@ await describe({
           name: 'FINDS NOTHING AFTER A LIST MARKER THAT STANDS BEFORE THE LINE STARTING A FOOTNOTE DEFINITION, or '
             + 'after a line that only looks like the start of one',
           fn: async () => {
-            expect(laterLinesOf({ source: 'x\n*\n[^1]: 注\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n[^1 ]: 注\n*\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n[^1] 注\n*\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n[1]: 注\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'y\n\nx\n*\n[^1]: 注\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[^1 ]: 注\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[^1] 注\n*\nexport to PDF\n', },),).toEqual([],);
+            expect(laterLinesOf({ source: 'y\n\nx\n[1]: 注\n*\nexport to PDF\n', },),).toEqual([],);
           },
         },),
 

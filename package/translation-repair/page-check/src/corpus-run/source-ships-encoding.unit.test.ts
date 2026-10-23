@@ -330,10 +330,6 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
     'x\n   [^1]: 注\n2.\nimport a\n',
   ],
   [
-    'a footnote definition indented four spaces inside a paragraph, then a marker and an export line',
-    'x\n    [^1]: 注\n*\nexport to PDF\n',
-  ],
-  [
     'a footnote definition inside a paragraph, a line of text, a marker and an export line',
     'x\n[^1]: 注\nfoo\n*\nexport to PDF\n',
   ],
@@ -784,6 +780,20 @@ https://example.net/b{c`,);
               .toBe(String.raw`![\<https://example.net/a>](u.png) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '![<https://example.net/a>](u.png) {', },), },),)
               .toBe('<https://example.net/a> {',);
+          },
+        },),
+
+        it({
+          name: 'WRITES THE EXPORT LINE AFTER A MARKER ALONE THAT FOLLOWS A FOOTNOTE DEFINITION INDENTED FOUR SPACES '
+            + 'INSIDE A PARAGRAPH, which MDX reads as a definition where a reader of CommonMark with GFM, whose '
+            + 'indented code the strict grammar has not, reads a line of the paragraph',
+          fn: async () => {
+            /**
+             The page the run is written to, which parses.
+             */
+            const written = encoded({ text: 'x\n    [^1]: 注\n*\nexport to PDF\n', },);
+            expect(written,).toBe('x\n    [^1]: 注\n*\n&#101;xport to PDF\n',);
+            expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
           },
         },),
 

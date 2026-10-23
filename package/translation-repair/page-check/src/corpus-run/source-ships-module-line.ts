@@ -26,6 +26,11 @@ import {
 // block, an ES module among them; the plain reading, which has no footnote definition to keep open, keeps the marker as
 // a line of the paragraph.
 //
+// THE DEFINITION NEED NOT START THE PARAGRAPH. The strict grammar lets a footnote definition interrupt a paragraph, at any
+// indentation (the indented code that would otherwise cap it is off in MDX), so a line of `[^label]:` inside a
+// paragraph of the plain reading opens one for the lines after it, which stay a lazy line of its paragraph and keep the
+// definition open to the line that ends them.
+//
 // THE LINE NEED NOT BE IN A PARAGRAPH AT THE TOP. A line at the first column ends every container it stands in, so one
 // that follows such a line in a list item or a block quote (a lazy line of its paragraph) starts a module as well, and
 // so does one in a raw HTML block, which the plain reading keeps whole across blank lines and the strict grammar, which
@@ -65,6 +70,11 @@ const MARKER_INDENT = 3;
 const TAB_COLUMNS = 4;
 
 /**
+ Index in a footnote definition's line where the label starts, after the bracket and the caret.
+ */
+const FOOTNOTE_LABEL_START = 2;
+
+/**
  What a flow block starts with when MDX reads it as an ES module: `import` or `export` and one space.
  */
 const ES_MODULE_STARTS: readonly string[] = [
@@ -83,6 +93,86 @@ const LINE_BLOCKS: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ The indentation of a line.
+
+ @param line - line, with no line ending
+
+ @returns Index of the first character after the indentation, and the columns the indentation takes
+
+ @example
+ ```ts
+ const indent = indentOf({ line: '  \t*', },);
+ ```
+ */
+function indentOf(
+  { line, }: { readonly line: string; },
+): {
+  readonly at: number;
+  readonly columns: number;
+} {
+  /**
+   Index of the first character after the indentation, and the columns the indentation takes.
+   */
+  const indent = {
+    at: 0,
+    columns: 0,
+  };
+  while ((indent.at < line.length) && ' \t'.includes(line.charAt(indent.at,),)) {
+    indent.columns += (line.charAt(indent.at,) === '\t') ? TAB_COLUMNS : 1;
+    indent.at += 1;
+  }
+  return indent;
+}
+
+/**
+ Whether a line starts a footnote definition: a label of a caret and characters that are no white space and no bracket,
+ and a colon, after any indentation.
+
+ @param line - line, with no line ending
+
+ @returns Whether the strict grammar reads the line as the first line of a footnote definition
+
+ @example
+ ```ts
+ const starts = startsFootnoteLine({ line: '[^1]: 注', },);
+ ```
+ */
+export function startsFootnoteLine({ line, }: { readonly line: string; },): boolean {
+  /**
+   Index of the first character after the indentation.
+   */
+  const { at, } = indentOf({ line, },);
+  /**
+   The line from its first character after the indentation.
+   */
+  const body = line.slice(at,);
+  if (!body.startsWith('[^',))
+    return false;
+  /**
+   Index of the bracket that closes the label.
+   */
+  const close = body.indexOf(']',);
+  if (close <= FOOTNOTE_LABEL_START)
+    return false;
+  /**
+   The label, without its caret.
+   */
+  const label = body.slice(
+    FOOTNOTE_LABEL_START,
+    close,
+  );
+  /**
+   Whether a character of the label is white space or an opening bracket.
+   */
+  const isBroken = Array
+    .from(label,)
+    .some(function breaksLabel(character,): boolean {
+      return (character.trim() === '') || (character === '[');
+    },);
+  return (body.charAt(close + 1,) === ':') && (!isBroken);
+}
+
+/**
  Whether a line is a list marker and nothing else: a bullet, or one to nine digits and a dot or a parenthesis, with
  up to three columns of indentation before it and white space after it.
 
@@ -99,14 +189,7 @@ export function isEmptyMarkerLine({ line, }: { readonly line: string; },): boole
   /**
    Index of the first character after the indentation, and the columns the indentation takes.
    */
-  const indent = {
-    at: 0,
-    columns: 0,
-  };
-  while ((indent.at < line.length) && ' \t'.includes(line.charAt(indent.at,),)) {
-    indent.columns += (line.charAt(indent.at,) === '\t') ? TAB_COLUMNS : 1;
-    indent.at += 1;
-  }
+  const indent = indentOf({ line, },);
   if (indent.columns > MARKER_INDENT)
     return false;
   /**
@@ -219,7 +302,8 @@ export function startsEsModule(
  column of it
 
  @param afterFootnote - whether the node follows a footnote definition on the next line or opens one, so that a line of
- a list marker alone also ends its paragraph for the strict grammar
+ a list marker alone also ends its paragraph for the strict grammar; a line inside the node that starts a footnote
+ definition does the same for the lines after it
 
  @returns Index of the first letter of each such line, in text order
 
@@ -251,6 +335,11 @@ export function laterModuleLines(
    Index of the first letter of each line found.
    */
   const found: number[] = [];
+  /**
+   Whether a footnote definition is open for the lines read next: the node follows or opens one, or a line read starts
+   one inside the node.
+   */
+  const footnote = { open: afterFootnote, };
   for (
     let lineStart = range.start;
     lineStart < range.end;
@@ -278,12 +367,13 @@ export function laterModuleLines(
       '\r',
       '',
     );
-    if ((INVISIBLE_LINE.test(line,) || (afterFootnote && isEmptyMarkerLine({ line, },))) && startsAny({
+    if ((INVISIBLE_LINE.test(line,) || (footnote.open && isEmptyMarkerLine({ line, },))) && startsAny({
       text: source,
       at: lineEnd + 1,
       candidates: ES_MODULE_STARTS,
     },))
       found.push(lineEnd + 1,);
+    footnote.open ||= startsFootnoteLine({ line, },);
     lineStart = lineEnd + 1;
   }
   return found;

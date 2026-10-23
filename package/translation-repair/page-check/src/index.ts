@@ -218,6 +218,7 @@ export {
   moduleEdits,
   moduleLetterEdit,
   startsEsModule,
+  startsFootnoteLine,
 } from './corpus-run/source-ships-module-line.ts';
 export {
   closingBracket,
