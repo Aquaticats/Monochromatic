@@ -3,6 +3,7 @@ import {
   tagged,
 } from '@monochromatic-dev/module-logger/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { commentRegionsOf, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   type SliceReplacement,
   spliceSlices,
@@ -30,15 +31,17 @@ import {
 // composed in steps and each is read by the grammar before the next. The base case is the page with each source run
 // written as the artifact records it, and it is the page whenever it parses. Otherwise:
 //
-// 1. Only the source runs that do not parse as a text of their own are written as literal text
-//    (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping their original, the unit the note
+// 1. Only the source runs that do not parse as a text of their own, and those holding an HTML comment that never
+//    closes, are written as literal text (`source-ships-encoding.ts`). A run is a contiguous run of slices shipping their original, the unit the note
 //    stands before, so a tag opened in one slice and closed in the next is read as the pair it is.
 // 2. If the page still does not parse, every source run is written as literal text.
 // 3. If it still does not, the page ships without its source runs, the silent gap the pages had before the ruling, and
 //    the defect `page-source-unparseable` names the slices.
 //
 // Each step that is taken writes one warn line naming the step and the slices. A step whose page equals the page last
-// tried changed nothing and is not taken. The original differs from the artifact's record only on these paths; with
+// tried changed nothing and is not taken. A run holding a comment that never closes is one no grammar reading can
+// vouch for: the package masks everything after such an opener, so a page that "parses" with it hides the rest of the
+// page from the package's own parser, and it never ships as written. The original differs from the artifact's record only on these paths; with
 // the page parsing as recorded, nothing here touches a byte of it.
 
 /**
@@ -135,9 +138,9 @@ type LastTried = {
   what: string;
 
   /**
-   The grammar's refusal of it.
+   What the warn line says is wrong with it: the grammar's refusal, or a comment nothing closes.
    */
-  refusal: string;
+  problem: string;
 };
 
 /**
@@ -244,6 +247,40 @@ function runTextOf(
       : [];
   },);
   return `${texts.join('\n\n',)}\n`;
+}
+
+/**
+ Whether the text a run puts on the page opens an HTML comment that never closes.
+
+ @param run - slice indices of the run
+
+ @param slices - every slice's reading, in comparison-row order
+
+ @returns Whether the run's own text has such an opener
+
+ @example
+ ```ts
+ const open = holdsOpenComment({ run: [88, 89,], slices, },);
+ ```
+ */
+function holdsOpenComment(
+  {
+    run,
+    slices,
+  }: {
+    readonly run: readonly number[];
+    readonly slices: readonly WouldShipSlice[];
+  },
+): boolean {
+  return commentRegionsOf({
+    text: runTextOf({
+      run,
+      slices,
+    },),
+  },)
+    .some(function neverCloses({ terminated, },): boolean {
+      return !terminated;
+    },);
 }
 
 /**
@@ -378,7 +415,18 @@ export function composeSourcePage(
   const firstReading: PageGrammarReading = (runs.length === 0)
     ? { kind: 'parses', }
     : readGrammar({ pageText: written.pageText, },);
-  if (firstReading.kind === 'parses') {
+  /**
+   Slices of the runs holding a comment that never closes, which the grammar cannot vouch for.
+   */
+  const openComments = runs
+    .filter(function opensComment(run,): boolean {
+      return holdsOpenComment({
+        run,
+        slices: readings,
+      },);
+    },)
+    .flat();
+  if ((firstReading.kind === 'parses') && (openComments.length === 0)) {
     return {
       ...written,
       step: 'as-written',
@@ -388,18 +436,22 @@ export function composeSourcePage(
   }
 
   /**
-   Slices of the runs that do not parse as a text of their own.
+   Slices of the runs that do not parse as a text of their own or hold a comment that never closes.
    */
   const failingAlone = runs
     .filter(function refusedAlone(run,): boolean {
-      return readGrammar({
-        pageText: runTextOf({
-          run,
-          slices: readings,
-        },),
+      return holdsOpenComment({
+        run,
+        slices: readings,
       },)
-        .kind
-        === 'refused';
+        || (readGrammar({
+          pageText: runTextOf({
+            run,
+            slices: readings,
+          },),
+        },)
+          .kind
+          === 'refused');
     },)
     .flat();
   /**
@@ -437,7 +489,9 @@ export function composeSourcePage(
   const last: LastTried = {
     pageText: written.pageText,
     what: 'the page with its source text as written',
-    refusal: firstReading.refusal,
+    problem: (firstReading.kind === 'refused')
+      ? `does not parse (${firstReading.refusal})`
+      : `holds an HTML comment that never closes, slices ${namedSlices({ indices: openComments, },)}`,
   };
   for (const attempt of steps) {
     /**
@@ -456,7 +510,7 @@ export function composeSourcePage(
      */
     const touched = (attempt.step === 'dropped') ? everySource : attempt.encoded;
     log.warn(
-      `entry ${entryId}: ${last.what} does not parse (${last.refusal}); step ${String(attempt.number,)} of 3: ${
+      `entry ${entryId}: ${last.what} ${last.problem}; step ${String(attempt.number,)} of 3: ${
         attempt.does
       }, slices ${namedSlices({ indices: touched, },)}`,
     );
@@ -489,7 +543,7 @@ export function composeSourcePage(
     }
     last.pageText = candidate.pageText;
     last.what = attempt.makes;
-    last.refusal = reading.refusal;
+    last.problem = `does not parse (${reading.refusal})`;
   }
   throw new SourcePageCompositionError({ entryId, },);
 }
