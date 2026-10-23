@@ -176,8 +176,10 @@ export {
   bareAddresses,
 } from './corpus-run/source-ships-addresses.ts';
 export {
+  endLineOf,
   footnoteBodyStart,
   isIndentedCode,
+  isLazyDefinition,
   opensFootnote,
   withoutIndentation,
 } from './corpus-run/source-ships-footnote.ts';

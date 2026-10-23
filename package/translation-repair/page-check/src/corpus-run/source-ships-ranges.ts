@@ -32,6 +32,27 @@ export type TextEdit = TextRange & {
 };
 
 /**
+ What a parse says of a text.
+ */
+export type SourceSpans = {
+  /**
+   Stretches a reader sees as text, in which a brace or a less-than sign is syntax for the strict grammar.
+   */
+  readonly text: readonly TextRange[];
+
+  /**
+   Stretches rewritten whole, in text order and not overlapping.
+   */
+  readonly edits: readonly TextEdit[];
+
+  /**
+   Links and link references, each from its first bracket to its last character, inside whose text GFM reads no bare
+   address.
+   */
+  readonly insideLinks: readonly TextRange[];
+};
+
+/**
  What a fenced code block starts with, as the parse positions one: the fence itself.
  */
 export const FENCE_MARKS: readonly string[] = [

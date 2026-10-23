@@ -1,15 +1,14 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
-  parseMarkdownMathBody,
-  type TreeNode,
-} from '@monochromatic-dev/translation-repair-document-structure/ts';
-import {
+  endLineOf,
   footnoteBodyStart,
   isIndentedCode,
+  isLazyDefinition,
   opensFootnote,
   withoutIndentation,
 } from './source-ships-footnote.ts';
 import { linkInsteadOfAutolink, } from './source-ships-links.ts';
+import { nestedSpans, } from './source-ships-nested.ts';
 import {
   laterModuleLines,
   moduleLetterEdit,
@@ -19,15 +18,16 @@ import {
   closingBracket,
   FENCE_MARKS,
   indicesOf,
-  originalStretches,
   rangeOf,
   secondLabel,
+  type SourceSpans,
   startsAny,
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
 
 export type {
+  SourceSpans,
   TextEdit,
   TextRange,
 } from './source-ships-ranges.ts';
@@ -56,137 +56,6 @@ export const ESCAPABLE = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
  How many characters `![` takes.
  */
 const IMAGE_OPENER_LENGTH = 2;
-
-/**
- What a parse says of a text.
- */
-export type SourceSpans = {
-  /**
-   Stretches a reader sees as text, in which a brace or a less-than sign is syntax for the strict grammar.
-   */
-  readonly text: readonly TextRange[];
-
-  /**
-   Stretches rewritten whole, in text order and not overlapping.
-   */
-  readonly edits: readonly TextEdit[];
-
-  /**
-   Links and link references, each from its first bracket to its last character, inside whose text GFM reads no bare
-   address.
-   */
-  readonly insideLinks: readonly TextRange[];
-};
-/**
- The characters of a text at the indices.
-
- @param text - the text
-
- @param indices - indices of the characters, in order
-
- @returns Characters joined
-
- @example
- ```ts
- const body = charactersAt({ text: 'abc', indices: [0, 2,], },);
- ```
- */
-function charactersAt(
-  {
-    text,
-    indices,
-  }: {
-    readonly text: string;
-    readonly indices: readonly number[];
-  },
-): string {
-  return indices
-    .map(function characterAt(at,): string {
-      return text.charAt(at,);
-    },)
-    .join('',);
-}
-
-/**
- Reads a block nested in another as a text of its own: the body of a footnote definition, or a block indented under one.
-
- @param source - the whole text
-
- @param readable - the whole text with its comments blanked, the parse's own input
-
- @param indices - the indices of the whole text that make up the block, in order
-
- @returns Spans of the block at the offsets of the whole text
-
- @throws {@link Error} when a node of the block has no position, which the reading used never builds
-
- @example
- ```ts
- const spans = nestedSpans({ source, readable, indices: [6, 7, 8,], });
- ```
- */
-function nestedSpans(
-  {
-    source,
-    readable,
-    indices,
-  }: {
-    readonly source: string;
-    readonly readable: string;
-    readonly indices: readonly number[];
-  },
-): SourceSpans {
-  /**
-   The block as a text of its own.
-   */
-  const body = charactersAt({
-    text: source,
-    indices,
-  },);
-  /**
-   The same with its comments blanked.
-   */
-  const bodyReadable = charactersAt({
-    text: readable,
-    indices,
-  },);
-  /**
-   What the parse of the block says of it.
-   */
-  const inner = spansOf({
-    source: body,
-    readable: bodyReadable,
-    root: parseMarkdownMathBody({ body: bodyReadable, },),
-    isNested: true,
-  },);
-  return {
-    text: inner
-      .text
-      .flatMap(function original(range,): readonly TextRange[] {
-        return originalStretches({
-          range,
-          indices,
-        },);
-      },),
-    edits: inner
-      .edits
-      .map(function original(edit,): TextEdit {
-        return {
-          ...edit,
-          start: nonNullishOrThrow(indices[edit.start],),
-          end: nonNullishOrThrow(indices[edit.end - 1],) + 1,
-        };
-      },),
-    insideLinks: inner
-      .insideLinks
-      .flatMap(function original(range,): readonly TextRange[] {
-        return originalStretches({
-          range,
-          indices,
-        },);
-      },),
-  };
-}
 
 /**
  A node still to read, and where it stands.
@@ -272,9 +141,13 @@ export function spansOf(
   }
 
   /**
-   Whether the block read last at the top is part of a footnote definition, which blocks indented under it continue.
+   Whether the block read last at the top is part of a footnote definition, which blocks indented under it continue,
+   and the line it ends on.
    */
-  const footnote = { open: false, };
+  const footnote = {
+    open: false,
+    endLine: 0,
+  };
   /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
@@ -302,6 +175,19 @@ export function spansOf(
      Where its characters are.
      */
     const range = rangeOf({ node, },);
+    // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION is a line of the footnote's paragraph, and a text.
+    if (isRootChild && isLazyDefinition({
+      node,
+      footnoteOpen: footnote.open,
+      previousEndLine: footnote.endLine,
+    },)) {
+      text.push(range,);
+      footnote.endLine = endLineOf({
+        node,
+        fallback: footnote.endLine,
+      },);
+      continue;
+    }
     /**
      Whether the node is indented code under a footnote definition, which the strict grammar reads as the blocks of the
      definition.
@@ -318,6 +204,10 @@ export function spansOf(
         source,
         node,
         range,
+      },);
+      footnote.endLine = endLineOf({
+        node,
+        fallback: footnote.endLine,
       },);
     }
     // A TEXT AND A RAW HTML NODE are what MDX reads a brace and a less-than sign in.
@@ -351,6 +241,7 @@ export function spansOf(
         nested: nestedSpans({
           source,
           readable,
+          readSpans: spansOf,
           indices: withoutIndentation({
             source,
             range,
@@ -379,6 +270,7 @@ export function spansOf(
           nested: nestedSpans({
             source,
             readable,
+            readSpans: spansOf,
             indices: indicesOf({
               range: {
                 start: footnoteBodyStart({
@@ -479,7 +371,5 @@ export function spansOf(
     insideLinks,
   };
 }
-
-//endregion Source ships spans
 
 //endregion Source ships spans

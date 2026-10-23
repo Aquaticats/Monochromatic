@@ -10,7 +10,9 @@ import {
 //region Source ships footnote
 // HOW A FOOTNOTE DEFINITION IS READ, which the plain parse reads one way and the strict grammar (with GFM footnotes
 // on) reads another: a line `[^label]: body` that CommonMark takes for a link reference definition is a footnote whose
-// body is blocks, and the blocks indented under a footnote definition are its own and not indented code.
+// body is blocks, and the blocks indented under a footnote definition are its own and not indented code. A link
+// reference definition on the line right after one is a line of the footnote's paragraph to the strict grammar, since
+// a definition cannot interrupt a paragraph and the paragraph of the footnote continues with every unindented line.
 
 /**
  White space between the colon of a footnote definition and its body.
@@ -109,6 +111,77 @@ export function opensFootnote(
     from: range.start + 1,
     limit: range.end,
   },) + 1,) === ':';
+}
+
+/**
+ The line a node ends on.
+
+ @param node - node of the parse
+
+ @param fallback - line to give for a node that carries no position
+
+ @returns One-based line
+
+ @example
+ ```ts
+ const line = endLineOf({ node, fallback: 0, },);
+ ```
+ */
+export function endLineOf(
+  {
+    node,
+    fallback,
+  }: {
+    readonly node: TreeNode;
+    readonly fallback: number;
+  },
+): number {
+  return node.position
+    ?.end
+    .line
+    ?? fallback;
+}
+
+/**
+ Whether a node is a link reference definition on the line right after a footnote definition, which the strict grammar
+ reads as a line of the footnote's paragraph and not as a definition.
+
+ @param node - node of the parse
+
+ @param footnoteOpen - whether the block read just before is part of a footnote definition
+
+ @param previousEndLine - line the block read just before ends on
+
+ @returns Whether the node is text of the footnote
+
+ @example
+ ```ts
+ const lazy = isLazyDefinition({ node, footnoteOpen: true, previousEndLine: 3, },);
+ ```
+ */
+export function isLazyDefinition(
+  {
+    node,
+    footnoteOpen,
+    previousEndLine,
+  }: {
+    readonly node: TreeNode;
+    readonly footnoteOpen: boolean;
+    readonly previousEndLine: number;
+  },
+): boolean {
+  if (!footnoteOpen)
+    return false;
+  if (node.type !== 'definition')
+    return false;
+  if (node
+    .identifier
+    .startsWith('^',))
+    return false;
+  return node.position
+    ?.start
+    .line
+    === (previousEndLine + 1);
 }
 
 /**

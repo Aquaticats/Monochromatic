@@ -20,6 +20,7 @@ import {
 import {
   footnoteBodyStart,
   isIndentedCode,
+  isLazyDefinition,
   opensFootnote,
   rangeOf,
   withoutIndentation,
@@ -124,6 +125,74 @@ await describe({
             expect(opens({ source: '[r]: u', },),).toBe(false,);
             expect(opens({ source: '[^1] a', },),).toBe(false,);
             expect(opens({ source: '她说', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: isLazyDefinition.name,
+      children: [
+        it({
+          name: 'CALLS A LINK REFERENCE DEFINITION ON THE LINE RIGHT AFTER A FOOTNOTE DEFINITION A LINE OF THE '
+            + 'FOOTNOTE, and no other block',
+          fn: async () => {
+            /**
+             Whether the second block of a text is a line of the footnote the first opens.
+
+             @param source - the text
+
+             @param footnoteOpen - whether the first block is part of a footnote definition
+
+             @returns Whether it is
+             */
+            function lazy(
+              {
+                source,
+                footnoteOpen,
+              }: {
+                readonly source: string;
+                readonly footnoteOpen: boolean;
+              },
+            ): boolean {
+              const [first, second,] = blocksOf({ source, },);
+              if ((first === undefined) || (second === undefined))
+                throw new Error('the text holds fewer than two blocks',);
+              /**
+               Line the first block ends on.
+               */
+              const previousEndLine = first.position
+                ?.end
+                .line;
+              if (previousEndLine === undefined)
+                throw new Error('the first block carries no position',);
+              return isLazyDefinition({
+                node: second,
+                footnoteOpen,
+                previousEndLine,
+              },);
+            }
+            expect(lazy({
+              source: '[^1]: 注\n[b]: u{\n',
+              footnoteOpen: true,
+            },),).toBe(true,);
+            // A blank line ends the footnote, no footnote is open, the label is a footnote's, or the node is a paragraph.
+            expect(lazy({
+              source: '[^1]: 注\n\n[b]: u{\n',
+              footnoteOpen: true,
+            },),).toBe(false,);
+            expect(lazy({
+              source: '[r]: x\n[b]: u{\n',
+              footnoteOpen: false,
+            },),).toBe(false,);
+            expect(lazy({
+              source: '[^1]: 注\n[^2]: u{\n',
+              footnoteOpen: true,
+            },),).toBe(false,);
+            expect(lazy({
+              source: '[^1]: 注\n猫 {\n',
+              footnoteOpen: true,
+            },),).toBe(false,);
           },
         },),
       ],
