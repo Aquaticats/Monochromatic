@@ -367,8 +367,9 @@ await describe({
         for (const identifier of ['1', '2', '4', '5', '6',])
           expect(withSource.page,).toContain(`[^${identifier}]: `,);
         const { lanes: _lanes, ...recordless } = sourceShippedArtifact({ rows: FIVE_REFERENCES, },) as
-          & WouldShipSource
-          & { readonly lanes: unknown; };
+          WouldShipSource & {
+            readonly lanes: unknown;
+          };
         const withoutSource = await publishRows({
           rows: FIVE_REFERENCES,
           artifact: recordless,

@@ -50,6 +50,10 @@ import {
   type DestinationCheck,
   droppedDestinations,
 } from './dropped-destinations.ts';
+import {
+  assertPageFootnotesResolve,
+  PageFootnoteResolutionError,
+} from './page-footnote-resolution.ts';
 import { assertPageParses, } from './page-grammar.ts';
 import {
   archiveKeptDefects,
@@ -413,6 +417,18 @@ export async function publishFixedPage(
             entryId,
             destinations,
             traces,
+          },);
+        },
+      },
+      // THE PAGE'S OWN FOOTNOTES, NOT THE ARCHIVE'S (D7, XingZ6020): a reference
+      // with no definition, a definition nothing references, a doubled identifier.
+      {
+        check: 'page-footnotes',
+        refusal: PageFootnoteResolutionError,
+        run: function pageFootnotes(): void {
+          assertPageFootnotesResolve({
+            entryId,
+            pageText,
           },);
         },
       },

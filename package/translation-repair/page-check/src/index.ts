@@ -95,6 +95,10 @@ export {
 } from './corpus-run/page-assembly-rounds.ts';
 export { assertPageFootnotesIntact, } from './corpus-run/page-footnote-integrity.ts';
 export {
+  assertPageFootnotesResolve,
+  PageFootnoteResolutionError,
+} from './corpus-run/page-footnote-resolution.ts';
+export {
   assertPageParses,
   UnparseablePageError,
 } from './corpus-run/page-grammar.ts';
