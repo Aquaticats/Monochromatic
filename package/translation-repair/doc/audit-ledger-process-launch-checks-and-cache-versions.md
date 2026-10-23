@@ -603,8 +603,8 @@ so no cache version moved.
 Later,
 fix round 4:
 the warning compared spellings and ignored the depth of the walk.
-The home directory of the process and its real place are two spellings of one directory (`HOME=/home/user`
-and `/var/home/user` both exist on the lead's machine),
+The home directory as the process reports it and its real path are two spellings of one directory
+on a host where the home directory is reached through a link,
 and the comparison read a link as an uncovered root,
 which fails safe.
 The converse did not fail safe:

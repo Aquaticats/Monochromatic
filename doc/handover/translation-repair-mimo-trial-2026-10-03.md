@@ -575,6 +575,7 @@ Close the batch in this order:
 4.  Record the batch in one docs commit,
     `docs(module-translation-repair): record T8 <cluster>`:
     a paragraph at the end of the T8 entry of the [audit ledger][ledger]
+    (the T8 entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger)
     naming the cluster,
     the commits,
     the census reading
@@ -896,4 +897,5 @@ and its commit.
   which returns the stretch to T8's open count.
 
 [ledger]: ../../package/translation-repair/doc/audit-ledger.md
+[ledger-areas]: ../../package/translation-repair/doc/audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md
 [prevent]: ../../package/translation-repair/doc/mistake-prevention.md
