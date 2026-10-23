@@ -159,8 +159,8 @@ async function readsAfterRefusal(
   return counted.reads;
 }
 
-// THE LOGGER STARTS ON ITS FIRST LINE, and its start sleeps on a timer: begun under the fake clock it writes an internal
-// error to stderr. One reading on the real clock starts it before any case fakes the timers.
+// THE LOGGER STARTS ON ITS FIRST LINE, and its start sleeps on a timer: begun under the fake clock it writes an
+// internal error to stderr. One reading on the real clock starts it before any case fakes the timers.
 await budgetsWithHyperWet().read({ signal: new AbortController().signal, },);
 
 await describe({
