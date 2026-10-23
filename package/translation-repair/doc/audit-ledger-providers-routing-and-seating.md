@@ -867,7 +867,7 @@ one run of one entry was a placeholder for a workload that is a rotation of entr
 and the rotation measured 2.6 times that run's means.
 
 Update of 2026-10-23 (UTC):
-ledger B830 replaced those four means in turn with the means of `XingZ6020`:
+ledger B836 replaced those four means in turn with the means of `XingZ6020`:
 DeepSeek 0.3044 and 0.3237 Wh,
 GLM-5.3-Flash 0.0714 and 0.0556 Wh.
 The GLM seat had been sent at `low` effort since B807,

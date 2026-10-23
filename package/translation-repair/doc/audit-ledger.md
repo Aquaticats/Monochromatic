@@ -498,7 +498,7 @@ named for that subject and listed here.
   the energy estimate that counted a picture as base64 text (B720),
   a text call sent at the provider's default effort (B807),
   the energy hold that read the pipeline's own use at a third of what a rotation of entries measured (B808),
-  and the hold that read the GLM seat at fourteen times its use after the lift to low effort (B830).
+  and the hold that read the GLM seat at fourteen times its use after the lift to low effort (B836).
 - [Audit ledger: branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
   most met when a coverage census asked for them to be removed,
@@ -535,9 +535,13 @@ named for that subject and listed here.
   with the round's need read again at each refusal,
   artifact generation 20 and the cache versions that moved with the rule (B816),
   the ceiling a hold could lift a short bench to,
-  which the seat reader's line never stated (B827),
-  a slice bought again by the next attempt for want of a second ballot (B828),
-  and the contest and consolidation rounds opened for slices their bench could not settle (B829).
+  which the seat reader's line never stated (B833),
+  a slice bought again by the next attempt for want of a second ballot (B834),
+  the contest and consolidation rounds opened for slices their bench could not settle (B835),
+  the ceiling that counted a provider its meter keeps dry as coming back (B837),
+  the wait that judged a return against the quorum alone (B838),
+  the translate lane's first-time buys on a select bench under its floor (B839),
+  and the artifact's record of why such a slice was kept (B840).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,
@@ -619,7 +623,8 @@ named for that subject and listed here.
   a scratch worktree tested on the install of another commit (M280),
   a cache version commit that left seven test cases red (M284),
   a branch worktree moved to a new build without an install (M285),
-  and a new workspace package landed without a file-enforcer run (M286).
+  a new workspace package landed without a file-enforcer run (M286),
+  and the cache-account audit that printed an account of no record without a word (B841).
 - [Audit ledger: process mistakes, guards and red cases](audit-ledger-process-guards-and-red-cases.md):
   Guards and failing-first cases that could not fail,
   never reached what they guarded,

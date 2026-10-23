@@ -206,7 +206,7 @@ it was 2 until the first keyed runs were read.
   The other buckets keep the matrix's figures;
   the rotation held at most 15 calls in any of them and none in two.
   On 2026-10-23 (UTC) the four means were replaced again,
-  in ledger B830
+  in ledger B836
   (same file),
   by those of the settled calls of `XingZ6020`
   (1,779 calls,

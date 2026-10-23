@@ -5,7 +5,8 @@ the full suite,
 the lint,
 the cache versions,
 the handover,
-and the log's two streams.
+the log's two streams,
+and an audit that read nothing without saying so.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -517,3 +518,54 @@ a change that adds,
 removes or renames a workspace package runs `mise run file-enforcer` in its worktree before it lands
 and commits what that run writes to files derived from the workspace,
 reading the `mise.toml` `_.path` rewrite against the worktree's installs first.
+
+## B841: the cache-account audit printed an account of no record without a word, over roots that hold no launch's runs
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `f4519c3d29` (its cases read the log through the level-keeping logger in `a420726b63`),
+fix `c49da916d4`,
+checklist and README `4be243b6b9`.
+The reading is the lead's and is open to the owner's veto.
+
+What was found:
+the lead's run of the audit on 2026-10-23 at 10:31 UTC read 0 records with its default roots,
+and 13,711 records in 419 runs directories with `--runs-under` the runbook's runs root under the home directory.
+The newest record there was written at 2026-10-22T19:14Z,
+and none of the 8 cache versions was set after it.
+Step 4 of the checklist in `mistake-prevention.md` (M25 and M28) ran the audit without `--runs-under`,
+while a launch that follows `doc/runbook/translation-repair-corpus-pass.md` writes its runs to
+`${HOME}/temp/agent/corpus-pass-<entry>`.
+The account of no record printed `newest slice-cache record: none` and nothing else,
+so a reader took an empty account for an empty cache.
+
+What changed:
+- `reportSliceCaches` (`slice-cache/src/corpus-run/cache-account-slice-report.ts`) warns through the package logger
+  when it read no slice-cache record,
+  and prints a `WARNING:` line with the same sentence on stdout.
+  The sentence says that the newest-record and versions-set-after lines then say nothing of the caches a launch would
+  resume,
+  names every root searched and the runbook's runs root,
+  and gives the `--runs-under` argument that reads it.
+  The logger and the home directory are optional arguments,
+  so the cases inject both.
+- Step 4 passes `-- --runs-under "${HOME}/temp/agent"`,
+  requires a count above zero on the `slice-cache records under N runs directories` line,
+  and reads the audit's own `newest slice-cache record` and `cache versions set after it` lines in place of the
+  hand-written `find` (the audit has printed both since 2026-10-01).
+  The README of `slice-cache` says the same and documents the warning.
+
+Cases:
+three in `cache-account-slice-report.unit.test.ts`,
+which fail at the parent for lack of the warning.
+Two scratch mutations,
+one dropping the log call and one dropping the stdout line,
+each fail two of them.
+
+The rule for next time:
+a census that reads nothing says so in words,
+and a check that passes on zero input requires a count above zero.
+
+Cache account:
+the audit reads versions and writes none,
+so no cache version moved.

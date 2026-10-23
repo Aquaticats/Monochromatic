@@ -4,7 +4,7 @@ Calls to NeuralWatt that ran at the provider's default reasoning effort and were
 the owner's lift of 2026-10-21 that sets the effort for the pictures and then the text of the GLM seat,
 the energy estimate that counted a picture as base64 text,
 the energy hold recalibrated from the settled calls of a rotation of entries (B808),
-and the hold recalibrated again from the first pass on a build that sends the GLM seat at low effort (B830).
+and the hold recalibrated again from the first pass on a build that sends the GLM seat at low effort (B836).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -591,27 +591,23 @@ a published per-request figure is a placeholder until the pipeline's own settled
 and a single run's means are a placeholder for a workload that is a rotation of entries.
 
 Later note of 2026-10-23 (UTC):
-B830 replaced the four means of the two main buckets with those of `XingZ6020`,
+B836 replaced the four means of the two main buckets with those of `XingZ6020`,
 the first settled pass on a build that holds the `low` effort of B807.
 The figures this entry names
 (0.1958 and 0.9577 Wh in the 4,096 to 16,384 token bucket,
 0.3205 and 1.2239 Wh in the 16,384 to 65,536 token bucket)
 are the record of what the table held from 2026-10-22 to 2026-10-23.
 
-## B830: the NeuralWatt hold after the lift to low effort
+## B836: the NeuralWatt hold after the lift to low effort
 
 The hold read GLM-5.3-Flash at fourteen times its use and DeepSeek at 79 percent.
 
 Status:
-fixed on 2026-10-23 (UTC) in `tr-w323`,
+fixed on 2026-10-23 (UTC),
 red `f5fb8027be`,
 fix `898445b025`,
 cache versions none.
 Found in the read of the settled calls of the corpus pass `XingZ6020`.
-Numbering:
-the ids B827 to B830 were taken from the ledger on main (last id B826) when this round started;
-the branches `tr-w317` and `tr-w322` may have taken the same ids,
-and the merge renumbers whichever lands second.
 
 What the run showed:
 `XingZ6020` (build `1d462324574c`) settled 1,779 NeuralWatt calls
