@@ -122,6 +122,13 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ['a no-break space line before an export line', 'x\n\n\u00A0\nexport to PDF\n---\n'],
   ['a zero-width space line before an import line', 'x\n\n\u200B\nimport data\n'],
   ['two byte order mark lines before an import line', '\uFEFF\n\uFEFF\nimport data\n'],
+  ['a definition line right after a footnote definition', '她[^1]说\n\n[^1]: 注\n[b]: u{ "t"\n'],
+  ['two definition lines right after a footnote definition', '她[^1]说\n\n[^1]: 注\n[b]: u{\n[c]: v{ "t"\n'],
+  [
+    'a definition line holding an address right after a footnote definition',
+    '她[^1]说\n\n[^1]: 注\n[b]: https://example.net/a{b\n',
+  ],
+  ['a definition line after a footnote definition and a blank line', '她[^1]说\n\n[^1]: 注\n\n[b]: u{ "t"\n'],
 ];
 
 await describe({
@@ -327,6 +334,22 @@ await describe({
               .toBe('[^1]: [https://example.net/x](https://example.net/x)',);
             // A link reference definition that is no footnote keeps its destination and its title.
             expect(encoded({ text: '[r]: u{b "t {"\n', },),).toBe('[r]: u{b "t {"\n',);
+          },
+        },),
+
+        it({
+          name: 'READS A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION AS A LINE OF THE FOOTNOTE, since the strict '
+            + 'grammar continues the paragraph of the footnote with it, where CommonMark reads a second definition',
+          fn: async () => {
+            expect(encoded({ text: '[^1]: 注\n[b]: u{ "t"\n', },),).toBe(String.raw`[^1]: 注
+[b]: u\{ "t"
+`,);
+            expect(encoded({ text: '[^1]: 注\n[b]: u{\n[c]: v{\n', },),).toBe(String.raw`[^1]: 注
+[b]: u\{
+[c]: v\{
+`,);
+            // A blank line ends the footnote, so the definition after it is a definition.
+            expect(encoded({ text: '[^1]: 注\n\n[b]: u{ "t"\n', },),).toBe('[^1]: 注\n\n[b]: u{ "t"\n',);
           },
         },),
 
