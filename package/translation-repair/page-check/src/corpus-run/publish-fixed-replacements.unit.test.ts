@@ -220,7 +220,10 @@ await describe({
             'WRITES THE ORIGINAL AT AN UNFILLED ANCHOR THE ARTIFACT RECORDS IT FOR, with the note before the first slice '
               + 'of the run only (the owner, 2026-10-23, "Source text + note")',
           fn: async () => {
-            expect(shippableReplacements({ artifact: sourceShippedArtifact({ rows: ROWS_WITH_A_TAIL, },), },),).toEqual([
+            expect(shippableReplacements({
+              artifact: sourceShippedArtifact({ rows: ROWS_WITH_A_TAIL, },),
+              includeSource: true,
+            },),).toEqual([
               {
                 sliceIndex: 0,
                 replacementText: 'A tabby.\n',
@@ -232,6 +235,23 @@ await describe({
               {
                 sliceIndex: 2,
                 replacementText: '[^1]: 注',
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name:
+            'WRITES THE ENGLISH ALONE WHEN NOT TOLD OTHERWISE, so a caller that never heard of the original (the '
+              + 'consistency pass hands an artifact with no record of it today, and would hand one that has it the '
+              + 'day its composed artifact gains `lanes`) cannot put source text into the English it rewrites',
+          fn: async () => {
+            expect(shippableReplacements({
+              artifact: sourceShippedArtifact({ rows: ROWS_WITH_A_TAIL, },),
+            },),).toEqual([
+              {
+                sliceIndex: 0,
+                replacementText: 'A tabby.\n',
               },
             ],);
           },
