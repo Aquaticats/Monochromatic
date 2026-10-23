@@ -1,6 +1,7 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact/ts';
+import { contestStandingMayShip, } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { ArtifactDeliveryRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import {
   type WouldShipReading,
@@ -65,6 +66,71 @@ function changedSlices(
       === 'replacement-shipped';
   },);
   return changed.length;
+}
+
+/**
+ Counts the consolidation slices that kept a standing text the contest never
+ endorsed, which the stage logs as "remains retryable" and no other field of
+ the line carried.
+
+ READ OFF THE RECORD, so it is the slices the stage's own rule names: the
+ contest backed no lane and did not endorse the archive
+ (`contestStandingMayShip`), and the consolidation did not write fresh wording
+ over the standing. A slice that kept the archive for want of any valid
+ wording is the defects line's, and is left out. The stage's log lines are a
+ little more than this count, since the standing verdict warns before the
+ slate is judged and a slice the slate then rewrote has been warned about too
+ (XingZ6020: 58 lines, 56 slices in this count).
+
+ @param artifact - settled entry whose contest and consolidation records are read
+
+ @returns Slices whose consolidation kept an unendorsed standing, none when the consolidation did not run
+
+ @example
+ ```ts
+ const kept = standingsKeptUnendorsed({ artifact, },);
+ ```
+ */
+function standingsKeptUnendorsed(
+  { artifact, }: { readonly artifact: SettledArtifact; },
+): number {
+  /**
+   What the stages left on record, either of which may not have run.
+   */
+  const {
+    consolidation,
+    laneSelection,
+  } = artifact;
+  if ((consolidation.kind !== 'settled') || (laneSelection.kind !== 'contested'))
+    return 0;
+
+  /**
+   Slices the contest ran over, by index.
+   */
+  const contests = new Map(laneSelection.slices
+    .map(function toEntry(contest,) {
+      return [
+        contest.sliceIndex,
+        contest.verdict,
+      ] as const;
+    },),);
+  return consolidation.slices
+    .filter(function keptUnendorsed(slice,): boolean {
+      if ((slice.terminal === 'consolidated') || (slice.shipped.kind === 'archive'))
+        return false;
+      /**
+       What the contest recorded here, absent for a slice it never ran over.
+       */
+      const verdict = contests.get(slice.sliceIndex,);
+      if (verdict === undefined)
+        return false;
+      return !contestStandingMayShip({
+        // A LANE BACKED BY THE CONTEST IS ENDORSED; the choice is the verdict's lane or neither, as the driver reads it.
+        choice: ((verdict.kind === 'lane-won') || (verdict.kind === 'sole-lane')) ? verdict.lane : 'neither',
+        verdict,
+      },);
+    },)
+    .length;
 }
 
 /**
@@ -213,6 +279,7 @@ export function settledTallyLine(
     `documentsDiffer=${String(differing.length,)}`,
     `pageChanged=${String(pageChanged.length,)}`,
     `pageSilent=${String(pageSilent.length,)}`,
+    `standingUnendorsed=${String(standingsKeptUnendorsed({ artifact, },),)}`,
     `alignmentFindings=${String(artifact.preparation
       .alignmentFindings
       .length,)}`,
