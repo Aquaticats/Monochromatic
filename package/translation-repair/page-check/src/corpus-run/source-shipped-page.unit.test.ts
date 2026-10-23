@@ -22,9 +22,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 
 import {
+  assertPageParses,
   guardPageAssembly,
   pageAgreement,
   publishFixedPage,
@@ -147,7 +151,21 @@ async function publishRows(
   readonly artifact: WouldShipSource;
   readonly checks: readonly string[];
   readonly footnoteDefects: readonly string[];
+  readonly warnings: readonly string[];
 }> {
+  /**
+   Warnings the publication wrote.
+   */
+  const warnings: string[] = [];
+  /**
+   Logger keeping its warnings.
+   */
+  const l: Logger = {
+    ...tagged({ tag: 'source-shipped-test', },),
+    warn: function keep(message: string,): void {
+      warnings.push(message,);
+    },
+  };
   await using tree = await scratchDir({ prefix: 'source-shipped-', },);
   /**
    The publication.
@@ -163,7 +181,7 @@ async function publishRows(
       .join('',),
     entryId: 'BookshopCat',
     publishDir: tree.path,
-    l: tagged({ tag: 'source-shipped-test', },),
+    l,
   },);
   return {
     page: await readFile(
@@ -181,7 +199,57 @@ async function publishRows(
       .map(function messageOf({ message, },): string {
         return message;
       },),
+    warnings,
   };
+}
+
+/**
+ Rows with one untranslated slice after the archive's opening.
+
+ @param source - the slice's text as the artifact records it
+
+ @returns The rows
+
+ @example
+ ```ts
+ const rows = openingThen({ source: '{ 她说\n', },);
+ ```
+ */
+function openingThen({ source, }: { readonly source: string; },): readonly SourceShippedRow[] {
+  return [
+    OPENING_ROW,
+    {
+      incumbentText: '',
+      sourceText: source,
+    },
+  ];
+}
+
+/**
+ Runs the page-assembly guard over the rows' entry.
+
+ @param rows - the slices, anchors among them
+
+ @returns What the guard recorded: the slices it trimmed or withdrew and its findings
+
+ @example
+ ```ts
+ const assembly = assemblyOf({ rows: ONE_RUN, },);
+ ```
+ */
+function assemblyOf(
+  { rows, }: { readonly rows: readonly SourceShippedRow[]; },
+): ReturnType<typeof guardPageAssembly> {
+  return guardPageAssembly({
+    artifact: sourceShippedArtifact({ rows, },),
+    slices: sourceShippedSlices({ rows, },),
+    sourceText: rows
+      .map(function sourceOf({ sourceText, },): string {
+        return sourceText;
+      },)
+      .join('',),
+    targetText: sourceShippedArchive({ rows, },),
+  },);
 }
 
 await describe({
@@ -292,8 +360,9 @@ await describe({
     },),
 
     it({
-      name: 'LEAVES THE SOURCE TEXT AS WRITTEN whatever it holds: angle brackets, braces, backticks, a footnote '
-        + 'definition, a link, a heading, a run of blank lines and straight quotes all arrive byte for byte',
+      name: 'KEEPS EACH SLICE\'S TEXT AS THE ARTIFACT RECORDS IT whatever it holds: angle brackets, braces, '
+        + 'backticks, a footnote definition, a link, a heading, a run of blank lines and straight quotes all '
+        + 'arrive, trimmed at the ends of the slice only',
       fn: async () => {
         /**
          Source text built to be rewritten by anything that treats it as English or as a template.
@@ -316,10 +385,34 @@ await describe({
     },),
 
     it({
+      name: 'JOINS THE SLICES OF A RUN WITH ONE BLANK LINE, whatever separated them in the original: two slices '
+        + 'that the original sets on adjacent lines (a tight list) arrive as separate paragraphs, so the page '
+        + 'carries each slice\'s text and not the original\'s line structure between them',
+      fn: async () => {
+        /**
+         Rows whose two untranslated slices were adjacent lines of the original, a newline apart.
+         */
+        const rows: readonly SourceShippedRow[] = [
+          OPENING_ROW,
+          {
+            incumbentText: '',
+            sourceText: '- 甲\n',
+          },
+          {
+            incumbentText: '',
+            sourceText: '- 乙\n',
+          },
+        ];
+        const { page, } = await publishRows({ rows, },);
+        expect(page,).toBe(`${OPENING_ROW.incumbentText}\n${NOTE}\n\n- 甲\n\n- 乙\n`,);
+      },
+    },),
+
+    it({
       name: 'KEEPS THE ORIGINAL OUT OF THE PAGE-ASSEMBLY PASSES AND THE FOOTNOTE GUARD, which rewrite English and '
-        + 'withdraw what breaks the archive\'s footnote graph: an original that holds English-looking words, straight '
-        + 'quotes and a footnote definition no archive reference answers (which the guard trims from a slice of definitions alone) comes back untouched, and the guard '
-        + 'records nothing against any slice',
+        + 'withdraw what breaks the archive\'s footnote graph: an original that holds English-looking words, '
+        + 'straight quotes and a footnote definition no archive reference answers (which the guard trims from a '
+        + 'slice of definitions alone) comes back untouched, and the guard records nothing against any slice',
       fn: async () => {
         /**
          Original built to be rewritten by the Canadian-spelling and quote passes, or withdrawn by the guard.
@@ -328,24 +421,31 @@ await describe({
         /**
          Rows with that original as the one untranslated slice.
          */
-        const rows: readonly SourceShippedRow[] = [
-          OPENING_ROW,
-          {
-            incumbentText: '',
-            sourceText: english,
-          },
-        ];
-        const assembly = guardPageAssembly({
-          artifact: sourceShippedArtifact({ rows, },),
-          slices: sourceShippedSlices({ rows, },),
-          sourceText: rows
-            .map(function sourceOf({ sourceText, },): string {
-              return sourceText;
-            },)
-            .join('',),
-          targetText: sourceShippedArchive({ rows, },),
+        const rows = openingThen({ source: english, },);
+        expect(assemblyOf({ rows, },),).toEqual({
+          trimmed: [],
+          withdrawn: [],
+          findings: [],
         },);
-        expect(assembly,).toEqual({
+        const { page, } = await publishRows({ rows, },);
+        expect(page,).toContain(`${NOTE}\n\n${english.trim()}`,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE ORIGINAL OUT OF THE SPELLING AND QUOTE PASSES TOO, shown on an original with English-looking '
+        + 'words and straight quotes and no footnote definition at all, where the footnote guard has nothing to '
+        + 'withdraw and so cannot be what hides a rewrite',
+      fn: async () => {
+        /**
+         Original built to be rewritten by the Canadian-spelling and quote passes, and to give the guard nothing.
+         */
+        const english = '\nThe color of the day was "grey", a neighbour\'s note.\n';
+        /**
+         Rows with that original as the one untranslated slice.
+         */
+        const rows = openingThen({ source: english, },);
+        expect(assemblyOf({ rows, },),).toEqual({
           trimmed: [],
           withdrawn: [],
           findings: [],
@@ -408,6 +508,151 @@ await describe({
         expect(slices.map(function kindOf({ reading, },): string {
           return reading.kind;
         },),).toEqual(['wording', 'nothing-ships', 'nothing-ships',],);
+      },
+    },),
+  ],
+},);
+
+/**
+ One source text the strict MDX grammar reads as syntax, with how the page must carry it once the ladder has run.
+
+ @example
+ ```ts
+ const hostile: HostileSource = { name: 'a bare brace', source: '{ 她说\n', carried: '\\{ 她说', };
+ ```
+ */
+type HostileSource = {
+  /**
+   What the text is, for the case name.
+   */
+  readonly name: string;
+
+  /**
+   The slice's text as the artifact records it.
+   */
+  readonly source: string;
+
+  /**
+   What the page holds after the note once the text is encoded as literal text.
+   */
+  readonly carried: string;
+};
+
+/**
+ Sources the re-check of round X1 probed, each of which stopped the entry when the page carried it as written.
+ */
+const HOSTILE_SOURCES: readonly HostileSource[] = [
+  {
+    name: 'a bare opening brace in a sentence',
+    source: '她说 { 然后走了。\n',
+    carried: '她说 \\{ 然后走了。',
+  },
+  {
+    name: 'an unclosed brace opening the slice',
+    source: '{ 她说\n',
+    carried: '\\{ 她说',
+  },
+  {
+    name: 'an unclosed details tag',
+    source: '<details>\n\n她说\n',
+    carried: '\\<details>\n\n她说',
+  },
+  {
+    name: 'a lone closing details tag',
+    source: '她说\n\n</details>\n',
+    carried: '她说\n\n\\</details>',
+  },
+  {
+    name: 'an indented line holding an expression and an unclosed tag',
+    source: '她说\n\n  {x} <y>\n',
+    carried: '她说\n\n  \\{x\\} \\<y>',
+  },
+];
+
+/**
+ Lone paragraph that parses as written, the control for the sources the grammar refuses.
+ */
+const PARSING_SOURCE = '\n## 后记\n\n行内 `a < b {c}` 与 <b>粗体</b> 和 {props}。\n';
+
+await describe({
+  name: 'a page whose source text the strict MDX grammar refuses as written',
+  children: [
+    ...HOSTILE_SOURCES.map(function toCase({ name, source, carried, },) {
+      return it({
+        name: `ENCODES ${name.toUpperCase()} AS LITERAL TEXT and ships the page, naming step 1 of 3 and the slice `
+          + 'in one warn line, with no defect against the page',
+        fn: async () => {
+          const { page, checks, warnings, } = await publishRows({ rows: openingThen({ source, },), },);
+          expect(function parsesIt(): void {
+            assertPageParses({
+              entryId: 'BookshopCat',
+              pageText: page,
+            },);
+          },).not.toThrow();
+          expect(page,).toContain(`${NOTE}\n\n${carried}\n`,);
+          expect(checks,).toEqual([],);
+          expect(warnings.length,).toBe(1,);
+          expect(warnings[0],).toContain('step 1 of 3',);
+          expect(warnings[0],).toContain('slices [1]',);
+        },
+      },);
+    },),
+
+    it({
+      name: 'SHIPS A SOURCE THAT PARSES AS WRITTEN with the text of its slice unchanged and no warn line, the '
+        + 'control for the cases that encode',
+      fn: async () => {
+        const { page, checks, warnings, } = await publishRows({ rows: openingThen({ source: PARSING_SOURCE, },), },);
+        expect(page,).toContain(`${NOTE}\n\n${PARSING_SOURCE.trim()}\n`,);
+        expect(checks,).toEqual([],);
+        expect(warnings,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'ENCODES ONLY THE RUN THAT DOES NOT PARSE ALONE: a run that parses keeps its text unchanged beside '
+        + 'one that is encoded, and the warn line names the encoded run\'s slice only',
+      fn: async () => {
+        const { page, warnings, } = await publishRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: FIRST_SOURCE,
+            },
+            MIDDLE_ROW,
+            {
+              incumbentText: '',
+              sourceText: '{ 她说\n',
+            },
+          ],
+        },);
+        expect(page,).toContain(`${NOTE}\n\n${FIRST_SOURCE.trim()}\n`,);
+        expect(page,).toContain(`${NOTE}\n\n\\{ 她说\n`,);
+        expect(warnings.length,).toBe(1,);
+        expect(warnings[0],).toContain('slices [3]',);
+      },
+    },),
+
+    it({
+      name: 'READS THE RUN AS ONE UNIT, so a details tag opened in one slice and closed in the next ships as '
+        + 'written: neither slice parses alone, and the pair does',
+      fn: async () => {
+        const { page, warnings, } = await publishRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '<details>\n\n她说\n',
+            },
+            {
+              incumbentText: '',
+              sourceText: '\n走了。\n\n</details>\n',
+            },
+          ],
+        },);
+        expect(page,).toContain(`${NOTE}\n\n<details>\n\n她说\n\n走了。\n\n</details>\n`,);
+        expect(warnings,).toEqual([],);
       },
     },),
   ],
