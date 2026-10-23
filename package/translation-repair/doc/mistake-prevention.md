@@ -234,13 +234,17 @@ not a memory of having done it.
     read each unnamed commit against the files its stage's sheets and floors import,
     the house rules and prose ranges included;
     a change that alters what the stage asks or accepts moves the version,
-    unless no cache file was written after the change
-    (`find <runs dir> -path '*slice-cache*' -type f -newermt '<time>'`,
-    with the time in ISO 8601 (`2026-09-27T04:26:30Z`),
-    since this host's `find` is bfs and refuses `… UTC` as an invalid timestamp (M57),
-    its errors written to a file that is read,
-    a control time that must find files,
-    and an output file named so the pattern cannot match it).
+    unless no cache file was written after the change.
+    Run the audit with `-- --runs-under "${HOME}/temp/agent"`,
+    because a launch that follows the runbook writes its runs there and the default roots do not reach them.
+    Its `slice-cache records under N runs directories` line must end in a count above zero;
+    a zero count prints a `WARNING:` line and means the audit read nothing about the caches a launch would resume.
+    Its `newest slice-cache record` line gives the time of the cache file written last,
+    and its `cache versions set after it` line counts the versions whose current value was set after that time.
+    A change made after the newest record is one that no cache file was written after,
+    which is the exception in the rule this step opens with;
+    the `cache versions set after it` count is that case for the versions themselves.
+    The hand-written `find` with a control time is no longer the check.
 5.  No source file holds control bytes (M40):
     `rg --text --files-with-matches '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]' src` prints nothing,
     after the same search has found a scratch file written with one.

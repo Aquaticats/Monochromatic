@@ -122,11 +122,19 @@ and each task sets it to its own name.
   reads every cache version constant the source declares,
   the commit that set each current value,
   and every non-test source commit since the earliest of them that no version's account names,
-  then the slice-cache records under the runs directories.
+  then the slice-cache records under the runs directories,
+  the newest one,
+  and how many versions were set after it.
   Read-only.
   Pass `--runs-under dir` after `--`,
   repeatable,
   to also search a directory holding runs directories.
+  A launch that follows the runbook writes its runs under `${HOME}/temp/agent`,
+  which the default roots do not reach,
+  so pass `--runs-under "${HOME}/temp/agent"` for the account a launch would resume.
+  A count of zero records prints a `WARNING:` line on stdout and a warning through the package logger,
+  naming every root searched and that runs root,
+  because the newest-record and versions-set-after lines then say nothing about the caches.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.
