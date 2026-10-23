@@ -28,9 +28,9 @@ import {
 /**
  What the lines of a text are joined by, the text being read whole.
 
- @param source - the text
+ @param source - text
 
- @returns The edits
+ @returns Edits
 
  @example
  ```ts
@@ -50,11 +50,11 @@ function joinedWhole({ source, }: { readonly source: string; },): ReturnType<typ
 /**
  What the lines of a node are joined by.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
- @returns The edits
+ @returns Edits
 
  @example
  ```ts
@@ -80,11 +80,11 @@ function joinsOfNode(
 /**
  What the lines of the first block of a text, or of its first inline node, are joined by.
 
- @param source - the text
+ @param source - text
 
  @param inline - whether to read the first child of the first block and not the block
 
- @returns The edits
+ @returns Edits
 
  @throws {@link Error} when the text holds no such node
 
@@ -124,7 +124,7 @@ function joinsOfFirst(
 /**
  The content stretches of the first raw HTML or code node of a text.
 
- @param source - the text
+ @param source - text
 
  @returns Stretches of the content of the node's lines
 

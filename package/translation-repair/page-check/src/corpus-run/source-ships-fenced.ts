@@ -37,13 +37,13 @@ const CLOSING_REACH = 3;
 /**
  Index of the first character of a line after its indentation and the marks of block quotes.
 
- @param source - the text
+ @param source - text
 
  @param from - index the line starts at
 
  @param limit - index the line does not pass
 
- @returns The index, `limit` for a line of nothing else
+ @returns Index, `limit` for a line of nothing else
 
  @example
  ```ts
@@ -73,7 +73,7 @@ function contentAt(
 /**
  Whether a text holds nothing but spaces, tabs and carriage returns.
 
- @param text - the text
+ @param text - text
 
  @returns Whether it is empty or all of them
 
@@ -93,7 +93,7 @@ function isSpaceOnly({ text, }: { readonly text: string; },): boolean {
 /**
  The column a character stands at, counting the characters before it on its line, a tab as four.
 
- @param source - the text
+ @param source - text
 
  @param at - index of the character
 
@@ -130,7 +130,7 @@ function columnOf(
  mark that stands as far from the opening as that is the closing, whatever columns the container's own indentation adds
  to both; a mark four columns past it is a line of the code.
 
- @param source - the text
+ @param source - text
 
  @param range - where the block stands, its opening fence first
 
@@ -140,7 +140,7 @@ function columnOf(
 
  @param openLength - length of the opening
 
- @returns The run of the mark that closes the block, as the one stretch of a list that is empty for a block that never
+ @returns Run of the mark that closes the block, as the one stretch of a list that is empty for a block that never
  closes
 
  @example
@@ -225,7 +225,7 @@ function closingMarksOf(
  Edits that lengthen the opening and the closing of a fenced block whose content holds a mark the strict grammar would
  close it at.
 
- @param source - the text
+ @param source - text
 
  @param range - where the block stands, its opening fence first
 

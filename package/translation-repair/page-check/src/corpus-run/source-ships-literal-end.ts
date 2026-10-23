@@ -20,7 +20,7 @@ const CONTAINERS: ReadonlySet<string> = new Set([
 /**
  Whether a block ends in a raw HTML block or in indented code.
 
- @param source - the text
+ @param source - text
 
  @param node - block directly under the root
 

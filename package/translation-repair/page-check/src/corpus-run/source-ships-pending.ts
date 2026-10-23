@@ -77,9 +77,9 @@ const NO_BLOCK_READ: FootnoteState = {
 
  @param footnotes - state of each container a block was read in
 
- @param parent - the container
+ @param parent - container
 
- @returns The container's state, that of a container nothing has been read in when no block was
+ @returns Container's state, that of a container nothing has been read in when no block was
 
  @example
  ```ts
@@ -101,18 +101,18 @@ export function footnoteStateOf(
 /**
  What a container's state is once a block has been read in it.
 
- @param before - the container's state before the block
+ @param before - container's state before the block
 
- @param source - the text
+ @param source - text
 
- @param node - the block
+ @param node - block
 
  @param range - where the block stands
 
  @param continuesFootnote - whether the block is indented code under a footnote definition, which the definition's own
  blocks continue
 
- @returns The state with the block as the one read last
+ @returns State with the block as the one read last
 
  @example
  ```ts
@@ -153,8 +153,8 @@ export function stateAfter(
 
 /**
  Whether a block stands on the line right after the block read last in its container, which is part of a footnote
- definition, or starts at that line: a setext heading whose first line the plain reading took for a definition starts
- there.
+ definition, or starts at that line: a setext heading whose first line the
+ plain reading took for a definition starts there.
 
  @param state - what the block read last in the container was
 

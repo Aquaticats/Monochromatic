@@ -17,11 +17,11 @@ import { fenceLengthEdits, } from '../../dist/final/node/index.mjs';
 /**
  Edits for a text that is one fenced block.
 
- @param source - the text, whose whole is the block, less the container marks before the fence
+ @param source - text, whose whole is the block, less the container marks before the fence
 
  @param start - index of the opening fence
 
- @returns The edits
+ @returns Edits
 
  @example
  ```ts

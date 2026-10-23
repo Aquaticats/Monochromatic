@@ -24,7 +24,7 @@ import {
 /**
  Finds the addresses of a text read whole as text, outside any link.
 
- @param text - the text
+ @param text - text
 
  @returns Addresses found
 
@@ -49,7 +49,7 @@ function addressesOf({ text, }: { readonly text: string; },): readonly BareAddre
 /**
  The text of each address found, as it stands in the text.
 
- @param text - the text
+ @param text - text
 
  @returns Each address's characters
 

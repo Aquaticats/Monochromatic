@@ -25,7 +25,7 @@ import {
 /**
  Whether the first block of a text is read as an ES module.
 
- @param source - the text
+ @param source - text
 
  @param isTopLevel - whether the block stands directly under the root
 
@@ -59,7 +59,7 @@ function firstBlockIsModule(
 /**
  Where the later module lines of the first block of a text start.
 
- @param source - the text
+ @param source - text
 
  @param isNested - whether the text is read apart from the document
 

@@ -36,10 +36,10 @@ const CONTAINER_PREFIX = ' \t>';
 const FLOW_STARTS = '{<';
 
 /**
- Edits that join the lines of a stretch whose later line starts with a brace, a less-than sign or an indented fence
- mark.
+ Edits that join the lines of a stretch whose later line starts with a
+ brace, a less-than sign or an indented fence mark.
 
- @param source - the text
+ @param source - text
 
  @param range - stretch to look in, whose first character no line ending joins to
 
@@ -98,13 +98,13 @@ export function joinedLines(
  Edits that join the lines of a node whose characters the plain reading keeps whole and the strict grammar cuts: a code
  span, inline math, and the destination and title of a link, an image or a definition.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
  @param range - where the node stands
 
- @returns The edits, none for a node of another kind and none for a footnote definition
+ @returns Edits, none for a node of another kind and none for a footnote definition
 
  @example
  ```ts
@@ -165,9 +165,9 @@ export function lineJoinsOf(
  The stretches of a raw HTML block or of indented code that are its content: each line less the marks of the containers
  and the indentation before it.
 
- @param source - the text, or the text the parse was given with its comments blanked, of the same length
+ @param source - text, or the text the parse was given with its comments blanked, of the same length
 
- @param node - a `code` or `html` node of the parse
+ @param node - `code` or `html` node of the parse
 
  @param range - where the node stands
 

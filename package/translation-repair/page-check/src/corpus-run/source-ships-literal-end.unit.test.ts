@@ -18,7 +18,7 @@ import { endsInLiteral, } from '../../dist/final/node/index.mjs';
 /**
  Whether the first block of a text ends in a raw HTML block or in indented code.
 
- @param source - the text
+ @param source - text
 
  @returns Answer
 

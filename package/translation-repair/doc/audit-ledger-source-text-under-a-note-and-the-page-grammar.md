@@ -229,7 +229,7 @@ the counts being the pairs of the search that name each cause by the fragments t
   which is a finding about its pool and not about the shape;
 - the remaining 85 pairs,
   which come down to the shapes the encoder did not meet then,
-  named in the next heading.
+  named under "Shapes the encoder did not make parse at the first follow-up".
 
 #### Shapes the encoder did not make parse at the first follow-up
 
@@ -384,7 +384,9 @@ A claim about a page is checked against what a reader of the page sees.
 
 ### Follow-up: the holes between the plain parse and the strict grammar
 
-A review of the encoder found texts it left refused,
+Reading the encoder against the strict grammar,
+run by run,
+found texts it left refused,
 and texts that parse and read unlike the source.
 Each became a reader case in `page-check/src/corpus-run/source-ships-encoding.unit.test.ts`:
 the reader text of the encoded run under the real grammar equals the source read as plain Markdown,
@@ -433,8 +435,9 @@ the encoder then closed each hole.
   so no caught value goes unused.
 
 The reader of the source text in the cases (`page-check/src/corpus-run/source-reader-text.test-fixture.ts`)
-reads the source on the site's flavour,
-CommonMark with GFM and the site's math
+reads the source in the flavour the package parses pages in,
+CommonMark with GFM and the site's math,
+no MDX
 (`document-structure/src/gfm-math-reading.test-fixture.ts`),
 and no longer re-wraps a math node in `$`.
 `parseMarkdownMathBody` has no GFM,

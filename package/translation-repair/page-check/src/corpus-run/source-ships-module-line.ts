@@ -86,7 +86,7 @@ const LINE_BLOCKS: ReadonlySet<string> = new Set([
  Whether a line is a list marker and nothing else: a bullet, or one to nine digits and a dot or a parenthesis, with
  up to three columns of indentation before it and white space after it.
 
- @param line - the line, with no line ending
+ @param line - line, with no line ending
 
  @returns Whether the strict grammar reads an empty list item there when no paragraph is open
 
@@ -156,7 +156,7 @@ export function isEmptyMarkerLine({ line, }: { readonly line: string; },): boole
  Whether MDX reads the node as an ES module: a paragraph or a setext heading at the first column of the document's own
  level that starts with `import ` or `export `.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
@@ -209,7 +209,7 @@ export function startsEsModule(
  no characters and begin with `import ` or `export ` at the first column, each of which the strict grammar reads as an
  ES module.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
@@ -292,7 +292,7 @@ export function laterModuleLines(
 /**
  Writes the first letter of an ES module line as a character reference, which shows the same and starts no module.
 
- @param source - the text
+ @param source - text
 
  @param at - index of the letter
 
@@ -323,7 +323,7 @@ export function moduleLetterEdit(
  The edits that keep a node from starting an ES module: its first word and the first word of each later line, as
  character references.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
@@ -335,7 +335,7 @@ export function moduleLetterEdit(
 
  @param afterFootnote - whether the node follows a footnote definition on the next line or opens one
 
- @returns The edits, none for a node that starts no module
+ @returns Edits, none for a node that starts no module
 
  @example
  ```ts

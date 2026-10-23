@@ -23,7 +23,7 @@ import {
 
  @param key - name of the member
 
- @returns The member, nothing known of it; `undefined` for a value that is no object or lacks the member
+ @returns Member, nothing known of it; `undefined` for a value that is no object or lacks the member
 
  @example
  ```ts
@@ -47,7 +47,7 @@ function memberOf(
 
  @param value - member read from the tree
 
- @returns The items, none for a value that is no list
+ @returns Items, none for a value that is no list
 
  @example
  ```ts
@@ -63,7 +63,7 @@ function itemsOf({ value, }: { readonly value: unknown; },): readonly unknown[] 
 
  @param node - identifier, or anything else the tree holds
 
- @returns The name in a list of one, none for a value that holds no name
+ @returns Name in a list of one, none for a value that holds no name
 
  @example
  ```ts

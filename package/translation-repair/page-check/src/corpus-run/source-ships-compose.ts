@@ -84,8 +84,8 @@ export type ComposedPage = {
   readonly step: SourcePageStep;
 
   /**
-   Slices whose original the step wrote as literal text or left off the page, none for a page with every original as
-   recorded.
+   Slices whose original the step wrote as literal text or left off the page,
+   none for a page with every original as recorded.
    */
   readonly slices: readonly number[];
 
@@ -333,8 +333,8 @@ export function composeSourcePage(
     slices: readings,
   },);
   /**
-   Slices of the runs that do not parse as a text of their own, hold a comment that never closes, or cannot stand beside
-   another.
+   Slices of the runs that do not parse as a text of their own, hold a comment
+   that never closes, or cannot stand beside another.
    */
   const failingAlone = runs
     .filter(function refusedAlone(run,): boolean {

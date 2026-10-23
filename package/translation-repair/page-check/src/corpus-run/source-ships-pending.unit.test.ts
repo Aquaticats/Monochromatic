@@ -41,9 +41,9 @@ const NOTHING_READ = {
 /**
  The blocks of a text, parsed as the spans reader parses.
 
- @param source - the text
+ @param source - text
 
- @returns The root and its blocks
+ @returns Root and its blocks
 
  @example
  ```ts

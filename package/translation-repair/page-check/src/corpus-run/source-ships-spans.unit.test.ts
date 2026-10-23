@@ -44,7 +44,7 @@ function spansIn({ source, }: { readonly source: string; },): SourceSpans {
 /**
  The text of a stretch of a source.
 
- @param source - the text
+ @param source - text
 
  @param range - stretch to cut out
 

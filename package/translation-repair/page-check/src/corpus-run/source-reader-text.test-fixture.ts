@@ -11,11 +11,11 @@ import {
 //region Reader text of a source run
 // WHAT A READER OF A PAGE SEES OF A TEXT, put side by side for the text as the artifact records it and the text as the
 // page carries it. A page is read the way the package admits it (HTML comments masked, then the strict MDX grammar),
-// the source the way any Markdown reader would read it on the site's flavour (CommonMark with GFM and the site's math,
-// `gfm-math-reading.test-fixture.ts` in `document-structure`), and both are reduced to the same account: the text
-// of every leaf, with a link's target marked where the link stands and the formula of a math node as it is. The
-// account of a page that holds a construct the strict grammar reads as syntax (an expression, a tag) is refused rather
-// than guessed at, since such a page does not show the source text.
+// the source the way any Markdown reader would read it in the flavour the package parses pages in (CommonMark with GFM
+// and the site's math, no MDX; `gfm-math-reading.test-fixture.ts` in `document-structure`), and both are reduced to the
+// same account: the text of every leaf, with a link's target marked where the link stands and the formula of a math
+// node as it is. The account of a page that holds a construct the strict grammar reads as syntax (an expression, a tag)
+// is refused rather than guessed at, since such a page does not show the source text.
 //
 // TEST SUPPORT, NOT PACKAGE SOURCE.
 
@@ -241,7 +241,7 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
 
  @param account - account of a page or of a source
 
- @returns The account without the mark and the target of each link
+ @returns Account without the mark and the target of each link
 
  @example
  ```ts

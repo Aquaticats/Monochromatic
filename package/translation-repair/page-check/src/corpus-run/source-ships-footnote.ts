@@ -23,10 +23,11 @@ const FOOTNOTE_GAP = ' \t\r\n';
  How many columns a block under a footnote definition is indented by.
  */
 const FOOTNOTE_INDENT = 4;
+
 /**
  Where the body of a footnote definition starts: after its label, the colon and the white space that follows.
 
- @param source - the text
+ @param source - text
 
  @param range - where the definition stands
 
@@ -70,7 +71,7 @@ export function footnoteBodyStart(
  Whether a node opens a footnote definition that the strict grammar reads: a paragraph starting `[^label]:`, or a link
  reference definition whose label starts with a caret, which CommonMark reads as that and GFM as a footnote.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
@@ -187,7 +188,7 @@ export function isLazyDefinition(
 /**
  Whether a node is code the strict grammar reads as a paragraph: indented code, since MDX has no such thing.
 
- @param source - the text
+ @param source - text
 
  @param node - node of the parse
 
@@ -223,7 +224,7 @@ export function isIndentedCode(
 /**
  Where the line starting at an index ends.
 
- @param source - the text
+ @param source - text
 
  @param from - index the line starts at
 
@@ -266,7 +267,7 @@ function lineEndAfter(
  The indices of the characters of an indented block that remain once each line gives up its indentation of up to four
  spaces or one tab, which is how a footnote definition reads the blocks indented under it.
 
- @param source - the text
+ @param source - text
 
  @param range - where the block stands, from the start of its first line
 

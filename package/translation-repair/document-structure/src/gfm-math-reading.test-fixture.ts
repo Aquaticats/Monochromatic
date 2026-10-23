@@ -6,12 +6,12 @@ import { unified, } from 'unified';
 import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
 
 //region GFM and math reading
-// TEST SUPPORT, NOT PACKAGE SOURCE. WHAT A READER OF PLAIN MARKDOWN SEES ON THE SITE'S FLAVOUR: CommonMark with the
-// footnotes, tables and autolink literals of GFM and the math of `remark-math`, and none of the MDX extensions, so no
-// text is refused for its syntax. A suite that puts a source text beside the page carrying it reads the source through
-// this, because the page is read with footnotes and math on, and a source read without them (`parseMarkdownMathBody`
-// has no GFM, so a footnote definition made of one address is a link reference definition there) would differ from
-// the page where the two are the same text.
+// TEST SUPPORT, NOT PACKAGE SOURCE. WHAT A READER OF PLAIN MARKDOWN SEES IN THE FLAVOUR THE PACKAGE PARSES PAGES IN
+// (CommonMark with GFM and the site's math, no MDX): the footnotes, tables and autolink literals of GFM and the math of
+// `remark-math`, and none of the MDX extensions, so no text is refused for its syntax. A suite that puts a source text
+// beside the page carrying it reads the source through this, because the page is read with footnotes and math on, and a
+// source read without them (`parseMarkdownMathBody` has no GFM, so a footnote definition made of one address is a link
+// reference definition there) would differ from the page where the two are the same text.
 
 /**
  The tree the package's plain reading returns, which this reading returns too.
@@ -19,8 +19,8 @@ import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
 type PlainRoot = ReturnType<typeof parseMarkdownMathBody>;
 
 /**
- Whether a parse returned a root node, the one thing the parser's own types promise and the built types of the package
- spell differently.
+ Whether a parse returned a root node, the one thing the parser's own types promise
+ and the built types of the package spell differently.
 
  @param value - what the parser returned
 
@@ -50,6 +50,8 @@ function isRoot(value: unknown,): value is PlainRoot {
 
  @returns mdast root; the GFM autolink-literal transform builds nodes without a position, so a caller that edits the
  text by node positions reads through `parseMarkdownMathBody` instead
+
+ @throws Error when the parser returns something that is not a root node, which its own types rule out
 
  @example
  ```ts

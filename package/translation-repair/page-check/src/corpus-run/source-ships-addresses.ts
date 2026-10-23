@@ -26,6 +26,14 @@ import {
 // LIMITS. The domain is checked at its first character only (not white space, a control character, punctuation or a
 // symbol, a hyphen excepted), not for its dots and underscores, and the trailing punctuation left out of the link is
 // the set GFM names plus a closing parenthesis nothing opened, with no check for an entity at the end.
+//
+// AN ADDRESS THE PLAIN PARSE CUTS INTO SEVERAL NODES IS NOT READ AS ONE, and two shapes follow. An address holding a
+// pair of emphasis marks and then a brace (`https://example.net/a*b*c{d}`) is cut at the pair, so the tail is left to
+// the ordinary escapes: the page parses, and the text and the target of its link hold `\{d\}` with the backslashes
+// shown. An address holding two dollar signs and then a less-than sign (`https://example.net/a$b$c<d> {`) is cut at
+// the math, is not written as a link, and the page is refused, so the composition takes step 3 for the run. Both need
+// an address of that shape and a brace or a less-than sign after the cut, which no fragment of the seeded search named
+// in `source-ships-encoding.ts` holds.
 
 /**
  What GFM reads as the start of an address with a protocol.
@@ -115,7 +123,7 @@ function startsDomain({ character, }: { readonly character: string; },): boolean
 /**
  Whether GFM reads an address starting at an index.
 
- @param text - the text
+ @param text - text
 
  @param at - index to look at
 
@@ -160,7 +168,7 @@ function startsAddress(
 /**
  Where an address ends: at the next space or less-than sign, as the GFM pattern reads it.
 
- @param text - the text
+ @param text - text
 
  @param from - index the address starts at
 
@@ -255,7 +263,7 @@ type Stretch = {
 
  @param at - index to look at
 
- @returns The last start at or before the index, or negative one when none is
+ @returns Last start at or before the index, or negative one when none is
 
  @example
  ```ts
@@ -286,7 +294,7 @@ function streamStartAt(
  Finds the bare addresses in the stretches a reader sees as text, apart from those in link text, where GFM reads none,
  and those after a label nothing has closed.
 
- @param text - the text
+ @param text - text
 
  @param ranges - stretches read as text
 
@@ -448,7 +456,7 @@ export function bareAddresses(
 /**
  Whether a blank line stands in a text: a line of indentation and block quote marks only between two line endings.
 
- @param text - the text
+ @param text - text
 
  @returns Whether the text holds a line ending, a line of nothing else, and a line ending
 
@@ -481,7 +489,7 @@ function hasBlankLine({ text, }: { readonly text: string; },): boolean {
 /**
  How many times a character stands in a text.
 
- @param text - the text
+ @param text - text
 
  @param character - one character
 
@@ -512,7 +520,7 @@ function countOf(
  Whether the last character of an address is left out of the link when it ends the address: punctuation GFM names, or a
  closing parenthesis nothing opened.
 
- @param kept - the address as far as it is kept
+ @param kept - address as far as it is kept
 
  @returns Whether the last character is left out
 
@@ -543,7 +551,7 @@ function isLeftOut({ kept, }: { readonly kept: string; },): boolean {
  Where the link an address becomes ends: the address less the punctuation GFM leaves out of one when it ends it, and a
  closing parenthesis nothing opened.
 
- @param text - the text
+ @param text - text
 
  @param address - where the address stands
 
@@ -580,7 +588,7 @@ function linkEnd(
 /**
  Writes a bare address a less-than sign ends as a link with the same text and target.
 
- @param text - the text
+ @param text - text
 
  @param address - where the address stands
 

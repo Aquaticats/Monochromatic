@@ -52,8 +52,8 @@ export type SourceSpans = {
   readonly edits: readonly TextEdit[];
 
   /**
-   Links and link references, each from its first bracket to its last character, inside whose text GFM reads no bare
-   address.
+   Links and link references, each from its first bracket to its last
+   character, inside whose text GFM reads no bare address.
    */
   readonly insideLinks: readonly TextRange[];
 
@@ -76,6 +76,7 @@ export const FENCE_MARKS: readonly string[] = [
   '```',
   '~~~',
 ];
+
 /**
  Where a node's characters start and end.
 
@@ -118,7 +119,7 @@ export function rangeOf({ node, }: { readonly node: TreeNode; },): TextRange {
 /**
  Whether the text has one of the strings at an index.
 
- @param text - the text
+ @param text - text
 
  @param at - index to look at
 
@@ -153,7 +154,7 @@ export function startsAny(
 /**
  Where the bracket closing a label stands.
 
- @param source - the text
+ @param source - text
 
  @param from - index just past the opening bracket
 
@@ -285,7 +286,7 @@ const IMAGE_OPENER_LENGTH = 2;
 /**
  Where the second label of a full reference stands: the brackets after the text.
 
- @param source - the text
+ @param source - text
 
  @param range - where the reference stands
 
@@ -323,13 +324,13 @@ export function secondLabel(
  The stretches of an image or an image reference that a reader sees as text: the alternative text, and the second label
  of a full reference. The destination and the title are not.
 
- @param source - the text
+ @param source - text
 
- @param node - an `image` or an `imageReference` node of the parse
+ @param node - `image` or an `imageReference` node of the parse
 
  @param range - where the node stands
 
- @returns The stretches, in text order
+ @returns Stretches, in text order
 
  @example
  ```ts

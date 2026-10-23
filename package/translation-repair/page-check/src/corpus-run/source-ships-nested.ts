@@ -30,7 +30,7 @@ export type SpansReader = (
 /**
  The characters of a text at the indices.
 
- @param text - the text
+ @param text - text
 
  @param indices - indices of the characters, in order
 
@@ -60,11 +60,11 @@ function charactersAt(
 /**
  Reads a block nested in another as a text of its own: the body of a footnote definition, or a block indented under one.
 
- @param source - the whole text
+ @param source - whole text
 
- @param readable - the whole text with its comments blanked, the parse's own input
+ @param readable - whole text with its comments blanked, the parse's own input
 
- @param indices - the indices of the whole text that make up the block, in order
+ @param indices - indices of the whole text that make up the block, in order
 
  @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
 

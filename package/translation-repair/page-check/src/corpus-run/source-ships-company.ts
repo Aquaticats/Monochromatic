@@ -21,7 +21,7 @@ import type { WouldShipSlice, } from './would-ship-text.ts';
 
  @param slices - every slice's reading, in comparison-row order
 
- @returns The runs holding an indented fence mark and the runs redeclaring a name, in page order
+ @returns Runs holding an indented fence mark and the runs redeclaring a name, in page order
 
  @example
  ```ts

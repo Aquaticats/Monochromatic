@@ -749,8 +749,8 @@ await describe({
             + 'should, so a later pass does not publish it again',
           fn: async () => {
             /**
-             A run nested past the bound the plain reading keeps, then a paragraph the archive covers and a run that
-             parses.
+             A run nested past the bound the plain reading keeps, then a
+             paragraph the archive covers and a run that parses.
              */
             const rows: readonly SourceShippedRow[] = [
               OPENING_ROW,

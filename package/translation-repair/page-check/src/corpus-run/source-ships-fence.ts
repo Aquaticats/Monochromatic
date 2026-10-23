@@ -36,11 +36,11 @@ const INDENT_WITHOUT_FENCE = 4;
 /**
  Where the indented fence mark that starts at an index ends.
 
- @param source - the text
+ @param source - text
 
  @param at - index of the first character of the mark
 
- @returns The index after the mark, which is `at` itself when no indented fence mark starts there: that is, when the
+ @returns Index after the mark, which is `at` itself when no indented fence mark starts there: that is, when the
  character is no fence character, fewer than three of it follow, or the characters before it on the line are other than
  the indentation and the marks of block quotes, or hold fewer than four columns of indentation
 

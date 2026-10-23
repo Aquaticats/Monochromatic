@@ -29,7 +29,7 @@ import {
 /**
  The nodes under the root of a text, read by the plain parse.
 
- @param source - the text
+ @param source - text
 
  @returns Root's children
 
@@ -45,7 +45,7 @@ function blocksOf({ source, }: { readonly source: string; },): readonly TreeNode
 /**
  The only block of a text.
 
- @param source - the text
+ @param source - text
 
  @returns Block
 
@@ -108,7 +108,7 @@ await describe({
             /**
              Whether the only block of a text opens a footnote.
 
-             @param source - the text
+             @param source - text
 
              @returns Whether it does
              */
@@ -140,7 +140,7 @@ await describe({
             /**
              Whether the second block of a text is a line of the footnote the first opens.
 
-             @param source - the text
+             @param source - text
 
              @param footnoteOpen - whether the first block is part of a footnote definition
 
@@ -207,7 +207,7 @@ await describe({
             /**
              Whether the last block of a text is indented code.
 
-             @param source - the text
+             @param source - text
 
              @returns Whether it is
              */
@@ -239,7 +239,7 @@ await describe({
             /**
              Characters kept from a block, as text.
 
-             @param source - the text, of which the whole is the block
+             @param source - text, of which the whole is the block
 
              @returns Kept characters joined
              */

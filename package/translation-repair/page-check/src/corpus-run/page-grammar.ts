@@ -125,8 +125,8 @@ export type PageGrammarReading =
  READS THREE KINDS OF REFUSAL AS ONE ANSWER. A strict parse that fell back to plain markdown is the usual one. A text
  nested past the bound the plain markdown fallback keeps, or a front matter fence whose YAML does not parse, raises its
  own error out of `parseDocument` and not a downgrade finding; each of those is a text the site cannot build as well,
- so each answers "refused" here and the caller chooses what to do about it. Any other error is a fault in the code and
- propagates.
+ so each answers "refused" here and the caller chooses what to do about it. Any
+ other error is a fault in the code and propagates.
 
  @param pageText - page or fragment, front matter included when it has one
 
