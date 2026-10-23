@@ -149,6 +149,29 @@ function refusingBadBraces({ pageText, }: { readonly pageText: string; },): Page
 }
 
 /**
+ A grammar that refuses a text, whether a page or a fragment of its own, that holds the word NOPE.
+
+ STANDS FOR A RUN THAT NO WRITING MAKES PARSE, which the real grammar has for nesting past a bound.
+
+ @param pageText - page or fragment
+
+ @returns Refusal for a text holding the word, a parse otherwise
+
+ @example
+ ```ts
+ const reading = refusingNope({ pageText: 'NOPE', },);
+ ```
+ */
+function refusingNope({ pageText, }: { readonly pageText: string; },): PageGrammarReading {
+  return pageText.includes('NOPE',)
+    ? {
+      kind: 'refused',
+      refusal: 'at 1:1 (test/nope)',
+    }
+    : { kind: 'parses', };
+}
+
+/**
  A grammar that refuses every page.
 
  @param pageText - page or fragment
@@ -266,6 +289,73 @@ await describe({
             expect(warnings[0],).toContain('step 2 of 3',);
             expect(warnings[1],).toContain('step 3 of 3',);
             expect(warnings[1],).toContain('the page with every source run written as literal text does not parse',);
+          },
+        },),
+
+        it({
+          name: 'DROPS ONLY THE RUN THAT NO WRITING MAKES PARSE, the third step: the run that parses alone stays on '
+            + 'the page, the defect names the dropped slice only, and the page is weighed without that slice',
+          fn: async () => {
+            const { composed, warnings, } = composeRows({
+              rows: [
+                OPENING_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: 'NOPE 她说\n',
+                },
+                MIDDLE_ROW,
+                {
+                  incumbentText: '',
+                  sourceText: '她又说\n',
+                },
+              ],
+              readGrammar: refusingNope,
+            },);
+            expect(composed.step,).toBe('dropped',);
+            expect(composed.slices,).toEqual([1,],);
+            expect(composed.pageText,).not.toContain('NOPE',);
+            expect(composed.pageText,).toContain(`${UNTRANSLATED_PASSAGE_NOTE}\n\n她又说`,);
+            expect(composed.defects,).toEqual([
+              {
+                check: 'page-source-unparseable',
+                message: 'entry BookshopCat ships without the source text of slices [1], since the page did not '
+                  + 'parse with it as written or as literal text',
+              },
+            ],);
+            expect(wouldShipTextPerSlice({ artifact: composed.weighed, },).map(function kindOf({ reading, },): string {
+              return reading.kind;
+            },),).toEqual(['wording', 'nothing-ships', 'wording', 'source-ships',],);
+            expect(warnings.at(-1,),).toContain('step 3 of 3',);
+            expect(warnings.at(-1,),).toContain('slices [1]',);
+          },
+        },),
+
+        it({
+          name: 'WEIGHS AGAINST THE ARTIFACT WITHOUT ANY RECORD WHEN THE PAGE HAD TO DROP EVERY RUN, the fallback of '
+            + 'the third step when no run is refused alone',
+          fn: async () => {
+            const { composed, } = composeRows({
+              rows: TWO_RUNS,
+              readGrammar: refusingEveryPage,
+            },);
+            expect(composed.step,).toBe('dropped',);
+            expect(wouldShipTextPerSlice({ artifact: composed.weighed, },).map(function kindOf({ reading, },): string {
+              return reading.kind;
+            },),).toEqual(['wording', 'nothing-ships', 'wording', 'nothing-ships',],);
+          },
+        },),
+
+        it({
+          name: 'WEIGHS AGAINST THE ARTIFACT ITSELF FOR A PAGE THAT KEPT EVERY RUN, the control for the pages that '
+            + 'dropped',
+          fn: async () => {
+            const { composed, } = composeRows({
+              rows: TWO_RUNS,
+              readGrammar: parsingEverything,
+            },);
+            expect(wouldShipTextPerSlice({ artifact: composed.weighed, },).map(function kindOf({ reading, },): string {
+              return reading.kind;
+            },),).toEqual(['wording', 'source-ships', 'wording', 'source-ships',],);
           },
         },),
 

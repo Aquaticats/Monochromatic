@@ -132,6 +132,8 @@ const FIVE_REFERENCES: readonly SourceShippedRow[] = [
 
  @param artifact - artifact to publish, the rows' own unless a case supplies another
 
+ @param sourceText - whole source page the destinations are read from, the rows' own unless a case supplies another
+
  @returns Page, the artifact it was published from and the defects it shipped with
 
  @example
@@ -143,9 +145,15 @@ async function publishRows(
   {
     rows,
     artifact = sourceShippedArtifact({ rows, },),
+    sourceText = rows
+      .map(function sourceOf({ sourceText: recorded, },): string {
+        return recorded;
+      },)
+      .join('',),
   }: {
     readonly rows: readonly SourceShippedRow[];
     readonly artifact?: WouldShipSource;
+    readonly sourceText?: string;
   },
 ): Promise<{
   readonly page: string;
@@ -175,11 +183,7 @@ async function publishRows(
     artifact,
     slices: sourceShippedSlices({ rows, },),
     archiveText: sourceShippedArchive({ rows, },),
-    sourceText: rows
-      .map(function sourceOf({ sourceText, },): string {
-        return sourceText;
-      },)
-      .join('',),
+    sourceText,
     entryId: 'BookshopCat',
     publishDir: tree.path,
     l,
@@ -347,6 +351,17 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
     carried: '见 [https://example.net/a](https://example.net/a)',
   },
 ];
+
+/**
+ Levels of block quote the plain reading refuses (its bound is 256), which no way of writing makes the grammar accept.
+ */
+const NESTING_PAST_BOUND = 300;
+
+/**
+ The source page of the entries whose rows nest a run past the bound, which the page itself is read for destinations
+ without the nesting (the preparation of a real source refuses such a text before a page is composed).
+ */
+const NESTED_RUN_SOURCE_PAGE = '一只虎斑猫。\n\n她说\n\n她睡在柜台上。\n\n她又说\n';
 
 /**
  Lone paragraph that parses as written, the control for the sources the grammar refuses.
@@ -727,6 +742,92 @@ await describe({
             expect(lines.length,).toBe(1,);
             expect(lines[0],).toContain('step 1 of 3',);
             expect(lines[0],).toContain('slices [1]',);
+          },
+        },),
+
+        it({
+          name: 'SHIPS A RUN NO WRITING MAKES PARSE AS A PAGE WITHOUT IT, keeps the run beside it, names the slice in '
+            + 'the defect and the composition line, and the page read back agrees with its artifact and weighs what it '
+            + 'should, so a later pass does not publish it again',
+          fn: async () => {
+            /**
+             A run nested past the bound the plain reading keeps, then a paragraph the archive covers and a run that parses.
+             */
+            const rows: readonly SourceShippedRow[] = [
+              OPENING_ROW,
+              {
+                incumbentText: '',
+                sourceText: `${'> '.repeat(NESTING_PAST_BOUND,)}她说\n`,
+              },
+              MIDDLE_ROW,
+              {
+                incumbentText: '',
+                sourceText: '她又说\n',
+              },
+            ];
+            const { page, artifact, checks, warnings, } = await publishRows({
+              rows,
+              sourceText: NESTED_RUN_SOURCE_PAGE,
+            },);
+            expect(checks,).toEqual(['page-source-unparseable',],);
+            expect(page,).not.toContain('她说',);
+            expect(page,).toContain('She slept on the counter.',);
+            expect(page,).toContain(`${NOTE}\n\n她又说\n`,);
+            const lines = compositionLines({ warnings, },);
+            expect(lines.at(-1,),).toContain('step 3 of 3',);
+            expect(lines.at(-1,),).toContain('slices [1]',);
+            const judged = pageAgreement({
+              artifact: {
+                ...artifact,
+                preparation: {
+                  archiveText: {
+                    kind: 'stored',
+                    text: sourceShippedArchive({ rows, },),
+                  },
+                },
+              },
+              pageText: page,
+            },);
+            expect(judged.agreement,).toBe('agreed-weighed',);
+            expect(judged.wrongLength,).toBe(false,);
+            expect(judged.wording.missing,).toEqual([],);
+            expect(judged.sourceDropped,).toEqual([1,],);
+          },
+        },),
+
+        it({
+          name: 'STILL REPORTS TEXT LOST ELSEWHERE ON A PAGE SHIPPED WITHOUT A RUN, the positive control for the page '
+            + 'that agrees: the sentence of a paragraph the archive covers is gone, and so the page disagrees',
+          fn: async () => {
+            const rows: readonly SourceShippedRow[] = [
+              OPENING_ROW,
+              {
+                incumbentText: '',
+                sourceText: `${'> '.repeat(NESTING_PAST_BOUND,)}她说\n`,
+              },
+              MIDDLE_ROW,
+            ];
+            const { page, artifact, } = await publishRows({
+              rows,
+              sourceText: NESTED_RUN_SOURCE_PAGE,
+            },);
+            const judged = pageAgreement({
+              artifact: {
+                ...artifact,
+                preparation: {
+                  archiveText: {
+                    kind: 'stored',
+                    text: sourceShippedArchive({ rows, },),
+                  },
+                },
+              },
+              pageText: page.replace(
+                'She slept on the counter.',
+                '',
+              ),
+            },);
+            expect(judged.agreement,).toBe('disagreed',);
+            expect(judged.sourceDropped,).toEqual([],);
           },
         },),
 
