@@ -55,20 +55,40 @@ The groups that follow name the main ones.
   `markRuns`,
   `carriesText`,
   `textOnPage`,
-  `withoutSourceRecord`.
+  `withoutSourceRecordAt`.
   Declared in `corpus-run/source-ships.ts`.
 - Page composition under the grammar:
   ship each source run as recorded whenever the page parses,
-  and otherwise write the runs that do not parse alone as literal text,
+  and otherwise write the runs that do not parse alone (and any run holding a comment that never closes) as literal text,
   then every run,
-  then ship the page without the original and report `page-source-unparseable`.
+  then ship the page without the runs no writing makes parse (without every run where that does not help)
+  and report `page-source-unparseable` naming the slices.
+  The literal text is read off a CommonMark parse of the run with the site's math
+  (`parseMarkdownMathBody` of `translation-repair-document-structure`),
+  so a fence in a list item,
+  a code span across lines,
+  math,
+  a link destination and an escape the original wrote are copied,
+  and only a `{`,
+  `}` or `<` the parse reads as text is escaped.
+  A page on disk is judged by the same composition run over what the artifact records,
+  so a page shipped without runs reads as agreed
+  (`PageAgreement.sourceDropped` names the slices).
   Names:
   `composeSourcePage`,
+  `composeOverTiling`,
+  `tilingOf`,
   `sourceRunsOf`,
+  `slicesRefusedAsLiteral`,
+  `droppedRunSets`,
+  `spansOf`,
   `encodeAsLiteralMdx`,
   `SourcePageCompositionError`,
   `readPageGrammar`.
   Declared in `corpus-run/source-ships-compose.ts`,
+  `corpus-run/source-ships-runs.ts`,
+  `corpus-run/source-ships-tiling.ts`,
+  `corpus-run/source-ships-spans.ts`,
   `corpus-run/source-ships-encoding.ts`
   and `corpus-run/page-grammar.ts`.
 - Shippable replacements:

@@ -117,7 +117,7 @@ function artifactShipping(
         },
       ],
     },
-  } as unknown as WouldShipSource;
+  };
 }
 
 /**
@@ -166,7 +166,7 @@ function artifactWhoseLanesRemovedTheWording(): WouldShipSource {
       kind: 'contested',
       slices: [],
     },
-  } as unknown as WouldShipSource;
+  };
 }
 
 await describe({

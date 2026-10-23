@@ -302,7 +302,7 @@ type HostileSource = {
 };
 
 /**
- Sources the re-check of round X1 probed, each of which stopped the entry when the page carried it as written.
+ Sources the strict grammar reads as syntax, each of which stopped the entry when the page carried it as written.
  */
 const HOSTILE_SOURCES: readonly HostileSource[] = [
   {

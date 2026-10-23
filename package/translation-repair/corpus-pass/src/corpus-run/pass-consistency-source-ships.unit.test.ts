@@ -39,7 +39,9 @@ import {
 } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/consistency-page.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
-import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
+import {
+  SCRIPTED_STAGE_SETTINGS,
+} from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 import {
   consistencySlicesOf,
   runPassConsistency,
@@ -65,7 +67,7 @@ const l = tagged({ tag: 'pass-consistency-source-ships-test', },);
  The cat page cut short: the archive stops before the last section, whose slice is an anchor, and the rows of both
  lanes say nobody filled it.
 
- @returns The preparation and the projection of the lanes over it
+ @returns Preparation and projection of the lanes over it
 
  @example
  ```ts

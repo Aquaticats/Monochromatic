@@ -70,8 +70,7 @@ function changedSlices(
 
 /**
  Counts the consolidation slices that kept a standing text the contest never
- endorsed, which the stage logs as "remains retryable" and no other field of
- the line carried.
+ endorsed, read off the artifact's contest and consolidation records.
 
  READ OFF THE RECORD, so it is the slices the stage's own rule names: the
  contest backed no lane and did not endorse the archive
@@ -140,8 +139,8 @@ function standingsKeptUnendorsed(
         // are not projected per slice (`describeConsolidateSlice`), and a shipped kind `incumbent` is written both
         // where an ineligible standing was replaced by the incumbent (no "remains retryable" line, a different
         // warn) and where an archive dispute made the incumbent stand in over a valid standing (the line is
-        // written). So every kept standing is read as valid here, and the count can exceed the lines by the first
-        // kind.
+        // written). So every kept standing is read as valid here, and the count can exceed the stage's lines by the
+        // first kind.
         standingValid: true,
       },);
     },)

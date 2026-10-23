@@ -102,10 +102,12 @@ The groups that follow name the main ones.
   `measureInFlight`,
   `summariseRounds`,
   `verifyPublishedRun`,
-  `judgePublishedEntry`.
+  `judgePublishedEntry`,
+  `sourceDroppedLinesOf`.
   Declared in `corpus-run/run-timing-read.ts`,
   `corpus-run/verify-published-run.ts`,
-  and `corpus-run/verify-published-entry.ts`.
+  `corpus-run/verify-published-entry.ts`
+  and `corpus-run/verify-published-source-dropped.ts`.
 - Required providers,
   culled seats and decisions:
   refuse a run whose required providers are not ready,
@@ -184,6 +186,9 @@ and each task sets it to its own name.
   reads a published tree back and checks it against the artifacts that produced it:
   every settled entry has a page,
   and every page carries the wording its artifact says would ship.
+  A page shipped without the original of some slices because no writing of them parses
+  gets one line naming the entry,
+  `page-source-unparseable` and the slices.
   Reads `TRANSLATION_REPAIR_RUNS_DIR`.
   Spends no quota.
 

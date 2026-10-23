@@ -1,12 +1,15 @@
 /**
  Tests for the steps that make a page carrying the original of untranslated passages parse.
 
- The page-level cases that drive the real grammar are in `source-shipped-page.unit.test.ts`; every text the grammar
- refuses that anyone has found is made to parse by the first step there. The second and third steps cannot be reached
- with the real grammar by any text found so far (the grammar's refusals are all braces and tags, which the first step
- escapes, or nesting past a bound, which the source's own preparation refuses first), so these cases hand the
- composition a grammar that answers by a rule written in the case. That makes them cases of the ladder and not of the
- grammar.
+ The page-level cases that drive the real grammar are in `source-shipped-page.unit.test.ts`. Under the real grammar the
+ first step makes parse every refusal found in braces, tags and the other syntax of a run. The second step is reached
+ by no text found (a search of forty thousand pairs of runs built from a pool of fragments, seeded, found it in none):
+ every character it would escape that the first step did not is inside a fence, which the encoding copies, so the page
+ it makes equals the page the first step made and the step is not taken. The third step is reached by a fence one run
+ opens and a later run closes, with the English between them falling inside it (each run parses alone), and by a run
+ nested past the bound the plain reading keeps; the page-level cases for both are in that file. The cases here hand the
+ composition a grammar that answers by a rule written in the case, which reaches the second step and the choices of
+ the third on text the real grammar accepts, so they are cases of the ladder and not of the grammar.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -358,8 +361,8 @@ await describe({
         },),
 
         it({
-          name: 'WRITES A RUN HOLDING A COMMENT THAT NEVER CLOSES AS LITERAL TEXT EVEN WHEN THE GRAMMAR PARSES THE PAGE, '
-            + 'the first step, since the package masks everything after such an opener and no grammar vouches for it',
+          name: 'WRITES A RUN HOLDING A COMMENT THAT NEVER CLOSES AS LITERAL TEXT EVEN WHEN THE GRAMMAR PARSES THE '
+            + 'PAGE, the first step, since the package masks everything after such an opener and no grammar vouches for it',
           fn: async () => {
             const { composed, warnings, } = composeRows({
               rows: [

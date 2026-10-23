@@ -47,13 +47,15 @@ import {
 // cannot be told apart piece by piece.
 //
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original
-// for a text this does not make parse. The text of a node is escaped whole, so a backslash the original wrote before
-// a character in indented code (which MDX reads as a paragraph, escapes included) is read as an escape and the reader
-// sees the character without it. A raw HTML block that holds Markdown-looking lines is escaped as text and its lines
-// are then read as Markdown. The reach of a bare address is taken as up to the next space or less-than sign, as the
-// GFM autolink-literal pattern does. A text nested past the bound the plain reading keeps cannot be parsed, and is
-// escaped as text throughout; the strict grammar refuses such a text all the same. An opener of a comment that
-// never closes is written as a character reference wherever it stands, inside code too, where it shows as written.
+// for a text this does not make parse: a fence one run opens and a later run closes, with the English between them
+// falling inside it, is one that does (each run parses alone, and a fence is copied), and a run nested past the bound
+// the plain reading keeps is the other found. The text of a node is escaped whole, so a backslash the original wrote
+// before a character in indented code (which MDX reads as a paragraph, escapes included) is read as an escape and the
+// reader sees the character without it. A raw HTML block that holds Markdown-looking lines is escaped as text and its
+// lines are then read as Markdown. The reach of a bare address is taken as up to the next space or less-than sign, as
+// the GFM autolink-literal pattern does. A text nested past that bound cannot be parsed, and is escaped as text
+// throughout; the strict grammar refuses such a text all the same. An opener of a comment that never closes is
+// written as a character reference wherever it stands, inside code too, where it shows as written.
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.

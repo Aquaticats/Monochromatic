@@ -544,8 +544,8 @@ await describe({
       },
     },),
     it({
-      name: 'COUNTS the slices whose consolidation kept a standing text the contest did not endorse, which the '
-        + 'stage logs as "remains retryable" and nothing else on the line carried (XingZ6020: 58 log lines)',
+      name: 'COUNTS the slices whose consolidation kept a standing text the contest did not endorse, read off the '
+        + 'record and not off the stage\'s log lines (XingZ6020: 58 log lines, 56 slices)',
       fn: async () => {
         // Nothing consolidated yet: no standing was kept, so nothing is unendorsed.
         expect(renderedFields().standingUnendorsed,).toBe('0',);
