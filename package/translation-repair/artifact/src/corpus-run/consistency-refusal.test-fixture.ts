@@ -11,7 +11,7 @@ import { caught, } from '@monochromatic-dev/module-test/ts';
 
 import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool';
 import {
-  ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
   type ArtifactConsistencyCarry,
   assertCarriesRecount,
   type TwoLaneArtifactGeneration,
@@ -67,7 +67,7 @@ export function refusalTextOf({ read, }: { readonly read: () => unknown; },): st
 export function recountRefusalOf(
   {
     carry,
-    generation = ARTIFACT_SCHEMA_VERSION_V20,
+    generation = ARTIFACT_SCHEMA_VERSION_V21,
   }: {
     readonly carry: ArtifactConsistencyCarry;
     readonly generation?: TwoLaneArtifactGeneration;
