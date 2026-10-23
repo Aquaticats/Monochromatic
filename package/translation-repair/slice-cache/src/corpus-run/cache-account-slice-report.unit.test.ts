@@ -28,7 +28,7 @@ import {
   reportSliceCaches,
   type VersionSetting,
 } from '../../dist/final/node/index.mjs';
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { writeSliceRecord, } from './cache-account-repo.test-fixture.ts';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
@@ -42,6 +42,28 @@ const NEWEST_SECONDS = 1_788_343_200;
  Home directory the cases state, so the runbook's runs root reads the same on every machine.
  */
 const HOME = '/cats/home';
+
+/**
+ The warnings among the lines a level-keeping logger kept.
+
+ @param lines - every line the logger kept, behind its level
+
+ @returns The warning lines, each without its level
+
+ @example
+ ```ts
+ const warned = warningsIn({ lines: ['info read', 'warn nothing read',], },); // ['nothing read']
+ ```
+ */
+function warningsIn({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
+  return lines
+    .filter(function isWarning(line,): boolean {
+      return line.startsWith('warn ',);
+    },)
+    .map(function withoutLevel(line,): string {
+      return line.slice('warn '.length,);
+    },);
+}
 
 /**
  What the audit says when it read no slice-cache record.
@@ -138,7 +160,7 @@ await describe({
           runsDir: runs.path,
           searched: [],
           settings: [],
-          l: capturingLogger({ messages: logged, },),
+          l: levelCapturingLogger({ lines: logged, },),
           home: HOME,
         },);
 
@@ -153,7 +175,7 @@ await describe({
         },);
         expect({
           printed: printed.lines,
-          logged,
+          logged: warningsIn({ lines: logged, },),
         },).toEqual({
           printed: [
             'slice-cache records under 1 runs directory found in '
@@ -181,11 +203,11 @@ await describe({
           runsDir: runs.path,
           searched: [under.path,],
           settings: [],
-          l: capturingLogger({ messages: logged, },),
+          l: levelCapturingLogger({ lines: logged, },),
           home: HOME,
         },);
 
-        expect(logged,).toEqual([
+        expect(warningsIn({ lines: logged, },),).toEqual([
           noRecordWarning({
             roots: [
               join(root.path, 'node_modules', '.monochromatic',),
@@ -196,7 +218,7 @@ await describe({
         ],);
         expect(printed.lines.filter(function isWarning(line,): boolean {
           return line.startsWith('WARNING: ',);
-        },),).toEqual([`WARNING: ${logged[0] ?? ''}`,],);
+        },),).toEqual([`WARNING: ${warningsIn({ lines: logged, },)[0] ?? ''}`,],);
       },
     },),
     it({
@@ -213,14 +235,12 @@ await describe({
           runsDir: runs.path,
           searched: [],
           settings: [],
-          l: capturingLogger({ messages: logged, },),
+          l: levelCapturingLogger({ lines: logged, },),
           home: HOME,
         },);
 
         expect({
-          warned: logged.filter(function isWarning(line,): boolean {
-            return line.includes('no slice-cache record was read',);
-          },),
+          warned: warningsIn({ lines: logged, },),
           printedWarning: printed.lines.some(function isWarning(line,): boolean {
             return line.startsWith('WARNING: ',);
           },),
