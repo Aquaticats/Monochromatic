@@ -129,6 +129,16 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '她[^1]说\n\n[^1]: 注\n[b]: https://example.net/a{b\n',
   ],
   ['a definition line after a footnote definition and a blank line', '她[^1]说\n\n[^1]: 注\n\n[b]: u{ "t"\n'],
+  ['a bare address after a bracket nothing closes', '[ https://example.net/b{c\n'],
+  ['a bare address after text and a bracket nothing closes', 'x [ y https://example.net/b{c\n'],
+  ['a bare address after an image opener nothing closes', 'x ![ https://example.net/b{c\n'],
+  ['a bare www address after a bracket nothing closes', 'x [ www.example.net/b{c\n'],
+  ['a bare address ended by a tag after a bracket nothing closes', '[a https://example.net/a<b> {\n'],
+  ['a bare address after a bracket that holds a link', '[a [b](u) https://example.net/c{d\n'],
+  ['a bare address after a bracket that holds a pair of brackets', '[a [b] https://example.net/c{d\n'],
+  ['a bare address after a bracket that a later one closes', 'x [y https://example.net/b{c]\n'],
+  ['a bare address after a pair of brackets, which is read as an address', 'x [y] https://example.net/b{c\n'],
+  ['a bare address in the paragraph after a bracket nothing closes', '[ x\n\nhttps://example.net/b{c\n'],
 ];
 
 await describe({
@@ -334,6 +344,27 @@ await describe({
               .toBe('[^1]: [https://example.net/x](https://example.net/x)',);
             // A link reference definition that is no footnote keeps its destination and its title.
             expect(encoded({ text: '[r]: u{b "t {"\n', },),).toBe('[r]: u{b "t {"\n',);
+          },
+        },),
+
+        it({
+          name: 'READS NO BARE ADDRESS AFTER A BRACKET NOTHING CLOSES, since GFM leaves an address in the text after '
+            + 'an open label, so a brace in it is escaped as any other and a pair of brackets before it changes '
+            + 'nothing',
+          fn: async () => {
+            expect(encoded({ text: '[ https://example.net/b{c', },),).toBe(String.raw`[ https://example.net/b\{c`,);
+            expect(encoded({ text: 'x ![ www.example.net/b{c', },),).toBe(String.raw`x ![ www.example.net/b\{c`,);
+            expect(encoded({ text: '[a [b](u) https://example.net/c{d', },),)
+              .toBe(String.raw`[a [b](u) https://example.net/c\{d`,);
+            expect(encoded({ text: '[a https://example.net/a<b> {', },),)
+              .toBe(String.raw`[a https://example.net/a\<b> \{`,);
+            // A pair of brackets, a new paragraph and an escaped bracket leave the address one.
+            expect(encoded({ text: 'x [y] https://example.net/b{c', },),).toBe('x [y] https://example.net/b{c',);
+            expect(encoded({ text: '[ x\n\nhttps://example.net/b{c', },),).toBe(String.raw`[ x
+
+https://example.net/b{c`,);
+            expect(encoded({ text: String.raw`\[ https://example.net/b{c`, },),)
+              .toBe(String.raw`\[ https://example.net/b{c`,);
           },
         },),
 
