@@ -842,6 +842,20 @@ await describe({
     },),
 
     it({
+      name: 'REFUSES A SETTLEMENT MARKED BENCH-BELOW-FLOOR, since the stage never persists one: no judge was asked '
+        + 'for it, so a copy found on disk was written by something else and a later pass on a healthier bench '
+        + 'would resume a standing nobody judged',
+      fn: async () => {
+        expect(await roundTrip({
+          settlement: {
+            ...KEPT_SETTLEMENT,
+            benchBelowFloor: true,
+          },
+        },),).toBe(false,);
+      },
+    },),
+
+    it({
       name: 'REFUSES A SETTLEMENT THAT IS NO RECORD AT ALL',
       fn: async () => {
         expect(await roundTrip({ settlement: null, },),).toBe(false,);

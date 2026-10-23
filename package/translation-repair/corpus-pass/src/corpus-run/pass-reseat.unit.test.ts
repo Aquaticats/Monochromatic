@@ -658,6 +658,44 @@ await describe({
           },
         },),
         it({
+          name: 'READS EACH SLICE AGAIN WITHOUT A HOLD while the reach stays below the floor, and says so quietly: '
+            + 'one reading line a read, the no-wait warning once for the state, and no line naming a hold that '
+            + 'is not there',
+          fn: async () => {
+            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            /**
+             Every line the hook and its readings wrote.
+             */
+            const lines: string[] = [];
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l: capturingLogger({ messages: lines, },),
+              startedReachable: 1,
+            },);
+            await hooks.beforeSlice();
+            await hooks.beforeSlice();
+            await hooks.beforeSlice();
+            expect({
+              reads: rig.counter.reads,
+              readingLines: lines.filter(function isReading(line,): boolean {
+                return line.startsWith('JUDGE SEATS phase=lane contest',) && line.includes('waited=',);
+              },).length,
+              holdLines: lines.filter(function namesAHold(line,): boolean {
+                return line.includes('re-seated under a hold',);
+              },).length,
+              noWaitWarnings: lines.filter(function isNoWait(line,): boolean {
+                return line.includes('no provider has named a return the pass can wait for',);
+              },).length,
+            },).toEqual({
+              reads: 3,
+              readingLines: 3,
+              holdLines: 0,
+              noWaitWarnings: 1,
+            },);
+          },
+        },),
+        it({
           name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
             + 'below its floor of two',
           fn: async () => {
