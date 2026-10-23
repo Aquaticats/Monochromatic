@@ -26,11 +26,13 @@ import {
   contestEligibilityRequired,
   parseContestEligibility,
 } from './artifact-two-lane-read-contest-eligibility.ts';
+import { parseContestFloorMark, } from './artifact-two-lane-read-contest-floor.ts';
 import { assertContestVerdictMatches, } from './artifact-two-lane-read-contest-verdict.ts';
 import type { ArtifactKeyVocabulary, } from '../artifact-key-vocabulary.ts';
 import {
   ARTIFACT_SCHEMA_VERSION_V6,
   ARTIFACT_SCHEMA_VERSION_V7,
+  artifactGenerationRecordsBenchFloor,
   artifactGenerationRecordsTense,
   artifactGenerationSettlesSoleLane,
   type TwoLaneArtifactGeneration,
@@ -96,6 +98,14 @@ function parseSoleLaneSlice(
     readonly path: string;
   },
 ): ArtifactContestSlice {
+  // A SLICE NO JUDGE WAS ASKED ABOUT was never kept for want of a bench either: the mark belongs to a slice the roster
+  // would have been asked about, and is refused here rather than dropped unread.
+  if (slice.benchBelowFloor !== undefined) {
+    throw new ArtifactParseError({
+      path: `${path}.benchBelowFloor`,
+      reason: 'no floor mark, since no roster was asked about a slice one lane applies to',
+    },);
+  }
   // A SLICE NO JUDGE WAS ASKED ABOUT shows no sheet, so it has no tense
   // candidates to record; the key is refused rather than dropped unread.
   if (slice.tenseCandidates !== undefined) {
@@ -200,6 +210,8 @@ function parseContestSlice(
       ...((generation >= ARTIFACT_SCHEMA_VERSION_V7) ? ['eligibility',] : []),
       // THE TENSE FINDING, optional from generation fifteen alone.
       ...(artifactGenerationRecordsTense({ generation, }) ? ['tenseCandidates',] : []),
+      // THE FLOOR MARK, optional from generation twenty-one alone.
+      ...(artifactGenerationRecordsBenchFloor({ generation, }) ? ['benchBelowFloor',] : []),
     ],
     path,
   },);
@@ -346,6 +358,11 @@ function parseContestSlice(
   return {
     ...derived,
     ...tenseCandidates,
+    ...parseContestFloorMark({
+      value: slice.benchBelowFloor,
+      ballotCount: ballots.length,
+      path: `${path}.benchBelowFloor`,
+    },),
   };
 }
 

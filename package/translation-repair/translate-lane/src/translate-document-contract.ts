@@ -634,6 +634,13 @@ export type UnfilledSlice = {
    each finding belongs to; neither answers the other's question.
    */
   readonly findings: readonly string[];
+
+  /**
+   Present when no candidate was bought for the passage because the select bench read below the floor of ballots a
+   winner needs, absent when a panel was asked and declined. Both read `no-candidate-backed`; this is what tells them
+   apart, and the artifact records it from generation twenty-one.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**

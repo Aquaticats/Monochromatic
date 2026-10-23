@@ -210,6 +210,7 @@ export {
   type ParsedConsolidation,
 } from './corpus-run/artifact-two-lane-read-consolidate.ts';
 export { parseLaneSelection, } from './corpus-run/artifact-two-lane-read-contest.ts';
+export { parseContestFloorMark, } from './corpus-run/artifact-two-lane-read-contest-floor.ts';
 export {
   type ArtifactEvidenceRow,
   type ArtifactRepairEvidence,

@@ -68,6 +68,12 @@ export type LaneSliceOutcome = {
    and `incumbent-fallback` would claim something stands here.
    */
   readonly kind: 'unfilled';
+
+  /**
+   Present when the lane never bought a candidate for the passage because the bench that decides it read below its
+   floor, absent when a panel was asked and declined; the artifact records it from generation twenty-one.
+   */
+  readonly benchBelowFloor?: true;
 } | {
   /**
    Lane reached the slice, produced nothing, and the archive's own wording
@@ -178,6 +184,9 @@ export type UndecidedSlicePolicy =
  @param unfilledHere - whether the lane named this slice as reached and
  unfillable
 
+ @param belowFloorHere - whether it was left unfilled for want of a bench, which marks the outcome only where the
+ slice is unfilled
+
  @param unheardHere - whether the lane named it as reached with no voice heard
 
  @param undecided - what an unnamed gap means for this lane
@@ -188,7 +197,7 @@ export type UndecidedSlicePolicy =
 
  @example
  ```ts
- const outcome = outcomeOf({ sliceIndex, byIndex, unfilledHere, unheardHere, notApplicableHere, undecided, },);
+ const outcome = outcomeOf({ sliceIndex, byIndex, unfilledHere, belowFloorHere, unheardHere, notApplicableHere, undecided, },);
  ```
  */
 function outcomeOf(
@@ -196,6 +205,7 @@ function outcomeOf(
     sliceIndex,
     byIndex,
     unfilledHere,
+    belowFloorHere,
     unheardHere,
     notApplicableHere,
     undecided,
@@ -203,6 +213,7 @@ function outcomeOf(
     readonly sliceIndex: number;
     readonly byIndex: ReadonlyMap<number, string>;
     readonly unfilledHere: boolean;
+    readonly belowFloorHere: boolean;
     readonly unheardHere: boolean;
     readonly notApplicableHere: boolean;
     readonly undecided: UndecidedSlicePolicy;
@@ -222,8 +233,14 @@ function outcomeOf(
   // the lane reached and could not fill is neither of the two shapes the policy
   // describes: refusing it would fail a run that did nothing wrong, and treating
   // it as an early stop would let every later slice pass unexamined.
-  if (unfilledHere)
-    return { kind: 'unfilled', };
+  if (unfilledHere) {
+    return belowFloorHere
+      ? {
+        kind: 'unfilled',
+        benchBelowFloor: true,
+      }
+      : { kind: 'unfilled', };
+  }
   if (unheardHere)
     return { kind: 'incumbent-fallback', };
   if (notApplicableHere)
@@ -263,6 +280,9 @@ export { LaneSliceCoverageError, } from './lane-slice-coverage-error.ts';
  wording for, which is neither an early stop nor a dropped slice; named one by
  one rather than by policy, so every other gap is still refused
 
+ @param belowFloorChunkIndices - slices among them the lane never bought a candidate for because the bench that
+ decides them read below its floor; a name here marks the outcome only where the slice is also named unfilled
+
  @returns One entry per prepared slice, in document order
 
  @throws LaneSliceCoverageError when a decision names a slice preparation
@@ -280,6 +300,7 @@ export function buildLaneSliceTexts(
     decided,
     undecided,
     unfilledChunkIndices = [],
+    belowFloorChunkIndices = [],
     unheardChunkIndices = [],
     notApplicableChunkIndices = [],
   }: {
@@ -290,6 +311,7 @@ export function buildLaneSliceTexts(
     }[];
     readonly undecided: UndecidedSlicePolicy;
     readonly unfilledChunkIndices?: readonly number[];
+    readonly belowFloorChunkIndices?: readonly number[];
     readonly unheardChunkIndices?: readonly number[];
     readonly notApplicableChunkIndices?: readonly number[];
   },
@@ -376,6 +398,11 @@ export function buildLaneSliceTexts(
   },);
 
   /**
+   Slices left unfilled for want of a bench, to look up by index.
+   */
+  const belowFloor = new Set(belowFloorChunkIndices,);
+
+  /**
    Whether some earlier slice in document order went undecided.
 
    `not-evaluated` describes ONE shape and no other: a lane that stopped, so
@@ -399,6 +426,7 @@ export function buildLaneSliceTexts(
       sliceIndex,
       byIndex,
       unfilledHere: unfilled.has(sliceIndex,),
+      belowFloorHere: belowFloor.has(sliceIndex,),
       unheardHere: unheard.has(sliceIndex,),
       notApplicableHere: notApplicable.has(sliceIndex,),
       undecided,

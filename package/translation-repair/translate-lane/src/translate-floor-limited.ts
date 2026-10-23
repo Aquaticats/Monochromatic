@@ -211,6 +211,7 @@ export function skippedBelowFloor(
       sliceIndex,
       reason: 'no-candidate-backed',
       findings,
+      benchBelowFloor: true,
     },
     findings: [
       ...findings,

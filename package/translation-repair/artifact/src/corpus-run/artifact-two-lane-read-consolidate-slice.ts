@@ -165,6 +165,78 @@ function parseGate(
 }
 
 /**
+ Reads the mark of a slice that bought no slate because the slate bench read below its floor.
+
+ THE MARK SAYS NO SLATE WAS ASKED, so a record carrying it must look like one: the terminal that keeps the standing
+ with nothing asked, no verdicts and no gate. A mark on a slice that asked a slate is two records in one, and is
+ refused rather than believed.
+
+ @param value - recorded `benchBelowFloor` value, absent when the slice carries none
+
+ @param terminal - how the slice left the stage, already read
+
+ @param verdicts - structural verdicts the slice records, already read
+
+ @param gate - what the gate settled, already read
+
+ @param path - artifact path of the value, for refusals
+
+ @returns The mark as a record fragment, empty when the slice carries none
+
+ @throws {@link ArtifactParseError} when the value is anything but true, or the slice asked a slate
+
+ @example
+ ```ts
+ const mark = parseBenchFloorMark({ value: undefined, terminal: 'incumbent-only', verdicts: [], gate, path, },);
+ ```
+ */
+function parseBenchFloorMark(
+  {
+    value,
+    terminal,
+    verdicts,
+    gate,
+    path,
+  }: {
+    readonly value: unknown;
+    readonly terminal: ArtifactConsolidationTerminal;
+    readonly verdicts: ArtifactConsolidateSlice['verdicts'];
+    readonly gate: ArtifactConsolidateSlice['gate'];
+    readonly path: string;
+  },
+): { readonly benchBelowFloor?: true; } {
+  if (value === undefined)
+    return {};
+  if (value !== true) {
+    throw new ArtifactParseError({
+      path,
+      reason: 'true or absent',
+    },);
+  }
+  /**
+   What the record holds that a slice with no slate asked cannot.
+   */
+  const askedWhat = (terminal !== 'incumbent-only')
+    ? `terminal ${terminal}`
+    : ((verdicts.length > 0)
+      ? `${String(verdicts.length,)} ${
+        wordForCount({
+          count: verdicts.length,
+          one: 'verdict',
+          many: 'verdicts',
+        },)
+      }`
+      : ((gate.kind === 'asked') ? 'a gate that was asked' : undefined));
+  if (askedWhat !== undefined) {
+    throw new ArtifactParseError({
+      path,
+      reason: `a slice that asked no slate (terminal incumbent-only, no verdicts, no gate), rather than ${askedWhat}`,
+    },);
+  }
+  return { benchBelowFloor: true, };
+}
+
+/**
  Reads the tense finding a consolidation slice records for the wording it ships.
 
  A SLICE THAT SHIPS NO WORDING OF ITS OWN (the archive kept, or nothing
@@ -241,6 +313,8 @@ function parseShippedTense(
 
  @param tenseRecorded - whether the generation records the tense candidates of the shipped wording
 
+ @param benchFloorRecorded - whether the generation records a slice kept for want of a slate bench
+
  @returns Parsed consolidation slice
 
  @example
@@ -260,6 +334,7 @@ export function parseConsolidateSlice(
     quorumBasisRequired = false,
     lastSeatGrace = false,
     tenseRecorded = false,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
@@ -271,6 +346,7 @@ export function parseConsolidateSlice(
     readonly quorumBasisRequired?: boolean;
     readonly lastSeatGrace?: boolean;
     readonly tenseRecorded?: boolean;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactConsolidateSlice {
   /**
@@ -292,6 +368,7 @@ export function parseConsolidateSlice(
       'gate',
       ...(polishRequired ? ['polish',] : []),
       ...(tenseRecorded ? ['tenseCandidates',] : []),
+      ...(benchFloorRecorded ? ['benchBelowFloor',] : []),
     ],
     path,
   },);
@@ -351,6 +428,23 @@ export function parseConsolidateSlice(
     shipped,
     path: `${path}.tenseCandidates`,
   },);
+  /**
+   What the gate settled, read here so the floor mark can be held against it.
+   */
+  const gate = parseGate({
+    value: record.gate,
+    path: `${path}.gate`,
+  },);
+  /**
+   The floor mark the record carries, none when it carries none.
+   */
+  const floorMark = parseBenchFloorMark({
+    value: record.benchBelowFloor,
+    terminal,
+    verdicts,
+    gate,
+    path: `${path}.benchBelowFloor`,
+  },);
   return {
     sliceIndex,
     terminal,
@@ -364,10 +458,7 @@ export function parseConsolidateSlice(
       path: `${path}.demoted`,
     },),
     verdicts,
-    gate: parseGate({
-      value: record.gate,
-      path: `${path}.gate`,
-    },),
+    gate,
     ...(polishRequired
       ? {
         polish: parseConsolidationPolish({
@@ -382,6 +473,7 @@ export function parseConsolidateSlice(
       }
       : {}),
     ...tense,
+    ...floorMark,
   };
 }
 

@@ -39,6 +39,9 @@ import type { ArtifactKeyVocabulary, } from '../artifact-key-vocabulary.ts';
  @param keys - field spellings this artifact's generation uses, so an older
  file is read by its own names rather than by today's
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Ledger row as version 2 describes it
 
  @throws {@link ArtifactParseError} when the row carries a key this version
@@ -54,10 +57,12 @@ export function parseDeliveryRow(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactDeliveryRow {
   /**
@@ -102,6 +107,7 @@ export function parseDeliveryRow(
       value: record.outcome,
       unknownKeys: 'refuse',
       path: `${path}.outcome`,
+      benchFloorRecorded,
     },),
     shippedText: requireString({
       value: record.shippedText,
@@ -124,6 +130,9 @@ export function parseDeliveryRow(
  @param keys - field spellings this artifact's generation uses, so an older
  file is read by its own names rather than by today's
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Comparison row as version 2 describes it
 
  @throws {@link ArtifactParseError} when the row carries a key this version
@@ -139,10 +148,12 @@ export function parseComparisonRow(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactComparisonRow {
   /**
@@ -215,11 +226,13 @@ export function parseComparisonRow(
       value: record.repairOutcome,
       unknownKeys: 'refuse',
       path: `${path}.repairOutcome`,
+      benchFloorRecorded,
     },),
     translateOutcome: parseSliceOutcome({
       value: record.translateOutcome,
       unknownKeys: 'refuse',
       path: `${path}.translateOutcome`,
+      benchFloorRecorded,
     },),
     decisionComparison: parseDecisionComparison({
       value: record.decisionComparison,
@@ -252,6 +265,9 @@ export function parseComparisonRow(
  @param keys - field spellings this artifact's generation uses, so an older
  file is read by its own names rather than by today's
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Evidence row, with everything else in the raw row left unread
 
  @throws {@link ArtifactParseError} when a field version 2 checks is missing
@@ -267,10 +283,12 @@ export function parseEvidenceRow(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactEvidenceRow {
   /**
@@ -298,6 +316,7 @@ export function parseEvidenceRow(
       value: record.outcome,
       unknownKeys: 'tolerate',
       path: `${path}.outcome`,
+      benchFloorRecorded,
     },),
   };
 }

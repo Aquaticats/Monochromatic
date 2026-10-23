@@ -330,6 +330,10 @@ export function parseSettledTwoLaneArtifact(
    Spelling this artifact's own generation gave the three renamed keys.
    */
   const keys: ArtifactKeyVocabulary = keyVocabularyOf({ version, },);
+  /**
+   Whether this generation records the mark of an outcome the select bench never bought a candidate for.
+   */
+  const { benchFloorRecorded, } = artifactGenerationReadingRequirements({ generation, },);
 
   /**
    Entry id, which every nested path is reported under.
@@ -360,6 +364,7 @@ export function parseSettledTwoLaneArtifact(
     preparation,
     path: `${id}.lanes`,
     keys,
+    benchFloorRecorded,
   },);
 
   /**
@@ -381,6 +386,7 @@ export function parseSettledTwoLaneArtifact(
           value: row,
           path: `${id}.comparison[${String(position,)}]`,
           keys,
+          benchFloorRecorded,
         },);
       },),
     repair: lanes.repair

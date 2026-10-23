@@ -96,6 +96,13 @@ export type LaneContestOutcome = {
    What went wrong, in scorecard-stable wording.
    */
   readonly findings: readonly string[];
+
+  /**
+   Present when no round was opened because fewer seats were reachable than the voices a verdict needs, absent when a
+   roster was asked. A round never opened and a round that heard nobody both settle on `neither` with no usable voice;
+   this is what tells them apart, and the artifact records it from generation twenty-one.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**
@@ -454,6 +461,7 @@ export async function contestLaneSlice(
           floor: LANE_CONTEST_QUORUM,
         },),
       ],
+      benchBelowFloor: true,
     };
   }
 
