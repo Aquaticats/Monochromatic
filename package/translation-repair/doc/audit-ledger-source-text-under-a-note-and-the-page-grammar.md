@@ -21,7 +21,8 @@ the finding text),
 M3,
 M1,
 N1 to N4,
-N7),
+N7,
+reworded in `fe2deb3d66`),
 `93ecd78335` (M5,
 the comment and a pin case),
 `be1c689889` (N1,
@@ -121,8 +122,20 @@ The page-agreement check accepts the as-recorded or the literal form of a run.
   a ragged tail,
   an empty suite name and a double cast.
 - N7:
-  a guard case with English-looking words and straight quotes but no footnote definition shows that the
-  original stays out of the spelling and quote passes too.
+  a case with English-looking words and straight quotes but no footnote definition was added to show that the
+  original stays out of the spelling and quote passes.
+  Shown to fail by making `guardPageAssembly` pass `includeSource: true`,
+  it still passed:
+  no page pass rewrites a row at a slice the archive holds no text for (seven candidate originals,
+  among them a heading that repeats the archive's,
+  a link,
+  an italic title,
+  a list,
+  a tag and a date,
+  came back with nothing trimmed and nothing withdrawn),
+  so the case is a check that such an original ships as recorded and not a guard on the default.
+  The footnote case is the one that fails under that flip (it reads `withdrawn: [1]`),
+  and the case's name and comment say what it shows.
 - X6:
   a test over the cat page with its last section cut from the archive shows that the consistency pass reads that
   slice as carrying no English,
