@@ -703,9 +703,9 @@ await describe({
         },);
         expect(warnings,).toEqual([
           `slice 0: refine-rolled-back (${SUNBATHING_ISSUE.issueId}); rewrite by `
-          + `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}; ballots on ${SUNBATHING_ISSUE.issueId}: `
-          + `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} not-fixed, ${SEAT_SYNTHETIC_VISION_WITHHELD} worse, `
-          + `${SEAT_SYNTHETIC_TEXT_EVERYWHERE} not-fixed; keeping the text before the rewrite`,
+            + `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}; ballots on ${SUNBATHING_ISSUE.issueId}: `
+            + `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} not-fixed, ${SEAT_SYNTHETIC_VISION_WITHHELD} worse, `
+            + `${SEAT_SYNTHETIC_TEXT_EVERYWHERE} not-fixed; keeping the text before the rewrite`,
         ],);
       },
     },),

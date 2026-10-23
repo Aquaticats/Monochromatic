@@ -400,7 +400,10 @@ export async function retainsResolvedIssues(
         return `ballots on ${issueId}: ${
           nonNullishOrThrow(checker.readings[issueId],)
             .ballots
-            .map(function spell({ modelId, verdict, },): string {
+            .map(function spell({
+              modelId,
+              verdict,
+            },): string {
               return `${modelId} ${verdict}`;
             },)
             .join(', ',)
