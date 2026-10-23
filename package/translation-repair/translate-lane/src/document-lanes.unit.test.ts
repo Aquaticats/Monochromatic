@@ -893,7 +893,8 @@ await describe({
          */
         const structure = 'alignment structure-mismatch (source section 13: source-only (roster-unpaired); anchored '
           + 'for insertion at offset 17)';
-        const sections = 'section-pairing paired 1 of 2 original and 1 translation sections, from 4 usable voices of 4 heard';
+        const sections = 'section-pairing paired 1 of 2 original and 1 translation sections, from 4 usable voices '
+          + 'of 4 heard';
         const blocks = 'block-pairing section 0 paired 2 of 2 original and 2 of 2 translation blocks across 2 '
           + 'relations, from 4 usable voices of 4 heard';
         const lost = 'stage-voice-lost (block-pairing minimax-m3)';

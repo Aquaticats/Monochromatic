@@ -27,7 +27,7 @@ const STRUCTURE_FINDING_PREFIXES: readonly string[] = [
  Writes the structure and section-pairing alignment findings to the log, one
  warn line each, in the order the preparation recorded them.
 
- @param findings - the preparation's alignment findings, every kind
+ @param findings - preparation's alignment findings, every kind
 
  @param l - logger the driver writes to
 
