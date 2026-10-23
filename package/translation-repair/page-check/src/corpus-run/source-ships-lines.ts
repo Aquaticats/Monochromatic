@@ -95,6 +95,54 @@ export function joinedLines(
 }
 
 /**
+ The edit that joins a code span to the line before it when the span starts with a fence mark indented four spaces or
+ more: the plain reading takes the run of backticks for the opening of the span, so no backslash can be written into it,
+ and the strict grammar takes it for a fence that cuts the paragraph.
+
+ @param source - text
+
+ @param range - where the code span stands
+
+ @returns One edit replacing the line ending before the span and the marks before it with a space; none when the span
+ does not start with such a mark or starts the text
+
+ @example
+ ```ts
+ const edits = joinBeforeFenceMark({ source: 'a\n    ```\n`x\n    ```', range: { start: 6, end: 20, }, },);
+ ```
+ */
+function joinBeforeFenceMark(
+  {
+    source,
+    range,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+  },
+): readonly TextEdit[] {
+  if (indentedFenceMarkEnd({
+    source,
+    at: range.start,
+  },) <= range.start)
+    return [];
+  /**
+   Index of the first character before the span that is no indentation or container mark.
+   */
+  const before = { at: range.start - 1, };
+  while ((before.at >= 0) && CONTAINER_PREFIX.includes(source.charAt(before.at,),))
+    before.at -= 1;
+  if (source.charAt(before.at,) !== '\n')
+    return [];
+  return [
+    {
+      start: ((before.at > 0) && (source.charAt(before.at - 1,) === '\r')) ? (before.at - 1) : before.at,
+      end: range.start,
+      replacement: ' ',
+    },
+  ];
+}
+
+/**
  Edits that join the lines of a node whose characters the plain reading keeps whole and the strict grammar cuts: a code
  span, inline math, and the destination and title of a link, an image or a definition.
 
@@ -122,11 +170,18 @@ export function lineJoinsOf(
     readonly range: TextRange;
   },
 ): readonly TextEdit[] {
-  if (SPAN_TYPES.has(node.type,))
-    return joinedLines({
-      source,
-      range,
-    },);
+  if (SPAN_TYPES.has(node.type,)) {
+    return [
+      ...joinBeforeFenceMark({
+        source,
+        range,
+      },),
+      ...joinedLines({
+        source,
+        range,
+      },),
+    ];
+  }
   if (((node.type === 'link') && source.startsWith(
     '[',
     range.start,

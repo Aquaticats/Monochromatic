@@ -26,6 +26,9 @@ import {
 // block, an ES module among them; the plain reading, which has no footnote definition to keep open, keeps the marker as
 // a line of the paragraph.
 //
+// A LINE OF INVISIBLE CHARACTERS ENDS THE PARAGRAPH THE SAME WAY, so a marker alone on a later line of the node starts a
+// list as well.
+//
 // THE DEFINITION NEED NOT START THE PARAGRAPH. The strict grammar lets a footnote definition interrupt a paragraph, at any
 // indentation (the indented code that would otherwise cap it is off in MDX), so a line of `[^label]:` inside a
 // paragraph of the plain reading opens one for the lines after it, which stay a lazy line of its paragraph and keep the
@@ -336,10 +339,10 @@ export function laterModuleLines(
    */
   const found: number[] = [];
   /**
-   Whether a footnote definition is open for the lines read next: the node follows or opens one, or a line read starts
-   one inside the node.
+   Whether the strict grammar tries a new list at a marker alone on the line read next: the node follows or opens a
+   footnote definition, or a line read starts one inside the node or ends the paragraph.
    */
-  const footnote = { open: afterFootnote, };
+  const marker = { startsList: afterFootnote, };
   for (
     let lineStart = range.start;
     lineStart < range.end;
@@ -367,13 +370,13 @@ export function laterModuleLines(
       '\r',
       '',
     );
-    if ((INVISIBLE_LINE.test(line,) || (footnote.open && isEmptyMarkerLine({ line, },))) && startsAny({
+    if ((INVISIBLE_LINE.test(line,) || (marker.startsList && isEmptyMarkerLine({ line, },))) && startsAny({
       text: source,
       at: lineEnd + 1,
       candidates: ES_MODULE_STARTS,
     },))
       found.push(lineEnd + 1,);
-    footnote.open ||= startsFootnoteLine({ line, },);
+    marker.startsList ||= INVISIBLE_LINE.test(line,) || startsFootnoteLine({ line, },);
     lineStart = lineEnd + 1;
   }
   return found;
