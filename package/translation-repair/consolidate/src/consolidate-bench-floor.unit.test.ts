@@ -25,6 +25,7 @@ import type {
   ChatJsonRequest,
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   buyConsolidationSlice,
   type ConsolidationSettlement,
@@ -111,6 +112,8 @@ function refusingClient(): { readonly client: ModelClient; readonly calls: { cou
 
  @param standingMayShip - whether the contest endorsed the standing
 
+ @param judgeModelIds - slate judges seated, the whole roster where absent
+
  @returns The settlement
 
  @example
@@ -125,9 +128,11 @@ async function buyWithReach(
     slateReachable,
     standingEligible = true,
     standingMayShip = false,
+    judgeModelIds = ROSTER,
   }: {
     readonly client: ModelClient;
     readonly lines: string[];
+    readonly judgeModelIds?: readonly RosterModelId[];
     readonly slateReachable?: number;
     readonly standingEligible?: boolean;
     readonly standingMayShip?: boolean;
@@ -136,7 +141,7 @@ async function buyWithReach(
   return await buyConsolidationSlice({
     client,
     roster: ROSTER,
-    judgeModelIds: ROSTER,
+    judgeModelIds,
     subject: SUBJECT,
     standingText: STANDING,
     lineStructured: false,
@@ -231,6 +236,22 @@ await describe({
               floorFinding: true,
               said: [skipLine,],
             },);
+          },
+        },),
+        it({
+          name: 'COUNTS THE SLATE JUDGES BY THE SINGULAR where one judge is seated, so the line reads 0 of 1 slate judge',
+          fn: async () => {
+            const { client, } = refusingClient();
+            const lines: string[] = [];
+            await buyWithReach({ client, lines, slateReachable: 0, judgeModelIds: ROSTER.slice(0, 1,), },);
+            /**
+             The line the skip writes.
+             */
+            const skipLine = '[consolidate-bench-floor-test] slice 7: 0 of 1 slate judge reachable, '
+              + 'below the floor of 2; no slate is bought and the standing is kept';
+            expect(lines.filter(function namesTheFloor(line,): boolean {
+              return line.includes('below the floor',);
+            },),).toEqual([skipLine,],);
           },
         },),
         it({
