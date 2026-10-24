@@ -62,7 +62,8 @@ export function carryingObjectsOf(
 }
 
 /**
- Every name a module exports, its own and those of the modules it exports everything of, never the default through them.
+ Every name a module exports, its own and those of the modules it exports everything of. The default of a module that
+ is exported everything of is listed too, and resolving it through the star finds nothing, as the language has it.
 
  @param family - modules of the sources
 
@@ -121,10 +122,7 @@ function exportNamesOf(
               family,
               file: target,
               seen: followed,
-            },)
-              .filter(function isNotDefault(name,): boolean {
-                return name !== 'default';
-              },);
+            },);
         },),
     ],),
   ];
