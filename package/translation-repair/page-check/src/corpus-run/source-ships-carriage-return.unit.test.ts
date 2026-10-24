@@ -68,6 +68,11 @@ const LINE_FEED_TEXTS: readonly (readonly [string, string])[] = [
     '| a |\n|---|\n| b[^1] |\n\n[^1]: x\n<a href="x">\n[r]: u{d}\n',
   ],
   ['a heading, then a footnote, a tag alone and a definition', '# h\n[^1]: x\n<a href="x">\n[r]: u{d}\n'],
+  ['a fence mark indented by a tab after a blank line', 'x\n\n\t```\n'],
+  [
+    'a definition holding a brace, then a fence mark indented four spaces and a fence',
+    '[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
   ['a footnote and a line of equals signs, then a definition', '[^1]: x\n===\n[r]: u{b}\n'],
   ['a footnote, a tag alone, then a definition indented two spaces', '[^1]: x\n<a>\n  [r]: u{c}\n'],
   ['a footnote, a tag alone, then a definition indented three spaces', '[^1]: x\n<a>\n   [r]: u{c}\n'],
@@ -289,6 +294,30 @@ await describe({
               ) {
                 expect(readPair({ pair, },).finding.found,).toEqual([],);
               }
+            }
+          },
+        },),
+
+        it({
+          name: 'WRITES THE FIRST RUN AS LITERAL TEXT WHEN IT HOLDS A FENCE MARK INDENTED BY A TAB AND LONE CARRIAGE '
+            + 'RETURNS, the way it does with line feeds: the mark opens a fence in the grammar that swallows the '
+            + 'English and closes at the fence of the second run, which is written as literal text for the comment '
+            + 'it never closes and would then leave its brace an expression',
+          fn: async () => {
+            for (
+              const [first, second,] of [
+                ['x\n\n\t```\n', '```\n{a}\n```\n\n<!--\n',],
+                ['x\r\r\t```\r', '```\r{a}\r```\r\r<!--\r',],
+                ['x\r\r    ```\r', '```\r{a}\r```\r\r<!--\r',],
+              ] as const
+            ) {
+              expect(readPair({
+                pair: {
+                  first,
+                  middle: 'She slept on the counter.\n',
+                  second,
+                },
+              },).finding.found,).toEqual([],);
             }
           },
         },),

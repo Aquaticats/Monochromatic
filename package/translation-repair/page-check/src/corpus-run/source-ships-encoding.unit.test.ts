@@ -320,6 +320,42 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ],
   ['a footnote that is a tag alone, then a definition line holding a brace', '[^1]: <b>\n[r]: u{b}\n'],
   [
+    'a definition holding a brace, then a fence mark indented four spaces and a fence',
+    '[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, then a fence mark indented five spaces and a fence',
+    '[r]: u{b}\n     ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, then a fence mark indented by a tab and a fence',
+    '[r]: u{b}\n\t```\n\t{\n\t```\n',
+  ],
+  [
+    'a footnote that is a tag alone, a definition holding a brace, then an indented fence',
+    '[^1]: <b>\n[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a footnote, a tag alone, a definition holding a brace, then an indented fence',
+    '[^1]: x\n<a href="x">\n[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, an indented fence mark, and a brace after a fence at the first column',
+    '[r]: u{b}\n    ```\n```\n    tail {z}\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space, then an indented fence mark and a fence',
+    '[^a b]: x\n    ```\n```\n    tail {z}\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space and a brace, then a fence mark indented by a tab',
+    '[^a b]: x {\n\t```\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space, then a definition line holding a brace',
+    '[^a b]: x\n[r]: u{b}\n',
+  ],
+  [
     'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
     '[^1]: <b>\n[r]: u{b "t {"\n',
   ],
