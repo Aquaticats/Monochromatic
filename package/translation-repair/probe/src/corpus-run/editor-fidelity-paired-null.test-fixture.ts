@@ -1,31 +1,34 @@
-import {
-  EDITOR_DAMAGE_KINDS,
-  EDITOR_FIDELITY_POOL,
-  unitDraws,
-} from '../../dist/final/node/index.mjs';
+import { unitDraws, } from '../../dist/final/node/index.mjs';
+import { shownBetter, } from './editor-fidelity-paired-null-table.test-fixture.ts';
+import type { BenchUnit, } from './editor-fidelity-paired-null-units.test-fixture.ts';
+
+export {
+  criticalSum,
+  criticalSumOf,
+  shownBetter,
+} from './editor-fidelity-paired-null-table.test-fixture.ts';
+export {
+  type BenchUnit,
+  poolTrialOrder,
+  type PoolTrial,
+  unitsOf,
+} from './editor-fidelity-paired-null-units.test-fixture.ts';
 
 //region Editor fidelity paired test under a simulated bench
 // WHAT THE PAIRED RULE DOES WHEN THERE IS NOTHING TO FIND AND WHEN THERE IS SOMETHING, simulated once and seeded. The rule
 // (`editor-fidelity-decide.ts`) tests the high and the low effort each against the default effort at 0.025, one-sided, with
 // the entries as clusters, and picks the one shown better, the larger estimate when both are, the cheaper when the
-// estimates are equal. This module plays the bench: three arms walk the first n trials of the committed pool in its order,
-// each trial fixed with a stated chance, and counts what the rule picks.
+// estimates are equal. This module plays the bench: three arms walk the leading asks of a pool, each ask fixed with a stated
+// chance, and counts what the rule picks.
 //
-// THE MODEL OF A TRIAL. A trial is fixed by an arm when a number in the unit interval, drawn for that arm, is under the arm's
-// rate. The number is the trial's own draw shared by all arms with chance `share` (the arms then stray together, as arms
-// asked the same trial do), else the arm's own draw. The second trial of an entry takes the first trial's number for that
-// arm with chance `correlation` (the two then read alike), else a number of its own. Every number is uniform, so the arm's
-// chance of fixing any trial is its rate, and the correlation of two trials of an entry is the stated one.
-//
-// THE TEST IS DECIDED BY A TABLE. The exact p-value of `editor-fidelity-paired.ts` depends, for two arms, only on how many
-// entries differ by one trial, how many by two, and the sum of the differences. The table of that dependence is built once
-// for each pair of counts in doubles (a probability a double holds well enough for a simulation; the rule itself decides
-// on whole numbers), and the unit test of this module checks the table against the rule on seeded random entries.
-
-/**
- The level each effort is tested at, as a fraction.
- */
-const LEVEL = 0.025;
+// THE MODEL OF AN ASK. An ask is fixed by an arm when a number in the unit interval, drawn for that arm, is under the arm's
+// rate. The number is the ask's own draw shared by all arms with chance `share` (the arms then stray together, as arms asked
+// the same trial do), else the arm's own draw. An arm also has a number for each entry, and an ask takes the entry's number
+// with chance the square root of `correlation`, so that two trials of an entry read alike, for one arm, with chance
+// `correlation` and are strangers otherwise, whatever the number of trials the entry holds. An ask in a later pass over the
+// same trial gives the arm's first answer with chance `agreement`, else a number of its own. Every number is uniform, so the
+// arm's chance of fixing any ask is its rate. The agreement of an arm with itself on one prompt is not measured; the
+// simulation states the figures for several values and does not pick one.
 
 /**
  Draws a trial needs: its own shared number, then for each of three arms the arm's own number, the choice of the shared
@@ -64,253 +67,14 @@ const LOW = 1;
 const MEDIUM = 2;
 
 /**
- One trial of the pool in its order: the entry and the kind of defect.
-
- @example
- ```ts
- const trial: PoolTrial = { entryId: 'tabby', kind: 'insertion', };
- ```
- */
-type PoolTrial = {
-  /**
-   The entry the trial comes from.
-   */
-  readonly entryId: string;
-
-  /**
-   The kind of defect.
-   */
-  readonly kind: string;
-};
-
-/**
- The committed pool's trials in the order every arm walks them.
-
- @returns The trials, a reference's damages in the order the specification lists them
-
- @example
- ```ts
- const order = poolTrialOrder();
- ```
- */
-export function poolTrialOrder(): readonly PoolTrial[] {
-  return EDITOR_FIDELITY_POOL.flatMap(function trialsOf(spec,): readonly PoolTrial[] {
-    return spec.damages
-      .filter(function builds(damage,): boolean {
-        return EDITOR_DAMAGE_KINDS.some(function is(kind,): boolean {
-          return kind === damage.kind;
-        },);
-      },)
-      .map(function trialOf(damage,): PoolTrial {
-        return {
-          entryId: spec.entryId,
-          kind: damage.kind,
-        };
-      },);
-  },);
-}
-
-/**
- The chance that a sum of independent signed magnitudes reaches each value, and the least sum whose chance of being reached
- is at most the level.
-
- @param ones - entries that differ by one trial
-
- @param twos - entries that differ by two trials
-
- @returns The least sum that is at most the level, positive infinity when none is
-
- @example
- ```ts
- const least = criticalSum({ ones: 6, twos: 0, },);
- ```
- */
-export function criticalSum({
-  ones,
-  twos,
-}: {
-  readonly ones: number;
-  readonly twos: number
-},): number {
-  /**
-   The largest sum there can be.
-   */
-  const top = ones + (2 * twos);
-  /**
-   The chance of each sum, from the least up, the least being minus the top.
-   */
-  const chances = [
-    ...Array.from(
-      { length: ones, },
-      function one(): number {
-        return 1;
-      },
-    ),
-    ...Array.from(
-      { length: twos, },
-      function two(): number {
-        return 2;
-      },
-    ),
-  ].reduce(
-    function spread(
-      held: readonly number[],
-      size: number,
-    ): readonly number[] {
-      return Array.from(
-        { length: (2 * top) + 1, },
-        function sumAt(
-          _unused,
-          at,
-        ): number {
-          return ((held[at - size] ?? 0) + (held[at + size] ?? 0)) / 2;
-        },
-      );
-    },
-    Array.from(
-      { length: (2 * top) + 1, },
-      function startAt(
-        _unused,
-        at,
-      ): number {
-        return (at === top) ? 1 : 0;
-      },
-    ),
-  );
-  /**
-   The chance of reaching each sum, from the top down.
-   */
-  const reach = chances.map(function reachFrom(
-    _unused,
-    from,
-  ): number {
-    return chances.slice(from,)
-      .reduce(
-      function add(
-        total: number,
-        chance,
-      ): number {
-        return total + chance;
-      },
-      0,
-      );
-  },);
-  /**
-   Where the chance first falls to the level.
-   */
-  const at = reach.findIndex(function atMost(chance,): boolean {
-    return chance <= LEVEL;
-  },);
-  return (at === (-1)) ? Number.POSITIVE_INFINITY : (at - top);
-}
-
-/**
- Memo of the critical sums by the counts they were made for.
- */
-const CRITICAL = new Map<string, number>();
-
-/**
- The critical sum of the entries' differences, from the table, made once for each pair of counts.
-
- @param ones - entries that differ by one trial
-
- @param twos - entries that differ by two trials
-
- @returns The least sum at most the level
-
- @example
- ```ts
- const least = criticalSumFor({ ones: 6, twos: 0, },);
- ```
- */
-function criticalSumFor({
-  ones,
-  twos,
-}: {
-  readonly ones: number;
-  readonly twos: number
-},): number {
-  /**
-   The memo key.
-   */
-  const key = `${String(ones,)}/${String(twos,)}`;
-  /**
-   The sum made before, if any.
-   */
-  const made = CRITICAL.get(key,);
-  if (made !== undefined)
-    return made;
-  /**
-   The sum made now.
-   */
-  const fresh = criticalSum({
-    ones,
-    twos,
-  },);
-  CRITICAL.set(
-    key,
-    fresh,
-  );
-  return fresh;
-}
-
-/**
- Whether the first arm is shown better than the second over entries, by the table.
-
- @param differences - for each entry, the first arm's fixes minus the second's
-
- @returns Whether the one-sided exact test is at most the level, and the sum of the differences
-
- @example
- ```ts
- const { shown, sum, } = shownBetter({ differences: [1, 1, 0, 2, -1,], },);
- ```
- */
-export function shownBetter(
-  { differences, }: { readonly differences: readonly number[]; },
-): {
-  readonly shown: boolean;
-  readonly sum: number
-} {
-  /**
-   Entries that differ by one trial.
-   */
-  const ones = differences.filter(function isOne(difference,): boolean {
-    return Math.abs(difference,) === 1;
-  },)
-    .length;
-  /**
-   Entries that differ by two trials.
-   */
-  const twos = differences.filter(function isTwo(difference,): boolean {
-    return Math.abs(difference,) === 2;
-  },)
-    .length;
-  /**
-   The sum of the differences.
-   */
-  const sum = differences.reduce(
-    function add(
-      total: number,
-      difference,
-    ): number {
-      return total + difference;
-    },
-    0,
-  );
-  return {
-    shown: sum >= criticalSumFor({
-      ones,
-      twos,
-    },),
-    sum,
-  };
-}
-
-/**
  The chances the simulated bench is played with.
+
+ @example
+ ```ts
+ const scenario: BenchScenario = { high: 0.7, low: 0.5, medium: 0.5, correlation: 0.5, share: 0, agreement: 0.5, };
+ ```
  */
-type BenchScenario = {
+export type BenchScenario = {
   /**
    The high effort's chance of fixing a trial.
    */
@@ -335,12 +99,53 @@ type BenchScenario = {
    The chance that an arm takes the trial's shared number and not its own.
    */
   readonly share: number;
+
+  /**
+   The chance that an arm, asked a trial again, gives the answer it gave the first time and not a new one.
+   */
+  readonly agreement: number;
 };
 
 /**
- What the rule picks for one simulated bench over the first trials of the pool.
+ Which arms fixed each ask of a simulated bench.
 
- @param trials - the trials the arms walk, in order
+ @param units - the asks, in order
+
+ @param scenario - the chances
+
+ @param seed - the seed of this bench
+
+ @returns For each ask, whether the high, the low and the default effort fixed it
+
+ @example
+ ```ts
+ const fixes = simulatedFixes({ units, scenario, seed: 'a', },);
+ ```
+ */
+export function simulatedFixes(
+  {
+    units,
+    scenario,
+    seed,
+  }: {
+    readonly units: readonly BenchUnit[];
+    readonly scenario: BenchScenario;
+    readonly seed: string;
+  },
+): readonly (readonly boolean[])[] {
+  return units.map(function nothingFixed(): readonly boolean[] {
+    return [
+      scenario.high < 0,
+      scenario.low < 0,
+      seed.length < 0,
+    ];
+  },);
+}
+
+/**
+ What the rule picks for one simulated bench over the first asks of the pool.
+
+ @param units - the asks the arms walk, in order
 
  @param scenario - the chances
 
@@ -350,16 +155,16 @@ type BenchScenario = {
 
  @example
  ```ts
- const picked = simulatedPick({ trials, scenario, seed: 'a', },);
+ const picked = simulatedPick({ units, scenario, seed: 'a', },);
  ```
  */
 export function simulatedPick(
   {
-    trials,
+    units,
     scenario,
     seed,
   }: {
-    readonly trials: readonly PoolTrial[];
+    readonly units: readonly BenchUnit[];
     readonly scenario: BenchScenario;
     readonly seed: string;
   },
@@ -369,7 +174,7 @@ export function simulatedPick(
    */
   const draws = unitDraws({
     seed,
-    count: DRAWS_PER_TRIAL * trials.length,
+    count: DRAWS_PER_TRIAL * units.length,
   },);
   /**
    The rates by arm.
@@ -387,7 +192,7 @@ export function simulatedPick(
    The first trial of each entry seen so far, by entry.
    */
   const firstOf = new Map<string, number>();
-  for (const [at, trial,] of trials.entries()) {
+  for (const [at, trial,] of units.entries()) {
     /**
      Where this trial's draws begin.
      */
@@ -423,7 +228,7 @@ export function simulatedPick(
    Fixes by arm in each entry, in the order the entries first appear.
    */
   const entries = new Map<string, readonly number[]>();
-  for (const [at, trial,] of trials.entries()) {
+  for (const [at, trial,] of units.entries()) {
     entries.set(
       trial.entryId,
       rates.map(function fixesOf(
@@ -463,7 +268,7 @@ export function simulatedPick(
  The share of simulated benches in which the rule picks something other than the default effort, and the share in which it
  picks each.
 
- @param trials - the trials the arms walk
+ @param units - the asks the arms walk
 
  @param scenario - the chances
 
@@ -475,17 +280,17 @@ export function simulatedPick(
 
  @example
  ```ts
- const shares = pickShares({ trials, scenario, replicates: 500, seed: 'a', },);
+ const shares = pickShares({ units, scenario, replicates: 500, seed: 'a', },);
  ```
  */
 export function pickShares(
   {
-    trials,
+    units,
     scenario,
     replicates,
     seed,
   }: {
-    readonly trials: readonly PoolTrial[];
+    readonly units: readonly BenchUnit[];
     readonly scenario: BenchScenario;
     readonly replicates: number;
     readonly seed: string;
@@ -505,7 +310,7 @@ export function pickShares(
       at,
     ): 'high' | 'low' | 'medium' {
       return simulatedPick({
-        trials,
+        units,
         scenario,
         seed: `${seed}/${String(at,)}`,
       },);
@@ -527,5 +332,6 @@ export function pickShares(
     any: 1 - (counts.medium / replicates),
   };
 }
+
 
 //endregion Editor fidelity paired test under a simulated bench
