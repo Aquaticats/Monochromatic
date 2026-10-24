@@ -15,10 +15,15 @@ import {
 
 import {
   EDITOR_DAMAGE_KINDS,
+  editorDefectOnlyLine,
+  editorFidelityRow,
   editorFidelityTrials,
+  editorKindLines,
+  editorTallyLine,
   type EditorTrialReading,
   pairName,
   readingWord,
+  reportTallies,
   seatedCardsOf,
   sheetCharsOf,
 } from '../../dist/final/node/index.mjs';
@@ -155,6 +160,52 @@ await describe({
                 trial: TRIAL,
               },
             },),).toBe(`${LOW_CARD} on ${TRIAL.trialId}`,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: reportTallies.name,
+      children: [
+        it({
+          name: 'SAYS EACH CARD\'S TALLY, KIND LINES AND DEFECT-ONLY LINE in the order the cards were named, and '
+            + 'returns the tallies it said',
+          fn: async () => {
+            /**
+             One refused row for each card on the first trial.
+             */
+            const rows = [HIGH_CARD, LOW_CARD,].map(function rowOf(cardId,) {
+              return editorFidelityRow({
+                cardId,
+                trial: TRIAL,
+                reading: { kind: 'refused', findings: [], },
+              },);
+            },);
+            /**
+             Lines said, in order.
+             */
+            const said: string[] = [];
+            /**
+             The tallies returned.
+             */
+            const tallies = reportTallies({
+              cardIds: [HIGH_CARD, LOW_CARD,],
+              rows,
+              emit: function note(line,): void {
+                said.push(line,);
+              },
+            },);
+            expect(tallies.map(function cardOf({ cardId, },) {
+              return cardId;
+            },),).toStrictEqual([HIGH_CARD, LOW_CARD,],);
+            expect(said,).toStrictEqual(tallies.flatMap(function linesOf(tally,) {
+              return [
+                editorTallyLine({ tally, },),
+                ...editorKindLines({ tally, },),
+                editorDefectOnlyLine({ tally, },),
+              ];
+            },),);
           },
         },),
       ],

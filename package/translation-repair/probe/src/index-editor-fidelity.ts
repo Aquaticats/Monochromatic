@@ -20,6 +20,7 @@ export {
   usdText,
 } from './corpus-run/editor-fidelity-ceiling.ts';
 export {
+  cardsClientFrom,
   cardsOnlyClient,
   editorProbeEnv,
 } from './corpus-run/editor-fidelity-client.ts';
@@ -99,6 +100,7 @@ export {
 export {
   pairName,
   readingWord,
+  reportTallies,
   seatedCardsOf,
   sheetCharsOf,
 } from './corpus-run/editor-fidelity-probe-read.ts';

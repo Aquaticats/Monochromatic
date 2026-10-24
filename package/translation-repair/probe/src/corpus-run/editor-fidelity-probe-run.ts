@@ -6,7 +6,10 @@ import {
 import { join, } from 'node:path';
 
 import type { Logger, } from '@monochromatic-dev/module-logger/ts';
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import type {
+  ClaudeAttemptAsk,
+  ModelClient,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
@@ -29,19 +32,14 @@ import {
   editorCeilings,
 } from './editor-fidelity-ceiling.ts';
 import {
-  type EditorCardTally,
   editorDecisionRuleLine,
-  editorDefectOnlyLine,
   editorFidelityPlan,
   type EditorFidelityRow,
   editorFidelityRow,
   editorKeptLine,
   editorKeptRun,
-  editorKindLines,
   type EditorPair,
   editorPreflightLine,
-  editorTallyLine,
-  editorTallyOf,
 } from './editor-fidelity-plan.ts';
 import {
   guardLine,
@@ -53,6 +51,7 @@ import { runEditorTrial, } from './editor-fidelity-trial.ts';
 import {
   pairName,
   readingWord,
+  reportTallies,
   seatedCardsOf,
   sheetCharsOf,
 } from './editor-fidelity-probe-read.ts';
@@ -154,6 +153,7 @@ export async function runEditorFidelityProbe(
       options: {
         readonly promptPayloadDir: string;
         readonly cardIds: readonly RosterModelId[];
+        readonly admitClaudeAttempt: (attempt: ClaudeAttemptAsk,) => void;
       },
     ) => ModelClient;
     readonly now: () => string;
@@ -327,10 +327,13 @@ export async function runEditorFidelityProbe(
    with no call let through that could take the arm past `--max-usd`.
    */
   const client = spendGuardedClient({
-    inner: newClient({
-      promptPayloadDir,
-      cardIds,
-    },),
+    inner: function innerFor(admitClaudeAttempt,): ModelClient {
+      return newClient({
+        promptPayloadDir,
+        cardIds,
+        admitClaudeAttempt,
+      },);
+    },
     maxUsd,
     controller,
   },);
@@ -400,20 +403,15 @@ export async function runEditorFidelityProbe(
     },
   },);
   /**
-   The tally of each card, in the order the cards were named.
+   The tally of each card, in the order the cards were named, said as it is made.
    */
-  const tallies: readonly EditorCardTally[] = cardIds.map(function tallyOf(cardId,): EditorCardTally {
-    return editorTallyOf({
-      cardId,
-      rows,
-    },);
+  const tallies = reportTallies({
+    cardIds,
+    rows,
+    emit: function say(text,): void {
+      log.info(text,);
+    },
   },);
-  for (const tally of tallies) {
-    log.info(editorTallyLine({ tally, },),);
-    for (const said of editorKindLines({ tally, },))
-      log.info(said,);
-    log.info(editorDefectOnlyLine({ tally, },),);
-  }
   /**
    Full reviewed provenance accompanies model outcomes without corpus passages in standard output.
    */

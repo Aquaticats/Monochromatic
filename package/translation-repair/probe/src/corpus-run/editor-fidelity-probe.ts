@@ -3,23 +3,21 @@ import { readReviewedFidelityReferences, } from '../fidelity-reference-read.ts';
 import { fetchTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   type CommandLineOf,
-  PROBE_MAX_HOLD_MS,
   readRunCorpusPinSetting,
   reportingRefusals,
   resolveRunsDir,
   RUN_PER_CALL_TIMEOUT_MS,
-  runClientFrom,
 } from '@monochromatic-dev/translation-repair-run/ts';
-import {
-  cardsOnlyClient,
-  editorProbeEnv,
-} from './editor-fidelity-client.ts';
+import { cardsClientFrom, } from './editor-fidelity-client.ts';
 import { runEditorFidelityProbe, } from './editor-fidelity-probe-run.ts';
 import { digestPipeline, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { nowAsIso, } from './probe-run-clock.ts';
 import { readRunnerClosure, } from '@monochromatic-dev/translation-repair-insertion/ts';
 import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import type {
+  ClaudeAttemptAsk,
+  ModelClient,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Editor fidelity probe
@@ -46,22 +44,19 @@ function newCardsClient(
   {
     promptPayloadDir,
     cardIds,
+    admitClaudeAttempt,
   }: {
     readonly promptPayloadDir: string;
     readonly cardIds: readonly RosterModelId[];
+    readonly admitClaudeAttempt: (attempt: ClaudeAttemptAsk,) => void;
   },
 ): ModelClient {
-  return cardsOnlyClient({
-    inner: runClientFrom({
-      env: editorProbeEnv({
-        env: process.env,
-        cardIds,
-      },),
-      transport: fetchTransport,
-      promptPayloadDir,
-      maxHoldMs: PROBE_MAX_HOLD_MS,
-    },),
+  return cardsClientFrom({
+    env: process.env,
+    transport: fetchTransport,
+    promptPayloadDir,
     cardIds,
+    admitClaudeAttempt,
   },);
 }
 

@@ -8,7 +8,15 @@ import {
   messageChars,
   pricesOf,
 } from './editor-fidelity-ceiling.ts';
-import type { EditorPair, } from './editor-fidelity-plan.ts';
+import {
+  type EditorCardTally,
+  editorDefectOnlyLine,
+  type EditorFidelityRow,
+  editorKindLines,
+  type EditorPair,
+  editorTallyLine,
+  editorTallyOf,
+} from './editor-fidelity-plan.ts';
 import type { EditorTrialReading, } from './editor-fidelity-trial.ts';
 import {
   probeRosterWith,
@@ -146,6 +154,49 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
     return `defect only, not a clean fix, ${touched}`;
   return `clean fix ${reading.score
     .fixed}, ${touched}`;
+}
+
+/**
+ Tallies each card's rows and says each tally, its kind lines and its defect-only line.
+
+ @param cardIds - cards seated, in the order named
+
+ @param rows - every completed row
+
+ @param emit - says one line
+
+ @returns The tally of each card, in the order the cards were named
+
+ @example
+ ```ts
+ const tallies = reportTallies({ cardIds, rows, emit, },);
+ ```
+ */
+export function reportTallies(
+  {
+    cardIds,
+    rows,
+    emit,
+  }: {
+    readonly cardIds: readonly RosterModelId[];
+    readonly rows: readonly EditorFidelityRow[];
+    readonly emit: (line: string,) => void;
+  },
+): readonly EditorCardTally[] {
+  return cardIds.map(function tallyOf(cardId,): EditorCardTally {
+    /**
+     This card's rows, tallied.
+     */
+    const tally = editorTallyOf({
+      cardId,
+      rows,
+    },);
+    emit(editorTallyLine({ tally, },),);
+    for (const said of editorKindLines({ tally, },))
+      emit(said,);
+    emit(editorDefectOnlyLine({ tally, },),);
+    return tally;
+  },);
 }
 
 //endregion Editor fidelity probe readers

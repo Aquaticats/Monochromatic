@@ -1,6 +1,7 @@
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   type ChatTextReply,
+  type ClaudeAttemptAsk,
   type ModelClient,
   reportSpend,
   type SpendReckoning,
@@ -35,9 +36,18 @@ import {
 // WHAT NO LINE HOLDS IS COUNTED AT THE CALL'S CEILING, by a SPEND line the guard writes itself, so the meter, the log
 // and the guard's total stay one figure. A reply that reports no usage has an unknown cost, and an unknown cost may not
 // be assumed small. A call that throws may have been billed for a stream that never reached the caller, so it counts
-// unless the error proves no billable body was delivered, which an HTTP error status with no response body does. An
-// attempt the client already wrote and a call that then throws are both counted, so a throw after an abandoned attempt
-// reads one ceiling high: the guard may stop an arm sooner than the bill requires and never later.
+// unless the error proves no billable body was delivered, which an HTTP error status with no response body does.
+//
+// THE CLIENT RETRIES INSIDE A CALL, so the guard looks at each attempt and not once per call. The Claude client sends up
+// to five attempts for one call, and each that delivers a stream and is cut is billed at the most it could have been.
+// When the client is built over the guard (the client builder takes the guard's admit and hands it to the Claude client,
+// `claude-attempt-admit.ts`), every attempt is admitted before it is sent: the spend so far plus that attempt's bound
+// must stay within the amount, or the attempt is never sent and the arm ends. An attempt that fails is counted once: its
+// line when the client wrote one, else, for the last attempt of a call that throws, the call's ceiling. A call that
+// threw before any attempt was told never left (a layer above the client rejected it), and costs nothing.
+//
+// ONE CALL AT A TIME. The attempts told are kept for the call in flight, which holds because the probe asks one row at a
+// time (`overlap: 1` in `editor-fidelity-probe-run.ts`).
 //
 // THE REFUSAL ENDS THE ARM, NOT ONE VOICE OF IT. The stage turns a call that throws into a lost voice and asks again, but
 // rethrows once the arm's signal has aborted. The guard aborts that signal with the refusal as its reason before it
@@ -218,14 +228,16 @@ async function attemptOf<ReplyT,>(
 /**
  Wraps a client so no call is made that could take the arm past its amount.
 
- @param inner - client to wrap
+ @param inner - client to wrap, or the builder of one that is handed the guard's admit and passes it to the client
+ it builds, which then tells the guard before each attempt it sends and is held to the amount attempt by attempt
 
  @param maxUsd - most the arm may spend, from `--max-usd`
 
  @param controller - the arm's own, aborted with the refusal as its reason when a call is refused
 
  @returns A client with every member of the inner one, at run time, its exchanges refused once the spend so far plus the
- call's ceiling would pass the amount, and the reader of what it counted
+ call's ceiling would pass the amount (and, where the client tells the guard of its attempts, each attempt's bound),
+ and the reader of what it counted
 
  @throws StatedRefusalError from an exchange whose ceiling plus the spend so far passes the amount, before the inner
  client is reached, and from every exchange after it
@@ -243,7 +255,7 @@ export function spendGuardedClient(
     maxUsd,
     controller,
   }: {
-    readonly inner: ModelClient;
+    readonly inner: ModelClient | ((admit: (attempt: ClaudeAttemptAsk,) => void,) => ModelClient);
     readonly maxUsd: number;
     readonly controller: AbortController;
   },
@@ -263,6 +275,18 @@ export function spendGuardedClient(
    The refusal the arm ended with, at most one.
    */
   const refusals: StatedRefusalError[] = [];
+  /**
+   Whether the client tells the guard of each attempt it sends, which it does when it was built over the guard's admit.
+   */
+  const gated = (typeof inner) === 'function';
+  /**
+   What the client has told the guard of the call in flight: how many attempts, and the meter at the start of the latest,
+   or at the start of the call where none was told.
+   */
+  const told = {
+    attempts: 0,
+    sinceUsd: baselineUsd,
+  };
 
   /**
    Dollars the arm has spent so far.
@@ -276,6 +300,67 @@ export function spendGuardedClient(
    */
   function spentSoFar(): number {
     return runSpendUsd({ provider: 'anthropic', },) - baselineUsd;
+  }
+
+  /**
+   Refuses anything once the arm has ended.
+
+   @throws StatedRefusalError the refusal an earlier call or attempt ended the arm with
+   */
+  function throwStanding(): void {
+    /**
+     The refusal an earlier call ended the arm with, absent while none has.
+     */
+    const [standing,] = refusals;
+    if (standing !== undefined)
+      throw standing;
+  }
+
+  /**
+   Ends the arm when what is about to be sent could take it past its amount.
+
+   @param modelId - model the exchange names
+
+   @param ceilingUsd - the most the call or the attempt can cost
+
+   @param subject - what is about to be sent, for the refusal's words
+
+   @throws StatedRefusalError when the spend so far plus the ceiling passes the amount
+
+   @example
+   ```ts
+   refuseOver({ modelId, ceilingUsd: 0.322, subject: 'call', },);
+   ```
+   */
+  function refuseOver(
+    {
+      modelId,
+      ceilingUsd,
+      subject,
+    }: {
+      readonly modelId: string;
+      readonly ceilingUsd: number;
+      readonly subject: 'attempt' | 'call';
+    },
+  ): void {
+    /**
+     What the arm has spent so far.
+     */
+    const spentUsd = spentSoFar();
+    if ((spentUsd + ceilingUsd) <= maxUsd)
+      return;
+    /**
+     The refusal that ends the arm.
+     */
+    const refusal = new StatedRefusalError({
+      says: `the editor fidelity probe will not ask ${modelId}: the spend so far is ${
+        usdText({ usd: spentUsd, },)
+      } USD, this ${subject} can cost ${usdText({ usd: ceilingUsd, },)} USD at most, and together they pass `
+        + `--max-usd ${usdText({ usd: maxUsd, },)}; the arm ends here, and the rows it finished stay in their files`,
+    },);
+    refusals.push(refusal,);
+    controller.abort(refusal,);
+    throw refusal;
   }
 
   /**
@@ -306,12 +391,7 @@ export function spendGuardedClient(
     readonly usd: number;
     readonly promptTokens: number;
   } {
-    /**
-     The refusal an earlier call ended the arm with, absent while none has.
-     */
-    const [standing,] = refusals;
-    if (standing !== undefined)
-      throw standing;
+    throwStanding();
     /**
      Prompt size the ceiling is reckoned from.
      */
@@ -323,28 +403,72 @@ export function spendGuardedClient(
       prices: pricesOf({ cardId: modelId, },),
       promptTokens,
     },);
-    /**
-     What the arm has spent so far.
-     */
-    const spentUsd = spentSoFar();
-    if ((spentUsd + ceilingUsd) > maxUsd) {
-      /**
-       The refusal that ends the arm.
-       */
-      const refusal = new StatedRefusalError({
-        says: `the editor fidelity probe will not ask ${modelId}: the spend so far is ${
-          usdText({ usd: spentUsd, },)
-        } USD, this call can cost ${usdText({ usd: ceilingUsd, },)} USD at most, and together they pass `
-          + `--max-usd ${usdText({ usd: maxUsd, },)}; the arm ends here, and the rows it finished stay in their files`,
-      },);
-      refusals.push(refusal,);
-      controller.abort(refusal,);
-      throw refusal;
-    }
+    refuseOver({
+      modelId,
+      ceilingUsd,
+      subject: 'call',
+    },);
     return {
       usd: ceilingUsd,
       promptTokens,
     };
+  }
+
+  /**
+   Lets an attempt of the call in flight through, or ends the arm: the client tells the guard before it sends each one,
+   the first and every retry, and what this throws ends the call there with the attempt unsent.
+
+   @param label - the card the call is named by
+
+   @param bound - the most the attempt can be billed
+
+   @throws StatedRefusalError when the attempt could take the arm past its amount, or an earlier call or attempt did
+
+   @example
+   ```ts
+   admitAttempt({ label, bound, },);
+   ```
+   */
+  function admitAttempt(
+    {
+      label,
+      bound,
+    }: ClaudeAttemptAsk,
+  ): void {
+    throwStanding();
+    refuseOver({
+      modelId: label,
+      ceilingUsd: bound.usd,
+      subject: 'attempt',
+    },);
+    told.attempts += 1;
+    told.sinceUsd = runSpendUsd({ provider: 'anthropic', },);
+  }
+
+  /**
+   Whether a throw costs the arm nothing more than the client already wrote.
+
+   @param error - what the call threw
+
+   @returns True for the guard's own refusal, for a call that never left (the client was told of no attempt), for a call
+   whose last attempt the client wrote a line for, and for an error that proves no billable body was delivered
+
+   @example
+   ```ts
+   const free = throwIsFree({ error, },);
+   ```
+   */
+  function throwIsFree({ error, }: { readonly error: unknown; },): boolean {
+    if ((error instanceof StatedRefusalError) && refusals.includes(error,))
+      return true;
+    // A CALL THAT NEVER LEFT, rejected by a layer above the client (a retained prompt claim, a withheld seat), sent no
+    // attempt, so nothing was billed. Only a client that tells the guard of its attempts can say so.
+    if (gated && (told.attempts === 0))
+      return true;
+    // The client writes the line of an attempt it saw cut, so the last attempt is counted once, by that line.
+    if (gated && (runSpendUsd({ provider: 'anthropic', },) > told.sinceUsd))
+      return true;
+    return deliveredNothing({ error, },);
   }
 
   /**
@@ -430,16 +554,15 @@ export function spendGuardedClient(
       messages,
     },);
     counted.calls += 1;
-    /**
-     What the meter held when the call began, to see whether the client wrote a line for it.
-     */
-    const beforeUsd = runSpendUsd({ provider: 'anthropic', },);
+    // The meter at the start of the call stands for the start of its last attempt until the client tells the guard of one.
+    told.attempts = 0;
+    told.sinceUsd = runSpendUsd({ provider: 'anthropic', },);
     /**
      What the inner client did with the call: answered or threw.
      */
     const attempt = await attemptOf({ exchange, },);
     if (attempt.kind === 'threw') {
-      if (!deliveredNothing({ error: attempt.error, },)) {
+      if (!throwIsFree({ error: attempt.error, },)) {
         countAtCeiling({
           modelId,
           ceiling,
@@ -452,8 +575,9 @@ export function spendGuardedClient(
      What the client reported about the tokens of its reply.
      */
     const { usage, } = attempt.reply;
-    // A REPLY WITHOUT USAGE, OR WITH USAGE AND NO LINE ON THE METER, has a cost nobody wrote down.
-    if ((usage === undefined) || (runSpendUsd({ provider: 'anthropic', },) === beforeUsd)) {
+    // A REPLY WITHOUT USAGE, OR WITH USAGE AND NO LINE ON THE METER SINCE ITS LAST ATTEMPT BEGAN, has a cost nobody wrote
+    // down. The lines of the attempts before it, abandoned ones, do not stand for its own.
+    if ((usage === undefined) || (runSpendUsd({ provider: 'anthropic', },) <= told.sinceUsd)) {
       countAtCeiling({
         modelId,
         ceiling,
@@ -463,14 +587,21 @@ export function spendGuardedClient(
     return attempt.reply;
   }
 
+  /**
+   The client the guard wraps: the one given, or the one the builder makes over the guard's admit.
+   */
+  const client = (typeof inner) === 'function'
+    ? inner(admitAttempt,)
+    : inner;
+
   return {
-    ...inner,
+    ...client,
     chatText: async function guardedText(request,) {
       return await guarded({
         modelId: request.modelId,
         messages: request.messages,
         exchange: function askText() {
-          return inner.chatText(request,);
+          return client.chatText(request,);
         },
       },);
     },
@@ -479,7 +610,7 @@ export function spendGuardedClient(
         modelId: request.modelId,
         messages: request.messages,
         exchange: function askJson() {
-          return inner.chatJson(request,);
+          return client.chatJson(request,);
         },
       },);
     },
