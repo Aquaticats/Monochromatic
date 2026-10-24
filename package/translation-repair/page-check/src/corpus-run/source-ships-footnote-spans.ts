@@ -80,7 +80,7 @@ const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
  @param state - state of the block's container once the block is read
 
- @returns The spans of the block and of what the footnote reaches into, with the state of the top, or that the block is
+ @returns Spans of the block and of what the footnote reaches into, with the state of the top, or that the block is
  no part of a footnote
 
  @throws {@link Error} when a node of the footnote has no position, which the reading used never builds
@@ -119,7 +119,7 @@ export function footnoteRead(
   /**
    Where a footnote definition starts inside the paragraph, when one does on a line after its first.
    */
-  const split = (isRootChild && (node.type === 'paragraph'))
+  const split = (node.type === 'paragraph')
     ? footnoteStartInside({
       footnotes,
       range,
