@@ -588,6 +588,19 @@ await describe({
       },
     },),
 
+    it({
+      name: 'NAMES WHAT THE PARSER FOUND WRONG IN A FILE THAT DOES NOT PARSE, so a file the search cannot read stops '
+        + 'it with a message that says what is wrong and not with an object printed as text',
+      fn: async () => {
+        expect(function searchBrokenFile(): readonly string[] {
+          return declaringFilesOf({
+            sources: [{ file: 'imaginary/src/broken.ts', text: 'export const A = ;\n', },],
+            notStageSchemas: NOT_STAGE_SCHEMAS,
+          },);
+        },).toThrow('imaginary/src/broken.ts does not parse: Unexpected token',);
+      },
+    },),
+
     ...[
       ...CALL_FORM_CASES,
       ...BUILDER_FORM_CASES,
