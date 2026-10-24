@@ -30,6 +30,10 @@ import { HANG_STOP_MS, } from './hang-stop.test-fixture.ts';
 // suites walk). A sleep the release of the transport provokes is therefore a wait on a clock nobody ticks again,
 // and the walk stops waiting for the walk's end at the hang stop after the release as it does before the first call.
 //
+// THE HANG STOPS ARE REAL WAITS THAT THE WALK ENDS. Each is a minute of the real clock, raced against the walk, and a
+// real timer nobody ends holds its process for the rest of its minute after the last case; the walk aborts them all
+// when it returns, however it returns.
+//
 // TEST SUPPORT, NOT PACKAGE SOURCE. The delayed transport this drives is `delayed-transport.test-fixture.ts` of the
 // provider package; this file knows it only through the promise and the release it is handed.
 
@@ -259,6 +263,29 @@ export async function walkOnFakeClock(
     },);
 
   /**
+   Ends the real hang-stop waits still pending when the walk returns.
+   */
+  const hangStops = new AbortController();
+  using _stopped = {
+    [Symbol.dispose](): void {
+      hangStops.abort();
+    },
+  };
+
+  /**
+   Real wait, ended with the walk, after which a wait for the walk gives up.
+
+   @returns Settles once the hang stop has passed, or rejects with an `AbortError` as the walk returns
+   */
+  async function hangStop(): Promise<void> {
+    await realWait(
+      hangStopMs,
+      undefined,
+      { signal: hangStops.signal, },
+    );
+  }
+
+  /**
    Whether the walk has ended, either way, and what it threw, in a list of none or one.
    */
   const ended = {
@@ -305,7 +332,7 @@ export async function walkOnFakeClock(
     await Promise.race([
       firstCall,
       settled,
-      realWait(hangStopMs,)
+      hangStop()
         .then(function giveUp(): never {
           throw new Error('the walk made no call in the real time the case allows',);
         },),
@@ -324,7 +351,7 @@ export async function walkOnFakeClock(
     if (waitForEnd)
       await Promise.race([
         settled,
-        realWait(hangStopMs,),
+        hangStop(),
       ],);
     return ended.done;
   }
@@ -339,7 +366,7 @@ export async function walkOnFakeClock(
   // ended in real time.
   await Promise.race([
     settled,
-    realWait(hangStopMs,)
+    hangStop()
       .then(function giveUpAfterRelease(): never {
         throw new Error('the walk did not end after the release in the real time the case allows',);
       },),
