@@ -533,7 +533,10 @@ then decide which of three it is.
 
 Every stretch ends as one of the three.
 There is no fourth outcome:
-T8 closes only when every library stretch has a case or is removed (ledger T8).
+T8 closes only when every library stretch has a case or is removed
+(ledger T8;
+the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+under "Test suite").
 A stretch that resists placement gets a probe on the built package,
 as `23090a91d` did,
 until it is placed.
@@ -729,7 +732,9 @@ these are the ones the code here trips most.
 - [The audit ledger][ledger]:
   every finding;
   T8's entry has the census method,
-  its history and every batch.
+  its history and every batch
+  (the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+  under "Test suite").
 - [`mistake-prevention.md`][prevent]:
   each family of mistakes,
   its rule,
