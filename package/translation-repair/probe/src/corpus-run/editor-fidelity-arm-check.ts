@@ -1,17 +1,20 @@
 import { EDITOR_BENCH_MAX_USD, } from './editor-fidelity-args.ts';
 import {
   type Answer,
-  ceilingAnswer,
-  editorAnswer,
   errorAnswer,
   exitAnswer,
   guardAnswer,
   manifestAnswer,
   poolAnswer,
-  rowAnswer,
   seatAnswer,
   spendAnswer,
 } from './editor-fidelity-arm-answers.ts';
+import {
+  ceilingAnswer,
+  editorAnswer,
+  plannedAnswer,
+  rowAnswer,
+} from './editor-fidelity-arm-trial-answers.ts';
 import {
   type ArmFacts,
   type ArmLog,
@@ -238,6 +241,11 @@ export function checkEditorArms({ arms, }: { readonly arms: readonly ArmLog[]; }
           scope: arm,
           check: 'pool line',
           answer: poolAnswer({ facts, },),
+        },),
+        lineOfCheck({
+          scope: arm,
+          check: 'planned line',
+          answer: plannedAnswer({ facts, },),
         },),
         lineOfCheck({
           scope: arm,

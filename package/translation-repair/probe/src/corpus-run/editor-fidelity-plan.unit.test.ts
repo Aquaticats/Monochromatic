@@ -363,22 +363,13 @@ await describe({
       name: editorDecisionRuleLine.name,
       children: [
         it({
-          name: 'STATES WHICH COUNTS ARE COMPARED, WHAT DIFFERENCE COUNTS, WHAT A TIE KEEPS AND WHAT THE INSERTION '
-            + 'TRIALS MEASURE, in one line made from the same text as the rule the read step applies',
+          name: 'STATES WHICH TEST IS RUN, AT WHAT LEVEL, WHAT BREAKS A TIE AND WHAT THE INSERTION TRIALS MEASURE, in one '
+            + 'line made from the same text as the rule the read step applies',
           fn: async () => {
-            expect(editorDecisionRuleLine(),).toBe(
-              'RULE clean fix is exact plus equivalent, counted over the trials of both kinds of defect. An effort '
-                + 'other than the default (medium) is chosen only when its clean fix count is above the mean of the two '
-                + 'medium arms by at least 12 trials, or by at least the two medium arms\' own difference when that is '
-                + 'larger, and neither kind of defect (insertion, alteration) is more than 3 trials below the mean of '
-                + 'the two medium arms for that kind. A smaller gap, a tie, an effort that fixes fewer, and a gap a kind '
-                + 'contradicts all keep the default effort. With no true difference, a gap of 12 trials is the least '
-                + 'that keeps the chance of choosing another effort under 0.05 at every true fix rate from 0.30 to 0.95, '
-                + 'counting the two trials of an entry as one draw at the worst (editor-fidelity-decide-null.test-fixture.ts), so the '
-                + 'bench cannot separate efforts that differ by less. The insertion trials measure locating an added '
-                + 'sentence among its neighbours and copying the neighbours verbatim, not the span-only view production '
-                + 'gives an editor.',
-            );
+            expect(editorDecisionRuleLine().startsWith('RULE clean fix is exact plus equivalent, counted trial by trial. ',),).toBe(true,);
+            expect(editorDecisionRuleLine(),).toContain('one-sided exact paired permutation test',);
+            expect(editorDecisionRuleLine(),).toContain('the cheaper effort is chosen',);
+            expect(editorDecisionRuleLine(),).toContain('not the span-only view production gives an editor',);
             expect(editorDecisionRuleLine(),).toBe(`RULE ${decisionRuleText()}`,);
           },
         },),

@@ -4,10 +4,10 @@ import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
 
 //region Editor fidelity arm stop checks
 // THE CHECKS OF HOW THE ASKS OF AN ARM ENDED. A trial that reads unusable says only that it yielded nothing; whether the
-// card was cut off at the output-token cap or the exchange threw says why, and an arm in which either happened measured
-// the cap or the wire and not the effort. Each row line states the ends of its trial's asks, and these checks fail an arm
-// whose rows state none, whose asks ended at the cap or threw, and warn of one in which many trials were refused or
-// unusable.
+// card was cut off at the output-token cap or the exchange threw says why. Each row line states the ends of its trial's
+// asks, and these checks fail an arm whose rows state none, say which trials ended at the cap (they score as unusable for
+// the arm) or threw (they are left out of every arm, so the cap or the wire does not stand in for the effort), and warn of
+// an arm in which many trials were refused or unusable.
 
 /**
  The most unusable plus refused trials an arm may have before the read step warns of it.
@@ -85,18 +85,20 @@ function rowsSaid({ rows, }: { readonly rows: readonly number[]; },): string {
 }
 
 /**
- The answer of the check that no ask ended at the output-token cap and none threw.
+ The answer that says which trials ended at the output-token cap and which threw, and what the rule does with each: a
+ trial that ended at the cap scores as unusable for this arm, and a trial in which an ask threw is left out of every arm.
+ Neither fails the arm; the bench check of shared trials fails only when too few remain.
 
  @param figures - the arm's figures
 
- @returns Whether every ask ended some other way, naming the rows where one did not
+ @returns An answer that holds, naming the rows where an ask ended at the cap or threw
 
  @example
  ```ts
- const answer = capAndThrowAnswer({ figures, },);
+ const answer = trialEndsAnswer({ figures, },);
  ```
  */
-export function capAndThrowAnswer({ figures, }: { readonly figures: ArmFigures; },): Answer {
+export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },): Answer {
   /**
    The numbers of the rows with an ask that ended at the cap.
    */
@@ -130,7 +132,9 @@ export function capAndThrowAnswer({ figures, }: { readonly figures: ArmFigures; 
             one: 'trial',
             many: 'trials',
           },)
-        } ended at the output-token cap (${rowsSaid({ rows: capped, },)})`,
+        } ended at the output-token cap (${rowsSaid({ rows: capped, },)}) and ${
+          (capped.length === 1) ? 'scores' : 'score'
+        } as unusable for this arm`,
       ]),
     ...((threw.length === 0)
       ? []
@@ -141,36 +145,24 @@ export function capAndThrowAnswer({ figures, }: { readonly figures: ArmFigures; 
             one: 'trial',
             many: 'trials',
           },)
-        } had an ask that threw (${rowsSaid({ rows: threw, },)})`,
+        } had an ask that threw (${rowsSaid({ rows: threw, },)}) and ${
+          (threw.length === 1) ? 'is' : 'are'
+        } left out of every arm`,
       ]),
-    ...((figures.threw > 0)
-      ? [
-        `the seat line says ${
-          countWithNoun({
-            count: figures.threw,
-            one: 'ask',
-            many: 'asks',
-          },)
-        } threw`,
-      ]
-      : []),
   ];
-  return (found.length === 0)
-    ? {
-      ok: true,
-      detail: `${
+  return {
+    ok: true,
+    detail: (found.length === 0)
+      ? `${
         countWithNoun({
           count: figures.rows
             .length,
           one: 'trial',
           many: 'trials',
         },)
-      }, none at the cap, none threw`,
-    }
-    : {
-      ok: false,
-      detail: found.join('; ',),
-    };
+      }, none at the cap, none threw`
+      : found.join('; ',),
+  };
 }
 
 /**

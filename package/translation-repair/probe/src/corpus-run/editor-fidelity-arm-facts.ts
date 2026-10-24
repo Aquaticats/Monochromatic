@@ -297,6 +297,26 @@ export type ArmFacts = {
    Digest the manifest line says, empty when there is none.
    */
   readonly digest: string;
+
+  /**
+   Trials the planned line says the arm was asked to walk, minus one when there is none.
+   */
+  readonly planned: number;
+
+  /**
+   Trials the TRIALS line says were completed, minus one when there is none.
+   */
+  readonly completed: number;
+
+  /**
+   Trials the TRIALS line says were planned, minus one when there is none.
+   */
+  readonly completedOf: number;
+
+  /**
+   Whether the log says the spend guard capped the arm.
+   */
+  readonly capped: boolean;
 };
 
 /**
@@ -325,6 +345,13 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
   const total = bodies.find(function isTotal(body,): boolean {
     return body.startsWith('GUARD total=',);
   },) ?? '';
+  /**
+   The line that says how many trials were completed, if any.
+   */
+  const trialsLine = firstStarting({
+    bodies,
+    marker: 'TRIALS completed ',
+  },);
   return {
     bodies,
     card: wordAfter({
@@ -365,6 +392,24 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
         marker: 'manifest: ',
       },),
       marker: 'digest ',
+    },),
+    planned: numberAfter({
+      text: firstStarting({
+        bodies,
+        marker: 'planned: ',
+      },),
+      marker: 'planned: ',
+    },),
+    completed: numberAfter({
+      text: trialsLine,
+      marker: 'TRIALS completed ',
+    },),
+    completedOf: numberAfter({
+      text: trialsLine,
+      marker: ' of ',
+    },),
+    capped: bodies.some(function isCapped(body,): boolean {
+      return body.startsWith('CAPPED at trial ',);
     },),
   };
 }

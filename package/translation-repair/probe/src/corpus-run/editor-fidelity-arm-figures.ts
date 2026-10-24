@@ -57,6 +57,21 @@ export type RowStops = {
   readonly trial: string;
 
   /**
+   The entry the trial comes from, empty when the line names none.
+   */
+  readonly entry: string;
+
+  /**
+   The kind of defect the handle ends in, empty when it ends in neither.
+   */
+  readonly kind: '' | 'insertion' | 'alteration';
+
+  /**
+   Whether the row's reading is a clean fix, a reading that starts with `clean fix`.
+   */
+  readonly fixed: boolean;
+
+  /**
    The ends of the asks, in the order asked; empty when the line states none.
    */
   readonly stops: readonly string[];
@@ -151,11 +166,11 @@ function kindFigureOf({ line, }: { readonly line: string; },): KindFigure {
 
  @param body - the row line's body
 
- @returns The row, its trial and its stops
+ @returns The row, its trial, its entry, whether it is a clean fix and its stops
 
  @example
  ```ts
- const row = rowStopsOf({ body: 'row 2 of 40: card on tabby/insertion: clean fix exact, nothing else touched; stopped ok', },);
+ const row = rowStopsOf({ body: 'row 2 of 40: card on tabby/insertion: clean fix exact, nothing else touched; entry tabby; stopped ok', },);
  ```
  */
 function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
@@ -163,6 +178,10 @@ function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
    Where the stop words begin.
    */
   const marker = '; stopped ';
+  /**
+   Where the entry begins.
+   */
+  const entryMarker = '; entry ';
   /**
    What stands before the trial's handle.
    */
@@ -172,15 +191,39 @@ function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
    */
   const afterOn = body.includes(trialMarker,) ? body.slice(body.indexOf(trialMarker,) + trialMarker.length,) : '';
   /**
+   The trial's handle, then the reading and what follows it.
+   */
+  const [trial = '', ...afterTrial] = afterOn.split(': ',);
+  /**
    Where the marker stands, or minus one when the line states no stop words.
    */
   const markerAt = body.lastIndexOf(marker,);
+  /**
+   Where the entry marker stands, or minus one when the line names no entry.
+   */
+  const entryAt = body.lastIndexOf(entryMarker,);
+  /**
+   The text after the entry marker, up to the next semicolon.
+   */
+  const entry = (entryAt === (-1))
+    ? ''
+    : (body.slice(entryAt + entryMarker.length,)
+      .split(';',)[0]
+      ?? '');
+  /**
+   The kind the handle ends in.
+   */
+  const kindWord = trial.slice(trial.lastIndexOf('/',) + 1,);
   return {
     row: numberAfter({
       text: body,
       marker: 'row ',
     },),
-    trial: afterOn.split(': ',)[0] ?? '',
+    trial,
+    entry,
+    kind: (kindWord === 'insertion') || (kindWord === 'alteration') ? kindWord : '',
+    fixed: afterTrial.join(': ',)
+      .startsWith('clean fix',),
     stops: (markerAt === (-1)) ? [] : body.slice(markerAt + marker.length,)
       .split('+',),
     stated: markerAt !== (-1),

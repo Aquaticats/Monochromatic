@@ -8,7 +8,8 @@ import type {
 // throws. A trial asks the card through the stage's gather, which retries and recovers, so one trial may ask more than
 // once, and the row of the trial states every ask's end. A reading of `unusable` says the trial yielded nothing; the end
 // says why: the card stopped at the output-token cap, replied text no parser read, a refusal, a guard's rejection, or the
-// exchange threw. The read step fails an arm in which any ask ended at the cap or threw.
+// exchange threw. The read step scores a trial with an ask that ended at the cap as unusable for its arm, and leaves a
+// trial with an ask that threw out of every arm's comparison and counts it.
 
 /**
  How one ask ended: the reply was read, the card refused, the completion or its thinking was cut at the output-token

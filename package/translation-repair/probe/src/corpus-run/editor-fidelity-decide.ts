@@ -1,24 +1,40 @@
-import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import {
+  decidedOf,
+  kindsLine,
+  pairedLine,
+} from './editor-fidelity-decide-lines.ts';
+import type {
+  EffortReading,
+  EffortVerdict,
+  KindEstimate,
+  SharedTrial,
+} from './editor-fidelity-decide-types.ts';
+import {
+  ALPHA,
+  BOOTSTRAP_REPLICATES,
+  BOOTSTRAP_SEED,
+  clusterBootstrapInterval,
+  type PairedCluster,
+  pairedPermutationTest,
+} from './editor-fidelity-paired.ts';
 
 //region Editor fidelity decision rule
-// THE RULE THE ARMS OF THE EDITOR FIDELITY BENCH ARE READ BY, as code. It is applied by the read step to the counts the
-// logs state, and the line printed before any call is made from the same text, so a log shows the rule it will be read
-// by and the verdict cannot be reached by another one.
+// THE RULE THE ARMS OF THE EDITOR FIDELITY BENCH ARE READ BY, as code. It is applied by the read step to the trials every
+// arm shared, and the line printed before any call is made from the same text, so a log shows the rule it will be read by
+// and the verdict cannot be reached by another one.
 //
-// WHAT IS COMPARED. An effort's clean fix count (exact plus equivalent, over the trials of both kinds of defect) against
-// the mean of the two medium arms, which are one card run twice. The gap counts when it reaches the threshold: the
-// larger of a floor and the two medium arms' own difference. The floor is the smallest gap that keeps the chance of
-// choosing another effort under 0.05 when there is none to find, at every true fix rate from 0.30 to 0.95, by the exact
-// enumeration in `editor-fidelity-decide-null.test-fixture.ts` whose unit test pins it. The mediums' own difference raises it when
-// two runs of one card disagree by more.
+// WHAT IS COMPARED. Each of the low and the high effort against the default (medium), trial by trial: a trial is a clean
+// fix for an arm when its reading is exact or equivalent and no ask of it ended at the output-token cap. The efforts are
+// tested by a one-sided exact paired permutation test, permuting the arm labels within each entry with entries as the
+// units (two trials of one entry are not two independent draws), at 0.025 for each effort so that the chance of choosing
+// another effort when there is none to find stays under 0.05 for the pair. The test, its interval and the simulation that
+// bounds its false picks and states its power are `editor-fidelity-paired.ts` and
+// `editor-fidelity-paired-null.test-fixture.ts`.
 //
-// WHAT A KIND CAN VETO. An effort that gains overall but falls more than a tolerance below the mean of the mediums on
-// one kind of defect has not separated: it moved the other way on that kind. The tolerance is three trials, about one
-// standard deviation of a count out of twenty. It can only turn a pick into a keep, so it lowers the chance of choosing
-// another effort, and the enumeration (which leaves it out) bounds that chance from above.
-//
-// WHAT IS KEPT. A smaller gap, a tie, an effort that fixes fewer, and a gap a kind contradicts all keep the default
-// effort (medium). The rule never picks an effort for being cheaper: the pick is made on the gap alone.
+// WHAT IS PICKED. An effort is picked only when its test is at or under 0.025. When both are, the larger estimate wins;
+// when the estimates are equal, the cheaper effort. A medium verdict means no effort was shown better, which is not a
+// finding that the others are as good. The per-kind estimates are printed and veto nothing.
 //
 // WHAT THE INSERTION TRIALS MEASURE. Their region is widened by the neighbouring sentence on each side (so that deleting
 // the quoted region does not read as a clean fix), which makes the trial one of locating an added sentence among its
@@ -26,17 +42,25 @@ import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
 // reader of the verdict should not take the insertion count for production's.
 
 /**
- The least pooled gap that counts, in trials: the smallest floor the enumeration in
- `editor-fidelity-decide-null.test-fixture.ts` holds the chance of choosing another effort under 0.05 for, at every true fix rate from 0.30 to 0.95 and every
- correlation between the two trials of an entry.
+ The fewest trials every arm must share for the read step to give a verdict: with fewer, a difference the size of the
+ smallest this bench can tell apart would not be told apart (the simulation's power at 40 trials is under 0.8 for a
+ medium fix rate of 0.85, and about 37 points is the smallest difference at one half).
  */
-export const POOLED_FLOOR_TRIALS = 12;
+export const MIN_SHARED_TRIALS = 40;
 
 /**
- How many trials below the mean of the mediums a kind of defect may fall before it vetoes a gain: about one standard
- deviation of a count out of twenty.
+ The worst chance of choosing another effort when none is better that the simulation measured over the committed pool, at
+ true fix rates from 0.30 to 0.95 and within-entry correlations from 0 to 1.
  */
-export const KIND_TOLERANCE_TRIALS = 3;
+const FALSE_PICK_WORST = 0.047;
+
+/**
+ The efforts the rule tests against the default.
+ */
+const CHALLENGERS = [
+  'high',
+  'low',
+] as const;
 
 /**
  The decision rule as the line before any call prints it, after its `RULE ` marker.
@@ -49,448 +73,280 @@ export const KIND_TOLERANCE_TRIALS = 3;
  ```
  */
 export function decisionRuleText(): string {
+  return 'clean fix is exact plus equivalent, counted trial by trial. A trial in which an ask ended at the output-token cap '
+    + 'scores as unusable for its arm, and a trial in which an ask of any arm threw is left out of every arm\'s comparison '
+    + 'and counted. The arms are compared over the trials every arm completed, which are the leading trials of one fixed '
+    + 'seeded order, grouped by the entry each comes from. Each of the low and the high effort is tested against the '
+    + 'default (medium) by a one-sided exact paired permutation test, permuting the arm labels within each entry, with '
+    + `entries as the units, at ${String(ALPHA,)} for each effort (a second medium arm, if one is run, joins the labels `
+    + 'and is read as one control). The paired difference is printed per shared trial with a 95 percent interval from a '
+    + `seeded bootstrap over entries (${String(BOOTSTRAP_REPLICATES,)} resamples, seed ${BOOTSTRAP_SEED}) and the exact `
+    + `p-value. An effort other than the default is chosen only when its test is at or under ${String(ALPHA,)}. When both `
+    + 'efforts are shown better, the one with the larger estimate is chosen; when the estimates are equal, the cheaper '
+    + 'effort is chosen. A medium verdict means no effort was shown better than medium, not that the others are as good. '
+    + 'The estimates for each kind of defect (insertion, alteration) are printed beside it and veto nothing. With fewer '
+    + `than ${String(MIN_SHARED_TRIALS,)} shared trials the read step refuses to give a verdict. By simulation over the `
+    + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seed edr6-sim), at true fix rates from 0.30 to 0.95 '
+    + 'and within-entry correlations from 0 to 1, the chance of choosing another effort when none is better is at most '
+    + `${String(FALSE_PICK_WORST,)}; over all 88 trials the smallest difference chosen with chance 0.8 is about 25 points `
+    + 'when medium fixes half, 21 points when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, '
+    + 'and a smaller difference cannot be told apart. The insertion trials measure locating an added sentence among its '
+    + 'neighbours and copying the neighbours verbatim, not the span-only view production gives an editor.';
+}
+
+/**
+ Groups trials into the entries the test permutes within.
+
+ @param trials - the shared trials
+
+ @param effort - the effort under test, placed first among the arms
+
+ @param kind - the kind of defect to keep, every kind when omitted
+
+ @returns One cluster for each entry, in the order the entries first appear
+
+ @example
+ ```ts
+ const clusters = clustersOf({ trials, effort: 'high', },);
+ ```
+ */
+function clustersOf(
+  {
+    trials,
+    effort,
+    kind,
+  }: {
+    readonly trials: readonly SharedTrial[];
+    readonly effort: 'low' | 'high';
+    readonly kind?: SharedTrial['kind'];
+  },
+): readonly PairedCluster[] {
   /**
-   The floor with its noun.
+   The trials kept, grouped by entry.
    */
-  const floorSaid = countWithNoun({
-    count: POOLED_FLOOR_TRIALS,
-    one: 'trial',
-    many: 'trials',
+  const byEntry = Map.groupBy(
+    trials.filter(function isKept(trial,): boolean {
+      return (kind === undefined) || (trial.kind === kind);
+    },),
+    function entryOf({ entryId, },): string {
+      return entryId;
+    },
+  );
+  return Array.from(
+    byEntry.keys(),
+    function clusterOf(entryId,): PairedCluster {
+      /**
+       The entry's trials.
+       */
+      const group = nonNullishOrThrow(byEntry.get(entryId,),);
+      /**
+       The arms of each trial, the effort under test first.
+       */
+      const arms = group.map(function armsOf(trial,): readonly boolean[] {
+        return [
+          trial[effort],
+          ...trial.mediums,
+        ];
+      },);
+      return {
+        entryId,
+        trials: group.length,
+        fixed: Array.from(
+          {
+            length: arms[0]
+              ?.length
+              ?? 0,
+          },
+          function fixedBy(
+            _unused,
+            armAt,
+          ): number {
+            return arms.filter(function fixes(trialArms,): boolean {
+              return trialArms[armAt] === true;
+            },)
+              .length;
+          },
+        ),
+      };
+    },
+  );
+}
+
+/**
+ The paired estimate of an effort over the trials of one kind.
+
+ @param trials - the shared trials
+
+ @param effort - the effort under test
+
+ @param kind - the kind of defect
+
+ @returns The estimate and the number of trials of the kind
+
+ @example
+ ```ts
+ const kind = kindEstimateOf({ trials, effort: 'high', kind: 'insertion', },);
+ ```
+ */
+function kindEstimateOf(
+  {
+    trials,
+    effort,
+    kind,
+  }: {
+    readonly trials: readonly SharedTrial[];
+    readonly effort: 'low' | 'high';
+    readonly kind: SharedTrial['kind'];
+  },
+): KindEstimate {
+  /**
+   The test over the entries' trials of the kind, read for its estimate alone.
+   */
+  const test = pairedPermutationTest({
+    clusters: clustersOf({
+      trials,
+      effort,
+      kind,
+    },),
   },);
-  return 'clean fix is exact plus equivalent, counted over the trials of both kinds of defect. An effort other than the '
-    + 'default (medium) is chosen only when its clean fix count is above the mean of the two medium arms by at least '
-    + `${floorSaid}, or by at least the two medium arms' own difference when that is `
-    + `larger, and neither kind of defect (insertion, alteration) is more than ${String(KIND_TOLERANCE_TRIALS,)} `
-    + 'trials below the mean of the two medium arms for that kind. A smaller gap, a tie, an effort that fixes fewer, and '
-    + 'a gap a kind contradicts all keep the default effort. With no true difference, a gap of '
-    + `${floorSaid} is the least that keeps the chance of choosing another effort under 0.05 `
-    + 'at every true fix rate from 0.30 to 0.95, counting the two trials of an entry as one draw at the worst '
-    + '(editor-fidelity-decide-null.test-fixture.ts), so the bench cannot separate efforts that differ by less. The insertion '
-    + 'trials measure locating an added sentence among its neighbours and copying the neighbours verbatim, not the '
-    + 'span-only view production gives an editor.';
+  return {
+    estimate: test.estimate,
+    trials: test.trials,
+  };
 }
 
 /**
- How many trials of one kind of defect an arm ran and fixed cleanly.
+ Reads one effort against the default.
 
- @example
- ```ts
- const counts: KindCount = { trials: 22, fixed: 18, };
- ```
- */
-export type KindCount = {
-  /**
-   Trials of the kind.
-   */
-  readonly trials: number;
-
-  /**
-   Trials fixed cleanly, exact plus equivalent.
-   */
-  readonly fixed: number;
-};
-
-/**
- The clean fix counts of an arm for each kind of defect.
-
- @example
- ```ts
- const arm: ArmCount = { insertion: { trials: 22, fixed: 18, }, alteration: { trials: 18, fixed: 12, }, };
- ```
- */
-export type ArmCount = {
-  /**
-   The insertion trials.
-   */
-  readonly insertion: KindCount;
-
-  /**
-   The alteration trials.
-   */
-  readonly alteration: KindCount;
-};
-
-/**
- Which clause of the rule decided.
- */
-export type DecidingClause =
-  | 'tie'
-    | 'inside-threshold'
-    | 'fixes-fewer'
-    | 'kind-veto'
-    | 'beats-medium';
-
-/**
- How one effort stands against the two medium arms.
-
- @example
- ```ts
- const reading: EffortReading = { effort: 'high', gap: 12, clause: 'beats-medium', kindShortfall: '', };
- ```
- */
-export type EffortReading = {
-  /**
-   The effort read.
-   */
-  readonly effort: 'low' | 'high';
-
-  /**
-   Its clean fix count minus the mean of the two medium arms', in trials.
-   */
-  readonly gap: number;
-
-  /**
-   The clause that decided for this effort.
-   */
-  readonly clause: DecidingClause;
-
-  /**
-   The kind of defect that fell more than the tolerance below the mediums where the clause is a veto, else empty.
-   */
-  readonly kindShortfall: '' | 'insertion' | 'alteration';
-};
-
-/**
- What the rule decided over the four arms.
-
- @example
- ```ts
- const verdict = decideEffort({ low, mediumA, mediumB, high, },);
- ```
- */
-export type EffortVerdict = {
-  /**
-   The effort the rule picks.
-   */
-  readonly verdict: 'low' | 'medium' | 'high';
-
-  /**
-   The clause that decided it: that of the effort picked, else that of the effort furthest from the mediums.
-   */
-  readonly clause: DecidingClause;
-
-  /**
-   The threshold a gap had to reach, in trials.
-   */
-  readonly thresholdTrials: number;
-
-  /**
-   The mean of the two medium arms' clean fix counts.
-   */
-  readonly mediumMean: number;
-
-  /**
-   How the low effort stands.
-   */
-  readonly low: EffortReading;
-
-  /**
-   How the high effort stands.
-   */
-  readonly high: EffortReading;
-
-  /**
-   The verdict as the read step prints it.
-   */
-  readonly said: string;
-};
-
-/**
- The clean fix count of an arm over both kinds.
-
- @param arm - the arm's counts
-
- @returns Insertion plus alteration clean fixes
-
- @example
- ```ts
- // yields 30
- const fixed = pooledFixed({ arm: { insertion: { trials: 22, fixed: 18, }, alteration: { trials: 18, fixed: 12, }, }, },);
- ```
- */
-function pooledFixed({ arm, }: { readonly arm: ArmCount; },): number {
-  return arm.insertion
-    .fixed
-    + arm.alteration
-      .fixed;
-}
-
-/**
- Reads one effort against the two medium arms.
+ @param trials - the shared trials
 
  @param effort - the effort
 
- @param arm - its counts
-
- @param mediumA - the first medium arm's counts
-
- @param mediumB - the second medium arm's counts
-
- @param thresholdTrials - the gap that counts
-
- @returns The effort's gap, the clause that decided for it and the kind that vetoed it, if one did
+ @returns The estimate, its interval, the exact p-value, whether it is shown better and the estimate for each kind
 
  @example
  ```ts
- const reading = readEffort({ effort: 'high', arm, mediumA, mediumB, thresholdTrials: 12, },);
+ const reading = readEffort({ trials, effort: 'high', },);
  ```
  */
 function readEffort(
   {
+    trials,
     effort,
-    arm,
-    mediumA,
-    mediumB,
-    thresholdTrials,
   }: {
+    readonly trials: readonly SharedTrial[];
     readonly effort: 'low' | 'high';
-    readonly arm: ArmCount;
-    readonly mediumA: ArmCount;
-    readonly mediumB: ArmCount;
-    readonly thresholdTrials: number;
   },
 ): EffortReading {
   /**
-   The gap in trials, a half when the mediums' counts add to an odd number.
+   The entries, the effort first.
    */
-  const gap = pooledFixed({ arm, },) - ((pooledFixed({ arm: mediumA, },) + pooledFixed({ arm: mediumB, },)) / 2);
-  if (gap === 0) {
-    return {
-      effort,
-      gap,
-      clause: 'tie',
-      kindShortfall: '',
-    };
-  }
-  if (gap <= (-thresholdTrials)) {
-    return {
-      effort,
-      gap,
-      clause: 'fixes-fewer',
-      kindShortfall: '',
-    };
-  }
-  if (gap < thresholdTrials) {
-    return {
-      effort,
-      gap,
-      clause: 'inside-threshold',
-      kindShortfall: '',
-    };
-  }
+  const clusters = clustersOf({
+    trials,
+    effort,
+  },);
   /**
-   How many trials short of the mediums' mean the effort falls on each kind, negative when it exceeds the mean.
+   The exact test.
    */
-  const shortfall = {
-    insertion: ((mediumA.insertion
-      .fixed
-      + mediumB.insertion
-        .fixed) / 2)
-      - arm.insertion
-        .fixed,
-    alteration: ((mediumA.alteration
-      .fixed
-      + mediumB.alteration
-        .fixed) / 2)
-      - arm.alteration
-        .fixed,
-  };
-  if (shortfall.insertion > KIND_TOLERANCE_TRIALS) {
-    return {
-      effort,
-      gap,
-      clause: 'kind-veto',
-      kindShortfall: 'insertion',
-    };
-  }
-  if (shortfall.alteration > KIND_TOLERANCE_TRIALS) {
-    return {
-      effort,
-      gap,
-      clause: 'kind-veto',
-      kindShortfall: 'alteration',
-    };
-  }
+  const test = pairedPermutationTest({ clusters, },);
   return {
     effort,
-    gap,
-    clause: 'beats-medium',
-    kindShortfall: '',
+    estimate: test.estimate,
+    interval: clusterBootstrapInterval({
+      clusters,
+      seed: BOOTSTRAP_SEED,
+      replicates: BOOTSTRAP_REPLICATES,
+    },),
+    p: test.p,
+    shown: test.atMostAlpha,
+    kinds: {
+      insertion: kindEstimateOf({
+        trials,
+        effort,
+        kind: 'insertion',
+      },),
+      alteration: kindEstimateOf({
+        trials,
+        effort,
+        kind: 'alteration',
+      },),
+    },
   };
 }
 
 /**
- Says what the rule decided, for the line the read step prints.
+ Applies the rule to the shared trials of the arms.
 
- @param verdict - the effort picked
+ @param trials - the trials every arm completed and none threw on, each with whether every arm fixed it cleanly
 
- @param reading - the reading the verdict is told by
-
- @param mediumMean - the mean of the two medium arms' counts
-
- @param thresholdTrials - the gap that counts
-
- @returns The sentence
+ @returns The effort picked, the clause that decided, how each effort stands and the lines the read step prints
 
  @example
  ```ts
- const said = verdictSaid({ verdict: 'medium', reading, mediumMean: 20, thresholdTrials: 12, },);
+ const verdict = decideEffort({ trials, },);
  ```
  */
-function verdictSaid(
-  {
-    verdict,
-    reading,
-    mediumMean,
-    thresholdTrials,
-  }: {
-    readonly verdict: EffortVerdict['verdict'];
-    readonly reading: EffortReading;
-    readonly mediumMean: number;
-    readonly thresholdTrials: number;
-  },
-): string {
+export function decideEffort({ trials, }: { readonly trials: readonly SharedTrial[]; },): EffortVerdict {
   /**
-   What follows from the clause.
-   */
-  const tail = (reading.clause === 'beats-medium')
-    ? `${verdict} is chosen`
-    : (reading.clause === 'kind-veto')
-      ? `the ${reading.kindShortfall} trials fall more than ${String(KIND_TOLERANCE_TRIALS,)} below the mediums, so the default effort stays`
-      : 'the default effort stays';
-  return `VERDICT ${verdict} (${reading.clause}): ${reading.effort} has ${String(Math.abs(reading.gap,),)} ${
-    (reading.gap < 0) ? 'fewer' : 'more'
-  } clean fixes than the mean of the two medium arms (${String(mediumMean,)}), the threshold is ${
-    String(thresholdTrials,)
-  }, ${(reading.clause === 'beats-medium') ? 'and ' : 'so '}${tail}`;
-}
-
-/**
- Applies the rule to the four arms.
-
- @param low - the low effort's counts
-
- @param mediumA - the first medium arm's counts
-
- @param mediumB - the second medium arm's counts
-
- @param high - the high effort's counts
-
- @returns The effort picked, the clause that decided and how each effort stands
-
- @example
- ```ts
- const verdict = decideEffort({ low, mediumA, mediumB, high, },);
- ```
- */
-export function decideEffort(
-  {
-    low,
-    mediumA,
-    mediumB,
-    high,
-  }: {
-    readonly low: ArmCount;
-    readonly mediumA: ArmCount;
-    readonly mediumB: ArmCount;
-    readonly high: ArmCount;
-  },
-): EffortVerdict {
-  /**
-   The mediums' own difference, which raises the threshold above the floor when two runs of one card disagree.
-   */
-  const thresholdTrials = Math.max(
-    POOLED_FLOOR_TRIALS,
-    Math.abs(pooledFixed({ arm: mediumA, },) - pooledFixed({ arm: mediumB, },),),
-  );
-  /**
-   The mean of the mediums' counts.
-   */
-  const mediumMean = (pooledFixed({ arm: mediumA, },) + pooledFixed({ arm: mediumB, },)) / 2;
-  /**
-   The two efforts read against the mediums.
+   The two efforts read against the default.
    */
   const readings = {
-    low: readEffort({
-      effort: 'low',
-      arm: low,
-      mediumA,
-      mediumB,
-      thresholdTrials,
-    },),
     high: readEffort({
+      trials,
       effort: 'high',
-      arm: high,
-      mediumA,
-      mediumB,
-      thresholdTrials,
+    },),
+    low: readEffort({
+      trials,
+      effort: 'low',
     },),
   };
   /**
-   The efforts that beat the mediums, with no kind against them.
+   Entries the trials come from.
    */
-  const winners = [
-    readings.low,
-    readings.high,
-  ].filter(function beats(reading,): boolean {
-    return reading.clause === 'beats-medium';
+  const entries = new Set(trials.map(function entryOf({ entryId, },): string {
+    return entryId;
+  },),).size;
+  /**
+   The efforts shown better, the high effort first.
+   */
+  const shown = CHALLENGERS.filter(function isShown(effort,): boolean {
+    return readings[effort]
+      .shown;
   },);
   /**
-   The larger gap among the winners, and whether two winners share it.
+   The effort picked, the clause that decided and the sentence that says so.
    */
-  const bestGap = Math.max(...winners.map(function gapOf({ gap, },): number {
-    return gap;
-  },),);
-  /**
-   The winners at the larger gap.
-   */
-  const best = winners.filter(function isBest({ gap, },): boolean {
-    return gap === bestGap;
+  const decided = decidedOf({
+    readings,
+    shown,
   },);
-  /**
-   The reading furthest from the mediums, the one that tells a keep: the low effort where two stand equally far.
-   */
-  const furthest = (Math.abs(readings.high
-    .gap,) > Math.abs(readings.low
-      .gap,)) ? readings.high : readings.low;
-  /**
-   The one winner at the larger gap, absent when there is none or two share it.
-   */
-  const [chosen,] = best;
-  if ((best.length === 1) && (chosen !== undefined)) {
-    return {
-      verdict: chosen.effort,
-      clause: chosen.clause,
-      thresholdTrials,
-      mediumMean,
-      ...readings,
-      said: verdictSaid({
-        verdict: chosen.effort,
-        reading: chosen,
-        mediumMean,
-        thresholdTrials,
-      },),
-    };
-  }
-  /**
-   Two winners at one gap are a tie between efforts; otherwise the clause of the effort furthest from the mediums.
-   */
-  const keptReading: EffortReading = (best.length > 1) ? {
-    ...furthest,
-    clause: 'tie',
-  } : furthest;
   return {
-    verdict: 'medium',
-    clause: keptReading.clause,
-    thresholdTrials,
-    mediumMean,
-    ...readings,
-    said: verdictSaid({
-      verdict: 'medium',
-      reading: keptReading,
-      mediumMean,
-      thresholdTrials,
-    },),
+    verdict: decided.verdict,
+    clause: decided.clause,
+    trials: trials.length,
+    entries,
+    mediumArms: trials[0]
+      ?.mediums
+      .length
+      ?? 0,
+    low: readings.low,
+    high: readings.high,
+    lines: [
+      pairedLine({
+        reading: readings.high,
+        trials: trials.length,
+        entries,
+      },),
+      kindsLine({ reading: readings.high, },),
+      pairedLine({
+        reading: readings.low,
+        trials: trials.length,
+        entries,
+      },),
+      kindsLine({ reading: readings.low, },),
+      decided.said,
+    ],
+    said: decided.said,
   };
 }
 

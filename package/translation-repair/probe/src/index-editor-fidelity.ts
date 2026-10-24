@@ -57,17 +57,20 @@ export {
 } from './corpus-run/editor-fidelity-pool-verdict.ts';
 export {
   type Answer,
-  ceilingAnswer,
-  editorAnswer,
   errorAnswer,
   exitAnswer,
   guardAnswer,
   manifestAnswer,
   poolAnswer,
-  rowAnswer,
   seatAnswer,
   spendAnswer,
 } from './corpus-run/editor-fidelity-arm-answers.ts';
+export {
+  ceilingAnswer,
+  editorAnswer,
+  plannedAnswer,
+  rowAnswer,
+} from './corpus-run/editor-fidelity-arm-trial-answers.ts';
 export { checkEditorBench, } from './corpus-run/editor-fidelity-arm-bench.ts';
 export {
   type ArmFigures,
@@ -77,8 +80,8 @@ export {
 } from './corpus-run/editor-fidelity-arm-figures.ts';
 export { benchReportLines, } from './corpus-run/editor-fidelity-arm-report.ts';
 export {
-  capAndThrowAnswer,
   stopsStatedAnswer,
+  trialEndsAnswer,
   UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,
   unusableWarning,
 } from './corpus-run/editor-fidelity-arm-stops.ts';
@@ -90,16 +93,22 @@ export {
   stoppedWord,
 } from './corpus-run/editor-fidelity-asks.ts';
 export {
-  type ArmCount,
-  type DecidingClause,
   decideEffort,
   decisionRuleText,
-  type EffortReading,
-  type EffortVerdict,
-  KIND_TOLERANCE_TRIALS,
-  type KindCount,
-  POOLED_FLOOR_TRIALS,
+  MIN_SHARED_TRIALS,
 } from './corpus-run/editor-fidelity-decide.ts';
+export type {
+  DecidingClause,
+  EffortReading,
+  EffortVerdict,
+  KindEstimate,
+  SharedTrial,
+} from './corpus-run/editor-fidelity-decide-types.ts';
+export {
+  effortOf,
+  type SharedBench,
+  sharedBenchOf,
+} from './corpus-run/editor-fidelity-arm-shared.ts';
 export {
   ALPHA,
   BOOTSTRAP_REPLICATES,

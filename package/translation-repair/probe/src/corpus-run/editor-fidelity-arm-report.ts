@@ -1,26 +1,29 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
-  type ArmCount,
-  decideEffort,
-} from './editor-fidelity-decide.ts';
+  BENCH_ARMS_LEAST,
+  BENCH_ARMS_MOST,
+} from './editor-fidelity-arm-bench-answers.ts';
+import { decideEffort, } from './editor-fidelity-decide.ts';
 import {
   type ArmFigures,
   armFiguresOf,
 } from './editor-fidelity-arm-figures.ts';
-import type { ArmLog, } from './editor-fidelity-arm-facts.ts';
+import {
+  type SharedBench,
+  sharedBenchOf,
+} from './editor-fidelity-arm-shared.ts';
+import {
+  type ArmLog,
+  countWithNoun,
+} from './editor-fidelity-arm-facts.ts';
 
 //region Editor fidelity arm report
 // THE LINES THE READ STEP PRINTS ONCE THE CHECKS OF A BENCH PASS, and only then: an arm with a failed check is not
 // evidence, and no figure of it is read. For each arm, its clean fix count pooled and for each kind with the defect-only
 // count beside it as a secondary count (a reply that removed the defect and changed more is not a clean fix and is not
-// in the headline), and what went unusable, was refused, threw and was abandoned; for each arm, how the asks of every
-// row ended; and last the verdict of the decision rule over the four arms, which is `decideEffort`, the rule whose text
-// the probe printed before its first call.
-
-/**
- The arms of a bench: the low effort, the default twice and the high effort.
- */
-const BENCH_ARMS = 4;
+// in the headline), and what went unusable, was refused, threw and was abandoned; the trials every arm shared; for each
+// arm, how the asks of its rows ended; and last the paired lines and the verdict of the decision rule over the shared
+// trials, which is `decideEffort`, the rule whose text the probe printed before its first call.
 
 /**
  Says an arm's figures.
@@ -61,7 +64,7 @@ function armLine({
 }
 
 /**
- Says how the asks of every row of an arm ended.
+ Says how the asks of the rows of an arm ended: a count for each stop reason, and the rows that did not end ok.
 
  @param arm - the arm's name
 
@@ -81,56 +84,112 @@ function stopsLine({
   readonly arm: string;
   readonly figures: ArmFigures
 },): string {
+  /**
+   The stop words of each row, `not stated` for a row whose line states none.
+   */
+  const words = figures.rows
+    .map(function wordOf({
+      stated,
+      stops,
+    },): string {
+      return stated ? stops.join('+',) : 'not stated';
+    },);
+  /**
+   The rows for each stop word, in the order the words first appear.
+   */
+  const counted = Array.from(
+    new Set(words,),
+    function countOf(word,): {
+      readonly word: string;
+      readonly count: number
+    } {
+      return {
+        word,
+        count: words.filter(function isWord(each,): boolean {
+          return each === word;
+        },)
+          .length,
+      };
+    },
+  )
+    .toSorted(function mostFirst(
+      a,
+      b,
+    ): number {
+      return b.count - a.count;
+    },);
+  /**
+   The rows that did not end ok, with their stop words.
+   */
+  const notOk = figures.rows
+    .flatMap(function notOkOf(
+      { row, },
+      at,
+    ): readonly string[] {
+      /**
+       This row's stop word.
+       */
+      const word = nonNullishOrThrow(words[at],);
+      return (word === 'ok') ? [] : [`row ${String(row,)} ${word}`,];
+    },);
   return `STOPS ${arm}: ${
-    figures.rows
-      .map(function stopOf({
-        row,
-        stops,
-      },): string {
-      return `row ${String(row,)} ${stops.join('+',)}`;
+    counted.map(function wordCount({
+      word,
+      count,
+    },): string {
+      return `${word} ${String(count,)}`;
     },)
-      .join('; ',)
-  }`;
+      .join(', ',)
+  }${(notOk.length === 0) ? '' : `; not ok: ${notOk.join(', ',)}`}`;
 }
 
 /**
- The counts of an arm that the decision rule reads.
+ Says the trials every arm shared and what was left out.
 
- @param figures - the arm's figures
+ @param shared - the shared trials and the counts left out
 
- @returns The clean fix counts and the trials for each kind
+ @returns The line, without a newline
 
  @example
  ```ts
- const counts = countsOf({ figures, });
+ const line = sharedLine({ shared, },);
  ```
  */
-function countsOf({ figures, }: { readonly figures: ArmFigures; },): ArmCount {
-  return {
-    insertion: {
-      trials: figures.insertion
-        .trials,
-      fixed: figures.insertion
-        .fixed,
-    },
-    alteration: {
-      trials: figures.alteration
-        .trials,
-      fixed: figures.alteration
-        .fixed,
-    },
-  };
+function sharedLine({ shared, }: { readonly shared: SharedBench; },): string {
+  return `SHARED ${
+    countWithNoun({
+      count: shared.trials
+        .length,
+      one: 'trial',
+      many: 'trials',
+    },)
+  } over ${
+    countWithNoun({
+      count: shared.entries,
+      one: 'entry',
+      many: 'entries',
+    },)
+  } (${
+    shared.completed
+      .map(function completedBy({
+        arm,
+        rows,
+      },): string {
+        return `${arm} completed ${String(rows,)}`;
+      },)
+      .join(', ',)
+  }; ${String(shared.thrown,)} left out as thrown, ${String(shared.unfinished,)} not completed by every arm)`;
 }
 
 /**
  The lines the read step prints for a bench whose checks passed.
 
- @param arms - the four arms, in the order they ran: low, medium, medium, high
+ @param arms - the three or four arms, in the order they ran: high, medium, a second medium if run, low
 
- @returns The ARM line and the STOPS line of each arm, then the verdict
+ @returns The ARM line of each arm, the SHARED line, the STOPS line of each arm, then the paired lines and the verdict
 
- @throws {@link Error} when the arms are not four, since the rule reads exactly four and the bench checks have already
- refused any other number
+ @throws {@link Error} when the arms are not three or four, since the rule reads exactly those and the bench checks have
+ already refused any other number
 
  @example
  ```ts
@@ -139,8 +198,8 @@ function countsOf({ figures, }: { readonly figures: ArmFigures; },): ArmCount {
  ```
  */
 export function benchReportLines({ arms, }: { readonly arms: readonly ArmLog[]; },): readonly string[] {
-  if (arms.length !== BENCH_ARMS)
-    throw new Error(`the verdict is read over four arms, and ${String(arms.length,)} were given`,);
+  if ((arms.length < BENCH_ARMS_LEAST) || (arms.length > BENCH_ARMS_MOST))
+    throw new Error(`the verdict is read over three or four arms, and ${String(arms.length,)} were given`,);
   /**
    The figures of each arm.
    */
@@ -148,17 +207,18 @@ export function benchReportLines({ arms, }: { readonly arms: readonly ArmLog[]; 
     return armFiguresOf({ log, },);
   },);
   /**
-   The figures of the low arm, the two medium arms and the high arm.
+   The trials every arm shared.
    */
-  const [lowFigures, mediumAFigures, mediumBFigures, highFigures,] = figures;
-  /**
-   The sentence the rule says its verdict in.
-   */
-  const { said, } = decideEffort({
-    low: countsOf({ figures: nonNullishOrThrow(lowFigures,), },),
-    mediumA: countsOf({ figures: nonNullishOrThrow(mediumAFigures,), },),
-    mediumB: countsOf({ figures: nonNullishOrThrow(mediumBFigures,), },),
-    high: countsOf({ figures: nonNullishOrThrow(highFigures,), },),
+  const shared = sharedBenchOf({
+    arms: arms.map(function withFigures(
+      { arm, },
+      at,
+    ) {
+      return {
+        arm,
+        figures: nonNullishOrThrow(figures[at],),
+      };
+    },),
   },);
   return [
     ...arms.map(function armOf(
@@ -170,6 +230,7 @@ export function benchReportLines({ arms, }: { readonly arms: readonly ArmLog[]; 
         figures: nonNullishOrThrow(figures[at],),
       },);
     },),
+    sharedLine({ shared, },),
     ...arms.map(function stopsOf(
       { arm, },
       at,
@@ -179,7 +240,8 @@ export function benchReportLines({ arms, }: { readonly arms: readonly ArmLog[]; 
         figures: nonNullishOrThrow(figures[at],),
       },);
     },),
-    said,
+    ...decideEffort({ trials: shared.trials, },)
+      .lines,
   ];
 }
 
