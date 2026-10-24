@@ -303,9 +303,12 @@ not kept in the repository).
 
 ## Skip a hint request that stored answers cover: built
 
-Built on 2026-10-24 after the owner chose, through the question tool, a rule that skips a hint request
+Built on 2026-10-24 after the owner chose,
+through the question tool,
+a rule that skips a hint request
 when the last answer already covers the window.
-The code is `Annotations::answered_covers` (`src/annotation/coverage.rs`, `src/annotation.rs`),
+The code is `Annotations::answered_covers` (`src/annotation/coverage.rs`,
+`src/annotation.rs`),
 which `merge_labels` in `src/annotation/blocks.rs` feeds,
 and the call in `hints` in `src/native/language/sync.rs` (`HINT_SETTLE` is still 200 ms).
 
@@ -314,18 +317,26 @@ and the call in `hints` in `src/native/language/sync.rs` (`HINT_SETTLE` is still
 A request for the visible lines asks one view height above the first visible line and two below it,
 clipped to the text (`request_lines` in `src/language/hints.rs`).
 That request is not sent when its range lies inside the union of the ranges that hint snapshots,
-stored for the same text revision, asked about:
+stored for the same text revision,
+asked about:
 
 - Only a stored answer adds lines.
-  A request that is pending, failed, or cancelled never reaches the store, so it covers nothing,
+  A request that is pending,
+  failed,
+  or cancelled never reaches the store,
+  so it covers nothing,
   and the IDE holds the hints of the covered lines because the same snapshots put them in its per-line store.
 - The lines belong to one text revision (file generation and revision).
   The first stored answer for another revision starts the record afresh,
-  and a query for another revision is not covered, also while no answer for it has arrived.
-  So an edit, a reload, and another file reset it.
+  and a query for another revision is not covered,
+  also while no answer for it has arrived.
+  So an edit,
+  a reload,
+  and another file reset it.
   Opening the file in the worker again (an explicit action that restarts failed servers) forgets all lines too,
   because the new worker holds no earlier request.
-- Ranges that overlap or touch are joined, so two answers can cover a range together,
+- Ranges that overlap or touch are joined,
+  so two answers can cover a range together,
   and a gap between answers is not covered.
   An empty range is never covered.
 - A skipped view is recorded as the last handled one (the debug line is
@@ -335,37 +346,67 @@ stored for the same text revision, asked about:
 
 ### What was measured
 
-The disposable project and binaries are those of the section "Re-aim once of a minimap press: built":
-a copy of `build.unit.test.ts` (287 lines) with the TypeScript 7.1.0-beta server, a window of 1080 by 1880 logical px at scale 2,
-the nested compositor, and the debug log.
-The base is the tree before the rule, the fix is the tree with it.
-Each scenario ran three times per binary, alternating base and fix, under the load the host had
-(other sessions were building throughout; load average 6 to 19).
-Requests are the lines `reported visible lines for inlay hints`, skips the lines `skipped the hint request`.
+The disposable project and binaries are those of the section "Re-aim once of a minimap press:
+built":
+a copy of `build.unit.test.ts` (287 lines) with the TypeScript 7.1.0-beta server,
+a window of 1080 by 1880 logical px at scale 2,
+the nested compositor,
+and the debug log.
+The base is the tree before the rule,
+the fix is the tree with it.
+Each scenario ran three times per binary,
+alternating base and fix,
+under the load the host had
+(other sessions were building throughout;
+load average 6 to 19).
+Requests are the lines `reported visible lines for inlay hints`,
+skips the lines `skipped the hint request`.
 
-- The first click at y=1700 of a session: base 2 requests in 3 of 3 runs (top line 214, then 223),
+- The first click at y=1700 of a session:
+  base 2 requests in 3 of 3 runs (top line 214,
+  then 223),
   fix 1 request and 1 skip in 3 of 3 runs.
   The answer of the first request was stored 250 to 255 ms after the click in base and 254 to 269 ms in fix;
-  the second answer, 498 to 510 ms in base, is the one that is gone.
-  The second range, lines 146 to 287, lies inside the first, lines 137 to 287.
-- A click at y=1000 and then the click at y=1700: base 1 request for each click (3 of 3 runs),
-  fix 1 request for the click at y=1000 and none for the click at y=1700 (1 skip, 3 of 3 runs).
+  the second answer,
+  498 to 510 ms in base,
+  is the one that is gone.
+  The second range,
+  lines 146 to 287,
+  lies inside the first,
+  lines 137 to 287.
+- A click at y=1000 and then the click at y=1700:
+  base 1 request for each click (3 of 3 runs),
+  fix 1 request for the click at y=1000 and none for the click at y=1700 (1 skip,
+  3 of 3 runs).
   This differs from the expectation that the later press still costs one request:
   the answer to the first click asked lines 70 to 288 (top line 147 plus two view heights clips to the end of the 288 lines),
-  so it already asked every line the press at y=1700 needs, and all of their hints are stored (86 in that answer).
+  so it already asked every line the press at y=1700 needs,
+  and all of their hints are stored (86 in that answer).
   In a file where the first click's answer does not reach the end the later press costs what it did:
-  with a text of 843 lines (the header of the file, then its body three times as functions),
+  with a text of 843 lines (the header of the file,
+  then its body three times as functions),
   the click at y=1000 cost 2 requests in base (the minimap re-aim reports a second view) and 1 request and 1 skip in fix,
   and the click at y=1700 after it 2 requests in both binaries (3 of 3 runs each).
 - Ordinary scrolling still asks when the view leaves the covered lines.
   In the 843-line text after a click at y=1700 (3 requests in both binaries),
   a wheel of 40 notches up sent 1 request in both binaries (3 of 3 runs):
-  the answer was stored 414, 427, and 428 ms after the wheel in base and 392, 403, and 421 ms in fix.
-  The spread of the same binary is 14 ms in base and 29 ms in fix, and the two binaries differ by less than that spread
-  at the median (427 against 403 ms), so the hints appear within the same time.
-  The three smaller steps that followed, one notch up, one notch down, and 40 notches down to the first view,
-  sent 1 request each in base (3 of 3 runs) and none in fix (3 skips each, 3 of 3 runs):
-  their lines were inside what the two earlier answers had asked, and their hints were stored.
+  the answer was stored 414,
+  427,
+  and 428 ms after the wheel in base and 392,
+  403,
+  and 421 ms in fix.
+  The spread of the same binary is 14 ms in base and 29 ms in fix,
+  and the two binaries differ by less than that spread
+  at the median (427 against 403 ms),
+  so the hints appear within the same time.
+  The three smaller steps that followed,
+  one notch up,
+  one notch down,
+  and 40 notches down to the first view,
+  sent 1 request each in base (3 of 3 runs) and none in fix (3 skips each,
+  3 of 3 runs):
+  their lines were inside what the two earlier answers had asked,
+  and their hints were stored.
 
 ### Known costs
 
@@ -373,35 +414,65 @@ Requests are the lines `reported visible lines for inlay hints`, skips the lines
   The worker asks again from that window after a reload (and when a second server starts late),
   so such an ask names the lines of an earlier view.
   Measured in `an_edit_forgets_the_lines_the_earlier_revision_asked_about` with the view left on a skipped place
-  (first requests start at lines 0, 173, and 200; the skipped view would start at line 186):
-  an external edit sent 2 requests, the first starting at line 200 (the window the worker was told)
-  and then one starting at line 186 (the view); a tree without the rule was not measured for this.
+  (first requests start at lines 0,
+  173,
+  and 200;
+  the skipped view would start at line 186):
+  an external edit sent 2 requests,
+  the first starting at line 200 (the window the worker was told)
+  and then one starting at line 186 (the view);
+  a tree without the rule was not measured for this.
   The answer for the earlier window is dropped as "no longer wanted" when the current window differs.
 - With several servers one stored answer covers the lines for all of them,
   although a server that started later has answered fewer lines.
-- A later press that lies wholly inside what an earlier visit asked costs no request, as the second measurement shows;
-  the owner expected "still one" there, and the hints of those lines are stored, so nothing is missing from the view.
+- A later press that lies wholly inside what an earlier visit asked costs no request,
+  as the second measurement shows;
+  the owner expected "still one" there,
+  and the hints of those lines are stored,
+  so nothing is missing from the view.
 
 ### Proof that the tests and the guards see the rule
 
 - `src/native/language/hint_skip_tests.rs` has six tests that count the requests the scripted server receives
-  (its report file), and `tests/annotation.rs` has four tests of the covered lines.
-- On a tree whose skip is disabled (`if false && covered`), 4 of the 6 native tests fail and 2 pass:
-  `a_view_inside_the_answered_lines_sends_no_request`, and the three tests that first show a covered view
+  (its report file),
+  and `tests/annotation.rs` has four tests of the covered lines.
+- On a tree whose skip is disabled (`if false && covered`),
+  4 of the 6 native tests fail and 2 pass:
+  `a_view_inside_the_answered_lines_sends_no_request`,
+  and the three tests that first show a covered view
   being skipped (`a_view_leaving_the_answered_lines_sends_a_request`,
   `an_edit_forgets_the_lines_the_earlier_revision_asked_about`,
-  `opening_the_file_again_forgets_the_lines_asked_about`), all with the message
+  `opening_the_file_again_forgets_the_lines_asked_about`),
+  all with the message
   `a view whose request asks only answered lines sent a request`.
   `a_pending_request_does_not_cover_its_lines` and `a_failed_request_does_not_cover_its_lines` pass on such a tree,
   because the request they wait for is sent anyway;
   they fail against the guard cases `hint-skip-pending` and `hint-skip-failed`,
   which record a request as covering its lines when it is sent.
 - Eleven cases `hint-skip-*` in `bin/inspect-source-guards.ts` change one line each in a disposable copy
-  (`hint-skip-covered`, `hint-skip-noted`, `hint-skip-revision-reset`, `hint-skip-edit`, `hint-skip-revision-query`,
-  `hint-skip-empty-range`, `hint-skip-ends`, `hint-skip-touching`, `hint-skip-pending`, `hint-skip-failed`,
+  (`hint-skip-covered`,
+  `hint-skip-noted`,
+  `hint-skip-revision-reset`,
+  `hint-skip-edit`,
+  `hint-skip-revision-query`,
+  `hint-skip-empty-range`,
+  `hint-skip-ends`,
+  `hint-skip-touching`,
+  `hint-skip-pending`,
+  `hint-skip-failed`,
   `hint-skip-reopen`):
-  all eleven tests fail with the line changed, with the expected message, and pass again with it restored.
-  One line is not guarded: the record of a skipped view as handled
-  (`language.hints.sent = Some((stamp, wanted))` in the skip branch); without it only the debug line repeats on every tick.
+  all eleven tests fail with the line changed,
+  with the expected message,
+  and pass again with it restored.
+  One line is not guarded:
+  the record of a skipped view as handled
+  (`language.hints.sent = Some((stamp, wanted))` in the skip branch);
+  without it only the debug line repeats on every tick.
 
-Probes and scripts: `~/temp/agent/cr/` (`measure.ts`, `runs.ts`, `restart.ts`, `big.ts`; scratch, not kept in the repository).
+Probes and scripts:
+`~/temp/agent/cr/` (`measure.ts`,
+`runs.ts`,
+`restart.ts`,
+`big.ts`;
+scratch,
+not kept in the repository).

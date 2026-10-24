@@ -7,7 +7,9 @@
 
 /// The text revision an answer describes.
 use crate::language::identity::DocumentStamp;
-/// Line ranges are half-open: the first line asked and the line the request ended before.
+/// Line ranges are half-open:
+///  the first line asked,
+///  and the line the request ended before.
 use std::ops::Range;
 
 /// What:
@@ -30,7 +32,9 @@ use std::ops::Range;
 pub(super) struct Coverage {
     /// The revision `ranges` describes.
     stamp: Option<DocumentStamp>,
-    /// Asked lines, ordered by start, with overlapping and touching ranges joined.
+    /// Asked lines,
+    ///  ordered by start,
+    ///  with overlapping and touching ranges joined.
     ranges: Vec<Range<usize>>,
 }
 
@@ -40,7 +44,8 @@ fn first_line_of(range: &Range<usize>) -> usize {
     return range.start;
 }
 
-/// Add asked lines, and ask whether given lines were asked.
+/// Add asked lines,
+///  and ask whether given lines were asked.
 impl Coverage {
     /// What:
     ///  Take the lines of a stored answer for `stamp` into the covered lines;

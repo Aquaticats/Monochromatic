@@ -66,6 +66,7 @@ mod blocks;
 
 /// The lines of one text revision that stored answers for hints asked about.
 mod coverage;
+/// The record of asked lines that the store keeps next to its hint labels.
 use coverage::Coverage;
 
 /// Severity vocabulary:

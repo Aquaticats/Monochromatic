@@ -1723,26 +1723,40 @@ so its block grew by a copy per answer in the code view and in the minimap
 `inspect:source-guards` cases `hints-asked-lines` and `hints-asked-lines-window`).
 
 A hint request is skipped when the store already holds the hints it would ask for
-(`Annotations::answered_covers`, `src/annotation/coverage.rs`,
+(`Annotations::answered_covers`,
+`src/annotation/coverage.rs`,
 called from `hints` in `src/native/language/sync.rs`).
 The request for new visible lines asks one view height above the first visible line and two below it
-(`request_lines`, clipped to the text),
+(`request_lines`,
+clipped to the text),
 and it is covered when that range lies inside the union of the ranges
 that hint snapshots stored for the displayed text revision asked about.
-Touching and overlapping ranges are joined, so two answers can cover a range together.
-A request that is pending, failed, or cancelled never reaches the store, so it covers nothing,
+Touching and overlapping ranges are joined,
+so two answers can cover a range together.
+A request that is pending,
+failed,
+or cancelled never reaches the store,
+so it covers nothing,
 and the lines of another text revision are never covered:
-the first stored answer for a new revision (an edit, a reload) drops the lines of the earlier one,
+the first stored answer for a new revision (an edit,
+a reload) drops the lines of the earlier one,
 a query for another revision (or another file) is not covered,
-and opening the file in the worker again forgets all of them, because the new worker holds no earlier request.
+and opening the file in the worker again forgets all of them,
+because the new worker holds no earlier request.
 An empty range is never covered.
-A skipped view is recorded as handled, so it is not examined again on each tick,
+A skipped view is recorded as handled,
+so it is not examined again on each tick,
 and the worker keeps the window it was last told.
-With several servers, one stored answer covers the lines for all of them.
+With several servers,
+one stored answer covers the lines for all of them.
 The first click at the bottom of `build.unit.test.ts` (window of 1080 by 1880 logical px)
-reports its visible lines twice, first line 214 and then 223 after the minimap press is aimed again;
-the second request asks lines 146 to 287, inside the 137 to 287 of the first, so it is skipped
-(requests per scenario: `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`;
+reports its visible lines twice,
+first line 214 and then 223 after the minimap press is aimed again;
+the second request asks lines 146 to 287,
+inside the 137 to 287 of the first,
+so it is skipped
+(requests per scenario:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`;
 `a_view_inside_the_answered_lines_sends_no_request` and five more tests in `src/native/language/hint_skip_tests.rs`;
 `inspect:source-guards` cases `hint-skip-*`).
 
