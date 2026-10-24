@@ -99,8 +99,8 @@ export const SURVIVOR_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'ENDS THE WALK OF TWO MODULES THAT EXPORT EVERYTHING OF EACH OTHER BESIDE A MODULE THAT CARRIES A BUILDER, and '
-      + 'reads the call through the namespace',
+    name: 'ENDS THE WALK OF TWO MODULES THAT EXPORT EVERYTHING OF EACH OTHER BESIDE A MODULE THAT CARRIES A BUILDER, '
+      + 'and reads the call through the namespace',
     files: [
       {
         file: 'imaginary/src/cycle-first.ts',

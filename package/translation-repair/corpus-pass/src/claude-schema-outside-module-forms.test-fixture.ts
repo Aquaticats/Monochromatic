@@ -4,9 +4,9 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 
 //region A member of a module outside the sources, named like a builder
 // A namespace import, or an awaited load, of a specifier that names no file of the sources has members that the search
-// reads as free names. A member named like a builder is read as the builder where it is called; where it is stored, handed
-// to a call or put in an array, the check reports it, as it does for the named import of the same name. The cases give
-// the module a node specifier, which names no file of the sources and which the check can resolve.
+// reads as free names. A member named like a builder is read as the builder where it is called; where it is stored,
+// handed to a call or put in an array, the check reports it, as it does for the named import of the same name. The
+// cases give the module a node specifier, which names no file of the sources and which the check can resolve.
 
 /**
  The arguments of a call of the contest builder, as an imaginary file writes them.
@@ -20,7 +20,7 @@ const ARGUMENTS = '{ schemaName: \'outside\', verdicts: [], asksArchive: false, 
 
  @param position - where the builder sits
 
- @returns The report, on the second line of the file
+ @returns Report, on the second line of the file
 
  @example
  ```ts

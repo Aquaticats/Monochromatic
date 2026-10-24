@@ -37,7 +37,7 @@ const BUILDS_FUNCTION = 'Function builds code from text the search cannot read';
 
  @param position - what the place is
 
- @returns The report
+ @returns Report
 
  @example
  ```ts

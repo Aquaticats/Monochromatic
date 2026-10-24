@@ -142,6 +142,68 @@ function lineOf(
 }
 
 /**
+ The places a file's shapes are at, each place once, in the order of the lines.
+
+ @param text - file's text
+
+ @param found - shapes found, a place that holds the same shape twice listed twice
+
+ @param file - path of the file
+
+ @returns One entry per line and shape
+
+ @example
+ ```ts
+ const spots = spotsOf({ text, found, file: 'a/src/a.ts', },);
+ ```
+ */
+function spotsOf(
+  {
+    text,
+    found,
+    file,
+  }: {
+    readonly text: string;
+    readonly found: readonly FoundShape[];
+    readonly file: string;
+  },
+): readonly BlindSpot[] {
+  return [
+    ...new Map(found.map(function keyedSpot({
+      shape,
+      node,
+      position,
+    },): readonly [
+      string,
+      BlindSpot,
+    ] {
+      /**
+       The line the place starts on.
+       */
+      const line = lineOf({
+        text,
+        node,
+      },);
+      return [
+        `${String(line,)} ${shape}`,
+        {
+          file,
+          line,
+          shape,
+          position,
+        },
+      ];
+    },),)
+      .values(),
+  ].toSorted(function byLine(
+    first,
+    second,
+  ): number {
+    return first.line - second.line;
+  },);
+}
+
+/**
  The places in the sources that the schema search does not read.
 
  @param sources - files searched
@@ -276,8 +338,8 @@ export function blindSpotsOf(
       nodes,
     },);
     /**
-     Whether the file is read no further: nothing in it leads to a builder, it holds no undeclared format to look for and
-     it writes no specifier the check cannot resolve.
+     Whether the file is read no further: nothing in it leads to a builder, it holds no undeclared format to look for
+     and it writes no specifier the check cannot resolve.
      */
     const isIdle = (!isRelevant) && (!checksUndeclared);
     if (isIdle && (unresolved.length === 0))
@@ -314,68 +376,6 @@ export function blindSpotsOf(
       ],
       file,
     },);
-  },);
-}
-
-/**
- The places a file's shapes are at, each place once, in the order of the lines.
-
- @param text - file's text
-
- @param found - shapes found, a place that holds the same shape twice listed twice
-
- @param file - path of the file
-
- @returns One entry per line and shape
-
- @example
- ```ts
- const spots = spotsOf({ text, found, file: 'a/src/a.ts', },);
- ```
- */
-function spotsOf(
-  {
-    text,
-    found,
-    file,
-  }: {
-    readonly text: string;
-    readonly found: readonly FoundShape[];
-    readonly file: string;
-  },
-): readonly BlindSpot[] {
-  return [
-    ...new Map(found.map(function keyedSpot({
-      shape,
-      node,
-      position,
-    },): readonly [
-      string,
-      BlindSpot,
-    ] {
-      /**
-       The line the place starts on.
-       */
-      const line = lineOf({
-        text,
-        node,
-      },);
-      return [
-        `${String(line,)} ${shape}`,
-        {
-          file,
-          line,
-          shape,
-          position,
-        },
-      ];
-    },),)
-      .values(),
-  ].toSorted(function byLine(
-    first,
-    second,
-  ): number {
-    return first.line - second.line;
   },);
 }
 

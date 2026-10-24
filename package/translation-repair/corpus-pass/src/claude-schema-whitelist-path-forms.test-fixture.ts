@@ -4,11 +4,11 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 
 //region A path literal that names a module carrying a builder, outside an import and a load
 // What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) for a path
-// literal that names a module which carries a builder and sits outside an import, an export from and a load: an argument
-// of a call or of `new`, a constant, a template, or the module of an import-equals declaration. The case is one
-// imaginary file that holds one place on each line, with the files the search lists and the places the check reports,
-// by file, line, shape and position. A loader built by `createRequire` and `require.resolve` are also code the check
-// reports, on the lines that hold them.
+// literal that names a module which carries a builder and sits outside an import, an export from and a load: an
+// argument of a call or of `new`, a constant, a template, or the module of an import-equals declaration. The case is
+// one imaginary file that holds one place on each line, with the files the search lists and the places the check
+// reports, by file, line, shape and position. A loader built by `createRequire` and `require.resolve` are also code
+// the check reports, on the lines that hold them.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.
@@ -29,7 +29,7 @@ const FILE = 'imaginary/src/path-literal-stage.ts';
 
  @param position - where the place sits, or what it is
 
- @returns The report
+ @returns Report
 
  @example
  ```ts

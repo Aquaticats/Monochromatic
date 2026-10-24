@@ -55,8 +55,8 @@ const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
 
  @param node - node read, of any kind
 
- @returns The name, empty for any node that is neither an identifier nor a member computed from a string, and for a
- name that makes no such code
+ @returns Name, empty for any node that is neither an identifier nor a member computed from a string, and for a name
+ that makes no such code
 
  @example
  ```ts

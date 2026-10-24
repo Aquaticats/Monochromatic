@@ -35,7 +35,7 @@ export const CALL_ARGUMENT = 'CallExpression.arguments';
 
  @param position - where the value goes
 
- @returns The report
+ @returns Report
 
  @example
  ```ts

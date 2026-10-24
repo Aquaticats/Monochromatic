@@ -143,8 +143,8 @@ function isTypeVisit({ node, }: Visit,): boolean {
 }
 
 /**
- Whether a node is a type that holds no value: not a namespace, an enum, a parameter property, an export assignment or an
- import-equals declaration, which start with `TS` and hold what the program uses.
+ Whether a node is a type that holds no value: not a namespace, an enum, a parameter property, an export assignment or
+ an import-equals declaration, which start with `TS` and hold what the program uses.
 
  @param node - node read
 

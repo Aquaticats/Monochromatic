@@ -36,6 +36,62 @@ const CALL_METHODS: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ The shapes a call of a builder holds: its value goes out of a function that the search does not know as a builder, or
+ to a place that no sender, wrapper or constant answers for.
+
+ @param context - what the file's names are read against
+
+ @param call - call, `new` or tagged template of a builder
+
+ @returns Shapes, none where the value stays or goes to a wrapper, a sender or a constant that does the same
+
+ @example
+ ```ts
+ const found = callShapesAt({ context, call, },);
+ ```
+ */
+function callShapesAt(
+  {
+    context,
+    call,
+  }: {
+    readonly context: BlindContext;
+    readonly call: TreeNode;
+  },
+): readonly FoundShape[] {
+  /**
+   The function the value is returned from, `NO_NODE` when it is not, and the other places the value goes.
+   */
+  const {
+    leaving,
+    strays,
+  } = destinationsOf({
+    context,
+    call,
+  },);
+  return [
+    ...(isNoNode({ node: leaving, },)
+      ? []
+      : [
+        {
+          shape: 'builder-result-returned-outside-a-wrapper',
+          node: call,
+          position: `${leaving.type} returns it`,
+        } satisfies FoundShape,
+      ]),
+    ...((strays.length === 0)
+      ? []
+      : [
+        {
+          shape: 'builder-result-outside-a-destination',
+          node: call,
+          position: strays.join(', ',),
+        } satisfies FoundShape,
+      ]),
+  ];
+}
+
+/**
  The shape a builder holds where it stands, by the node that holds it.
 
  @param context - what the file's names are read against
@@ -44,7 +100,7 @@ const CALL_METHODS: ReadonlySet<string> = new Set([
 
  @param isBound - whether the chain ends in `.bind`, so what the call of it gives is the builder again
 
- @returns The shape, none where the search reads the place
+ @returns Shape, none where the search reads the place
 
  @example
  ```ts
@@ -114,69 +170,13 @@ function builderShapesAt(
 }
 
 /**
- The shapes a call of a builder holds: its value goes out of a function that the search does not know as a builder, or
- to a place that no sender, wrapper or constant answers for.
-
- @param context - what the file's names are read against
-
- @param call - call, `new` or tagged template of a builder
-
- @returns The shapes, none where the value stays or goes to a wrapper, a sender or a constant that does the same
-
- @example
- ```ts
- const found = callShapesAt({ context, call, },);
- ```
- */
-function callShapesAt(
-  {
-    context,
-    call,
-  }: {
-    readonly context: BlindContext;
-    readonly call: TreeNode;
-  },
-): readonly FoundShape[] {
-  /**
-   The function the value is returned from, `NO_NODE` when it is not, and the other places the value goes.
-   */
-  const {
-    leaving,
-    strays,
-  } = destinationsOf({
-    context,
-    call,
-  },);
-  return [
-    ...(isNoNode({ node: leaving, },)
-      ? []
-      : [
-        {
-          shape: 'builder-result-returned-outside-a-wrapper',
-          node: call,
-          position: `${leaving.type} returns it`,
-        } satisfies FoundShape,
-      ]),
-    ...((strays.length === 0)
-      ? []
-      : [
-        {
-          shape: 'builder-result-outside-a-destination',
-          node: call,
-          position: strays.join(', ',),
-        } satisfies FoundShape,
-      ]),
-  ];
-}
-
-/**
  The shape a module that carries a builder holds where it stands as a whole.
 
  @param context - what the file's names are read against
 
  @param node - chain that stands for the module or the object
 
- @returns The shape, none where the search binds the names a constant or a pattern takes from it
+ @returns Shape, none where the search binds the names a constant or a pattern takes from it
 
  @example
  ```ts
@@ -226,64 +226,78 @@ function carrierShapesAt(
 }
 
 /**
- The shapes a chain of names holds when it stands for a builder or for a module that carries one.
+ The shapes a chain holds once it stands for a builder after `count` members: the members left must be `call`, `apply`
+ or `bind`, and the place it sits in must be one the search reads.
 
  @param context - what the file's names are read against
 
+ @param chain - chain read
+
  @param node - chain, as the node that starts it
 
- @returns One entry for the first place the chain is read in a way the search does not, none for any chain that stands
- for neither or is read where the search reads it
+ @param count - members that lead to the builder
+
+ @returns Shape, none for a chain read where the search reads it
 
  @example
  ```ts
- const found = chainShapesAt({ context, node, },);
+ const found = builderShapesAlong({ context, chain, node, count: 1, },);
  ```
  */
-export function chainShapesAt(
+function builderShapesAlong(
   {
     context,
+    chain,
     node,
+    count,
   }: {
     readonly context: BlindContext;
+    readonly chain: Chain;
     readonly node: TreeNode;
+    readonly count: number;
   },
 ): readonly FoundShape[] {
   /**
-   The names the chain is written with.
+   The members after the builder.
    */
-  const chain = chainOf({ node, },);
-  if (chain === NO_CHAIN)
-    return [];
-  if ((chain.members
-    .length
-    > 0) && isImportOfNothing({
-      context,
-      head: chain.head,
-    },)) {
+  const rest = chain.members
+    .slice(count,);
+  /**
+   The first member after the builder that is no call method, absent when there is none; a member computed from
+   anything but a string is one, since the marker for it is no call method.
+   */
+  const stray = rest.find(function isStray(member,): boolean {
+    return !CALL_METHODS.has(member,);
+  },);
+  if (stray !== undefined) {
     return [
       {
-        shape: 'module-binding-outside-a-read-position',
+        shape: 'builder-outside-a-read-position',
         node,
-        position: 'member of a default the module does not export',
+        position: (stray === COMPUTED_MEMBER) ? 'member computed from a name' : `member ${stray} of a builder`,
       },
     ];
   }
   /**
-   How many members at the start of the chain can be read.
+   Where the construct the search does not read holds the chain, empty when none does.
    */
-  const readable = chain.members
-    .includes(COMPUTED_MEMBER,)
-    ? chain.members
-      .indexOf(COMPUTED_MEMBER,)
-    : chain.members
-      .length;
-  return shapesAlong({
-    context,
-    chain,
+  const construct = unreadConstructAround({
     node,
-    readable,
-    count: 0,
+    parents: context.parents,
+  },);
+  if (construct !== '') {
+    return [
+      {
+        shape: 'builder-in-typescript-value-construct',
+        node,
+        position: construct,
+      },
+    ];
+  }
+  return builderShapesAt({
+    context,
+    node,
+    isBound: rest.at(-1,) === 'bind',
   },);
 }
 
@@ -300,7 +314,7 @@ export function chainShapesAt(
 
  @param count - members read so far
 
- @returns The shape, none for a chain that stands for neither or is read where the search reads it
+ @returns Shape, none for a chain that stands for neither or is read where the search reads it
 
  @example
  ```ts
@@ -391,78 +405,64 @@ function shapesAlong(
 }
 
 /**
- The shapes a chain holds once it stands for a builder after `count` members: the members left must be `call`, `apply`
- or `bind`, and the place it sits in must be one the search reads.
+ The shapes a chain of names holds when it stands for a builder or for a module that carries one.
 
  @param context - what the file's names are read against
 
- @param chain - chain read
-
  @param node - chain, as the node that starts it
 
- @param count - members that lead to the builder
-
- @returns The shape, none for a chain read where the search reads it
+ @returns One entry for the first place the chain is read in a way the search does not, none for any chain that stands
+ for neither or is read where the search reads it
 
  @example
  ```ts
- const found = builderShapesAlong({ context, chain, node, count: 1, },);
+ const found = chainShapesAt({ context, node, },);
  ```
  */
-function builderShapesAlong(
+export function chainShapesAt(
   {
     context,
-    chain,
     node,
-    count,
   }: {
     readonly context: BlindContext;
-    readonly chain: Chain;
     readonly node: TreeNode;
-    readonly count: number;
   },
 ): readonly FoundShape[] {
   /**
-   The members after the builder.
+   The names the chain is written with.
    */
-  const rest = chain.members
-    .slice(count,);
-  /**
-   The first member after the builder that is no call method, absent when there is none; a member computed from
-   anything but a string is one, since the marker for it is no call method.
-   */
-  const stray = rest.find(function isStray(member,): boolean {
-    return !CALL_METHODS.has(member,);
-  },);
-  if (stray !== undefined) {
+  const chain = chainOf({ node, },);
+  if (chain === NO_CHAIN)
+    return [];
+  if ((chain.members
+    .length
+    > 0) && isImportOfNothing({
+      context,
+      head: chain.head,
+    },)) {
     return [
       {
-        shape: 'builder-outside-a-read-position',
+        shape: 'module-binding-outside-a-read-position',
         node,
-        position: (stray === COMPUTED_MEMBER) ? 'member computed from a name' : `member ${stray} of a builder`,
+        position: 'member of a default the module does not export',
       },
     ];
   }
   /**
-   Where the construct the search does not read holds the chain, empty when none does.
+   How many members at the start of the chain can be read.
    */
-  const construct = unreadConstructAround({
-    node,
-    parents: context.parents,
-  },);
-  if (construct !== '') {
-    return [
-      {
-        shape: 'builder-in-typescript-value-construct',
-        node,
-        position: construct,
-      },
-    ];
-  }
-  return builderShapesAt({
+  const readable = chain.members
+    .includes(COMPUTED_MEMBER,)
+    ? chain.members
+      .indexOf(COMPUTED_MEMBER,)
+    : chain.members
+      .length;
+  return shapesAlong({
     context,
+    chain,
     node,
-    isBound: rest.at(-1,) === 'bind',
+    readable,
+    count: 0,
   },);
 }
 

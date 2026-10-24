@@ -475,7 +475,7 @@ const MODULE_NUMBERS = new Map<ModuleFacts, number>();
 
  @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
- @returns A string that two searches share when they read the same modules, in the same order, with the same names
+ @returns String that two searches share when they read the same modules, in the same order, with the same names
 
  @example
  ```ts
@@ -504,6 +504,51 @@ function searchKeyOf(
     '--',
     ...[...notStageSchemas,].toSorted(),
   ].join('\n',);
+}
+
+/**
+ The builders of a family that is read already, searched afresh.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap
+
+ @example
+ ```ts
+ const builders = searchBuildersIn({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+function searchBuildersIn(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): readonly SchemaBuilder[] {
+  /**
+   Every function the searched files declare.
+   */
+  const candidates = candidatesIn({
+    family,
+    notStageSchemas,
+  },);
+  return withWrappers({
+    family,
+    candidates,
+    known: candidates.filter(function writesFormat({ holder, },): boolean {
+      return holdsFormatValue({ root: holder, },);
+    },),
+  },)
+    .map(function builder(candidate,): SchemaBuilder {
+      return builderOf({
+        family,
+        candidate,
+      },);
+    },);
 }
 
 /**
@@ -555,51 +600,6 @@ export function buildersIn(
     builders,
   );
   return builders;
-}
-
-/**
- The builders of a family that is read already, searched afresh.
-
- @param family - modules of the sources
-
- @param notStageSchemas - paths of files that write the format without building a stage's answer schema
-
- @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap
-
- @example
- ```ts
- const builders = searchBuildersIn({ family, notStageSchemas: new Set(), },);
- ```
- */
-function searchBuildersIn(
-  {
-    family,
-    notStageSchemas,
-  }: {
-    readonly family: Family;
-    readonly notStageSchemas: ReadonlySet<string>;
-  },
-): readonly SchemaBuilder[] {
-  /**
-   Every function the searched files declare.
-   */
-  const candidates = candidatesIn({
-    family,
-    notStageSchemas,
-  },);
-  return withWrappers({
-    family,
-    candidates,
-    known: candidates.filter(function writesFormat({ holder, },): boolean {
-      return holdsFormatValue({ root: holder, },);
-    },),
-  },)
-    .map(function builder(candidate,): SchemaBuilder {
-      return builderOf({
-        family,
-        candidate,
-      },);
-    },);
 }
 
 /**

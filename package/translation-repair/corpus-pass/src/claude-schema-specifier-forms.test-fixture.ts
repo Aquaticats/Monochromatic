@@ -17,7 +17,7 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 
  @param specifier - specifier as written
 
- @returns The report
+ @returns Report
 
  @example
  ```ts

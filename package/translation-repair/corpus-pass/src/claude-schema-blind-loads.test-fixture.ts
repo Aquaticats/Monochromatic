@@ -228,7 +228,7 @@ function isLoadPath(
 
  @param load - what the load is
 
- @returns The shape, none for a load the search follows or whose path names no module that carries a builder
+ @returns Shape, none for a load the search follows or whose path names no module that carries a builder
 
  @example
  ```ts
@@ -334,7 +334,7 @@ export function namesBearingModule(
 
  @param node - string or template read
 
- @returns The shape, none for any other node
+ @returns Shape, none for any other node
 
  @example
  ```ts

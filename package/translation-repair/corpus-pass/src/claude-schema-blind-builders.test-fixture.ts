@@ -95,7 +95,7 @@ function undeclaredFormatShapesIn(
 
  @param node - module reference, a name or a qualified name, of any kind
 
- @returns The name, empty for a reference to a module path
+ @returns Name, empty for a reference to a module path
 
  @example
  ```ts

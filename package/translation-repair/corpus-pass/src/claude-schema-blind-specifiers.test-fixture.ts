@@ -25,9 +25,9 @@ import {
 // dependency of a package of the family, and no file (one of the sources, or one that exists beside them under a
 // package's `src`, or its `package.json`) can name a module through a map the search does not read, as an alias that
 // begins with `#` does, so it is reported where it is written. A type-only import or export and a type are left out,
-// since they load nothing. The lockfile and the files beside the sources are read once, when the module loads, since the
-// check itself is not asynchronous; the lockfile is the one at the root of the repository, and its importers of the
-// family give the packages.
+// since they load nothing. The lockfile and the files beside the sources are read once, when the module loads, since
+// the check itself is not asynchronous; the lockfile is the one at the root of the repository, and its importers of
+// the family give the packages.
 
 /**
  Directory holding the family's packages.
@@ -114,8 +114,8 @@ function dependencyNameOf({ line, }: { readonly line: string; },): string {
 
  @param line - next line
 
- @returns The reading: a line that starts at the top level leaves a block, a line indented by two spaces opens a block of
- a package of the family or leaves one, and a line at the depth of the dependencies in a block of the family names one
+ @returns Reading: a line that starts at the top level leaves a block, a line indented by two spaces opens a block of a
+ package of the family or leaves one, and a line at the depth of the dependencies in a block of the family names one
 
  @example
  ```ts
