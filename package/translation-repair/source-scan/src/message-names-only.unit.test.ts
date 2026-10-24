@@ -294,6 +294,8 @@ const NAMED_PARTS: Record<string, string> = {
     'noun agreeing with a count, both forms authored here',
   'String(droppedCount,)': 'count',
   'String(slice,)': 'length of the slice a fragment lands in, in UTF-16 units',
+  'wordForCount({ count: slice, one: \'unit\', many: \'units\', },)':
+    'noun agreeing with a count, both forms authored here',
   'String(start,)': 'offset in the slice where a fragment\'s replaced region starts',
   'String(end,)': 'offset in the slice where a fragment\'s replaced region ends',
   'whereCarried({ traces, },)': 'fixed clause naming slice indices whose original carries a dropped destination',
