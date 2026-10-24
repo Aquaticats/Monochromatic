@@ -164,9 +164,13 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
  Writes the row line of a finished pair.
 
  @param position - zero-based place of the pair among the planned pairs
+ 
  @param total - planned pairs
+ 
  @param pair - the card and trial
+ 
  @param reading - how the trial read
+ 
  @param stops - how each ask of the trial ended
 
  @returns The line, without a newline
@@ -177,7 +181,13 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
  ```
  */
 export function rowLineOf(
-  { position, total, pair, reading, stops, }: {
+  {
+    position,
+    total,
+    pair,
+    reading,
+    stops,
+  }: {
     readonly position: number;
     readonly total: number;
     readonly pair: EditorPair;
@@ -185,9 +195,11 @@ export function rowLineOf(
     readonly stops: readonly AskEnd[];
   },
 ): string {
-  return `${String(position,)}${String(total,)}${pairName({ item: pair, },)}${readingWord({ reading, },)}${
-    stoppedWord({ ends: stops, },)
-  }`;
+  return `row ${String(position + 1,)} of ${String(total,)}: ${pairName({ item: pair, },)}: ${
+    readingWord({ reading, },)
+  }; entry ${pair.trial
+    .spec
+    .entryId}; stopped ${stoppedWord({ ends: stops, },)}`;
 }
 
 /**

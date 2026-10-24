@@ -157,19 +157,74 @@ function refuseOverBench(
 }
 
 /**
- Reads `--only`, `--cap`, `--damage`, `--max-usd` and `--bench-spent-usd` from the command line.
+ Reads `--trials`, the number of leading pool trials an arm walks.
+
+ @param asked - what the flag carried, or that nobody wrote it
+ 
+ @param cap - the cap as read
+ 
+ @param capWritten - whether the line wrote `--cap`
+
+ @returns The number of trials as a `trials` member, an empty object when the flag was not written
+
+ @throws StatedRefusalError when the flag is not a whole number written in digits, is zero, or is written beside a cap
+ above zero
+
+ @example
+ ```ts
+ const trials = trialsOf({ asked: line.flag('trials',), cap: 200, capWritten: false, },);
+ ```
+ */
+function trialsOf(
+  {
+    asked,
+    cap,
+    capWritten,
+  }: {
+    readonly asked: FlagValue;
+    readonly cap: number;
+    readonly capWritten: boolean;
+  },
+): { readonly trials?: number } {
+  if (asked.kind === 'unwritten')
+    return {};
+  /**
+   The number as written.
+   */
+  const trials = wholeNumberFlag({
+    asked,
+    unwritten: 0,
+    leaveOffTo: 'walk every trial the cap allows',
+  },);
+  if (trials === 0) {
+    throw new StatedRefusalError({
+      says: '--trials needs at least 1, and 0 walks no trial; write --cap 0 to price an arm without running it',
+    },);
+  }
+  if (capWritten && (cap > 0)) {
+    throw new StatedRefusalError({
+      says: `--trials ${String(trials,)} and --cap ${String(cap,)} both name how many trials to run; write one of them, `
+        + 'or --cap 0 beside --trials to price those trials without running them',
+    },);
+  }
+  return { trials, };
+}
+
+/**
+ Reads `--only`, `--cap`, `--trials`, `--damage`, `--max-usd` and `--bench-spent-usd` from the command line.
 
  @internal
 
  @param line - the probe's command line, read whole by `reportingRefusals` and passed in so this is testable without a
  subprocess
 
- @returns Entry ids to trial, empty for every entry, the trial cap, the defects to build, the most the run may cost and
- what the earlier arms of the bench measured
+ @returns Entry ids to trial, empty for every entry, the trial cap, the number of leading trials to walk when `--trials`
+ is written (the member is absent otherwise), the defects to build, the most the run may cost and what the earlier arms
+ of the bench measured
 
- @throws StatedRefusalError when a cap is not a whole number written in digits or is below zero, an amount is not a
- plain decimal, a defect is one this probe does not build, `--bench-spent-usd` is not written, or the amounts together
- pass the bench total
+ @throws StatedRefusalError when a cap or a trial count is not a whole number written in digits or is below zero, a
+ trial count is zero or is written beside a cap above zero, an amount is not a plain decimal, a defect is one this probe
+ does not build, `--bench-spent-usd` is not written, or the amounts together pass the bench total
 
  @example
  ```ts
@@ -181,6 +236,7 @@ export function readEditorFidelityArguments(
 ): {
   readonly onlyIds: readonly string[];
   readonly cap: number;
+  readonly trials?: number;
   readonly damageKinds: readonly EditorDamageKind[];
   readonly maxUsd: number;
   readonly benchSpentUsd: number;
@@ -219,22 +275,34 @@ export function readEditorFidelityArguments(
     maxUsd,
     benchSpentUsd,
   },);
+  /**
+   The cap as written, or the default.
+   */
+  const cap = wholeNumberFlag({
+    asked: line.flag('cap',),
+    unwritten: DEFAULT_EDITOR_TRIAL_CAP,
+    leaveOffTo: `run the default of ${String(DEFAULT_EDITOR_TRIAL_CAP,)} ${
+      wordForCount({
+        count: DEFAULT_EDITOR_TRIAL_CAP,
+        one: 'trial',
+        many: 'trials',
+      },)
+    }`,
+  },);
   return {
     damageKinds,
     onlyIds: idListFlag({
       asked: line.flag('only',),
       naming: 'entry id',
     },),
-    cap: wholeNumberFlag({
-      asked: line.flag('cap',),
-      unwritten: DEFAULT_EDITOR_TRIAL_CAP,
-      leaveOffTo: `run the default of ${String(DEFAULT_EDITOR_TRIAL_CAP,)} ${
-        wordForCount({
-          count: DEFAULT_EDITOR_TRIAL_CAP,
-          one: 'trial',
-          many: 'trials',
-        },)
-      }`,
+    cap,
+    // How many leading trials the arm walks, a member only when the line says.
+    ...trialsOf({
+      asked: line.flag('trials',),
+      cap,
+      capWritten: line.flag('cap',)
+        .kind
+        === 'written',
     },),
     maxUsd,
     benchSpentUsd,

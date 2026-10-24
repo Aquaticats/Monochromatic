@@ -1,7 +1,6 @@
 import {
   mkdir,
   mkdtemp,
-  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
@@ -13,10 +12,7 @@ import type {
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import {
-  mapOverlapped,
-  type StageSettings,
-} from '@monochromatic-dev/translation-repair-stage/ts';
+import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RunnerClosure, } from '@monochromatic-dev/translation-repair-insertion/ts';
 import type {
   FidelityReferenceSpec,
@@ -25,10 +21,7 @@ import type {
 import { EDITOR_FIDELITY_POOL, } from '../editor-fidelity-pool-manifest.ts';
 import { editorFidelityTrials, } from '../editor-fidelity-trials.ts';
 import { readEditorFidelityArguments, } from './editor-fidelity-args.ts';
-import {
-  recordingAsks,
-  stoppedWord,
-} from './editor-fidelity-asks.ts';
+import { recordingAsks, } from './editor-fidelity-asks.ts';
 import { editorCeilings, } from './editor-fidelity-ceiling.ts';
 import {
   editorFidelityPlan,
@@ -36,7 +29,6 @@ import {
   editorFidelityRow,
   editorKeptLine,
   editorKeptRun,
-  type EditorPair,
   editorPreflightLine,
 } from './editor-fidelity-plan.ts';
 import {
@@ -49,12 +41,20 @@ import {
 } from './editor-fidelity-spend-guard.ts';
 import { runEditorTrial, } from './editor-fidelity-trial.ts';
 import {
-  pairName,
-  readingWord,
   reportTallies,
+  rowLineOf,
   seatedCardsOf,
   sheetCharsOf,
 } from './editor-fidelity-probe-read.ts';
+import {
+  plannedLine,
+  trialsLine,
+} from './editor-fidelity-progress-lines.ts';
+import {
+  pairsOf,
+  walkPairs,
+  writeJsonOnce,
+} from './editor-fidelity-walk.ts';
 import { fidelityPartialWarning, } from './judge-fidelity-probe-plan.ts';
 import { requestedSpecs, } from './judge-fidelity-probe-run.ts';
 import { persistProbeRun, } from './probe-store.ts';
@@ -171,6 +171,7 @@ export async function runEditorFidelityProbe(
   const {
     onlyIds,
     cap,
+    trials: trialsAsked,
     damageKinds,
     maxUsd,
     benchSpentUsd,
@@ -213,15 +214,17 @@ export async function runEditorFidelityProbe(
     damageKinds,
   },);
   /**
-   Leading trials within the cap, counted in attempts for each card; a cap of zero asks nothing and prices the whole pool,
-   so its ceiling is what an arm over the pool would print.
+   How many leading trials the arm walks: the number `--trials` names, else the cap; a cap of zero with no `--trials`
+   asks nothing and prices the whole pool, so its ceiling is what an arm over the pool would print.
    */
-  const planned = (cap === 0)
-    ? trials
-    : trials.slice(
-      0,
-      cap,
-    );
+  const walked = trialsAsked ?? ((cap === 0) ? trials.length : cap);
+  /**
+   Leading trials the arm walks, counted in attempts for each card.
+   */
+  const planned = trials.slice(
+    0,
+    walked,
+  );
   if (planned.length < trials.length) {
     log.warn(fidelityPartialWarning({
       planned: planned.length,
@@ -245,6 +248,10 @@ export async function runEditorFidelityProbe(
     benchSpentUsd,
   },))
     log.info(said,);
+  log.info(plannedLine({
+    planned: planned.length,
+    total: trials.length,
+  },),);
   if (cap === 0) {
     log.info(editorPreflightLine({
       cardIds,
@@ -283,13 +290,9 @@ export async function runEditorFidelityProbe(
   /**
    Each card's trials together, the first card's before the second's.
    */
-  const pairs: readonly EditorPair[] = cardIds.flatMap(function cardPairs(cardId,): readonly EditorPair[] {
-    return planned.map(function pairOf(trial,): EditorPair {
-      return {
-        cardId,
-        trial,
-      };
-    },);
+  const pairs = pairsOf({
+    cardIds,
+    planned,
   },);
   /**
    Every exchange has the existing measured per-call deadline.
@@ -309,21 +312,13 @@ export async function runEditorFidelityProbe(
     pairs,
     ceilings,
   },);
-  await writeFile(
-    join(
+  await writeJsonOnce({
+    path: join(
       runDir,
       'plan.json',
     ),
-    JSON.stringify(
-      plan,
-      undefined,
-      2,
-    ),
-    {
-      mode: 0o600,
-      flag: 'wx',
-    },
-  );
+    value: plan,
+  },);
   /**
    Client construction follows all input verification and durable plan publication, and is for the named cards alone,
    with no call let through that could take the arm past `--max-usd`.
@@ -353,18 +348,14 @@ export async function runEditorFidelityProbe(
     },
   };
   /**
-   Sequential native driver retains every outcome.
+   The rows that finished, and the guard's sentence when it capped the arm.
    */
-  const rows = await mapOverlapped({
-    items: pairs,
-    overlap: 1,
-    // The spend guard aborts this signal when it refuses a call, and nothing else does;
-    // one row runs at a time, so no failure is left unthrown to be written.
-    signal: controller.signal,
-    l: log,
-    nameOf: pairName,
-    oneItem: async function runPair({
-      item: pair,
+  const rows = await walkPairs({
+    pairs,
+    controller,
+    log,
+    oneRow: async function runPair({
+      pair,
       position,
     },): Promise<EditorFidelityRow> {
       /**
@@ -392,24 +383,20 @@ export async function runEditorFidelityProbe(
         reading,
         stops,
       },);
-      await writeFile(
-        join(
+      await writeJsonOnce({
+        path: join(
           runDir,
           `row-${String(position,)}.json`,
         ),
-        JSON.stringify(
-          row,
-          undefined,
-          2,
-        ),
-        {
-          mode: 0o600,
-          flag: 'wx',
-        },
-      );
-      log.info(`row ${String(position + 1,)} of ${String(pairs.length,)}: ${pairName({ item: pair, },)}: ${
-        readingWord({ reading, },)
-      }; stopped ${stoppedWord({ ends: stops, },)}`,);
+        value: row,
+      },);
+      log.info(rowLineOf({
+        position,
+        total: pairs.length,
+        pair,
+        reading,
+        stops,
+      },),);
       return row;
     },
   },);
@@ -423,6 +410,10 @@ export async function runEditorFidelityProbe(
       log.info(text,);
     },
   },);
+  log.info(trialsLine({
+    completed: rows.length,
+    planned: pairs.length,
+  },),);
   /**
    Full reviewed provenance accompanies model outcomes without corpus passages in standard output.
    */

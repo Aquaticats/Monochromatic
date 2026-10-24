@@ -460,6 +460,8 @@ export function editorPreflightLine(
   {
     cardIds,
     selected,
+    planned,
+    total,
   }: {
     readonly cardIds: readonly RosterModelId[];
     readonly selected: number;
@@ -467,13 +469,19 @@ export function editorPreflightLine(
     readonly total: number;
   },
 ): string {
+  /**
+   What the ceiling is priced over: the whole pool, or its leading trials.
+   */
+  const priced = (planned === total)
+    ? 'every trial of the pool'
+    : `the first ${String(planned,)} of ${String(total,)} trials`;
   return `preflight only: ${String(selected,)} pinned reference ${
     wordForCount({
       count: selected,
       one: 'specification',
       many: 'specifications',
     },)
-  } selected for ${cardIds.join(', ',)}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`;
+  } selected for ${cardIds.join(', ',)}; the corpus was read and no model was called; the ceiling is priced over ${priced}`;
 }
 
 /**
