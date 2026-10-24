@@ -358,6 +358,58 @@ fn hints_of_one_revision_accumulate_by_line_range() {
     assert_eq!(hint_texts(&renewed, 0), [": new"]);
 }
 
+/// A server answers for every node of the text that reaches into the lines it was asked about,
+///  so an answer for later lines can hold hints that stand on earlier ones
+///  (TypeScript 7 answers a request for lines 100 to 200 of a test file with the four hints of the
+///  `const integrationChildren = ...map(...)` statement on line 96,
+///  whose body spans the whole file).
+///  Those hints are not part of the answer:
+///  the store replaces the hints of the lines asked about and keeps every other line as it was,
+///  so an answer that repeats a hint of an unasked line adds nothing to that line.
+#[test]
+fn hints_outside_the_asked_lines_are_not_part_of_an_answer() {
+    let text = Rope::from(TEXT);
+    let mut store = Annotations::default();
+    let upper = ranged(SHOWN, (0, 2), vec![hint(5, ": i32"), hint(17, ": i64")]);
+    assert!(store.accept_hints(SHOWN, &text, unwrapped(upper)));
+    // The next answers ask for lines 3 and 4 and repeat the hint of line 0 and add one of line 1, as a server does.
+    for _ in 0..3 {
+        let lower = ranged(
+            SHOWN,
+            (3, 5),
+            vec![hint(5, ": i32"), hint(20, ": extra"), hint(37, "end")],
+        );
+        assert!(store.accept_hints(SHOWN, &text, unwrapped(lower)));
+    }
+    let assembled = blocks(&mut store, SHOWN);
+    assert_eq!(
+        block_lines(&assembled),
+        [0, 1, 4],
+        "an answer put hints on lines it did not ask about"
+    );
+    assert_eq!(
+        hint_texts(&assembled, 0),
+        [": i32"],
+        "an answer that repeated the hint of an unasked line added it again"
+    );
+    assert_eq!(
+        hint_texts(&assembled, 1),
+        [": i64"],
+        "an answer added a hint to a line it did not ask about"
+    );
+    assert_eq!(hint_texts(&assembled, 4), ["end"]);
+    // Asking for the lines again replaces them whole, as before.
+    let again = ranged(
+        SHOWN,
+        (0, 2),
+        vec![hint(5, ": i32"), hint(17, ": u8"), hint(18, ": u16")],
+    );
+    assert!(store.accept_hints(SHOWN, &text, unwrapped(again)));
+    let replaced = blocks(&mut store, SHOWN);
+    assert_eq!(hint_texts(&replaced, 0), [": i32"]);
+    assert_eq!(hint_texts(&replaced, 1), [": u8", ": u16"]);
+}
+
 /// After an external change the previous rows' space is held above the lines it is mapped to:
 ///  hint space until
 /// hints for those lines arrive,
