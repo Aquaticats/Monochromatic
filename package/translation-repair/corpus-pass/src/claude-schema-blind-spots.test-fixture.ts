@@ -58,7 +58,8 @@ type BlindShape =
     | 'format-in-undeclared-function'
     | 'load-in-unfollowed-form'
     | 'module-binding-outside-a-read-position'
-    | 'module-path-outside-a-load';
+    | 'module-path-outside-a-load'
+    | 'unresolved-module-specifier';
 
 /**
  One place in a source file that the search does not read.
