@@ -81,6 +81,7 @@ import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.t
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
 import { type ShapeCase, UNREAD_SHAPE_CASES, } from './claude-schema-unread-shape-forms.test-fixture.ts';
+import { UNREADABLE_CODE_CASES, } from './claude-schema-unreadable-forms.test-fixture.ts';
 import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
 import {
   buildersOf,
@@ -664,6 +665,7 @@ await describe({
       ...DESTINATION_STORE_CASES,
       ...DESTINATION_TOP_CASES,
       ...OUTSIDE_MODULE_CASES,
+      ...UNREADABLE_CODE_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
@@ -707,6 +709,7 @@ await describe({
       ...DESTINATION_STORE_CASES,
       ...DESTINATION_TOP_CASES,
       ...OUTSIDE_MODULE_CASES,
+      ...UNREADABLE_CODE_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
