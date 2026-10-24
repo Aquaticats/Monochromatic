@@ -47,7 +47,9 @@ import {
 // threw before any attempt was told never left (a layer above the client rejected it), and costs nothing.
 //
 // ONE CALL AT A TIME. The attempts told are kept for the call in flight, which holds because the probe asks one row at a
-// time (`overlap: 1` in `editor-fidelity-probe-run.ts`).
+// time (`overlap: 1` in `editor-fidelity-probe-run.ts`). The guard asserts it: a call asked while another is in flight
+// throws `ConcurrentGuardCallError` before anything is sent, so a change that overlaps calls fails loudly and does not
+// quietly read one call's attempts as another's.
 //
 // THE REFUSAL ENDS THE ARM, NOT ONE VOICE OF IT. The stage turns a call that throws into a lost voice and asks again, but
 // rethrows once the arm's signal has aborted. The guard aborts that signal with the refusal as its reason before it
@@ -317,6 +319,10 @@ export function spendGuardedClient(
     attempts: 0,
     sinceUsd: baselineUsd,
   };
+  /**
+   Whether a call is in flight, which a second call may not begin beside.
+   */
+  const flight = { inFlight: false, };
 
   /**
    Dollars the arm has spent so far.
@@ -330,6 +336,29 @@ export function spendGuardedClient(
    */
   function spentSoFar(): number {
     return runSpendUsd({ provider: 'anthropic', },) - baselineUsd;
+  }
+
+  /**
+   Marks a call in flight until the returned handle is disposed.
+
+   @returns The handle whose disposal frees the guard for the next call
+
+   @throws ConcurrentGuardCallError when another call is still in flight
+
+   @example
+   ```ts
+   using _flight = enterFlight();
+   ```
+   */
+  function enterFlight(): Disposable {
+    if (flight.inFlight)
+      throw new ConcurrentGuardCallError();
+    flight.inFlight = true;
+    return {
+      [Symbol.dispose](): void {
+        flight.inFlight = false;
+      },
+    };
   }
 
   /**
@@ -558,6 +587,8 @@ export function spendGuardedClient(
 
    @throws StatedRefusalError when the call is refused
 
+   @throws ConcurrentGuardCallError when another call is still in flight, before anything is sent
+
    @throws Whatever the inner client threw, after the call was counted
 
    @example
@@ -576,6 +607,10 @@ export function spendGuardedClient(
       readonly exchange: () => Promise<ReplyT>;
     },
   ): Promise<ReplyT> {
+    /**
+     Holds the guard's one place for a call until this one settles.
+     */
+    using _flight = enterFlight();
     /**
      The most this call can cost.
      */
