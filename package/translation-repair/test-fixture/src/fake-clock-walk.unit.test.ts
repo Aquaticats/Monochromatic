@@ -103,6 +103,24 @@ async function napWalk(
   return walk.endedByItself;
 }
 
+/**
+ How many real timers are live in the process now, which is what keeps a process from exiting after its work is done.
+
+ @returns Count of live timers, the ones faked by a sandbox's clock not among them
+
+ @example
+ ```ts
+ const before = liveTimers();
+ ```
+ */
+function liveTimers(): number {
+  return process.getActiveResourcesInfo()
+    .filter(function isTimer(resource,): boolean {
+      return resource === 'Timeout';
+    },)
+    .length;
+}
+
 await describe({
   name: walkOnFakeClock.name,
   // One case at a time: each installs a clock, and the built-in module's exports are one object for the whole process.
@@ -185,6 +203,29 @@ await describe({
 
         expect(seen,).toEqual([false,],);
         expect(sleepFor,).toBe(REAL_SLEEP_FOR,);
+      },
+    },),
+
+    it({
+      name: 'LEAVES NO REAL TIMER LIVE WHEN THE WALK HAS ENDED: the hang stops are real waits of a minute that the '
+        + 'walk races, and a minute-long timer nobody ended held the process of every suite that walked for that '
+        + 'minute after its last case',
+      fn: async ctx => {
+        /**
+         Real timers live before the walk.
+         */
+        const before = liveTimers();
+        await napWalk({
+          sinon: ctx.sinon,
+          nap: signal => sleepFor(
+            NAP_MS,
+            undefined,
+            { signal, },
+          ),
+          ticks: [PAST_NAP_MS,],
+        },);
+
+        expect(liveTimers(),).toBeLessThanOrEqual(before,);
       },
     },),
 
