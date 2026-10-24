@@ -70,6 +70,49 @@ export {
 } from './corpus-run/editor-fidelity-arm-answers.ts';
 export { checkEditorBench, } from './corpus-run/editor-fidelity-arm-bench.ts';
 export {
+  type ArmFigures,
+  armFiguresOf,
+  type KindFigure,
+  type RowStops,
+} from './corpus-run/editor-fidelity-arm-figures.ts';
+export { benchReportLines, } from './corpus-run/editor-fidelity-arm-report.ts';
+export {
+  capAndThrowAnswer,
+  stopsStatedAnswer,
+  UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,
+  unusableWarning,
+} from './corpus-run/editor-fidelity-arm-stops.ts';
+export {
+  type AskEnd,
+  askEndOf,
+  recordingAsks,
+  type RecordedAsks,
+  stoppedWord,
+} from './corpus-run/editor-fidelity-asks.ts';
+export {
+  type ArmCount,
+  type DecidingClause,
+  decideEffort,
+  decisionRuleText,
+  type EffortReading,
+  type EffortVerdict,
+  KIND_TOLERANCE_TRIALS,
+  type KindCount,
+  POOLED_FLOOR_TRIALS,
+} from './corpus-run/editor-fidelity-decide.ts';
+export {
+  armCountChances,
+  falseCallRate,
+  NULL_CALL_LIMIT,
+  NULL_CORRELATIONS,
+  NULL_RATES,
+  POOL_CLUSTERS,
+  type PoolClusters,
+  smallestFloor,
+  worstFalseCall,
+  type WorstCase,
+} from './corpus-run/editor-fidelity-decide-null.ts';
+export {
   type ArmCheckReport,
   checkEditorArms,
 } from './corpus-run/editor-fidelity-arm-check.ts';

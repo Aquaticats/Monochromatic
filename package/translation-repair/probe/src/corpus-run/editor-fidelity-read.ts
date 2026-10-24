@@ -14,6 +14,7 @@ import {
 import { isWholeNumberText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { checkEditorBench, } from './editor-fidelity-arm-bench.ts';
+import { benchReportLines, } from './editor-fidelity-arm-report.ts';
 import type {
   ArmLog,
   ExitRecord,
@@ -168,13 +169,24 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-fidelity-r
     lines,
     failed,
   } = checkEditorBench({ arms, },);
+  /**
+   Checks that held; a WARN line is neither a pass nor a failure.
+   */
+  const passed = lines.filter(function isPass(said,): boolean {
+    return said.startsWith('PASS ',);
+  },);
   process.stdout
-    .write(`${lines.join('\n',)}\nCHECKS ${String(lines.length - failed,)} pass, ${String(failed,)} fail\n`,);
+    .write(`${lines.join('\n',)}\nCHECKS ${String(passed.length,)} pass, ${String(failed,)} fail\n`,);
   if (failed > 0) {
     throw new StatedRefusalError({
       says: `${String(failed,)} of the checks failed, so the logs of these arms are not evidence of the bench; read the FAIL lines printed before this one`,
     },);
   }
+  // THE FIGURES AND THE VERDICT ARE PRINTED ONLY FOR A BENCH WHOSE CHECKS PASSED: an arm with a failed check is not
+  // evidence, and a count read off it would be a count of something else.
+  process.stdout
+    .write(`${benchReportLines({ arms, },)
+      .join('\n',)}\n`,);
 }
 
 if (import.meta.main)

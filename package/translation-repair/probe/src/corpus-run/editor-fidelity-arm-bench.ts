@@ -6,6 +6,15 @@ import {
   lineOfCheck,
 } from './editor-fidelity-arm-check.ts';
 import {
+  type ArmFigures,
+  armFiguresOf,
+} from './editor-fidelity-arm-figures.ts';
+import {
+  capAndThrowAnswer,
+  stopsStatedAnswer,
+  unusableWarning,
+} from './editor-fidelity-arm-stops.ts';
+import {
   type ArmFacts,
   type ArmLog,
   factsOf,
@@ -254,6 +263,12 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
     return factsOf({ log, },);
   },);
   /**
+   The figures of each arm.
+   */
+  const allFigures = arms.map(function figuresOf(log,): ArmFigures {
+    return armFiguresOf({ log, },);
+  },);
+  /**
    The checks that make the logs a bench.
    */
   const lines = [
@@ -283,6 +298,27 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
         },),
       },);
     },),
+    ...arms.flatMap(function stopsOf(
+      { arm, },
+      at,
+    ): readonly string[] {
+      /**
+       This arm's figures.
+       */
+      const figures = nonNullishOrThrow(allFigures[at],);
+      return [
+        lineOfCheck({
+          scope: arm,
+          check: 'stop reasons stated',
+          answer: stopsStatedAnswer({ figures, },),
+        },),
+        lineOfCheck({
+          scope: arm,
+          check: 'no trial ended at the output cap or threw',
+          answer: capAndThrowAnswer({ figures, },),
+        },),
+      ];
+    },),
   ];
   /**
    The bench checks that failed.
@@ -290,10 +326,26 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
   const failedHere = lines.filter(function isFail(line,): boolean {
     return line.startsWith('FAIL ',);
   },);
+  /**
+   The warnings, which are no failure.
+   */
+  const warnings = arms.map(function warnOf(
+    { arm, },
+    at,
+  ): string {
+    return unusableWarning({
+      arm,
+      figures: nonNullishOrThrow(allFigures[at],),
+    },);
+  },)
+    .filter(function isWarning(warning,): boolean {
+      return warning !== '';
+    },);
   return {
     lines: [
       ...base.lines,
       ...lines,
+      ...warnings,
     ],
     failed: base.failed + failedHere.length,
   };

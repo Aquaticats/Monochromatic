@@ -25,6 +25,10 @@ import type {
 import { EDITOR_FIDELITY_POOL, } from '../editor-fidelity-pool-manifest.ts';
 import { editorFidelityTrials, } from '../editor-fidelity-trials.ts';
 import { readEditorFidelityArguments, } from './editor-fidelity-args.ts';
+import {
+  recordingAsks,
+  stoppedWord,
+} from './editor-fidelity-asks.ts';
 import { editorCeilings, } from './editor-fidelity-ceiling.ts';
 import {
   editorFidelityPlan,
@@ -190,13 +194,6 @@ export async function runEditorFidelityProbe(
     },
   },);
   log.info(`editors: ${cardIds.join(', ',)}`,);
-  if (cap === 0) {
-    log.info(editorPreflightLine({
-      cardIds,
-      selected: specs.length,
-    },),);
-    return;
-  }
   /**
    When the run began, read before its first work, the corpus read.
    */
@@ -216,12 +213,15 @@ export async function runEditorFidelityProbe(
     damageKinds,
   },);
   /**
-   Leading trials within the cap, counted in attempts for each card.
+   Leading trials within the cap, counted in attempts for each card; a cap of zero asks nothing and prices the whole pool,
+   so its ceiling is what an arm over the pool would print.
    */
-  const planned = trials.slice(
-    0,
-    cap,
-  );
+  const planned = (cap === 0)
+    ? trials
+    : trials.slice(
+      0,
+      cap,
+    );
   if (planned.length < trials.length) {
     log.warn(fidelityPartialWarning({
       planned: planned.length,
@@ -245,6 +245,13 @@ export async function runEditorFidelityProbe(
     benchSpentUsd,
   },))
     log.info(said,);
+  if (cap === 0) {
+    log.info(editorPreflightLine({
+      cardIds,
+      selected: specs.length,
+    },),);
+    return;
+  }
 
   /**
    Operator-selected output root; calibration callers use a disposable directory.
@@ -331,6 +338,10 @@ export async function runEditorFidelityProbe(
     controller,
   },);
   /**
+   The client noted for how each ask of a trial ends, which the row of the trial states.
+   */
+  const asks = recordingAsks({ client, },);
+  /**
    Says what the guard counted when this run ends, finished or stopped, so the read step has the figure its SPEND-line
    sum is checked against even for an arm that ended on the refusal.
    */
@@ -358,7 +369,7 @@ export async function runEditorFidelityProbe(
        The card seated alone on the trial, asked what the editor stage asks an editor.
        */
       const reading = await runEditorTrial({
-        client,
+        client: asks.client,
         cardId: pair.cardId,
         trial: pair.trial,
         signal: controller.signal,
@@ -367,12 +378,17 @@ export async function runEditorFidelityProbe(
         stageSettings,
       },);
       /**
+       How each ask of the trial ended.
+       */
+      const stops = asks.takeEnds();
+      /**
        A completed row remains readable even if a later row interrupts the invocation.
        */
       const row = editorFidelityRow({
         cardId: pair.cardId,
         trial: pair.trial,
         reading,
+        stops,
       },);
       await writeFile(
         join(
@@ -391,7 +407,7 @@ export async function runEditorFidelityProbe(
       );
       log.info(`row ${String(position + 1,)} of ${String(pairs.length,)}: ${pairName({ item: pair, },)}: ${
         readingWord({ reading, },)
-      }`,);
+      }; stopped ${stoppedWord({ ends: stops, },)}`,);
       return row;
     },
   },);

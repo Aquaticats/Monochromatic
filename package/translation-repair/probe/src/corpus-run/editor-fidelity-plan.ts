@@ -6,7 +6,9 @@ import type {
   EditorDamageKind,
   EditorFidelityTrial,
 } from '../editor-fidelity-trials.ts';
+import type { AskEnd, } from './editor-fidelity-asks.ts';
 import type { EditorCeiling, } from './editor-fidelity-ceiling.ts';
+import { decisionRuleText, } from './editor-fidelity-decide.ts';
 import type { EditorTrialReading, } from './editor-fidelity-trial.ts';
 import type { ProbeRun, } from './probe-store.ts';
 
@@ -63,6 +65,11 @@ export type EditorFidelityRow = {
    How the trial read.
    */
   readonly reading: EditorTrialReading;
+
+  /**
+   How each ask of the trial ended, in the order asked.
+   */
+  readonly stops: readonly AskEnd[];
 };
 
 /**
@@ -74,11 +81,13 @@ export type EditorFidelityRow = {
 
  @param reading - how the trial read
 
+ @param stops - how each ask of the trial ended, in the order asked
+
  @returns The row as kept, which stays readable if a later row interrupts the run
 
  @example
  ```ts
- const row = editorFidelityRow({ cardId, trial, reading, },);
+ const row = editorFidelityRow({ cardId, trial, reading, stops: ['ok',], },);
  ```
  */
 export function editorFidelityRow(
@@ -86,10 +95,12 @@ export function editorFidelityRow(
     cardId,
     trial,
     reading,
+    stops = [],
   }: {
     readonly cardId: RosterModelId;
     readonly trial: EditorFidelityTrial;
     readonly reading: EditorTrialReading;
+    readonly stops?: readonly AskEnd[];
   },
 ): EditorFidelityRow {
   return {
@@ -103,6 +114,7 @@ export function editorFidelityRow(
     changedChars: trial.changedChars,
     damageDetail: trial.damageDetail,
     reading,
+    stops,
   };
 }
 
@@ -412,15 +424,8 @@ export function editorDefectOnlyLine({ tally, }: { readonly tally: EditorCardTal
 }
 
 /**
- The rule the arms are read by, stated before any arm asks: which counts are compared, what difference counts, and
- what a tie keeps.
-
- THE NOISE IS MEASURED, NOT ASSUMED. The two medium arms are one card run twice, so their own difference is the spread
- a repeat shows. It is floored at 3 trials, about one standard deviation of a count out of forty (the square root of
- forty quarters is 3.2), because two runs that happen to agree show no spread and a floor of zero would call any
- difference real. A difference counts only when the pooled count is further from the mean of the two medium arms than
- that, and neither kind of defect moves the other way: an effort that gains on alterations and loses on insertions
- has not separated.
+ The rule the arms are read by, stated before any arm asks: which counts are compared, what difference counts, what a
+ tie keeps and what the insertion trials measure. The text is `decisionRuleText`, the one the read step applies.
 
  @returns The line, without a newline
 
@@ -430,14 +435,11 @@ export function editorDefectOnlyLine({ tally, }: { readonly tally: EditorCardTal
  ```
  */
 export function editorDecisionRuleLine(): string {
-  return 'RULE clean fix is exact plus equivalent, read pooled and per kind of defect; an effort differs from the '
-    + 'default (medium) only when its pooled clean fix count is further from the mean of the two medium arms than '
-    + 'the larger of 3 and the two medium arms\' own difference, and neither kind moves against it; any other '
-    + 'difference, and any tie, keeps the default effort';
+  return `RULE ${decisionRuleText()}`;
 }
 
 /**
- Line saying a request was accepted and nothing was asked, which is what a cap of zero buys.
+ Line saying a request was accepted and no model was asked, which is what a cap of zero buys.
 
  @param cardIds - cards the request seats
 
@@ -465,7 +467,7 @@ export function editorPreflightLine(
       one: 'specification',
       many: 'specifications',
     },)
-  } selected for ${cardIds.join(', ',)}; no corpus or model calls`;
+  } selected for ${cardIds.join(', ',)}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`;
 }
 
 /**
