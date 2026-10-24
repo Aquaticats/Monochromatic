@@ -133,12 +133,12 @@ await describe({
       },
     },),
     it({
-      name: 'NAMES THE BENCH TOTAL at twenty dollars, the amount the owner ruled for all the arms of the bench together, '
-        + 'and starts an arm that reaches it exactly',
+      name: 'NAMES THE BENCH TOTAL at sixty dollars, the amount the owner ruled on 2026-10-24 for all the arms of the '
+        + 'bench together, and starts an arm that reaches it exactly',
       fn: async () => {
-        expect(EDITOR_BENCH_MAX_USD,).toBe(20,);
-        expect(askedFrom({ typed: ['--bench-spent-usd', '18', '--max-usd', '2',], },).benchSpentUsd,).toBe(18,);
-        expect(askedFrom({ typed: ['--bench-spent-usd', '7.1', '--max-usd', '12.9',], },).maxUsd,).toBe(12.9,);
+        expect(EDITOR_BENCH_MAX_USD,).toBe(60,);
+        expect(askedFrom({ typed: ['--bench-spent-usd', '58', '--max-usd', '2',], },).benchSpentUsd,).toBe(58,);
+        expect(askedFrom({ typed: ['--bench-spent-usd', '42', '--max-usd', '18',], },).maxUsd,).toBe(18,);
       },
     },),
     it({
@@ -146,15 +146,15 @@ await describe({
         + 'passes the bench total, naming the three figures and what --max-usd may still be',
       fn: async () => {
         expect(refusalOf({
-          typed: ['--bench-spent-usd', '18.5', '--max-usd', '2',],
+          typed: ['--bench-spent-usd', '58.5', '--max-usd', '2',],
           askedFrom,
         },),).toBe(
-          'the bench would spend up to 20.5 USD: --bench-spent-usd 18.5 plus --max-usd 2 passes the 20 USD the owner '
+          'the bench would spend up to 60.5 USD: --bench-spent-usd 58.5 plus --max-usd 2 passes the 60 USD the owner '
             + 'ruled for all the arms of the editor fidelity bench together; write a --max-usd of at most 1.5, or '
             + 'stop the bench here',
         );
         expect(refusalOf({
-          typed: ['--bench-spent-usd', '20', '--max-usd', '0.01',],
+          typed: ['--bench-spent-usd', '60', '--max-usd', '0.01',],
           askedFrom,
         },),).toContain('write a --max-usd of at most 0',);
       },

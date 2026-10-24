@@ -519,7 +519,7 @@ await describe({
 
     it({
       name: 'CHECKS ACROSS THE ARMS that every arm printed the same manifest digest, and that the money measured and '
-        + 'the caps written both fit the twenty dollars of the whole bench',
+        + 'the caps written both fit the sixty dollars of the whole bench',
       fn: async () => {
         const first = goodArm({ arm: {}, },);
         const second: ArmLog = {
@@ -548,17 +548,22 @@ await describe({
     },),
 
     it({
-      name: 'FAILS THE BENCH TOTAL when the guards counted twenty dollars or more, or the caps written add to more than '
-        + 'twenty',
+      name: 'FAILS THE BENCH TOTAL when the guards counted sixty dollars or more, or the caps written add to more than '
+        + 'sixty',
       fn: async () => {
-        const spent = goodArm({ arm: { costs: [10,], guardUsd: 10, }, },);
+        const between = goodArm({ arm: { costs: [15,], guardUsd: 15, }, },);
+        const inside = checkEditorArms({ arms: [between, { ...between, arm: 'b', },], },);
+        expect(inside.lines.some(function isPass(line,): boolean {
+          return line.startsWith('PASS bench: total ',) && line.includes('30.000000 USD measured under 60 USD',);
+        },),).toBe(true,);
+        const spent = goodArm({ arm: { costs: [30,], guardUsd: 30, }, },);
         const total = checkEditorArms({ arms: [spent, { ...spent, arm: 'b', },], },);
         expect(total.lines.some(function isFail(line,): boolean {
-          return line.startsWith('FAIL bench: total ',) && line.includes('20.000000 USD',);
+          return line.startsWith('FAIL bench: total ',) && line.includes('60.000000 USD',);
         },),).toBe(true,);
         const capped = goodArm({
           arm: {
-            opening: openingOf({ digest: DIGEST, maxUsd: 12, },),
+            opening: openingOf({ digest: DIGEST, maxUsd: 31, },),
           },
         },);
         const caps = checkEditorArms({ arms: [capped, { ...capped, arm: 'b', },], },);
