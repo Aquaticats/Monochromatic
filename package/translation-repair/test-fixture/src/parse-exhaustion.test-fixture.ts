@@ -116,46 +116,96 @@ function raisesFromParse(): never {
 }
 
 /**
- Names of the grammar's own functions. Each one reads the tree it has just built, to count what the parser dropped and
- to note where a setext heading's own lines start, before it returns, and those reads are part of the parse: an
- exhaustion they raise is the parse's, which the boundaries read as the refusal.
+ The key the grammar looks its parse-end hook up under on the global object, a registry symbol so that this package
+ needs no import of the grammar's package and every copy of the grammar's module finds the same hook.
  */
-const GRAMMAR_FUNCTION_NAMES: readonly string[] = [
-  'parseMdxBody',
-  'parseMarkdownBody',
-];
+const PARSE_END_HOOK_KEY = Symbol.for('@monochromatic-dev/translation-repair-document-structure/parse-end-hook',);
 
 /**
- Whether the read being made is one the grammar's own function makes of the tree it has just built.
+ Whether a tree of the walk answers its reads or raises at them.
+ */
+type Arming = {
+  /**
+   Whether the grammar has finished its own reads of the tree, so the next read is the caller's.
+   */
+  armed: boolean;
+};
 
- @returns Whether a frame of the call stack is a grammar function from the list of names
+/**
+ The state of each tree of the walk, keyed by the tree the grammar's function returns.
+ */
+const ARMINGS = new WeakMap<object, Arming>();
+
+/**
+ Marks a tree as read by the grammar for the last time, which is when the grammar's function hands it to its caller: the
+ grammar calls this at its end, with the final tree.
+
+ @param root - the tree the grammar's function is about to return
 
  @example
  ```ts
- const own = readsFromTheGrammar(); // false in a test body, true inside parseMdxBody
+ armedAtParseEnd({ root, });
  ```
  */
-function readsFromTheGrammar(): boolean {
+function armedAtParseEnd({ root, }: { readonly root: unknown; },): void {
+  if (((typeof root) !== 'object') || (root === null))
+    return;
   /**
-   How many frames a stack keeps, restored once the stack is read.
+   The state of the tree, none for a tree this walk did not make.
    */
-  const keptFrames = Error.stackTraceLimit;
-  Error.stackTraceLimit = Number.POSITIVE_INFINITY;
+  const arming = ARMINGS.get(root,);
+  if (arming !== undefined)
+    arming.armed = true;
+}
+
+/**
+ Puts a function where the grammar looks up its parse-end hook, until the returned value is disposed of.
+
+ @param hook - what the grammar calls with the final tree
+
+ @returns A disposable that puts back what stood there before
+
+ @example
+ ```ts
+ using _hooked = parseEndHookSet({ hook: armedAtParseEnd, });
+ ```
+ */
+function parseEndHookSet(
+  { hook, }: { readonly hook: (arguments_: { readonly root: unknown; },) => void; },
+): Disposable {
   /**
-   The stack of the read.
+   The hook that stood there before.
    */
-  const stack = new Error('stack of the read',).stack ?? '';
-  Error.stackTraceLimit = keptFrames;
-  return GRAMMAR_FUNCTION_NAMES.some(function isOnStack(name,): boolean {
-    // The bundler may suffix a name it had to make unique, as `parseMdxBody$1`.
-    return stack.includes(`at ${name} `,) || stack.includes(`at ${name}$`,);
-  },);
+  const before: unknown = Reflect.get(
+    globalThis,
+    PARSE_END_HOOK_KEY,
+  );
+  Reflect.set(
+    globalThis,
+    PARSE_END_HOOK_KEY,
+    hook,
+  );
+  return {
+    [Symbol.dispose]: function putHookBack(): void {
+      if (before === undefined)
+        Reflect.deleteProperty(
+          globalThis,
+          PARSE_END_HOOK_KEY,
+        );
+      else
+        Reflect.set(
+          globalThis,
+          PARSE_END_HOOK_KEY,
+          before,
+        );
+    },
+  };
 }
 
 /**
  A tree that raises a stack exhaustion whenever the code that walks a parse after the parse call returned reads it, and
- answers the grammar's own reads from the tree the parser built, so the exhaustion comes from the boundary's code and not
- from the grammar's.
+ answers the grammar's own reads from the tree the parser built until the grammar says it has finished them, so the
+ exhaustion comes from the boundary's code and not from the grammar's.
 
  @param built - the tree the real parser built
 
@@ -167,49 +217,61 @@ function readsFromTheGrammar(): boolean {
  ```
  */
 function treeThatExhaustsTheStack({ built, }: { readonly built: object; },): object {
-  return new Proxy(
+  /**
+   Whether the grammar has finished with the tree.
+   */
+  const arming: Arming = { armed: false, };
+  /**
+   The stand-in.
+   */
+  const stand = new Proxy(
     built,
     {
       get(
         target,
         key,
       ): unknown {
-        if (readsFromTheGrammar())
-          return Reflect.get(
-            target,
-            key,
-          );
-        throw engineExhaustion();
+        if (arming.armed)
+          throw engineExhaustion();
+        return Reflect.get(
+          target,
+          key,
+        );
       },
       has(
         target,
         key,
       ): boolean {
-        if (readsFromTheGrammar())
-          return Reflect.has(
-            target,
-            key,
-          );
-        throw engineExhaustion();
+        if (arming.armed)
+          throw engineExhaustion();
+        return Reflect.has(
+          target,
+          key,
+        );
       },
       ownKeys(target,): (string | symbol)[] {
-        if (readsFromTheGrammar())
-          return Reflect.ownKeys(target,);
-        throw engineExhaustion();
+        if (arming.armed)
+          throw engineExhaustion();
+        return Reflect.ownKeys(target,);
       },
       getOwnPropertyDescriptor(
         target,
         key,
-      ) {
-        if (readsFromTheGrammar())
-          return Reflect.getOwnPropertyDescriptor(
-            target,
-            key,
-          );
-        throw engineExhaustion();
+      ): ReturnType<typeof Reflect.getOwnPropertyDescriptor> {
+        if (arming.armed)
+          throw engineExhaustion();
+        return Reflect.getOwnPropertyDescriptor(
+          target,
+          key,
+        );
       },
     },
   );
+  ARMINGS.set(
+    stand,
+    arming,
+  );
+  return stand;
 }
 
 /**
@@ -221,7 +283,7 @@ function treeThatExhaustsTheStack({ built, }: { readonly built: object; },): obj
 
  @example
  ```ts
- const root = returnsExhaustingTree({ built: function build() { return realRoot; }, },);
+ const root = returnsExhaustingTree({ built: function build(): object { return realRoot; }, },);
  ```
  */
 function returnsExhaustingTree({ built, }: { readonly built: () => unknown; },): object {
@@ -290,9 +352,9 @@ function parserReplaced(
 }
 
 /**
- Runs a call while the parse it makes lets the engine's stack exhaustion out of the grammar's function raw, the case a stack
- too short to build the refusal produces. The call is synchronous and runs to its end before any other test step, so
- nothing else sees the replacement.
+ Runs a call while the parse it makes lets the engine's stack exhaustion out of the grammar's function raw, the case a
+ stack too short to build the refusal produces. The call is synchronous and runs to its end before any other test
+ step, so nothing else sees the replacement.
 
  @param run - the call under test
 
@@ -302,7 +364,7 @@ function parserReplaced(
 
  @example
  ```ts
- const refused = withExhaustionFromParse({ run: function read(): boolean { return isLineStructured({ text: 'a', },); }, },);
+ const refused = withExhaustionFromParse({ run: function read(): boolean { return isLineStructured({ text, },); }, },);
  ```
  */
 export function withExhaustionFromParse<Result>(
@@ -325,10 +387,12 @@ export function withExhaustionFromParse<Result>(
 }
 
 /**
- Runs a call while the parse it makes returns a tree that raises the engine's stack exhaustion at the first read the code
+ Runs a call while the parse it makes returns a tree that raises the engine's stack exhaustion at the first read the
+ code
  under test makes, so the exhaustion comes from the code that reads the parse and not from the parse. The reads the
  grammar's own function makes of the tree it has just built (`parseMdxBody` and `parseMarkdownBody` count the dropped
- characters and note the setext heading floors) are answered from the real tree, since they are part of the parse. The
+ characters and note the setext heading floors) are answered from the real tree, since they are part of the parse; the
+ function says it has finished them by calling a hook last, which this function sets for the span of the call. The
  call is synchronous and runs to its end before any other test step.
 
  @param run - the call under test
@@ -339,7 +403,7 @@ export function withExhaustionFromParse<Result>(
 
  @example
  ```ts
- const walked = withExhaustionFromWalk({ run: function read(): number { return blockBreaksIn({ text: 'a\n\nb', },); }, },);
+ const walked = withExhaustionFromWalk({ run: function read(): number { return blockBreaksIn({ text, },); }, },);
  ```
  */
 export function withExhaustionFromWalk<Result>(
@@ -351,6 +415,10 @@ export function withExhaustionFromWalk<Result>(
     readonly selection?: ParseSelection;
   },
 ): Result {
+  /**
+   The hook that arms each tree at the end of the grammar's function, in force until this function returns.
+   */
+  using _hooked = parseEndHookSet({ hook: armedAtParseEnd, },);
   /**
    The replacement, in force until this function returns.
    */
@@ -387,7 +455,8 @@ function isMethod(value: unknown,): value is Method {
 }
 
 /**
- Runs a call while one method of a built-in object raises the engine's stack exhaustion for the calls a test names, so code
+ Runs a call while one method of a built-in object raises the engine's stack exhaustion for the calls a test names, so
+ code
  that runs after the parse and reads no tree can be made to raise. The call is synchronous and the method is put back
  when it ends.
 
