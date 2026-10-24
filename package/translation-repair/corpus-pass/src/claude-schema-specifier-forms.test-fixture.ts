@@ -7,6 +7,7 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // that the search does not read, as an alias in an import map does (`#shared`). The check reports each such specifier
 // of an import, an export from, an `import()` and a `require`, and reports nothing for a built-in, a package of the
 // lockfile with any subpath, a file the sources hold, a file that exists beside them, a type-only import and a type.
+// A package of the family is the exception: it resolves only to a file of the sources.
 
 /**
  The place the check reports for a specifier it cannot resolve.
@@ -158,6 +159,12 @@ export const SPECIFIER_CASES: readonly ShapeCase[] = [
           'export { built, } from \'@monochromatic-dev/translation-repair-lane-contest/dist/index.mjs\';',
           'export const loaded = await import(\'@monochromatic-dev/translation-repair-lane-contest/ts/absent.ts\');',
           'import { absent, } from \'@monochromatic-dev/translation-repair-nonesuch/ts\';',
+        ],),
+      },
+      {
+        file: 'provider/src/index.ts',
+        text: textOf([
+          'export const buildClaudeBody = 1;',
         ],),
       },
       {

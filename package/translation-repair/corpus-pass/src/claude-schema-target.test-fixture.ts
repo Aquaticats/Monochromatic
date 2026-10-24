@@ -14,6 +14,23 @@ import {
 const PACKAGE_PREFIX = '@monochromatic-dev/translation-repair-';
 
 /**
+ Whether a specifier names a package of the family, with or without a subpath.
+
+ @param specifier - specifier as written
+
+ @returns Whether it begins with the start of the name of every package of the family
+
+ @example
+ ```ts
+ const isFamily = isFamilyPackage({ specifier: '@monochromatic-dev/translation-repair-provider/ts', },);
+ // => true
+ ```
+ */
+export function isFamilyPackage({ specifier, }: { readonly specifier: string; },): boolean {
+  return specifier.startsWith(PACKAGE_PREFIX,);
+}
+
+/**
  The file of the family that a package specifier names: the package's entry point for the package and for its `/ts`
  subpath, one file under its `src` for `/ts/<file>`.
 
@@ -28,7 +45,7 @@ const PACKAGE_PREFIX = '@monochromatic-dev/translation-repair-';
  ```
  */
 function packagedFileOf({ specifier, }: { readonly specifier: string; },): string {
-  if (!specifier.startsWith(PACKAGE_PREFIX,))
+  if (!isFamilyPackage({ specifier, },))
     return '';
   /**
    The package's directory and what follows it in the specifier.

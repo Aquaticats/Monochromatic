@@ -13,7 +13,10 @@ import {
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
-import { targetOf, } from './claude-schema-target.test-fixture.ts';
+import {
+  isFamilyPackage,
+  targetOf,
+} from './claude-schema-target.test-fixture.ts';
 import {
   moduleLoadOf,
   stringValueOf,
@@ -24,10 +27,12 @@ import {
 // of these for the files it holds. A specifier that is no built-in module, no package the lockfile holds as a
 // dependency of a package of the family, and no file (one of the sources, or one that exists beside them under a
 // package's `src`, or its `package.json`) can name a module through a map the search does not read, as an alias that
-// begins with `#` does, so it is reported where it is written. A type-only import or export and a type are left out,
-// since they load nothing. The lockfile and the files beside the sources are read once, when the module loads, since
-// the check itself is not asynchronous; the lockfile is the one at the root of the repository, and its importers of
-// the family give the packages.
+// begins with `#` does, so it is reported where it is written. A package of the family is the exception to the
+// lockfile: the lockfile lists it for the packages that depend on it, so it names only the files of the sources, by
+// its entry point, its `/ts` subpath and `/ts/<file>`; any other subpath of it is reported. A type-only import or
+// export and a type are left out, since they load nothing. The lockfile and the files beside the sources are read
+// once, when the module loads, since the check itself is not asynchronous; the lockfile is the one at the root of the
+// repository, and its importers of the family give the packages.
 
 /**
  Directory holding the family's packages.
@@ -289,6 +294,10 @@ function resolves(
     specifier,
   },) !== '')
     return true;
+  // The lockfile lists a package of the family for the others that depend on it, which says nothing of the files it
+  // holds, so a specifier of such a package resolves only to a file of the sources.
+  if (isFamilyPackage({ specifier, },))
+    return false;
   if (specifier.startsWith('.',)) {
     /**
      The path the specifier names, from the root of the family.
