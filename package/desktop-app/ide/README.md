@@ -3244,6 +3244,54 @@ and `render/MainMinimap.kt`.
   On a line too long to shape within a click's allowance the caret goes to the start of the line.
   A press in the virtual rows above a line jumps to that line's first row.
   The row under the pointer is the one of the picture as it has slid with the scroll when the pointer went down.
+- A press is aimed again, once for each change of the layout, while nothing else has moved the view
+  (`src/native/minimap/aim.rs`).
+  A press is mapped through the layout the window has when it lands,
+  and that layout is not final for a while:
+  the hints of lines no request has asked about arrive later and take rows.
+  A first press at the bottom of a file whose first request covered only the first screens
+  landed where the incomplete layout put it,
+  and the same press after a visit elsewhere landed about nine lines further down
+  (`build.unit.test.ts` in a window of 1080 by 1880 logical px: line 214 against line 223).
+  The window therefore keeps the last press as its place on the track,
+  with the share of the scroll range the view stood at before it
+  (the picture slides by that share of its overhang, so it is part of what the press means),
+  and with what the press left behind:
+  the scroll offset,
+  the caret,
+  the stamp of the text,
+  and the size of the view.
+  When a new layout is installed while all of them still hold,
+  the same press is mapped through the new layout,
+  and the view and the caret go there in the frame that shows the new rows.
+  The new place is what is left behind then,
+  so a further change of the layout aims the press once more,
+  and nothing is aimed while the layout stays as it is.
+  The press is forgotten as soon as the view is placed anywhere else
+  (a wheel step even when it returns to the same offset,
+  a key,
+  a drag that moved the view,
+  a page step,
+  a find jump,
+  a tree click),
+  the caret moves,
+  the text changes by an edit,
+  a reload,
+  or another file,
+  or the view changes size;
+  a scroll step the toolkit has made and the window has not yet been told of counts too.
+  A press that is still held has not been followed:
+  the box is dragged from the aimed place with the live layout, as it is without an aim.
+  The caret moves with the view,
+  also by several lines,
+  because the press names a place in the layout and the caret goes to the place it names.
+  The correction comes with the answer that brings the rows,
+  about a quarter of a second after the press
+  (the settling time of the hint request plus the server's answer),
+  in the one frame that also shows those rows.
+  The view then stands on other lines,
+  so the hints of those lines are asked for after the settling time again:
+  one request more than the same press costs when every row is already there.
 - A press on the box starts a drag without a jump.
   A press outside the box jumps and then continues as a drag of the box from where the jump left it
   (`ScrollBar.mousePressed`:
@@ -3368,6 +3416,7 @@ and `render/MainMinimap.kt`.
   `pace.rs` decides when a request is posted,
   `request.rs` makes the key and posts the request,
   `picture.rs` takes in the finished pictures,
+  `aim.rs` keeps the last press and maps it again through a new layout,
   and `pointer.rs` turns a press,
   a drag,
   and a page step into scroll offsets.
@@ -3584,6 +3633,16 @@ a window of 12,000 px over the harness device of 8,192 px gets two textures that
 and a picture cut for a limit of 1,536 and of 1,024 rows is three and four textures whose texels,
 seams,
 and composited column equal the one texture's),
+and `src/native/minimap_aim_tests.rs`
+(a press is aimed again at the layout that follows it, with the caret on the line it names there;
+a second change aims it again and an unchanged layout does not move the view;
+a wheel step that returns to the same offset,
+a scroll step the window has not yet been told of,
+a key,
+a resize,
+a reload,
+and a drag that moved the view each keep the view still across the new rows;
+a held press is aimed and the drag then follows the live layout),
 and `src/native/minimap_seam_tests.rs`
 (the chunks stacked equal one render of the picture at scales 1 and 1.5),
 and `src/native/minimap_dense_tests.rs`
@@ -3642,6 +3701,16 @@ and a frame scaled down keeps the coverage of its edges).
 `minimap-throttle-period`,
 `minimap-slide-period`,
 `minimap-scroll-notes-bands`,
+`minimap-aim-remembered`,
+`minimap-aim-share`,
+`minimap-aim-after-install`,
+`minimap-aim-placed-away`,
+`minimap-aim-place-forgets`,
+`minimap-aim-unreported-step`,
+`minimap-aim-caret`,
+`minimap-aim-text`,
+`minimap-aim-view`,
+`minimap-aim-drag-start`,
 and `overscan-early-return`.
 
 Two native tests failed in full runs of the suite that run its tests in parallel (`mise run test:native` without a
