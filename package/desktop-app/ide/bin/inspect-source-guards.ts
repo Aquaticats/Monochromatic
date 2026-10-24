@@ -1756,6 +1756,101 @@ const cases: Guard[] = [
     test: 'an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about',
     failure: 'an answer for lines 2 and 3 added hints to line 0'
   },
+  // A press on the minimap is mapped again through the layout that follows it, once for each change, while nothing
+  // else has moved the view: without the press remembered, the share of the scroll range kept, or the mapping run
+  // after the new layout is installed, the first press on a far place stays where the incomplete layout put it;
+  // without one of the rules that forget it (the view placed elsewhere, a scroll step not yet reported, the caret
+  // moved, another text, another view size), a layout change takes the view away from what the reader did since.
+  {
+    name: 'minimap-aim-remembered',
+    file: 'src/native/minimap/pointer.rs',
+    before: '    aim::remember(&mut current, press, share, (offset, (width, height)));',
+    after: '    let _ = (&press, share);',
+    native: true,
+    test: 'a_press_is_aimed_again_when_the_layout_changes',
+    failure: 'the view is at the place the same press gives in the new layout'
+  },
+  {
+    name: 'minimap-aim-share',
+    file: 'src/native/minimap/aim.rs',
+    before: '    return (offset / range).clamp(0.0, 1.0);',
+    after: '    return 0.0;',
+    native: true,
+    test: 'a_press_is_aimed_again_when_the_layout_changes',
+    failure: 'the view is at the place the same press gives in the new layout'
+  },
+  {
+    name: 'minimap-aim-after-install',
+    file: 'src/native/rows.rs',
+    before: '    let kept = aim_again(current, scale, (offset, width, height)).unwrap_or(still);',
+    after: '    let _ = aim_again;\n    let kept = still;',
+    native: true,
+    test: 'a_second_layout_change_aims_the_press_again_until_something_else_happens',
+    failure: 'the second change aims it again'
+  },
+  {
+    name: 'minimap-aim-placed-away',
+    file: 'src/native/minimap/aim.rs',
+    before: '        && aim.left.offset != offset',
+    after: '        && false',
+    native: true,
+    test: 'a_layout_change_after_a_wheel_step_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-place-forgets',
+    file: 'src/native/viewport.rs',
+    before: '    forget_unless(current, offset);',
+    after: '    let _ = forget_unless;',
+    native: true,
+    test: 'a_layout_change_after_a_wheel_step_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-unreported-step',
+    file: 'src/native/minimap/aim.rs',
+    before: '    if now.offset != aim.left.offset\n        || now.caret != aim.left.caret',
+    after: '    if false\n        || now.caret != aim.left.caret',
+    native: true,
+    test: 'a_layout_change_during_an_unreported_scroll_step_keeps_the_view_still',
+    failure: 'the view stays where the step put it'
+  },
+  {
+    name: 'minimap-aim-caret',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.caret != aim.left.caret',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_key_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-text',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.text != aim.left.text',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_reload_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-view',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.view != aim.left.view',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_resize_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-drag-start',
+    file: 'src/native/minimap/aim.rs',
+    before: '        drag.start_offset = wanted;',
+    after: '        let _ = (&drag, wanted);',
+    native: true,
+    test: 'a_drag_follows_the_aimed_press_and_then_the_live_layout',
+    failure: 'the drag moves the box from the aimed place, with the live layout'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

@@ -66,13 +66,13 @@ use std::{
 /// ```ts
 /// function overMinimap(window: AppWindow, x: number, y: number): Position;
 /// ```
-fn over(window: &super::AppWindow, x: f32, y: f32) -> LogicalPosition {
+pub(super) fn over(window: &super::AppWindow, x: f32, y: f32) -> LogicalPosition {
     return LogicalPosition::new(TEXT_LEFT + window.get_viewport_width() + x, HEADER + y);
 }
 
 /// The geometry of the text the reader shows now,
 /// from the vertical mapping and the view's height.
-fn geometry(reader: &Reader) -> Geometry {
+pub(super) fn geometry(reader: &Reader) -> Geometry {
     return Geometry::new(
         reader.source.borrow().row_map.height(),
         reader.window.get_viewport_height(),
@@ -81,18 +81,18 @@ fn geometry(reader: &Reader) -> Geometry {
 
 /// The anchor and the head of the selection,
 /// without the scroll position the reading position also holds.
-fn reading(reader: &Reader) -> (usize, usize) {
+pub(super) fn reading(reader: &Reader) -> (usize, usize) {
     let position = reader.source.borrow().document.position();
     return (position.anchor, position.head);
 }
 
 /// The scroll offset of the view.
-fn offset(reader: &Reader) -> f32 {
+pub(super) fn offset(reader: &Reader) -> f32 {
     return -reader.window.get_scroll_y();
 }
 
 /// Press the left button at `at`.
-fn press(reader: &Reader, at: LogicalPosition) {
+pub(super) fn press(reader: &Reader, at: LogicalPosition) {
     reader
         .window
         .window()
@@ -111,7 +111,7 @@ fn travel(reader: &Reader, at: LogicalPosition) {
 }
 
 /// Release the left button at `at`.
-fn lift(reader: &Reader, at: LogicalPosition) {
+pub(super) fn lift(reader: &Reader, at: LogicalPosition) {
     reader
         .window
         .window()
@@ -124,7 +124,7 @@ fn lift(reader: &Reader, at: LogicalPosition) {
 /// Let every pending render,
 /// timer,
 /// and worker answer that is already due run.
-fn calm(reader: &Reader) {
+pub(super) fn calm(reader: &Reader) {
     settle_tile(&reader.source);
     update_timers_and_animations();
 }
