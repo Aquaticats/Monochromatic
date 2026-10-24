@@ -28,6 +28,10 @@ import {
   readPageGrammar,
 } from '../../dist/final/node/index.mjs';
 import {
+  liveConstructsOf,
+  liveConstructsOfCarried,
+} from './source-live-constructs.test-fixture.ts';
+import {
   readerOfPage,
   readerOfSource,
   withoutLinkTargets,
@@ -299,6 +303,20 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   [
     'a footnote definition, an unclosed fence indented four spaces and a line with a tag',
     '[^1]: x\n    ~~~\n<>\n',
+  ],
+  ['a footnote, a tag alone on a line, then a definition line holding a brace', '[^1]: x\n<a href="x">\n[r]: u{b}\n'],
+  ['a footnote, a closing tag alone on a line, then a definition line holding a brace', '[^1]: x\n</a>\n[r]: u{b}\n'],
+  [
+    'a footnote of an address in angle brackets, a tag alone on a line, then a definition line holding a brace',
+    '[^1]: <https://example.net/x>\n<a href="x">\n[r]: u{b}\n',
+  ],
+  [
+    'a footnote, a tag alone on a line, then two definition lines holding braces and a title',
+    '[^1]: x\n<a href="x">\n[r]: u{b "t {"\n[s]: v{c}\n',
+  ],
+  [
+    'a footnote after a paragraph, a tag alone on a line, then a definition line holding a brace',
+    'x\n[^1]: y\n<a href="x">\n[r]: u{b}\n',
   ],
   [
     'an angle autolink holding a pipe in the text of a link in a table cell',
@@ -1027,23 +1045,56 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'LEAVES THE BRACES OF A DEFINITION LINE LIVE ON THE PAGE WHEN A TAG STANDS ALONE ON A LINE BETWEEN A '
-            + 'FOOTNOTE AND IT (a limit the module comment names): the original reads the tag as a block that ends the '
-            + 'footnote, and the page, which writes the tag as text, goes on with the paragraph',
+          name: 'SEPARATES THE DEFINITION LINE AFTER A TAG ALONE ON A LINE FROM THE FOOTNOTE WITH A BLANK LINE, since '
+            + 'the original reads the tag as a block that ends the footnote and the page, which writes the tag as '
+            + 'text, would otherwise go on with the footnote\'s paragraph and hold the braces of the definition as an '
+            + 'expression',
           fn: async () => {
             /**
              A footnote, a tag alone on the next line, then a line the plain parse reads as a definition.
              */
             const text = '[^1]: x\n<a href="x">\n[r]: u{b}\n';
             /**
-             What the encoder writes for it: the brace of the definition line is not escaped.
+             What the encoder writes for it: a blank line ends the footnote's paragraph before the definition line.
              */
-            const written = '[^1]: x\n\\<a href="x">\n[r]: u{b}\n';
+            const written = '[^1]: x\n\\<a href="x">\n\n[r]: u{b}\n';
             expect(encoded({ text, },),).toBe(written,);
-            expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
-            expect(function readsThePage(): string {
-              return readerOfPage({ carried: written, },);
-            },).toThrow('mdxTextExpression',);
+            expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
+            expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
+          },
+        },),
+
+        it({
+          name: 'CLOSES A FENCE OR DISPLAY MATH THE TEXT LEAVES OPEN AT ITS END, so the lines the page carries after the '
+            + 'text are no part of it: a fence mark in the next run would close it and expose the rest of that run',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['$$\n{x\n', '$$\n{x\n$$',],
+                ['$$\nx < {y}', '$$\nx < {y}\n$$',],
+                ['```\n{a}\n', '```\n{a}\n```',],
+                ['~~~~\n{a}', '~~~~\n{a}\n~~~~',],
+                ['```\r\n{a}', '```\r\n{a}\r\n```',],
+                ['\uFEFF```\n{\n```\n', '\uFEFF```\n\\{\n```\n```',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+            }
+          },
+        },),
+
+        it({
+          name: 'LEAVES NO CODE ON A PAGE WHOSE TWO RUNS EACH LEAVE A FLOW OPEN, where the second run\'s opening line '
+            + 'closed the first run\'s flow and exposed the braces after it',
+          fn: async () => {
+            /**
+             Two runs that each end inside display math, with English between them.
+             */
+            const first = encoded({ text: '$$\n{x\n', },);
+            const second = encoded({ text: '$$\nx < {y}\n', },);
+            expect(liveConstructsOf({
+              pageText: `${BEFORE}${first}\n\nShe slept on the counter.\n\n${second}\n`,
+            },),).toEqual([],);
           },
         },),
 
