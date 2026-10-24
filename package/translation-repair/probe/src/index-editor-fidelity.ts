@@ -146,16 +146,18 @@ export {
   editorFidelityPlan,
   type EditorFidelityRow,
   editorFidelityRow,
-  editorKeptLine,
   editorKeptRun,
   editorKindLines,
   type EditorKindTally,
   type EditorPair,
   type EditorPlannedRow,
-  editorPreflightLine,
   editorTallyLine,
   editorTallyOf,
 } from './corpus-run/editor-fidelity-plan.ts';
+export {
+  editorKeptLine,
+  editorPreflightLine,
+} from './corpus-run/editor-fidelity-plan-lines.ts';
 export {
   pairName,
   readingWord,

@@ -27,10 +27,12 @@ import {
   editorFidelityPlan,
   type EditorFidelityRow,
   editorFidelityRow,
-  editorKeptLine,
   editorKeptRun,
-  editorPreflightLine,
 } from './editor-fidelity-plan.ts';
+import {
+  editorKeptLine,
+  editorPreflightLine,
+} from './editor-fidelity-plan-lines.ts';
 import {
   manifestDigest,
   openingLines,
@@ -52,10 +54,10 @@ import {
 } from './editor-fidelity-progress-lines.ts';
 import {
   pairsOf,
+  plannedAsksOf,
   walkPairs,
   writeJsonOnce,
 } from './editor-fidelity-walk.ts';
-import { fidelityPartialWarning, } from './judge-fidelity-probe-plan.ts';
 import { requestedSpecs, } from './judge-fidelity-probe-run.ts';
 import { persistProbeRun, } from './probe-store.ts';
 
@@ -172,6 +174,7 @@ export async function runEditorFidelityProbe(
     onlyIds,
     cap,
     trials: trialsAsked,
+    passes = 1,
     damageKinds,
     maxUsd,
     benchSpentUsd,
@@ -214,29 +217,26 @@ export async function runEditorFidelityProbe(
     damageKinds,
   },);
   /**
-   How many leading trials the arm walks: the number `--trials` names, else the cap; a cap of zero with no `--trials`
-   asks nothing and prices the whole pool, so its ceiling is what an arm over the pool would print.
+   Asks the passes over the pool hold.
    */
-  const walked = trialsAsked ?? ((cap === 0) ? trials.length : cap);
+  const total = trials.length * passes;
   /**
-   Leading trials the arm walks, counted in attempts for each card.
+   Leading asks the arm walks, counted in attempts for each card: the number `--trials` names, else the cap; a cap of
+   zero with no `--trials` asks nothing and prices every ask of the passes, so its ceiling is what an arm over the
+   pool would print.
    */
-  const planned = trials.slice(
-    0,
-    walked,
-  );
-  if (planned.length < trials.length) {
-    log.warn(fidelityPartialWarning({
-      planned: planned.length,
-      total: trials.length,
-    },),);
-  }
+  const planned = plannedAsksOf({
+    trials,
+    passes,
+    walked: trialsAsked ?? ((cap === 0) ? total : cap),
+    log,
+  },);
   /**
    The most the run can cost, printed before any client exists; the spend guard holds each call to `--max-usd`.
    */
   const ceilings = editorCeilings({
     cardIds,
-    sheetChars: planned.map(function charsOf(trial,): number {
+    sheetChars: planned.map(function charsOf({ trial, },): number {
       return sheetCharsOf({ trial, },);
     },),
   },);
@@ -250,14 +250,16 @@ export async function runEditorFidelityProbe(
     log.info(said,);
   log.info(plannedLine({
     planned: planned.length,
-    total: trials.length,
+    total,
+    passes,
   },),);
   if (cap === 0) {
     log.info(editorPreflightLine({
       cardIds,
       selected: specs.length,
       planned: planned.length,
-      total: trials.length,
+      total,
+      passes,
     },),);
     return;
   }
@@ -310,6 +312,7 @@ export async function runEditorFidelityProbe(
     cardIds,
     trials,
     pairs,
+    passes,
     ceilings,
   },);
   await writeJsonOnce({
@@ -382,6 +385,7 @@ export async function runEditorFidelityProbe(
         trial: pair.trial,
         reading,
         stops,
+        ...((pair.pass === undefined) ? {} : { pass: pair.pass, }),
       },);
       await writeJsonOnce({
         path: join(

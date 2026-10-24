@@ -161,6 +161,28 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
 }
 
 /**
+ Says the pass a row belongs to, counted from one, for a row of a later pass; the first pass says nothing, so a row of one
+ pass reads as it always did.
+
+ @param pair - the card and trial, whose pass is from zero and absent for the first
+
+ @returns `; pass 2` and so on for a later pass, the empty text otherwise
+
+ @example
+ ```ts
+ // yields '; pass 2'
+ passWord({ pair: { cardId, trial, pass: 1, }, },);
+ ```
+ */
+function passWord({ pair, }: { readonly pair: EditorPair; },): string {
+  /**
+   The pass from zero.
+   */
+  const pass = pair.pass ?? 0;
+  return (pass === 0) ? '' : `; pass ${String(pass + 1,)}`;
+}
+
+/**
  Writes the row line of a finished pair.
 
  @param position - zero-based place of the pair among the planned pairs
@@ -199,7 +221,7 @@ export function rowLineOf(
     readingWord({ reading, },)
   }; entry ${pair.trial
     .spec
-    .entryId}; stopped ${stoppedWord({ ends: stops, },)}`;
+    .entryId}${passWord({ pair, },)}; stopped ${stoppedWord({ ends: stops, },)}`;
 }
 
 /**

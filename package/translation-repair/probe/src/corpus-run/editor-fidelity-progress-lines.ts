@@ -8,9 +8,11 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 /**
  Says how many of the pool's trials an arm planned to walk.
 
- @param planned - trials the arm was asked to walk
+ @param planned - trials the arm was asked to walk, or asks when it walks the pool several times
 
- @param total - trials the pool holds
+ @param total - trials the pool holds, or asks the passes over it hold
+
+ @param passes - how many times the arm walks the pool, one when it is not said
 
  @returns The line, without a newline
 
@@ -22,10 +24,23 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 export function plannedLine({
   planned,
   total,
+  passes = 1,
 }: {
   readonly planned: number;
-  readonly total: number
+  readonly total: number;
+  readonly passes?: number
 },): string {
+  if (passes > 1) {
+    return `planned: ${String(planned,)} of ${String(total,)} asks (${String(passes,)} passes over the ${
+      String(total / passes,)
+    } ${
+      wordForCount({
+        count: total / passes,
+        one: 'trial',
+        many: 'trials',
+      },)
+    } of the pool)`;
+  }
   return `planned: ${String(planned,)} of ${String(total,)} ${
     wordForCount({
       count: total,

@@ -1,4 +1,3 @@
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { RunnerClosure, } from '@monochromatic-dev/translation-repair-insertion/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { FidelityReferenceSpec, } from '../fidelity-reference-model.ts';
@@ -70,6 +69,11 @@ export type EditorFidelityRow = {
    How each ask of the trial ended, in the order asked.
    */
   readonly stops: readonly AskEnd[];
+
+  /**
+   Which pass over the pool the row belongs to, from zero; absent for the first pass.
+   */
+  readonly pass?: number;
 };
 
 /**
@@ -96,11 +100,13 @@ export function editorFidelityRow(
     trial,
     reading,
     stops = [],
+    pass,
   }: {
     readonly cardId: RosterModelId;
     readonly trial: EditorFidelityTrial;
     readonly reading: EditorTrialReading;
     readonly stops?: readonly AskEnd[];
+    readonly pass?: number;
   },
 ): EditorFidelityRow {
   return {
@@ -115,6 +121,8 @@ export function editorFidelityRow(
     damageDetail: trial.damageDetail,
     reading,
     stops,
+    // The member stays absent for the first pass, so a row of one pass is what it always was.
+    ...((pass === undefined) ? {} : { pass, }),
   };
 }
 
@@ -439,90 +447,6 @@ export function editorDecisionRuleLine(): string {
 }
 
 /**
- Line saying a request was accepted and no model was asked, which is what a cap of zero buys.
-
- @param cardIds - cards the request seats
-
- @param selected - pinned reference specifications the request selected
-
- @param planned - trials the ceiling is priced over
-
- @param total - trials the pool holds
-
- @returns The line, without a newline
-
- @example
- ```ts
- log.info(editorPreflightLine({ cardIds, selected: 3, planned: 88, total: 88, },),);
- ```
- */
-export function editorPreflightLine(
-  {
-    cardIds,
-    selected,
-    planned,
-    total,
-  }: {
-    readonly cardIds: readonly RosterModelId[];
-    readonly selected: number;
-    readonly planned: number;
-    readonly total: number;
-  },
-): string {
-  /**
-   What the ceiling is priced over: the whole pool, or its leading trials.
-   */
-  const priced = (planned === total)
-    ? 'every trial of the pool'
-    : `the first ${String(planned,)} of ${String(total,)} ${
-      wordForCount({
-        count: total,
-        one: 'trial',
-        many: 'trials',
-      },)
-    }`;
-  return `preflight only: ${String(selected,)} pinned reference ${
-    wordForCount({
-      count: selected,
-      one: 'specification',
-      many: 'specifications',
-    },)
-  } selected for ${cardIds.join(', ',)}; the corpus was read and no model was called; the ceiling is priced over ${priced}`;
-}
-
-/**
- Line saying how many rows were kept and where.
-
- @param count - rows kept
-
- @param keptAt - path of the kept run
-
- @returns The line, without a newline
-
- @example
- ```ts
- log.info(editorKeptLine({ count: 4, keptAt: '/runs/x.json', },),);
- ```
- */
-export function editorKeptLine(
-  {
-    count,
-    keptAt,
-  }: {
-    readonly count: number;
-    readonly keptAt: string;
-  },
-): string {
-  return `kept ${String(count,)} editor ${
-    wordForCount({
-      count,
-      one: 'row',
-      many: 'rows',
-    },)
-  } at ${keptAt}`;
-}
-
-/**
  One planned row as the durable plan lists it.
 
  @example
@@ -550,6 +474,11 @@ export type EditorPlannedRow = {
    Defect the trial carries.
    */
   readonly damageKind: EditorDamageKind;
+
+  /**
+   Which pass over the pool the row belongs to, from zero; absent for the first pass.
+   */
+  readonly pass?: number;
 };
 
 /**
@@ -641,6 +570,11 @@ export type EditorPair = {
    Trial it is seated on.
    */
   readonly trial: EditorFidelityTrial;
+
+  /**
+   Which pass over the pool the ask belongs to, from zero; absent for the first pass.
+   */
+  readonly pass?: number;
 };
 
 /**
@@ -662,13 +596,15 @@ export type EditorPair = {
 
  @param pairs - the card and trial pairs this run attempts, in order
 
+ @param passes - how many times the run is asked to walk the pool, one when it is not said
+
  @param ceilings - the ceilings printed before the run
 
  @returns The plan, ready to serialize
 
  @example
  ```ts
- const plan = editorFidelityPlan({ startedAt, pipelineDigest, runnerClosure, referenceManifestDigest, specs, cardIds, trials, pairs, ceilings, },);
+ const plan = editorFidelityPlan({ startedAt, pipelineDigest, runnerClosure, referenceManifestDigest, specs, cardIds, trials, pairs, passes: 2, ceilings, },);
  ```
  */
 export function editorFidelityPlan(
@@ -681,6 +617,7 @@ export function editorFidelityPlan(
     cardIds,
     trials,
     pairs,
+    passes = 1,
     ceilings,
   }: {
     readonly startedAt: string;
@@ -691,6 +628,7 @@ export function editorFidelityPlan(
     readonly cardIds: readonly RosterModelId[];
     readonly trials: readonly EditorFidelityTrial[];
     readonly pairs: readonly EditorPair[];
+    readonly passes?: number;
     readonly ceilings: readonly EditorCeiling[];
   },
 ): EditorFidelityPlan {
@@ -702,8 +640,8 @@ export function editorFidelityPlan(
     referenceManifestDigest,
     referenceManifest: specs,
     requestedCards: cardIds,
-    completeRequestedMatrix: pairs.length === (trials.length * cardIds.length),
-    fullMatrixRows: trials.length * cardIds.length,
+    completeRequestedMatrix: pairs.length === (trials.length * (passes * cardIds.length)),
+    fullMatrixRows: trials.length * (passes * cardIds.length),
     plannedRows: pairs.length,
     ceilings,
     rows: pairs.map(function plannedRowOf(
@@ -717,6 +655,8 @@ export function editorFidelityPlan(
           .trialId,
         damageKind: pair.trial
           .damageKind,
+        // The member stays absent for the first pass, so a plan of one pass reads as it always did.
+        ...((pair.pass === undefined) ? {} : { pass: pair.pass, }),
       };
     },),
   };

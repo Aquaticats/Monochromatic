@@ -12,6 +12,7 @@ import type {
 } from './editor-fidelity-plan.ts';
 import { pairName, } from './editor-fidelity-probe-read.ts';
 import { cappedLine, } from './editor-fidelity-progress-lines.ts';
+import { fidelityPartialWarning, } from './judge-fidelity-probe-plan.ts';
 
 //region Editor fidelity walk
 // THE WALK OVER THE PLANNED PAIRS, one at a time. The spend guard ends an arm by aborting the arm's own signal with its
@@ -19,13 +20,74 @@ import { cappedLine, } from './editor-fidelity-progress-lines.ts';
 // an arm the guard capped is read as an arm that walked fewer trials and not as a failed one. Any other throw stays one.
 
 /**
- Each card's trials together, the first card's before the second's.
+ One ask of the walk: a trial in one pass over the pool.
+
+ @example
+ ```ts
+ const ask: PassAsk = { trial, pass: 1, };
+ ```
+ */
+export type PassAsk = {
+  /**
+   The trial asked.
+   */
+  readonly trial: EditorFidelityTrial;
+
+  /**
+   Which pass over the pool the ask belongs to, from zero.
+   */
+  readonly pass: number;
+};
+
+/**
+ The asks of an arm that walks the pool pass by pass: every trial in the pool's order, then every trial again, and so on, so
+ that the leading asks of an arm the spend guard capped are the first pass whole and then the start of the second.
+
+ @param trials - the pool's trials in the one seeded order every arm walks
+
+ @param passes - how many times the pool is walked
+
+ @returns The asks, the first pass's first
+
+ @example
+ ```ts
+ const asks = passAsksOf({ trials, passes: 2, },);
+ ```
+ */
+export function passAsksOf(
+  {
+    trials,
+    passes,
+  }: {
+    readonly trials: readonly EditorFidelityTrial[];
+    readonly passes: number;
+  },
+): readonly PassAsk[] {
+  return Array.from(
+    { length: passes, },
+    function passAt(
+      _unused,
+      pass,
+    ): readonly PassAsk[] {
+      return trials.map(function askOf(trial,): PassAsk {
+        return {
+          trial,
+          pass,
+        };
+      },);
+    },
+  )
+    .flat();
+}
+
+/**
+ Each card's asks together, the first card's before the second's.
 
  @param cardIds - cards seated, in the order named
 
- @param planned - the trials every card walks
+ @param planned - the asks every card walks
 
- @returns The pairs, in the order they are asked
+ @returns The pairs, in the order they are asked; a pair of a later pass names the pass
 
  @example
  ```ts
@@ -38,17 +100,78 @@ export function pairsOf(
     planned,
   }: {
     readonly cardIds: readonly RosterModelId[];
-    readonly planned: readonly EditorFidelityTrial[];
+    readonly planned: readonly PassAsk[];
   },
 ): readonly EditorPair[] {
   return cardIds.flatMap(function cardPairs(cardId,): readonly EditorPair[] {
-    return planned.map(function pairOf(trial,): EditorPair {
+    return planned.map(function pairOf(
+      {
+        trial,
+        pass,
+      },
+    ): EditorPair {
       return {
         cardId,
         trial,
+        // The member stays absent for the first pass, so a pair of one pass is what it always was.
+        ...((pass === 0) ? {} : { pass, }),
       };
     },);
   },);
+}
+
+/**
+ The leading asks of the passes over the pool an arm walks, warning in the judge probe's words when they leave asks out.
+
+ @param trials - the pool's trials in the one seeded order every arm walks
+
+ @param passes - how many times the pool is walked
+
+ @param walked - how many leading asks the arm walks
+
+ @param log - logger the warning goes to
+
+ @returns The leading asks, all of them when the pool and its passes hold no more than `walked`
+
+ @example
+ ```ts
+ const planned = plannedAsksOf({ trials, passes: 2, walked: 120, log, },);
+ ```
+ */
+export function plannedAsksOf(
+  {
+    trials,
+    passes,
+    walked,
+    log,
+  }: {
+    readonly trials: readonly EditorFidelityTrial[];
+    readonly passes: number;
+    readonly walked: number;
+    readonly log: Logger;
+  },
+): readonly PassAsk[] {
+  /**
+   Every ask of the passes, the first pass whole before the second begins.
+   */
+  const everyAsk = passAsksOf({
+    trials,
+    passes,
+  },);
+  /**
+   The leading asks.
+   */
+  const planned = everyAsk.slice(
+    0,
+    walked,
+  );
+  if (planned.length < everyAsk.length) {
+    log.warn(fidelityPartialWarning({
+      planned: planned.length,
+      total: everyAsk.length,
+    },),);
+  }
+  return planned;
 }
 
 /**
