@@ -333,6 +333,9 @@ mod tile_pass;
 /// a frame is rendered and the tile's texture is read back.
 #[cfg(test)]
 mod tile_reads;
+/// A tile of another size is shown by the frames that follow its hand-over.
+#[cfg(test)]
+mod tile_slice_frame_tests;
 /// The code tile drawn across stacked textures shows what one texture shows.
 #[cfg(test)]
 mod tile_stack_tests;

@@ -4351,6 +4351,60 @@ In a window tall enough for the first request to cover the file the difference i
 No IDE change was made;
 options (re-aim once, ask for the whole file, leave it) are ranked in the record and wait for the owner.
 
+Blank code column after a skipped press, found 2026-10-24 by a verification agent on the installed binary (built from
+`83f6240e4b`):
+after a press whose hint request the skip rule skipped,
+the gutter stayed drawn and the code column was
+blank (five presses at y=1000,
+1700,
+1000,
+560,
+1700:
+drawn,
+blank,
+blank,
+drawn,
+blank).
+Cause:
+the code tile's new textures and their slices (`source-slices`) were made inside the frame that drew the tile
+(`outcome.apply` in the rendering notifier,
+`src/native/gpu_tile.rs`),
+and a frame does not show a slice list it was
+given inside itself;
+the answer to the second hint request used to repaint the source and draw the frame that showed
+them,
+and a skipped request has no answer.
+Fix on the branch `worktree-agent-a340be41d39cfecfb` (not merged or installed):
+`GpuTile::submit_tile` makes the
+textures and gives the window the slices when the tile is handed over (`Inner::prepare_tile`,
+`src/native/gpu_tile/source.rs`).
+Measured with debug builds under load (three alternating runs per binary):
+five screenshots drawn in 3 of 3 runs after,
+blank at three of five in 3 of 3 runs before;
+the 88-click recording at 22 frames per second (60 requested):
+0 blank
+frames of 726 after,
+343 of 732 before (143 of 741 in the tree before the skip rule),
+the gap above line 96 82 px in all
+frames that show it;
+requests unchanged (first press at y=1700:
+1 request and 1 skip;
+after a visit elsewhere:
+0).
+Two tests that fail without the fix and five `tile-slices-*` guard cases;
+the test harness cannot show the blank frame,
+so the tests check that the window holds the new slices before any frame.
+Record:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "A press whose hint request
+is skipped leaves the code column blank".
+Not covered by a test:
+the in-frame step for the first tile of a window (the notifier asks for one more frame).
+Unmeasured:
+whether the minimap picture,
+which also gets its slices inside a frame,
+can show the same defect.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

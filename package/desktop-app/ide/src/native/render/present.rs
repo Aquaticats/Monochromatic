@@ -192,7 +192,7 @@ pub(in crate::native) fn show(window: &AppWindow, state: &Rc<RefCell<State>>, fr
     if let Some(tile) = scene {
         window.set_image_width(tile.width as f32 / factor);
         window.set_image_height(tile.height as f32 / factor);
-        gpu.submit_tile(tile);
+        gpu.submit_tile(window, tile);
         window.window().request_redraw();
     }
     if let Some(mark) = sign {
