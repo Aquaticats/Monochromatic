@@ -345,7 +345,7 @@ await describe({
           },),
           check: 'planned line',
         },),).toBe(
-          'FAIL high: planned line: 265 units planned in 3 passes over a pool of 88 trials, more than the 264 the passes hold',
+          'FAIL high: planned line: 265 units planned in 3 passes over a pool of 88 trials, more than the 264 units the passes hold',
         );
         expect(lineFor({
           log: armOf({
@@ -358,7 +358,7 @@ await describe({
           },),
           check: 'planned line',
         },),).toBe(
-          'FAIL high: planned line: 200 units planned in 2 passes over a pool of 88 trials, more than the 176 the passes hold',
+          'FAIL high: planned line: 200 units planned in 2 passes over a pool of 88 trials, more than the 176 units the passes hold',
         );
       },
     },),

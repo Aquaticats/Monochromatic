@@ -374,6 +374,19 @@ await describe({
         },),
 
         it({
+          name: 'COUNTS ONE TRIAL ASKED AGAIN IN THE SINGULAR: one of one trial gave the same reading',
+          fn: async () => {
+            /**
+             The high arm that asked one trial in two passes, both fixed.
+             */
+            const one = armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: 1, differ: 0, },), },);
+            expect(linesStarting({ arms: [one,], word: 'REPEAT', },),).toStrictEqual([
+              'REPEAT high: 1 of 1 trial gave the same reading in every pass (100 percent)',
+            ],);
+          },
+        },),
+
+        it({
           name: 'PRINTS A LINE FOR EACH OF FOUR ARMS WHEN A SECOND MEDIUM IS READ, and names all four in the warning',
           fn: async () => {
             const [high, medium, low,] = benchOf({ trials: 44, high: 0, medium: 0, low: 0, },);
