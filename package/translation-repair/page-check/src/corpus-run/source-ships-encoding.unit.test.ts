@@ -370,6 +370,15 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
     'a footnote definition with a brace inside a paragraph, then a marker and an export line',
     'x\n[^1]: 注 {\n*\nexport to PDF\n',
   ],
+  [
+    'a list item, a line of invisible characters, a module line, a setext underline and a second module line',
+    '1. 项\n﻿\nimport q\n===\nexport to PDF\n',
+  ],
+  ['the same in a block quote', '> a\n﻿\nimport q\n===\nexport to PDF\n'],
+  ['the same in a list item of two lines', '- a\n  b\n﻿\nimport q\n===\nexport to PDF\n'],
+  ['the same after a no-break space line', '- a\n \nimport q\n===\nexport to PDF\n'],
+  ['the same with an import line as the second module line', '- a\n﻿\nimport q\n===\nimport r\n'],
+  ['the same with a heading of two lines', '- a\n﻿\nimport q\nmore\n===\nexport to PDF\n'],
 ];
 
 /**
