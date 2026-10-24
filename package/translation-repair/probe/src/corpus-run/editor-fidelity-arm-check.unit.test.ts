@@ -18,16 +18,26 @@ import {
 
 import {
   type ArmLog,
+  ceilingLine,
   checkEditorArms,
-  editorCeilings,
   type EditorCardTally,
+  editorCeilings,
   editorKeptLine,
   editorTallyLine,
-  ceilingLine,
   guardLine,
   guardTotalLine,
+  manifestLine,
+  plannedLine,
+  poolLine,
+  trialsLine,
+  wordAfter,
 } from '../../dist/final/node/index.mjs';
+import {
+  poolStubs,
+  rowLineFor,
+} from '../editor-fidelity-arm-log.test-fixture.ts';
 import { LOW_CARD, } from '../editor-fidelity.test-fixture.ts';
+import { reviewedFixture, } from '../fidelity-reference.test-fixture.ts';
 
 /**
  Trials the pool holds in these logs.
@@ -35,9 +45,35 @@ import { LOW_CARD, } from '../editor-fidelity.test-fixture.ts';
 const TRIALS = 40;
 
 /**
- Digest every arm of a good bench printed for the manifest.
+ The specification the manifest line of a good arm counts.
  */
-const DIGEST = '1b6c0d4f9a7e2c58d3a1f0e9b8c7d6a5f4e3d2c1b0a99887766554433221100';
+const SPEC = reviewedFixture().spec;
+
+/**
+ The specifications a good bench's manifest line counts, one.
+ */
+const SPECS = [SPEC,] as const;
+
+/**
+ The specifications of an arm whose manifest differs from the others', two.
+ */
+const DRIFTED_SPECS = [SPEC, SPEC,] as const;
+
+/**
+ The digest the manifest line of the one specification prints, which every arm of a good bench printed.
+ */
+const DIGEST = wordAfter({
+  text: manifestLine({ specs: SPECS, },),
+  marker: 'digest ',
+},);
+
+/**
+ The digest the manifest line of the two specifications prints.
+ */
+const DRIFTED_DIGEST = wordAfter({
+  text: manifestLine({ specs: DRIFTED_SPECS, },),
+  marker: 'digest ',
+},);
 
 /**
  Prefix the logger puts on every line.
@@ -130,7 +166,7 @@ type GoodArm = {
 /**
  The opening lines of a good arm, with the manifest digest and the cap given.
 
- @param digest - digest the manifest line prints
+ @param specs - specifications the manifest line counts
 
  @param maxUsd - cap the guard line prints
 
@@ -140,24 +176,24 @@ type GoodArm = {
 
  @example
  ```ts
- const lines = openingOf({ digest: DIGEST, maxUsd: 3, },);
+ const lines = openingOf({ specs: SPECS, maxUsd: 3, },);
  ```
  */
 function openingOf(
   {
-    digest,
+    specs,
     maxUsd,
     benchSpentUsd = 0,
   }: {
-    readonly digest: string;
+    readonly specs: readonly (typeof SPEC)[];
     readonly maxUsd: number;
     readonly benchSpentUsd?: number;
   },
 ): readonly string[] {
   return [
     `editors: ${LOW_CARD}`,
-    `manifest: 36 specifications, digest ${digest}`,
-    `pool: ${String(TRIALS,)} trials over 24 entries (insertion 22, alteration 18)`,
+    manifestLine({ specs, },),
+    poolLine({ trials: poolStubs({ count: TRIALS, },), },),
     ceilingLine({
       ceiling: nonNullishOrThrow(editorCeilings({
         cardIds: [LOW_CARD,],
@@ -170,7 +206,7 @@ function openingOf(
       },)[0],),
     },),
     guardLine({ maxUsd, benchSpentUsd, },),
-    `planned: ${String(TRIALS,)} of ${String(TRIALS,)} trials`,
+    plannedLine({ planned: TRIALS, total: TRIALS, },),
   ].map(function prefixed(line,): string {
     return `${PREFIX}${line}`;
   },);
@@ -207,7 +243,7 @@ function spendLine({ cost, }: { readonly cost: number; },): string {
  */
 function goodArm({ arm, }: { readonly arm: GoodArm; }): ArmLog {
   const opening = arm.opening ?? openingOf({
-    digest: DIGEST,
+    specs: SPECS,
     maxUsd: 3,
   },);
   const rows = arm.rows ?? TRIALS;
@@ -233,11 +269,21 @@ function goodArm({ arm, }: { readonly arm: GoodArm; }): ArmLog {
           _unused,
           index,
         ): string {
-          return `${PREFIX}row ${String(index + 1,)} of ${String(TRIALS,)}: ${LOW_CARD} on tabby-s${String(index,)}/insertion: clean fix exact, nothing else touched`;
+          return `${PREFIX}${rowLineFor({
+            cardId: LOW_CARD,
+            row: {
+              trial: `tabby-s${String(index,)}/insertion`,
+              entry: `cat-${String(index,)}`,
+              fixed: true,
+              stops: '',
+            },
+            position: index,
+            total: TRIALS,
+          },)}`;
         },
       ),
       `${PREFIX}${editorTallyLine({ tally: TALLY, },)}`,
-      `${PREFIX}TRIALS completed ${String(arm.completed ?? TRIALS,)} of ${String(TRIALS,)}`,
+      `${PREFIX}${trialsLine({ completed: arm.completed ?? TRIALS, planned: TRIALS, },)}`,
       `${PREFIX}${editorKeptLine({ count: rows, keptAt: '/runs/x.json', },)}`,
       `${PREFIX}${guardTotalLine({ total: { usd: guardUsd, calls: 40, atCeiling: 0, }, },)}`,
       ...closing,
@@ -304,7 +350,7 @@ await describe({
       name: 'FAILS THE MANIFEST CHECK for a log that printed no manifest digest, since the arm cannot then be shown '
         + 'to have asked the pool the others asked',
       fn: async () => {
-        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notManifest(line,): boolean {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notManifest(line,): boolean {
           return !line.includes('manifest: ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'manifest line', },),).toBe(
@@ -317,20 +363,20 @@ await describe({
       name: 'FAILS THE POOL CHECK for a log with no pool line, a pool under forty trials, or one with only one defect '
         + 'family',
       fn: async () => {
-        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notPool(line,): boolean {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notPool(line,): boolean {
           return !line.includes('pool: ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'pool line', },),).toContain(
           'FAIL low: pool line: ',
         );
-        const small = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function shrink(line,): string {
+        const small = openingOf({ specs: SPECS, maxUsd: 3, },).map(function shrink(line,): string {
           return line.replace('pool: 40 trials', 'pool: 39 trials',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: small, }, },), check: 'pool line', },),).toContain(
           'FAIL low: pool line: 39 trials',
         );
-        const oneKind = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function lopsided(line,): string {
-          return line.replace('(insertion 22, alteration 18)', '(insertion 40, alteration 0)',);
+        const oneKind = openingOf({ specs: SPECS, maxUsd: 3, },).map(function lopsided(line,): string {
+          return line.replace('(insertion 20, alteration 20)', '(insertion 40, alteration 0)',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: oneKind, }, },), check: 'pool line', },),).toContain(
           'FAIL low: pool line: ',
@@ -341,13 +387,13 @@ await describe({
     it({
       name: 'FAILS THE PLANNED CHECK for a log with no planned line, and one that planned more trials than the pool holds',
       fn: async () => {
-        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notPlanned(line,): boolean {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notPlanned(line,): boolean {
           return !line.includes('planned: ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'planned line', },),).toBe(
           'FAIL low: planned line: no planned line was logged',
         );
-        const over = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function grow(line,): string {
+        const over = openingOf({ specs: SPECS, maxUsd: 3, },).map(function grow(line,): string {
           return line.replace('planned: 40 of 40 trials', 'planned: 41 of 40 trials',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: over, }, },), check: 'planned line', },),).toBe(
@@ -362,13 +408,13 @@ await describe({
     it({
       name: 'FAILS THE CEILING CHECK for a log with no ceiling line, or one for a different number of trials than the pool',
       fn: async () => {
-        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notCeiling(line,): boolean {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notCeiling(line,): boolean {
           return !line.includes('ceiling ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'ceiling line', },),).toContain(
           'FAIL low: ceiling line: ',
         );
-        const other = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function cut(line,): string {
+        const other = openingOf({ specs: SPECS, maxUsd: 3, },).map(function cut(line,): string {
           return line.replace(': 40 trials, one ask', ': 12 trials, one ask',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: other, }, },), check: 'ceiling line', },),).toBe(
@@ -381,13 +427,13 @@ await describe({
       name: 'FAILS THE GUARD CHECK for a log with no guard line, and for a guard line that does not state what the '
         + 'earlier arms spent',
       fn: async () => {
-        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notGuard(line,): boolean {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notGuard(line,): boolean {
           return !line.includes('spend guard: ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'guard line', },),).toContain(
           'FAIL low: guard line: ',
         );
-        const unstated = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function dropBench(line,): string {
+        const unstated = openingOf({ specs: SPECS, maxUsd: 3, },).map(function dropBench(line,): string {
           return line.replace('the arms run before this one spent --bench-spent-usd 0.0000; ', '',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: unstated, }, },), check: 'guard line', },),).toBe(
@@ -534,15 +580,13 @@ await describe({
         },),).toBe(true,);
         const drifted: ArmLog = goodArm({
           arm: {
-            opening: openingOf({ digest: DIGEST.replace('1b6c', '2b6c',), maxUsd: 3, },),
+            opening: openingOf({ specs: DRIFTED_SPECS, maxUsd: 3, },),
           },
         },);
         const other = checkEditorArms({ arms: [first, { ...drifted, arm: 'medium-a', },], },);
         expect(other.failed,).toBe(1,);
         expect(other.lines,).toContain(
-          `FAIL bench: same manifest digest in every arm: low printed ${DIGEST} and medium-a printed ${
-            DIGEST.replace('1b6c', '2b6c',)
-          }`,
+          `FAIL bench: same manifest digest in every arm: low printed ${DIGEST} and medium-a printed ${DRIFTED_DIGEST}`,
         );
       },
     },),
@@ -563,7 +607,7 @@ await describe({
         },),).toBe(true,);
         const capped = goodArm({
           arm: {
-            opening: openingOf({ digest: DIGEST, maxUsd: 31, },),
+            opening: openingOf({ specs: SPECS, maxUsd: 31, },),
           },
         },);
         const caps = checkEditorArms({ arms: [capped, { ...capped, arm: 'b', },], },);

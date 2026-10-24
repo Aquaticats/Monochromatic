@@ -36,6 +36,7 @@ const CLEAN_SEAT = `SEAT ${LOW_CARD} asked=40 usable=40 unusable=0 threw=0 silen
  @param unusable - trials with no usable reply
  @param refused - trials where the card was heard and proposed no edit
  @param seat - the SEAT line
+ @param units - units the tally counts, split evenly between the kinds; 22 insertion and 18 alteration trials when omitted
 
  @returns The arm, named low
 
@@ -50,19 +51,21 @@ function armWith(
     unusable,
     refused,
     seat,
+    units,
   }: {
     readonly stops: readonly string[];
     readonly unusable: number;
     readonly refused: number;
     readonly seat: string;
+    readonly units?: number;
   },
 ): ArmLog {
   return armLogOf({
     arm: 'low',
     tally: tallyOf({
       cardId: LOW_CARD,
-      insertion: { trials: 22, fixed: 18, defectOnly: 2, },
-      alteration: { trials: 18, fixed: 12, defectOnly: 1, },
+      insertion: { trials: (units === undefined) ? 22 : units / 2, fixed: 18, defectOnly: 2, },
+      alteration: { trials: (units === undefined) ? 18 : units / 2, fixed: 12, defectOnly: 1, },
       unusable,
       refused,
     },),
@@ -162,15 +165,15 @@ await describe({
     },),
 
     it({
-      name: 'WARNS WHEN UNUSABLE PLUS REFUSED EXCEED FOUR of an arm\'s trials, counts the warning in no failure, and says '
-        + 'nothing at four',
+      name: 'WARNS WHEN UNUSABLE PLUS REFUSED EXCEED A TENTH of an arm\'s units, counts the warning in no failure, and '
+        + 'says nothing at a tenth',
       fn: async () => {
         /**
          Five unusable and refused together, over a pool of forty.
          */
         const over = armWith({ stops: ['ok',], unusable: 2, refused: 3, seat: CLEAN_SEAT, },);
         expect(lineOf({ log: over, check: 'unusable plus refused', },),).toBe(
-          'WARN low: unusable plus refused is 5 of 40 trials, over 4',
+          'WARN low: unusable plus refused is 5 of 40 units, over 10 percent',
         );
         expect(lineOf({
           log: armWith({ stops: ['ok',], unusable: 1, refused: 3, seat: CLEAN_SEAT, },),
@@ -182,6 +185,29 @@ await describe({
         const quiet = checkEditorBench({ arms: [armWith({ stops: ['ok',], unusable: 1, refused: 3, seat: CLEAN_SEAT, },),], },);
         const loud = checkEditorBench({ arms: [over,], },);
         expect(loud.failed,).toBe(quiet.failed,);
+      },
+    },),
+
+    it({
+      name: 'SCALES THE WARNING TO THE UNITS OF AN ARM THAT WALKS THREE PASSES: 26 of 264 units unusable or refused is under '
+        + 'a tenth and says nothing, 27 is over it and warns, where 5 of 40 warns',
+      fn: async () => {
+        expect(lineOf({
+          log: armWith({ stops: ['ok',], unusable: 13, refused: 13, seat: CLEAN_SEAT, units: 264, },),
+          check: 'unusable plus refused',
+        },),).toBe('',);
+        expect(lineOf({
+          log: armWith({ stops: ['ok',], unusable: 13, refused: 14, seat: CLEAN_SEAT, units: 264, },),
+          check: 'unusable plus refused',
+        },),).toBe('WARN low: unusable plus refused is 27 of 264 units, over 10 percent',);
+        expect(lineOf({
+          log: armWith({ stops: ['ok',], unusable: 2, refused: 3, seat: CLEAN_SEAT, units: 88, },),
+          check: 'unusable plus refused',
+        },),).toBe('',);
+        expect(lineOf({
+          log: armWith({ stops: ['ok',], unusable: 4, refused: 5, seat: CLEAN_SEAT, units: 88, },),
+          check: 'unusable plus refused',
+        },),).toBe('WARN low: unusable plus refused is 9 of 88 units, over 10 percent',);
       },
     },),
   ],

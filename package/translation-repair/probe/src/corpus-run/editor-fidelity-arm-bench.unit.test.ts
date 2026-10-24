@@ -527,8 +527,11 @@ await describe({
          Two logs, which no bench is.
          */
         const report = checkEditorBench({ arms: GOOD_BENCH.slice(0, 2,), },);
-        expect(report.lines.some(function isExit(line,): boolean {
-          return line.startsWith('FAIL high: manifest line',);
+        expect(report.lines,).toContain(
+          'FAIL bench: three or four distinct arm logs: 2 logs were given, and a bench is three or four',
+        );
+        expect(report.lines.some(function isArmCheck(line,): boolean {
+          return line.startsWith('PASS high: manifest line',);
         },),).toBe(true,);
         expect(report.lines.length,).toBeGreaterThan(20,);
         expect(report.failed,).toBe(report.lines.filter(function isFail(line,): boolean {

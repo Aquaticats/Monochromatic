@@ -1,13 +1,29 @@
 import {
   type ArmLog,
+  cappedLine,
   type EditorCardTally,
   editorDefectOnlyLine,
   editorKindLines,
   type EditorKindTally,
   editorTallyLine,
-  guardLine,
   guardTotalLine,
+  plannedLine,
+  trialsLine,
 } from '../dist/final/node/index.mjs';
+import {
+  openingOf,
+  POOL_TRIALS,
+  type RowSpec,
+  rowLineFor,
+} from './editor-fidelity-arm-log-lines.test-fixture.ts';
+
+export {
+  poolStubs,
+  POOL_TRIALS,
+  type RowSpec,
+  rowLineFor,
+  stubTrial,
+} from './editor-fidelity-arm-log-lines.test-fixture.ts';
 
 //region Invented editor fidelity arm logs
 // Arm logs for the cases of the read step, written by the probe's own line writers so a writer that changes its wording
@@ -17,11 +33,6 @@ import {
  Prefix the logger puts on every line.
  */
 const LOG_PREFIX ='[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
-
-/**
- Trials the invented pool holds, which a log's planned line says.
- */
-const POOL_TRIALS = 88;
 
 /**
  How many trials of one kind a card fixed cleanly, and how many replies removed the defect and changed more.
@@ -41,37 +52,6 @@ type KindFixed = {
    Trials where the defect was removed and something else changed.
    */
   readonly defectOnly: number;
-};
-
-/**
- One row of an invented arm: the trial it walked, the entry the trial comes from, whether it was a clean fix and how its
- asks ended.
- */
-export type RowSpec = {
-  /**
-   The trial's handle, `<entry>-s0/<kind>`.
-   */
-  readonly trial: string;
-
-  /**
-   The entry the trial comes from.
-   */
-  readonly entry: string;
-
-  /**
-   Whether the row reads as a clean fix.
-   */
-  readonly fixed: boolean;
-
-  /**
-   The stop words the row states, empty for a row that states none.
-   */
-  readonly stops: string;
-
-  /**
-   The pass over the pool the row belongs to, counted from one; absent for the first pass, whose row lines name none.
-   */
-  readonly pass?: number;
 };
 
 /**
@@ -321,6 +301,8 @@ export function tallyFromRows(
 
  @param planned - trials the planned line says, the number of rows when omitted
 
+ @param passes - times the arm was asked to walk the pool, the latest pass a row names when omitted
+
  @param capped - whether the arm was capped by the spend guard after its rows
 
  @param seat - the SEAT line
@@ -343,6 +325,7 @@ export function armLogOf(
     stops,
     rows,
     planned,
+    passes: passesAsked,
     capped = false,
     seat,
     benchSpentUsd,
@@ -353,6 +336,7 @@ export function armLogOf(
     readonly stops: readonly string[];
     readonly rows?: readonly RowSpec[];
     readonly planned?: number;
+    readonly passes?: number;
     readonly capped?: boolean;
     readonly seat: string;
     readonly benchSpentUsd: number;
@@ -377,6 +361,15 @@ export function armLogOf(
    Trials the planned line says.
    */
   const plannedTrials = planned ?? walked.length;
+  /**
+   Times the arm walks the pool: the number asked, else the latest pass a row names, one when none names a later pass.
+   */
+  const passes = passesAsked ?? Math.max(
+    1,
+    ...walked.map(function passOf({ pass = 1, },): number {
+      return pass;
+    },),
+  );
   return {
     arm,
     exit: {
@@ -385,32 +378,46 @@ export function armLogOf(
     },
     lines: [
       `editors: ${tally.cardId}`,
-      guardLine({
+      ...openingOf({
+        cardId: tally.cardId,
+        plannedAsks: plannedTrials,
         maxUsd: 3,
         benchSpentUsd,
       },),
-      `planned: ${String(plannedTrials,)} of ${String(POOL_TRIALS,)} trials`,
+      plannedLine({
+        planned: plannedTrials,
+        total: POOL_TRIALS * passes,
+        passes,
+      },),
+      // The SPEND line is written by hand: its writer also moves the run's meter, which a case must not touch.
+      `[info] [2026-10-23T12:00:01.000Z] [translation-repair] [reportSpend] SPEND provider=anthropic model=${tally.cardId} prompt=9000 completion=1500 cost=${String(guardUsd,)}`,
       ...walked.map(function rowLine(
         row,
         at,
       ): string {
-        return `row ${String(at + 1,)} of ${String(plannedTrials,)}: ${tally.cardId} on ${row.trial}: ${
-          row.fixed ? 'clean fix exact, nothing else touched' : 'not fixed, nothing else touched'
-        }; entry ${row.entry}${((row.pass ?? 1) > 1) ? `; pass ${String(row.pass,)}` : ''}${
-          (row.stops === '') ? '' : `; stopped ${row.stops}`
-        }`;
+        return rowLineFor({
+          cardId: tally.cardId,
+          row,
+          position: at,
+          total: plannedTrials,
+        },);
       },),
       ...(capped
         ? [
-          `CAPPED at trial ${String(walked.length + 1,)} of ${String(plannedTrials,)}: ${
-            String(walked.length,)
-          } trials completed; the guard refused`,
+          cappedLine({
+            completed: walked.length,
+            planned: plannedTrials,
+            said: 'the guard refused',
+          },),
         ]
         : []),
       editorTallyLine({ tally, },),
       ...editorKindLines({ tally, },),
       editorDefectOnlyLine({ tally, },),
-      `TRIALS completed ${String(walked.length,)} of ${String(plannedTrials,)}`,
+      trialsLine({
+        completed: walked.length,
+        planned: plannedTrials,
+      },),
       guardTotalLine({ total: {
         usd: guardUsd,
         calls: walked.length,
