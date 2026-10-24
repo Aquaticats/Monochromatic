@@ -359,13 +359,15 @@ await describe({
              */
             const { estimate, } = pairedPermutationTest({ clusters, },);
             /**
-             The interval under the bench's seed, twice, and under another seed.
+             The interval under the bench's seed, twice.
              */
             const first = clusterBootstrapInterval({ clusters, seed: BOOTSTRAP_SEED, replicates: 2_000, },);
             const second = clusterBootstrapInterval({ clusters, seed: BOOTSTRAP_SEED, replicates: 2_000, },);
-            const other = clusterBootstrapInterval({ clusters, seed: 'another seed', replicates: 2_000, },);
             expect(second,).toEqual(first,);
-            expect(other,).not.toEqual(first,);
+            // Nine resamples leave the extremes of nine estimates, which two seeds do not share.
+            expect(clusterBootstrapInterval({ clusters, seed: 'another seed', replicates: 9, },),).not.toEqual(
+              clusterBootstrapInterval({ clusters, seed: BOOTSTRAP_SEED, replicates: 9, },),
+            );
             expect(first.low,).toBeLessThan(estimate,);
             expect(first.high,).toBeGreaterThan(estimate,);
             expect(first.low,).toBeLessThan(first.high,);
