@@ -1,5 +1,6 @@
 /**
- Tests the reading of where the strict grammar reads a table in a text. Fixtures are cat-themed invention.
+ Tests the reading of where the strict grammar reads a table or a footnote definition in a text. Fixtures are cat-themed
+ invention.
 
  @module
  */
@@ -10,7 +11,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { tableRangesOf, } from '../dist/final/node/index.mjs';
+import {
+  footnoteDefinitionRangesOf,
+  tableRangesOf,
+} from '../dist/final/node/index.mjs';
 
 /**
  A table of one body row.
@@ -52,6 +56,49 @@ await describe({
         expect(tableRangesOf({ body: '| a | b |\n| c | d |\n', },),).toEqual([],);
         expect(tableRangesOf({ body: '猫\n', },),).toEqual([],);
         expect(tableRangesOf({ body: `${'> '.repeat(300,)}${TABLE}`, },),).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: footnoteDefinitionRangesOf.name,
+  children: [
+    it({
+      name: 'ENDS A FOOTNOTE AT THE LINE AFTER AN UNCLOSED FENCE INDENTED UNDER IT, where the plain reading goes on',
+      fn: async () => {
+        expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n    ~~~\n<>\n', },),).toEqual([
+          {
+            start: 0,
+            end: 15,
+          },
+        ],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS A LAZY LINE OF THE FOOTNOTE\'S PARAGRAPH IN THE FOOTNOTE, and ends it at a blank line and an unindented block',
+      fn: async () => {
+        expect(footnoteDefinitionRangesOf({ body: '[^1]: x\nlazy\n    more\nafter\n', },),).toEqual([
+          {
+            start: 0,
+            end: 27,
+          },
+        ],);
+        expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n\n    para\n\nafter\n', },),).toEqual([
+          {
+            start: 0,
+            end: 17,
+          },
+        ],);
+      },
+    },),
+
+    it({
+      name: 'READS NO FOOTNOTE IN A TEXT WITHOUT A LABEL OPENER OR NESTED PAST THE BOUND',
+      fn: async () => {
+        expect(footnoteDefinitionRangesOf({ body: '猫\n', },),).toEqual([],);
+        expect(footnoteDefinitionRangesOf({ body: `${'> '.repeat(300,)}[^1]: x\n`, },),).toEqual([],);
       },
     },),
   ],

@@ -1,4 +1,5 @@
 import {
+  footnoteDefinitionRangesOf,
   tableRangesOf,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
@@ -57,10 +58,11 @@ export {
 // parse (its autolink-literal transform builds nodes without a position), so a footnote definition made of one
 // destination is a link reference definition there and a footnote to the strict grammar: its body is read as a text of
 // its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
-// the footnote and the plain parse for indented code. A label of a reference definition and of the references to it
-// are written alike, so the reference still resolves. An angle autolink inside the text of a link cannot become a link
-// of its own, which a link cannot hold: its address is written as text there, without the brackets, and the reader
-// sees the address as the source shows it.
+// the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
+// (`document-structure/src/gfm-block-ranges.ts`), and the lines the plain parse goes on to read after that are a text
+// of their own. A label of a reference definition and of the references to it are written alike, so the reference still
+// resolves. An angle autolink inside the text of a link cannot become a link of its own, which a link cannot hold: its
+// address is written as text there, without the brackets, and the reader sees the address as the source shows it.
 
 /**
  Node types whose children are blocks, among which a raw HTML node is a block of its own.
@@ -115,6 +117,10 @@ export function spansOf(
    Where the strict grammar reads a table, which cuts what it holds at a pipe.
    */
   const tables = tableRangesOf({ body: readable, },);
+  /**
+   Where the strict grammar reads a footnote definition, which ends where the plain reading's paragraph goes on.
+   */
+  const footnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
   /**
    Stretches read as text.
    */
@@ -251,6 +257,7 @@ export function spansOf(
           source,
           readable,
           readSpans: spansOf,
+          footnotes: footnoteRanges,
           range: opensTopFootnote
             ? {
               start: footnoteBodyStart({
@@ -337,6 +344,7 @@ export function spansOf(
             source,
             readable,
             readSpans: spansOf,
+            footnotes: footnoteRanges,
             range: {
               start: footnoteBodyStart({
                 source,

@@ -155,9 +155,10 @@ export {
   refusalText,
 } from './refusal-text.ts';
 export {
-  type TableRange,
+  type BlockRange,
+  footnoteDefinitionRangesOf,
   tableRangesOf,
-} from './table-ranges.ts';
+} from './gfm-block-ranges.ts';
 export {
   archiveNotesMissingFrom,
   type TranslatorsNote,

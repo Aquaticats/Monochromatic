@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { withoutIndentation, } from './source-ships-footnote.ts';
 import {
+  indicesOf,
   originalStretches,
   type SourceSpans,
   type TextEdit,
@@ -155,14 +156,64 @@ export function nestedSpans(
 }
 
 /**
+ Joins the spans of two stretches of a text.
+
+ @param first - spans of the earlier stretch
+
+ @param second - spans of the later stretch
+
+ @returns Spans of both, the earlier first
+
+ @example
+ ```ts
+ const both = joinedSpans({ first: bodySpans, second: tailSpans, },);
+ ```
+ */
+function joinedSpans(
+  {
+    first,
+    second,
+  }: {
+    readonly first: SourceSpans;
+    readonly second: SourceSpans;
+  },
+): SourceSpans {
+  return {
+    text: [
+      ...first.text,
+      ...second.text,
+    ],
+    literal: [
+      ...first.literal,
+      ...second.literal,
+    ],
+    edits: [
+      ...first.edits,
+      ...second.edits,
+    ],
+    insideLinks: [
+      ...first.insideLinks,
+      ...second.insideLinks,
+    ],
+    streamStarts: [
+      ...first.streamStarts,
+      ...second.streamStarts,
+    ],
+  };
+}
+
+/**
  Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation the
- footnote takes.
+ footnote takes, and the lines after the end of the footnote as a text of their own beside it.
 
  @param source - whole text
 
  @param readable - whole text with its comments blanked, the parse's own input
 
  @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
+
+ @param footnotes - where the strict grammar reads a footnote definition in the whole text, which ends a footnote at a
+ line that is not indented once a block of the footnote has closed its paragraph
 
  @param range - where the body stands, from the start of its first line or the first character after the label
 
@@ -180,21 +231,61 @@ export function footnoteBodySpans(
     source,
     readable,
     readSpans,
+    footnotes,
     range,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly readSpans: SpansReader;
+    readonly footnotes: readonly TextRange[];
     readonly range: TextRange;
   },
 ): SourceSpans {
-  return nestedSpans({
+  /**
+   The footnote the body belongs to, absent where the strict reading found none there.
+   */
+  const footnote = footnotes.find(function holds({
+    start,
+    end,
+  },): boolean {
+    return (start <= range.start) && (range.start < end);
+  },);
+  /**
+   Where the footnote's body ends: the end of the footnote, when the plain reading goes on past it.
+   */
+  const bodyEnd = (footnote === undefined) ? range.end : Math.min(
+    range.end,
+    footnote.end,
+  );
+  /**
+   Spans of the footnote's own lines.
+   */
+  const body = nestedSpans({
     source,
     readable,
     readSpans,
     indices: withoutIndentation({
       source,
-      range,
+      range: {
+        start: range.start,
+        end: bodyEnd,
+      },
+    },),
+  },);
+  if (bodyEnd >= range.end)
+    return body;
+  return joinedSpans({
+    first: body,
+    second: nestedSpans({
+      source,
+      readable,
+      readSpans,
+      indices: indicesOf({
+        range: {
+          start: bodyEnd,
+          end: range.end,
+        },
+      },),
     },),
   },);
 }

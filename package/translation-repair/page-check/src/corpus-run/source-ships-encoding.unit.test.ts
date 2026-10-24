@@ -285,6 +285,22 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '[^1]: x {\n    ```\n    a\n    ```\n    tail {z}\n',
   ],
   [
+    'a footnote definition whose first line is a tag alone, a line that is not indented and a closed fence mark',
+    '[^1]: <b>\nabc\n    ```\n    ```\n',
+  ],
+  [
+    'a footnote definition whose first line is a tag alone, a line that is not indented and an unclosed fence mark',
+    '[^1]: <b>\nabc\n    ```\n',
+  ],
+  [
+    'a footnote definition whose first line is a tag alone, a line that is not indented and a fence holding a brace',
+    '[^1]: <b>\nabc\n    ```\n    {a}\n    ```\n',
+  ],
+  [
+    'a footnote definition, an unclosed fence indented four spaces and a line with a tag',
+    '[^1]: x\n    ~~~\n<>\n',
+  ],
+  [
     'an angle autolink holding a pipe in the text of a link in a table cell',
     '| a | b |\n| - | - |\n| [<https://example.net/a|b>](u) | c |\n',
   ],
@@ -354,6 +370,10 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['a raw HTML block holding an import line after a line of format characters', '<details>\n\uFEFF\nimport q\n===\n'],
   ['a raw HTML block holding an import line after a blank line, then more text', '<script>\n\nimport a\n\nb {\n'],
   ['an angle autolink alone in the text of a link', '[<https://example.net/a>](u)\n'],
+  [
+    'a footnote definition, an unclosed fence indented by a tab and a line with a link',
+    '[^1]: {\n\t```\n[<https://example.net/a>](u)\n',
+  ],
   ['an angle autolink among words in the text of a link, then a brace', '她[说 <https://example.net/a> 好](u) {\n'],
   ['an angle autolink holding two dollar signs in the text of a link', '[<https://example.net/a$b$c>](u)\n'],
   ['an angle autolink holding two dollar signs at the top', '<https://example.net/a$b$c>\n'],
@@ -924,27 +944,6 @@ https://example.net/b{c`,);
               expect(encoded({ text: source, },),).toBe(written,);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
             }
-          },
-        },),
-
-        it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION WHOSE FIRST LINE IS A TAG ALONE '
-            + 'AND WHOSE SECOND LINE IS NOT INDENTED, and the page shows the marks (a limit the module comment names): '
-            + 'the reader of the source ends the raw HTML block at the second line and reads the marks as a code '
-            + 'span, where the strict grammar reads one paragraph and a fence',
-          fn: async () => {
-            /**
-             The source of the limit.
-             */
-            const text = '[^1]: <b>\nabc\n    ```\n    ```\n';
-            /**
-             The run as the encoder writes it.
-             */
-            const written = encoded({ text, },);
-            expect(written,).toBe('[^1]: \\<b\\>\nabc\n    \\`\\`\\`\n    \\`\\`\\`\n',);
-            expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
-            expect(readerOfPage({ carried: written, },),).toBe('[^1]: <b> abc ``` ```',);
-            expect(readerOfSource({ source: text, },),).toBe('[^1]: <b> abc',);
           },
         },),
 

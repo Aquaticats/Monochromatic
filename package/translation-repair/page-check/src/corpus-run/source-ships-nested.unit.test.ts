@@ -125,6 +125,12 @@ await describe({
           source,
           readable: source,
           readSpans: spansOf,
+          footnotes: [
+            {
+              start: 0,
+              end: source.length,
+            },
+          ],
           range: {
             start: 6,
             end: source.length,
@@ -141,6 +147,49 @@ await describe({
           insideLinks: [],
           streamStarts: [6,],
         },);
+      },
+    },),
+
+    it({
+      name: 'READS THE LINES AFTER THE END OF THE FOOTNOTE AS A TEXT OF THEIR OWN: the fence the footnote opens does not '
+        + 'reach them, so their braces are text',
+      fn: async () => {
+        /**
+         A footnote whose fence never closes, then a line that is not indented.
+         */
+        const source = '[^1]: x\n    ```\n    {y}\n{z}\n';
+        /**
+         Where the footnote ends: after the line of the fence's code.
+         */
+        const end = source.indexOf('\n{z}',);
+        const { text, literal, } = footnoteBodySpans({
+          source,
+          readable: source,
+          readSpans: spansOf,
+          footnotes: [
+            {
+              start: 0,
+              end,
+            },
+          ],
+          range: {
+            start: 6,
+            end: source.length - 1,
+          },
+        },);
+        expect(text.some(function holdsZ({
+          start,
+          end: stop,
+        },): boolean {
+          return (start <= source.indexOf('{z}',)) && (source.indexOf('{z}',) < stop);
+        },),).toBe(true,);
+        expect(text.some(function holdsY({
+          start,
+          end: stop,
+        },): boolean {
+          return (start <= source.indexOf('{y}',)) && (source.indexOf('{y}',) < stop);
+        },),).toBe(false,);
+        expect(literal,).toEqual([],);
       },
     },),
   ],
