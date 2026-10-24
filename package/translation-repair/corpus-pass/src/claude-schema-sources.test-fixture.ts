@@ -124,11 +124,12 @@ import {
 // `claude-schema-blind-senders.test-fixture.ts`. The third is a constant, a pattern, a default or a name assigned,
 // whose every reference ends in one of the three in turn, also at the top level of a file. Any other place that takes
 // the value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
-// call that is no sender, an argument of `new`, a store into a member, a field or `this`, a pattern an assignment
-// takes the value apart into, a thrown value, a loop that iterates it. A place that reads the value and gives back
-// nothing the schema could travel in ends the walk without a report: the test of a conditional or a loop, a computed
-// key, an operand of an operator, a substitution in a template, a statement that drops it, an element of a sequence
-// that is not the last, and the target of an assignment.
+// call that is no sender, an argument of `new`, a substitution of a tagged template (the arguments of the tag
+// function), a store into a member, a field or `this`, a pattern an assignment takes the value apart into, a thrown
+// value, a loop that iterates it. A place that reads the value and gives back nothing the schema could travel in ends
+// the walk without a report: the test of a conditional or a loop, a computed key, an operand of an operator, a
+// substitution in a plain template, a statement that drops it, an element of a sequence that is not the last, and the
+// target of an assignment.
 //
 // The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
 // hides there, and a place it reports is answered by reading the place in the search or by naming the place in the

@@ -33,10 +33,11 @@ import {
 // - a constant, a pattern, a default or a name assigned, whose every reference is followed in turn.
 //
 // A place that takes the value and gives nothing the schema could travel in ends the walk without a report: the test
-// of a conditional or a loop, a computed key, an operand of an operator, a substitution in a template, a statement
-// that drops it, an element of a sequence that is not the last, and the target of an assignment. Any other place is
-// reported with its position: an argument of a call or of `new`, a store into a member or a field, a pattern an
-// assignment takes the value apart into, a class that extends it, a thrown value, a loop that iterates it.
+// of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
+// statement that drops it, an element of a sequence that is not the last, and the target of an assignment. Any other
+// place is reported with its position: an argument of a call or of `new`, a substitution of a tagged template (the
+// arguments of the tag function), a store into a member or a field, a pattern an assignment takes the value apart
+// into, a class that extends it, a thrown value, a loop that iterates it.
 
 /**
  The kinds of node that put the value they hold into themselves, so the value is read on from the node that holds them.
@@ -51,7 +52,8 @@ const CONTAINER_KINDS: ReadonlySet<string> = new Set([
 
 /**
  The kinds of node that read the value they hold and give back nothing the schema could travel in: a test, an operand of
- an operator, a substitution in a template, a statement that drops it.
+ an operator, a substitution in a plain template (a tagged one is told apart before this set is asked), a statement
+ that drops it.
  */
 const DROPPING_KINDS: ReadonlySet<string> = new Set([
   'BinaryExpression',
@@ -95,6 +97,39 @@ function isGivenBy(
   },)
     .at(-1,)
     === node);
+}
+
+/**
+ The tagged template that takes a template literal as its substitutions: the tag function is a call whose arguments
+ are the substitutions, so a value put in one goes to a call, unlike a value put in a plain template.
+
+ @param node - node that holds a value, of any kind
+
+ @param parents - each node's parent
+
+ @returns Tagged template, `NO_NODE` when the node is no template literal or a plain one
+
+ @example
+ ```ts
+ const tagged = taggedTemplateOf({ node: holder, parents, },);
+ ```
+ */
+function taggedTemplateOf(
+  {
+    node,
+    parents,
+  }: {
+    readonly node: TreeNode;
+    readonly parents: ReadonlyMap<TreeNode, TreeNode>;
+  },
+): TreeNode {
+  if (node.type !== 'TemplateLiteral')
+    return NO_NODE;
+  /**
+   The node that holds the template.
+   */
+  const parent = parents.get(node,);
+  return ((parent?.type === 'TaggedTemplateExpression') && (parent.quasi === node)) ? parent : NO_NODE;
 }
 
 /**
@@ -267,6 +302,23 @@ function stepOf(
     return {
       ...nothing,
       names: namesBoundBy({ node: holder.left, },),
+    };
+  }
+  /**
+   The tagged template whose substitutions the holder is, `NO_NODE` when a plain template or another node holds the
+   value.
+   */
+  const tagged = taggedTemplateOf({
+    parents: context.parents,
+    node: holder,
+  },);
+  if (!isNoNode({ node: tagged, },)) {
+    return {
+      ...nothing,
+      stray: positionOf({
+        holder: tagged,
+        child: holder,
+      },),
     };
   }
   return DROPPING_KINDS.has(holder.type,)
