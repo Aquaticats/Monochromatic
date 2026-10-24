@@ -109,6 +109,25 @@ await describe({
     },),
 
     it({
+      name: 'JOINS A MODULE LINE IN A CODE SPAN OR INLINE MATH TO THE LINE BEFORE IT, where a character reference would '
+        + 'show as its characters: the plain reading keeps the span across a line of invisible characters',
+      fn: async () => {
+        expect(writtenOf({ text: '`a\n\u200B\nimport x` b\n', },),).toBe('`a\n\u200B import x` b\n',);
+        expect(writtenOf({ text: '$a\n\uFEFF\nexport x$ b\n', },),).toBe('$a\n\uFEFF export x$ b\n',);
+        expect(writtenOf({ text: '`a\r\n\u200B\r\nimport x` b\r\n', },),).toBe('`a\r\n\u200B import x` b\r\n',);
+      },
+    },),
+
+    it({
+      name: 'JOINS EACH OF TWO MODULE LINES IN ONE SPAN AND WRITES A MODULE LINE OUTSIDE ANY SPAN AS A REFERENCE, then reads '
+        + 'the result again until no line is left',
+      fn: async () => {
+        expect(writtenOf({ text: '`a\n\u00A0\nimport x\n\u00A0\nimport y`\n\nexport to PDF\n', },),)
+          .toBe('`a\n\u00A0 import x\n\u00A0 import y`\n\n&#101;xport to PDF\n',);
+      },
+    },),
+
+    it({
       name: 'READS A BYTE ORDER MARK THAT OPENS THE TEXT AS A CHARACTER OF ITS FIRST LINE, as the page does',
       fn: async () => {
         expect(writtenOf({ text: '\uFEFFimport a\n', },),).toBe('\uFEFFimport a\n',);
