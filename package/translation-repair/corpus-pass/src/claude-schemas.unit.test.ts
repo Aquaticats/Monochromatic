@@ -48,6 +48,11 @@ import {
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
+import {
+  BINDING_IN_FUNCTION_CASES,
+  CALL_METHOD_CASES,
+  LOAD_IN_PLACE_CASES,
+} from './claude-schema-followed-forms.test-fixture.ts';
 import { CYCLE_CASES, } from './claude-schema-cycle-forms.test-fixture.ts';
 import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
@@ -625,6 +630,9 @@ await describe({
       ...NOT_A_REFERENCE_CASES,
       ...OVER_READ_CASES,
       ...CYCLE_CASES,
+      ...BINDING_IN_FUNCTION_CASES,
+      ...LOAD_IN_PLACE_CASES,
+      ...CALL_METHOD_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
