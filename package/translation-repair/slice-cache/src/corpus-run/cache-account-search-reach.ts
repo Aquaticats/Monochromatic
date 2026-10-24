@@ -2,7 +2,6 @@ import { realpath, } from 'node:fs/promises';
 import {
   basename,
   dirname,
-  isAbsolute,
   join,
   relative,
   sep,
@@ -35,6 +34,9 @@ import {
  THE `..` OF A PATH IS LEFT TO THE FILESYSTEM. Folding it away by name first reads `base/lnk/../d` as `base/d`,
  where the kernel, and so the walk's own listing, reads the parent of `lnk`'s target plus `d`.
 
+ A RELATIVE PATH NEEDS NO JOINING ONTO THE WORKING DIRECTORY FIRST: `realpath` resolves it against that directory
+ itself, and a missing relative path walks up to `.`, which names the working directory and exists.
+
  @param path - directory to resolve, which need not exist
 
  @returns Absolute path with every link on the way to the existing part resolved
@@ -47,26 +49,23 @@ import {
  ```
  */
 async function realPathOf({ path, }: { readonly path: string; },): Promise<string> {
-  /**
-   The path as an absolute one, joined onto the working directory by name and never folded.
-   */
-  const absolute = isAbsolute(path,) ? path : `${process.cwd()}${sep}${path}`;
   try {
-    return await realpath(absolute,);
+    return await realpath(path,);
   }
   catch (error) {
     rethrowUnlessMissingPath({ error, },);
     /**
      The parent directory, which has the same answer to give for the part that exists.
      */
-    const parent = dirname(absolute,);
-    // THE STOP OF THE WALK, NOT A CASE: the parent of the filesystem root is the root itself, and a root that does not
-    // exist is no machine this runs on, so this return only keeps the recursion finite.
-    if (parent === absolute)
-      return absolute;
+    const parent = dirname(path,);
+    // THE STOP OF THE WALK, NOT A CASE: the parent of the filesystem root is the root itself, and so is the parent of
+    // `.`; a root or a working directory that does not exist is no machine this runs on, so this return only keeps the
+    // recursion finite.
+    if (parent === path)
+      return path;
     return join(
       await realPathOf({ path: parent, },),
-      basename(absolute,),
+      basename(path,),
     );
   }
 }
