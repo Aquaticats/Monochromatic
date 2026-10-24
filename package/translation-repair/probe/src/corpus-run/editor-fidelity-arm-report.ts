@@ -160,8 +160,8 @@ function sharedLine({ shared, }: { readonly shared: SharedBench; },): string {
     countWithNoun({
       count: shared.trials
         .length,
-      one: 'trial',
-      many: 'trials',
+      one: 'unit',
+      many: 'units',
     },)
   } over ${
     countWithNoun({

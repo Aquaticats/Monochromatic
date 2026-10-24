@@ -5,7 +5,9 @@ import type {
 import type { SharedTrial, } from './editor-fidelity-decide-types.ts';
 
 //region Editor fidelity shared trials
-// THE TRIALS EVERY ARM OF A BENCH COMPLETED, which are what the rule compares. The first arm's rows are the reference: the
+// THE UNITS EVERY ARM OF A BENCH COMPLETED, a unit being a trial in one pass over the pool, which are what the rule
+// compares. The rows of an arm are keyed by trial and pass, so a trial asked again in a later pass is a unit of its own
+// in its entry. The first arm's rows are the reference: the
 // later arms walk the same leading trials in the same order, and a trial an arm did not complete is not shared. A trial in
 // which any arm's ask threw is left out of every arm and counted. A trial in which an ask ended at the output-token cap
 // scores as unusable for its arm, so it is not a clean fix there. Each shared trial carries the entry it comes from, the

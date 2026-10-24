@@ -157,7 +157,7 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
     },),
     lineOfCheck({
       scope: 'bench',
-      check: 'shared trials',
+      check: 'shared units',
       answer: (shared.trials
         .length
         < MIN_SHARED_TRIALS)
@@ -167,8 +167,8 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
             countWithNoun({
               count: shared.trials
                 .length,
-              one: 'shared trial',
-              many: 'shared trials',
+              one: 'shared unit',
+              many: 'shared units',
             },)
           } remain of the ${
             String(shared.firstRows,)
@@ -182,8 +182,8 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
             countWithNoun({
               count: shared.trials
                 .length,
-              one: 'shared trial',
-              many: 'shared trials',
+              one: 'shared unit',
+              many: 'shared units',
             },)
           } over ${
             countWithNoun({

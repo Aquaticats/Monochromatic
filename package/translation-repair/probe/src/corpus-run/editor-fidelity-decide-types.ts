@@ -5,7 +5,8 @@ import type { PairedInterval, } from './editor-fidelity-paired.ts';
 // what the rule decided. Apart from the rule so that the rule, the lines it prints and these shapes each stay small.
 
 /**
- One trial every arm shared: the entry it comes from, its kind of defect and whether each arm fixed it cleanly.
+ One unit every arm shared, a trial in one pass over the pool: the entry it comes from, its kind of defect and whether
+ each arm fixed it cleanly. A trial asked again in a later pass is a unit of its own in the same entry.
 
  @example
  ```ts

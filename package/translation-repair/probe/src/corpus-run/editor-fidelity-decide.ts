@@ -43,17 +43,21 @@ import {
 // reader of the verdict should not take the insertion count for production's.
 
 /**
- The fewest trials every arm must share for the read step to give a verdict: with fewer, a difference the size of the
- smallest this bench can tell apart would not be told apart (the simulation's power at 40 trials is under 0.8 for a
- medium fix rate of 0.85, and about 37 points is the smallest difference at one half).
+ The fewest units every arm must share for the read step to give a verdict, a unit being a trial in one pass over the
+ pool: with fewer, a difference the size of the smallest this bench can tell apart would not be told apart. The
+ simulation's smallest difference chosen with chance 0.8 is 30 points at 60 units when medium fixes half and 24 points
+ when it fixes seven in ten, against 37 and 28 points at 40 units, and at 60 units it is not reached by 14 points when
+ medium fixes eighty-five in a hundred, as at 40.
  */
-export const MIN_SHARED_TRIALS = 40;
+export const MIN_SHARED_TRIALS = 60;
 
 /**
- The worst chance of choosing another effort when none is better that the simulation measured over the committed pool, at
- true fix rates from 0.30 to 0.95 and within-entry correlations from 0 to 1.
+ The worst chance of choosing another effort when none is better that the simulation measured over the committed pool
+ walked in one to three passes, at true fix rates from 0.30 to 0.95, within-entry correlations from 0 to 1 and
+ agreements of a repeat with the arm's first answer from 0 to 1. Each cell ran 1000 replicates, so a reading is about
+ 0.007 either way, and the test's own bound is 0.05 because each of the two efforts is tested at 0.025 exactly.
  */
-const FALSE_PICK_WORST = 0.047;
+const FALSE_PICK_WORST = 0.055;
 
 /**
  The efforts the rule tests against the default.
@@ -75,12 +79,14 @@ const CHALLENGERS = [
  */
 export function decisionRuleText(): string {
   return 'clean fix is exact plus equivalent, counted trial by trial. A trial in which an ask ended at the output-token cap '
-    + 'scores as unusable for its arm, and a trial in which an ask of any arm threw is left out of every arm\'s comparison '
-    + 'and counted. The arms are compared over the trials every arm completed, which are the leading trials of one fixed '
-    + 'seeded order, grouped by the entry each comes from. Each of the low and the high effort is tested against the '
+    + 'scores as unusable for its arm, and a unit in which an ask of any arm threw is left out of every arm\'s comparison '
+    + 'and counted, where a unit is a trial in one pass over the pool (an arm may walk the pool several times, pass by '
+    + 'pass). The arms are compared over the units every arm completed, which are the leading units of one fixed seeded order, '
+    + 'grouped by the entry each comes from, so a trial asked again joins the cluster of its entry. Each of the low and '
+    + 'the high effort is tested against the '
     + 'default (medium) by a one-sided exact paired permutation test, permuting the arm labels within each entry, with '
     + `entries as the units, at ${String(ALPHA,)} for each effort (a second medium arm, if one is run, joins the labels `
-    + 'and is read as one control). The paired difference is printed per shared trial with a 95 percent interval from a '
+    + 'and is read as one control). The paired difference is printed per shared unit with a 95 percent interval from a '
     + `seeded bootstrap over entries (${String(BOOTSTRAP_REPLICATES,)} resamples, seed ${BOOTSTRAP_SEED}) and the exact `
     + `p-value. An effort other than the default is chosen only when its test is at or under ${String(ALPHA,)}. When both `
     + 'efforts are shown better, the one with the larger estimate is chosen; when the estimates are equal, the cheaper '
@@ -89,15 +95,18 @@ export function decisionRuleText(): string {
     + `than ${
       countWithNoun({
         count: MIN_SHARED_TRIALS,
-        one: 'shared trial',
-        many: 'shared trials',
+        one: 'shared unit',
+        many: 'shared units',
       },)
     } the read step refuses to give a verdict. By simulation over the `
-    + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seed edr6-sim), at true fix rates from 0.30 to 0.95 '
-    + 'and within-entry correlations from 0 to 1, the chance of choosing another effort when none is better is at most '
-    + `${String(FALSE_PICK_WORST,)}; over all 88 trials the smallest difference chosen with chance 0.8 is about 25 points `
-    + 'when medium fixes half, 21 points when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, '
-    + 'and a smaller difference cannot be told apart. The insertion trials measure locating an added sentence among its '
+    + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seed edr7-sim), at true fix rates from 0.30 to 0.95, '
+    + 'within-entry correlations from 0 to 1 and an agreement of a repeat with the arm\'s first answer from 0 to 1, the '
+    + `chance of choosing another effort when none is better is at most ${String(FALSE_PICK_WORST,)}; over the 88 trials `
+    + 'walked once the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half, 20 points '
+    + 'when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, and over 176 units (two passes) '
+    + '25, 21 and 14 points where a repeat always gives the arm\'s first answer again, 21, 17 and 12 points where it does '
+    + 'so half the time and 17, 14 and 10 points where it never does, and a smaller difference cannot be told apart. The '
+    + 'insertion trials measure locating an added sentence among its '
     + 'neighbours and copying the neighbours verbatim, not the span-only view production gives an editor.';
 }
 

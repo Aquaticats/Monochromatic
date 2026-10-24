@@ -87,7 +87,7 @@ function rowsSaid({ rows, }: { readonly rows: readonly number[]; },): string {
 /**
  The answer that says which trials ended at the output-token cap and which threw, and what the rule does with each: a
  trial that ended at the cap scores as unusable for this arm, and a trial in which an ask threw is left out of every arm.
- Neither fails the arm; the bench check of shared trials fails only when too few remain.
+ Neither fails the arm; the bench check of shared units fails only when too few remain.
 
  @param figures - the arm's figures
 

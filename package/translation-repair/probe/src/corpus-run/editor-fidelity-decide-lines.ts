@@ -115,8 +115,8 @@ export function pairedLine(
   }), p ${pSaid({ p: reading.p, },)}, shown better at ${String(ALPHA,)}: ${reading.shown ? 'yes' : 'no'}; ${
     countWithNoun({
       count: trials,
-      one: 'shared trial',
-      many: 'shared trials',
+      one: 'shared unit',
+      many: 'shared units',
     },)
   } over ${
     countWithNoun({
@@ -149,8 +149,8 @@ export function kindsLine({ reading, }: { readonly reading: EffortReading; },): 
       count: reading.kinds
         .insertion
         .trials,
-      one: 'trial',
-      many: 'trials',
+      one: 'unit',
+      many: 'units',
     },)
   }, alteration ${pointsSaid({ fraction: reading.kinds
     .alteration
@@ -159,8 +159,8 @@ export function kindsLine({ reading, }: { readonly reading: EffortReading; },): 
       count: reading.kinds
         .alteration
         .trials,
-      one: 'trial',
-      many: 'trials',
+      one: 'unit',
+      many: 'units',
     },)
   }`;
 }
