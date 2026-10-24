@@ -18,6 +18,7 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
+  continuesDefinition,
   footnoteBodyStart,
   isIndentedCode,
   isLazyDefinition,
@@ -225,6 +226,49 @@ await describe({
             expect(indented({ source: '```\n{x}\n```\n', },),).toBe(false,);
             expect(indented({ source: '~~~\n{x}\n~~~\n', },),).toBe(false,);
             expect(indented({ source: '猫\n', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: continuesDefinition.name,
+      children: [
+        it({
+          name: 'TAKES A PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION AS ITS CONTINUATION, and no paragraph after a '
+            + 'blank line and no block that is not a paragraph',
+          fn: async () => {
+            /**
+             The blocks of a definition that a paragraph goes on in.
+             */
+            const [definition, adjacent,] = blocksOf({ source: '[^1]: https://example.net/a\n注\n', },);
+            /**
+             The blocks of a definition that a blank line parts from the next block.
+             */
+            const [, parted,] = blocksOf({ source: '[^1]: https://example.net/a\n\n注\n', },);
+            /**
+             The blocks of a definition followed by a heading.
+             */
+            const [, heading,] = blocksOf({ source: '[^1]: https://example.net/a\n# 注\n', },);
+            if (
+              (definition === undefined)
+                || (adjacent === undefined)
+                || (parted === undefined)
+                || (heading === undefined)
+            )
+              throw new Error('the texts do not read as two blocks',);
+            expect(continuesDefinition({
+              definition,
+              block: adjacent,
+            },),).toBe(true,);
+            expect(continuesDefinition({
+              definition,
+              block: parted,
+            },),).toBe(false,);
+            expect(continuesDefinition({
+              definition,
+              block: heading,
+            },),).toBe(false,);
           },
         },),
       ],

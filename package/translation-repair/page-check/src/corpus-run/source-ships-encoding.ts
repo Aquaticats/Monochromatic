@@ -39,10 +39,13 @@ import {
 // WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is met).
 // GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark takes for link
 // reference definitions, are footnotes to the strict grammar with a body to encode, and a block indented under a
-// footnote definition is a block of the footnote and no indented code. A bare address that a less-than sign ends is
-// written as a link with the same text and target (`source-ships-addresses.ts`), since a backslash written before the
-// sign is read as part of the address and an entity written for it is read as part of the address too. An angle
-// autolink inside the text of a link is written as its address alone, since a link cannot hold a link.
+// footnote definition is a block of the footnote and no indented code, so a paragraph that opens a footnote definition
+// at the top, and a paragraph on the line right after one, are read as the body of the footnote is, each line giving up
+// the four columns of indentation the footnote takes: a fence mark indented under a footnote is a fence of it, which is
+// copied. A bare address that a less-than sign ends is written as a link with the same text and target
+// (`source-ships-addresses.ts`), since a backslash written before the sign is read as part of the address and an entity
+// written for it is read as part of the address too. An angle autolink inside the text of a link is written as its
+// address alone, since a link cannot hold a link.
 //
 // - `>` stays. It is syntax in MDX only inside a tag, and a `<` written as `\<` opens none; at the start of a line it
 //   is a block quote of the original, which encoding would turn into a line starting with a greater-than sign.
@@ -110,10 +113,17 @@ import {
 // comment that never closes is read on the page as Markdown, where the package's own mask would hide it, so the shown
 // cases compare such a run up to the opener. The reach of a bare address is taken as up to the next space or less-than
 // sign, as the GFM autolink-literal pattern does. An opener of a comment that never closes is written as a character
-// reference wherever it stands, inside code too, where it shows as written. An angle autolink inside the alternative
-// text of an image is written with a backslash before its less-than sign, as any text is, and the page shows the
-// brackets there: the alternative text of an image is a string to the plain parse, which holds no autolink node to
-// write as its address (`source-ships-encoding.unit.test.ts` pins the case).
+// reference wherever it stands, inside code too, where it shows as written. A fence indented under a footnote
+// definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
+// takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
+// backslash and the page shows them. A footnote definition whose first line is a tag alone and whose second line is not
+// indented, followed by a fence mark indented four spaces, is a raw HTML block that the second line ends to the reader
+// of the source and one paragraph to the strict grammar, so the page shows the marks there as well
+// (`source-ships-encoding.unit.test.ts` pins both cases). A footnote definition that starts on a later line of a
+// paragraph keeps the same limit when the fence under it never closes. An angle autolink inside the alternative text of
+// an image is written with a backslash before its less-than sign, as any text is, and the page shows the brackets
+// there: the alternative text of an image is a string to the plain parse, which holds no autolink node to write as its
+// address (`source-ships-encoding.unit.test.ts` pins the case).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.

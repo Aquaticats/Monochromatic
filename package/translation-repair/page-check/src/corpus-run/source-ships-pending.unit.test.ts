@@ -17,6 +17,7 @@ import {
   footnoteStateOf,
   rangeOf,
   stateAfter,
+  takeContinuation,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -158,6 +159,76 @@ await describe({
               endLine: 3,
               endsInLiteral: true,
             },);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: takeContinuation.name,
+      children: [
+        it({
+          name: 'TAKES THE PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION OFF THE NODES STILL TO READ and hands it back',
+          fn: async () => {
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source: '[^1]: https://example.net/a\n注\n', },);
+            const [definition, paragraph,] = blocks;
+            if ((definition === undefined) || (paragraph === undefined))
+              throw new Error('the text holds no second block',);
+            /**
+             The nodes still to read, with the paragraph next.
+             */
+            const pending = [
+              {
+                node: paragraph,
+                isRootChild: true,
+                insideLink: false,
+                parentType: 'root',
+                parent: root,
+              },
+            ];
+            expect(takeContinuation({
+              pending,
+              definition,
+            },),).toBe(paragraph,);
+            expect(pending,).toEqual([],);
+          },
+        },),
+
+        it({
+          name: 'HANDS THE DEFINITION BACK AND LEAVES THE NODES ALONE when the next block is parted from it by a blank line, '
+            + 'and when nothing is left to read',
+          fn: async () => {
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source: '[^1]: https://example.net/a\n\n注\n', },);
+            const [definition, paragraph,] = blocks;
+            if ((definition === undefined) || (paragraph === undefined))
+              throw new Error('the text holds no second block',);
+            /**
+             The nodes still to read, with a paragraph a blank line away next.
+             */
+            const pending = [
+              {
+                node: paragraph,
+                isRootChild: true,
+                insideLink: false,
+                parentType: 'root',
+                parent: root,
+              },
+            ];
+            expect(takeContinuation({
+              pending,
+              definition,
+            },),).toBe(definition,);
+            expect(pending.length,).toBe(1,);
+            expect(takeContinuation({
+              pending: [],
+              definition,
+            },),).toBe(definition,);
           },
         },),
       ],

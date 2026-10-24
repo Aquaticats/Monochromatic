@@ -851,6 +851,69 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'READS THE LINES INDENTED UNDER A FOOTNOTE DEFINITION AT THE TOP AS THE BLOCKS OF THE FOOTNOTE, so a fence '
+            + 'mark among them is left as it stands and the braces inside the fence are not escaped',
+          fn: async () => {
+            expect(encoded({ text: '[^1]: x {\nabc\n    ```\n    {a}\n', },),)
+              .toBe('[^1]: x \\{\nabc\n    ```\n    {a}\n',);
+            expect(encoded({ text: '[^1]: x\n    ~~~\n    {a}\n    ~~~\n    tail {z}\n', },),)
+              .toBe('[^1]: x\n    ~~~\n    {a}\n    ~~~\n    tail \\{z\\}\n',);
+          },
+        },),
+
+        it({
+          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION WHOSE FIRST LINE IS A TAG ALONE '
+            + 'AND WHOSE SECOND LINE IS NOT INDENTED, and the page shows the marks (a limit the module comment names): '
+            + 'the reader of the source ends the raw HTML block at the second line and reads the marks as a code '
+            + 'span, where the strict grammar reads one paragraph and a fence',
+          fn: async () => {
+            /**
+             The source of the limit.
+             */
+            const text = '[^1]: <b>\nabc\n    ```\n    ```\n';
+            /**
+             The run as the encoder writes it.
+             */
+            const written = encoded({ text, },);
+            expect(written,).toBe('[^1]: \\<b\\>\nabc\n    \\`\\`\\`\n    \\`\\`\\`\n',);
+            expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            expect(readerOfPage({ carried: written, },),).toBe('[^1]: <b> abc ``` ```',);
+            expect(readerOfSource({ source: text, },),).toBe('[^1]: <b> abc',);
+          },
+        },),
+
+        it({
+          name: 'WRITES A BACKSLASH BEFORE THE MARKS OF A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR A BLOCK '
+            + 'QUOTE, and the page shows the marks (a limit the module comment names): the lines the nested reading '
+            + 'takes carry the prefix of the container, which it does not strip',
+          fn: async () => {
+            expect(encoded({ text: '- [^1]: x {\n\n      ```\n      {a}\n      ```\n', },),)
+              .toBe('- [^1]: x \\{\n\n      \\`\\`\\`\n      \\{a\\}\n      \\`\\`\\`\n',);
+            expect(encoded({ text: '> [^1]: x {\n>\n>     ```\n>     {a}\n>     ```\n', },),)
+              .toBe('> [^1]: x \\{\n>\n>     \\`\\`\\`\n>     \\{a\\}\n>     \\`\\`\\`\n',);
+          },
+        },),
+
+        it({
+          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION THAT STARTS ON A LATER LINE OF A '
+            + 'PARAGRAPH, and the page shows the mark (a limit the module comment names): the paragraph is not one '
+            + 'that opens the definition, so the lines under it are read as a line of the paragraph',
+          fn: async () => {
+            /**
+             The source of the limit.
+             */
+            const text = 'x\n[^1]: 注 {\n    ```\n';
+            /**
+             The run as the encoder writes it.
+             */
+            const written = encoded({ text, },);
+            expect(written,).toBe('x\n[^1]: 注 \\{\n    \\`\\`\\`\n',);
+            expect(readerOfPage({ carried: written, },),).toBe('x [^1]: 注 { ```',);
+            expect(readerOfSource({ source: text, },),).toBe('x [^1]: 注 {',);
+          },
+        },),
+
+        it({
           name: 'KEEPS THE LINE ENDINGS OF A CARRIAGE-RETURN TEXT, a closing fence among them',
           fn: async () => {
             expect(encoded({ text: '```\r\n{a}\r\n```\r\n{b}\r\n', },),).toBe('```\r\n{a}\r\n```\r\n\\{b\\}\r\n',);

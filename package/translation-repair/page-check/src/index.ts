@@ -176,6 +176,7 @@ export {
   bareAddresses,
 } from './corpus-run/source-ships-addresses.ts';
 export {
+  continuesDefinition,
   endLineOf,
   footnoteBodyStart,
   isIndentedCode,
@@ -189,6 +190,7 @@ export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
 export {
   footnoteStateOf,
   stateAfter,
+  takeContinuation,
 } from './corpus-run/source-ships-pending.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
 export {
@@ -208,6 +210,7 @@ export {
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';
 export {
+  footnoteBodySpans,
   nestedSpans,
   type SpansReader,
 } from './corpus-run/source-ships-nested.ts';

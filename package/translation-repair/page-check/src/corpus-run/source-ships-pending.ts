@@ -2,6 +2,7 @@ import type {
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
+  continuesDefinition,
   endLineOf,
   opensFootnote,
 } from './source-ships-footnote.ts';
@@ -149,6 +150,45 @@ export function stateAfter(
       node,
     },),
   };
+}
+
+/**
+ Takes the paragraph that goes on right after a footnote definition off the nodes still to read, so that it is read with
+ the definition.
+
+ @param pending - nodes still to read, the next one on top; the paragraph is removed from it when there is one
+
+ @param definition - footnote definition about to be read
+
+ @returns The paragraph taken, which the definition's lines go on in, or the definition itself when none follows it
+
+ @example
+ ```ts
+ const last = takeContinuation({ pending, definition, },);
+ ```
+ */
+export function takeContinuation(
+  {
+    pending,
+    definition,
+  }: {
+    readonly pending: Pending[];
+    readonly definition: TreeNode;
+  },
+): TreeNode {
+  /**
+   The node that comes next in the text.
+   */
+  const following = pending.at(-1,);
+  if (following === undefined)
+    return definition;
+  if (!continuesDefinition({
+    definition,
+    block: following.node,
+  },))
+    return definition;
+  pending.pop();
+  return following.node;
 }
 
 //endregion Source ships pending

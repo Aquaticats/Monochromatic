@@ -115,6 +115,41 @@ export function opensFootnote(
 }
 
 /**
+ Whether a block is the paragraph that goes on right after a footnote definition: it starts on the line after the
+ definition ends, and the strict grammar reads its lines as lines of the footnote.
+
+ @param definition - link reference definition that CommonMark reads and GFM reads as a footnote definition
+
+ @param block - block that comes next in the text
+
+ @returns Whether the block continues the footnote definition
+
+ @example
+ ```ts
+ const continues = continuesDefinition({ definition, block, },);
+ ```
+ */
+export function continuesDefinition(
+  {
+    definition,
+    block,
+  }: {
+    readonly definition: TreeNode;
+    readonly block: TreeNode;
+  },
+): boolean {
+  if (block.type !== 'paragraph')
+    return false;
+  return block.position
+    ?.start
+    .line
+    === (endLineOf({
+      node: definition,
+      fallback: 0,
+    },) + 1);
+}
+
+/**
  The line a node ends on.
 
  @param node - node of the parse

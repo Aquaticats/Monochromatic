@@ -17,6 +17,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  footnoteBodySpans,
   nestedSpans,
   spansOf,
   withoutIndentation,
@@ -103,6 +104,42 @@ await describe({
           edits: [],
           insideLinks: [],
           streamStarts: [13,],
+        },);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: footnoteBodySpans.name,
+  children: [
+    it({
+      name: 'READS A FOOTNOTE THAT STARTS ON ITS OWN LINE AS A TEXT, a fence mark among its indented lines opening a fence '
+        + 'of the footnote whose braces are code',
+      fn: async () => {
+        /**
+         A footnote whose first line holds a brace and whose indented lines hold a fence with a brace in it.
+         */
+        const source = '[^1]: 注 {b}\n    ```\n    {y}\n    ```\n';
+        expect(footnoteBodySpans({
+          source,
+          readable: source,
+          readSpans: spansOf,
+          range: {
+            start: 6,
+            end: source.length,
+          },
+        },),).toEqual({
+          text: [
+            {
+              start: 6,
+              end: 11,
+            },
+          ],
+          literal: [],
+          edits: [],
+          insideLinks: [],
+          streamStarts: [6,],
         },);
       },
     },),

@@ -3,6 +3,7 @@ import {
   parseMarkdownMathBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { withoutIndentation, } from './source-ships-footnote.ts';
 import {
   originalStretches,
   type SourceSpans,
@@ -151,6 +152,51 @@ export function nestedSpans(
         return nonNullishOrThrow(indices[start],);
       },),
   };
+}
+
+/**
+ Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation the
+ footnote takes.
+
+ @param source - whole text
+
+ @param readable - whole text with its comments blanked, the parse's own input
+
+ @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
+
+ @param range - where the body stands, from the start of its first line or the first character after the label
+
+ @returns Spans of the body at the offsets of the whole text
+
+ @throws {@link Error} when a node of the body has no position, which the reading used never builds
+
+ @example
+ ```ts
+ const spans = footnoteBodySpans({ source, readable, readSpans: spansOf, range: { start: 6, end: 12, }, },);
+ ```
+ */
+export function footnoteBodySpans(
+  {
+    source,
+    readable,
+    readSpans,
+    range,
+  }: {
+    readonly source: string;
+    readonly readable: string;
+    readonly readSpans: SpansReader;
+    readonly range: TextRange;
+  },
+): SourceSpans {
+  return nestedSpans({
+    source,
+    readable,
+    readSpans,
+    indices: withoutIndentation({
+      source,
+      range,
+    },),
+  },);
 }
 
 //endregion Source ships nested

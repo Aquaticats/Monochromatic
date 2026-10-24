@@ -4,19 +4,20 @@ import {
   footnoteBodyStart,
   isIndentedCode,
   isLazyDefinition,
-  withoutIndentation,
+  opensFootnote,
 } from './source-ships-footnote.ts';
 import {
   contentStretches,
   lineJoinsOf,
 } from './source-ships-lines.ts';
 import { autolinkWritten, } from './source-ships-links.ts';
-import { nestedSpans, } from './source-ships-nested.ts';
+import { footnoteBodySpans, } from './source-ships-nested.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
   type Pending,
   stateAfter,
+  takeContinuation,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
@@ -233,6 +234,38 @@ export function spansOf(
       parent,
       after,
     );
+    // A PARAGRAPH THAT OPENS A FOOTNOTE DEFINITION AT THE TOP, AND BLOCKS INDENTED UNDER A DEFINITION, are read as the
+    // body of the footnote is: the strict grammar reads the lines indented under it as its blocks, so a fence mark among
+    // them opens a fence of the footnote, which the plain reading takes for a line of the paragraph.
+    /**
+     Whether the node is a paragraph at the top whose first line opens a footnote definition.
+     */
+    const opensTopFootnote = isRootChild
+      && (node.type === 'paragraph')
+      && opensFootnote({
+        source,
+        node,
+        range,
+      },);
+    if (opensTopFootnote || continuesFootnote) {
+      absorb({
+        nested: footnoteBodySpans({
+          source,
+          readable,
+          readSpans: spansOf,
+          range: opensTopFootnote
+            ? {
+              start: footnoteBodyStart({
+                source,
+                range,
+              },),
+              end: range.end,
+            }
+            : range,
+        },),
+      },);
+      continue;
+    }
     edits.push(...lineJoinsOf({
       source,
       node,
@@ -262,22 +295,6 @@ export function spansOf(
       },),);
       continue;
     }
-    // BLOCKS INDENTED UNDER A FOOTNOTE DEFINITION are read by their own structure, since GFM reads them as the blocks
-    // of the footnote and a fence among them is code.
-    if (continuesFootnote) {
-      absorb({
-        nested: nestedSpans({
-          source,
-          readable,
-          readSpans: spansOf,
-          indices: withoutIndentation({
-            source,
-            range,
-          },),
-        },),
-      },);
-      continue;
-    }
     // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the
     // reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
     if (node.type === 'code') {
@@ -305,20 +322,30 @@ export function spansOf(
       if (node
         .identifier
         .startsWith('^',)) {
+        /**
+         Where the footnote's lines end: with the paragraph on the line right after the definition, whose lines the
+         footnote's paragraph continues and which is read with it, else with the definition itself.
+         */
+        const { end, } = rangeOf({
+          node: isRootChild
+            ? takeContinuation({
+              pending,
+              definition: node,
+            },)
+            : node,
+        },);
         absorb({
-          nested: nestedSpans({
+          nested: footnoteBodySpans({
             source,
             readable,
             readSpans: spansOf,
-            indices: indicesOf({
-              range: {
-                start: footnoteBodyStart({
-                  source,
-                  range,
-                },),
-                end: range.end,
-              },
-            },),
+            range: {
+              start: footnoteBodyStart({
+                source,
+                range,
+              },),
+              end,
+            },
           },),
         },);
         continue;
