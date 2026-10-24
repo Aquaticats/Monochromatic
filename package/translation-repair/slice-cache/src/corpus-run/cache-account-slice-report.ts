@@ -4,6 +4,7 @@ import {
   join,
 } from 'node:path';
 
+import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import {
   type Logger,
   tagged,
@@ -293,12 +294,16 @@ async function reachOfRoot(
   }
   catch (error) {
     /**
-     The filesystem's code for the refusal, never its message, which quotes the path.
+     The filesystem's code for the refusal, which the warning on stdout names.
      */
     const code = failureName({ error, },);
+    // THE LOG LINE KEEPS THE FAILURE'S TEXT, which the warning on stdout leaves out: the text of a failed real-path
+    // lookup names the path it stopped at, an ancestor of the root, and so tells which file or link on the way is to
+    // blame. The line already prints the root and the runbook's runs root, so the text discloses no path the line
+    // does not hold. The logger takes one string, so the caught value is rendered into it.
     rl.warn(
       `${root} could not be compared with the runbook's runs root ${runbookRoot} (${code}); `
-        + 'it counts as not reaching it',
+        + `it counts as not reaching it. The failure was: ${caughtValueText(error,)}`,
     );
     return {
       kind: 'unresolved',

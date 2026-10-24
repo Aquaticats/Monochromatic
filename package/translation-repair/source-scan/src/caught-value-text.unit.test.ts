@@ -135,6 +135,10 @@ const HELD: Readonly<Record<string, string>> = {
     'reads the message of a FidelityReferenceError, the only class its catch lets through, which declares it safe',
   'slice-cache/corpus-run/pass-eligibility.ts#readSide':
     'reads the message of a CorpusReadError that isMissingCorpusObject narrowed, a marked class',
+  'slice-cache/corpus-run/cache-account-slice-report.ts#reachOfRoot':
+    'a real-path lookup failure of a root the audit command was given, written to the log beside that root and the '
+      + 'runbook\'s runs root; the text names the path the lookup stopped at, which lies on the way to one of those '
+      + 'two roots, and no provider is called',
   'bench/corpus-run/producer-calibrate-run.ts#refuseUnjudgeableRoster':
     'reads the message of a ProducerRosterError, the only class its catch lets through, which declares it safe',
   'page-check/corpus-run/publish-defects.ts#defectOf':
