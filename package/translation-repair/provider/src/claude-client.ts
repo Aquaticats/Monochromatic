@@ -29,6 +29,10 @@ import type {
 } from './chat-contract.ts';
 import { chatJsonThrough, } from './chat-json-through.ts';
 import { reportClaudeAbandonedSpend, } from './claude-abandoned-spend.ts';
+import {
+  admissionOf,
+  type ClaudeAttemptAsk,
+} from './claude-attempt-admit.ts';
 import { buildClaudeBody, } from './claude-body.ts';
 import {
   CLAUDE_MODELS,
@@ -43,6 +47,10 @@ import {
   claudeCostOf,
 } from './claude-cost.ts';
 import { claudeIdFor, } from './claude-reach.ts';
+import {
+  limitsLoggerOnce,
+  RATE_LIMIT_HEADER_PREFIX,
+} from './claude-rate-limit-log.ts';
 import { claudeStreamFactsOf, } from './claude-stream-facts.ts';
 import { oneWayFlag, } from './one-way-flag.ts';
 import {
@@ -91,11 +99,6 @@ export const CLAUDE_PACE_WINDOW_MS = 60_000;
  actually carries, so a changed tier shows in the run's own log.
  */
 export const CLAUDE_REQUESTS_PER_MINUTE = 1_000;
-
-/**
- Response-header family Anthropic states its rate limits in.
- */
-const RATE_LIMIT_HEADER_PREFIX = 'anthropic-ratelimit-';
 
 /**
  Refusal raised when a roster model is not one of the eight Claude cards.
@@ -227,6 +230,11 @@ function cardFor({ modelId, }: { readonly modelId: RosterModelId; },): ClaudeMod
  @param requestsPerMinute - request starts allowed in any minute, retries included; the stated 1000, a whole number of
  one or more, which `createRequestPace` refuses otherwise
 
+ @param admitAttempt - told before every attempt of every call, the first and each retry, with the card and the most
+ the attempt can be billed; what it throws ends the call there with that attempt unsent, so a caller that holds a run to
+ an amount looks again before each attempt it would pay for, and not once per call. It changes no request: the body
+ of an attempt is the same with or without it
+
  @returns Client surface with chatText, chatJson, spend and pace
 
  @example
@@ -242,6 +250,7 @@ export function createClaudeClient(
     perModelConcurrency = Number.POSITIVE_INFINITY,
     retryPolicy = DEFAULT_RETRY_POLICY,
     requestsPerMinute = CLAUDE_REQUESTS_PER_MINUTE,
+    admitAttempt,
   }: {
     readonly apiKey: string;
     readonly transport: ModelTransport;
@@ -249,6 +258,7 @@ export function createClaudeClient(
     readonly perModelConcurrency?: number;
     readonly retryPolicy?: RetryPolicy;
     readonly requestsPerMinute?: number;
+    readonly admitAttempt?: (attempt: ClaudeAttemptAsk,) => void;
   },
 ): ClaudeClient {
   /**
@@ -283,43 +293,9 @@ export function createClaudeClient(
   }
 
   /**
-   Raised once the rate-limit headers have been logged: once per client, which is once per run.
+   Logs the rate-limit headers a reply carries, the first time any reply does: once per client, which is once per run.
    */
-  const limitsLogged = oneWayFlag();
-
-  /**
-   Logs the rate-limit headers a reply carries, the first time any reply does.
-
-   @param attemptReply - one attempt's reply as the transport returned it
-
-   @example
-   ```ts
-   logLimitsOnce(reply,);
-   ```
-   */
-  function logLimitsOnce(attemptReply: TransportReply,): void {
-    if (limitsLogged.isRaised())
-      return;
-
-    /**
-     The rate-limit headers this reply carries, as `name=value` pairs.
-     */
-    const limits = Object.keys(attemptReply.headers ?? {},)
-      .filter(function isLimit(name,): boolean {
-        return name.startsWith(RATE_LIMIT_HEADER_PREFIX,);
-      },)
-      .map(function pairOf(name,): string {
-        return `${name}=${attemptReply.headers?.[name] ?? ''}`;
-      },);
-    if (limits.length === 0)
-      return;
-    limitsLogged.raise();
-    tagged({
-      tag: createClaudeClient.name,
-      l,
-    },)
-      .info(`rate limits on the first reply: ${limits.join(', ',)}`,);
-  }
+  const logLimitsOnce = limitsLoggerOnce({ tag: createClaudeClient.name, },);
 
   /**
    The transport behind the pacer: every attempt, retries included, waits for a place in the window before it goes
@@ -562,6 +538,15 @@ export function createClaudeClient(
           },
           policy: retryPolicy,
           verify: wholeMessage,
+          // THE CALLER IS TOLD BEFORE EACH ATTEMPT, at the figure the attempt's abandoned line would write; with no
+          // admit given, the ladder is given nothing more than before.
+          ...admissionOf({
+            ...((admitAttempt === undefined) ? {} : { admitAttempt, }),
+            label,
+            prices: card.prices,
+            requestBodyBytes: Buffer.byteLength(bodyJson,),
+            maxTokens,
+          },),
           // EVERY ATTEMPT THAT DELIVERED A STREAM AND FAILED WAS BILLED, the retried ones included, and is written at
           // its bound as it fails (`claude-abandoned-spend.ts`), as the Bedrock, NeuralWatt and OpenRouter clients
           // write theirs. The reckoning is a log line and a meter, both synchronous, and the ladder's contract is
