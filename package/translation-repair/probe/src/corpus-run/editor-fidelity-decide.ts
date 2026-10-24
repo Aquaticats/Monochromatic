@@ -1,3 +1,5 @@
+import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
+
 //region Editor fidelity decision rule
 // THE RULE THE ARMS OF THE EDITOR FIDELITY BENCH ARE READ BY, as code. It is applied by the read step to the counts the
 // logs state, and the line printed before any call is made from the same text, so a log shows the rule it will be read
@@ -7,7 +9,7 @@
 // the mean of the two medium arms, which are one card run twice. The gap counts when it reaches the threshold: the
 // larger of a floor and the two medium arms' own difference. The floor is the smallest gap that keeps the chance of
 // choosing another effort under 0.05 when there is none to find, at every true fix rate from 0.30 to 0.95, by the exact
-// enumeration in `editor-fidelity-decide-null.ts` whose unit test pins it. The mediums' own difference raises it when
+// enumeration in `editor-fidelity-decide-null.test-fixture.ts` whose unit test pins it. The mediums' own difference raises it when
 // two runs of one card disagree by more.
 //
 // WHAT A KIND CAN VETO. An effort that gains overall but falls more than a tolerance below the mean of the mediums on
@@ -24,8 +26,8 @@
 // reader of the verdict should not take the insertion count for production's.
 
 /**
- The least pooled gap that counts, in trials: the smallest floor the enumeration in `editor-fidelity-decide-null.ts`
- holds the chance of choosing another effort under 0.05 for, at every true fix rate from 0.30 to 0.95 and every
+ The least pooled gap that counts, in trials: the smallest floor the enumeration in
+ `editor-fidelity-decide-null.test-fixture.ts` holds the chance of choosing another effort under 0.05 for, at every true fix rate from 0.30 to 0.95 and every
  correlation between the two trials of an entry.
  */
 export const POOLED_FLOOR_TRIALS = 12;
@@ -47,15 +49,23 @@ export const KIND_TOLERANCE_TRIALS = 3;
  ```
  */
 export function decisionRuleText(): string {
+  /**
+   The floor with its noun.
+   */
+  const floorSaid = countWithNoun({
+    count: POOLED_FLOOR_TRIALS,
+    one: 'trial',
+    many: 'trials',
+  },);
   return 'clean fix is exact plus equivalent, counted over the trials of both kinds of defect. An effort other than the '
     + 'default (medium) is chosen only when its clean fix count is above the mean of the two medium arms by at least '
-    + `${String(POOLED_FLOOR_TRIALS,)} trials, or by at least the two medium arms' own difference when that is `
+    + `${floorSaid}, or by at least the two medium arms' own difference when that is `
     + `larger, and neither kind of defect (insertion, alteration) is more than ${String(KIND_TOLERANCE_TRIALS,)} `
     + 'trials below the mean of the two medium arms for that kind. A smaller gap, a tie, an effort that fixes fewer, and '
     + 'a gap a kind contradicts all keep the default effort. With no true difference, a gap of '
-    + `${String(POOLED_FLOOR_TRIALS,)} trials is the least that keeps the chance of choosing another effort under 0.05 `
+    + `${floorSaid} is the least that keeps the chance of choosing another effort under 0.05 `
     + 'at every true fix rate from 0.30 to 0.95, counting the two trials of an entry as one draw at the worst '
-    + '(editor-fidelity-decide-null.ts), so the bench cannot separate efforts that differ by less. The insertion '
+    + '(editor-fidelity-decide-null.test-fixture.ts), so the bench cannot separate efforts that differ by less. The insertion '
     + 'trials measure locating an added sentence among its neighbours and copying the neighbours verbatim, not the '
     + 'span-only view production gives an editor.';
 }
@@ -209,13 +219,13 @@ function pooledFixed({ arm, }: { readonly arm: ArmCount; },): number {
  Reads one effort against the two medium arms.
 
  @param effort - the effort
- 
+
  @param arm - its counts
- 
+
  @param mediumA - the first medium arm's counts
- 
+
  @param mediumB - the second medium arm's counts
- 
+
  @param thresholdTrials - the gap that counts
 
  @returns The effort's gap, the clause that decided for it and the kind that vetoed it, if one did
@@ -269,9 +279,9 @@ function readEffort(
     };
   }
   /**
-   How far the effort stands below the mediums' mean on each kind, positive when it stands below.
+   How many trials short of the mediums' mean the effort falls on each kind, negative when it exceeds the mean.
    */
-  const below = {
+  const shortfall = {
     insertion: ((mediumA.insertion
       .fixed
       + mediumB.insertion
@@ -285,7 +295,7 @@ function readEffort(
       - arm.alteration
         .fixed,
   };
-  if (below.insertion > KIND_TOLERANCE_TRIALS) {
+  if (shortfall.insertion > KIND_TOLERANCE_TRIALS) {
     return {
       effort,
       gap,
@@ -293,7 +303,7 @@ function readEffort(
       kindShortfall: 'insertion',
     };
   }
-  if (below.alteration > KIND_TOLERANCE_TRIALS) {
+  if (shortfall.alteration > KIND_TOLERANCE_TRIALS) {
     return {
       effort,
       gap,
@@ -313,11 +323,11 @@ function readEffort(
  Says what the rule decided, for the line the read step prints.
 
  @param verdict - the effort picked
- 
+
  @param reading - the reading the verdict is told by
- 
+
  @param mediumMean - the mean of the two medium arms' counts
- 
+
  @param thresholdTrials - the gap that counts
 
  @returns The sentence
@@ -359,11 +369,11 @@ function verdictSaid(
  Applies the rule to the four arms.
 
  @param low - the low effort's counts
- 
+
  @param mediumA - the first medium arm's counts
- 
+
  @param mediumB - the second medium arm's counts
- 
+
  @param high - the high effort's counts
 
  @returns The effort picked, the clause that decided and how each effort stands

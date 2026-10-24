@@ -101,18 +101,6 @@ export {
   POOLED_FLOOR_TRIALS,
 } from './corpus-run/editor-fidelity-decide.ts';
 export {
-  armCountChances,
-  falseCallRate,
-  NULL_CALL_LIMIT,
-  NULL_CORRELATIONS,
-  NULL_RATES,
-  POOL_CLUSTERS,
-  type PoolClusters,
-  smallestFloor,
-  worstFalseCall,
-  type WorstCase,
-} from './corpus-run/editor-fidelity-decide-null.ts';
-export {
   type ArmCheckReport,
   checkEditorArms,
 } from './corpus-run/editor-fidelity-arm-check.ts';

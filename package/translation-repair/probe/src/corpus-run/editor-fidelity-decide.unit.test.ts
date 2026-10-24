@@ -120,19 +120,19 @@ await describe({
             + 'counts when it reaches the threshold',
           fn: async () => {
             /**
-             Eleven clean fixes above the mediums' twenty.
+             A gain of eleven clean fixes on the mediums' twenty.
              */
-            const below = decideEffort({
+            const short = decideEffort({
               low: MEDIUM,
               mediumA: MEDIUM,
               mediumB: MEDIUM,
               high: armOf({ insertion: 17, alteration: 14, },),
             },);
-            expect(below.verdict,).toBe('medium',);
-            expect(below.clause,).toBe('inside-threshold',);
-            expect(below.high.gap,).toBe(11,);
+            expect(short.verdict,).toBe('medium',);
+            expect(short.clause,).toBe('inside-threshold',);
+            expect(short.high.gap,).toBe(11,);
             /**
-             Twelve above.
+             A gain of twelve.
              */
             const at = decideEffort({
               low: MEDIUM,
@@ -186,7 +186,7 @@ await describe({
              */
             const medium = armOf({ insertion: 6, alteration: 14, },);
             /**
-             The high arm, gaining twelve pooled with the alteration trials the given number below.
+             The high arm, gaining twelve pooled while its alteration trials dip by the given amount.
              */
             const withDip = (dip: number) => decideEffort({
               low: medium,
@@ -227,7 +227,7 @@ await describe({
               mediumB: armOf({ insertion: 14, alteration: 14, },),
             };
             /**
-             Thirteen above the mean of 21.
+             A gain of thirteen on the mean of 21.
              */
             const inside = decideEffort({
               ...unequal,
@@ -239,7 +239,7 @@ await describe({
             expect(inside.verdict,).toBe('medium',);
             expect(inside.clause,).toBe('inside-threshold',);
             /**
-             Fourteen above.
+             A gain of fourteen.
              */
             const at = decideEffort({
               ...unequal,

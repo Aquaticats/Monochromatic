@@ -1,4 +1,5 @@
 import type { Answer, } from './editor-fidelity-arm-answers.ts';
+import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
 import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
 
 //region Editor fidelity arm stop checks
@@ -44,13 +45,25 @@ export function stopsStatedAnswer({ figures, }: { readonly figures: ArmFigures; 
   return (unstated.length > 0)
     ? {
       ok: false,
-      detail: `${String(unstated.length,)} of ${String(figures.rows
-        .length,)} rows state no stop reason`,
+      detail: `${String(unstated.length,)} of ${
+        countWithNoun({
+          count: figures.rows
+            .length,
+          one: 'row',
+          many: 'rows',
+        },)
+      } state no stop reason`,
     }
     : {
       ok: true,
-      detail: `${String(figures.rows
-        .length,)} rows each state how their asks ended`,
+      detail: `${
+        countWithNoun({
+          count: figures.rows
+            .length,
+          one: 'row',
+          many: 'rows',
+        },)
+      } each state how their asks ended`,
     };
 }
 
@@ -111,26 +124,48 @@ export function capAndThrowAnswer({ figures, }: { readonly figures: ArmFigures; 
     ...((capped.length === 0)
       ? []
       : [
-        `${String(capped.length,)} ${(capped.length === 1) ? 'trial' : 'trials'} ended at the output-token cap (${
-          rowsSaid({ rows: capped, },)
-        })`,
+        `${
+          countWithNoun({
+            count: capped.length,
+            one: 'trial',
+            many: 'trials',
+          },)
+        } ended at the output-token cap (${rowsSaid({ rows: capped, },)})`,
       ]),
     ...((threw.length === 0)
       ? []
       : [
-        `${String(threw.length,)} ${(threw.length === 1) ? 'trial' : 'trials'} had an ask that threw (${
-          rowsSaid({ rows: threw, },)
-        })`,
+        `${
+          countWithNoun({
+            count: threw.length,
+            one: 'trial',
+            many: 'trials',
+          },)
+        } had an ask that threw (${rowsSaid({ rows: threw, },)})`,
       ]),
     ...((figures.threw > 0)
-      ? [`the seat line says ${String(figures.threw,)} ${(figures.threw === 1) ? 'ask' : 'asks'} threw`,]
+      ? [
+        `the seat line says ${
+          countWithNoun({
+            count: figures.threw,
+            one: 'ask',
+            many: 'asks',
+          },)
+        } threw`,
+      ]
       : []),
   ];
   return (found.length === 0)
     ? {
       ok: true,
-      detail: `${String(figures.rows
-        .length,)} trials, none at the cap, none threw`,
+      detail: `${
+        countWithNoun({
+          count: figures.rows
+            .length,
+          one: 'trial',
+          many: 'trials',
+        },)
+      }, none at the cap, none threw`,
     }
     : {
       ok: false,
@@ -142,14 +177,14 @@ export function capAndThrowAnswer({ figures, }: { readonly figures: ArmFigures; 
  The warning for an arm with many trials unusable or refused.
 
  @param arm - the arm's name
- 
+
  @param figures - the arm's figures
 
- @returns The line, or an empty string when the arm has no more than the warned-above count
+ @returns The line alone, or nothing when the arm has no more than the warned-above count
 
  @example
  ```ts
- const warning = unusableWarning({ arm: 'low', figures, });
+ const warnings = unusableWarning({ arm: 'low', figures, });
  ```
  */
 export function unusableWarning({
@@ -158,7 +193,7 @@ export function unusableWarning({
 }: {
   readonly arm: string;
   readonly figures: ArmFigures
-},): string {
+},): readonly string[] {
   /**
    Trials that yielded no edit, unusable and refused together.
    */
@@ -170,10 +205,16 @@ export function unusableWarning({
     figures.refused,
   );
   return (together > UNUSABLE_PLUS_REFUSED_WARNED_ABOVE)
-    ? `WARN ${arm}: unusable plus refused is ${String(together,)} of ${String(figures.trials,)} trials, over ${
-      String(UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,)
-    }`
-    : '';
+    ? [
+      `WARN ${arm}: unusable plus refused is ${String(together,)} of ${
+        countWithNoun({
+          count: figures.trials,
+          one: 'trial',
+          many: 'trials',
+        },)
+      }, over ${String(UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,)}`,
+    ]
+    : [];
 }
 
 //endregion Editor fidelity arm stop checks

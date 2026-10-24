@@ -374,7 +374,7 @@ await describe({
                 + 'the two medium arms for that kind. A smaller gap, a tie, an effort that fixes fewer, and a gap a kind '
                 + 'contradicts all keep the default effort. With no true difference, a gap of 12 trials is the least '
                 + 'that keeps the chance of choosing another effort under 0.05 at every true fix rate from 0.30 to 0.95, '
-                + 'counting the two trials of an entry as one draw at the worst (editor-fidelity-decide-null.ts), so the '
+                + 'counting the two trials of an entry as one draw at the worst (editor-fidelity-decide-null.test-fixture.ts), so the '
                 + 'bench cannot separate efforts that differ by less. The insertion trials measure locating an added '
                 + 'sentence among its neighbours and copying the neighbours verbatim, not the span-only view production '
                 + 'gives an editor.',

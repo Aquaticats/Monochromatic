@@ -16,17 +16,19 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
-  armCountChances,
   EDITOR_FIDELITY_POOL,
+  POOLED_FLOOR_TRIALS,
+} from '../../dist/final/node/index.mjs';
+import {
+  armCountChances,
   falseCallRate,
   NULL_CALL_LIMIT,
   NULL_CORRELATIONS,
   NULL_RATES,
   POOL_CLUSTERS,
-  POOLED_FLOOR_TRIALS,
   smallestFloor,
   worstFalseCall,
-} from '../../dist/final/node/index.mjs';
+} from './editor-fidelity-decide-null.test-fixture.ts';
 
 /**
  The chance of each count of one entry's trials, written out outcome by outcome and not by convolution.
@@ -310,12 +312,12 @@ await describe({
             expect(smallestFloor({ clusters: POOL_CLUSTERS, },),).toBe(12,);
             expect(POOLED_FLOOR_TRIALS,).toBe(12,);
             /**
-             The worst case at the printed floor and one below.
+             The worst case at the printed floor and at a floor lowered by one trial.
              */
             const atFloor = worstFalseCall({ clusters: POOL_CLUSTERS, floorTrials: POOLED_FLOOR_TRIALS, },);
-            const below = worstFalseCall({ clusters: POOL_CLUSTERS, floorTrials: POOLED_FLOOR_TRIALS - 1, },);
+            const lowered = worstFalseCall({ clusters: POOL_CLUSTERS, floorTrials: POOLED_FLOOR_TRIALS - 1, },);
             expect(atFloor.rate,).toBeLessThanOrEqual(NULL_CALL_LIMIT,);
-            expect(below.rate,).toBeGreaterThan(NULL_CALL_LIMIT,);
+            expect(lowered.rate,).toBeGreaterThan(NULL_CALL_LIMIT,);
             expect(atFloor.correlation,).toBe(1,);
             expect(atFloor.successRate,).toBe(0.5,);
           },

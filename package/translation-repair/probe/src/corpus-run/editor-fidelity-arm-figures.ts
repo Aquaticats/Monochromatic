@@ -172,17 +172,18 @@ function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
    */
   const afterOn = body.includes(trialMarker,) ? body.slice(body.indexOf(trialMarker,) + trialMarker.length,) : '';
   /**
-   The words after the marker, empty when the line states none.
+   Where the marker stands, or minus one when the line states no stop words.
    */
-  const said = body.includes(marker,) ? body.slice(body.lastIndexOf(marker,) + marker.length,) : '';
+  const markerAt = body.lastIndexOf(marker,);
   return {
     row: numberAfter({
       text: body,
       marker: 'row ',
     },),
     trial: afterOn.split(': ',)[0] ?? '',
-    stops: (said === '') ? [] : said.split('+',),
-    stated: said !== '',
+    stops: (markerAt === (-1)) ? [] : body.slice(markerAt + marker.length,)
+      .split('+',),
+    stated: markerAt !== (-1),
   };
 }
 

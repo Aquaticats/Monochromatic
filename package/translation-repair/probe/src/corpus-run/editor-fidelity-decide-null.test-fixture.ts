@@ -1,3 +1,5 @@
+import { countWithNoun, } from '../../dist/final/node/index.mjs';
+
 //region Editor fidelity decision rule under no difference
 // THE CHANCE THE DECISION RULE CALLS AN EFFORT DIFFERENT WHEN NONE IS, computed exactly and not simulated. The rule
 // compares an effort's pooled clean fix count with the mean of the two medium arms against a threshold that is the
@@ -25,7 +27,7 @@
  const clusters: PoolClusters = { both: 16, insertionOnly: 6, alterationOnly: 2, };
  ```
  */
-export type PoolClusters = {
+type PoolClusters = {
   /**
    Entries with an insertion trial and an alteration trial.
    */
@@ -109,7 +111,7 @@ export const NULL_CALL_LIMIT = 0.05;
  Convolves two distributions of counts.
 
  @param left - chance of each count of the first, from zero
- 
+
  @param right - chance of each count of the second, from zero
 
  @returns The chance of each sum, from zero
@@ -153,9 +155,9 @@ function convolve(
  The chance of each count of an arm over the pool's clusters.
 
  @param clusters - how the pool's entries split by kind
- 
+
  @param successRate - chance that one trial is fixed
- 
+
  @param correlation - how far the two trials of an entry read alike, from 0 to 1
 
  @returns The chance of each clean fix count, from zero to the pool's trials
@@ -237,9 +239,9 @@ export function armCountChances(
  The chance that a count lies strictly less than a threshold away from a mean, with both doubled to stay whole.
 
  @param running - the chance of a count below each count, from zero, one entry longer than the counts
- 
+
  @param sumTwice - the two medium counts added, which is twice their mean
- 
+
  @param thresholdTwice - twice the threshold in trials
 
  @returns The chance of a count c with the absolute value of 2c minus the sum less than the doubled threshold
@@ -287,11 +289,11 @@ function chanceInside(
  distribution.
 
  @param clusters - how the pool's entries split by kind
- 
+
  @param successRate - chance that one trial is fixed, the same in every arm
- 
+
  @param correlation - how far the two trials of an entry read alike, from 0 to 1
- 
+
  @param floorTrials - the least pooled gap that can count, in trials
 
  @returns The chance at least one of the two efforts is called different
@@ -325,18 +327,26 @@ export function falseCallRate(
   /**
    The chance of a count below each count, from zero, so a stretch of counts is a difference of two entries.
    */
-  const running = chances.reduce< readonly number[]>(
-    function accumulate(
-      sums: readonly number[],
-      each,
-      at,
-    ): readonly number[] {
-      return [
-        ...sums,
-        (sums[at] ?? 0) + each,
-      ];
+  const running = Array.from(
+    { length: chances.length + 1, },
+    function runningTo(
+      _unused,
+      upTo,
+    ): number {
+      return chances.slice(
+        0,
+        upTo,
+      )
+        .reduce(
+        function add(
+          sum: number,
+          each: number,
+        ): number {
+          return sum + each;
+        },
+        0,
+        );
     },
-    [0,],
   );
   /**
    The chance that neither effort is called, summed over the pairs of medium counts.
@@ -387,7 +397,7 @@ export function falseCallRate(
  const worst: WorstCase = { rate: 0.043, successRate: 0.5, correlation: 1, };
  ```
  */
-export type WorstCase = {
+type WorstCase = {
   /**
    The chance at least one effort is called different.
    */
@@ -408,7 +418,7 @@ export type WorstCase = {
  The largest chance of calling an effort different, over the success chances and the correlations checked.
 
  @param clusters - how the pool's entries split by kind
- 
+
  @param floorTrials - the least pooled gap that can count, in trials
 
  @returns The largest rate and where it falls
@@ -479,7 +489,13 @@ export function smallestFloor({ clusters, }: { readonly clusters: PoolClusters; 
       <= NULL_CALL_LIMIT)
       return floorTrials;
   }
-  throw new Error(`no floor up to ${String(trials,)} trials keeps the chance of a false call under ${String(NULL_CALL_LIMIT,)}`,);
+  throw new Error(`no floor up to ${
+    countWithNoun({
+      count: trials,
+      one: 'trial',
+      many: 'trials',
+    },)
+  } keeps the chance of a false call under ${String(NULL_CALL_LIMIT,)}`,);
 }
 
 //endregion Editor fidelity decision rule under no difference

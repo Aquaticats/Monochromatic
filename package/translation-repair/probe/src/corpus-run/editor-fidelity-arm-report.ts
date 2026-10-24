@@ -26,7 +26,7 @@ const BENCH_ARMS = 4;
  Says an arm's figures.
 
  @param arm - the arm's name
- 
+
  @param figures - the arm's figures
 
  @returns The line, without a newline
@@ -64,7 +64,7 @@ function armLine({
  Says how the asks of every row of an arm ended.
 
  @param arm - the arm's name
- 
+
  @param figures - the arm's figures
 
  @returns The line, without a newline

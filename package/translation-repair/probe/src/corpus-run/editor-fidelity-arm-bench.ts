@@ -329,18 +329,15 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
   /**
    The warnings, which are no failure.
    */
-  const warnings = arms.map(function warnOf(
+  const warnings = arms.flatMap(function warnOf(
     { arm, },
     at,
-  ): string {
+  ): readonly string[] {
     return unusableWarning({
       arm,
       figures: nonNullishOrThrow(allFigures[at],),
     },);
-  },)
-    .filter(function isWarning(warning,): boolean {
-      return warning !== '';
-    },);
+  },);
   return {
     lines: [
       ...base.lines,

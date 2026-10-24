@@ -33,11 +33,13 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
  @param cardIds - cards the run seats
 
+ @param admitClaudeAttempt - hook the client calls before each attempt it makes, which may throw to refuse it
+
  @returns A client that refuses any model that is not one of the cards
 
  @example
  ```ts
- const client = newCardsClient({ promptPayloadDir, cardIds, },);
+ const client = newCardsClient({ promptPayloadDir, cardIds, admitClaudeAttempt, },);
  ```
  */
 function newCardsClient(

@@ -16,7 +16,7 @@ import {
 /**
  Prefix the logger puts on every line.
  */
-export const LOG_PREFIX = '[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
+const LOG_PREFIX ='[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
 
 /**
  How many trials of one kind a card fixed cleanly, and how many replies removed the defect and changed more.
@@ -68,13 +68,13 @@ function kindTallyOf({ counts, }: { readonly counts: KindFixed; }): EditorKindTa
  A card's tally from the counts of its two kinds.
 
  @param cardId - the card
- 
+
  @param insertion - counts of the insertion trials
- 
+
  @param alteration - counts of the alteration trials
- 
+
  @param unusable - trials with no usable reply
- 
+
  @param refused - trials where the card was heard and proposed no edit
 
  @returns The tally
@@ -121,15 +121,15 @@ export function tallyOf(
  The log of one arm: its opening, a row line for each stop given, the tallies, the seat and the guard's total.
 
  @param arm - the arm's name
- 
+
  @param tally - the card's tally
- 
+
  @param stops - for each row, the stop words its line states, empty for a row that states none
- 
+
  @param seat - the SEAT line
- 
+
  @param benchSpentUsd - the spend of the earlier arms the guard line states
- 
+
  @param guardUsd - the total the guard line states
 
  @returns The arm, with a recorded exit of zero
