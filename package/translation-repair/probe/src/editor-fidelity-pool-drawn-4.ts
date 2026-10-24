@@ -6,7 +6,7 @@ import type { FidelityReferenceSpec, } from './fidelity-reference-model.ts';
 // entries `cheonwoomaeng` to `Xu_Yushu` in the order of the draw.
 
 /**
- Specifications 4 of 5 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
+ Specifications 4 of 10 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
  an entry with the hashes of its source, its archive text, its donor and its damaged twins.
 
  @example
@@ -44,7 +44,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 190,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'cheonwoomaeng-s2',
@@ -75,7 +75,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Anilovr-s1',
@@ -106,7 +106,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 6,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'LCG_Akiball-s0',
@@ -142,7 +142,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Everythings99-s0',
@@ -173,7 +173,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 166,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Everythings99-s2',
@@ -204,7 +204,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 2,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'juzh50533467-s0',
@@ -235,7 +235,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 92,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Xu_Yushu-s0',
@@ -266,7 +266,7 @@ export const DRAWN_EDITOR_SPECS_4: readonly FidelityReferenceSpec[] = [
         changedChars: 153,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
 ];
 

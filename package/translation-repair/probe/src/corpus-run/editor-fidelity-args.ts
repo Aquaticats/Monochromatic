@@ -21,7 +21,7 @@ import {
  How many trials one invocation runs by default, counted in attempts like the judge probe's own: enough for every trial
  of the frozen pool, so an arm run with no `--cap` asks them all and every arm sees the same ones.
  */
-export const DEFAULT_EDITOR_TRIAL_CAP = 64;
+export const DEFAULT_EDITOR_TRIAL_CAP = 200;
 
 /**
  Most a run may spend, in US dollars, when `--max-usd` is not written: the spend guard refuses the call that would take

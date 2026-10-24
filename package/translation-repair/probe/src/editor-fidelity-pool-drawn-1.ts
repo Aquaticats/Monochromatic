@@ -6,7 +6,7 @@ import type { FidelityReferenceSpec, } from './fidelity-reference-model.ts';
 // entries `yuki418330012` to `noname` in the order of the draw.
 
 /**
- Specifications 1 of 5 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
+ Specifications 1 of 10 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
  an entry with the hashes of its source, its archive text, its donor and its damaged twins.
 
  @example
@@ -44,7 +44,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 189,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'aiyysk-s0',
@@ -75,7 +75,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 208,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'aiyysk-s3',
@@ -106,7 +106,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Considerate_cat-s3',
@@ -137,7 +137,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 102,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Considerate_cat-s4',
@@ -168,7 +168,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 2,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'MocaKawai-s0',
@@ -199,7 +199,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 143,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'MocaKawai-s1',
@@ -230,7 +230,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'noname-s2',
@@ -261,7 +261,7 @@ export const DRAWN_EDITOR_SPECS_1: readonly FidelityReferenceSpec[] = [
         changedChars: 120,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
 ];
 

@@ -19,9 +19,9 @@ export const DEFAULT_POOL_SEED = 'round-4';
 
 /**
  Date the pool of this draw is frozen on, written into every drawn specification so that a fresh draw gives the committed
- bytes whatever day it is run.
+ bytes whatever day it is run. The sixth round redrew the pool wider on this day.
  */
-export const POOL_DRAWN_ON = '2026-10-23';
+export const POOL_DRAWN_ON = '2026-10-24';
 
 /**
  Specifications to a drawn part file, so that no part passes the package's file-length cap.
@@ -29,9 +29,10 @@ export const POOL_DRAWN_ON = '2026-10-23';
 export const SPECS_PER_PART = 8;
 
 /**
- Trials the pool holds at least, reviewed ones counted.
+ Trials the draw asks for, reviewed ones counted. The draw stops at the trials wanted or when the eligible entries of the
+ clone run out; the pinned clone offers fewer than this, so the pool holds every eligible entry's trials.
  */
-export const POOL_TRIALS_WANTED = 40;
+export const POOL_TRIALS_WANTED = 150;
 
 /**
  Shortest folded English a section may have to be drawn, in characters.

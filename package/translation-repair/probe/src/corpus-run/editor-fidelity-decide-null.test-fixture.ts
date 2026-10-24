@@ -45,8 +45,9 @@ type PoolClusters = {
 };
 
 /**
- The split of the frozen pool of forty trials over twenty-four entries: sixteen entries with both kinds, six with an
- insertion only and two with an alteration only (insertion 22, alteration 18).
+ The split of the pool of forty trials over twenty-four entries that the fifth round froze: sixteen entries with both
+ kinds, six with an insertion only and two with an alteration only (insertion 22, alteration 18). The sixth round
+ redrew the pool wider, so this is the shape the floor was enumerated for and no longer the committed pool's.
  */
 export const POOL_CLUSTERS: PoolClusters = {
   both: 16,

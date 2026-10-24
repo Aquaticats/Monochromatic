@@ -15,10 +15,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import {
-  EDITOR_FIDELITY_POOL,
-  POOLED_FLOOR_TRIALS,
-} from '../../dist/final/node/index.mjs';
+import { POOLED_FLOOR_TRIALS, } from '../../dist/final/node/index.mjs';
 import {
   armCountChances,
   falseCallRate,
@@ -248,51 +245,6 @@ await describe({
               expect(rate,).toBeLessThanOrEqual((rates[at] ?? 0) + 1e-12,);
             },);
             expect(rates[41],).toBeCloseTo(0, 12,);
-          },
-        },),
-      ],
-    },),
-
-    describe({
-      name: 'the pool',
-      children: [
-        it({
-          name: 'IS THE FROZEN POOL: twenty-four entries, sixteen with both kinds, six with an insertion only and two with '
-            + 'an alteration only, read off the committed specifications and not typed in',
-          fn: async () => {
-            /**
-             The kinds of defect with a deterministic fix that each entry's specifications hold.
-             */
-            const kindsByEntry = new Map<string, Set<string>>();
-            for (const spec of EDITOR_FIDELITY_POOL) {
-              /**
-               This entry's kinds so far.
-               */
-              const kinds = kindsByEntry.get(spec.entryId,) ?? new Set<string>();
-              for (const damage of spec.damages) {
-                if (damage.kind !== 'deletion')
-                  kinds.add(damage.kind,);
-              }
-              kindsByEntry.set(spec.entryId, kinds,);
-            }
-            /**
-             The entries by how many kinds and which.
-             */
-            const split = {
-              both: 0,
-              insertionOnly: 0,
-              alterationOnly: 0,
-            };
-            for (const kinds of kindsByEntry.values()) {
-              if (kinds.size === 2)
-                split.both += 1;
-              else if (kinds.has('insertion',))
-                split.insertionOnly += 1;
-              else
-                split.alterationOnly += 1;
-            }
-            expect(split,).toStrictEqual(POOL_CLUSTERS,);
-            expect(kindsByEntry.size,).toBe(24,);
           },
         },),
       ],

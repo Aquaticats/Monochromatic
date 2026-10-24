@@ -196,7 +196,7 @@ await describe({
          */
         const usage = 'Usage: editor-fidelity-probe [--only <entry ids>] [--cap <count>] '
           + '[--damage <insertion|alteration>] [--candidates <seatable ids>] [--max-usd <dollars>] '
-          + '[--bench-spent-usd <dollars>] [--candidates-alone]';
+          + '[--bench-spent-usd <dollars>] [--trials <count>] [--candidates-alone]';
         /**
          Command lines an operator mistyped, each with the refusal it must draw.
          */

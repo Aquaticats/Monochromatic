@@ -6,7 +6,7 @@ import type { FidelityReferenceSpec, } from './fidelity-reference-model.ts';
 // entries `noname` to `Toka_ls` in the order of the draw.
 
 /**
- Specifications 2 of 5 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
+ Specifications 2 of 10 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
  an entry with the hashes of its source, its archive text, its donor and its damaged twins.
 
  @example
@@ -44,7 +44,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Rentable_A-s1',
@@ -75,7 +75,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'zheermao101-s1',
@@ -106,7 +106,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 227,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'spike0qy-s1',
@@ -142,7 +142,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 2,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'ttttsuuukikoo_-s0',
@@ -173,7 +173,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 63,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Kotori-s2',
@@ -204,7 +204,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 121,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Kotori-s1',
@@ -235,7 +235,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'Toka_ls-s0',
@@ -266,7 +266,7 @@ export const DRAWN_EDITOR_SPECS_2: readonly FidelityReferenceSpec[] = [
         changedChars: 102,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
 ];
 

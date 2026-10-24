@@ -6,7 +6,7 @@ import type { FidelityReferenceSpec, } from './fidelity-reference-model.ts';
 // entries `Toka_ls` to `CutOceanHeyFis1` in the order of the draw.
 
 /**
- Specifications 3 of 5 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
+ Specifications 3 of 10 drawn from the pinned corpus for the editor fidelity pool, each a heading section of
  an entry with the hashes of its source, its archive text, its donor and its damaged twins.
 
  @example
@@ -44,7 +44,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'hakureico-s1',
@@ -75,7 +75,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 52,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'hakureico-s3',
@@ -106,7 +106,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 2,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'interrgned-s0',
@@ -137,7 +137,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 113,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'interrgned-s4',
@@ -168,7 +168,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 2,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'xuewulihuameng-s1',
@@ -204,7 +204,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 9,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'CutOceanHeyFis1-s1',
@@ -235,7 +235,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 112,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
   {
     id: 'CutOceanHeyFis1-s2',
@@ -266,7 +266,7 @@ export const DRAWN_EDITOR_SPECS_3: readonly FidelityReferenceSpec[] = [
         changedChars: 4,
       },
     ],
-    reviewedOn: '2026-10-23',
+    reviewedOn: '2026-10-24',
   },
 ];
 
