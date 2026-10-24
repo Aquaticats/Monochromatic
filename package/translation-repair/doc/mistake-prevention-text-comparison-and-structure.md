@@ -8,7 +8,10 @@ blank text,
 escapes,
 paired marks,
 the parse,
-positions and quotes.
+lists of shapes where the parser decides
+and quotes.
+Pairing and offsets by position are in
+[their own file](mistake-prevention-pairing-and-offsets-by-position.md).
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
@@ -751,80 +754,74 @@ and `corpus-run/dropped-destinations.unit.test.ts` holds the destination scan to
 over `destination-address-texts.test-fixture.ts`,
 which draws whitespace past ASCII after a path and after a trail (ledger B346).
 
-## Pairing by position
+## Lists of shapes where the parser decides
 
 What happened:
-three page-assembly passes paired page headings with the original's or the archive's by position.
-The heading collision restore checked only that the page's total matched,
-so a slice that dropped a heading and another that gained one shifted every heading between them,
-and a section the page never replaced shipped as empty text (ledger B83).
-The heading series pass and the contributor name pass paired inside one slice with no count check at all,
-so a page slice that dropped its first heading gave the next section the wrong number,
-or wrote a signer's name over its title (ledger B84).
-The contributor name pass already checked the count for signatures,
-one line away.
-
-A replacement for a slice the page lacks was taken with the archive read as empty text (ledger B273).
-A row that names a slice is read through the reader that refuses a slice the page does not hold.
+the source encoder had to know which lines the strict grammar starts a module at,
+and a list of the shapes that change the state the tokenizer is in when it reaches a line grew by one shape in each round:
+a list marker alone after a footnote definition,
+a line of invisible characters the package masks,
+a line after a setext underline that follows a restarted block (ledger B832 follow-ups).
+Each round's search found the next shape the list did not hold,
+and each list was right for the shapes it named and silent about the rest.
+The fix read the lines off the strict grammar's own tokenizer with a construct that records and refuses,
+on the text with every other rewrite made (`moduleLineStartsOf`),
+and the same fix read where a table and a footnote definition stand from a parse with GFM on
+(`tableRangesOf`,
+`footnoteDefinitionRangesOf`),
+where the plain parse's ranges had been cut by guesses at the same grammar.
 
 The rule:
-pair two lists by position only where they carry the same count
-at the level the positions are read:
-per slice where positions are read per slice,
-and per slice as well where a page-wide position runs through slices,
-since equal totals can hide a shift.
-Where the counts differ,
-leave the items as they stand and let the guard downstream speak;
-never fall back to empty text or a neighbour's item.
-A pass reads per-slice page text through `pageTextOf` (`assembly-page-text.ts`),
-which refuses a slice its map was not built from.
+a guard or a reader that lists the shapes of a construct the parser decides is a lexical stand-in for the parser,
+and it is replaced by a question put to the parser:
+a tokenizer construct that records where it is entered,
+a node range from a parse with the extensions the page is read under,
+a position the parser reports.
+Where the parser gives no hook,
+the list stays with three things beside it:
+a differential against the parser over a generated family that draws every form of the rule,
+a positive control that removes one shape from the list and shows the differential fail,
+and a comment that names the shapes it leaves.
+A comment writes "every" only where two seeded searches over the finished code prove it,
+and otherwise states the counts and the head each run was at.
 
 What enforces it:
-each pass's tests hold a case whose page drops or gains one item inside a slice
-(`heading-collision-restore`,
-`heading-series-unify`,
-`contributor-name-restore`),
-and `assembly-page-text.unit.test.ts` holds the refusal.
-No scan finds a new positional pairing;
-a search for position-indexed reads over `corpus-run/` found the others,
-each already checking its count.
+habit and review;
+`source-ships-module-line.unit.test.ts` and `document-structure/src/module-line-starts.unit.test.ts` hold the module lines to the tokenizer,
+and `document-structure/src/gfm-block-ranges.unit.test.ts` holds the table and footnote ranges to the parse.
+No scan finds a list of shapes standing in for a parser.
 
-## Offsets and positions
+
+## A defect pinned as a limit
 
 What happened:
-the assembly guard's advancing withdrawal compared where the strict grammar stopped on the page as assembled
-with where it stopped on the page with one replacement withdrawn,
-as raw offsets into two different texts,
-so a whole replacement shorter than its archive text read as moving a break it never touched,
-and outranked the withdrawal that removed it (ledger B85).
-The reader of those offsets placed a refusal at the start of the span the parser named,
-though the parser raises it on leaving that span,
-and placed a refusal naming no span at the start of the body,
-though the parser had read to the body's end;
-a page whose first named break was withdrawn then read as stopping at offset 0,
-and the guard gave up every replacement (ledger B86).
-
-The parser skips a byte order mark that opens its input without counting it,
-so every position of the tree sat one character short of the body as written (ledger B257).
-A parser that drops input without counting it moves every offset it reports,
-and the shift is undone where the offsets are made,
-not in each reader.
+the encoder wrote a footnote whose last line was a tag,
+then a definition line holding a brace,
+as a page that parsed and carried a live `{b}` expression the original did not have.
+Round 7 named it a limit and pinned the text in a case that read the written page back,
+so the case passed whatever the page held,
+and two attempts to change the reading moved 96 and 648 other texts from equal to unequal
+without a check that said what the page must never hold (ledger B832 follow-ups).
 
 The rule:
-an offset means something only in the text it indexes.
-Compare two only after mapping one into the other's frame
-(`assembledOffsetOf` in `assembly-structural-withdrawal.ts` for two pages that differ in one slice),
-and keep "the parser accepted the page" as its own outcome rather than a number that can tie with a refusal.
-A parser's position is where its message says it stopped:
-read the deciding source for which end of a span that is,
-and for what a message with no place means,
-before turning either into an offset.
+a limit of a writer that emits code in another grammar is named only after a property check on the written page
+says it holds no construct the source lacks:
+a function that parses the page with the strict grammar and lists every expression,
+element and module,
+run over every case and over the generated sets and the search of the round.
+A pinned text states what is written,
+and a limit is a statement about what the page may hold,
+so a pin is never the proof of a limit.
+An attempt that changes how the source is read is first run over the generated sets,
+and each text that moves from equal to unequal is read before a third attempt is made.
 
 What enforces it:
-`assembly-structural-withdrawal.unit.test.ts` holds a page whose earlier replacement only changes length
-and a page whose remaining refusal names no place;
-`strict-refusal-offset.unit.test.ts` holds an element left open in a paragraph and one left open at the document's end.
-No scan finds offsets compared across texts.
+`liveConstructsOf` in `page-check/src/corpus-run/source-live-constructs.test-fixture.ts` is called by the reader,
+literal and shown cases of `source-ships-encoding.unit.test.ts` and by the page cases of
+`source-shipped-page.unit.test.ts`;
+the generated sets and the step search run it once per code state in a driver outside the suite.
+Nothing runs the driver on its own.
+
 
 ## Quotes a judge gives back
 

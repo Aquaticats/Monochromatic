@@ -12,6 +12,10 @@ import {
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import type { ArtifactComparisonRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import { restoreTypography, } from '@monochromatic-dev/translation-repair-page-pass/ts';
+import {
+  carryingSource,
+  markRuns,
+} from './source-ships.ts';
 
 //region Would-ship vocabulary
 // WHAT A READER WOULD SEE AT ONE SLICE, and no field holds it. Two deciding
@@ -126,6 +130,35 @@ export type WouldShipReading =
      whose archive wording genuinely is blank.
      */
       readonly incumbentKind: 'present' | 'absent';
+    }
+    | {
+    /**
+     This slice ships the original text of its passage, because the archive holds no
+     text here and no wording was backed (the owner, 2026-10-23, "Source text +
+     note"); `source-ships.ts` says what the page carries.
+     */
+      readonly kind: 'source-ships';
+
+    /**
+     Which silence the slice would otherwise have been left in.
+     */
+      readonly reason: WouldShipSilence;
+
+    /**
+     The archive holds no text here, which is the only place a slice ships its original.
+     */
+      readonly incumbentKind: 'absent';
+
+    /**
+     Original text of the slice, exactly as the artifact records it.
+     */
+      readonly text: string;
+
+    /**
+     Whether the note that the passage has not been translated yet stands before this
+     slice, true for the first slice of a contiguous run and false for the ones after it.
+     */
+      readonly opensRun: boolean;
     };
 
 /**
@@ -146,7 +179,44 @@ export type WouldShipReading =
 export type WouldShipSource = Pick<
   ParsedTwoLaneArtifact,
   'comparison' | 'consolidation' | 'laneSelection'
-  > & ArchiveTextCarrier & PageAssemblyCarrier & ConsistencyCarrier;
+  > & ArchiveTextCarrier & PageAssemblyCarrier & ConsistencyCarrier & SourceTextCarrier;
+
+/**
+ The original of every slice, as either artifact shape records it in the translate lane's
+ delivery rows: a source built from the three reading fields alone carries none, which
+ reads as it always did, a slice nothing fills being silent.
+
+ @example
+ ```ts
+ const carrier: SourceTextCarrier = { lanes: { translate: { delivery: [{ sliceIndex: 0, sourceText: '猫', },], }, }, };
+ ```
+ */
+type SourceTextCarrier = {
+  /**
+   The two lanes, of which only the translate lane's rows are read.
+   */
+  readonly lanes?: {
+    /**
+     The lane that renders every slice afresh from the original.
+     */
+    readonly translate: {
+      /**
+       One row per slice, each carrying the original it was cut from.
+       */
+      readonly delivery: readonly {
+        /**
+         Slice the row is for.
+         */
+        readonly sliceIndex: number;
+
+        /**
+         Original text of the slice.
+         */
+        readonly sourceText: string;
+      }[];
+    };
+  };
+};
 
 /**
  What the page-level guard did, as either artifact shape carries it: the
@@ -592,6 +662,43 @@ export function wouldShipTextFor(
     readonly row: ArtifactComparisonRow;
   },
 ): WouldShipReading {
+  return carryingSource({
+    artifact,
+    sliceIndex: row.sliceIndex,
+    reading: stagesReading({
+      artifact,
+      row,
+    },),
+  },);
+}
+
+/**
+ Reads what the stages left at one slice, before an anchor nobody filled is
+ given the original it stands for.
+
+ @param artifact - parsed artifact, so a wrong key is a type error
+
+ @param row - comparison row to answer for
+
+ @returns Wording the stages left, or the named silence they left
+
+ @throws {@link UnansweredContestSliceError} when the lanes differ at a slice
+ the contest record never answered
+
+ @example
+ ```ts
+ const reading = stagesReading({ artifact, row, },);
+ ```
+ */
+function stagesReading(
+  {
+    artifact,
+    row,
+  }: {
+    readonly artifact: WouldShipSource;
+    readonly row: ArtifactComparisonRow;
+  },
+): WouldShipReading {
   /**
    What the page-level guard did here, read FIRST: it read the page `lanes`,
    `laneSelection` and `consolidation` compose, and its record says what that page carries.
@@ -730,21 +837,23 @@ export function wouldShipTextPerSlice(
    */
   const convention = archiveConventionOf({ artifact, },);
 
-  return artifact
-    .comparison
-    .map(function readIt(row: ArtifactComparisonRow,): WouldShipSlice {
-      return {
-        sliceIndex: row.sliceIndex,
-        reading: inArchiveTypography({
-          reading: wouldShipTextFor({
-            artifact,
+  return markRuns({
+    slices: artifact
+      .comparison
+      .map(function readIt(row: ArtifactComparisonRow,): WouldShipSlice {
+        return {
+          sliceIndex: row.sliceIndex,
+          reading: inArchiveTypography({
+            reading: wouldShipTextFor({
+              artifact,
+              row,
+            },),
             row,
+            convention,
           },),
-          row,
-          convention,
-        },),
-      };
-    },);
+        };
+      },),
+  },);
 }
 
 /**

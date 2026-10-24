@@ -89,7 +89,10 @@ async function heldAfterRefusal(
   /**
    The fake clock the wait for the hold sleeps on.
    */
-  const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance',], },);
+  const clock = sinon.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'performance',],
+    shouldClearNativeTimers: true,
+  },);
   /**
    Abort the call is abandoned by.
    */

@@ -485,6 +485,13 @@ export type TranslateSliceSeating = {
    Roster read since the lane started, absent while the given one stands.
    */
   readonly translateModels?: TranslateModels;
+
+  /**
+   Select judges a wet provider would serve as of the reading, which the lane
+   holds a floor-limited slice's earlier outcome against; absent where the hook
+   counted none.
+   */
+  readonly selectReachable?: number;
 };
 
 /**
@@ -654,6 +661,13 @@ export type UnfilledSlice = {
    each finding belongs to; neither answers the other's question.
    */
   readonly findings: readonly string[];
+
+  /**
+   Present when no candidate was bought for the passage because the select bench read below the floor of ballots a
+   winner needs, absent when a panel was asked and declined. Both read `no-candidate-backed`; this is what tells them
+   apart, and the artifact records it from generation twenty-one.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**

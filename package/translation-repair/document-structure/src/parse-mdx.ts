@@ -19,6 +19,7 @@ import {
   STACK_OVERFLOW_ACCOUNT,
   STACK_OVERFLOW_MESSAGE,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { noteHeadingFloors, } from './heading-floors.ts';
 import { NAMED_POSITION_UNSTATED, } from './refusal-text.ts';
 
 //region MDX parsing
@@ -576,6 +577,7 @@ export function parseMdxBody({ body, }: { readonly body: string; },): Root {
     root,
     body,
   },);
+  noteHeadingFloors({ root, },);
   return root;
 }
 
@@ -777,6 +779,7 @@ export function parseMarkdownBody({ body, }: { readonly body: string; },): Root 
     root,
     body,
   },);
+  noteHeadingFloors({ root, },);
   return root;
 }
 

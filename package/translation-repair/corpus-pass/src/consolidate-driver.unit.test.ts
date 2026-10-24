@@ -2645,6 +2645,88 @@ await describe({
         },),
 
         it({
+          name: 'BUYS NOTHING FOR A SLICE whose hook reports fewer reachable slate judges than the ballots a '
+            + 'winner needs, keeps the standing as the incumbent-only exit does, and writes nothing to the '
+            + 'cache, so an unsettled entry asks the slice again in a later pass (XingZ6020: 54 slices, 164 calls)',
+          fn: async () => {
+            /**
+             Seat of every call the driver made under a bench below the floor.
+             */
+            const asked: RosterModelId[] = [];
+            const { slices, written, } = await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: seatRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 1, }),
+            },);
+            expect({
+              calls: asked.length,
+              terminal: slices[0]?.terminal,
+              written: written.length,
+            },).toEqual({
+              calls: 0,
+              terminal: 'incumbent-only',
+              written: 0,
+            },);
+          },
+        },),
+
+        it({
+          name: 'ASKS A SLICE AS BEFORE once its hook reports the slate floor reachable',
+          fn: async () => {
+            /**
+             Seat of every call the driver made with the floor met.
+             */
+            const asked: RosterModelId[] = [];
+            await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: seatRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 2, }),
+            },);
+            expect(asked.length,).toBeGreaterThan(0,);
+          },
+        },),
+
+        it({
+          name: 'STILL POLISHES AN ENDORSED STANDING when the slate bench is below the floor, since the final '
+            + 'naturalness check refuses a body slice with no settled polish: the writers and the slate judges '
+            + 'are not asked, and the naturalness roles are',
+          fn: async () => {
+            /**
+             Seat of every call the driver made.
+             */
+            const asked: RosterModelId[] = [];
+            await driveWith({
+              contests: [contestSettling({ sliceIndex: 0, lane: 'repair', },),],
+              client: roleAnsweringClient({ asked, },),
+              judgeModelIds: [SEAT_HYPER_ONLY,],
+              polishConfig: polishOn({
+                seats: [
+                  SEAT_OPENROUTER_ONLY,
+                  SEAT_OPENROUTER_DECISIONS,
+                  SEAT_OPENROUTER_ONLY_CHECKER,
+                ],
+              },),
+              beforeSlice: async (): Promise<ConsolidateSliceSeating> => ({ slateReachable: 1, }),
+            },);
+            /**
+             Writers the driver started on, as a plain list of seats.
+             */
+            const writers: readonly RosterModelId[] = ROSTER;
+            expect({
+              askedWriter: asked.some(function isWriter(seat,): boolean {
+                return writers.includes(seat,);
+              },),
+              askedSlateJudge: asked.includes(SEAT_HYPER_ONLY,),
+              askedPolish: asked.includes(SEAT_OPENROUTER_ONLY,),
+            },).toEqual({
+              askedWriter: false,
+              askedSlateJudge: false,
+              askedPolish: true,
+            },);
+          },
+        },),
+
+        it({
           name: 'WRITES A LATER SLICE\'S OWN FAILURE UNDER THE CALLER\'S STOP, its hook refused by an unreachable '
             + 'bench as the stop landed while the first slice ended in the caller\'s reason, and refuses with that '
             + 'reason',

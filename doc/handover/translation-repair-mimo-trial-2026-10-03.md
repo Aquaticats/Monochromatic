@@ -140,6 +140,10 @@ This trial adds to three letters:
 B for a defect in the package (the ledger's "Recurring code families" section),
 M for a mistake made while fixing ("Process mistakes in this audit"),
 and T for a gap in the tests ("Test suite").
+These three sections moved on 2026-10-23 from `audit-ledger.md`
+to the [areas file][ledger-areas] of the ledger,
+`audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md`,
+where each stands under the same heading.
 
 ## Where things stand on 2026-10-03
 
@@ -173,7 +177,9 @@ and T for a gap in the tests ("Test suite").
   The cut of the other bundles was never committed,
   so the next batch starts from a fresh whole-suite census
   (the ledger's T8 entry,
-  its last paragraphs).
+  its last paragraphs;
+  the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+  under "Test suite").
 - B123 is open:
   on a page holding a footnote and a `www.` link literal the parser leaves unpositioned,
   the footnote relabel refuses the whole page.
@@ -527,7 +533,10 @@ then decide which of three it is.
 
 Every stretch ends as one of the three.
 There is no fourth outcome:
-T8 closes only when every library stretch has a case or is removed (ledger T8).
+T8 closes only when every library stretch has a case or is removed
+(ledger T8;
+the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+under "Test suite").
 A stretch that resists placement gets a probe on the built package,
 as `23090a91d` did,
 until it is placed.
@@ -575,6 +584,7 @@ Close the batch in this order:
 4.  Record the batch in one docs commit,
     `docs(module-translation-repair): record T8 <cluster>`:
     a paragraph at the end of the T8 entry of the [audit ledger][ledger]
+    (the T8 entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger)
     naming the cluster,
     the commits,
     the census reading
@@ -722,7 +732,9 @@ these are the ones the code here trips most.
 - [The audit ledger][ledger]:
   every finding;
   T8's entry has the census method,
-  its history and every batch.
+  its history and every batch
+  (the entry moved on 2026-10-23 to the [areas file][ledger-areas] of the ledger,
+  under "Test suite").
 - [`mistake-prevention.md`][prevent]:
   each family of mistakes,
   its rule,
@@ -896,4 +908,5 @@ and its commit.
   which returns the stretch to T8's open count.
 
 [ledger]: ../../package/translation-repair/doc/audit-ledger.md
+[ledger-areas]: ../../package/translation-repair/doc/audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md
 [prevent]: ../../package/translation-repair/doc/mistake-prevention.md

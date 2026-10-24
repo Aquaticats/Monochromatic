@@ -424,6 +424,13 @@ which lists every file of this record.
 - [B821 to B823, the every-provider-dry refusal](audit-ledger-the-every-provider-dry-refusal.md)
 - [B824 to B825, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
 - [B826, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
+- [B827 to B831, page assembly and the corpus-run driver](audit-ledger-page-assembly-and-corpus-run-driver.md)
+- [B832, the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md)
+- [B832 follow-ups, parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md)
+- [B833 to B835, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
+- [B836, NeuralWatt replies cut at the default effort and the energy estimate][b836-neuralwatt-ledger]
+- [B837 to B840, short bench floors and the waits that cross them][b837-floors-ledger]
+- [B841, process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md)
 - [B860, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B861, the producer-list search and the shapes it read](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [B862, the producer-list search and the readings no case held](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
@@ -633,6 +640,7 @@ which lists every file of this record.
 - [M289 to M292, process mistakes, lint, edits and tests](audit-ledger-process-lint-edits-and-tests.md)
 - [M293 to M294, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
+- [T8, code no unit test runs, with the areas of the audit](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md)
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
 - [X1, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
 - [X2 to X3, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
@@ -647,3 +655,6 @@ which lists every file of this record.
 - [X19, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
 - [X20 to X22, found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md)
 - [X23 to X24, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
+
+[b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
+[b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md

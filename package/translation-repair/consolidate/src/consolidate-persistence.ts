@@ -91,6 +91,10 @@ export function consolidationWorthResuming(
   // answer only while an ineligible standing is never endorsed.
   if (settlement.archiveKept === true)
     return false;
+  // A SETTLEMENT BOUGHT ON A BENCH BELOW THE FLOOR IS THE HOUR, not the slice: no judge was asked, and a later
+  // pass on a healthier bench must ask the slice rather than resume a standing nobody judged.
+  if (settlement.benchBelowFloor === true)
+    return false;
   /**
    Post-consolidation polish, absent before final candidate.
    */

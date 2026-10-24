@@ -266,6 +266,30 @@ await describe({
             },);
           },
         },),
+
+        it({
+          name:
+            'READS A SLICE THAT SHIPS ITS ORIGINAL AS SHIPPING NO ENGLISH (the owner, 2026-10-23, "Source text + '
+              + 'note"), so the four recorded kinds stay the four and the audit is not shown a wording that does '
+              + 'not stand there',
+          fn: async () => {
+            expect(pageRelationOf({
+              laneSelection: CONTESTED,
+              reading: {
+                kind: 'source-ships',
+                reason: 'lanes-agreed-on-no-wording',
+                incumbentKind: 'absent',
+                text: '猫\n',
+                opensRun: true,
+              },
+              candidateText: LANE_NAP,
+            },),).toEqual({
+              kind: 'nothing-would-ship',
+              reason: 'lanes-agreed-on-no-wording',
+              incumbentKind: 'absent',
+            },);
+          },
+        },),
       ],
     },),
 

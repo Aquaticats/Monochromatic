@@ -17,6 +17,7 @@ import {
   PEOPLE_DIR,
 } from '@monochromatic-dev/translation-repair-page-check/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { sourceDroppedLinesOf, } from './verify-published-source-dropped.ts';
 
 //region Verify published entry
 // One entry's artifact and page, read and judged by the one definition a pass
@@ -240,10 +241,12 @@ export async function judgePublishedEntry(
     wording: {
       wordings,
       silentSlices,
+      sourceShipped,
       missing,
     },
     weight,
     wrongLength,
+    sourceDropped,
   } = pageAgreement({
     artifact: read.artifact,
     pageText: read.pageText,
@@ -261,7 +264,9 @@ export async function judgePublishedEntry(
   return {
     agreement,
     lines: [
-      `${entryId}: wordings=${String(wordings,)} silent=${String(silentSlices,)} `
+      `${entryId}: wordings=${String(wordings,)} silent=${String(silentSlices,)} source-shipped=${
+        String(sourceShipped,)
+      } `
         + `${weighedAs({ weight, },)} missing=${String(missing.length,)} ${
         consistencyColumnOf({
           groups: read.artifact
@@ -286,6 +291,10 @@ export async function judgePublishedEntry(
             + 'archive plus every slice change comes to. Text no slice decided on was lost or added',
         ]
         : []),
+      ...sourceDroppedLinesOf({
+        entryId,
+        slices: sourceDropped,
+      },),
       ...missing.map(function missingLine(gone,): string {
         return `  MISSING slice ${String(gone.sliceIndex,)}, ${String(gone.characters,)} ${
           wordForCount({

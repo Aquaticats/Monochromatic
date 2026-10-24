@@ -132,6 +132,8 @@ async function sourceTextAt(
  @param runsDir - the runs directory a pass would use now, which
  `TRANSLATION_REPAIR_RUNS_DIR` may set anywhere
 
+ @param home - home directory the runbook's runs root sits under, the process's own where absent
+
  @throws StatedRefusalError where the working directory holds no cache
  version, a value is uncommitted, or a tracked file is missing from the working
  tree
@@ -146,10 +148,12 @@ export async function auditCacheAccounts(
     line,
     packageDirectory,
     runsDir,
+    home,
   }: {
     readonly line: CommandLineOf<'cache-account-audit'>;
     readonly packageDirectory: string;
     readonly runsDir: string;
+    readonly home?: string;
   },
 ): Promise<void> {
   /**
@@ -287,6 +291,7 @@ export async function auditCacheAccounts(
     runsDir,
     searched: line.list('runs-under',),
     settings,
+    ...((home === undefined) ? {} : { home, }),
   },);
 }
 

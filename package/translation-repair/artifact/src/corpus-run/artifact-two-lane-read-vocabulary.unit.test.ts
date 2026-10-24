@@ -87,6 +87,100 @@ await describe({
         },),
         it({
           name:
+            'READS THE FLOOR MARK ON AN UNFILLED OUTCOME where the generation records it, so a slice the select '
+              + 'bench never bought a candidate for reads apart from one the panel declined twice',
+          fn: async () => {
+            expect({
+              marked: parseSliceOutcome({
+                value: {
+                  kind: 'unfilled',
+                  benchBelowFloor: true,
+                },
+                unknownKeys: 'refuse',
+                path: 'outcome',
+                benchFloorRecorded: true,
+              },),
+              declined: parseSliceOutcome({
+                value: { kind: 'unfilled', },
+                unknownKeys: 'refuse',
+                path: 'outcome',
+                benchFloorRecorded: true,
+              },),
+            },).toEqual({
+              marked: {
+                kind: 'unfilled',
+                benchBelowFloor: true,
+              },
+              declined: { kind: 'unfilled', },
+            },);
+          },
+        },),
+        it({
+          name:
+            'REFUSES THE FLOOR MARK where the generation does not record it, on a member that decided or fell back, '
+              + 'and set to false',
+          fn: async () => {
+            /**
+             Refusal text for one outcome read as a generation that records the mark does, or as one that does not.
+
+             @param value - outcome as recorded
+
+             @param benchFloorRecorded - whether the generation records the mark
+
+             @returns Refusal
+             */
+            function refusalOf(
+              {
+                value,
+                benchFloorRecorded,
+              }: {
+                readonly value: unknown;
+                readonly benchFloorRecorded: boolean;
+              },
+            ): string {
+              return String(caught(function readMarked() {
+                parseSliceOutcome({
+                  value,
+                  unknownKeys: 'refuse',
+                  path: 'outcome',
+                  benchFloorRecorded,
+                },);
+              },),);
+            }
+            expect({
+              older: refusalOf({
+                value: {
+                  kind: 'unfilled',
+                  benchBelowFloor: true,
+                },
+                benchFloorRecorded: false,
+              },),
+              decided: refusalOf({
+                value: {
+                  kind: 'decided',
+                  acceptedText: ARCHIVE_NAP,
+                  benchBelowFloor: true,
+                },
+                benchFloorRecorded: true,
+              },),
+              falsy: refusalOf({
+                value: {
+                  kind: 'unfilled',
+                  benchBelowFloor: false,
+                },
+                benchFloorRecorded: true,
+              },),
+            },).toEqual({
+              older: 'ArtifactParseError: artifact parse failed at outcome.benchBelowFloor: '
+                + 'expected no key here beyond kind.',
+              decided: 'ArtifactParseError: artifact parse failed at outcome.benchBelowFloor: '
+                + 'expected no key here beyond kind, acceptedText.',
+              falsy: 'ArtifactParseError: artifact parse failed at outcome.benchBelowFloor: expected true or absent.',
+            },);
+          },
+        },),
+        it({
+          name:
             'REFUSES a discriminator this version cannot project, under BOTH key policies: a member named '
               + 'here that version 2 never described has no reading at all, and taking the row anyway would '
               + 'record a slice under a name this reader invented',

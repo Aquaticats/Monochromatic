@@ -130,7 +130,9 @@ export function pageRelationOf(
   if (laneSelection.kind === 'pending-human-decision')
     return { kind: 'undecided', };
 
-  if (reading.kind === 'nothing-ships')
+  // A SLICE SHIPPING ITS ORIGINAL (the owner, 2026-10-23, "Source text + note") SHIPS NO ENGLISH, which is what this
+  // relation says: no wording the audit was shown stands there, and the four recorded kinds stay the four.
+  if ((reading.kind === 'nothing-ships') || (reading.kind === 'source-ships'))
     return {
       kind: 'nothing-would-ship',
       reason: reading.reason,

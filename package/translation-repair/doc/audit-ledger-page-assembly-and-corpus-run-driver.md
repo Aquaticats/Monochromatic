@@ -145,6 +145,15 @@ Status:
 fixed in `d721449e2`.
 The README now says an unfilled passage ships as a recorded gap and an outage stops the entry `INCOMPLETE`.
 
+Follow-up of 2026-10-23 (UTC):
+the gap itself is gone for a slice with no archive text and no backed wording (ledger B827).
+The owner ruled "Source text + note",
+so the README says such a passage ships its source text under a note,
+and the header of `page-check/src/corpus-run/publish-completeness.ts` records the ruling and the date.
+The outage half of this entry stands:
+an outage still stops the entry `INCOMPLETE`.
+The finding text and the header of `publish-completeness.ts` were qualified afterwards (ledger B832).
+
 ### A9: the `DONE` line undercounts on a resume into a directory holding a decline
 
 Status:
@@ -770,3 +779,190 @@ Recurrence:
 of B703,
 whose cut took the carriage return of a CRLF line.
 A helper that writes line breaks into a text reads the text's line ending first.
+
+## B827: a page shipped without 30 slices of the original and nothing on it said so
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `5585eeddd1`,
+fix `4452f464b4` (with `3827743a7e`,
+a lint split of one line in the tally).
+The shipped tree has not been landed on `main` at the time of writing,
+so these hashes are the worktree's.
+
+The corpus pass XingZ6020 ended `SETTLED` with 88 of 118 slices on the page.
+The translate lane tried slices 88 to 117 again and left all 30 unfilled;
+the archive stopped before them,
+so the page carried nothing there:
+31.54 percent of the original (5,277 code points of 16,733),
+the tenth section,
+the closing dedication and every footnote definition.
+The finding `source-passage-unfilled` was recorded and the log named it,
+and the page said nothing,
+which is the silent gap that A8 and the header of `publish-completeness.ts` had settled on in 2026-09.
+The independent check of the read confirmed the 88,
+the 30,
+and that nothing marks the gap on the page.
+
+The owner ruled on 2026-10-23,
+asked what a shipped page carries for such a slice:
+"Source text + note"
+(the full ruling is in `design-commitments-shipping-and-the-archive.md`).
+The would-ship reading gained a kind named by its role,
+`source-ships`,
+derived from the artifact's own record of the original (`lanes.translate.delivery[].sourceText`),
+so no new persisted field exists.
+The first slice of each contiguous run opens it and the page prints one note before it.
+The page-assembly passes,
+the footnote guard and the carried-insertion check read the page with `includeSource: false`,
+because each reads or edits English;
+the guard test failed with `includeSource: true` on a definitions-only slice and passes without it.
+`pageAgreement`,
+`verify-published` (`source-shipped=`),
+the rendering audit (`source-ships` counts as nothing-would-ship there)
+and the `TALLY` line (`pageSourceShipped=`,
+counted beside `pageSilent` and not inside it)
+all read the new kind.
+Fenced callers that build a `WouldShipSource` literal without `lanes` still read the slice as silent;
+the consistency pass is among them and composes the English alone.
+
+No cache version moved,
+and no artifact generation moved.
+Each of the version constants the source declares for a cached stage,
+and why it stays:
+
+- `SLICE_CACHE_VERSION` (repair, 44) and `REFINE_CACHE_VERSION` (14):
+  the change touches nothing a repair or refine key reads;
+  both stages ran before the page is read.
+- `TRANSLATE_SLICE_CACHE_VERSION` (25):
+  the lane's question and sheet are unchanged,
+  and a slice it leaves unfilled is written to no cache (`slice-cache/src/corpus-run/entry-reattempt.ts`),
+  so the next run asks again with no key involved.
+- `LANE_CONTEST_CACHE_VERSION` (16) and `CONSOLIDATE_CACHE_VERSION` (32):
+  both judge wordings that exist;
+  a slice with no wording reaches neither.
+- `PAIRING_CACHE_VERSION` (3):
+  pairing happens before any of this.
+- `CONSISTENCY_CACHE_VERSION` (7):
+  the consistency pass is handed an artifact without `lanes`
+  and composes the English alone,
+  so its input is the same text as before.
+- `PAGE_TITLE_CACHE_VERSION` (6):
+  its key hashes the titles a page repeats,
+  the identity and the roster,
+  and the change alters none of them.
+- The artifact generation:
+  the artifact JSON gained no field and lost none,
+  and `wouldShipTextPerSlice` derives the new reading on every read,
+  so an older artifact is read correctly by the new build.
+
+The `cache-account-audit` task was not run for this decision.
+It is a built runner,
+and the brief of this round forbids running one;
+the cache decision is read from the constants and from the code that each key reads.
+
+Recurrence:
+a report that a shipped page "records the gap" is checked against what a reader of the page sees.
+A finding in a log and an artifact field are not on the page.
+
+Follow-up of 2026-10-23 (UTC):
+ledger B832 corrects parts of this entry.
+
+## B828: the footnote check on the shipped page was relative to the archive, so an archive that lacked the notes passed
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `ef0a8407f1`,
+fix `7354f10f1a`.
+
+`assertPageFootnotesIntact` refuses only the footnote defects the page introduces over its archive,
+so an archive that already lacked a definition lets the page ship the reference with nowhere to land.
+XingZ6020 shipped five such references
+(in the test's fixture of the shape,
+`[^1]`,
+`[^2]`,
+`[^4]`,
+`[^5]` and `[^6]`),
+the definitions sitting in the original's tail the archive never reached.
+`assertPageFootnotesResolve` reads the page alone and names every reference without a definition,
+every definition without a reference and every identifier defined twice.
+It joins the publish checks as `page-footnotes`,
+so it reports on the `DEFECTS` line and the page ships (ruling of 2026-09-27,
+"Ship with the defect").
+On the fixture of the shape the publish test shows both sides:
+with an artifact that records no original the five references stand unresolved and the check names them,
+and with the original shipped (B827) the five resolve and the check names only the one definition nothing references.
+
+Recurrence:
+a guard written against the archive is a guard on the change and not on the page.
+A page-level property is checked on the page.
+
+## B829: the recheck rolled a winning refinement back without a line in the log
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `ed8e3b3131`,
+fix `ee54c874bf`.
+
+The recheck in `repair/src/refine-recheck.ts` restores the text before the rewrite when the rewrite lost an issue the
+text had resolved,
+and recorded it only as `refine-rolled-back` findings in the artifact.
+It now also writes one warn line naming the slice,
+the rewriting contributors,
+the issue ids and the ballots on each issue (model and verdict).
+
+The page line the check asked about,
+"Then in September 2023 she went through it again and started her transition anew.",
+is not the rolled-back refinement.
+In the XingZ6020 artifact slice 4 has six `refine-rolled-back` findings,
+`chunk.refined` is false and `chunk.changed` is true,
+`comparison.repairText` equals `chunk.repairedText`,
+the consolidation ships that text,
+and the phrase is in it.
+The page therefore carries the editors' text from before the refinement,
+which is what the rollback restores,
+and the archive's first sentence is not on the page.
+The rollback took effect;
+no defect.
+
+## B830: the preparation's alignment findings reached the artifact and not the run log
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `1a494c2086`,
+fix `1fb20af076`.
+
+The red commit's test expected the line to begin with the finding,
+and the tagged logger prefixes `[runDocumentLanes] `;
+the fix commit corrected the test and says so.
+`logAlignmentFindings` (`translate-lane/src/alignment-findings-log.ts`) warns
+`alignment finding recorded: <finding>` for the structure,
+roster and section-pairing findings,
+once the driver has run the lanes over the preparation.
+Block-pairing and stage findings stay out because other code logs them.
+
+Follow-up of 2026-10-23 (UTC):
+ledger B832 corrects the subject of the fix.
+
+## B831: the `TALLY` line did not count the standings kept without contest endorsement
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `0b54b22597`,
+fix `155a69cb4f`.
+
+XingZ6020's log has 58 lines `consolidation standing text lacks contest endorsement and remains retryable`.
+No `TALLY` field counted them:
+`pageChanged` and `pageSilent` read the page,
+and the standings stay on it.
+`standingUnendorsed=` counts the consolidation slices that are not `consolidated`,
+whose shipped kind is not `archive`,
+and whose contest verdict does not pass `contestStandingMayShip`;
+it is read off the artifact.
+On the real artifact it reads 56,
+and the stage logs 58 lines for the run:
+the stage warns about the standing before the slate is judged,
+and a slice the slate then rewrote has been warned about too.
+
+Follow-up of 2026-10-23 (UTC):
+ledger B832 corrects the comment at the call.

@@ -196,6 +196,8 @@ const CONTEST_OF_TWO = contestOf({
 
  @param tenseRecorded - whether the generation under test records tense candidates
 
+ @param benchFloorRecorded - whether the generation under test records a slice kept for want of a bench
+
  @returns What was parsed, or the refusal text
 
  @example
@@ -208,10 +210,12 @@ function readingOf(
     value,
     laneSelection = CONTEST_OF_TWO,
     tenseRecorded = false,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly laneSelection?: ArtifactLaneSelection;
     readonly tenseRecorded?: boolean;
+    readonly benchFloorRecorded?: boolean;
   },
 ): {
   readonly kind: string;
@@ -225,6 +229,7 @@ function readingOf(
         path: AT,
         keys: SLICE_SPELLED_KEYS,
         ...(tenseRecorded ? { tenseRecorded, } : {}),
+        ...(benchFloorRecorded ? { benchFloorRecorded, } : {}),
       },).kind,
       reason: '',
     };
@@ -711,6 +716,102 @@ await describe({
         expect(incumbent.reason,).toBe(
           `${REFUSED_AT}.slices[0].tenseCandidates[0].label: expected a label from ARCHIVE RENDERING, each once and in that order.`,
         );
+      },
+    },),
+
+    it({
+      name: 'READS A SLICE THE SLATE FLOOR KEPT apart from a slate that declined: with the mark recorded the slice '
+        + 'reads back as kept for want of a bench, and the same slice with no mark is a real decline',
+      fn: async () => {
+        /**
+         The settled stage as parsed, with the mark on one slice and none on the other.
+         */
+        const parsed = parseConsolidation({
+          value: {
+            kind: 'settled',
+            slices: [
+              {
+                ...FLOORED_SLICE,
+                sliceIndex: 0,
+                benchBelowFloor: true,
+              },
+              FLOORED_SLICE,
+            ],
+          },
+          laneSelection: CONTEST_OF_TWO,
+          path: AT,
+          keys: SLICE_SPELLED_KEYS,
+          benchFloorRecorded: true,
+        },);
+        if (parsed.kind !== 'settled')
+          throw new Error('the settled stage was read as another kind',);
+        expect(parsed.slices.map(function markOf(slice,) {
+          return slice.benchBelowFloor;
+        },),).toEqual([
+          true,
+          undefined,
+        ],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE FLOOR MARK in a generation that does not record it, naming the keys that generation allows',
+      fn: async () => {
+        const read = readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              {
+                ...FLOORED_SLICE,
+                benchBelowFloor: true,
+              },
+            ],
+          },
+          laneSelection: contestOf({ sliceIndexes: [1,], },),
+        },);
+
+        expect(read.reason,).toBe(
+          `${REFUSED_AT}.slices[0].benchBelowFloor: expected no key here beyond sliceIndex, terminal, shipped, `
+            + 'rewrapped, demoted, verdicts, gate.',
+        );
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE FLOOR MARK ON A SLICE THAT ASKED A SLATE, or set to false, since the mark says no slate was '
+        + 'asked and a slice with verdicts or a gate was',
+      fn: async () => {
+        /**
+         Refusal text for one marked slice, read in a generation that records the mark.
+
+         @param slice - slice as recorded
+
+         @returns Refusal
+         */
+        function refusalOf(slice: Readonly<Record<string, unknown>>,): string {
+          return readingOf({
+            value: {
+              kind: 'settled',
+              slices: [slice,],
+            },
+            laneSelection: contestOf({ sliceIndexes: [Number(slice.sliceIndex,),], },),
+            benchFloorRecorded: true,
+          },).reason;
+        }
+        expect({
+          asked: refusalOf({
+            ...SHIPPED_SLICE,
+            benchBelowFloor: true,
+          },),
+          falsy: refusalOf({
+            ...FLOORED_SLICE,
+            benchBelowFloor: false,
+          },),
+        },).toEqual({
+          asked: `${REFUSED_AT}.slices[0].benchBelowFloor: expected a slice that asked no slate (terminal `
+            + 'incumbent-only, no verdicts, no gate), rather than terminal consolidated.',
+          falsy: `${REFUSED_AT}.slices[0].benchBelowFloor: expected true or absent.`,
+        },);
       },
     },),
 

@@ -72,6 +72,13 @@ export type ArtifactSliceOutcome = {
    Lane reached it, produced nothing, and the archive had nothing either.
    */
   readonly kind: 'unfilled';
+
+  /**
+   Present when the lane never bought a candidate because the bench that decides the slice read below its floor, absent
+   when a panel was asked and declined. Part of artifact generation twenty-one, so a reader of an older record refuses
+   the key.
+   */
+  readonly benchBelowFloor?: true;
 } | {
   /**
    Lane reached it, produced nothing, and the archive's wording therefore

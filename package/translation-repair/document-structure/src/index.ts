@@ -129,6 +129,12 @@ export {
 } from './mask-html-comments.ts';
 export { maskInvisibleLines, } from './mask-invisible-lines.ts';
 export {
+  headingFloorOf,
+  noteHeadingFloor,
+} from './heading-floor-store.ts';
+export { noteHeadingFloors, } from './heading-floors.ts';
+export { moduleLineStartsOf, } from './module-line-starts.ts';
+export {
   MarkdownParseError,
   MdxParseError,
   parseMarkdownBody,
@@ -138,6 +144,7 @@ export {
   withMarkdownExhaustionRefused,
   withMdxExhaustionRefused,
 } from './parse-mdx.ts';
+export { parseMarkdownMathBody, } from './parse-markdown-math.ts';
 export { parseSliceBody, } from './parse-slice-body.ts';
 export {
   type AtomKind,
@@ -150,6 +157,11 @@ export {
   type NamingError,
   refusalText,
 } from './refusal-text.ts';
+export {
+  type BlockRange,
+  footnoteDefinitionRangesOf,
+  tableRangesOf,
+} from './gfm-block-ranges.ts';
 export {
   archiveNotesMissingFrom,
   type TranslatorsNote,

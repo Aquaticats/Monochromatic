@@ -224,7 +224,7 @@ export const ARTIFACT_SCHEMA_VERSION_V16 = 16;
 export const ARTIFACT_SCHEMA_VERSION_V17 = 17;
 
 /**
- Generation twenty, the one the pass writes (`artifact-two-lane-build.ts`, `pass-schema-guard.ts`): a naturalness review round whose
+ Generation twenty, the one the pass wrote until generation twenty-one: a naturalness review round whose
  reachable seats are exactly its bench quorum closes on one voice fewer than those seats (owner, 2026-10-22, "Let the grace open";
  `reachableQuorum` in `stage-reachable-quorum.ts`), which the readers of generation nineteen and earlier do not apply to files written
  before.
@@ -245,6 +245,34 @@ export const ARTIFACT_SCHEMA_VERSION_V17 = 17;
  of the passes do not read the generation; the caches whose gathers the rule moves carry their own version bumps.
  */
 export const ARTIFACT_SCHEMA_VERSION_V20 = 20;
+
+/**
+ Generation twenty-one, the one the pass writes (`artifact-two-lane-build.ts`, `pass-schema-guard.ts`): a slice that
+ kept its incumbent because the bench that decides it read below its floor says so in its record, as the key
+ `benchBelowFloor` set to true, on the lane contest slice, the consolidation slice and an unfilled translate outcome
+ (2026-10-23, after the XingZ6020 read).
+
+ WHAT MOVED FROM TWENTY, in what a reader can tell and in one optional key. A lane contest slice of `quorum-not-met`
+ with no ballots, a consolidation slice of `incumbent-only` with no gate, and a translate outcome of `unfilled` each
+ read the same whether a roster was asked and declined or the floor kept the slice from being asked at all. Under
+ twenty-one the second case carries the key and the first never does, so a reader of the record alone tells them
+ apart. A record of twenty or earlier carries no key and is read as before, where an absent key says nothing about why
+ the slice kept its incumbent.
+
+ WHY A GENERATION AND NOT AN OPTIONAL KEY OF TWENTY: the readers of the three records require their exact keys
+ (`requireExactKeys`), so a reader built for twenty refuses a record that carries the key, which is the situation
+ `tenseCandidates` was in when generation fifteen added it. And an absent key means "unknown" under twenty and "a real
+ decline" under twenty-one, which a reader cannot work out from the fields alone. A reader gates the key on the
+ generation the file records (`artifactGenerationRecordsBenchFloor`).
+
+ A BUILD OF THIS GENERATION REFUSES TO RESUME A RUN DIRECTORY STAMPED TWENTY OR EARLIER
+ (`assertResumableSchemaGeneration`, `pass-schema-guard.ts`), and `readSettledArtifact` still reads those files, each
+ under its own generation's rules.
+
+ Everything else the generation twenty record holds is this generation's too, so the key vocabulary is twenty's. The
+ cache keys of the passes do not read the generation, and nothing the key records goes into one.
+ */
+export const ARTIFACT_SCHEMA_VERSION_V21 = 21;
 
 /**
  Generation nineteen, the one the pass wrote until generation twenty: the recount of the
@@ -429,6 +457,7 @@ export const TWO_LANE_GENERATIONS: readonly number[] = [
   ARTIFACT_SCHEMA_VERSION_V18,
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
 ];
 
 /**
@@ -458,7 +487,8 @@ export type TwoLaneArtifactGeneration =
     | typeof ARTIFACT_SCHEMA_VERSION_V17
     | typeof ARTIFACT_SCHEMA_VERSION_V18
     | typeof ARTIFACT_SCHEMA_VERSION_V19
-    | typeof ARTIFACT_SCHEMA_VERSION_V20;
+    | typeof ARTIFACT_SCHEMA_VERSION_V20
+    | typeof ARTIFACT_SCHEMA_VERSION_V21;
 
 /**
  Narrows numeric artifact version to known two-lane generation.
@@ -836,6 +866,23 @@ export function artifactGenerationCarriesPartialUnits(
 }
 
 /**
+ Reports whether generation records, on the slice it kept for want of a bench, that the bench read below its floor:
+ the lane contest slice, the consolidation slice and an unfilled translate outcome carry `benchBelowFloor` from this
+ generation, and an older record refuses the key.
+
+ @param generation - known two-lane artifact generation
+
+ @returns Whether the key belongs to the generation's records
+
+ @example ```ts artifactGenerationRecordsBenchFloor({ generation: 21, }); ```
+ */
+export function artifactGenerationRecordsBenchFloor(
+  { generation, }: { readonly generation: TwoLaneArtifactGeneration; },
+): boolean {
+  return generation >= ARTIFACT_SCHEMA_VERSION_V21;
+}
+
+/**
  Generation-specific fields exact reader requires.
 
  @param generation - known two-lane artifact generation
@@ -858,6 +905,7 @@ export function artifactGenerationReadingRequirements(
   readonly quorumBasisRequired: boolean;
   readonly lastSeatGrace: boolean;
   readonly tenseRecorded: boolean;
+  readonly benchFloorRecorded: boolean;
 } {
   return {
     polishRequired: artifactGenerationRequiresPolish({ generation, }),
@@ -867,6 +915,7 @@ export function artifactGenerationReadingRequirements(
     quorumBasisRequired: generation >= ARTIFACT_SCHEMA_VERSION_V14,
     lastSeatGrace: artifactGenerationLetsGraceOpenOnLastSeat({ generation, }),
     tenseRecorded: artifactGenerationRecordsTense({ generation, }),
+    benchFloorRecorded: artifactGenerationRecordsBenchFloor({ generation, }),
   };
 }
 
@@ -1149,7 +1198,7 @@ export type SettledArtifact = {
    Which generation this is, stated rather than inferred from which fields
    happen to be present.
    */
-  readonly artifactSchemaVersion: typeof ARTIFACT_SCHEMA_VERSION_V20;
+  readonly artifactSchemaVersion: typeof ARTIFACT_SCHEMA_VERSION_V21;
 
   /**
    Corpus entry this covers.

@@ -201,6 +201,44 @@ await describe({
             ],);
           },
         },),
+        it({
+          name:
+            'RECORDS A SLICE THE FLOOR KEPT FROM THE ROSTER with the mark, and a roster that heard nobody without '
+              + 'it, so a reader of the record alone tells a round never opened from one that failed',
+          fn: async () => {
+            /**
+             Records of the same empty outcome, one marked by the stage and one not.
+             */
+            const records = {
+              skipped: describeContestSlice({
+                sliceIndex: 0,
+                outcome: {
+                  ...catOutcome({
+                    ballots: [],
+                    choice: 'neither',
+                  },),
+                  benchBelowFloor: true,
+                },
+              },),
+              unheard: describeContestSlice({
+                sliceIndex: 0,
+                outcome: catOutcome({
+                  ballots: [],
+                  choice: 'neither',
+                },),
+              },),
+            };
+            expect({
+              skippedVerdict: records.skipped.verdict,
+              skipped: records.skipped.benchBelowFloor,
+              unheardHasKey: 'benchBelowFloor' in records.unheard,
+            },).toEqual({
+              skippedVerdict: { kind: 'quorum-not-met', },
+              skipped: true,
+              unheardHasKey: false,
+            },);
+          },
+        },),
       ],
     },),
 

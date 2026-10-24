@@ -22,6 +22,7 @@ import {
 
 import {
   assertPageParses,
+  readPageGrammar,
   UnparseablePageError,
 } from '../../dist/final/node/index.mjs';
 
@@ -51,66 +52,127 @@ const CURLED_PAGE = PARSING_PAGE.replace(
 );
 
 await describe({
-  name: assertPageParses.name,
+  name: 'page grammar',
   children: [
-    it({
-      name: 'REFUSES a page whose JSX string literal carries curly quotes, naming the entry and '
-        + 'the refusal site and quoting nothing (2026-09-06)',
-      fn: async () => {
-        /**
-         What the floor threw on the curled page.
-         */
-        const refusal = caught(function publishCurled(): void {
-          assertPageParses({
-            entryId: 'Cat',
-            pageText: CURLED_PAGE,
-          },);
-        },);
+    describe({
+      name: assertPageParses.name,
+      children: [
+        it({
+          name: 'REFUSES a page whose JSX string literal carries curly quotes, naming the entry and '
+            + 'the refusal site and quoting nothing (2026-09-06)',
+          fn: async () => {
+            /**
+             What the floor threw on the curled page.
+             */
+            const refusal = caught(function publishCurled(): void {
+              assertPageParses({
+                entryId: 'Cat',
+                pageText: CURLED_PAGE,
+              },);
+            },);
 
-        expect(refusal,).toBeInstanceOf(UnparseablePageError,);
-        expect((refusal as Error).message,).toContain('Cat',);
-        expect((refusal as Error).message,).not.toContain('PhotoScroll',);
-        expect((refusal as Error).message,).not.toContain('photo3',);
-        expect((refusal as Error).message,).not.toContain('It sleeps',);
-      },
+            expect(refusal,).toBeInstanceOf(UnparseablePageError,);
+            expect((refusal as Error).message,).toContain('Cat',);
+            expect((refusal as Error).message,).not.toContain('PhotoScroll',);
+            expect((refusal as Error).message,).not.toContain('photo3',);
+            expect((refusal as Error).message,).not.toContain('It sleeps',);
+          },
+        },),
+
+        it({
+          name: 'PASSES the same page with the literal in straight quotes, which is the control',
+          fn: async () => {
+            expect(function publishParsing(): void {
+              assertPageParses({
+                entryId: 'Cat',
+                pageText: PARSING_PAGE,
+              },);
+            },).not.toThrow();
+          },
+        },),
+
+        it({
+          name: 'PASSES a page whose curly quotes sit in prose and inside an HTML comment, since the '
+            + 'grammar reads neither as code',
+          fn: async () => {
+            expect(function publishProse(): void {
+              assertPageParses({
+                entryId: 'Cat',
+                pageText: `## Cat\n\n<!-- ${OPEN}a note${CLOSE} -->\n\nShe said ${OPEN}hello${CLOSE}.\n`,
+              },);
+            },).not.toThrow();
+          },
+        },),
+
+        it({
+          name: 'REFUSES an unclosed component tag too, since the floor is the grammar and not one '
+            + 'quote rule',
+          fn: async () => {
+            expect(function publishUnclosed(): void {
+              assertPageParses({
+                entryId: 'Cat',
+                pageText: '## Cat\n\n<PhotoScroll photos={[]}\n\nIt sleeps.\n',
+              },);
+            },).toThrow(UnparseablePageError,);
+          },
+        },),
+      ],
     },),
 
-    it({
-      name: 'PASSES the same page with the literal in straight quotes, which is the control',
-      fn: async () => {
-        expect(function publishParsing(): void {
-          assertPageParses({
-            entryId: 'Cat',
-            pageText: PARSING_PAGE,
-          },);
-        },).not.toThrow();
-      },
-    },),
+    describe({
+      name: readPageGrammar.name,
+      children: [
+        it({
+          name: 'READS A PAGE THAT PARSES as parsing, and names no refusal',
+          fn: async () => {
+            expect(readPageGrammar({ pageText: PARSING_PAGE, },),).toEqual({ kind: 'parses', },);
+          },
+        },),
 
-    it({
-      name: 'PASSES a page whose curly quotes sit in prose and inside an HTML comment, since the '
-        + 'grammar reads neither as code',
-      fn: async () => {
-        expect(function publishProse(): void {
-          assertPageParses({
-            entryId: 'Cat',
-            pageText: `## Cat\n\n<!-- ${OPEN}a note${CLOSE} -->\n\nShe said ${OPEN}hello${CLOSE}.\n`,
-          },);
-        },).not.toThrow();
-      },
-    },),
+        it({
+          name: 'READS A PAGE THE STRICT GRAMMAR FELL BACK ON as refused, with the refusal site and no page text',
+          fn: async () => {
+            /**
+             What the grammar said of the curled page.
+             */
+            const reading = readPageGrammar({ pageText: CURLED_PAGE, },);
+            expect(reading.kind,).toBe('refused',);
+            expect(JSON.stringify(reading,),).not.toContain('photo3',);
+          },
+        },),
 
-    it({
-      name: 'REFUSES an unclosed component tag too, since the floor is the grammar and not one '
-        + 'quote rule',
-      fn: async () => {
-        expect(function publishUnclosed(): void {
-          assertPageParses({
-            entryId: 'Cat',
-            pageText: '## Cat\n\n<PhotoScroll photos={[]}\n\nIt sleeps.\n',
-          },);
-        },).toThrow(UnparseablePageError,);
-      },
+        it({
+          name: 'READS A TEXT NESTED PAST THE BOUND OF THE MARKDOWN FALLBACK as refused too, which parseDocument '
+            + 'raises as an error of its own and not as a downgrade',
+          fn: async () => {
+            /**
+             What the grammar said of three hundred open brackets.
+             */
+            const reading = readPageGrammar({ pageText: `${'['.repeat(300,)}\n`, },);
+            expect(reading.kind,).toBe('refused',);
+          },
+        },),
+
+        it({
+          name: 'READS A FRONT MATTER FENCE WHOSE YAML DOES NOT PARSE as refused, the other error parseDocument raises',
+          fn: async () => {
+            /**
+             What the grammar said of a fence holding an unclosed flow sequence.
+             */
+            const reading = readPageGrammar({ pageText: '---\na: [\n---\n\n她说\n', },);
+            expect(reading.kind,).toBe('refused',);
+          },
+        },),
+
+        it({
+          name: 'LETS A FAULT IN THE CODE PROPAGATE, so only the three refusals answer "refused"',
+          fn: async () => {
+            expect(function readNonText(): void {
+              readPageGrammar({ pageText: 42 as unknown as string, },);
+            },).toThrow();
+          },
+        },),
+      ],
     },),
   ],
 },);

@@ -7,13 +7,13 @@
  7-day window, `Wh_per_request` mean on the charged basis) from
  `https://portal.neuralwatt.com/api/energy-pricing/matrix`, EXCEPT THE 4,096 TO
  16,384 AND 16,384 TO 65,536 TOKEN BUCKETS, which are the pipeline's own means
- over the settled calls of the three-run rotation `zheermao22`,
- `CuspariaKLSY22` and `XingZ6017` (2026-10-21 and 2026-10-22, all in one
- NeuralWatt day): 4,096 to 16,384 tokens, 558 DeepSeek V4.1 Flash calls for
- 109.253 Wh (0.1958) and 298 GLM-5.3-Flash calls for 285.402 Wh (0.9577);
- 16,384 to 65,536 tokens, 385 DeepSeek calls for 123.392 Wh (0.3205) and 30 GLM
- calls for 36.716 Wh (1.2239). They are pinned here so a change to the table in
- the source is a change to this file too.
+ over the settled calls of the corpus pass `XingZ6020` (build `1d46232457`,
+ 2026-10-22 and 2026-10-23, all in one NeuralWatt day, GLM-5.3-Flash text
+ calls at the `low` effort of ledger B807): 4,096 to 16,384 tokens, 817
+ DeepSeek V4.1 Flash calls for 248.687 Wh (0.3044) and 358 GLM-5.3-Flash calls
+ for 25.577 Wh (0.0714); 16,384 to 65,536 tokens, 539 DeepSeek calls for
+ 174.478 Wh (0.3237) and 43 GLM calls for 2.392 Wh (0.0556). They are pinned
+ here so a change to the table in the source is a change to this file too.
 
  @module
  */
@@ -40,8 +40,8 @@ const DEEPSEEK_MEANS = [
   0.0011364,
   0.0073264,
   0.0233012,
-  0.1958,
-  0.3205,
+  0.3044,
+  0.3237,
   0.2784429,
   0.6078422,
 ] as const;
@@ -54,8 +54,8 @@ const GLM_MEANS = [
   0.0030471,
   0.0088908,
   0.0389276,
-  0.9577,
-  1.2239,
+  0.0714,
+  0.0556,
   0.3999211,
   0.9089305,
 ] as const;

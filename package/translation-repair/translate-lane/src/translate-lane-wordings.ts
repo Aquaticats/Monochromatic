@@ -32,6 +32,9 @@ import { heardNobody, } from './translate-unheard.ts';
 
  @param unfilledChunkIndices - passages lane reached and could not fill
 
+ @param belowFloorChunkIndices - those among them the select bench never bought a candidate for, which a name in this
+ list marks only where the passage is also unfilled
+
  @param carriedChunkIndices - source-only passages rendered elsewhere
 
  @returns One wording per prepared slice, in document order
@@ -50,11 +53,13 @@ export function translateLaneWordings(
     slices,
     settled,
     unfilledChunkIndices,
+    belowFloorChunkIndices = [],
     carriedChunkIndices = [],
   }: {
     readonly slices: readonly ChunkPair[];
     readonly settled: readonly TranslateSliceRecord[];
     readonly unfilledChunkIndices: readonly number[];
+    readonly belowFloorChunkIndices?: readonly number[];
     readonly carriedChunkIndices?: readonly number[];
   },
 ): readonly LaneSliceText[] {
@@ -72,6 +77,7 @@ export function translateLaneWordings(
     // a partial document, so a gap it has not named is a defect.
     undecided: 'refuse',
     unfilledChunkIndices,
+    belowFloorChunkIndices,
     notApplicableChunkIndices: carriedChunkIndices,
     unheardChunkIndices: settled
       .filter(function answeredByNobody(record,): boolean {

@@ -520,6 +520,8 @@ export async function consolidateDocument(
                 ...((standingRefusal === undefined) ? {} : { standingRefusal, }),
                 standingFindings,
                 laneTexts,
+                // The hook's slate reach is the floor check: fewer judges than ballots buys no slate.
+                ...((seating.slateReachable === undefined) ? {} : { slateReachable: seating.slateReachable, }),
                 // The run-off over this eligible standing and its forfeit past an
                 // undecided gate both read a strict majority of the contest ballots
                 // (owner answers 2026-10-11, "Majority flawed yes" and "Majority,

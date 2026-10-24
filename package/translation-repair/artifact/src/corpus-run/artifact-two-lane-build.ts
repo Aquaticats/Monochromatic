@@ -13,7 +13,7 @@ import type { ArtifactConsistency, } from './artifact-two-lane-consistency.ts';
 import type { ArtifactPageAssembly, } from './artifact-two-lane-page-assembly.ts';
 import { projectLanes, } from './artifact-two-lane-derive.ts';
 import {
-  ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
   type ArtifactJsonValue,
   type ArtifactSectionAlignment,
   type ArtifactSectionCorrespondence,
@@ -266,7 +266,7 @@ export function buildSettledTwoLaneArtifact(
       },),
   },);
   return {
-    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION_V20,
+    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION_V21,
     id: entryId,
     tip,
     pipelineDigest,

@@ -116,6 +116,7 @@ export {
   ARTIFACT_SCHEMA_VERSION_V18,
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
   ARTIFACT_SCHEMA_VERSION_V2,
   ARTIFACT_SCHEMA_VERSION_V5,
   ARTIFACT_SCHEMA_VERSION_V6,
@@ -209,6 +210,7 @@ export {
   type ParsedConsolidation,
 } from './corpus-run/artifact-two-lane-read-consolidate.ts';
 export { parseLaneSelection, } from './corpus-run/artifact-two-lane-read-contest.ts';
+export { parseContestFloorMark, } from './corpus-run/artifact-two-lane-read-contest-floor.ts';
 export {
   type ArtifactEvidenceRow,
   type ArtifactRepairEvidence,
