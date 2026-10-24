@@ -4316,8 +4316,25 @@ Gates on the merged tree: `lint` 0, `test:native` 306 passed and 5 skipped, `tes
 Known costs: after a skip the worker's window stays at the last view it was told
 (an external edit after a skip sent 2 requests, not measured without the rule),
 and with several servers one stored answer counts as covering the lines for all of them.
+REGRESSION found by verifying the installed binary (2026-10-24, agent run on `83f6240e4b`):
+after a minimap press whose hint request is skipped, the code column is blank while the gutter numbers stay
+(installed binary: blank after the second to fifth press of y=1000, 1700, 1000, 560, 1700 in 3 of the 5 shots;
+349 of 707 frames of a recording blank; mean grey 0.5000 blank against 0.5088 to 0.5114 drawn;
+`cr/base` and `monochromatic-ide.previous` draw all five; one wheel notch restores the text; cause not determined,
+the skip rule is the suspect).
+The doubling fix, the first-click landing (first line 223 for both clicks, minimap crops 0 px apart),
+the request counts (1 request plus 1 skip, then 0) and the wheel case (request sent 382 to 400 ms after the stop,
+stored 402 to 421 ms) all measured as intended on the installed binary; the gap above line 96 was 82 px in all
+1,483 frames with line 96 visible (4 runs), the old binary showed 130 px in 16 and 178 px in 5 of 374.
+The nested compositor recorded only 17 to 22 fps under a load average of 21 to 23.
+An agent diagnoses and fixes the blank code column with a failing test first (or proposes the skip rule's removal
+with evidence); until it lands, the installed binary is a release of `76f7818e8f` (re-aim, no skip rule)
+so that the owner's flow is not blank. Next action: verify its report, land it, reinstall from the fixed tree.
+Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
+screenshots of the real binary after each press, so every change of when the view or hints are handled needs
+a drawn-text check on the installed binary before it is called done.
 Scratch left until the owner confirms the fixes on the installed binary
-(`~/temp/agent/cr` joins the list below):
+(`~/temp/agent/cr` and `~/temp/agent/verify` join the list below):
 `~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
 disposable project `/tmp/ide-mm-proj-8MEEkc`.
 
