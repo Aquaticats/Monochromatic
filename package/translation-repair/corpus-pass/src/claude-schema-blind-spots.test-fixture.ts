@@ -45,6 +45,7 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 type BlindShape =
   | 'builder-in-typescript-value-construct'
     | 'builder-outside-a-read-position'
+    | 'builder-result-outside-a-destination'
     | 'builder-result-returned-outside-a-wrapper'
     | 'computed-load-path'
     | 'format-in-undeclared-function'

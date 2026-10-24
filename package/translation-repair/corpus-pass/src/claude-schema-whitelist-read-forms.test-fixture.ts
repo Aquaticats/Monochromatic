@@ -167,19 +167,12 @@ const READ_POSITIONS: readonly ReadPosition[] = [
     lines: [`export const IN_PLACE = (await import('${CONTEST_SPECIFIER}')).contestResponseFormat(${ARGUMENTS},);`,],
   },
   {
-    name: 'read-handed-result',
-    lines: [
-      CONTEST_IMPORT,
-      `export const SENT = send({ responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
-    ],
-  },
-  {
     name: 'read-held-result',
     lines: [
       CONTEST_IMPORT,
       'export function holds() {',
       `  const format = contestResponseFormat(${ARGUMENTS},);`,
-      '  return send(format,);',
+      "  return format ? 'held' : 'empty';",
       '}',
       'export function returnsOther() {',
       "  const format = 'unrelated';",
@@ -268,7 +261,7 @@ export const WHITELIST_READ_CASES: readonly ShapeCase[] = [
       + 'called, constructed, tagged, called with a question mark, applied, bound, called by its call method, aliased, '
       + 'cast, named in a type only (listed by nothing, reported by nothing), read through a '
       + 'namespace by a member, a literal key or a pattern, through a load held, taken apart, required or read in '
-      + 'place, its result handed to a call, held, tested or dropped by a sequence, a wrapper, and a builder exported '
+      + 'place, its result held and tested, tested or dropped by a sequence, a wrapper, and a builder exported '
       + 'again, by a star or as the default, listed through the file that calls it',
     files: [
       ...READ_POSITIONS.map(function fileOfPosition({
@@ -307,7 +300,6 @@ export const WHITELIST_READ_CASES: readonly ShapeCase[] = [
       'imaginary/src/read-casted-alias-stage.ts',
       'imaginary/src/read-constructed-stage.ts',
       'imaginary/src/read-default-exported-caller.ts',
-      'imaginary/src/read-handed-result-stage.ts',
       'imaginary/src/read-held-result-stage.ts',
       'imaginary/src/read-load-held-stage.ts',
       'imaginary/src/read-load-in-place-stage.ts',

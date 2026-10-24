@@ -56,6 +56,9 @@ import {
   LOAD_IN_PLACE_CASES,
 } from './claude-schema-followed-forms.test-fixture.ts';
 import { CYCLE_CASES, } from './claude-schema-cycle-forms.test-fixture.ts';
+import { DESTINATION_CALL_CASES, } from './claude-schema-destination-forms.test-fixture.ts';
+import { DESTINATION_SENDER_CASES, } from './claude-schema-destination-sender-forms.test-fixture.ts';
+import { DESTINATION_STORE_CASES, } from './claude-schema-destination-store-forms.test-fixture.ts';
 import { CALL_FORM_CASES, type FormCase, textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import { WHITELIST_BEARING_CASES, } from './claude-schema-whitelist-bearing-forms.test-fixture.ts';
 import { WHITELIST_CALL_CASES, } from './claude-schema-whitelist-call-forms.test-fixture.ts';
@@ -652,6 +655,9 @@ await describe({
       ...CALL_METHOD_CASES,
       ...BINDING_KIND_CASES,
       ...BUILDER_MEMBER_CASES,
+      ...DESTINATION_CALL_CASES,
+      ...DESTINATION_SENDER_CASES,
+      ...DESTINATION_STORE_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
@@ -689,6 +695,9 @@ await describe({
       ...UNREAD_BUILDER_CASES,
       ...UNREAD_SHAPE_CASES,
       ...FOLLOWED_LOAD_CASES,
+      ...DESTINATION_CALL_CASES,
+      ...DESTINATION_SENDER_CASES,
+      ...DESTINATION_STORE_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
