@@ -188,7 +188,7 @@ function stepOf(
   if (holder.type === 'ArrowFunctionExpression') {
     return {
       ...nothing,
-      leaves: (holder.body === top) ? holder : NO_NODE,
+      leaves: holder,
     };
   }
   if (holder.type === 'Property') {
@@ -266,7 +266,7 @@ function stepOf(
   if (holder.type === 'AssignmentPattern') {
     return {
       ...nothing,
-      names: (holder.right === top) ? namesBoundBy({ node: holder.left, },) : [],
+      names: namesBoundBy({ node: holder.left, },),
     };
   }
   return DROPPING_KINDS.has(holder.type,)

@@ -15,7 +15,6 @@ import {
   keyNameOf,
   NO_NODE,
   nodeAt,
-  nodesAt,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Where a stage hands the schema it makes to the bench
@@ -77,13 +76,14 @@ export const SENDERS: readonly Sender[] = [
 const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
 
 /**
- The call that takes an object literal as one of its arguments.
+ The call that holds an object literal. The object is one of its arguments: a call whose callee is the object names no
+ function, and a callee that is no name is no call of a sender.
 
  @param context - what the file's names are read against
 
  @param object - object literal
 
- @returns Call, `NO_NODE` when the object is the argument of none
+ @returns Call, `NO_NODE` when no call holds the object
 
  @example
  ```ts
@@ -111,15 +111,7 @@ function callTaking(
    */
   const holder = context.parents
     .get(top,);
-  if (holder?.type !== 'CallExpression')
-    return NO_NODE;
-  return nodesAt({
-    node: holder,
-    field: 'arguments',
-  },)
-    .includes(top,)
-    ? holder
-    : NO_NODE;
+  return (holder?.type === 'CallExpression') ? holder : NO_NODE;
 }
 
 /**
