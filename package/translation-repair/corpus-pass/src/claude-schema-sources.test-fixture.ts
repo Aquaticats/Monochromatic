@@ -81,11 +81,11 @@ import {
 // sources hold none. A load whose path is a name, a joined path or a template with a substitution is such a shape
 // (`computed-load-path`). So is a load that is held un-awaited, chained with `.then` or handed to a call
 // (`load-in-unfollowed-form`). So is a builder stored as the value of an object, written in full or short
-// (`builder-stored-in-object`), and a builder handed to a call that a constant holds, as in `memoize(build)`
-// (`builder-handed-to-a-call-held-by-a-constant`). So is a result returned through a local
-// (`result-returned-through-a-local`), and a builder called in a namespace, an enum initializer or a parameter
-// property (`builder-in-namespace-enum-or-parameter-property`). So is a function that holds a format and that no
-// declared function holds, as a static method, a getter or an anonymous default export does
+// (`builder-stored-in-object`); a property of a pattern that takes a value apart stores nothing. So is a builder handed
+// to a call that a constant holds, as in `memoize(build)` (`builder-handed-to-a-call-held-by-a-constant`). So is a
+// result returned through a local (`result-returned-through-a-local`), and a builder called in a namespace, an enum
+// initializer or a parameter property (`builder-in-namespace-enum-or-parameter-property`). So is a function that holds
+// a format and that no declared function holds, as a static method, a getter or an anonymous default export does
 // (`format-in-undeclared-function`).
 
 /**
