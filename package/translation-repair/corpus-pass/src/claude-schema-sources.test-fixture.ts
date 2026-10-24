@@ -115,9 +115,8 @@ import {
 // the value leaves it, and the function is reported (`builder-result-returned-outside-a-wrapper`). The second is the
 // property of the object argument of a sender, a function named by module and by parameter in
 // `claude-schema-blind-senders.test-fixture.ts`. The third is a constant, a pattern, a default or a name assigned,
-// whose every reference ends in one of the three in turn. A constant at the top level is the place a schema is
-// declared, and the file that holds it is listed, so what reads it is not followed. Any other place that takes the
-// value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
+// whose every reference ends in one of the three in turn, also at the top level of a file. Any other place that takes
+// the value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
 // call that is no sender, an argument of `new`, a store into a member, a field or `this`, a pattern an assignment
 // takes the value apart into, a thrown value, a loop that iterates it. A place that reads the value and gives back
 // nothing the schema could travel in ends the walk without a report: the test of a conditional or a loop, a computed

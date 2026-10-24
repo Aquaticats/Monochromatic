@@ -51,7 +51,8 @@ export type Sender = {
 };
 
 /**
- The senders of the family: the three consistency asks of `corpus-pass` hand their schema to the bench here.
+ The senders of the family: the three consistency asks of `corpus-pass` hand their schema to the bench through the
+ first, and the stages that share the contest builder through the second.
  */
 export const SENDERS: readonly Sender[] = [
   {
@@ -60,6 +61,13 @@ export const SENDERS: readonly Sender[] = [
     parameter: 'responseFormat',
     reason: 'it is the schema every seat of the bench is asked with; the function passes it to `gatherStageVoices` '
       + 'and keeps nothing else of it',
+  },
+  {
+    file: 'stage/src/stage-windowed-rounds.ts',
+    name: 'runWindowedRounds',
+    parameter: 'responseFormat',
+    reason: 'it is the schema every reply of the windowed rounds must fit; the function keeps it in the request each '
+      + 'round asks with',
   },
 ];
 

@@ -23,8 +23,8 @@ import {
 // What the check behind the schema search (`claude-schema-blind-spots.test-fixture.ts`) asks of a builder's call: where
 // its value goes. The value is followed through the objects, arrays, spreads, conditionals and logical operands it is
 // put into, through the members read off it and the methods called on it, and through the constants and the parameters
-// with a default that a function binds it to; a constant at the top level is the place a schema is declared, and what
-// reads it is not followed. The walk ends in one of these places, and every other place is reported:
+// with a default that a function or the file binds it to. The walk ends in one of these places, and every other place
+// is reported:
 //
 // - a `return`, an arrow function's body or a `yield`, in a function the search knows as a wrapper (in any other
 //   function the value leaves it, and the function is reported);
@@ -422,26 +422,28 @@ export function destinationsOf(
       strays.add(stray,);
     pending.push(...onward,);
     /**
-     Where the names are read: the function that binds them, absent at the top level, where a constant is the place a
-     schema is declared; the whole file for a name that an assignment stores the value in.
+     The function that binds the names, `NO_NODE` at the top level.
      */
-    const scope = isFileWide
+    const binding = enclosingFunctionOf({
+      node,
+      parents: context.parents,
+    },);
+    /**
+     Where the names are read: the function that binds them, the whole file at the top level and for a name that an
+     assignment stores the value in.
+     */
+    const scope = (isFileWide || isNoNode({ node: binding, },))
       ? context.facts
         .program
-      : enclosingFunctionOf({
-        node,
-        parents: context.parents,
-      },);
-    if (!isNoNode({ node: scope, },)) {
-      for (const name of names) {
-        if (!followed.has(`${String(scope.start,)}:${name}`,)) {
-          followed.add(`${String(scope.start,)}:${name}`,);
-          pending.push(...readsOfName({
-            context,
-            name,
-            scope,
-          },),);
-        }
+      : binding;
+    for (const name of names) {
+      if (!followed.has(`${String(scope.start,)}:${name}`,)) {
+        followed.add(`${String(scope.start,)}:${name}`,);
+        pending.push(...readsOfName({
+          context,
+          name,
+          scope,
+        },),);
       }
     }
   }
