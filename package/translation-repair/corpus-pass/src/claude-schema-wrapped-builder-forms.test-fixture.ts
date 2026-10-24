@@ -4,9 +4,9 @@ import {
   textOf,
 } from './claude-schema-call-forms.test-fixture.ts';
 
-//region Wrappers by opening, and wrappers of method and default builders
+//region Wrappers by shape, and wrappers of method and default builders
 // What `claude-schemas.unit.test.ts` feeds the builder search to show two things the other fixtures leave open: that a
-// wrapper is found whichever of the openings in the list of `claude-schema-code.test-fixture.ts` precedes its call (an
+// wrapper is found in the shapes of its returned call that `claude-schema-wrapper-forms.test-fixture.ts` leaves out (an
 // arrow function whose body is the call with no `await` and no parenthesis, a call that names type arguments), and that
 // a wrapper of a builder written as a method of an object or as a default export is followed through the name its file
 // gives the builder. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside the
@@ -155,4 +155,4 @@ export const WRAPPED_BUILDER_CASES: readonly FormCase[] = [
   },
 ];
 
-//endregion Wrappers by opening, and wrappers of method and default builders
+//endregion Wrappers by shape, and wrappers of method and default builders

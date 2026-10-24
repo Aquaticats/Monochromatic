@@ -49,6 +49,61 @@ export function textOf(lines: readonly string[],): string {
 }
 
 /**
+ Lines indented further.
+
+ @param lines - lines of an imaginary file
+
+ @param spaces - how many spaces to put before each line
+
+ @returns The lines, each with the spaces before it
+
+ @example
+ ```ts
+ const deeper = indentedBy({ lines: ['a',], spaces: 2, },);
+ // => ['  a']
+ ```
+ */
+export function indentedBy(
+  {
+    lines,
+    spaces,
+  }: {
+    readonly lines: readonly string[];
+    readonly spaces: number;
+  },
+): readonly string[] {
+  return lines.map(function indented(line,): string {
+    return `${' '.repeat(spaces,)}${line}`;
+  },);
+}
+
+/**
+ A line that calls the contest builder by the name a file knows it by, and keeps the result in a constant.
+
+ @param name - name by which the file calls the builder, `object.member` for a member of an object
+
+ @returns One declaration of a constant, named after the callee
+
+ @example
+ ```ts
+ const line = callOf('formatOf');
+ // => 'export const FORMATOF_RESPONSE_FORMAT = formatOf({ schemaName: \'called\', verdicts: [], asksArchive: false, },);'
+ ```
+ */
+export function callOf(name: string,): string {
+  /**
+   The callee as a constant's name.
+   */
+  const constant = name.replaceAll(
+    '.',
+    '_',
+  )
+    .toUpperCase();
+  return `export const ${constant}_RESPONSE_FORMAT = ${name}({ schemaName: 'called', verdicts: [], `
+    + 'asksArchive: false, },);';
+}
+
+/**
  The import of the contest builder, as a file under `imaginary/src` writes it, and the line that ends it.
  */
 const CONTEST_MODULE = '} from \'../../lane-contest/src/contest-ballot-wire.ts\';';

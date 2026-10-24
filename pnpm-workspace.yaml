@@ -479,9 +479,12 @@ packageExtensions:
   # adapter's own location in workspace tests. Declaring the packages it
   # imports as dependencies here makes pnpm link them under the adapter
   # instance so the imports resolve; the dsh runtime provides the same
-  # packages itself. The other peers its manifest declares
-  # (@deepseek-ai/dsh-authorization, @deepseek-ai/dsh-fs) sit behind entry
-  # points nothing in this workspace loads.
+  # packages itself. The shipped `lib/index.js` and `lib/types` reference
+  # neither @deepseek-ai/dsh-authorization nor @deepseek-ai/dsh-fs, so both
+  # peers are marked optional instead of provided here: pnpm peers check
+  # flags @deepseek-ai/dsh-authorization otherwise, and @deepseek-ai/dsh-fs
+  # stays quiet only while @deepseek-ai/dsh-attachment keeps it reachable.
+  # The dsh runtime provides both where the adapter runs for real.
   '@deepseek-ai/dsh-llm-pi-ai':
     dependencies:
       '@deepseek-ai/dsh-attachment': '0.2.1-rc.2'
@@ -489,6 +492,25 @@ packageExtensions:
       '@deepseek-ai/dsh-launch-environment': '0.2.1-rc.2'
       '@deepseek-ai/dsh-llm': '0.2.1-rc.2'
       '@deepseek-ai/dsh-timeout': '0.2.1-rc.2'
+    peerDependenciesMeta:
+      '@deepseek-ai/dsh-authorization':
+        optional: true
+      '@deepseek-ai/dsh-fs':
+        optional: true
+  # @deepseek-ai/dsh-config-editor 0.2.1-rc.2 reaches this workspace only as
+  # the @deepseek-ai/dsh-settings dependency, whose shipped code never
+  # imports it, so nothing here loads its entry. That entry imports
+  # @deepseek-ai/cordis-plugin-include and @deepseek-ai/dsh-app-boot at load,
+  # and the dsh runtime provides both, so the peers are marked optional here
+  # instead of installing packages for an entry nobody loads. A change that
+  # starts loading the entry must provide the packages instead (installing
+  # @deepseek-ai/dsh-app-boot pulls its own harness peers in as well).
+  '@deepseek-ai/dsh-config-editor':
+    peerDependenciesMeta:
+      '@deepseek-ai/cordis-plugin-include':
+        optional: true
+      '@deepseek-ai/dsh-app-boot':
+        optional: true
 packageImportMethod: clone-or-copy
 packages:
   - 'package/*/*'

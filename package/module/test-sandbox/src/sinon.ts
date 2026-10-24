@@ -1,3 +1,4 @@
+/// <reference path="./sinon-named-exports.d.ts" />
 import {
   createSandbox,
   type SinonSandbox,

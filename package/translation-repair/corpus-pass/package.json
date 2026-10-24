@@ -57,6 +57,7 @@
     "@monochromatic-dev/module-async-time": "workspace:*",
     "@monochromatic-dev/module-caught-value": "workspace:*",
     "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/translation-repair-source-scan": "workspace:*",
     "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
     "@types/node": "catalog:",
     "rolldown": "catalog:",

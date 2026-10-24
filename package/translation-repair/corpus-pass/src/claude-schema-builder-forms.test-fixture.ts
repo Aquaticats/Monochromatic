@@ -1,5 +1,6 @@
 import {
   type FormCase,
+  indentedBy,
   textOf,
 } from './claude-schema-call-forms.test-fixture.ts';
 
@@ -29,6 +30,66 @@ export function formatLinesOf({ name, }: { readonly name: string; },): readonly 
     '    schema: { type: \'object\', properties: { mood: { enum: moods, }, }, },',
     '  },',
   ];
+}
+
+/**
+ The lines of an imaginary builder's format, indented for the body of a property of an object that holds an arrow
+ function (two spaces further than `formatLinesOf`).
+
+ @param name - name of the schema the format carries
+
+ @returns Lines of an object literal
+
+ @example
+ ```ts
+ const lines = propertyFormatLinesOf({ name: 'cat_mood', },);
+ ```
+ */
+export function propertyFormatLinesOf({ name, }: { readonly name: string; },): readonly string[] {
+  return indentedBy({
+    lines: formatLinesOf({ name, },),
+    spaces: 2,
+  },);
+}
+
+/**
+ The lines of an imaginary builder's format, indented for the `return` of a method of an object (four spaces further
+ than `formatLinesOf`).
+
+ @param name - name of the schema the format carries
+
+ @returns Lines of an object literal
+
+ @example
+ ```ts
+ const lines = methodFormatLinesOf({ name: 'cat_mood', },);
+ ```
+ */
+export function methodFormatLinesOf({ name, }: { readonly name: string; },): readonly string[] {
+  return indentedBy({
+    lines: formatLinesOf({ name, },),
+    spaces: 4,
+  },);
+}
+
+/**
+ The lines of an imaginary builder's format, indented for the `return` of a method of an object inside an object (six
+ spaces further than `formatLinesOf`).
+
+ @param name - name of the schema the format carries
+
+ @returns Lines of an object literal
+
+ @example
+ ```ts
+ const lines = nestedMethodFormatLinesOf({ name: 'cat_mood', },);
+ ```
+ */
+export function nestedMethodFormatLinesOf({ name, }: { readonly name: string; },): readonly string[] {
+  return indentedBy({
+    lines: formatLinesOf({ name, },),
+    spaces: 6,
+  },);
 }
 
 /**
