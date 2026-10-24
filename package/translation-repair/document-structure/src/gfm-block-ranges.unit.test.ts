@@ -54,8 +54,8 @@ await describe({
         },),
 
         it({
-          name: 'READS NO TABLE IN A ROW WITHOUT A DELIMITER ROW, in a text without a pipe and in a text nested past the '
-            + 'bound',
+          name: 'READS NO TABLE IN A ROW WITHOUT A DELIMITER ROW, in a text without a pipe and in a text nested past '
+            + 'the bound',
           fn: async () => {
             expect(tableRangesOf({ body: '| a | b |\n| c | d |\n', },),).toEqual([],);
             expect(tableRangesOf({ body: '猫\n', },),).toEqual([],);
@@ -69,7 +69,8 @@ await describe({
       name: footnoteDefinitionRangesOf.name,
       children: [
         it({
-          name: 'ENDS A FOOTNOTE AT THE LINE AFTER AN UNCLOSED FENCE INDENTED UNDER IT, where the plain reading goes on',
+          name: 'ENDS A FOOTNOTE AT THE LINE AFTER AN UNCLOSED FENCE INDENTED UNDER IT, where the plain reading goes '
+            + 'on',
           fn: async () => {
             expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n    ~~~\n<>\n', },),).toEqual([
               {

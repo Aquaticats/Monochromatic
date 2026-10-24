@@ -36,9 +36,9 @@ await describe({
       name: nestedSpans.name,
       children: [
         it({
-          name: 'READS THE BLOCKS INDENTED UNDER A FOOTNOTE AS A TEXT OF THEIR OWN and says where each stretch stands in '
-            + 'the whole text: the paragraph is text, the link holds its text, the fence is code and no stretch of it is '
-            + 'text',
+          name: 'READS THE BLOCKS INDENTED UNDER A FOOTNOTE AS A TEXT OF THEIR OWN and says where each stretch stands '
+            + 'in the whole text: the paragraph is text, the link holds its text, the fence is code and no stretch '
+            + 'of it is text',
           fn: async () => {
             expect(nestedSpans({
               source: SOURCE,
@@ -76,8 +76,8 @@ await describe({
         },),
 
         it({
-          name: 'READS NO MODULE LINE IN A NESTED BLOCK, and gives a stretch that crosses the indentation cut away as one '
-            + 'stretch for each unbroken run of the whole text',
+          name: 'READS NO MODULE LINE IN A NESTED BLOCK, and gives a stretch that crosses the indentation cut away as '
+            + 'one stretch for each unbroken run of the whole text',
           fn: async () => {
             /**
              A footnote whose indented paragraph holds a module word at the start of its second line.
@@ -119,8 +119,8 @@ await describe({
       name: footnoteBodySpans.name,
       children: [
         it({
-          name: 'READS A FOOTNOTE THAT STARTS ON ITS OWN LINE AS A TEXT, a fence mark among its indented lines opening a '
-            + 'fence of the footnote whose braces are code',
+          name: 'READS A FOOTNOTE THAT STARTS ON ITS OWN LINE AS A TEXT, a fence mark among its indented lines opening '
+            + 'a fence of the footnote whose braces are code',
           fn: async () => {
             /**
              A footnote whose first line holds a brace and whose indented lines hold a fence with a brace in it.
@@ -156,8 +156,8 @@ await describe({
         },),
 
         it({
-          name: 'READS THE LINES AFTER THE END OF THE FOOTNOTE AS A TEXT OF THEIR OWN: the fence the footnote opens does '
-            + 'not reach them, so their braces are text',
+          name: 'READS THE LINES AFTER THE END OF THE FOOTNOTE AS A TEXT OF THEIR OWN: the fence the footnote opens '
+            + 'does not reach them, so their braces are text',
           fn: async () => {
             /**
              A footnote whose fence never closes, then a line that is not indented.

@@ -227,13 +227,8 @@ function joinedSpans(
 
  @example
  ```ts
- const spans = footnoteBodySpans({
-   source,
-   readable,
-   readSpans: spansOf,
-   footnotes: [{ start: 0, end: 12, },],
-   range: { start: 6, end: 12, },
- },);
+ const spans = footnoteBodySpans({ source, readable, readSpans: spansOf, footnotes: [{ start: 0, end: 12, },],
+   range: { start: 6, end: 12, }, },);
  ```
  */
 export function footnoteBodySpans(
@@ -330,7 +325,8 @@ export function footnoteBodySpans(
 
  @example
  ```ts
- const spans = footnoteInParagraphSpans({ source, readable, readSpans: spansOf, footnotes, range, split: 4, end: 12, },);
+ const spans = footnoteInParagraphSpans({ source, readable, readSpans: spansOf, footnotes, range,
+   split: 4, end: 12, },);
  ```
  */
 export function footnoteInParagraphSpans(

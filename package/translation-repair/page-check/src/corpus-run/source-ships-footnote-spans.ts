@@ -38,8 +38,8 @@ type NotInAFootnote = {
 };
 
 /**
- The answer for a block that is part of a footnote definition: what the reading found in it and the state of the top once
- it is read.
+ The answer for a block that is part of a footnote definition: what the reading found in it and the state of the top
+ once it is read.
  */
 type InAFootnote = {
   readonly kind: 'read';
@@ -87,18 +87,8 @@ const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
  @example
  ```ts
- const read = footnoteRead({
-   source,
-   readable,
-   readSpans: spansOf,
-   footnotes,
-   pending,
-   node,
-   range,
-   isRootChild: true,
-   continuesFootnote: false,
-   state,
- },);
+ const read = footnoteRead({ source, readable, readSpans: spansOf, footnotes, pending, node, range, isRootChild: true,
+   continuesFootnote: false, state, },);
  ```
  */
 export function footnoteRead(

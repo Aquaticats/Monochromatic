@@ -216,8 +216,8 @@ export type FootnoteReach = {
 const MAX_DEFINITION_INDENT = 3;
 
 /**
- Whether a footnote definition starts at a block: at its first character, or after spaces that a definition may start
- after.
+ Whether a footnote definition starts at a block: at its first character, or after the few spaces that a
+ definition may start after.
 
  @param source - text
 

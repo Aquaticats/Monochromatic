@@ -58,9 +58,10 @@ export {
 // (`document-structure/src/gfm-block-ranges.ts`), and the lines the plain parse goes on to read after that are a text
 // of their own. A paragraph in which a footnote starts on a later line is cut there, a heading made of a footnote's
 // lines opens it, and a lazy line of equals signs or hyphens in it is paragraph text (`source-ships-footnote-spans.ts`,
-// `source-ships-lazy.ts`). A label of a reference definition and of the references to it are written alike, so the reference still
-// resolves. An angle autolink inside the text of a link cannot become a link of its own, which a link cannot hold: its
-// address is written as text there, without the brackets, and the reader sees the address as the source shows it.
+// `source-ships-lazy.ts`). A label of a reference definition and of the references to it are written alike, so the
+// reference still resolves. An angle autolink inside the text of a link cannot become a link of its own, which a link
+// cannot hold: its address is written as text there, without the brackets, and the reader sees the address as the
+// source shows it.
 
 /**
  Node types whose children are blocks, among which a raw HTML node is a block of its own.
