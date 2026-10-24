@@ -245,14 +245,15 @@ function startsAtBlock(
 ): boolean {
   if ((start < range.start) || (start > (range.start + MAX_DEFINITION_INDENT)))
     return false;
-  /**
-   What stands between the block's first character and the footnote's.
-   */
-  const between = source.slice(
-    range.start,
-    start,
-  );
-  return between.trim() === '';
+  for (let at = range.start; at < start; at += 1) {
+    /**
+     A character between the block's first character and the footnote's.
+     */
+    const mark = source.charAt(at,);
+    if ((mark !== ' ') && (mark !== '\t'))
+      return false;
+  }
+  return true;
 }
 
 /**

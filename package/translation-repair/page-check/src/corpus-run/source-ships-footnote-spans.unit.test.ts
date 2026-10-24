@@ -21,6 +21,7 @@ import {
   footnoteRead,
   rangeOf,
   spansOf,
+  topLevelPending,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -57,17 +58,10 @@ function readFirst({ source, continuesFootnote, }: { readonly source: string; re
   /**
    The nodes still to read, the next one on top.
    */
-  const pending = rest
-    .map(function pendingNode(node,) {
-      return {
-        node,
-        isRootChild: true,
-        insideLink: false,
-        parentType: 'root',
-        parent: root,
-      };
-    },)
-    .toReversed();
+  const pending = topLevelPending({ root, },).slice(
+    0,
+    rest.length,
+  );
   return {
     read: footnoteRead({
       source,

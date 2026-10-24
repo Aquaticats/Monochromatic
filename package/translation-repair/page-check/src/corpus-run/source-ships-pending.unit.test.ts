@@ -299,17 +299,10 @@ await describe({
             /**
              The nodes still to read, the next one on top.
              */
-            const pending = rest
-              .map(function pendingNode(node,) {
-                return {
-                  node,
-                  isRootChild: true,
-                  insideLink: false,
-                  parentType: 'root',
-                  parent: root,
-                };
-              },)
-              .toReversed();
+            const pending = topLevelPending({ root, },).slice(
+              0,
+              rest.length,
+            );
             /**
              The block that stands apart from the footnote.
              */
