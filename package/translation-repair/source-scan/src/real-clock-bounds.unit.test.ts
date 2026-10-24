@@ -889,7 +889,7 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: FAKE_NAP,
   },
   'test-fixture/fake-clock-walk.unit.test.ts#<module>: sleepFor of node:timers/promises NAP_MS': {
-    count: 3,
+    count: 4,
     bound: 'other',
     reason: FAKE_NAP,
   },
