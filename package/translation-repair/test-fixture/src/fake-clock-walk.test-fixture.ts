@@ -263,9 +263,13 @@ export async function walkOnFakeClock(
     },);
 
   /**
-   Ends the real hang-stop waits still pending when the walk returns.
+   Signal that ends the real hang-stop waits.
    */
   const hangStops = new AbortController();
+
+  /**
+   Aborts the hang-stop waits still pending when the walk returns, however it returns.
+   */
   using _stopped = {
     [Symbol.dispose](): void {
       hangStops.abort();
@@ -273,9 +277,7 @@ export async function walkOnFakeClock(
   };
 
   /**
-   Real wait, ended with the walk, after which a wait for the walk gives up.
-
-   @returns Settles once the hang stop has passed, or rejects with an `AbortError` as the walk returns
+   Real wait after which a wait for the walk gives up; the walk's return ends it early with an `AbortError`.
    */
   async function hangStop(): Promise<void> {
     await realWait(
