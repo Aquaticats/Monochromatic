@@ -136,6 +136,86 @@ export const DESTINATION_SENDER_CASES: readonly ShapeCase[] = [
       },),
     ],
   },
+  {
+    name: 'REPORTS A CALL OF ANOTHER FUNCTION OF THE SENDER\'S MODULE, A COMPUTED KEY OF THE SENDER AND A SENDER\'S NAME '
+      + 'THAT IS AN OBJECT: only a function of the module, by its name, with the parameter as a plain key, is a sender',
+    files: [
+      {
+        file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
+        text: textOf([
+          'export async function gatherThroughCache({ responseFormat, }: { readonly responseFormat: unknown; },) {',
+          '  return responseFormat;',
+          '}',
+          '',
+          'export async function gatherElsewhere({ responseFormat, }: { readonly responseFormat: unknown; },) {',
+          '  return responseFormat;',
+          '}',
+        ],),
+      },
+      {
+        file: 'stage/src/stage-windowed-rounds.ts',
+        text: textOf([
+          'export const runWindowedRounds = { go() { return 1; }, };',
+        ],),
+      },
+      {
+        file: 'imaginary/src/other-function-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          'import { gatherElsewhere, } from \'../../corpus-pass/src/corpus-run/pass-consistency-gather.ts\';',
+          '',
+          'export async function ask() {',
+          `  return await gatherElsewhere({ responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
+          '}',
+        ],),
+      },
+      {
+        file: 'imaginary/src/computed-key-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          '',
+          'export async function ask() {',
+          `  return await gatherThroughCache({ ['responseFormat']: contestResponseFormat(${ARGUMENTS},), },);`,
+          '}',
+        ],),
+      },
+      {
+        file: 'imaginary/src/object-sender-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          'import { runWindowedRounds, } from \'../../stage/src/stage-windowed-rounds.ts\';',
+          '',
+          'export async function ask() {',
+          `  return await runWindowedRounds({ responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
+          '}',
+        ],),
+      },
+    ],
+    found: [
+      'imaginary/src/computed-key-stage.ts',
+      'imaginary/src/object-sender-stage.ts',
+      'imaginary/src/other-function-stage.ts',
+    ],
+    builders: [],
+    spots: [
+      spotAt({
+        file: 'imaginary/src/other-function-stage.ts',
+        line: 5,
+        position: CALL_ARGUMENT,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-key-stage.ts',
+        line: 5,
+        position: CALL_ARGUMENT,
+      },),
+      spotAt({
+        file: 'imaginary/src/object-sender-stage.ts',
+        line: 5,
+        position: CALL_ARGUMENT,
+      },),
+    ],
+  },
 ];
 
 //endregion The one sender the family names

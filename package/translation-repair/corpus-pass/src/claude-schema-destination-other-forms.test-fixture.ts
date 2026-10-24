@@ -128,6 +128,52 @@ export const DESTINATION_OTHER_CASES: readonly ShapeCase[] = [
     builders: [],
     spots: [],
   },
+  {
+    name: 'REPORTS NOTHING FOR A BUILDER\'S RESULT THAT IS THE TEST OF A DO LOOP, A SWITCH OR A CONDITIONAL, COUNTED, '
+      + 'NOT THE LAST OF A SEQUENCE OR A COMPUTED KEY: the place reads the value and gives back nothing the schema '
+      + 'could travel in',
+    files: [
+      {
+        file: 'imaginary/src/read-more-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          '',
+          'export function looped() {',
+          '  do {',
+          '    break;',
+          `  } while (contestResponseFormat(${ARGUMENTS},));`,
+          '}',
+          '',
+          'export function switched() {',
+          `  switch (contestResponseFormat(${ARGUMENTS},)) {`,
+          `    case contestResponseFormat(${ARGUMENTS},):`,
+          '      return 1;',
+          '  }',
+          '  return 0;',
+          '}',
+          '',
+          'export function counted() {',
+          `  contestResponseFormat(${ARGUMENTS},).count++;`,
+          '}',
+          '',
+          'export function chosen() {',
+          `  return contestResponseFormat(${ARGUMENTS},) ? 1 : 2;`,
+          '}',
+          '',
+          'export function sequenced() {',
+          `  return (contestResponseFormat(${ARGUMENTS},), 1);`,
+          '}',
+          '',
+          'export function keyed() {',
+          `  return { [contestResponseFormat(${ARGUMENTS},)]: 1, };`,
+          '}',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/read-more-stage.ts',],
+    builders: [],
+    spots: [],
+  },
 ];
 
 //endregion Places that take a builder's result and are not a call or a store

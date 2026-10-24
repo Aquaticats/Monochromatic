@@ -93,6 +93,7 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
           'export const loaded = alias(\'./x.ts\',);',
           'export const called = require.call(undefined, \'./x.ts\',);',
           'export const sequenced = (0, require)(\'./x.ts\',);',
+          'export const handed = register(require,);',
         ],),
       },
       {
@@ -155,6 +156,11 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
         position: REACHES_REQUIRE,
       },),
       spotAt({
+        file: 'imaginary/src/alias-require-stage.ts',
+        line: 5,
+        position: REACHES_REQUIRE,
+      },),
+      spotAt({
         file: 'imaginary/src/text-code-stage.ts',
         line: 1,
         position: RUNS_TEXT,
@@ -177,6 +183,47 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
       spotAt({
         file: 'imaginary/src/text-code-stage.ts',
         line: 5,
+        position: BUILDS_FUNCTION,
+      },),
+    ],
+  },
+  {
+    name: 'REPORTS A MEMBER COMPUTED FROM A STRING THAT IS createRequire, require, eval OR Function, and nothing for a '
+      + 'member computed from another string or from a name',
+    files: [
+      {
+        file: 'imaginary/src/computed-code-stage.ts',
+        text: textOf([
+          'export const loader = nodeModule[\'createRequire\'](import.meta.url,);',
+          'export const loaded = module[\'require\'](\'./x.ts\',);',
+          'export const evaluated = globalThis[\'eval\'](\'1\',);',
+          'export const made = globalThis[\'Function\'](\'return 1\',);',
+          'export const other = globalThis[\'evaluate\'](\'1\',);',
+          'export const named = globalThis[key](\'1\',);',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+    spots: [
+      spotAt({
+        file: 'imaginary/src/computed-code-stage.ts',
+        line: 1,
+        position: MAKES_LOADER,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-code-stage.ts',
+        line: 2,
+        position: REACHES_REQUIRE,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-code-stage.ts',
+        line: 3,
+        position: RUNS_TEXT,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-code-stage.ts',
+        line: 4,
         position: BUILDS_FUNCTION,
       },),
     ],

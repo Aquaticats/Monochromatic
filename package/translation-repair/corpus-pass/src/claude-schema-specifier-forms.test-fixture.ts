@@ -111,6 +111,39 @@ export const SPECIFIER_CASES: readonly ShapeCase[] = [
       },),
     ],
   },
+  {
+    name: 'REPORTS THE SPECIFIER OF AN IMPORT-EQUALS DECLARATION, OF A SCOPED PACKAGE THE LOCKFILE DOES NOT HOLD AND OF '
+      + 'A PACKAGE ONLY A TOOL OF THE REPOSITORY HOLDS',
+    files: [
+      {
+        file: 'imaginary/src/equals-stage.ts',
+        text: textOf([
+          'import equalled = require(\'#equalled\');',
+          'import { more, } from \'@monochromatic-dev/does-not-exist/ts\';',
+          'import { lint, } from \'oxlint\';',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+    spots: [
+      unresolvedAt({
+        file: 'imaginary/src/equals-stage.ts',
+        line: 1,
+        specifier: '#equalled',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/equals-stage.ts',
+        line: 2,
+        specifier: '@monochromatic-dev/does-not-exist/ts',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/equals-stage.ts',
+        line: 3,
+        specifier: 'oxlint',
+      },),
+    ],
+  },
 ];
 
 //endregion Specifiers that name nothing the check can resolve
