@@ -2,6 +2,7 @@ import { realpath, } from 'node:fs/promises';
 import {
   basename,
   dirname,
+  isAbsolute,
   join,
   relative,
   sep,
@@ -34,14 +35,17 @@ import {
  THE `..` OF A PATH IS LEFT TO THE FILESYSTEM. Folding it away by name first reads `base/lnk/../d` as `base/d`,
  where the kernel, and so the walk's own listing, reads the parent of `lnk`'s target plus `d`.
 
- A RELATIVE PATH NEEDS NO JOINING ONTO THE WORKING DIRECTORY FIRST: `realpath` resolves it against that directory
- itself, and a missing relative path walks up to `.`, which names the working directory and exists.
+ A RELATIVE PATH IS JOINED ONTO THE WORKING DIRECTORY AS WRITTEN FIRST. `realpath` would resolve it against that
+ directory itself and give the same answers and codes, but the text of its failure would name the relative path, and
+ the audit logs that text: a reader of the line could not tell which directory a relative root was read against. The
+ join is plain concatenation, which leaves `..` to the filesystem like the rest of the path.
 
  @param path - directory to resolve, which need not exist
 
  @returns Absolute path with every link on the way to the existing part resolved
 
- @throws What `realpath` raises for any failure but an absent path, such as a loop of links or a denied permission
+ @throws What `realpath` raises for any failure but an absent path, such as a loop of links or a denied permission,
+ and what `process.cwd` raises where the working directory was removed
 
  @example
  ```ts
@@ -49,23 +53,28 @@ import {
  ```
  */
 async function realPathOf({ path, }: { readonly path: string; },): Promise<string> {
+  /**
+   The path as the lookup is asked for it, whole from the filesystem root.
+   */
+  const asked = isAbsolute(path,)
+    ? path
+    : `${process.cwd()}${sep}${path}`;
   try {
-    return await realpath(path,);
+    return await realpath(asked,);
   }
   catch (error) {
     rethrowUnlessMissingPath({ error, },);
     /**
      The parent directory, which has the same answer to give for the part that exists.
      */
-    const parent = dirname(path,);
-    // THE STOP OF THE WALK, NOT A CASE: the parent of the filesystem root is the root itself, and so is the parent of
-    // `.`; a root or a working directory that does not exist is no machine this runs on, so this return only keeps the
-    // recursion finite.
-    if (parent === path)
-      return path;
+    const parent = dirname(asked,);
+    // THE STOP OF THE WALK, NOT A CASE: the parent of the filesystem root is the root itself; a working directory that
+    // does not exist is no machine this runs on, so this return only keeps the recursion finite.
+    if (parent === asked)
+      return asked;
     return join(
       await realPathOf({ path: parent, },),
-      basename(path,),
+      basename(asked,),
     );
   }
 }
