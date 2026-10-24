@@ -13,7 +13,7 @@ import { PROBE_ENTRY, } from './built-entry.test-fixture.ts';
 /**
  What a run of the built read step left behind.
  */
-export type BuiltRun = {
+type BuiltRun = {
   /**
    Exit status, zero when every check held.
    */
