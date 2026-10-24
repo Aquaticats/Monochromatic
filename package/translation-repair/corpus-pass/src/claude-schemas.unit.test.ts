@@ -47,6 +47,7 @@ import {
 } from '@monochromatic-dev/translation-repair-provider';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
+import { blindSpotsOf, } from './claude-schema-blind-spots.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
 import {
   BINDING_IN_FUNCTION_CASES,
@@ -62,6 +63,7 @@ import { UNREAD_BUILDER_CASES, } from './claude-schema-limit-forms.test-fixture.
 import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.ts';
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
+import { type ShapeCase, UNREAD_SHAPE_CASES, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
 import {
   buildersOf,
@@ -626,6 +628,7 @@ await describe({
       ...BINDING_CASES,
       ...NAME_RULE_CASES,
       ...UNREAD_BUILDER_CASES,
+      ...UNREAD_SHAPE_CASES,
       ...REFERENCE_POSITION_CASES,
       ...NOT_A_REFERENCE_CASES,
       ...OVER_READ_CASES,
@@ -658,6 +661,33 @@ await describe({
           },).toEqual({ found: formCase.found, builders: formCase.builders, },);
         },
       },);
+    },),
+
+    ...[...UNREAD_BUILDER_CASES, ...UNREAD_SHAPE_CASES,].map(function caseOfSpots(shapeCase: ShapeCase,) {
+      return it({
+        name: `REPORTS WITH FILE AND LINE THE SHAPE OF THIS CASE: ${shapeCase.name}`,
+        fn: async () => {
+          /**
+           The sources checked: the contest builder's file and the shape's imaginary files.
+           */
+          const sources = [CONTEST_BUILDER_SOURCE, ...shapeCase.files,];
+          expect(blindSpotsOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+            .filter(function isImaginary({ file, },): boolean {
+              return file.startsWith('imaginary/',);
+            },),).toEqual(shapeCase.spots,);
+        },
+      },);
+    },),
+
+    it({
+      name: 'FINDS NO SHAPE THE SEARCH LEAVES UNREAD IN THE FAMILY\'S SOURCE, so a file that sends an answer schema '
+        + 'cannot hide in one: each place that holds such a shape is named by file and line',
+      fn: async () => {
+        expect(blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },)
+          .map(function named({ file, line, shape, },): string {
+            return `${file}:${String(line,)} ${shape}`;
+          },),).toEqual([],);
+      },
     },),
 
     ...CALLER_CASES.map(function caseOfCallers(callerCase,) {

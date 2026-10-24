@@ -3,22 +3,22 @@ import {
   methodFormatLinesOf,
   nestedMethodFormatLinesOf,
 } from './claude-schema-builder-forms.test-fixture.ts';
-import {
-  type FormCase,
-  textOf,
-} from './claude-schema-call-forms.test-fixture.ts';
+import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
+import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Builders the search does not read
 // What `claude-schemas.unit.test.ts` feeds the builder search to pin the builders it does not read, so the header of
 // `claude-schema-sources.test-fixture.ts` states a limit that a case holds: a static method of a class, a getter, a
 // member with a computed name, a member of an object nested one level deeper than the first, and an anonymous default
 // export. In each case the file that writes the format is listed, since it holds a format, and the file that calls the
-// builder is not, since the builder is not read.
+// builder is not, since the builder is not read. The check behind the search (`blindSpotsOf`) reports the function that
+// holds the format, by file and line.
 
 /**
- Cases of a builder written in a form the search does not read, and the file that calls it.
+ Cases of a builder written in a form the search does not read, the file that calls it, and the place of the function
+ that holds the format.
  */
-export const UNREAD_BUILDER_CASES: readonly FormCase[] = [
+export const UNREAD_BUILDER_CASES: readonly ShapeCase[] = [
   {
     name: 'FINDS NO BUILDER IN A STATIC METHOD OF A CLASS, so the file that calls it is not listed',
     files: [
@@ -45,6 +45,13 @@ export const UNREAD_BUILDER_CASES: readonly FormCase[] = [
     ],
     found: ['imaginary/src/class-wire.ts',],
     builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/class-wire.ts',
+        line: 2,
+        shape: 'format-in-undeclared-function',
+      },
+    ],
   },
   {
     name: 'FINDS NO BUILDER IN A GETTER OR IN A MEMBER WITH A COMPUTED NAME, so the file that reads them is not '
@@ -79,6 +86,18 @@ export const UNREAD_BUILDER_CASES: readonly FormCase[] = [
     ],
     found: ['imaginary/src/accessor-wire.ts',],
     builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/accessor-wire.ts',
+        line: 2,
+        shape: 'format-in-undeclared-function',
+      },
+      {
+        file: 'imaginary/src/accessor-wire.ts',
+        line: 11,
+        shape: 'format-in-undeclared-function',
+      },
+    ],
   },
   {
     name: 'FINDS NO BUILDER IN A MEMBER OF AN OBJECT NESTED INSIDE THE OBJECT A CONSTANT HOLDS, so the file that '
@@ -109,6 +128,13 @@ export const UNREAD_BUILDER_CASES: readonly FormCase[] = [
     ],
     found: ['imaginary/src/nested-wire.ts',],
     builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/nested-wire.ts',
+        line: 3,
+        shape: 'format-in-undeclared-function',
+      },
+    ],
   },
   {
     name: 'FINDS NO BUILDER IN AN ANONYMOUS DEFAULT EXPORT, so the file that imports it under a name of its own is '
@@ -135,6 +161,13 @@ export const UNREAD_BUILDER_CASES: readonly FormCase[] = [
     ],
     found: ['imaginary/src/anonymous-wire.ts',],
     builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/anonymous-wire.ts',
+        line: 1,
+        shape: 'format-in-undeclared-function',
+      },
+    ],
   },
 ];
 
