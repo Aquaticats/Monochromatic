@@ -27,7 +27,7 @@ import {
 /**
  One function where a stage hands the schema it makes to the bench.
  */
-export type Sender = {
+type Sender = {
   /**
    Path of the module that declares the function, under `package/translation-repair`.
    */
@@ -53,7 +53,7 @@ export type Sender = {
  The senders of the family: the three consistency asks of `corpus-pass` hand their schema to the bench through the
  first, and the stages that share the contest builder through the second.
  */
-export const SENDERS: readonly Sender[] = [
+const SENDERS: readonly Sender[] = [
   {
     file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
     name: 'gatherThroughCache',

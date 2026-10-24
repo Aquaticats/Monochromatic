@@ -348,7 +348,7 @@ function readsOfName(
 /**
  Where the value of a builder's call goes.
  */
-export type Destinations = {
+type Destinations = {
   /**
    The first function the value is returned from that the search does not know as a wrapper, `NO_NODE` when the value
    leaves by no such function.
