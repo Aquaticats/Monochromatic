@@ -4,6 +4,7 @@ import {
   type BlindContext,
   outermostValueOf,
 } from './claude-schema-blind-positions.test-fixture.ts';
+import { isBoundAround, } from './claude-schema-blind-scopes.test-fixture.ts';
 import {
   chainOf,
   COMPUTED_MEMBER,
@@ -21,8 +22,9 @@ import {
 // The senders of the third total of the check behind the schema search (`claude-schema-blind-spots.test-fixture.ts`):
 // the value of a builder's call may end in an argument of a call only when the call is one of these functions and the
 // value is the property of the one object argument that the entry names. A sender is named by the module that declares
-// it, so another function of the same name, or a free name, is no sender; any other call that takes the value is
-// reported, since it may keep it, copy it or send it where the search cannot read.
+// it, so another function of the same name, a free name, or a name that a scope around the call binds again (a
+// parameter, a constant, a nested function or class, a loop variable, a `catch` binding) is no sender; any other call
+// that takes the value is reported, since it may keep it, copy it or send it where the search cannot read.
 
 /**
  One function where a stage hands the schema it makes to the bench.
@@ -149,6 +151,12 @@ function callsSender(
     return false;
   if (chain.members
     .includes(COMPUTED_MEMBER,))
+    return false;
+  if (isBoundAround({
+    node: call,
+    name: chain.head,
+    parents: context.parents,
+  },))
     return false;
   /**
    What the callee stands for in this file.
