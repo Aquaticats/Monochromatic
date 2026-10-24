@@ -3244,7 +3244,9 @@ and `render/MainMinimap.kt`.
   On a line too long to shape within a click's allowance the caret goes to the start of the line.
   A press in the virtual rows above a line jumps to that line's first row.
   The row under the pointer is the one of the picture as it has slid with the scroll when the pointer went down.
-- A press is aimed again, once for each change of the layout, while nothing else has moved the view
+- A press is aimed again,
+  once for each change of the layout,
+  while nothing else has moved the view
   (`src/native/minimap/aim.rs`).
   A press is mapped through the layout the window has when it lands,
   and that layout is not final for a while:
@@ -3252,10 +3254,12 @@ and `render/MainMinimap.kt`.
   A first press at the bottom of a file whose first request covered only the first screens
   landed where the incomplete layout put it,
   and the same press after a visit elsewhere landed about nine lines further down
-  (`build.unit.test.ts` in a window of 1080 by 1880 logical px: line 214 against line 223).
+  (`build.unit.test.ts` in a window of 1080 by 1880 logical px:
+  line 214 against line 223).
   The window therefore keeps the last press as its place on the track,
   with the share of the scroll range the view stood at before it
-  (the picture slides by that share of its overhang, so it is part of what the press means),
+  (the picture slides by that share of its overhang,
+  so it is part of what the press means),
   and with what the press left behind:
   the scroll offset,
   the caret,
@@ -3281,7 +3285,8 @@ and `render/MainMinimap.kt`.
   or the view changes size;
   a scroll step the toolkit has made and the window has not yet been told of counts too.
   A press that is still held has not been followed:
-  the box is dragged from the aimed place with the live layout, as it is without an aim.
+  the box is dragged from the aimed place with the live layout,
+  as it is without an aim.
   The caret moves with the view,
   also by several lines,
   because the press names a place in the layout and the caret goes to the place it names.
@@ -3634,7 +3639,8 @@ and a picture cut for a limit of 1,536 and of 1,024 rows is three and four textu
 seams,
 and composited column equal the one texture's),
 and `src/native/minimap_aim_tests.rs`
-(a press is aimed again at the layout that follows it, with the caret on the line it names there;
+(a press is aimed again at the layout that follows it,
+with the caret on the line it names there;
 a second change aims it again and an unchanged layout does not move the view;
 a wheel step that returns to the same offset,
 a scroll step the window has not yet been told of,
