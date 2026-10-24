@@ -18,6 +18,7 @@ import {
 } from 'node:fs/promises';
 import {
   join,
+  relative,
   sep,
 } from 'node:path';
 
@@ -425,6 +426,48 @@ await describe({
       },
     },),
     it({
+      name: 'LOGS THE ABSOLUTE PATH A RELATIVE RUNS ROOT WAS LOOKED UP AT: the line names the root as it was given, and '
+        + 'the failure\'s text names the working directory joined to it',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-runbook-relative-', },);
+        await writeFile(
+          join(
+            base.path,
+            'file',
+          ),
+          'meow',
+          'utf8',
+        );
+        /**
+         A path through the file, given relative to the working directory.
+         */
+        const relativeRoot = relative(
+          process.cwd(),
+          join(
+            base.path,
+            'file',
+            'below',
+          ),
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await runbookRootReading({
+            runbookRoot: relativeRoot,
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'unresolved', code: 'ENOTDIR', },
+          logged: [
+            `warn [runbookRootReading] the runbook's runs root ${relativeRoot} could not be resolved (ENOTDIR); no `
+            + 'searched root can be compared with it. The failure was: '
+            + await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+          ],
+        },);
+      },
+    },),
+    it({
       name: 'READS A RUNS ROOT THE FILESYSTEM REFUSES AS UNRESOLVED, with the code, and logs one warning that names the '
         + 'root, the code and the failure\'s text',
       fn: async () => {
@@ -466,6 +509,50 @@ await describe({
   name: reachOfRoot.name,
   concurrency: 1,
   children: [
+    it({
+      name: 'LOGS THE ABSOLUTE PATH A RELATIVE ROOT WAS LOOKED UP AT: the line names the root as it was given, and the '
+        + 'failure\'s text names the working directory joined to it, as for a root given whole',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-reading-relative-', },);
+        await writeFile(
+          join(
+            base.path,
+            'file',
+          ),
+          'meow',
+          'utf8',
+        );
+        /**
+         A path through the file, given relative to the working directory.
+         */
+        const relativeRoot = relative(
+          process.cwd(),
+          join(
+            base.path,
+            'file',
+            'below',
+          ),
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await reachOfRoot({
+            root: relativeRoot,
+            runbookRoot: base.path,
+            runbookReal: base.path,
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'unresolved', root: relativeRoot, code: 'ENOTDIR', },
+          logged: [
+            `warn [reachOfRoot] ${relativeRoot} could not be compared with the runbook's runs root ${base.path} `
+            + '(ENOTDIR); it counts as not reaching it. The failure was: '
+            + await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+          ],
+        },);
+      },
+    },),
     it({
       name: 'READS A ROOT THAT HOLDS THE RUNBOOK\'S RUNS ROOT AS REACHING IT, and logs nothing',
       fn: async () => {
