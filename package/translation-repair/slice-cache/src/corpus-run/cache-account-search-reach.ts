@@ -8,6 +8,12 @@ import {
   sep,
 } from 'node:path';
 
+import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
+import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   RUNS_SEARCH_DEPTH,
@@ -17,7 +23,9 @@ import {
 //region Search reach
 // WHETHER A SEARCH FOR RUNS DIRECTORIES WOULD FIND THE RUNS OF A DIRECTORY, for the audit's warning that a launch which
 // follows the runbook writes where the roots searched do not look. Two spellings of one directory (the home directory
-// and a link to it) are one directory, and a root reaches only as far down as the walk goes.
+// and a link to it) are one directory, and a root reaches only as far down as the walk goes. The readings that follow
+// the walk (the runbook's runs root once, then each searched root against it) live here with it, since a refusal of the
+// filesystem to resolve either is what they turn into a reading instead of an end of the audit.
 
 /**
  The real path of a directory, or of the nearest ancestor that exists with the missing names kept after it.
@@ -135,6 +143,252 @@ export async function searchReaches(
   },))
     return false;
   return (names.length + runsLevels) <= RUNS_SEARCH_DEPTH;
+}
+
+/**
+ How many levels below the runbook's runs root its runs directories sit, at the most: `<root>/<run>` and
+ `<root>/<run>/runs`.
+ */
+export const RUNBOOK_RUNS_LEVELS = 2;
+
+/**
+ A searched root whose real path could not be resolved, and the filesystem's code.
+
+ @example
+ ```ts
+ const unresolved: UnresolvedRoot = { root: '/cats/file/below', code: 'ENOTDIR', };
+ ```
+ */
+export type UnresolvedRoot = {
+  /**
+   The root as it was given.
+   */
+  readonly root: string;
+
+  /**
+   Filesystem code, such as `ENOTDIR`, or the class name of a failure that carries none.
+   */
+  readonly code: string;
+};
+
+/**
+ What the check found for one searched root.
+
+ @example
+ ```ts
+ const reading: RootReading = { kind: 'unresolved', root: '/cats/sealed/below', code: 'EACCES', };
+ ```
+ */
+export type RootReading =
+  | {
+    /**
+     The root reaches the runbook's runs root.
+     */
+    readonly kind: 'reached';
+  }
+    | {
+    /**
+     The root was resolved and does not reach it.
+     */
+      readonly kind: 'not-reached';
+    }
+    | {
+    /**
+     The root could not be resolved, so it counts as not reaching it.
+     */
+      readonly kind: 'unresolved';
+
+    /**
+     The root as it was given.
+     */
+      readonly root: string;
+
+    /**
+     Filesystem code of the failure, or its class name where it carries none.
+     */
+      readonly code: string;
+    };
+
+/**
+ The runbook's runs root resolved.
+
+ @example
+ ```ts
+ const resolved: ResolvedRunbookRoot = { kind: 'resolved', real: '/cats/home/temp/agent', };
+ ```
+ */
+type ResolvedRunbookRoot = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'resolved';
+
+  /**
+   Its real path.
+   */
+  readonly real: string;
+};
+
+/**
+ The runbook's runs root could not be resolved.
+
+ @example
+ ```ts
+ const unresolved: UnresolvedRunbookRoot = { kind: 'unresolved', code: 'ENOTDIR', };
+ ```
+ */
+type UnresolvedRunbookRoot = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'unresolved';
+
+  /**
+   Filesystem code of the failure, or its class name where it carries none.
+   */
+  readonly code: string;
+};
+
+/**
+ What the check found for the runbook's runs root.
+
+ @example
+ ```ts
+ const reading: RunbookRootReading = { kind: 'resolved', real: '/cats/home/temp/agent', };
+ ```
+ */
+type RunbookRootReading = ResolvedRunbookRoot | UnresolvedRunbookRoot;
+
+/**
+ Resolves the runbook's runs root once, so a failure of that root is named once.
+
+ @param runbookRoot - where a launch that follows the runbook writes its runs
+
+ @param l - logger the refusal is written to
+
+ @returns Its real path, or that it could not be resolved and why
+
+ @example
+ ```ts
+ const reading = await runbookRootReading({ runbookRoot: '/cats/home/temp/agent', l, },);
+ ```
+ */
+export async function runbookRootReading(
+  {
+    runbookRoot,
+    l,
+  }: {
+    readonly runbookRoot: string;
+    readonly l: Logger;
+  },
+): Promise<RunbookRootReading> {
+  /**
+   Logger tagged with this function's name.
+   */
+  const rl = tagged({
+    l,
+    tag: runbookRootReading.name,
+  },);
+  try {
+    return {
+      kind: 'resolved',
+      real: await realPathOf({ path: runbookRoot, },),
+    };
+  }
+  catch (error) {
+    /**
+     The filesystem's code for the refusal, which the warning on stdout names.
+     */
+    const code = failureName({ error, },);
+    // THE LOG LINE KEEPS THE FAILURE'S TEXT, as the line of a root that cannot be resolved does, and for the same
+    // reason: the runbook's runs root is printed in the line, and the text names the path the lookup stopped at.
+    rl.warn(
+      `the runbook's runs root ${runbookRoot} could not be resolved (${code}); no searched root can be compared `
+        + `with it. The failure was: ${caughtValueText(error,)}`,
+    );
+    return {
+      kind: 'unresolved',
+      code,
+    };
+  }
+}
+
+/**
+ Whether one searched root reaches the runbook's runs root, a root the filesystem refuses to resolve counting as not.
+
+ THE REFUSAL DOES NOT END THE AUDIT. The walk reports a directory it cannot list and goes on, and a root named on the
+ command line can sit behind a file, a loop of links or a directory the process may not enter; the check logs the
+ failure with the root and says so in the warning, so the newest record and the versions set after it are still
+ printed.
+
+ @param root - searched root
+
+ @param runbookRoot - where a launch that follows the runbook writes its runs, as the warning names it
+
+ @param runbookReal - the real path of that root, resolved once by the caller
+
+ @param l - logger the refusal is written to
+
+ @returns That the root reaches it, that it does not, or that it could not be resolved and why
+
+ @example
+ ```ts
+ const reading = await reachOfRoot({
+   root: '/cats/runs',
+   runbookRoot: '/cats/home/temp/agent',
+   runbookReal: '/cats/home/temp/agent',
+   l,
+ },);
+ ```
+ */
+export async function reachOfRoot(
+  {
+    root,
+    runbookRoot,
+    runbookReal,
+    l,
+  }: {
+    readonly root: string;
+    readonly runbookRoot: string;
+    readonly runbookReal: string;
+    readonly l: Logger;
+  },
+): Promise<RootReading> {
+  /**
+   Logger tagged with this function's name.
+   */
+  const rl = tagged({
+    l,
+    tag: reachOfRoot.name,
+  },);
+  try {
+    if (await searchReaches({
+      root,
+      directory: runbookReal,
+      runsLevels: RUNBOOK_RUNS_LEVELS,
+    },))
+      return { kind: 'reached', };
+    return { kind: 'not-reached', };
+  }
+  catch (error) {
+    /**
+     The filesystem's code for the refusal, which the warning on stdout names.
+     */
+    const code = failureName({ error, },);
+    // THE LOG LINE KEEPS THE FAILURE'S TEXT, which the warning on stdout leaves out: the text of a failed real-path
+    // lookup names the path it stopped at, an ancestor of the root, and so tells which file or link on the way is to
+    // blame. The line already prints the root and the runbook's runs root, so the text discloses no path the line
+    // does not hold. The logger takes one string, so the caught value is rendered into it.
+    rl.warn(
+      `${root} could not be compared with the runbook's runs root ${runbookRoot} (${code}); `
+        + `it counts as not reaching it. The failure was: ${caughtValueText(error,)}`,
+    );
+    return {
+      kind: 'unresolved',
+      root,
+      code,
+    };
+  }
 }
 
 //endregion Search reach

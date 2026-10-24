@@ -4,18 +4,22 @@ import {
   join,
 } from 'node:path';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import {
   type Logger,
   tagged,
 } from '@monochromatic-dev/module-logger/ts';
-import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   contextRoot,
   wordForCount,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import { searchReaches, } from './cache-account-search-reach.ts';
+import {
+  reachOfRoot,
+  type RootReading,
+  RUNBOOK_RUNS_LEVELS,
+  runbookRootReading,
+  type UnresolvedRoot,
+} from './cache-account-search-reach.ts';
 import {
   MS_PER_SECOND,
   utcMinutes,
@@ -68,12 +72,6 @@ function runbookRootOf({ home, }: { readonly home: string; },): string {
 }
 
 /**
- How many levels below the runbook's runs root its runs directories sit, at the most: `<root>/<run>` and
- `<root>/<run>/runs`.
- */
-const RUNBOOK_RUNS_LEVELS = 2;
-
-/**
  Words for a zero count, so the absence of records is never read as an empty cache.
 
  THE ZERO IS NOT A FINDING ABOUT THE CACHES. The audit reads the roots it names, and a launch that follows the
@@ -108,64 +106,6 @@ function noRecordWords(
     + `caches a launch would resume. Roots searched: ${searched.join(', ',)}. A launch that follows the runbook `
     + `writes its runs under ${runbookRoot}; pass --runs-under ${runbookRoot} after -- to read them.`;
 }
-
-/**
- A searched root whose real path could not be resolved, and the filesystem's code.
-
- @example
- ```ts
- const unresolved: UnresolvedRoot = { root: '/cats/file/below', code: 'ENOTDIR', };
- ```
- */
-type UnresolvedRoot = {
-  /**
-   The root as it was given.
-   */
-  readonly root: string;
-
-  /**
-   Filesystem code, such as `ENOTDIR`, or the class name of a failure that carries none.
-   */
-  readonly code: string;
-};
-
-/**
- What the check found for one searched root.
-
- @example
- ```ts
- const reading: RootReading = { kind: 'unresolved', root: '/cats/sealed/below', code: 'EACCES', };
- ```
- */
-type RootReading =
-  | {
-    /**
-     The root reaches the runbook's runs root.
-     */
-    readonly kind: 'reached';
-  }
-    | {
-    /**
-     The root was resolved and does not reach it.
-     */
-      readonly kind: 'not-reached';
-    }
-    | {
-    /**
-     The root could not be resolved, so it counts as not reaching it.
-     */
-      readonly kind: 'unresolved';
-
-    /**
-     The root as it was given.
-     */
-      readonly root: string;
-
-    /**
-     Filesystem code of the failure, or its class name where it carries none.
-     */
-      readonly code: string;
-    };
 
 /**
  The clause that names the roots the check could not resolve, which the warning ends with.
@@ -245,72 +185,44 @@ function uncoveredRootWords(
 }
 
 /**
- Whether one searched root reaches the runbook's runs root, a root the filesystem refuses to resolve counting as not.
+ Words for records read when the runbook's runs root cannot be resolved, so no searched root can be compared with it.
 
- THE REFUSAL DOES NOT END THE AUDIT. The walk reports a directory it cannot list and goes on, and a root named on the
- command line can sit behind a file, a loop of links or a directory the process may not enter; the check logs the
- failure with the root and says so in the warning, so the newest record and the versions set after it are still
- printed.
+ THE FAILURE IS THE RUNBOOK ROOT'S, NOT THE SEARCHED ROOTS'. Comparing a root with the runbook's runs root resolves
+ both, so a runbook root behind a file, a loop of links or a directory nobody may enter fails every comparison; the
+ warning names that one failure and does not blame the roots searched.
 
- @param root - searched root
+ @param searched - every root the search covered, in the order the account printed them
 
  @param runbookRoot - where a launch that follows the runbook writes its runs
 
- @param l - logger the refusal is written to
+ @param code - filesystem code of the failure
 
- @returns That the root reaches it, that it does not, or that it could not be resolved and why
+ @returns Sentence, without a prefix, for the log and for stdout alike
 
  @example
  ```ts
- const reading = await reachOfRoot({ root: '/cats/runs', runbookRoot: '/cats/home/temp/agent', l, },);
+ const words = unresolvedRunbookRootWords({
+   searched: ['/cats/runs',],
+   runbookRoot: '/cats/file/temp/agent',
+   code: 'ENOTDIR',
+ },);
  ```
  */
-async function reachOfRoot(
+function unresolvedRunbookRootWords(
   {
-    root,
+    searched,
     runbookRoot,
-    l,
+    code,
   }: {
-    readonly root: string;
+    readonly searched: readonly string[];
     readonly runbookRoot: string;
-    readonly l: Logger;
+    readonly code: string;
   },
-): Promise<RootReading> {
-  /**
-   Logger tagged with this function's name.
-   */
-  const rl = tagged({
-    l,
-    tag: reachOfRoot.name,
-  },);
-  try {
-    if (await searchReaches({
-      root,
-      directory: runbookRoot,
-      runsLevels: RUNBOOK_RUNS_LEVELS,
-    },))
-      return { kind: 'reached', };
-    return { kind: 'not-reached', };
-  }
-  catch (error) {
-    /**
-     The filesystem's code for the refusal, which the warning on stdout names.
-     */
-    const code = failureName({ error, },);
-    // THE LOG LINE KEEPS THE FAILURE'S TEXT, which the warning on stdout leaves out: the text of a failed real-path
-    // lookup names the path it stopped at, an ancestor of the root, and so tells which file or link on the way is to
-    // blame. The line already prints the root and the runbook's runs root, so the text discloses no path the line
-    // does not hold. The logger takes one string, so the caught value is rendered into it.
-    rl.warn(
-      `${root} could not be compared with the runbook's runs root ${runbookRoot} (${code}); `
-        + `it counts as not reaching it. The failure was: ${caughtValueText(error,)}`,
-    );
-    return {
-      kind: 'unresolved',
-      root,
-      code,
-    };
-  }
+): string {
+  return `the runbook's runs root ${runbookRoot} could not be resolved (${code}), so none of the roots searched could `
+    + `be compared with it: ${searched.join(', ',)}. The newest record and the versions set after it speak only for `
+    + `those roots, and a launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under `
+    + `${runbookRoot} after -- to read them.`;
 }
 
 /**
@@ -367,6 +279,22 @@ async function warningWordsOf(
     tag: warningWordsOf.name,
   },);
   /**
+   What the check found for the runbook's runs root, resolved once for every root searched.
+   */
+  const runbookReading = await runbookRootReading({
+    runbookRoot,
+    l: wl,
+  },);
+  if (runbookReading.kind === 'unresolved') {
+    return [
+      unresolvedRunbookRootWords({
+        searched,
+        runbookRoot,
+        code: runbookReading.code,
+      },),
+    ];
+  }
+  /**
    What the check found for each root searched, in the order searched.
    */
   const readings = await allInInputOrder({
@@ -374,6 +302,7 @@ async function warningWordsOf(
       return await reachOfRoot({
         root,
         runbookRoot,
+        runbookReal: runbookReading.real,
         l: wl,
       },);
     },),
@@ -397,6 +326,7 @@ async function warningWordsOf(
     },),
   ];
 }
+
 
 /**
  Prints the slice caches' account: the runs directories read, how many
