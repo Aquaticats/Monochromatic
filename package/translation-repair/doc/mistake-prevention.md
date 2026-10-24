@@ -61,6 +61,13 @@ named for that subject and listed here.
   - [Modules without a test of their own](mistake-prevention-guards-searches-and-claims.md#modules-without-a-test-of-their-own)
   - [Lists that must name every member of a type](mistake-prevention-guards-searches-and-claims.md#lists-that-must-name-every-member-of-a-type)
   - [What a failing check prints](mistake-prevention-guards-searches-and-claims.md#what-a-failing-check-prints)
+- [Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md):
+  Rules for a guard that holds a run to an amount of money:
+  what it admits,
+  what it counts,
+  and the retries a client makes inside the call it admits.
+  Sections:
+  - [A guard admits a call where the client sends several attempts](mistake-prevention-spend-guards-and-client-retries.md#a-guard-admits-a-call-where-the-client-sends-several-attempts)
 - [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md):
   Rules for the docs themselves:
   current-state docs,

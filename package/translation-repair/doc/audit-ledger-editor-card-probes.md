@@ -7,7 +7,10 @@ the probe that reads one card's edit against a known fix,
 the frozen pool of forty trials it now reads as a seeded draw,
 the guard that holds an arm to its amount call by call and to the bench's amount,
 the sheet and the headline that no cheap reply passes,
-and the read step that checks the logs of the four arms.
+the read step that checks the logs of the four arms,
+the guard that admits each attempt of a call and counts what can have been billed,
+the decision rule held as code with a floor taken from an exact enumeration,
+and the dry run that prints what the arm will do before it calls anything.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -313,6 +316,23 @@ So the guard is a runaway stop on the replies it sees,
 not an exact ledger,
 and the process meter (`SPEND` lines) remains the record of what was billed.
 
+Follow-up of 2026-10-24 (UTC),
+round 5:
+the sentence "a call that throws counts nothing" no longer holds,
+as B885 had already changed it.
+A throw now counts what can have been billed.
+A call that never left counts nothing:
+a layer above the client rejected it (a retained prompt claim,
+a withheld seat),
+so the client told the guard of no attempt and sent none.
+A call whose last attempt wrote its own `SPEND` line counts that line once,
+and no ceiling beside it.
+A call whose last attempt wrote no line counts at the call's ceiling,
+except an HTTP error status that carried no body,
+which proves no billable body was delivered.
+The attempts a client retries inside a call are no longer invisible:
+the guard is told of each (B885).
+
 ## B882: a refusal thrown inside the client is a lost voice, so the guard ends the arm through the arm's signal
 
 Status:
@@ -429,6 +449,58 @@ no reply,
 no key and no record a cache holds.
 No cache version moves.
 
+Follow-up of 2026-10-24 (UTC),
+round 5:
+the guard admitted a call,
+and the Claude client sent up to five attempts for it.
+An arm could therefore pass its amount by the retries of its last call,
+since the guard asked whether the spend so far plus one call's ceiling fitted,
+and the client then billed up to five attempts of that size
+(the retries admitted once family,
+recorded in `mistake-prevention-spend-guards-and-client-retries.md`).
+Fixed on 2026-10-24 (UTC) in `952474ba266ced69ae7d3add4308cf858410cecf`
+and `a52f16ab65ad7a1334eeec7526d4d957ac882ac0`,
+red `8787ec3ae2eb3d26687474cd6aec50f14c8dcb54`
+and `b15e2ed7c8c4245f92aca2c73ab13a6ea9cad70e`,
+open to the owner's veto.
+
+The Claude client now tells its caller before it sends each attempt,
+the first and every retry,
+with the card and the most the attempt can be billed
+(`provider/src/transient-retry.ts`,
+`provider/src/claude-attempt-admit.ts`),
+and the run route hands the caller's admit down to it without changing a request body
+(`configureProviders` in `run/src/corpus-run/run-providers.ts`).
+The guard takes its client as a builder of the admit it offers,
+and an attempt is admitted when the spend so far plus its bound stays within `--max-usd`.
+Otherwise the attempt is never sent and the arm ends.
+The proving cases:
+`every attempt is told to the caller before it is sent` in the provider,
+`TELLS THE CALLER OF EVERY ATTEMPT A ROUTED CALL MAKES` in the run package,
+`HANDS THE CLIENT BUILDER THE GUARD'S ADMIT` in the probe's run test,
+and `REFUSES A RETRY THROUGH THE WHOLE ROUTE THE PROBE BUILDS` in the guard test,
+where a scripted transport answers a retryable status four times at a spent sum
+at which the old guard admitted the call and the fifth attempt would cross the cap.
+
+The guard also charges only what can have been billed.
+A call that never left costs nothing;
+a call that threw after retries counts one line for each attempt the client wrote
+and the call's ceiling only when its last attempt wrote no line;
+a reply with usage but no line on the meter counts at its ceiling.
+The cases are `COUNTS NOTHING FOR A CALL THAT NEVER LEFT`,
+`COUNTS ONE ATTEMPT ONCE WHEN THE CALL THROWS AFTER RETRIES`
+and `COUNTS A REPLY WHOSE OWN LINE IS MISSING EVEN WHEN AN EARLIER ATTEMPT WROTE ONE`.
+The recheck's two surviving mutants of the guard
+(the reading of the meter's change,
+and the baseline of the meter at the guard's construction)
+are killed by `COUNTS A REPLY WITH USAGE BUT NO LINE ON THE METER AT ITS CEILING`
+and `READS THE SPEND OF THE ARM ALONE`:
+each mutant was built and failed its case.
+`KEEPS A STREAM ERROR EVENT SAFE TO CALL FREE` pins the one throw counted free
+by reason of what the stream delivered,
+a 200 with text followed by an error event,
+which writes its bound line before it throws.
+
 ## B886: the bench amount of 20 USD was held by nothing but the sum of three hand-typed caps
 
 Status:
@@ -447,6 +519,24 @@ with both figures in the refusal.
 The figure is typed by whoever launches the next arm,
 from the `GUARD total=` line of the last,
 so the read step checks the bench total again from the logs (B889).
+
+Follow-up of 2026-10-24 (UTC),
+round 5:
+the flag had a default of 0,
+so an arm launched without it passed every check with no figure for what the earlier arms had spent.
+Fixed on 2026-10-24 (UTC) in `6a2677b200e1b3be12461b6996542f910b741bc6`,
+red `a3a96ea1106193eab7d7983987a510b128d6ca31`,
+open to the owner's veto.
+`--bench-spent-usd` is now required:
+a line without it is refused with one line at exit 6 before anything is read or built,
+even with `--cap 0`,
+and the guard line prints it.
+The read step checks that it was given four distinct logs at the cards low,
+medium,
+medium and high,
+and that each arm states an earlier spend at least the `GUARD total=` of the arms before it
+(`checkEditorBench` in `probe/src/corpus-run/editor-fidelity-arm-bench.ts`).
+Each check that fails exits 6.
 
 ## B887: a cheap reply could pass the probe, so the sheet carries the page's context and the headline counts exact fixes only
 
@@ -531,6 +621,19 @@ and neither kind moves against it;
 any other difference,
 and any tie,
 keeps the default effort.
+
+Follow-up of 2026-10-24 (UTC),
+round 5:
+this rule was prose,
+and its threshold of 3 trials calls a difference in more than half of the benches with none (B891).
+The rule is now code and its text is longer than the one quoted here.
+The wider region of an insertion trial stays and is now labelled in that text:
+it measures locating an added sentence among its neighbours and copying the neighbours verbatim,
+and not the span-only view production gives an editor.
+The read step prints the defect-only count of each kind beside the headline as a secondary count.
+Fixed in `4f1cd29786853868de4d181e45709905af077f2f`,
+red `a2f92a6063ba03682b17ae964125abe109ba3794`,
+open to the owner's veto.
 
 ## B888: the pool of forty-one was a first-sections sample, so the pool is a seeded draw by a command in the repository
 
@@ -627,6 +730,31 @@ and exits 6 when any failed.
 The probe now logs `manifest: N specifications, digest <hex>`.
 The runbook for the four arms is in `probe/README.md`.
 
+Follow-up of 2026-10-24 (UTC),
+round 5:
+an arm whose trials read unusable said only that they yielded nothing.
+A trial that stopped at the output-token cap measured the cap,
+and one whose exchange threw measured the wire,
+and neither measured the effort.
+Fixed in `4f1cd29786853868de4d181e45709905af077f2f`,
+red `a2f92a6063ba03682b17ae964125abe109ba3794`,
+open to the owner's veto.
+Each row line now ends with `; stopped` and the end of each ask of its trial:
+`ok`,
+`refused`,
+`output-cap`,
+`unparseable`,
+`rejected` or `threw`,
+joined by `+` when a trial asked more than once,
+and `none` when it asked nothing.
+The read step fails an arm in which a row states none,
+an ask ended at the cap,
+or an ask threw,
+and warns when its unusable and refused trials together pass 4.
+When every check has passed it prints for each arm an `ARM` line and a `STOPS` line,
+then the verdict of the decision rule (B891).
+The bench checks of B886 are part of the same step.
+
 ## B890: the process slips of round 4, for the commit comments
 
 Status:
@@ -659,3 +787,196 @@ because the red case expected the digest of the whole pool where the run digests
 and it moves one trailing comment in `editor-fidelity-read.unit.test.ts`.
 It also adds the unit tests of the arm facts and the arm answers,
 which the red commit did not hold.
+
+Follow-up of 2026-10-24 (UTC),
+round 5:
+the count of three in this entry is short by one.
+Four commits followed a red commit and changed tests only:
+the three it names and `c4a09d7f6131e581520c00fac9f9debee95d4bea`,
+which B887 lists as still red and whose message hides that it changes the expectations of the red context cases.
+`47d5f7edd8c3cc1e32665a647fe6ebda53bdd945` is a fifth rewrite and stays apart.
+Two more commits changed tests with no red run in front of them:
+`921e578fe8c2c958c6c0078d2c1de210983d09c2` adds a case to `editor-fidelity-pool-manifest.unit.test.ts`
+in the data commit that regenerates the pool,
+and `fe1949dfaeed8c6f630155e505af8625d74b2504` edits three listing tests of the source scans.
+The same follow-up corrects the index of the audit ledger,
+which called this entry the slips of a third round.
+
+## B891: the decision rule was prose and its threshold called a difference in over half the benches with none, so the rule is code with a floor taken from an exact enumeration
+
+Status:
+fixed on 2026-10-24 (UTC) in `4f1cd29786853868de4d181e45709905af077f2f`
+and `0cd4f916b68c5dc6bcc58de7b09696a6c0c77598`,
+red `a2f92a6063ba03682b17ae964125abe109ba3794`,
+open to the owner's veto.
+
+The rule of B887 said an effort differs from the default when its pooled clean fix count is further from the mean of the
+two medium arms than the larger of 3 trials and the two medium arms' own difference.
+Nothing applied it:
+no function took four arms and returned a verdict,
+so the verdict was the reader's.
+And a floor of 3 trials was never checked against what two identical arms do.
+
+`decideEffort` (`probe/src/corpus-run/editor-fidelity-decide.ts`) takes the clean fix counts of the four arms for each kind
+and returns the verdict with the clause that decided it:
+`beats-medium`,
+`tie`,
+`fixes-fewer`,
+`inside-threshold` or `kind-veto`.
+The text of the rule is `decisionRuleText` in the same file,
+printed on the `RULE` line before any call,
+and the read step prints the verdict from `decideEffort`,
+so the text and the verdict have one source.
+The gap of an effort is its pooled clean fix count minus the mean of the two medium arms.
+It counts when it reaches the threshold,
+the larger of the floor (12 trials) and the two medium arms' own difference.
+A kind clause keeps the default effort for a gain that a kind contradicts:
+a kind more than 3 trials short of the mediums' mean for that kind
+(about one standard deviation of a count out of twenty).
+A tie,
+a gap inside the threshold,
+an effort that fixes fewer,
+and a vetoed gain all keep medium,
+and when both efforts beat the mediums by the same gap medium is kept as a tie.
+The cases are in `editor-fidelity-decide.unit.test.ts`:
+a tie,
+a gap of 11 and a gap of 12,
+a kind dip of 1,
+3 and 4 trials,
+equal mediums,
+and mediums that differ by 14.
+
+The floor comes from an exact enumeration,
+not a simulation
+(`probe/src/corpus-run/editor-fidelity-decide-null.test-fixture.ts`,
+pinned by `editor-fidelity-decide-null.unit.test.ts`,
+which also checks the enumeration against a plain loop over every outcome of a pool small enough to list).
+The model:
+the four arms fix a trial with one true chance,
+the arms are independent,
+and the trials of an entry are not.
+The pool draws at most one insertion and one alteration from an entry,
+so its 40 trials are 24 clusters:
+16 entries with both kinds,
+6 with an insertion only and 2 with an alteration only.
+An entry with both kinds adds 0,
+1 or 2 to an arm's count,
+with a within-entry correlation from 0 to 1.
+The chance that at least one effort is called different is summed over every pair of medium counts,
+at true rates from 0.30 to 0.95 in steps of 0.01 and correlations of 0,
+0.25,
+0.5,
+0.75 and 1.
+The smallest floor that holds the worst chance to 0.05 at each correlation is 9,
+10,
+11,
+12 and 12;
+at a correlation of 1 and a rate of 0.5 the chance is 0.58208 at a floor of 3,
+0.37859 at 6,
+0.15801 at 9,
+0.10755 at 10,
+0.06987 at 11,
+0.04346 at 12 and 0.02583 at 13.
+The floor is 12 because the trials of an entry are likelier to read alike than not,
+and a floor that holds only for independent trials would not hold for the pool.
+The 0.04346 is an upper bound:
+the arms share their trials,
+which makes their counts agree more than independent arms would,
+and the kind clause is left out of the enumeration,
+which can only turn a call into a keep.
+It is not a power calculation:
+12 trials of 40 is a difference of 30 points,
+and a smaller real difference is not separated by this bench.
+
+`editor-fidelity-decide-null.ts` first sat among the production modules.
+The source scans found it unreached,
+since only a test calls it,
+so it moved to a test fixture in `0cd4f916b68c5dc6bcc58de7b09696a6c0c77598`,
+and the rule text names the fixture.
+
+## B892: the dry run with a cap of zero returned before it printed the lines that say what the arm will do
+
+Status:
+fixed on 2026-10-24 (UTC) in `4f1cd29786853868de4d181e45709905af077f2f`,
+red `a2f92a6063ba03682b17ae964125abe109ba3794`,
+open to the owner's veto.
+
+`--cap 0` returned before the manifest,
+pool,
+ceiling and guard lines,
+so a dry run showed the owner nothing of the arm it prepared.
+It now reads the corpus,
+prints the manifest,
+pool,
+ceiling,
+guard and `RULE` lines,
+then a line saying that nothing was called,
+and exits without building a client or making a directory
+(`probe/src/corpus-run/editor-fidelity-opening.ts`).
+The ceiling is priced over every trial of the pool.
+Over a clone that holds no corpus the run stops at the read with a nonzero status and no such line.
+`WRITES THE MANIFEST, POOL, CEILING, GUARD AND RULE LINES` pins the lines,
+and `READS THE CORPUS AT A CAP OF ZERO` pins the failure.
+The dry runs of this round,
+one for each arm as the runbook launches it,
+ran with an environment holding no key.
+
+## B893: the process slips of round 5, and the cache statement
+
+Status:
+recorded on 2026-10-24 (UTC).
+
+Three commit bodies of this round cite a commit by its short hash:
+`6a2677b200e1b3be12461b6996542f910b741bc6` names `a3a96ea1106193eab7d7983987a510b128d6ca31`,
+`76e2a4e4e33698088426dd180ad88964d1dca26a` names `a2f92a6063ba03682b17ae964125abe109ba3794`,
+and `0cd4f916b68c5dc6bcc58de7b09696a6c0c77598` names `4f1cd29786853868de4d181e45709905af077f2f`.
+
+The red commit `a2f92a6063ba03682b17ae964125abe109ba3794` was not lint clean,
+so `76e2a4e4e33698088426dd180ad88964d1dca26a` changed its tests for lint only between the red commit and the fix:
+the red tests are not byte-identical in the fix commit,
+and no assertion changed.
+The source scans ran after the fix commit and not before it,
+and found eight findings in it,
+which `0cd4f916b68c5dc6bcc58de7b09696a6c0c77598` fixed.
+Its test edits are a renamed variable,
+reworded comments,
+and the unit test of the enumeration importing the fixture it now tests.
+
+The guard cases of `b15e2ed7c8c4245f92aca2c73ab13a6ea9cad70e` were red by a missing export,
+since the test file did not load,
+and not by an assertion.
+They are shown to fail by mutation instead,
+each mutant built and the probe's unit tests run:
+the guard admitting an attempt without the refusal (the whole route sent 5 exchanges where the case expects 1),
+a call that never left counted at its ceiling,
+and a last attempt that wrote a line counted again at the ceiling.
+The two mutants of the recheck are shown the same way.
+
+Cache:
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' -- '*.ts'` over
+`b4179250d44032ba7d4e75ef3bc5929f50a36d38..HEAD`,
+every commit of this round,
+lists none.
+The same search over `c265e8df9525f4513b8229482d3e8d932ea630df~1..c265e8df9525f4513b8229482d3e8d932ea630df` lists it,
+a commit known to move a cache version,
+so the search can show a hit.
+The bare search,
+`git log --no-merges -G _CACHE_VERSION`,
+over the branch since `83194090a561fd1134e96c35b7164daf46c0cb3a`,
+lists `47fbac3e0b78ca5fb80292303c28fccefa8cbdf6`
+and `ce3fdcdaa63848131dfdbe8bfc8a77d58d8ba50b`,
+and over this round alone it lists the commits that add this entry and its follow-ups.
+A bare search matches any added line that holds the string,
+and each of those commits adds a ledger line that quotes it:
+B885 quotes the search it ran,
+B863 of main does the same,
+and this entry does.
+None of them touches a constant.
+This round's source changes reach the Claude client (a hook it calls before an attempt),
+the run route that hands the hook down,
+and the probe,
+which reads no cache.
+They change no request body,
+no reply and no key,
+and nothing under `slice-cache` or `stage`.
+No cache version moves.

@@ -233,8 +233,13 @@ and each task sets it to its own name.
   Options after `--` are `--only` with entry ids of the pool,
   `--cap n`
   (default 64,
-  above the pool;
-  `--cap 0` is a preflight that spends nothing),
+  more than the pool holds;
+  `--cap 0` is a dry run that reads the corpus,
+  prints the manifest,
+  pool,
+  ceiling,
+  guard and `RULE` lines,
+  builds no client and spends nothing),
   `--damage insertion|alteration`
   (a deletion is refused,
   because its fix is a sentence the editor must write),
@@ -242,20 +247,28 @@ and each task sets it to its own name.
   `--candidates-alone` (required),
   `--max-usd n` (default 2)
   and `--bench-spent-usd n`
-  (what the earlier arms of the bench measured;
+  (required,
+  with no default:
+  what the arms run before this one measured,
+  0 for the first arm;
+  printed on the guard line;
   the arm is refused when it and `--max-usd` together pass 20).
   Prints the manifest digest,
   the pool,
-  the per-arm cost ceiling and the decision rule before any call,
+  the per-arm cost ceiling,
+  the guard and the decision rule before any call,
   and refuses each call,
+  and each attempt the Claude client makes inside a call,
   ending the arm,
-  when the spend so far plus that call's ceiling would pass `--max-usd`.
+  when the spend so far plus its ceiling would pass `--max-usd`.
   The spend so far is every `SPEND` line the Claude client wrote,
   the attempts it abandoned and retried included;
-  a call that throws,
+  a call whose last attempt wrote no line and threw,
   or a reply that reports no usage,
-  is counted at its ceiling by a `SPEND` line of the guard's own
-  (an HTTP error status that carried no body is the one throw counted as free),
+  is counted at its ceiling by a `SPEND` line of the guard's own,
+  and a call that never left,
+  or an HTTP error status that carried no body,
+  is counted nothing,
   and the arm ends with a `GUARD total=` line.
   Only the Claude key is read.
   Spends quota.
@@ -274,10 +287,21 @@ and each task sets it to its own name.
   Reads the corpus clone,
   calls no provider.
 - `editor-fidelity-read`:
-  checks the log of every arm of the bench and prints one `PASS` or `FAIL` line for each check,
+  checks the log of every arm of the bench and prints one `PASS`,
+  `WARN` or `FAIL` line for each check,
   then `CHECKS n pass, n fail`,
   and exits 6 when any check failed.
-  Pass the arm logs after `--`.
+  When every check passed it also prints,
+  for each arm,
+  an `ARM` line
+  (the clean fix count pooled and for each kind of defect,
+  the defect-only count beside it as a secondary count,
+  and the unusable,
+  refused,
+  threw and abandoned counts)
+  and a `STOPS` line (how the asks of each trial ended),
+  then the verdict of the decision rule.
+  Pass the four arm logs after `--`.
   The exit status of an arm is read from `<arm>.exit` beside `<arm>.log`.
   Spends nothing.
 - `damage-sample`:
@@ -309,17 +333,46 @@ the caps named here add to 19.
 
 ### Decision rule
 
-Written before any arm runs,
-and printed on the `RULE` line of every arm's log:
+The rule is code (`decideEffort` in `src/corpus-run/editor-fidelity-decide.ts`),
+its text is `decisionRuleText`,
+and the same text is printed on the `RULE` line of every arm's log before its first call,
+and the read step prints the verdict `decideEffort` reaches over the four arms:
 
 > clean fix is exact plus equivalent,
-> read pooled and per kind of defect;
-> an effort differs from the default (medium) only when its pooled clean fix count is further from the mean of the two
-> medium arms than the larger of 3 and the two medium arms' own difference,
-> and neither kind moves against it;
-> any other difference,
-> and any tie,
-> keeps the default effort
+> counted over the trials of both kinds of defect.
+> An effort other than the default (medium) is chosen only when its clean fix count is above the mean of the two
+> medium arms by at least 12 trials,
+> or by at least the two medium arms' own difference when that is larger,
+> and neither kind of defect (insertion,
+> alteration) is more than 3 trials below the mean of the two medium arms for that kind.
+> A smaller gap,
+> a tie,
+> an effort that fixes fewer,
+> and a gap a kind contradicts all keep the default effort.
+> With no true difference,
+> a gap of 12 trials is the least that keeps the chance of choosing another effort under 0.05
+> at every true fix rate from 0.30 to 0.95,
+> counting the two trials of an entry as one draw at the worst
+> (editor-fidelity-decide-null.test-fixture.ts),
+> so the bench cannot separate efforts that differ by less.
+> The insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim,
+> not the span-only view production gives an editor.
+
+The floor of 12 comes from an exact enumeration over the pool's 24 entries
+(16 with both kinds of defect,
+6 with an insertion only,
+2 with an alteration only),
+at fix rates from 0.30 to 0.95 and within-entry correlations from 0 to 1,
+in `src/corpus-run/editor-fidelity-decide-null.test-fixture.ts`,
+whose unit test pins it.
+A floor of 3 would call a difference in 0.58 of benches with none;
+11 would in 0.07;
+12 does in 0.043 at the worst.
+The arms are treated as independent,
+which overstates how far they stray when they share trials,
+and the kind clause is left out,
+which can only keep a pick,
+so the 0.043 is an upper bound.
 
 ### Launching the arms
 
@@ -334,7 +387,7 @@ Run from the repository root of the checkout that holds the sealed key file.
 # README.md (editor fidelity bench): prepare, once, at the commit the bench runs
 SHA=$(git rev-parse --short=10 HEAD)
 mise run //package/translation-repair/probe:build
-cp -r package/translation-repair/probe/dist/final/node "package/translation-repair/probe/node_modules/.frozen-dist-$SHA"
+cp --recursive package/translation-repair/probe/dist/final/node "package/translation-repair/probe/node_modules/.frozen-dist-$SHA"
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 mkdir --parents "$BENCH"
 ```
@@ -387,21 +440,37 @@ mise run //package/translation-repair/probe:editor-fidelity-read -- \
   "$BENCH/low.log" "$BENCH/medium-a.log" "$BENCH/medium-b.log" "$BENCH/high.log"
 ```
 
+Before the first arm,
+a dry run of it with `--cap 0` and no key in the environment prints the manifest,
+pool,
+ceiling,
+guard and `RULE` lines and exits without building a client;
+the line to read is the `RULE` line,
+which is the rule the verdict will apply.
+
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.
 The checks are the exit status,
 the manifest line,
 the pool line,
 the ceiling line,
-the guard line,
+the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count,
 no `[error]` line,
 the `SEAT` line (`threw` stated,
 nothing unreachable,
 no withheld or dark seat),
-and the identity of the `SPEND` lines' sum with the `GUARD total=`;
+the identity of the `SPEND` lines' sum with the `GUARD total=`,
+that every row line states how its asks ended,
+and that no ask ended at the output-token cap or threw
+(a trial that ended at the cap measured the cap and not the effort);
+a `WARN` line says more than 4 trials of an arm were unusable or refused;
 and across the arms,
+four distinct logs at the cards low,
+medium,
+medium and high,
+each arm's stated `--bench-spent-usd` at least the `GUARD total=` of the arms before it,
 the same manifest digest in every one and a bench total under 20 USD.
 
 ## Family dependencies

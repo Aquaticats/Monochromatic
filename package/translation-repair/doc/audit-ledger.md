@@ -575,11 +575,15 @@ named for that subject and listed here.
   the end-of-section insertions it could not score (B883),
   the process slips of two rounds (B884),
   the guard that counts a throw and a retried attempt (B885),
+  and admits each attempt of a call (its round 5 follow-up),
   the bench amount held by the arms (B886),
   the sheet and the headline that no cheap reply passes (B887),
   the pool redrawn by a seeded command (B888),
   the read step over the arm logs (B889),
-  and the slips of a third round (B890).
+  the slips of a fourth round (B890),
+  the decision rule held as code with a floor from an exact enumeration (B891),
+  the dry run that prints what the arm will do (B892),
+  and the slips of a fifth round with the cache statement (B893).
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,
