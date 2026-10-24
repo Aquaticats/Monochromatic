@@ -123,7 +123,10 @@ import {
 // paragraph keeps the same limit when the fence under it never closes. An angle autolink inside the alternative text of
 // an image is written with a backslash before its less-than sign, as any text is, and the page shows the brackets
 // there: the alternative text of an image is a string to the plain parse, which holds no autolink node to write as its
-// address (`source-ships-encoding.unit.test.ts` pins the case).
+// address (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so an angle autolink
+// that holds one is written as text there, as the source reads it; a bare address that a pipe ends, and an angle
+// autolink holding a pipe written with a backslash, are not cut the same way, and the page shows one link across the
+// cells (`source-ships-encoding.unit.test.ts` pins both).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.

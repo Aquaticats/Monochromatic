@@ -917,6 +917,29 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR A BARE ADDRESS THAT A PIPE ENDS AND FOR AN ANGLE AUTOLINK '
+            + 'HOLDING A PIPE WRITTEN WITH A BACKSLASH (limits the module comment names): the table cuts the source at '
+            + 'the pipe and the page holds one link',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                [
+                  '| a | b |\n| - | - |\n| https://example.net/a|b<c> | d |\n',
+                  '| a | b |\n| - | - |\n| [https://example.net/a|b](https://example.net/a|b)\\<c> | d |\n',
+                ],
+                [
+                  '| a | b |\n| - | - |\n| <https://example.net/a\\|b> | c |\n',
+                  '| a | b |\n| - | - |\n| [https://example.net/a\\\\|b](https://example.net/a%5C|b) | c |\n',
+                ],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+              expect(readerOfPage({ carried: written, },) === readerOfSource({ source: text, },),).toBe(false,);
+            }
+          },
+        },),
+
+        it({
           name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION THAT STARTS ON A LATER LINE OF A '
             + 'PARAGRAPH, and the page shows the mark (a limit the module comment names): the paragraph is not one '
             + 'that opens the definition, so the lines under it are read as a line of the paragraph',

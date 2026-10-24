@@ -18,6 +18,7 @@ import {
   rangeOf,
   stateAfter,
   takeContinuation,
+  topLevelPending,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -159,6 +160,44 @@ await describe({
               endLine: 3,
               endsInLiteral: true,
             },);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: topLevelPending.name,
+      children: [
+        it({
+          name: 'LISTS THE BLOCKS OF A TEXT WITH THE LAST FIRST, each standing at the top of the root',
+          fn: async () => {
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source: '> a\n\nb\n', },);
+            const listed = topLevelPending({ root, },);
+            expect(listed.map(function nodeOf({ node, },) {
+              return node;
+            },),).toEqual(blocks.toReversed(),);
+            expect(listed.every(function atTop({
+              isRootChild,
+              insideLink,
+              parentType,
+              parent,
+            },) {
+              return isRootChild && (!insideLink) && (parentType === 'root') && (parent === root);
+            },),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'LISTS NOTHING FOR A NODE THAT HOLDS NO CHILDREN',
+          fn: async () => {
+            const [, paragraph,] = blocksOf({ source: '> a\n\nb\n', },).blocks;
+            const leaf = (paragraph !== undefined) && ('children' in paragraph) ? paragraph.children[0] : undefined;
+            if (leaf === undefined)
+              throw new Error('the text holds no leaf',);
+            expect(topLevelPending({ root: leaf, },),).toEqual([],);
           },
         },),
       ],

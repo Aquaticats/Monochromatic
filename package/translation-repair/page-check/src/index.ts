@@ -191,6 +191,7 @@ export {
   footnoteStateOf,
   stateAfter,
   takeContinuation,
+  topLevelPending,
 } from './corpus-run/source-ships-pending.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
 export {
@@ -206,6 +207,7 @@ export {
   autolinkAsText,
   autolinkWritten,
   escapedLabel,
+  cutByTable,
   explicitLink,
   linkInsteadOfAutolink,
 } from './corpus-run/source-ships-links.ts';

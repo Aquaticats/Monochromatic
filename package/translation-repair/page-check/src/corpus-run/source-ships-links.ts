@@ -243,4 +243,52 @@ export function autolinkWritten(
   },);
 }
 
+/**
+ Whether a table cuts a stretch of the text into cells: the stretch stands inside a table and holds a pipe that is not
+ written with a backslash, at which the table ends a cell.
+
+ @param source - text
+
+ @param range - stretch, brackets included
+
+ @param tables - where the strict grammar reads a table in the text
+
+ @returns Whether the stretch is more than one cell to the strict grammar
+
+ @example
+ ```ts
+ const cut = cutByTable({ source, range, tables: tableRangesOf({ body: source, },), },);
+ ```
+ */
+export function cutByTable(
+  {
+    source,
+    range,
+    tables,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+    readonly tables: readonly TextRange[];
+  },
+): boolean {
+  if (!tables.some(function holdsRange(table,): boolean {
+    return (table.start <= range.start) && (range.end <= table.end);
+  },)) {
+    return false;
+  }
+  /**
+   How many backslashes stand right before the character being read.
+   */
+  const run = { backslashes: 0, };
+  for (const character of source.slice(
+    range.start,
+    range.end,
+  )) {
+    if ((character === '|') && ((run.backslashes % 2) === 0))
+      return true;
+    run.backslashes = (character === '\\') ? run.backslashes + 1 : 0;
+  }
+  return false;
+}
+
 //endregion Source ships links

@@ -191,4 +191,32 @@ export function takeContinuation(
   return following.node;
 }
 
+/**
+ Lists the blocks at the top of a text as the nodes still to read, the last of them first so they come out in order.
+
+ @param root - parse of the text
+
+ @returns Nodes still to read, none when the root holds no children
+
+ @example
+ ```ts
+ const pending = topLevelPending({ root: parseMarkdownMathBody({ body: source, },), },);
+ ```
+ */
+export function topLevelPending({ root, }: { readonly root: TreeNode; }): Pending[] {
+  if (!('children' in root))
+    return [];
+  return root.children
+    .map(function topLevel(node,): Pending {
+      return {
+        node,
+        isRootChild: true,
+        insideLink: false,
+        parentType: 'root',
+        parent: root,
+      };
+    },)
+    .toReversed();
+}
+
 //endregion Source ships pending

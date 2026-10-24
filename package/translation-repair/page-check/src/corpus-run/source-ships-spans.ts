@@ -1,4 +1,7 @@
-import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  tableRangesOf,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   endLineOf,
   footnoteBodyStart,
@@ -10,14 +13,17 @@ import {
   contentStretches,
   lineJoinsOf,
 } from './source-ships-lines.ts';
-import { autolinkWritten, } from './source-ships-links.ts';
+import {
+  autolinkWritten,
+  cutByTable,
+} from './source-ships-links.ts';
 import { footnoteBodySpans, } from './source-ships-nested.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
-  type Pending,
   stateAfter,
   takeContinuation,
+  topLevelPending,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
@@ -106,6 +112,10 @@ export function spansOf(
   },
 ): SourceSpans {
   /**
+   Where the strict grammar reads a table, which cuts what it holds at a pipe.
+   */
+  const tables = tableRangesOf({ body: readable, },);
+  /**
    Stretches read as text.
    */
   const text: TextRange[] = [];
@@ -152,19 +162,7 @@ export function spansOf(
   /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
-  const pending: Pending[] = ('children' in root)
-    ? root.children
-      .map(function topLevel(node,): Pending {
-        return {
-          node,
-          isRootChild: true,
-          insideLink: false,
-          parentType: 'root',
-          parent: root,
-        };
-      },)
-      .toReversed()
-    : [];
+  const pending = topLevelPending({ root, },);
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     /**
      The node and where it stands.
@@ -361,8 +359,17 @@ export function spansOf(
       continue;
     }
     // AN ANGLE AUTOLINK, which MDX reads as a tag, becomes a link, except inside the text of a link, which holds none:
-    // its address is written as text there, without the brackets. Any other link keeps everything but its text.
+    // its address is written as text there, without the brackets, and where a table cuts it at a pipe, which leaves no
+    // autolink in the source, so it is text as it stands. Any other link keeps everything but its text.
     if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
+      if (cutByTable({
+        source,
+        range,
+        tables,
+      },)) {
+        text.push(range,);
+        continue;
+      }
       edits.push({
         ...range,
         replacement: autolinkWritten({

@@ -153,6 +153,10 @@ export {
   refusalText,
 } from './refusal-text.ts';
 export {
+  type TableRange,
+  tableRangesOf,
+} from './table-ranges.ts';
+export {
   archiveNotesMissingFrom,
   type TranslatorsNote,
   translatorsNotesIn,

@@ -15,6 +15,7 @@ import {
 import {
   autolinkAsText,
   autolinkWritten,
+  cutByTable,
   escapedLabel,
   explicitLink,
   linkInsteadOfAutolink,
@@ -146,6 +147,87 @@ await describe({
                 end: 21,
               },
             },),).toBe('[tabby@example.net](mailto:tabby@example.net)',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: cutByTable.name,
+      children: [
+        it({
+          name: 'CUTS A STRETCH THAT HOLDS A PIPE AND STANDS INSIDE A TABLE, and no stretch outside one or without a pipe',
+          fn: async () => {
+            /**
+             A table whose body cell holds an autolink with a pipe.
+             */
+            const source = '| a | b |\n| - | - |\n| <https://example.net/a|b> | c |\n';
+            /**
+             Where the autolink stands.
+             */
+            const range = {
+              start: source.indexOf('<',),
+              end: source.indexOf('>',) + 1,
+            };
+            /**
+             The table, from the first character to the last.
+             */
+            const tables = [
+              {
+                start: 0,
+                end: source.length - 1,
+              },
+            ];
+            expect(cutByTable({
+              source,
+              range,
+              tables,
+            },),).toBe(true,);
+            expect(cutByTable({
+              source,
+              range,
+              tables: [],
+            },),).toBe(false,);
+            expect(cutByTable({
+              source,
+              range: {
+                start: source.indexOf('<',),
+                end: source.indexOf('|b',),
+              },
+              tables,
+            },),).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'LEAVES A PIPE WRITTEN WITH A BACKSLASH AS PART OF THE STRETCH, and cuts at one after a pair of '
+            + 'backslashes, which are a backslash',
+          fn: async () => {
+            /**
+             The table the stretches stand in.
+             */
+            const tables = [
+              {
+                start: 0,
+                end: 40,
+              },
+            ];
+            expect(cutByTable({
+              source: String.raw`<a\|b>`,
+              range: {
+                start: 0,
+                end: 6,
+              },
+              tables,
+            },),).toBe(false,);
+            expect(cutByTable({
+              source: String.raw`<a\\|b>`,
+              range: {
+                start: 0,
+                end: 7,
+              },
+              tables,
+            },),).toBe(true,);
           },
         },),
       ],
