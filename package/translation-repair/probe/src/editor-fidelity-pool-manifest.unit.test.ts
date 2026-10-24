@@ -25,6 +25,7 @@ import {
   type FidelityReferenceSpec,
   MIN_REVIEWED_REFERENCE_CHARS,
   POOL_DRAWN_ON,
+  POOL_TRIALS_WANTED,
   REVIEWED_FIDELITY_REFERENCES,
 } from '../dist/final/node/index.mjs';
 
@@ -171,27 +172,30 @@ await describe({
             + 'freeze date, so no hand-written specification sits among the drawn ones',
           fn: async () => {
             expect(EDITOR_FIDELITY_POOL,).toStrictEqual([...REVIEWED_FIDELITY_REFERENCES, ...DRAWN_EDITOR_SPECS,],);
+            // The pool was redrawn on the day the sixth round widened it.
+            expect(POOL_DRAWN_ON,).toBe('2026-10-24',);
             for (const spec of DRAWN_EDITOR_SPECS)
               expect(spec.reviewedOn,).toBe(POOL_DRAWN_ON,);
           },
         },),
 
         it({
-          name: 'HOLDS AT LEAST FORTY TRIALS, because four cannot separate effort levels: every card that fixes all four '
-            + 'reads the same',
+          name: 'ASKS FOR A HUNDRED AND FIFTY TRIALS AND HOLDS EVERY ONE THE CLONE OFFERS, at least eighty: the paired test '
+            + 'that reads the bench gains from each trial, and the draw takes every eligible entry before it stops short',
           fn: async () => {
-            expect(POOL_TRIALS.length,).toBeGreaterThanOrEqual(40,);
+            expect(POOL_TRIALS_WANTED,).toBe(150,);
+            expect(POOL_TRIALS.length,).toBeGreaterThanOrEqual(80,);
           },
         },),
 
         it({
-          name: 'SPREADS THEM over both defect families and over many entries, none holding more than four, so one '
-            + 'document cannot decide a card',
+          name: 'SPREADS THEM over both defect families and over fifty entries or more, none holding more than two, so one '
+            + 'document cannot decide a card and an entry is a cluster of at most two trials',
           fn: async () => {
             for (const kind of EDITOR_DAMAGE_KINDS) {
               expect(POOL_TRIALS.filter(function isKind(trial,): boolean {
                 return trial.kind === kind;
-              },).length,).toBeGreaterThanOrEqual(15,);
+              },).length,).toBeGreaterThanOrEqual(35,);
             }
             /**
              Trials each entry holds.
@@ -202,9 +206,9 @@ await describe({
                 return trial.entryId;
               },
             );
-            expect(perEntry.size,).toBeGreaterThanOrEqual(15,);
+            expect(perEntry.size,).toBeGreaterThanOrEqual(50,);
             for (const trials of perEntry.values())
-              expect(trials.length,).toBeLessThanOrEqual(4,);
+              expect(trials.length,).toBeLessThanOrEqual(2,);
           },
         },),
 
@@ -273,8 +277,10 @@ await describe({
         },),
 
         it({
-          name: 'FITS UNDER THE DEFAULT CAP, so an arm run with no --cap asks every trial and every arm sees the same ones',
+          name: 'FITS UNDER THE DEFAULT CAP, which holds the hundred and fifty trials the draw asks for, so an arm run '
+            + 'with no --cap asks every trial and every arm sees the same ones',
           fn: async () => {
+            expect(DEFAULT_EDITOR_TRIAL_CAP,).toBeGreaterThanOrEqual(150,);
             expect(DEFAULT_EDITOR_TRIAL_CAP,).toBeGreaterThanOrEqual(POOL_TRIALS.length,);
           },
         },),
