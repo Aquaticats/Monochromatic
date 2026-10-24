@@ -16,7 +16,7 @@ import type { Answer, } from './editor-fidelity-arm-answers.ts';
 
  @param facts - the arm's facts
 
- @returns Whether the planned line names a number of trials the pool holds
+ @returns Whether the planned line names no more units than the pool's trials hold through the passes it says the arm walks
 
  @example
  ```ts
@@ -31,22 +31,41 @@ export function plannedAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
     };
   }
   /**
-   The trials planned with their noun, and the pool.
+   Units the passes over the pool hold: the pool's trials once for each pass.
+   */
+  const held = facts.poolTrials * facts.passes;
+  /**
+   Whether the line plans more units than the passes hold, which a pool line must be present to say.
+   */
+  const over = (facts.poolTrials >= 0) && (facts.planned > held);
+  if (facts.passes === 1) {
+    return {
+      ok: !over,
+      detail: `${countWithNoun({
+        count: facts.planned,
+        one: 'trial',
+        many: 'trials',
+      },)} planned of a pool of ${String(facts.poolTrials,)}`,
+    };
+  }
+  /**
+   The units planned with their noun, the passes, and the pool.
    */
   const said = `${countWithNoun({
     count: facts.planned,
-    one: 'trial',
-    many: 'trials',
-  },)} planned of a pool of ${String(facts.poolTrials,)}`;
-  return ((facts.poolTrials >= 0) && (facts.planned > facts.poolTrials))
-    ? {
-      ok: false,
-      detail: said,
-    }
-    : {
-      ok: true,
-      detail: said,
-    };
+    one: 'unit',
+    many: 'units',
+  },)} planned in ${String(facts.passes,)} passes over a pool of ${
+    countWithNoun({
+      count: facts.poolTrials,
+      one: 'trial',
+      many: 'trials',
+    },)
+  }`;
+  return {
+    ok: !over,
+    detail: over ? `${said}, more than the ${String(held,)} the passes hold` : said,
+  };
 }
 
 /**

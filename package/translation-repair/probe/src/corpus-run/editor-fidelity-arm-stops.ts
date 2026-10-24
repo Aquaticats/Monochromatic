@@ -10,9 +10,15 @@ import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
 // an arm in which many trials were refused or unusable.
 
 /**
- The most unusable plus refused trials an arm may have before the read step warns of it.
+ The share of an arm's units, in percent, that unusable plus refused may reach before the read step warns of it; four of
+ forty, which is the same share at one pass, three passes or any other number of units.
  */
-export const UNUSABLE_PLUS_REFUSED_WARNED_ABOVE = 4;
+export const UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT = 10;
+
+/**
+ Percent in a whole.
+ */
+const PERCENT = 100;
 
 /**
  The answer of the check that every row line states how its asks ended.
@@ -166,13 +172,13 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 }
 
 /**
- The warning for an arm with many trials unusable or refused.
+ The warning for an arm with many units unusable or refused.
 
  @param arm - the arm's name
 
  @param figures - the arm's figures
 
- @returns The line alone, or nothing when the arm has no more than the warned-above count
+ @returns The line alone, or nothing when unusable plus refused are no more than the warned share of the arm's units
 
  @example
  ```ts
@@ -187,7 +193,7 @@ export function unusableWarning({
   readonly figures: ArmFigures
 },): readonly string[] {
   /**
-   Trials that yielded no edit, unusable and refused together.
+   Units that yielded no edit, unusable and refused together.
    */
   const together = Math.max(
     0,
@@ -196,15 +202,15 @@ export function unusableWarning({
     0,
     figures.refused,
   );
-  return (together > UNUSABLE_PLUS_REFUSED_WARNED_ABOVE)
+  return ((together * PERCENT) > (figures.trials * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
     ? [
       `WARN ${arm}: unusable plus refused is ${String(together,)} of ${
         countWithNoun({
           count: figures.trials,
-          one: 'trial',
-          many: 'trials',
+          one: 'unit',
+          many: 'units',
         },)
-      }, over ${String(UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,)}`,
+      }, over ${String(UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT,)} percent`,
     ]
     : [];
 }

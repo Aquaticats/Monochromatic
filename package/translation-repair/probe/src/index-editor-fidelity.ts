@@ -82,7 +82,7 @@ export { benchReportLines, } from './corpus-run/editor-fidelity-arm-report.ts';
 export {
   stopsStatedAnswer,
   trialEndsAnswer,
-  UNUSABLE_PLUS_REFUSED_WARNED_ABOVE,
+  UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT,
   unusableWarning,
 } from './corpus-run/editor-fidelity-arm-stops.ts';
 export {

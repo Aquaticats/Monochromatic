@@ -304,6 +304,11 @@ export type ArmFacts = {
   readonly planned: number;
 
   /**
+   Times the planned line says the arm walks the pool, one when it names none, which is how a single pass reads.
+   */
+  readonly passes: number;
+
+  /**
    Trials the TRIALS line says were completed, minus one when there is none.
    */
   readonly completed: number;
@@ -400,6 +405,16 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
       },),
       marker: 'planned: ',
     },),
+    passes: Math.max(
+      1,
+      numberAfter({
+        text: firstStarting({
+          bodies,
+          marker: 'planned: ',
+        },),
+        marker: ' asks (',
+      },),
+    ),
     completed: numberAfter({
       text: trialsLine,
       marker: 'TRIALS completed ',
