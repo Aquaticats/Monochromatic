@@ -4260,6 +4260,13 @@ Started 2026-10-24: an agent in a worktree measures the 994 px residual
 whether the IDE re-asks or the minimap rebuilds when hints change)
 and fixes it behind a failing test if it is an IDE defect;
 its report is verified, landed and the IDE reinstalled like the first one.
+Result (landed in `1d09f5a15a`, docs only): the residual is not a stale picture;
+a first click far down the minimap is mapped through a layout that lacks the hints of lines never asked about
+(8,688 px, then 9,522 px 20 ms later), so the editor lands about 9 lines from where a later click lands.
+The owner chose "Re-aim once" (answer through the question tool, 2026-10-24):
+when an answer changes the layout height while the view still stands where the last minimap click put it,
+scroll to where the same click lands in the new layout.
+An agent builds it with a test that fails first; its report is verified, landed and the IDE reinstalled.
 
 Correction of the residual, measured later on 2026-10-24 (`~/temp/agent/mm2`;
 record in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`):
