@@ -4,18 +4,20 @@
  native timer` to stderr and leaves the timer running. A module that starts a timer when it is loaded and clears it
  when its start settles meets exactly that: the start settled under the fake clock, the timer is a real one, and the
  process then stays alive until the real timer fires (five seconds for the logger's start check), so a suite of
- milliseconds held its process for five seconds. The option `shouldClearNativeTimers: true` hands such a clear to the
- real `clearTimeout`.
+ milliseconds held its process for five seconds. The fake `clearInterval` and `clearImmediate` of a clock do the same
+ for an interval and an immediate it did not make, with the message naming the function. The option
+ `shouldClearNativeTimers: true` hands such a clear to the real function of the same name.
 
  WHAT THE SCAN READS, in every file of every family package, tests and fixtures alike: each call of `useFakeTimers`, as
- a method of any object or called bare. A call whose clock fakes `clearTimeout` must pass an object literal that holds
- `shouldClearNativeTimers: true`. A clock fakes `clearTimeout` when its options hold no `toFake` list (every timer is
- faked then), an empty `toFake` list (the library fakes every timer for an empty list as well, so it is read as naming
- them all), or a `toFake` list that names it. A clock whose non-empty list leaves `clearTimeout` out, the date alone for
- one, cannot meet the hazard and is left alone. A call with no options, options that are no object literal, an
- object literal with a spread, a `toFake` that is no list of string literals, and an option that is not the literal
- `true` are findings as they stand, since the scan cannot tell what they hold. A finding names the file, the line
- and the reason.
+ a method of any object or called bare. A call whose clock fakes any of the three clear functions (`clearTimeout`,
+ `clearInterval`, `clearImmediate`) must pass an object literal that holds `shouldClearNativeTimers: true`. A clock
+ fakes a clear function when its options hold no `toFake` list (every timer is faked then), an empty `toFake` list (the
+ library fakes every timer for an empty list as well, so it is read as naming them all), or a `toFake` list that names
+ it. A clock whose non-empty list leaves all three out, the date alone for one, cannot meet the hazard and is left
+ alone. A finding names the first clear function the clock fakes. A call with no options, options that are no object
+ literal, an object literal with a spread, a `toFake` that is no list of string literals, and an option that is not the
+ literal `true` are findings as they stand, since the scan cannot tell what they hold. A finding names the file, the
+ line and the reason.
 
  OUT OF THE SCAN'S REACH: a clock installed with the `install` function of the fake-timers library itself (no family
  file does that), an options object built in another binding, and `toNotFake`, which a clock that lists it is read as
@@ -49,7 +51,7 @@ import {
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 
 //region Fake clock installs
-// Which calls install a fake clock, and whether the clock that fakes `clearTimeout` clears native timers.
+// Which calls install a fake clock, and whether the clock that fakes a clear function clears native timers.
 
 /**
  Name of the sandbox method that installs a fake clock.
@@ -57,14 +59,18 @@ import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fi
 const INSTALL_NAME = 'useFakeTimers';
 
 /**
- Option that hands a clear of a native timer to the real `clearTimeout`.
+ Option that hands a clear of a native timer to the real clear function.
  */
 const CLEAR_OPTION = 'shouldClearNativeTimers';
 
 /**
- Timer function whose fake refuses a native timer.
+ Timer functions whose fake refuses a native timer, in the order the library lists its timers.
  */
-const CLEARED_TIMER = 'clearTimeout';
+const CLEARED_TIMERS = [
+  'clearTimeout',
+  'clearInterval',
+  'clearImmediate',
+] as const;
 
 /**
  One call that installs a fake clock, and what the scan makes of it.
@@ -161,38 +167,97 @@ function propertiesNamed(
 }
 
 /**
- Why the `toFake` list of a clock cannot be read, or whether it names the timer.
+ A `toFake` list that was read: the clear functions it fakes.
+ */
+type FakedClears = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'faked';
+
+  /**
+   Clear functions faked, in the order the list names them, none where it names none.
+   */
+  readonly clears: readonly string[];
+};
+
+/**
+ A `toFake` list that could not be read.
+ */
+type UnreadableToFake = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'unreadable';
+
+  /**
+   Why the scan cannot read it, as the finding words it.
+   */
+  readonly reason: string;
+};
+
+/**
+ What the `toFake` list of a clock says: why it cannot be read, or the clear functions it fakes.
+ */
+type ToFakeReading = FakedClears | UnreadableToFake;
+
+/**
+ The reading of a clock that fakes every timer, as one with no `toFake` list or an empty one does.
+ */
+const EVERY_TIMER_FAKED: ToFakeReading = {
+  kind: 'faked',
+  clears: CLEARED_TIMERS,
+};
+
+/**
+ Why the `toFake` list of a clock cannot be read, or which clear functions it fakes.
 
  @param toFake - value of the `toFake` property
 
- @returns Reason it cannot be read, `names` where the list holds `clearTimeout` or is empty, `omits` where it does not
+ @returns The reason it cannot be read, or the clear functions it names in the order it lists them (all of them for an
+ empty list, none for `['Date']`)
 
  @example
  ```ts
- const reading = toFakeReading({ toFake: property.value, },); // 'omits' for ['Date']
+ const reading = toFakeReading({ toFake: property.value, },); // faked, with no clears, for ['Date']
  ```
  */
-function toFakeReading({ toFake, }: { readonly toFake: unknown; },): string {
+function toFakeReading({ toFake, }: { readonly toFake: unknown; },): ToFakeReading {
   /**
    The value without wrappers.
    */
   const { inner: list, } = unwrapped({ node: toFake, },);
-  if ((!isTreeNode(list,)) || (list.type !== 'ArrayExpression'))
-    return 'passes a toFake that is no written-out list, so the scan cannot read it';
+  if ((!isTreeNode(list,)) || (list.type !== 'ArrayExpression')) {
+    return {
+      kind: 'unreadable',
+      reason: 'passes a toFake that is no written-out list, so the scan cannot read it',
+    };
+  }
   /**
    The list's elements.
    */
   const elements = childNodes({ node: list, },);
   if (!elements.every(function isString(element,): boolean {
     return literalText({ node: element, },) !== '';
-  },))
-    return 'passes a toFake element that is no string literal, so the scan cannot read it';
-  // The library fakes every timer for an empty list, so an empty list names the timer too.
-  return ((elements.length === 0) || elements.some(function namesTimer(element,): boolean {
-    return literalText({ node: element, },) === CLEARED_TIMER;
-  },))
-    ? 'names'
-    : 'omits';
+  },)) {
+    return {
+      kind: 'unreadable',
+      reason: 'passes a toFake element that is no string literal, so the scan cannot read it',
+    };
+  }
+  // The library fakes every timer for an empty list, so an empty list names every clear function too.
+  if (elements.length === 0)
+    return EVERY_TIMER_FAKED;
+  return {
+    kind: 'faked',
+    clears: elements
+      .map(function nameOf(element,): string {
+        return literalText({ node: element, },);
+      },)
+      .filter(function isClear(name,): boolean {
+        return (CLEARED_TIMERS as readonly string[]).includes(name,);
+      },),
+  };
 }
 
 /**
@@ -200,7 +265,7 @@ function toFakeReading({ toFake, }: { readonly toFake: unknown; },): string {
 
  @param node - call of `useFakeTimers`
 
- @returns Reason, empty where the clock does not fake `clearTimeout` or clears native timers
+ @returns Reason, empty where the clock fakes no clear function or clears native timers
 
  @example
  ```ts
@@ -235,16 +300,20 @@ function refusalOf({ node, }: { readonly node: TreeNode; },): string {
     properties,
     name: 'toFake',
   },);
-  if (toFake !== undefined) {
-    /**
-     What the list says of `clearTimeout`.
-     */
-    const reading = toFakeReading({ toFake: toFake.value, },);
-    if (reading === 'omits')
-      return '';
-    if (reading !== 'names')
-      return reading;
-  }
+  /**
+   What the clock fakes of the clear functions.
+   */
+  const reading = (toFake === undefined)
+    ? EVERY_TIMER_FAKED
+    : toFakeReading({ toFake: toFake.value, },);
+  if (reading.kind === 'unreadable')
+    return reading.reason;
+  /**
+   The first clear function the clock fakes, absent where it fakes none.
+   */
+  const [fakedClear,] = reading.clears;
+  if (fakedClear === undefined)
+    return '';
   /**
    The clearing option.
    */
@@ -253,14 +322,14 @@ function refusalOf({ node, }: { readonly node: TreeNode; },): string {
     name: CLEAR_OPTION,
   },);
   if (option === undefined)
-    return `fakes ${CLEARED_TIMER} without ${CLEAR_OPTION}`;
+    return `fakes ${fakedClear} without ${CLEAR_OPTION}`;
   /**
    The option's value without wrappers.
    */
   const { inner: value, } = unwrapped({ node: option.value, },);
   return (isTreeNode(value,) && (value.type === 'Literal') && (value.value === true))
     ? ''
-    : `fakes ${CLEARED_TIMER} but sets ${CLEAR_OPTION} to something other than true`;
+    : `fakes ${fakedClear} but sets ${CLEAR_OPTION} to something other than true`;
 }
 
 /**
@@ -322,9 +391,9 @@ await describe({
   name: 'fake clocks clear the native timers they meet (ledger B837)',
   children: [
     it({
-      name: 'FINDS a fake clock that fakes clearTimeout without shouldClearNativeTimers set to true, in every form '
-        + 'of call and of options, and leaves a clock that sets it, a clock that fakes the date alone and a '
-        + 'method of the same name that installs nothing',
+      name: 'FINDS a fake clock that fakes clearTimeout, clearInterval or clearImmediate without '
+        + 'shouldClearNativeTimers set to true, in every form of call and of options, and leaves a clock that sets '
+        + 'it, a clock that fakes the date alone and a method of the same name that installs nothing',
       fn: async () => {
         expect(unclearedInstalls({
           files: [
