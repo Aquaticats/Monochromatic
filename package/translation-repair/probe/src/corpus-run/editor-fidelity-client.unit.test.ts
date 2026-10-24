@@ -22,10 +22,18 @@ import {
   CLAUDE_KEY_VARIABLE,
 } from '@monochromatic-dev/translation-repair-run';
 import {
+  cardsClientFrom,
   cardsOnlyClient,
   editorProbeEnv,
 } from '../../dist/final/node/index.mjs';
 import { statedRefusalMessage, } from '@monochromatic-dev/translation-repair-glossary/ts/stated-refusal-message.test-fixture.ts';
+import {
+  claudeStreamOf,
+  PLAIN_USAGE,
+} from '@monochromatic-dev/translation-repair-provider/ts/claude-client.test-fixture.ts';
+import { scripted, } from '@monochromatic-dev/translation-repair-provider/ts/direct-client.test-fixture.ts';
+import { withFreshRunSeats, } from '@monochromatic-dev/translation-repair-stage/ts/corpus-run/fresh-run-seats.test-fixture.ts';
+import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   HAIKU_CARD,
   HIGH_CARD,
@@ -144,6 +152,50 @@ await describe({
                 },);
               },
             },),).toBe('hf:zai-org/GLM-5.3-Flash is not served by the Claude route, the only one this probe asks',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: cardsClientFrom.name,
+      // SEQUENTIAL: the seat tally of a run client is process-wide.
+      concurrency: 1,
+      children: [
+        it({
+          name: 'HANDS THE CLAUDE CLIENT THE CALLER\'S ADMIT, over the Claude key alone: a call for the named card is '
+            + 'told to the caller once before its request, though the environment holds every provider\'s key',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-client-', },);
+            const { transport, exchanges, } = scripted({
+              replies: [{
+                status: 200,
+                bodyText: claudeStreamOf({ text: '{"edits":[]}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+              },],
+            },);
+            /**
+             What the caller was told, with the requests sent when it was told.
+             */
+            const asks: { readonly label: string; readonly sent: number; }[] = [];
+            const client = cardsClientFrom({
+              env: FULL_ENV,
+              transport,
+              promptPayloadDir: scratch.path,
+              cardIds: [LOW_CARD,],
+              admitClaudeAttempt: function noteAsk({ label, },): void {
+                asks.push({ label, sent: exchanges.length, },);
+              },
+            },);
+            const outcome = await client.chatJson({
+              modelId: LOW_CARD,
+              messages: [{ role: 'user', content: 'Where does the cat nap?', },],
+              signal: new AbortController().signal,
+              validate: (value: unknown,): value is unknown => value !== undefined,
+            },);
+            expect(outcome.kind,).toBe('ok',);
+            expect(asks,).toStrictEqual([{ label: LOW_CARD, sent: 0, },],);
+            expect(exchanges.length,).toBe(1,);
           },
         },),
       ],

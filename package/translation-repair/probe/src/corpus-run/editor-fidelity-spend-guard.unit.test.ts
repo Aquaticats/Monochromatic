@@ -26,12 +26,17 @@ import {
   createClaudeClient,
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
-import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
+import {
+  type ModelTransport,
+  ProviderHttpError,
+  type TransportExchange,
+} from '@monochromatic-dev/translation-repair-provider-stream';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
 import {
   noteRunSpend,
   resetRunSpend,
   runSpendUsd,
+  SONNET_5_5_PRICES,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import { infoLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import { anthropicFrameOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/anthropic-frames.test-fixture.ts';
@@ -41,11 +46,16 @@ import {
   PLAIN_USAGE,
 } from '@monochromatic-dev/translation-repair-provider/ts/claude-client.test-fixture.ts';
 import {
+  firstBodyOf,
   ONE_QUICK_RETRY,
   scripted,
 } from '@monochromatic-dev/translation-repair-provider/ts/direct-client.test-fixture.ts';
+import { CLAUDE_KEY_VARIABLE, } from '@monochromatic-dev/translation-repair-run';
+import { withFreshRunSeats, } from '@monochromatic-dev/translation-repair-stage/ts/corpus-run/fresh-run-seats.test-fixture.ts';
+import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   callCeilingUsd,
+  cardsClientFrom,
   guardLine,
   guardTotalLine,
   pricesOf,
@@ -265,6 +275,176 @@ function costOfSpendLines({ lines, }: { readonly lines: readonly string[]; },): 
       total += Number((line.split(' cost=',)[1] ?? '0').split(' ',)[0],);
   }
   return total;
+}
+
+/**
+ A whole stream with its terminator frame cut away, which is what a dropped connection leaves.
+ */
+const CUT = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+  .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+
+/**
+ A 200 stream with text and then an error event of the given type in place of its terminator.
+
+ @param errorType - type the error event names
+
+ @returns The stream's body
+
+ @example
+ ```ts
+ const body = streamWithErrorEvent({ errorType: 'overloaded_error', },);
+ ```
+ */
+function streamWithErrorEvent({ errorType, }: { readonly errorType: string; },): string {
+  /**
+   The frame that ends a whole stream.
+   */
+  const terminator = anthropicFrameOf({ body: { type: 'message_stop', }, },);
+  /**
+   The error event that takes its place.
+   */
+  const errorEvent = anthropicFrameOf({ body: { type: 'error', error: { type: errorType, message: 'Napping', }, }, },);
+  return claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+    .replace(terminator, errorEvent,);
+}
+
+/**
+ A stream cut by an overloaded event, which the client retries.
+ */
+const OVERLOADED = streamWithErrorEvent({ errorType: 'overloaded_error', },);
+
+/**
+ A stream cut by an event naming a refused request, which the client does not retry.
+ */
+const REFUSED_EVENT = streamWithErrorEvent({ errorType: 'invalid_request_error', },);
+
+/**
+ Retry pacing that gives a call its five attempts at a millisecond apart.
+ */
+const FOUR_RETRIES = {
+  limit: 4,
+  baseMs: 1,
+} as const;
+
+/**
+ Asks the guarded client one JSON exchange and keeps both what it raised and the info lines the call logged.
+
+ @param client - the guarded client
+ @param controller - the arm's own
+
+ @returns What the call raised, or undefined when it completed, with the lines it logged
+
+ @example
+ ```ts
+ const { result, logged, } = await askLogged({ client, controller, },);
+ ```
+ */
+async function askLogged(
+  {
+    client,
+    controller,
+  }: {
+    readonly client: ModelClient;
+    readonly controller: AbortController;
+  },
+): Promise<{ readonly result: unknown; readonly logged: readonly string[]; }> {
+  return await infoLinesDuring({
+    run: async () =>
+      await raisedBy({
+        ask: function askOnce(): Promise<unknown> {
+          return askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+        },
+      },),
+  },);
+}
+
+/**
+ The Claude client built over a transport with no admit given, which tells nobody of its attempts.
+
+ @param transport - the scripted transport
+ @param retries - retry pacing
+
+ @returns The Claude client's surface as a guard takes it
+
+ @example
+ ```ts
+ const inner = claudeUntoldOf({ transport, },);
+ ```
+ */
+function claudeUntoldOf(
+  {
+    transport,
+    retries = ONE_QUICK_RETRY,
+  }: {
+    readonly transport: ModelTransport;
+    readonly retries?: { readonly limit: number; readonly baseMs: number; };
+  },
+): ModelClient {
+  const claude = createClaudeClient({ apiKey: CLAUDE_CAT_KEY, transport, retryPolicy: retries, },);
+  return {
+    chatText: claude.chatText,
+    chatJson: claude.chatJson,
+    quotas: () => Promise.reject(new Error('quotas unused',),),
+  };
+}
+
+/**
+ The Claude client built over a transport once the guard hands it the admit of each attempt.
+
+ @param transport - the scripted transport
+ @param retries - retry pacing
+
+ @returns The builder a guard takes in place of a client
+
+ @example
+ ```ts
+ const client = spendGuardedClient({ inner: claudeInnerOf({ transport, retries, }), maxUsd: 1, controller, },);
+ ```
+ */
+function claudeInnerOf(
+  {
+    transport,
+    retries,
+  }: {
+    readonly transport: ModelTransport;
+    readonly retries: { readonly limit: number; readonly baseMs: number; };
+  },
+): (admit: Parameters<typeof createClaudeClient>[0]['admitAttempt'],) => ModelClient {
+  return function build(admit,): ModelClient {
+    const claude = createClaudeClient({
+      apiKey: CLAUDE_CAT_KEY,
+      transport,
+      retryPolicy: retries,
+      ...((admit === undefined) ? {} : { admitAttempt: admit, }),
+    },);
+    return {
+      chatText: claude.chatText,
+      chatJson: claude.chatJson,
+      quotas: () => Promise.reject(new Error('quotas unused',),),
+    };
+  };
+}
+
+/**
+ The most one attempt of the scripted call could be billed, off the body the first request carried.
+
+ @param exchanges - what the transport saw
+
+ @returns Dollars at the Sonnet prices, the bytes priced at the cache-write rate and the whole completion cap at the
+ output rate
+
+ @example
+ ```ts
+ const oneAttempt = attemptBoundOf({ exchanges, },);
+ ```
+ */
+function attemptBoundOf({ exchanges, }: { readonly exchanges: readonly TransportExchange[]; },): number {
+  /**
+   Bytes of the first request's body.
+   */
+  const bytes = Buffer.byteLength(exchanges[0]?.bodyJson ?? '', 'utf8',);
+  return ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
+    + (Number(firstBodyOf({ exchanges, },).max_tokens,) * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
 }
 
 await describe({
@@ -702,6 +882,265 @@ await describe({
               return line.includes('estimated=abandoned-bound',);
             },).length,).toBe(3,);
             expect(logTotal,).toBeGreaterThan(0.9,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'a guard over a client that tells it of each attempt',
+      children: [
+        it({
+          name: 'REFUSES THE ATTEMPT THAT WOULD PASS --max-usd INSIDE A CALL IT ADMITTED: attempts each cut by an '
+            + 'overloaded event are about 0.323 USD apiece on the meter, the call fits under 1.5 at its ceiling of '
+            + '0.322 and is admitted, and the fifth attempt is refused before it is sent, so four requests go out, '
+            + 'the spend stays under 1.5 and the arm ends',
+          fn: async () => {
+            resetRunSpend();
+            const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: OVERLOADED, },], },);
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: claudeInnerOf({ transport, retries: FOUR_RETRIES, }),
+              maxUsd: 1.5,
+              controller,
+            },);
+            const raised = await askLogged({ client, controller, },);
+            expect(raised.result,).toBeInstanceOf(StatedRefusalError,);
+            expect((raised.result as StatedRefusalError).message,).toContain('this attempt can cost',);
+            expect((raised.result as StatedRefusalError).message,).toContain('together they pass --max-usd 1.5000',);
+            expect(exchanges.length,).toBe(4,);
+            expect(controller.signal.aborted,).toBe(true,);
+            expect(runSpendUsd({ provider: 'anthropic', },),).toBeLessThan(1.5,);
+            expect(client.guardTotal().usd,).toBeLessThan(1.5,);
+            expect(client.guardTotal().atCeiling,).toBe(0,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES A RETRY THROUGH THE WHOLE ROUTE THE PROBE BUILDS, the run client over the Claude key with the '
+            + 'seat tally and the card guard: the first attempt is cut and written at its bound, the retry would pass '
+            + '0.5, so it is never sent, and the arm\'s signal carries the refusal',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-guard-', },);
+            resetRunSpend();
+            const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: CUT, },], },);
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: function routeOf(admit,): ModelClient {
+                return cardsClientFrom({
+                  env: { [CLAUDE_KEY_VARIABLE]: CLAUDE_CAT_KEY, },
+                  transport,
+                  promptPayloadDir: scratch.path,
+                  cardIds: [LOW_CARD,],
+                  admitClaudeAttempt: admit,
+                },);
+              },
+              maxUsd: 0.5,
+              controller,
+            },);
+            const raised = await askLogged({ client, controller, },);
+            expect(raised.result,).toBeDefined();
+            expect(exchanges.length,).toBe(1,);
+            expect(controller.signal.reason,).toBeInstanceOf(StatedRefusalError,);
+            expect((controller.signal.reason as StatedRefusalError).message,).toContain('this attempt can cost',);
+            expect(client.guardTotal().usd,).toBeLessThan(0.5,);
+          },
+        },),
+
+        it({
+          name: 'LETS EVERY ATTEMPT OF A CALL THROUGH THAT FITS, and counts each attempt once: five cut attempts under '
+            + '2 USD are five bound lines of the client and nothing of the guard\'s own, although the call throws, so '
+            + 'the guard\'s total is the meter\'s',
+          fn: async () => {
+            resetRunSpend();
+            const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: OVERLOADED, },], },);
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: claudeInnerOf({ transport, retries: FOUR_RETRIES, }),
+              maxUsd: 2,
+              controller,
+            },);
+            const raised = await askLogged({ client, controller, },);
+            expect(raised.result,).toBeInstanceOf(Error,);
+            expect(raised.result,).not.toBeInstanceOf(StatedRefusalError,);
+            expect(exchanges.length,).toBe(5,);
+            expect(client.guardTotal().atCeiling,).toBe(0,);
+            expect(client.guardTotal().calls,).toBe(1,);
+            expect(client.guardTotal().usd,).toBeCloseTo(runSpendUsd({ provider: 'anthropic', },), 9,);
+            expect(client.guardTotal().usd,).toBeCloseTo(5 * attemptBoundOf({ exchanges, }), 6,);
+            expect(costOfSpendLines({ lines: raised.logged, },),).toBeCloseTo(client.guardTotal().usd, 9,);
+          },
+        },),
+
+        it({
+          name: 'COUNTS NOTHING FOR A CALL THAT NEVER LEFT, a rejection by a layer above the client such as a retained '
+            + 'prompt claim or a withheld seat: no attempt was told to the guard, so the throw is free',
+          fn: async () => {
+            resetRunSpend();
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: function neverSends(): ModelClient {
+                return failingClient({ asked: [], failure: new Error('the retained claim was rejected again',), });
+              },
+              maxUsd: 1,
+              controller,
+            },);
+            const raised = await raisedBy({
+              ask: function askOnce(): Promise<unknown> {
+                return askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+              },
+            },);
+            expect((raised as Error).message,).toBe('the retained claim was rejected again',);
+            expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
+            expect(runSpendUsd({ provider: 'anthropic', },),).toBe(0,);
+          },
+        },),
+
+        it({
+          name: 'COUNTS ONE ATTEMPT ONCE WHEN THE CALL THROWS AFTER RETRIES: two cut attempts are two bound lines of the '
+            + 'client, and the third, which fails with nothing delivered and no line, is counted at its ceiling by '
+            + 'the guard, so three counts for three attempts and none for the call itself',
+          fn: async () => {
+            resetRunSpend();
+            const { transport: cutTransport, exchanges, } = scripted({
+              replies: [{ status: 200, bodyText: CUT, },],
+            },);
+            /**
+             Requests the transport was handed, to tell the third from the first two.
+             */
+            const sent = { count: 0, };
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: claudeInnerOf({
+                transport: async function dropsTheThird(exchange,) {
+                  sent.count += 1;
+                  if (sent.count === 3)
+                    throw new Error('socket hang up',);
+                  return await cutTransport(exchange,);
+                },
+                retries: { limit: 2, baseMs: 1, },
+              }),
+              maxUsd: 5,
+              controller,
+            },);
+            const raised = await askLogged({ client, controller, },);
+            expect((raised.result as Error).message,).toContain('socket hang up',);
+            expect(sent.count,).toBe(3,);
+            expect(exchanges.length,).toBe(2,);
+            expect(raised.logged.filter(function isBound(line,): boolean {
+              return line.includes('estimated=abandoned-bound',);
+            },).length,).toBe(3,);
+            expect(client.guardTotal().atCeiling,).toBe(1,);
+            expect(client.guardTotal().usd,).toBeCloseTo((2 * attemptBoundOf({ exchanges, })) + 0.322, 6,);
+            expect(client.guardTotal().usd,).toBeCloseTo(costOfSpendLines({ lines: raised.logged, }), 9,);
+          },
+        },),
+
+        it({
+          name: 'COUNTS A REPLY WHOSE OWN LINE IS MISSING EVEN WHEN AN EARLIER ATTEMPT WROTE ONE: the meter is compared '
+            + 'with its reading at the start of the last attempt, so the abandoned line of the first attempt does not '
+            + 'hide that the second, which reports usage, wrote nothing',
+          fn: async () => {
+            resetRunSpend();
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: function twoAttempts(admit,): ModelClient {
+                return {
+                  ...scriptedClient({ script: { asked: [], reportsUsage: true, }, },),
+                  chatJson: async <ValueT,>(): Promise<ChatJsonOutcome<ValueT>> => {
+                    admit({ label: LOW_CARD, bound: { promptTokens: 1_000, completionTokens: 32_000, usd: 0.322, }, },);
+                    noteRunSpend({ provider: 'anthropic', costUsd: 0.4, },);
+                    admit({ label: LOW_CARD, bound: { promptTokens: 1_000, completionTokens: 32_000, usd: 0.322, }, },);
+                    return {
+                      kind: 'ok',
+                      value: { edits: [], } as ValueT,
+                      rawText: '{"edits":[]}',
+                      usage: REPORTED,
+                    };
+                  },
+                };
+              },
+              maxUsd: 5,
+              controller,
+            },);
+            await askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+            expect(client.guardTotal().atCeiling,).toBe(1,);
+            expect(client.guardTotal().usd,).toBeCloseTo(0.4 + 0.322, 9,);
+          },
+        },),
+
+        it({
+          name: 'COUNTS A REPLY WITH USAGE BUT NO LINE ON THE METER AT ITS CEILING, since a client that reports tokens '
+            + 'and writes nothing leaves a cost nobody wrote down',
+          fn: async () => {
+            resetRunSpend();
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: scriptedClient({ script: { asked: [], reportsUsage: true, }, },),
+              maxUsd: 5,
+              controller,
+            },);
+            await askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+            expect(client.guardTotal(),).toStrictEqual({ usd: 0.322, calls: 1, atCeiling: 1, },);
+            expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(0.322, 10,);
+          },
+        },),
+
+        it({
+          name: 'READS THE SPEND OF THE ARM ALONE, not the meter\'s whole: lines the meter held before the guard was '
+            + 'built are not the arm\'s, so a reply of 0.1025 USD after 0.5 USD already on the meter is a total of '
+            + '0.1025 USD',
+          fn: async () => {
+            resetRunSpend();
+            noteRunSpend({ provider: 'anthropic', costUsd: 0.5, },);
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: scriptedClient({ script: { asked: [], pricedUsd: REPLY_USD, reportsUsage: true, }, },),
+              maxUsd: 1,
+              controller,
+            },);
+            await askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+            expect(client.guardTotal().usd,).toBeCloseTo(REPLY_USD, 10,);
+            expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(0.5 + REPLY_USD, 10,);
+          },
+        },),
+
+        it({
+          name: 'KEEPS A STREAM ERROR EVENT SAFE TO CALL FREE: a 200 stream with text and then an error event naming a '
+            + 'refused request is thrown with an empty body text, which the guard without attempts counts as a call '
+            + 'that delivered nothing, and the client has written the stream\'s bound line, so the guard\'s total '
+            + 'is the meter\'s, with the attempts told and without them',
+          fn: async () => {
+            resetRunSpend();
+            const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: REFUSED_EVENT, },], },);
+            const controller = new AbortController();
+            const withoutAttempts = spendGuardedClient({
+              inner: claudeUntoldOf({ transport, }),
+              maxUsd: 5,
+              controller,
+            },);
+            const first = await askLogged({ client: withoutAttempts, controller, },);
+            expect(first.result,).toBeInstanceOf(ProviderHttpError,);
+            expect((first.result as ProviderHttpError).bodyExcerpt,).toBe('',);
+            expect(exchanges.length,).toBe(1,);
+            expect(first.logged.filter(function isBound(line,): boolean {
+              return line.includes('estimated=abandoned-bound',);
+            },).length,).toBe(1,);
+            expect(withoutAttempts.guardTotal().atCeiling,).toBe(0,);
+            expect(withoutAttempts.guardTotal().usd,).toBeCloseTo(runSpendUsd({ provider: 'anthropic', },), 9,);
+
+            resetRunSpend();
+            const withAttempts = spendGuardedClient({
+              inner: claudeInnerOf({ transport, retries: ONE_QUICK_RETRY, }),
+              maxUsd: 5,
+              controller,
+            },);
+            const second = await askLogged({ client: withAttempts, controller, },);
+            expect(second.result,).toBeInstanceOf(ProviderHttpError,);
+            expect(withAttempts.guardTotal().atCeiling,).toBe(0,);
+            expect(withAttempts.guardTotal().usd,).toBeCloseTo(runSpendUsd({ provider: 'anthropic', },), 9,);
+            expect(withAttempts.guardTotal().usd,).toBeCloseTo(attemptBoundOf({ exchanges, }), 6,);
           },
         },),
       ],

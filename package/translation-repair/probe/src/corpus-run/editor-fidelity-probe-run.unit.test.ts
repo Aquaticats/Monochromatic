@@ -32,6 +32,7 @@ import {
 import type {
   ChatJsonOutcome,
   ChatJsonRequest,
+  ClaudeAttemptAsk,
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
@@ -100,6 +101,11 @@ const REPORTED_USAGE = {
  What one scripted reply costs on the run meter, as the Claude client's SPEND line would put it there.
  */
 const REPLY_USD = 0.205;
+
+/**
+ What a scripted attempt tells the admit it can cost when a case sets no figure: far under any amount a case allows.
+ */
+const SMALL_ATTEMPT_USD = 0.0001;
 
 /**
  Instant the first clock reading gives.
@@ -204,6 +210,11 @@ function inventedReader(
 
  @param silent - whether every reply is one nobody can read
 
+ @param admit - the admit the run handed the client builder, which the scripted client tells before its one attempt as
+ the Claude client does; absent for a client that tells nobody
+
+ @param attemptUsd - the most the scripted attempt tells the admit it can cost
+
  @returns The client the run asks through
 
  @example
@@ -211,11 +222,28 @@ function inventedReader(
  const client = fixingClient({ asked: [], silent: false, },);
  ```
  */
-function fixingClient({ asked, silent, }: { readonly asked: string[]; readonly silent: boolean; },): ModelClient {
+function fixingClient(
+  {
+    asked,
+    silent,
+    admit,
+    attemptUsd = SMALL_ATTEMPT_USD,
+  }: {
+    readonly asked: string[];
+    readonly silent: boolean;
+    readonly admit?: (attempt: ClaudeAttemptAsk,) => void;
+    readonly attemptUsd?: number;
+  },
+): ModelClient {
   return {
     chatText: () => Promise.reject(new Error('chatText unused by the editor',),),
     quotas: () => Promise.reject(new Error('quotas unused by the editor',),),
     chatJson: <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+      // THE CLAUDE CLIENT TELLS ITS CALLER BEFORE THE ATTEMPT, so a refusal ends the call before it is asked.
+      admit?.({
+        label: request.modelId,
+        bound: { promptTokens: 2_000, completionTokens: 32_000, usd: attemptUsd, },
+      },);
       asked.push(request.modelId,);
       // THE CLAUDE CLIENT PUTS EACH PRICED REPLY ON THE RUN METER; the guard reads the meter.
       noteRunSpend({ provider: 'anthropic', costUsd: REPLY_USD, },);
@@ -284,6 +312,8 @@ function fixingClient({ asked, silent, }: { readonly asked: string[]; readonly s
 
  @param silent - whether the scripted client says nothing readable
 
+ @param attemptUsd - the most each scripted attempt tells the admit the run handed the client builder it can cost
+
  @returns What the run did, once it settles, including what it threw
 
  @example
@@ -296,10 +326,12 @@ async function probeIn(
     runsDir,
     typed,
     silent = false,
+    attemptUsd,
   }: {
     readonly runsDir: string;
     readonly typed: readonly string[];
     readonly silent?: boolean;
+    readonly attemptUsd?: number;
   },
 ): Promise<ProbeRunSeen> {
   // The guard reads the process-wide run meter, so every run starts from a clean one.
@@ -358,7 +390,7 @@ async function probeIn(
         runsAsked.push(runsDir,);
         return Promise.resolve(runsDir,);
       },
-      newClient: function buildClient({ promptPayloadDir, cardIds, },): ModelClient {
+      newClient: function buildClient({ promptPayloadDir, cardIds, admitClaudeAttempt, },): ModelClient {
         clientBuilds.push({
           cardIds,
           promptPayloadDir,
@@ -370,6 +402,9 @@ async function probeIn(
         return fixingClient({
           asked,
           silent,
+          // Conditional spreads keep the members absent instead of undefined.
+          ...((admitClaudeAttempt === undefined) ? {} : { admit: admitClaudeAttempt, }),
+          ...((attemptUsd === undefined) ? {} : { attemptUsd, }),
         },);
       },
       now: function nextInstant(): string {
@@ -730,6 +765,27 @@ await describe({
               return line.startsWith('kept ',);
             },),).toBe(false,);
             expect(seen.written,).toBe('',);
+          },
+        },),
+
+        it({
+          name: 'HANDS THE CLIENT BUILDER THE GUARD\'S ADMIT, so an attempt the client tells it of is held to --max-usd '
+            + 'as a call is: with 0.7 allowed, the first call fits and costs 0.2050 USD, the second call\'s ceiling '
+            + 'still fits, but its attempt can cost 0.6000 USD, so it is refused as an attempt before the client is '
+            + 'asked',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--max-usd', '0.7',],
+              attemptUsd: 0.6,
+            },);
+            expect(seen.asked,).toStrictEqual([LOW_CARD,],);
+            expect(refusedWith({ seen, },),).toBe(
+              `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this attempt can `
+                + 'cost 0.6000 USD at most, and together they pass --max-usd 0.7000; the arm ends here, and the rows it '
+                + 'finished stay in their files',
+            );
           },
         },),
 
