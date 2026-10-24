@@ -12,9 +12,10 @@ import type { TextRange, } from './source-ships-ranges.ts';
 const DESTINATION_SYNTAX = '<>(){}\\';
 
 /**
- Characters Markdown reads in the text of a link.
+ Characters Markdown reads in the text of a link, and the dollar sign, which the site's math reads as the edge of an
+ expression and drops from the text.
  */
-const LABEL_SYNTAX = '\\[]{}<>*_`~&';
+const LABEL_SYNTAX = '\\[]{}<>*_`~&$';
 
 /**
  The highest code point of a character that one percent escape stands for.
