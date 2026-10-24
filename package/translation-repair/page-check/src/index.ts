@@ -260,7 +260,9 @@ export {
 export {
   droppedRunSets,
   type GrammarReader,
+  holdsOpenComment,
   namedSlices,
+  runTextOf,
   slicesRefusedAsLiteral,
   sourceRunsOf,
 } from './corpus-run/source-ships-runs.ts';
