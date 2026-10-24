@@ -206,7 +206,13 @@ export async function repairPreparedDocument(
    */
   const lineStructuredSlices = prepared.lineStructuredSliceIndices;
   rl.info(
-    `${String(prepared.alignmentPairCount,)} aligned units, ${
+    `${String(prepared.alignmentPairCount,)} aligned ${
+      wordForCount({
+        count: prepared.alignmentPairCount,
+        one: 'unit',
+        many: 'units',
+      },)
+    }, ${
       String(slices.length,)
     } ${
       wordForCount({
