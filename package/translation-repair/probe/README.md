@@ -234,8 +234,8 @@ and each task sets it to its own name.
   Every EDITOR line is printed pooled and for each kind of defect.
   Options after `--` are `--only` with entry ids of the pool,
   `--cap n`
-  (default 200,
-  more than the pool holds;
+  (default 1000,
+  more than the pool holds walked through several passes;
   `--cap 0` is a dry run that reads the corpus,
   prints the manifest,
   pool,
@@ -243,9 +243,17 @@ and each task sets it to its own name.
   ceiling,
   guard and `RULE` lines,
   builds no client and spends nothing),
+  `--passes n`
+  (walk the pool n times,
+  pass by pass:
+  every trial in the pool's one seeded order,
+  then every trial again;
+  a trial of a later pass is a unit of its own,
+  named `pass k` on its row line,
+  and joins its entry's cluster in the test),
   `--trials n`
-  (walk the first n trials of the pool's one seeded order,
-  which is how a later arm of a bench walks the trials the first arm completed;
+  (walk the first n units of the passes' one order,
+  which is how a later arm of a bench walks the units the first arm completed;
   refused beside a `--cap` above 0,
   allowed beside `--cap 0` for the dry run of that arm),
   `--damage insertion|alteration`
@@ -260,7 +268,7 @@ and each task sets it to its own name.
   what the arms run before this one measured,
   0 for the first arm;
   printed on the guard line;
-  the arm is refused when it and `--max-usd` together pass 20).
+  the arm is refused when it and `--max-usd` together pass 60).
   Prints the manifest digest,
   the pool,
   the trials planned,
@@ -359,9 +367,13 @@ each once:
 `claude-sonnet-5-5-effort-high`,
 then `claude-sonnet-5-5-effort-medium`,
 then `claude-sonnet-5-5-effort-low`.
-The owner ruled 20 USD for all the arms together;
-the caps named here (8,
-6 and 5) add to 19.
+The owner ruled 60 USD for all the arms together on 2026-10-24 (it was 20);
+the caps named here (24,
+18 and 15) add to 57.
+The pool holds at most 88 trials,
+so the money buys evidence through more units:
+each arm walks the pool three times with `--passes 3`,
+and a trial asked again joins the cluster of its entry in the test.
 The read step can also read a second medium arm,
 given as a fourth log between the medium and the low,
 as one more control (it joins the labels the test permutes).
@@ -376,10 +388,14 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > clean fix is exact plus equivalent,
 > counted trial by trial.
 > A trial in which an ask ended at the output-token cap scores as unusable for its arm,
-> and a trial in which an ask of any arm threw is left out of every arm's comparison and counted.
-> The arms are compared over the trials every arm completed,
-> which are the leading trials of one fixed seeded order,
-> grouped by the entry each comes from.
+> and a unit in which an ask of any arm threw is left out of every arm's comparison and counted,
+> where a unit is a trial in one pass over the pool
+> (an arm may walk the pool several times,
+> pass by pass).
+> The arms are compared over the units every arm completed,
+> which are the leading units of one fixed seeded order,
+> grouped by the entry each comes from,
+> so a trial asked again joins the cluster of its entry.
 > Each of the low and the high effort is tested against the default (medium)
 > by a one-sided exact paired permutation test,
 > permuting the arm labels within each entry,
@@ -388,7 +404,7 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > (a second medium arm,
 > if one is run,
 > joins the labels and is read as one control).
-> The paired difference is printed per shared trial
+> The paired difference is printed per shared unit
 > with a 95 percent interval from a seeded bootstrap over entries
 > (10000 resamples,
 > seed editor-fidelity-bench/interval/v1)
@@ -402,35 +418,51 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > not that the others are as good.
 > The estimates for each kind of defect (insertion,
 > alteration) are printed beside it and veto nothing.
-> With fewer than 40 shared trials the read step refuses to give a verdict.
+> With fewer than 60 shared units the read step refuses to give a verdict.
 > By simulation over the committed pool
 > (editor-fidelity-paired-null.test-fixture.ts,
-> seed edr6-sim),
-> at true fix rates from 0.30 to 0.95 and within-entry correlations from 0 to 1,
-> the chance of choosing another effort when none is better is at most 0.047;
-> over all 88 trials the smallest difference chosen with chance 0.8 is about 25 points when medium fixes half,
-> 21 points when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred,
+> seed edr7-sim),
+> at true fix rates from 0.30 to 0.95,
+> within-entry correlations from 0 to 1
+> and an agreement of a repeat with the arm's first answer from 0 to 1,
+> the chance of choosing another effort when none is better is at most 0.055;
+> over the 88 trials walked once the smallest difference chosen with chance 0.8
+> is about 26 points when medium fixes half,
+> 20 points when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred,
+> and over 176 units (two passes) 25,
+> 21 and 14 points where a repeat always gives the arm's first answer again,
+> 21,
+> 17 and 12 points where it does so half the time
+> and 17,
+> 14 and 10 points where it never does,
 > and a smaller difference cannot be told apart.
 > The insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim,
 > not the span-only view production gives an editor.
 
 Two efforts are each tested at 0.025,
 so the chance of picking either when neither is better is under 0.05,
-and the simulation measured 0.047 at the worst.
-The simulation plays the bench over the committed pool in its order:
+and the simulation measured 0.055 at the worst over the replicate design,
+which is inside the noise of 1000 replicates for each cell (about 0.007).
+The simulation plays the bench over the committed pool in its order,
+pass by pass:
 three arms fix each trial with a stated chance,
 share a trial's draw with chance 0 or one half,
-and read the two trials of an entry alike with a correlation from 0 to 1.
-It is `src/corpus-run/editor-fidelity-paired-null.test-fixture.ts`,
-and its unit test pins that its table agrees with the rule's exact test,
-that it walks the pool's 88 trials in order,
+read the trials of an entry alike with a correlation from 0 to 1,
+and give a trial asked again the arm's first answer with a stated agreement from 0 to 1 and a fresh draw otherwise.
+It is `src/corpus-run/editor-fidelity-paired-null.test-fixture.ts`
+(with its table and units in sibling fixture files),
+and its unit test pins that its table agrees with the rule's exact test for entries of any size,
+that it walks the pool's 88 trials in order and then again for each pass,
+that a repeat follows its agreement,
 and that one cell picks nothing more often than five in a hundred.
-The full grid ran once,
+The full grid ran once for each of three designs,
 seeded,
-with 1000 to 2000 replicates for each cell,
+with 800 to 1000 replicates for each cell,
 and its figures are in the ledger entry for this round.
-At 40 shared trials the smallest difference detected with chance 0.8 is about 37 points when medium fixes half,
-which is why 40 is the fewest the read step accepts.
+At 60 shared units the smallest difference detected with chance 0.8 is about 30 points when medium fixes half
+and 24 points when it fixes seven in ten,
+against 37 and 28 points at 40 units,
+which is why 60 is the fewest the read step accepts.
 
 ### Launching the arms
 
@@ -452,26 +484,30 @@ mkdir --parents "$BENCH"
 ```
 
 The arms run in this order,
-because the first arm decides how many trials the bench has.
-`high` runs first with the high card and `--max-usd 8`,
-over the whole pool.
-If the guard ends it before the pool is done,
+because the first arm decides how many units the bench has.
+`high` runs first with the high card,
+`--max-usd 24` and `--passes 3`,
+which walks the whole pool three times,
+pass by pass
+(264 units,
+the trials of the pool asked three times each).
+If the guard ends it before the passes are done,
 it prints a `CAPPED at trial k` line,
 keeps the rows it finished and exits 0;
 that is a shorter bench and not a failed arm.
 Read n,
-the number of trials it completed,
+the number of units it completed,
 from the `TRIALS completed n of p` line of `$BENCH/high.log`:
 
 ```bash
-# README.md (editor fidelity bench): n, the trials the high arm completed
+# README.md (editor fidelity bench): n, the units the high arm completed
 rg --only-matching "TRIALS completed [0-9]+" "$BENCH/high.log"
 ```
 
-Then `medium` runs with the medium card and `--max-usd 6`,
-and `low` with the low card and `--max-usd 5`,
-each with `--trials n`,
-so that each walks the same first n trials in the same order.
+Then `medium` runs with the medium card and `--max-usd 18`,
+and `low` with the low card and `--max-usd 15`,
+each with `--passes 3 --trials n`,
+so that each walks the same first n units in the same order.
 Each arm is the same command with its own name,
 card,
 cap,
@@ -484,7 +520,7 @@ The first:
 
 ```bash
 # README.md (editor fidelity bench): arm 1 of 3, high, over the whole pool
-ARM=high; CARD=claude-sonnet-5-5-effort-high; MAXUSD=8; SPENT=0; TRIALS=()
+ARM=high; CARD=claude-sonnet-5-5-effort-high; MAXUSD=24; SPENT=0; TRIALS=(--passes 3)
 mkdir --parents "$BENCH/$ARM"
 systemd-run --user --wait --collect "--unit=tr-edfid-$ARM" --property=MemoryMax=2G --property=CPUQuota=100% \
   "--working-directory=$PWD" "--setenv=PATH=$PATH" "--setenv=HOME=$HOME" \
@@ -504,8 +540,8 @@ with n and the measured spend written in:
 
 ```bash
 # README.md (editor fidelity bench): the first line of arms 2 and 3
-ARM=medium; CARD=claude-sonnet-5-5-effort-medium; MAXUSD=6; SPENT=<measured so far>; TRIALS=(--trials <n>)
-ARM=low; CARD=claude-sonnet-5-5-effort-low; MAXUSD=5; SPENT=<measured so far>; TRIALS=(--trials <n>)
+ARM=medium; CARD=claude-sonnet-5-5-effort-medium; MAXUSD=18; SPENT=<measured so far>; TRIALS=(--passes 3 --trials <n>)
+ARM=low; CARD=claude-sonnet-5-5-effort-low; MAXUSD=15; SPENT=<measured so far>; TRIALS=(--passes 3 --trials <n>)
 ```
 
 Before each later arm,
@@ -525,7 +561,8 @@ pool,
 planned,
 ceiling,
 guard and `RULE` lines and exits without building a client;
-the dry run of a later arm takes `--trials n` beside the `--cap 0`.
+the dry run of a later arm takes `--trials n` (units) beside the `--cap 0`,
+and every dry run takes the same `--passes`.
 The line to read is the `RULE` line,
 which is the rule the verdict will apply.
 
@@ -558,8 +595,9 @@ and low in the order run,
 each arm's stated `--bench-spent-usd` at least the `GUARD total=` of the arms before it,
 each later arm having walked the first arm's trials in the first arm's order,
 the same manifest digest in every one,
-a bench total under 20 USD,
-and at least 40 trials shared by every arm.
+a bench total under 60 USD,
+and at least 60 units shared by every arm
+(a unit is a trial in one pass over the pool).
 
 ## Family dependencies
 

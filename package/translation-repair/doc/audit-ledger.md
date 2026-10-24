@@ -582,7 +582,8 @@ named for that subject and listed here.
   the pool that holds every trial the clone offers (B895),
   the read step over three or four logs that absorbs a failed trial in the trial (B896),
   the spend guard's one-call-at-a-time assertion (B897),
-  and the retry-ladder hook with the cache statement of round 6 (B898).
+  the retry-ladder hook with the cache statement of round 6 (B898),
+  and the bench total of 60 USD with the replicates the rule reads as units (B899).
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,

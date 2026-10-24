@@ -104,7 +104,7 @@ env.TRANSLATION_REPAIR_STARTED_BY = "judge-fidelity-probe"
 run = "node dist/final/node/judge-fidelity-probe.mjs"
 
 [tasks."editor-fidelity-probe"]
-description = "Seat named Claude cards alone as the editor of hash-verified seeded defects that have a known fix and score each patched text by comparison with the clean reference text, over the frozen pool of at least forty trials; SPENDS QUOTA on the named cards only, each call held to --max-usd by the measured spend, an arm the guard caps ends as capped with the rows it finished (pass --only pool-entry-ids, --cap n or --trials n for the leading trials to walk, --damage insertion|alteration, --candidates seatable,ids, --candidates-alone, --max-usd dollars, --bench-spent-usd dollars, after --; --cap 0 is metadata-only preflight)"
+description = "Seat named Claude cards alone as the editor of hash-verified seeded defects that have a known fix and score each patched text by comparison with the clean reference text, over the frozen pool of at least forty trials; SPENDS QUOTA on the named cards only, each call held to --max-usd by the measured spend, an arm the guard caps ends as capped with the rows it finished (pass --only pool-entry-ids, --cap n or --trials n for the leading units to walk, --passes n for the number of times the pool is walked, --damage insertion|alteration, --candidates seatable,ids, --candidates-alone, --max-usd dollars, --bench-spent-usd dollars, after --; --cap 0 is metadata-only preflight)"
 depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-probe"
 run = "node dist/final/node/editor-fidelity-probe.mjs"
