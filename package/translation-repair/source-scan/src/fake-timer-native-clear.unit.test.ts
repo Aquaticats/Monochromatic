@@ -10,10 +10,12 @@
  WHAT THE SCAN READS, in every file of every family package, tests and fixtures alike: each call of `useFakeTimers`, as
  a method of any object or called bare. A call whose clock fakes `clearTimeout` must pass an object literal that holds
  `shouldClearNativeTimers: true`. A clock fakes `clearTimeout` when its options hold no `toFake` list (every timer is
- faked then) or a `toFake` list that names it. A clock that fakes the date alone cannot meet the hazard and is left
- alone. A call with no options, options that are no object literal, an object literal with a spread, a `toFake` that is
- no list of string literals, and an option that is not the literal `true` are findings as they stand, since the scan
- cannot tell what they hold. A finding names the file, the line and why.
+ faked then), an empty `toFake` list (the library fakes every timer for an empty list as well, so it is read as naming
+ them all), or a `toFake` list that names it. A clock whose non-empty list leaves `clearTimeout` out, the date alone for
+ one, cannot meet the hazard and is left alone. A call with no options, options that are no object literal, an
+ object literal with a spread, a `toFake` that is no list of string literals, and an option that is not the literal
+ `true` are findings as they stand, since the scan cannot tell what they hold. A finding names the file, the line
+ and the reason.
 
  OUT OF THE SCAN'S REACH: a clock installed with the `install` function of the fake-timers library itself (no family
  file does that), an options object built in another binding, and `toNotFake`, which a clock that lists it is read as
@@ -163,7 +165,7 @@ function propertiesNamed(
 
  @param toFake - value of the `toFake` property
 
- @returns Reason it cannot be read, `names` where the list holds `clearTimeout`, `omits` where it does not
+ @returns Reason it cannot be read, `names` where the list holds `clearTimeout` or is empty, `omits` where it does not
 
  @example
  ```ts
@@ -185,9 +187,10 @@ function toFakeReading({ toFake, }: { readonly toFake: unknown; },): string {
     return literalText({ node: element, },) !== '';
   },))
     return 'passes a toFake element that is no string literal, so the scan cannot read it';
-  return elements.some(function namesTimer(element,): boolean {
+  // The library fakes every timer for an empty list, so an empty list names the timer too.
+  return ((elements.length === 0) || elements.some(function namesTimer(element,): boolean {
     return literalText({ node: element, },) === CLEARED_TIMER;
-  },)
+  },))
     ? 'names'
     : 'omits';
 }
