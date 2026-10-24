@@ -245,6 +245,11 @@ named for that subject and listed here.
   the readings of that search that no case held (B862),
   the rebuild of that search over each file's syntax tree (B863),
   and the check over the family's real sources that names each shape the search leaves unread (B864).
+- [Audit ledger: the check over the schema sources as a whitelist](audit-ledger-schema-source-check-as-a-whitelist.md):
+  The check of B864 rebuilt from a list of seven named shapes into a whitelist anchored at the module-load boundary,
+  with two totals,
+  eight shapes,
+  and a prevention rule that replaces the one of B864 (B865).
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,

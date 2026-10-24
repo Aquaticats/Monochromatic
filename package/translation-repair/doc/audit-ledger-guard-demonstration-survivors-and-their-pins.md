@@ -535,7 +535,7 @@ the sentences of this entry that the search follows "a dynamic `import()` or `re
 a `require`,
 and the same loads bound inside a function or read in place),
 that the scan keeps three over-reads
-(it keeps eight),
+(it keeps nine),
 and that the installed TypeScript has no `createSourceFile` and no `createProgram`
 (true of the root export only).
 This entry is otherwise left as it was written.
@@ -644,6 +644,15 @@ loads read in place and call methods,
 and its list of over-reads).
 The design that landed is open to the owner's veto.
 
+Superseded in part by B865 (in `audit-ledger-schema-source-check-as-a-whitelist.md`):
+the check of seven named shapes is a whitelist anchored at the module-load boundary with eight shapes,
+the sentence that the check "reports a place whether or not a producer hides there" holds only of the places the whitelist does not read,
+the check costs about 1.0 s over the real sources once the builders are found (2.0 s with them),
+and the prevention rule of this entry
+(a header that lists unread shapes,
+paired with a check that names them)
+is replaced by the rule of B865.
+
 The defect:
 five re-checks in a row found shapes that the header of `claude-schema-sources.test-fixture.ts` claims the search reads
 and it does not,
@@ -742,10 +751,14 @@ with the header clause `0c4eecc1ed`):
   a case that states what the search lists of it,
   and an entry of the check.
 - Over-reads:
-  the header now names the five of the defect beside the three of B863
+  the header now names the five of the defect,
+  a sixth that the header and the case on a constant inside a function name beside them
+  (a function declared inside a function that has the builder's name),
+  and the three of B863
   (a name the file neither declares nor imports,
   a name imported from a specifier that names no file of the sources,
   a parameter of the builder's name),
+  nine in all,
   each with a case in `claude-schema-over-read-forms.test-fixture.ts` or `claude-schema-binding-forms.test-fixture.ts`.
 - Cases for the survivors:
   each surviving mutant of re-check 12 has a case that states the answer the search gives,
