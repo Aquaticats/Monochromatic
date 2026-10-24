@@ -112,8 +112,8 @@ export const SPECIFIER_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'REPORTS THE SPECIFIER OF AN IMPORT-EQUALS DECLARATION, OF A SCOPED PACKAGE THE LOCKFILE DOES NOT HOLD AND OF '
-      + 'A PACKAGE ONLY A TOOL OF THE REPOSITORY HOLDS',
+    name: 'REPORTS THE SPECIFIER OF AN IMPORT-EQUALS DECLARATION, OF A SCOPED PACKAGE THE LOCKFILE DOES NOT HOLD AND '
+      + 'OF A PACKAGE ONLY A TOOL OF THE REPOSITORY HOLDS',
     files: [
       {
         file: 'imaginary/src/equals-stage.ts',
@@ -141,6 +141,61 @@ export const SPECIFIER_CASES: readonly ShapeCase[] = [
         file: 'imaginary/src/equals-stage.ts',
         line: 3,
         specifier: 'oxlint',
+      },),
+    ],
+  },
+  {
+    name: 'REPORTS A SPECIFIER OF A PACKAGE OF THE FAMILY THAT NAMES NO FILE OF THE SOURCES, a subpath that does not '
+      + 'exist, one outside the exports map and a package nothing holds, and nothing for the package, its /ts subpath '
+      + 'and a /ts file the sources hold: the lockfile lists the family\'s packages for each other, which says '
+      + 'nothing of the files they hold',
+    files: [
+      {
+        file: 'imaginary/src/family-stage.ts',
+        text: textOf([
+          'import make from \'@monochromatic-dev/translation-repair-lane-contest/ts/nothing.ts\';',
+          'import pack from \'@monochromatic-dev/translation-repair-lane-contest/package.json\';',
+          'export { built, } from \'@monochromatic-dev/translation-repair-lane-contest/dist/index.mjs\';',
+          'export const loaded = await import(\'@monochromatic-dev/translation-repair-lane-contest/ts/absent.ts\');',
+          'import { absent, } from \'@monochromatic-dev/translation-repair-nonesuch/ts\';',
+        ],),
+      },
+      {
+        file: 'imaginary/src/family-resolved-stage.ts',
+        text: textOf([
+          'import { buildClaudeBody, } from \'@monochromatic-dev/translation-repair-provider\';',
+          'import { buildClaudeBody as again, } from \'@monochromatic-dev/translation-repair-provider/ts\';',
+          'import { wire, } from \'@monochromatic-dev/translation-repair-lane-contest/ts/contest-ballot-wire.ts\';',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+    spots: [
+      unresolvedAt({
+        file: 'imaginary/src/family-stage.ts',
+        line: 1,
+        specifier: '@monochromatic-dev/translation-repair-lane-contest/ts/nothing.ts',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/family-stage.ts',
+        line: 2,
+        specifier: '@monochromatic-dev/translation-repair-lane-contest/package.json',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/family-stage.ts',
+        line: 3,
+        specifier: '@monochromatic-dev/translation-repair-lane-contest/dist/index.mjs',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/family-stage.ts',
+        line: 4,
+        specifier: '@monochromatic-dev/translation-repair-lane-contest/ts/absent.ts',
+      },),
+      unresolvedAt({
+        file: 'imaginary/src/family-stage.ts',
+        line: 5,
+        specifier: '@monochromatic-dev/translation-repair-nonesuch/ts',
       },),
     ],
   },

@@ -137,8 +137,9 @@ export const DESTINATION_SENDER_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'REPORTS A CALL OF ANOTHER FUNCTION OF THE SENDER\'S MODULE, A COMPUTED KEY OF THE SENDER AND A SENDER\'S NAME '
-      + 'THAT IS AN OBJECT: only a function of the module, by its name, with the parameter as a plain key, is a sender',
+    name: 'REPORTS A CALL OF ANOTHER FUNCTION OF THE SENDER\'S MODULE, A COMPUTED KEY OF THE SENDER AND A SENDER\'S '
+      + 'NAME THAT IS AN OBJECT: only a function of the module, by its name, with the parameter as a plain key, is a '
+      + 'sender',
     files: [
       {
         file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
