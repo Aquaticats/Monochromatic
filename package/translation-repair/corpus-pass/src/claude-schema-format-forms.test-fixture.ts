@@ -168,6 +168,34 @@ export const FORMAT_LIMIT_CASES: readonly FormCase[] = [
     builders: [],
   },
   {
+    name: 'NAMES A FILE THAT HOLDS ONLY AN INTERFACE WITH THE TYPE OF THE FORMAT, as in `interface Envelope { '
+      + 'readonly type: \'json_schema\'; }`, and no function',
+    files: [
+      {
+        file: 'imaginary/src/format-interface.ts',
+        text: textOf([
+          'export interface Envelope {',
+          '  readonly type: \'json_schema\';',
+          '}',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/format-interface.ts',],
+    builders: [],
+  },
+  {
+    name: 'NAMES NOTHING IN A type PROPERTY THAT HOLDS AN ARRAY OF THE STRING json_schema, since the value is no '
+      + 'string',
+    files: [
+      {
+        file: 'imaginary/src/format-array-value.ts',
+        text: textOf(['export const KINDS = { type: [\'json_schema\',], };',],),
+      },
+    ],
+    found: [],
+    builders: [],
+  },
+  {
     name: 'FINDS NO BUILDER IN A CONSTANT THAT HOLDS A FORMAT, so the file that reads the constant is not demanded '
       + 'in the producer list',
     files: [

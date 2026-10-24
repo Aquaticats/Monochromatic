@@ -48,11 +48,14 @@ import {
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
+import { CYCLE_CASES, } from './claude-schema-cycle-forms.test-fixture.ts';
 import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
 import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
 import { FORMAT_LIMIT_CASES, SPELLING_CASES, } from './claude-schema-format-forms.test-fixture.ts';
 import { UNREAD_BUILDER_CASES, } from './claude-schema-limit-forms.test-fixture.ts';
+import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.ts';
+import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
 import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
 import {
@@ -68,6 +71,7 @@ import {
   WRAPPER_OPENING_CASES,
 } from './claude-schema-wrapped-builder-forms.test-fixture.ts';
 import { NO_BUILDER_CASES, WRAPPER_FORM_CASES, } from './claude-schema-wrapper-forms.test-fixture.ts';
+import { WRAPPER_NESTING_CASES, } from './claude-schema-wrapper-nesting-forms.test-fixture.ts';
 import { NOT_A_WRAPPER_CASES, TYPE_MARK_WRAPPER_CASES, } from './claude-schema-wrapper-limit-forms.test-fixture.ts';
 
 //region Not stage schemas
@@ -588,6 +592,7 @@ await describe({
       ...CALL_FORM_CASES,
       ...BUILDER_FORM_CASES,
       ...WRAPPER_FORM_CASES,
+      ...WRAPPER_NESTING_CASES,
       ...WRAPPER_OPENING_CASES,
       ...WRAPPED_BUILDER_CASES,
       ...NO_BUILDER_CASES,
@@ -603,6 +608,10 @@ await describe({
       ...BINDING_CASES,
       ...NAME_RULE_CASES,
       ...UNREAD_BUILDER_CASES,
+      ...REFERENCE_POSITION_CASES,
+      ...NOT_A_REFERENCE_CASES,
+      ...OVER_READ_CASES,
+      ...CYCLE_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
