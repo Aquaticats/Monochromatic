@@ -15,11 +15,13 @@
 import {
   chmod,
   mkdir,
+  realpath,
   symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import {
   describe,
   expect,
@@ -147,11 +149,37 @@ function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootF
 }
 
 /**
+ What the filesystem says when a path is resolved to its real place and cannot be.
+
+ @param path - path whose resolution the filesystem refuses
+
+ @returns The text of the refusal, which is what the audit logs of the failure
+
+ @throws {@link Error} when the path resolves, since the case then holds no refusal to compare with
+
+ @example
+ ```ts
+ const said = await refusalSaid({ path: '/cats/file/below', },); // "ENOTDIR: not a directory, realpath '/cats/file/below'"
+ ```
+ */
+async function refusalSaid({ path, }: { readonly path: string; },): Promise<string> {
+  try {
+    await realpath(path,);
+  }
+  catch (error) {
+    return caughtValueText(error,);
+  }
+  throw new Error(`${path} resolves, so the case holds no refusal of the filesystem to compare with`,);
+}
+
+/**
  The line the audit logs for a root it could not resolve.
 
  @param root - the root as it was given
 
  @param code - filesystem code of the failure
+
+ @param said - text of the failure, as the filesystem words it
 
  @param home - home directory the runbook's runs root sits under
 
@@ -159,22 +187,29 @@ function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootF
 
  @example
  ```ts
- const line = unresolvedRootLine({ root: '/cats/file/below', code: 'ENOTDIR', home: '/cats/home', },);
+ const line = unresolvedRootLine({
+   root: '/cats/file/below',
+   code: 'ENOTDIR',
+   said: 'ENOTDIR: not a directory',
+   home: '/cats/home',
+ },);
  ```
  */
 function unresolvedRootLine(
   {
     root,
     code,
+    said,
     home,
   }: {
     readonly root: string;
     readonly code: string;
+    readonly said: string;
     readonly home: string;
   },
 ): string {
   return `[warningWordsOf] [reachOfRoot] ${root} could not be compared with the runbook's runs root `
-    + `${join(home, 'temp', 'agent',)} (${code}); it counts as not reaching it`;
+    + `${join(home, 'temp', 'agent',)} (${code}); it counts as not reaching it. The failure was: ${said}`;
 }
 
 /**
@@ -799,7 +834,12 @@ await describe({
           lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
         },).toEqual({
           logged: [
-            unresolvedRootLine({ root: belowFile, code: 'ENOTDIR', home: HOME, },),
+            unresolvedRootLine({
+              root: belowFile,
+              code: 'ENOTDIR',
+              said: await refusalSaid({ path: belowFile, },),
+              home: HOME,
+            },),
             unreachedRootWarning({
               roots: [
                 join(root.path, 'node_modules', '.monochromatic',),
@@ -865,7 +905,12 @@ await describe({
           lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
         },).toEqual({
           logged: [
-            unresolvedRootLine({ root: loopA, code: 'ELOOP', home: HOME, },),
+            unresolvedRootLine({
+              root: loopA,
+              code: 'ELOOP',
+              said: await refusalSaid({ path: loopA, },),
+              home: HOME,
+            },),
             unreachedRootWarning({
               roots: [
                 join(root.path, 'node_modules', '.monochromatic',),
@@ -929,7 +974,12 @@ await describe({
           lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
         },).toEqual({
           logged: [
-            unresolvedRootLine({ root: behindSealed, code: 'EACCES', home: HOME, },),
+            unresolvedRootLine({
+              root: behindSealed,
+              code: 'EACCES',
+              said: await refusalSaid({ path: behindSealed, },),
+              home: HOME,
+            },),
             unreachedRootWarning({
               roots: [
                 join(root.path, 'node_modules', '.monochromatic',),
@@ -983,7 +1033,14 @@ await describe({
             return line.startsWith('WARNING: ',);
           },),
         },).toEqual({
-          warned: [unresolvedRootLine({ root: belowFile, code: 'ENOTDIR', home: HOME, },),],
+          warned: [
+            unresolvedRootLine({
+              root: belowFile,
+              code: 'ENOTDIR',
+              said: await refusalSaid({ path: belowFile, },),
+              home: HOME,
+            },),
+          ],
           printedWarning: false,
         },);
       },
