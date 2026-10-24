@@ -83,10 +83,24 @@ const READ_POSITIONS: readonly ReadPosition[] = [
     ],
   },
   {
+    name: 'read-call-method',
+    lines: [
+      CONTEST_IMPORT,
+      `export const CALLED_METHOD = contestResponseFormat.call(null, ${ARGUMENTS},);`,
+    ],
+  },
+  {
     name: 'read-bound',
     lines: [
       CONTEST_IMPORT,
       `export const BOUND = contestResponseFormat.bind(null,)(${ARGUMENTS},);`,
+    ],
+  },
+  {
+    name: 'read-typeof-type',
+    lines: [
+      CONTEST_IMPORT,
+      'export type Made = typeof contestResponseFormat;',
     ],
   },
   {
@@ -247,7 +261,8 @@ const READ_THROUGH_FILES: readonly ReadPosition[] = [
 export const WHITELIST_READ_CASES: readonly ShapeCase[] = [
   {
     name: 'LISTS EACH FILE THAT HOLDS A POSITION THE SEARCH READS BY ITSELF AND REPORTS NO PLACE IN IT: a builder '
-      + 'called, constructed, tagged, called with a question mark, applied, bound, aliased, cast, read through a '
+      + 'called, constructed, tagged, called with a question mark, applied, bound, called by its call method, aliased, '
+      + 'cast, named in a type only (listed by nothing, reported by nothing), read through a '
       + 'namespace by a member, a literal key or a pattern, through a load held, taken apart, required or read in '
       + 'place, its result handed to a call, held, tested or dropped by a sequence, a wrapper, and a builder exported '
       + 'again, by a star or as the default, listed through the file that calls it',
@@ -283,6 +298,7 @@ export const WHITELIST_READ_CASES: readonly ShapeCase[] = [
       'imaginary/src/read-alias-stage.ts',
       'imaginary/src/read-applied-stage.ts',
       'imaginary/src/read-bound-stage.ts',
+      'imaginary/src/read-call-method-stage.ts',
       'imaginary/src/read-called-stage.ts',
       'imaginary/src/read-casted-alias-stage.ts',
       'imaginary/src/read-constructed-stage.ts',

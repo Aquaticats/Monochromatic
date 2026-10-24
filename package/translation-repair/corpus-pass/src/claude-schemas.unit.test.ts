@@ -752,6 +752,56 @@ await describe({
       },
     },),
 
+    it({
+      name: 'SEARCHES THE BUILDERS OF THE SAME MODULES ONCE, whichever entry point asks and however the sources are '
+        + 'listed, and again when the files named as no stage schema change, so the suite pays for the family once',
+      fn: async () => {
+        /**
+         The family's sources.
+         */
+        const sources = await familySources();
+        /**
+         A file that writes a format, which the names decide whether the search reads.
+         */
+        const memoSources = [
+          {
+            file: 'imaginary/src/memo-wire.ts',
+            text: textOf([
+              'export function memoFormat() {',
+              '  return { type: \'json_schema\', };',
+              '}',
+            ],),
+          },
+        ];
+        /**
+         The builders found for the family, and again.
+         */
+        const first = buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },);
+        expect({
+          sameSources: buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },) === first,
+          copiedSources: buildersOf({
+            sources: [...sources,],
+            notStageSchemas: new Set(NOT_STAGE_SCHEMAS,),
+          },) === first,
+          namedFile: buildersOf({
+            sources: memoSources,
+            notStageSchemas: new Set(['imaginary/src/memo-wire.ts',],),
+          },).length,
+          unnamedFile: buildersOf({ sources: memoSources, notStageSchemas: new Set<string>(), },).length,
+          editedFile: buildersOf({
+            sources: [{ file: 'imaginary/src/memo-wire.ts', text: 'export function memoFormat() {}\n', },],
+            notStageSchemas: new Set<string>(),
+          },).length,
+        },).toEqual({
+          sameSources: true,
+          copiedSources: true,
+          namedFile: 0,
+          unnamedFile: 1,
+          editedFile: 0,
+        },);
+      },
+    },),
+
     ...CALLER_CASES.map(function caseOfCallers(callerCase,) {
       return it({
         name: callerCase.name,
