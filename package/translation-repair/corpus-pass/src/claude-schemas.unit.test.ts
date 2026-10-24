@@ -46,6 +46,7 @@ import {
   type JsonSchemaResponseFormat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
+import { BINDING_KIND_CASES, BUILDER_MEMBER_CASES, } from './claude-schema-binding-kind-forms.test-fixture.ts';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
 import { blindSpotsOf, } from './claude-schema-blind-spots.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
@@ -643,6 +644,8 @@ await describe({
       ...LOAD_IN_PLACE_CASES,
       ...UNAWAITED_LOAD_CASES,
       ...CALL_METHOD_CASES,
+      ...BINDING_KIND_CASES,
+      ...BUILDER_MEMBER_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
