@@ -24,8 +24,9 @@ await describe({
   name: 'editor-fidelity-probe command line',
   children: [
     it({
-      name: 'DECLARES the judge probe\'s entry, cap, damage and candidate flags, its candidates-alone switch and the '
-        + 'amount it may spend, and no context switch, which has no meaning for an editor',
+      name: 'DECLARES the judge probe\'s entry, cap, damage and candidate flags, its candidates-alone switch, the '
+        + 'amount it may spend and the number of trials an arm walks, and no context switch, which has no meaning for '
+        + 'an editor',
       fn: async () => {
         /**
          The declaration under test.
@@ -38,6 +39,7 @@ await describe({
           'damage',
           'max-usd',
           'only',
+          'trials',
         ],);
         expect(Object.keys(spec.switches,),).toEqual(['candidates-alone',],);
         expect(Object.keys(spec.repeatable,),).toEqual([],);
@@ -75,7 +77,14 @@ await describe({
             '1.5',
             '--bench-spent-usd',
             '3',
+            '--trials',
+            '57',
           ],
+        },);
+        expect(line.flag('trials',),).toEqual({
+          kind: 'written',
+          flag: '--trials',
+          value: '57',
         },);
         expect(line.flag('max-usd',),).toEqual({
           kind: 'written',
