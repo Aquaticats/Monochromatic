@@ -263,8 +263,8 @@ export const NO_BUILDER_CASES: readonly FormCase[] = [
     builders: [],
   },
   {
-    name: 'READS A BUILDER\'S NAME INSIDE A LONGER STRING, OR IN A COMMENT THAT TRAILS CODE, AS A USE, which is how '
-      + 'the search over-reads and the header says so',
+    name: 'NAMES NOTHING IN A LONGER STRING OR IN A COMMENT THAT TRAILS CODE, because the search reads the syntax '
+      + 'tree, where a string is one value and a comment is not a node',
     files: [
       {
         file: 'imaginary/src/message-name.ts',
@@ -275,10 +275,7 @@ export const NO_BUILDER_CASES: readonly FormCase[] = [
         text: textOf(['export const NOTHING = 4; // contestResponseFormat(...) is the builder',],),
       },
     ],
-    found: [
-      'imaginary/src/message-name.ts',
-      'imaginary/src/trailing-comment-name.ts',
-    ],
+    found: [],
     builders: [],
   },
 ];

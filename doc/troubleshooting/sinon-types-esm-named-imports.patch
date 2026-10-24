@@ -1,0 +1,74 @@
+--- a/types/sinon/index.d.mts
++++ b/types/sinon/index.d.mts
+@@ -1,3 +1,71 @@
+ import sinon = require("./index.js");
+ 
+ export default sinon;
++
++export const addBehavior: typeof sinon.addBehavior;
++export const assert: typeof sinon.assert;
++export const createSandbox: typeof sinon.createSandbox;
++export const createStubInstance: typeof sinon.createStubInstance;
++export const define: typeof sinon.define;
++export const expectation: typeof sinon.expectation;
++export const fake: typeof sinon.fake;
++export const getFakes: typeof sinon.getFakes;
++export const inject: typeof sinon.inject;
++export const leakThreshold: typeof sinon.leakThreshold;
++export const match: typeof sinon.match;
++export const mock: typeof sinon.mock;
++export const promise: typeof sinon.promise;
++export const replace: typeof sinon.replace;
++export const replaceGetter: typeof sinon.replaceGetter;
++export const replaceSetter: typeof sinon.replaceSetter;
++export const reset: typeof sinon.reset;
++export const resetBehavior: typeof sinon.resetBehavior;
++export const resetHistory: typeof sinon.resetHistory;
++export const restore: typeof sinon.restore;
++export const restoreContext: typeof sinon.restoreContext;
++export const restoreObject: typeof sinon.restoreObject;
++export const spy: typeof sinon.spy;
++export const stub: typeof sinon.stub;
++export const timers: typeof sinon.timers;
++export const useFakeTimers: typeof sinon.useFakeTimers;
++export const verify: typeof sinon.verify;
++export const verifyAndRestore: typeof sinon.verifyAndRestore;
++
++export type DeepPartialOrMatcher = sinon.DeepPartialOrMatcher;
++export type MatchArguments = sinon.MatchArguments;
++export type MatchExactArguments = sinon.MatchExactArguments;
++export type MatchPartialArguments = sinon.MatchPartialArguments;
++export type SandboxReplace = sinon.SandboxReplace;
++export type SimplifiedMap = sinon.SimplifiedMap;
++export type SimplifiedSet = sinon.SimplifiedSet;
++export type SinonApi = sinon.SinonApi;
++export type SinonArrayMatcher = sinon.SinonArrayMatcher;
++export type SinonAssert = sinon.SinonAssert;
++export type SinonExpectation = sinon.SinonExpectation;
++export type SinonExpectationStatic = sinon.SinonExpectationStatic;
++export type SinonExposeOptions = sinon.SinonExposeOptions;
++export type SinonFake = sinon.SinonFake;
++export type SinonFakeTimers = sinon.SinonFakeTimers;
++export type SinonFakeUploadProgress = sinon.SinonFakeUploadProgress;
++export type SinonMapMatcher = sinon.SinonMapMatcher;
++export type SinonMatch = sinon.SinonMatch;
++export type SinonMatcher = sinon.SinonMatcher;
++export type SinonMock = sinon.SinonMock;
++export type SinonMockStatic = sinon.SinonMockStatic;
++export type SinonPromise = sinon.SinonPromise;
++export type SinonSandbox = sinon.SinonSandbox;
++export type SinonSandboxConfig = sinon.SinonSandboxConfig;
++export type SinonSetMatcher = sinon.SinonSetMatcher;
++export type SinonSpiedInstance = sinon.SinonSpiedInstance;
++export type SinonSpiedMember = sinon.SinonSpiedMember;
++export type SinonSpy = sinon.SinonSpy;
++export type SinonSpyCall = sinon.SinonSpyCall;
++export type SinonSpyCallApi = sinon.SinonSpyCallApi;
++export type SinonSpyStatic = sinon.SinonSpyStatic;
++export type SinonStatic = sinon.SinonStatic;
++export type SinonStub = sinon.SinonStub;
++export type SinonStubStatic = sinon.SinonStubStatic;
++export type SinonStubbedFunction = sinon.SinonStubbedFunction;
++export type SinonStubbedInstance = sinon.SinonStubbedInstance;
++export type SinonStubbedMember = sinon.SinonStubbedMember;
++export type StubbableType = sinon.StubbableType;

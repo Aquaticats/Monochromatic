@@ -336,7 +336,15 @@ a search that reads each shape
 (`claude-schema-code.test-fixture.ts`,
 `claude-schema-text.test-fixture.ts`,
 `claude-schema-member.test-fixture.ts`,
-`claude-schema-import.test-fixture.ts`),
+`claude-schema-import.test-fixture.ts`;
+all four were removed on 2026-10-23 (UTC) by B863,
+which reads each file's syntax tree in `claude-schema-tree.test-fixture.ts`,
+`claude-schema-facts.test-fixture.ts`,
+`claude-schema-declare.test-fixture.ts`,
+`claude-schema-module.test-fixture.ts`,
+`claude-schema-target.test-fixture.ts`,
+`claude-schema-resolve.test-fixture.ts`
+and `claude-schema-usage.test-fixture.ts`),
 and a header in `claude-schema-code.test-fixture.ts` that lists the shapes it does not read:
 a function declared inside another function or a class,
 a wrapper that returns the call through a local variable,
@@ -359,6 +367,29 @@ a member with a computed name,
 and a member on the line that opens the object
 (B862 added the barrel and the member limits to the list,
 which first lacked them).
+B863 reads,
+of this list,
+an optional call,
+a function assigned to a second name,
+taken out of an object by destructuring
+or re-exported under another name,
+`export default build;`,
+a dynamic import
+and `require` of a literal path,
+a default import through a barrel,
+and a member on the line that opens the object.
+It still reads none of a function declared inside another function or a class,
+a wrapper that returns the call through a local variable,
+a conditional,
+an object,
+an array
+or a promise chain around the returned call
+(none of which is a wrapper),
+an anonymous default export,
+an object member nested deeper than one level,
+an accessor,
+a member with a computed name,
+or a static method of a class.
 Wrappers stay limited to calls returned at once.
 Reading every function that calls a builder would make the three functions that ask the page consistency questions
 wrappers,
@@ -434,7 +465,10 @@ Dropping either quote rule passed every case,
 and so did a search that cut the contents of strings out of the code.
 The list of shapes the search does not read lacked a default import through a barrel
 and the limits on object members,
-and B861's copy of the list lacked four more of the header's.
+and B861's copy of the list lacked three more of the header's
+(`export default build;`,
+`require`
+and the setter).
 A search of the family's non-test source for the names of the three shared builders
 found no use of any of these shapes,
 so no producer was missing from the list.
@@ -456,8 +490,10 @@ The scan did not change.
 The longer string is pinned as the over-read the header states,
 rather than fixed by cutting string contents out of the code,
 which would be a change in behaviour that has to handle template literals that span lines and escaped quotes.
-The headers say what the cases hold,
-and the list of shapes not read matches B861's.
+The headers were meant to say what the cases hold,
+but the next re-check ran 37 further mutations of their claims
+and 15 passed every case (B863).
+The list of shapes not read matches B861's.
 Each of the nine mutations,
 applied to a scratch copy of the tree,
 passed every case before the cases and fails the case named for its shape after them,
@@ -475,6 +511,111 @@ or it is narrowed to what the cases hold.
 Cache versions:
 none moved.
 The change is to test fixtures.
+
+Recurrence:
+`mistake-prevention-guards-searches-and-claims.md`,
+"Guards that cannot fail".
+
+## B863: the producer-list search read source text, and four re-checks in a row found shapes it misread
+
+Status:
+fixed on 2026-10-23 (UTC),
+found by the re-check of fix round 12 of the Claude route
+(its findings on header claims with no case,
+and its probes of strings,
+comments,
+destructured imports,
+promise chains
+and a counting function).
+The design that landed is open to the owner's veto.
+
+The defect:
+B861 and B862 widened a search over the text of the family's source one shape at a time,
+and each re-check found shapes the search read wrongly or claimed to read.
+The re-check of B862's fix ran 37 further mutations of the header's claims:
+22 failed a case and 15 passed every case.
+Its probes found a function that maps a builder over items and returns a count read as a wrapper,
+a promise chain or a fallback after a returned call read as a wrapper,
+a destructured dynamic `import()` or `require` and an optional call read as uses,
+though the header listed them as unread,
+and a name against a quote of another kind inside a longer string not read,
+though the header said it was.
+An `rg` of the names of the three shared builders over the family's non-test source
+finds them only as plain calls,
+import and export list entries and documentation,
+so no producer was missing from the list.
+
+The fix
+(the red cases are `ac5808a20b`,
+the fix is `2bb6429e28`,
+and `9987a0cd48` and `0c8c2a838c` follow it):
+the search parses each file and reads the syntax tree,
+with the parser that `source-scan` wraps
+(oxc through rolldown;
+the TypeScript 7.1.0-beta installed here has no `createSourceFile` and no `createProgram`,
+so the compiler API the plan named does not exist),
+and an own resolver for which file a specifier names and which function a name stands for.
+A builder is a declared function whose body holds an object literal with the property `type: 'json_schema'`,
+a wrapper is a function that returns the call of a builder,
+and a use is a name or a chain of members where a value sits,
+followed through imports,
+aliases,
+namespace imports,
+re-exports,
+default exports,
+destructuring,
+and a dynamic `import()` or `require` of a literal path.
+A reading of the import graph was measured and rejected:
+it reaches 629 files where the search found 33,
+so 600 files would each need a named exception,
+26 of them barrels.
+44 cases state the shapes the re-check named,
+and 19 of them failed against the text reading before the rewrite.
+The header of `claude-schema-sources.test-fixture.ts` states the search in 22 sentences,
+each held by named cases,
+and 69 mutants of the scan,
+one run each in a scratch copy,
+each fail at least one case,
+with the unmutated copy passing.
+Two further cases came from mutants that survived the first cases:
+a function that calls a builder in a statement of its own and returns something else is no wrapper,
+and the file that declares a builder and the producer list are not its callers.
+One mutant of the object-literal check survived and was equivalent
+(an object pattern cannot list a string value),
+so the check was removed rather than pinned.
+One existing case changed its answer:
+a builder's name inside a longer string or in a comment that trails code
+listed two files and now lists none.
+The scan keeps three over-reads,
+each held by a case:
+a name the file neither declares nor imports,
+a name imported from a specifier that names no file of the sources,
+and a parameter that shares the builder's name.
+`source-scan`'s own scans flagged the first version of the new fixtures
+(nine exports nothing read and one TSDoc example without its required key),
+which `9987a0cd48` fixed after the fix commit was made without running them.
+The test file takes 1.93 s before and 2.67 s after,
+one run each,
+with 44 more cases in the second.
+
+Prevention rule:
+a scan that stands in for a parser reads the parse tree where the repository has a parser,
+a header sentence is a claim,
+and each sentence has a case and a mutant that fails it,
+listed one against the other.
+
+Cache versions:
+none moved.
+The change is to test fixtures and one dev dependency.
+The search for a moved cache version over the commits of this fix prints nothing:
+
+```sh
+# package/translation-repair, over ac5808a20b~1..HEAD
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' ac5808a20b~1..HEAD -- package/translation-repair
+```
+
+The same search over `c265e8df95~1..c265e8df95` prints one line,
+so the search can print.
 
 Recurrence:
 `mistake-prevention-guards-searches-and-claims.md`,

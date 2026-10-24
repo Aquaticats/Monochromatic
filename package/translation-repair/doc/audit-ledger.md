@@ -242,7 +242,8 @@ named for that subject and listed here.
   the equivalent mutants,
   the two survivors that stay unpinned (B684),
   a producer-list search that read a builder in few shapes (B861),
-  and the readings of that search that no case held (B862).
+  the readings of that search that no case held (B862),
+  and the rebuild of that search over each file's syntax tree (B863).
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,

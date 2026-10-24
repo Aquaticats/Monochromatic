@@ -4194,6 +4194,18 @@ and `QVS` in the visual-design-review skill
 The `PXQ` checkpoint-continuation idea was not re-proposed;
 `PXQ` already forbids ending a turn on a status report the user must answer with "continue".
 
+Minimap report of 2026-10-24 (open, an agent is on it):
+the owner opened `package/build-tool/css/src/build.unit.test.ts` in the installed IDE (built 2026-10-22 12:48)
+and saw the minimap "jump around as I scroll",
+a band of its picture drawn doubled and wider (screenshot `~/Pictures/Screenshots/Screenshot_20261024_070953.png`),
+and "the inlay hints at line 96 keep doubling or something as I click around in the minimap".
+The cause is not known yet.
+An agent in a worktree reproduces it in the nested compositor on a build of current `origin/main`,
+finds the cause by measurement,
+and fixes it behind a test shown to fail first.
+Next action: verify its report, land it, reinstall the IDE from the fixed build
+(the installed binary is also still the 0.1.0 build, not 0.1.1).
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
