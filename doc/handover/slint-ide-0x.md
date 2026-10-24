@@ -4287,6 +4287,20 @@ Owner answers of 2026-10-24 (question tool) to those two costs:
 add the skip rule (skip a hint request when the last answer already covers the window; an agent builds it with tests
 that fail first, then it is landed and the IDE reinstalled like the others),
 and the caret keeps following the view (no change).
+Hint skip rule built on branch `worktree-agent-a9205e2a0149fe20e` (not yet merged or installed):
+a hint request is not sent when its range (one view height above the first visible line, two below)
+lies inside the union of the ranges that stored answers of the same text revision asked about
+(`Annotations::answered_covers`, `src/annotation/coverage.rs`; the call is in `src/native/language/sync.rs`).
+Measured with debug binaries before and after, three alternating runs each:
+the first click at y=1700 sends 2 requests before and 1 (plus 1 skip) after;
+the press at y=1700 after a click at y=1000 sends 1 before and 0 after on the 287-line file,
+because the answer to the click at y=1000 already asked lines 70 to 288
+(the owner expected "still one"; the hints are stored);
+a wheel that leaves the covered lines still asks,
+and its hints are stored in the same time (403 to 421 ms against 414 to 428 ms).
+Record, counts, guard runs and known costs:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "Skip a hint request that stored answers cover: built".
 Scratch left until the owner confirms the fixes on the installed binary:
 `~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
 disposable project `/tmp/ide-mm-proj-8MEEkc`.
