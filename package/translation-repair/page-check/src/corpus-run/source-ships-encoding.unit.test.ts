@@ -323,6 +323,12 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
   ['a raw HTML block holding an import line after a blank line, then more text', '<script>\n\nimport a\n\nb {\n'],
   ['an angle autolink alone in the text of a link', '[<https://example.net/a>](u)\n'],
   ['an angle autolink among words in the text of a link, then a brace', '她[说 <https://example.net/a> 好](u) {\n'],
+  ['an angle autolink holding two dollar signs in the text of a link', '[<https://example.net/a$b$c>](u)\n'],
+  ['an angle autolink holding two dollar signs at the top', '<https://example.net/a$b$c>\n'],
+  [
+    'an angle autolink holding a dollar sign in the text of a link, then a dollar sign later in the paragraph',
+    '[<https://example.net/a$b>](u) cost $5 total\n',
+  ],
   ['an angle autolink in the text of a link with a title', '[<https://example.net/a>](u "t")\n'],
   ['an angle autolink in the text of a reference link', '[<https://example.net/a>][r]\n\n[r]: u\n'],
   ['an email autolink in the text of a link', '[<tabby@example.net>](u)\n'],
