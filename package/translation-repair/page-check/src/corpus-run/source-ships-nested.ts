@@ -207,6 +207,11 @@ function joinedSpans(
 }
 
 /**
+ What `findIndex` answers when no line is blank.
+ */
+const NO_BLANK_LINE = -1;
+
+/**
  The characters a blank line may hold.
  */
 const BLANK_CHARACTERS = ' \t\r';
@@ -229,6 +234,28 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
       return false;
   }
   return true;
+}
+
+/**
+ Spans that hold edits and nothing else.
+
+ @param edits - edits to carry
+
+ @returns Spans with no text, literal, link or stream ranges
+
+ @example
+ ```ts
+ const spans = editsOnly({ edits: [], },);
+ ```
+ */
+function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): SourceSpans {
+  return {
+    text: [],
+    literal: [],
+    edits,
+    insideLinks: [],
+    streamStarts: [],
+  };
 }
 
 /**
@@ -284,18 +311,36 @@ function separatingEdits(
    */
   const lineStart = range.start + ending.length;
   /**
-   The lines after the footnote, as the parse reads them.
+   The lines after the footnote up to the first blank one, as the parse reads them: a definition does not cross a blank
+   line.
    */
-  const rest = readable.slice(
+  const lines = readable
+    .slice(
     lineStart,
     range.end,
-  );
+    )
+    .split('\n',);
   /**
    The line right after the footnote.
    */
-  const [nextLine = '',] = rest.split('\n',);
+  const [nextLine = '',] = lines;
   if (isBlankLine({ line: nextLine, },))
     return [];
+  /**
+   Which line is the first blank one, negative where none is.
+   */
+  const blankAt = lines.findIndex(function isBlank(line,): boolean {
+    return isBlankLine({ line, },);
+  },);
+  /**
+   The lines up to the first blank one, joined.
+   */
+  const rest = lines
+    .slice(
+    0,
+    (blankAt === NO_BLANK_LINE) ? lines.length : blankAt,
+    )
+    .join('\n',);
   /**
    The blocks of those lines, as the parse reads them.
    */
@@ -392,8 +437,24 @@ export function footnoteBodySpans(
       },
     },),
   },);
-  if (bodyEnd >= range.end)
+  if ((footnote === undefined) || (footnote.end > range.end))
     return body;
+  if (bodyEnd >= range.end) {
+    // The block ends where the footnote does, and the blocks after it are read on their own.
+    return joinedSpans({
+      first: body,
+      second: editsOnly({
+        edits: separatingEdits({
+          source,
+          readable,
+          range: {
+            start: bodyEnd,
+            end: readable.length,
+          },
+        },),
+      },),
+    },);
+  }
   /**
    The lines after the end of the footnote.
    */
@@ -410,17 +471,13 @@ export function footnoteBodySpans(
         readSpans,
         indices: indicesOf({ range: after, },),
       },),
-      second: {
-        text: [],
-        literal: [],
+      second: editsOnly({
         edits: separatingEdits({
           source,
           readable,
           range: after,
         },),
-        insideLinks: [],
-        streamStarts: [],
-      },
+      },),
     },),
   },);
 }
