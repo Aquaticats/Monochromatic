@@ -176,7 +176,7 @@ export function poolStubs({ count = POOL_TRIALS, }: { readonly count?: number; }
  const ends = askEndsOf({ stops: 'refused+ok', },);
  ```
  */
-export function askEndsOf({ stops, }: { readonly stops: string; },): readonly AskEnd[] {
+function askEndsOf({ stops, }: { readonly stops: string; },): readonly AskEnd[] {
   return stops.split('+',)
     .map(function endOf(word,): AskEnd {
       /**

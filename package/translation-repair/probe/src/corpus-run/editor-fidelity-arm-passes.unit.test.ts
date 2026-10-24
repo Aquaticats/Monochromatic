@@ -12,9 +12,6 @@
  @module
  */
 
-import { writeFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
-
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   describe,
@@ -23,8 +20,6 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 
-import { runBuiltCommand, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
-import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   type ArmLog,
   benchReportLines,
@@ -42,7 +37,7 @@ import {
   LOW_CARD,
   MEDIUM_CARD,
 } from '../editor-fidelity.test-fixture.ts';
-import { PROBE_ENTRY, } from './built-entry.test-fixture.ts';
+import { readAsBuilt as readAsBuiltIn, } from './editor-fidelity-arm-read-built.test-fixture.ts';
 
 /**
  The units of an arm that walks the leading units of the pool through its passes: the pool's trials in one order, then
@@ -246,22 +241,7 @@ function lineFor({ log, check, }: { readonly log: ArmLog; readonly check: string
 }
 
 /**
- What a run of the built read step left behind.
- */
-type BuiltRun = {
-  /**
-   Exit status, zero when every check held.
-   */
-  readonly code: number;
-
-  /**
-   Standard output, one entry per line.
-   */
-  readonly stdout: readonly string[];
-};
-
-/**
- Runs the built read step over logs written into an owned directory, each beside its exit file.
+ Runs the built read step over the arms' logs.
 
  @param arms - the logs, in the order the arms ran
 
@@ -272,48 +252,11 @@ type BuiltRun = {
  const run = await readAsBuilt({ arms, },);
  ```
  */
-async function readAsBuilt({ arms, }: { readonly arms: readonly ArmLog[]; },): Promise<BuiltRun> {
-  await using owned = await scratchDir({ prefix: 'editor-fidelity-passes-', },);
-  await Promise.all(arms.flatMap(function filesOf({ arm, lines, },): readonly Promise<void>[] {
-    return [
-      writeFile(
-        join(
-          owned.path,
-          `${arm}.log`,
-        ),
-        `${lines.join('\n',)}\n`,
-      ),
-      writeFile(
-        join(
-          owned.path,
-          `${arm}.exit`,
-        ),
-        '0\n',
-      ),
-    ];
-  },),);
-  /**
-   What the built command did, whatever its exit code.
-   */
-  const run = await runBuiltCommand({
-    command: 'editor-fidelity-read',
-    packageEntry: PROBE_ENTRY,
-    args: arms.map(function pathOf({ arm, },): string {
-      return join(
-        owned.path,
-        `${arm}.log`,
-      );
-    },),
-    cwd: owned.path,
-    env: {},
+function readAsBuilt({ arms, }: { readonly arms: readonly ArmLog[]; },): ReturnType<typeof readAsBuiltIn> {
+  return readAsBuiltIn({
+    arms,
+    prefix: 'editor-fidelity-passes-',
   },);
-  return {
-    code: run.code,
-    stdout: run.stdout.split('\n',)
-      .filter(function present(line,): boolean {
-        return line !== '';
-      },),
-  };
 }
 
 await describe({

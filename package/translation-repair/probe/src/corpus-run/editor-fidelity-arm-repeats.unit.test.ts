@@ -10,9 +10,6 @@
  @module
  */
 
-import { writeFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
-
 import {
   describe,
   expect,
@@ -20,8 +17,6 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 
-import { runBuiltCommand, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
-import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   type ArmLog,
   repeatLinesOf,
@@ -39,7 +34,7 @@ import {
   LOW_CARD,
   MEDIUM_CARD,
 } from '../editor-fidelity.test-fixture.ts';
-import { PROBE_ENTRY, } from './built-entry.test-fixture.ts';
+import { readAsBuilt as readAsBuiltIn, } from './editor-fidelity-arm-read-built.test-fixture.ts';
 
 /**
  What a warning ends with: the bound, when it holds, and what the simulation reached when the arms differ.
@@ -211,22 +206,7 @@ function linesStarting({ arms, word, }: { readonly arms: readonly ArmLog[]; read
 }
 
 /**
- What a run of the built read step left behind.
- */
-type BuiltRun = {
-  /**
-   Exit status, zero when every check held.
-   */
-  readonly code: number;
-
-  /**
-   Standard output, one entry per line.
-   */
-  readonly stdout: readonly string[];
-};
-
-/**
- Runs the built read step over logs written into an owned directory, each beside its exit file.
+ Runs the built read step over the arms' logs.
 
  @param arms - the logs, in the order the arms ran
 
@@ -237,259 +217,227 @@ type BuiltRun = {
  const run = await readAsBuilt({ arms, },);
  ```
  */
-async function readAsBuilt({ arms, }: { readonly arms: readonly ArmLog[]; },): Promise<BuiltRun> {
-  await using owned = await scratchDir({ prefix: 'editor-fidelity-repeats-', },);
-  await Promise.all(arms.flatMap(function filesOf({ arm, lines, },): readonly Promise<void>[] {
-    return [
-      writeFile(
-        join(
-          owned.path,
-          `${arm}.log`,
-        ),
-        `${lines.join('\n',)}\n`,
-      ),
-      writeFile(
-        join(
-          owned.path,
-          `${arm}.exit`,
-        ),
-        '0\n',
-      ),
-    ];
-  },),);
-  /**
-   What the built command did, whatever its exit code.
-   */
-  const run = await runBuiltCommand({
-    command: 'editor-fidelity-read',
-    packageEntry: PROBE_ENTRY,
-    args: arms.map(function pathOf({ arm, },): string {
-      return join(
-        owned.path,
-        `${arm}.log`,
-      );
-    },),
-    cwd: owned.path,
-    env: {},
+function readAsBuilt({ arms, }: { readonly arms: readonly ArmLog[]; },): ReturnType<typeof readAsBuiltIn> {
+  return readAsBuiltIn({
+    arms,
+    prefix: 'editor-fidelity-repeats-',
   },);
-  return {
-    code: run.code,
-    stdout: run.stdout.split('\n',)
-      .filter(function present(line,): boolean {
-        return line !== '';
-      },),
-  };
 }
 
 await describe({
-  name: repeatLinesOf.name,
+  name: 'the repeat agreement of the read step',
   children: [
-    it({
-      name: 'PRINTS EACH ARM\'S REPEAT AGREEMENT, the trials asked twice whose passes read alike over all the trials asked '
-        + 'twice, and says nothing of a difference of 14 points',
-      fn: async () => {
-        const arms = benchOf({ trials: 44, high: 0, medium: 4, low: 6, },);
-        expect(linesStarting({ arms, word: 'REPEAT', },),).toStrictEqual([
-          'REPEAT high: 44 of 44 trials gave the same reading in every pass (100 percent)',
-          'REPEAT medium: 40 of 44 trials gave the same reading in every pass (91 percent)',
-          'REPEAT low: 38 of 44 trials gave the same reading in every pass (86 percent)',
-        ],);
-        expect(linesStarting({ arms, word: 'WARN', },),).toStrictEqual([],);
-      },
+    describe({
+      name: repeatLinesOf.name,
+      children: [
+        it({
+          name: 'PRINTS EACH ARM\'S REPEAT AGREEMENT, the trials asked twice whose passes read alike over all the trials asked '
+            + 'twice, and says nothing of a difference of 14 points',
+          fn: async () => {
+            const arms = benchOf({ trials: 44, high: 0, medium: 4, low: 6, },);
+            expect(linesStarting({ arms, word: 'REPEAT', },),).toStrictEqual([
+              'REPEAT high: 44 of 44 trials gave the same reading in every pass (100 percent)',
+              'REPEAT medium: 40 of 44 trials gave the same reading in every pass (91 percent)',
+              'REPEAT low: 38 of 44 trials gave the same reading in every pass (86 percent)',
+            ],);
+            expect(linesStarting({ arms, word: 'WARN', },),).toStrictEqual([],);
+          },
+        },),
+
+        it({
+          name: 'WARNS WHEN THE ARMS DIFFER BY MORE THAN 15 POINTS, naming each arm\'s figure, the difference and the bound the '
+            + 'exact test holds only for arms that repeat themselves alike',
+          fn: async () => {
+            expect(linesStarting({ arms: benchOf({ trials: 44, high: 0, medium: 11, low: 0, },), word: 'WARN', },),)
+              .toStrictEqual([
+                `WARN repeat agreement: high 100 percent, medium 75 percent and low 100 percent differ by 25 points, over 15; ${WARNING_END}`,
+              ],);
+          },
+        },),
+
+        it({
+          name: 'WARNS ABOVE 15 POINTS AND NOT AT 15, counting exactly: 17 of 20 trials against 20 of 20 is 15 points, which a '
+            + 'float difference of 0.15000000000000002 would pass over, and 16 of 20 is 20 points',
+          fn: async () => {
+            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 3, low: 0, },), word: 'WARN', },),)
+              .toStrictEqual([],);
+            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 4, low: 0, },), word: 'WARN', },)[0],)
+              .toContain('high 100 percent, medium 80 percent and low 100 percent differ by 20 points, over 15',);
+          },
+        },),
+
+        it({
+          name: 'COMPARES ARMS THAT WERE ASKED AGAIN IN DIFFERENT NUMBERS OF TRIALS by their shares: 17 of 20 against 40 of 40 is '
+            + '15 points and says nothing',
+          fn: async () => {
+            /**
+             The arm asked 40 trials twice, which repeats every one.
+             */
+            const whole = armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: 40, differ: 0, },), },);
+            /**
+             The arms asked 20 trials twice, 3 of which disagree.
+             */
+            const [, medium, low,] = benchOf({ trials: 20, high: 0, medium: 3, low: 3, },);
+            const arms = [whole, medium as ArmLog, low as ArmLog,];
+            expect(linesStarting({ arms, word: 'WARN', },),).toStrictEqual([],);
+            expect(linesStarting({ arms, word: 'REPEAT', },)[0],)
+              .toBe('REPEAT high: 40 of 40 trials gave the same reading in every pass (100 percent)',);
+          },
+        },),
+
+        it({
+          name: 'SAYS WHEN NO TRIAL WAS ASKED IN MORE THAN ONE PASS, as an arm that walks the pool once never does, and does not '
+            + 'warn, nor when only one arm has trials asked again',
+          fn: async () => {
+            /**
+             One pass of 44 trials for each arm.
+             */
+            const once = [
+              armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
+              armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
+              armOf({ arm: 'low', cardId: LOW_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
+            ];
+            expect(linesStarting({ arms: once, word: 'REPEAT', },),).toStrictEqual([
+              'REPEAT high: no trial was asked in more than one pass',
+              'REPEAT medium: no trial was asked in more than one pass',
+              'REPEAT low: no trial was asked in more than one pass',
+            ],);
+            expect(linesStarting({ arms: once, word: 'WARN', },),).toStrictEqual([],);
+            /**
+             The first arm asked twice with 11 trials disagreeing, the others once.
+             */
+            const [first,] = benchOf({ trials: 44, high: 11, medium: 0, low: 0, },);
+            expect(linesStarting({ arms: [first as ArmLog, ...once.slice(1,),], word: 'WARN', },),).toStrictEqual([],);
+          },
+        },),
+
+        it({
+          name: 'LEAVES OUT A ROW IN WHICH AN ASK THREW, as the shared trials do: the second pass of the first trial threw, so '
+            + 'that trial was asked once and 43 trials are counted, all of them alike',
+          fn: async () => {
+            /**
+             The high arm whose second-pass row of the first trial threw, and would have disagreed.
+             */
+            const high = armOf({
+              arm: 'high',
+              cardId: HIGH_CARD,
+              rows: twoPassRows({
+                trials: 44,
+                differ: 1,
+                secondStops: function threwFirst(index,): string {
+                  return (index === 0) ? 'threw+ok' : 'ok';
+                },
+              },),
+            },);
+            expect(linesStarting({ arms: [high, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
+              .toBe('REPEAT high: 43 of 43 trials gave the same reading in every pass (100 percent)',);
+          },
+        },),
+
+        it({
+          name: 'READS A ROW THAT ENDED AT THE OUTPUT CAP AS NOT A FIX, as the paired test does: a trial fixed in the first pass '
+            + 'and cut off at the cap in the second disagrees with itself',
+          fn: async () => {
+            /**
+             The high arm whose second-pass row of the first trial reads fixed but ended at the output cap.
+             */
+            const high = armOf({
+              arm: 'high',
+              cardId: HIGH_CARD,
+              rows: twoPassRows({
+                trials: 44,
+                differ: 0,
+                secondStops: function cappedFirst(index,): string {
+                  return (index === 0) ? 'output-cap' : 'ok';
+                },
+              },),
+            },);
+            expect(linesStarting({ arms: [high, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
+              .toBe('REPEAT high: 43 of 44 trials gave the same reading in every pass (98 percent)',);
+          },
+        },),
+
+        it({
+          name: 'COUNTS A TRIAL NOT FIXED IN ANY PASS AS A REPEAT THAT AGREES, as it does a trial fixed in every pass',
+          fn: async () => {
+            /**
+             The high arm that fixes nothing in either pass.
+             */
+            const none = armOf({
+              arm: 'high',
+              cardId: HIGH_CARD,
+              rows: twoPassRows({ trials: 44, differ: 0, fixedAlike: false, },),
+            },);
+            expect(linesStarting({ arms: [none, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
+              .toBe('REPEAT high: 44 of 44 trials gave the same reading in every pass (100 percent)',);
+          },
+        },),
+
+        it({
+          name: 'PRINTS A LINE FOR EACH OF FOUR ARMS WHEN A SECOND MEDIUM IS READ, and names all four in the warning',
+          fn: async () => {
+            const [high, medium, low,] = benchOf({ trials: 44, high: 0, medium: 0, low: 0, },);
+            const arms = [
+              high as ArmLog,
+              medium as ArmLog,
+              armOf({ arm: 'medium-b', cardId: MEDIUM_CARD, rows: twoPassRows({ trials: 44, differ: 22, },), },),
+              low as ArmLog,
+            ];
+            expect(linesStarting({ arms, word: 'REPEAT', },).map(function armOfLine(line,): string {
+              return line.slice(0, line.indexOf(':',),);
+            },),).toStrictEqual(['REPEAT high', 'REPEAT medium', 'REPEAT medium-b', 'REPEAT low',],);
+            expect(linesStarting({ arms, word: 'WARN', },)[0],).toContain(
+              'high 100 percent, medium 100 percent, medium-b 50 percent and low 100 percent differ by 50 points, over 15',
+            );
+          },
+        },),
+      ],
     },),
 
-    it({
-      name: 'WARNS WHEN THE ARMS DIFFER BY MORE THAN 15 POINTS, naming each arm\'s figure, the difference and the bound the '
-        + 'exact test holds only for arms that repeat themselves alike',
-      fn: async () => {
-        expect(linesStarting({ arms: benchOf({ trials: 44, high: 0, medium: 11, low: 0, },), word: 'WARN', },),)
-          .toStrictEqual([
-            `WARN repeat agreement: high 100 percent, medium 75 percent and low 100 percent differ by 25 points, over 15; ${WARNING_END}`,
-          ],);
-      },
-    },),
+    describe({
+      name: 'the repeat agreement as the built read step prints it',
+      children: [
+        it({
+          name: 'PRINTS THE REPEAT LINES AND THE WARNING AFTER THE CHECKS AND BEFORE THEIR COUNT, over the logs of two whole '
+            + 'passes in which the high arm repeats itself on 68 of 88 trials, and still ends on the verdict',
+          fn: async () => {
+            /**
+             Rows of two whole passes of the invented pool, the leading `differ` trials disagreeing in the second.
+             */
+            const passes = (differ: number,): readonly RowSpec[] => twoPassRows({ trials: POOL_TRIALS, differ, },);
+            const run = await readAsBuilt({
+              arms: [
+                armOf({ arm: 'high', cardId: HIGH_CARD, rows: passes(20,), countedUsd: 2.5, },),
+                armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows: passes(0,), declaredUsd: 2.5, countedUsd: 1.5, },),
+                armOf({ arm: 'low', cardId: LOW_CARD, rows: passes(0,), declaredUsd: 4, countedUsd: 0.875, },),
+              ],
+            },);
+            expect(run.code,).toBe(0,);
+            const repeatAt = run.stdout.findIndex(function isRepeat(line,): boolean {
+              return line.startsWith('REPEAT high: ',);
+            },);
+            expect(run.stdout[repeatAt],).toBe('REPEAT high: 68 of 88 trials gave the same reading in every pass (77 percent)',);
+            expect(run.stdout[repeatAt + 1],).toBe('REPEAT medium: 88 of 88 trials gave the same reading in every pass (100 percent)',);
+            expect(run.stdout[repeatAt + 3]?.startsWith('WARN repeat agreement: high 77 percent, medium 100 percent and low 100 percent differ by 23 points, over 15;',),).toBe(true,);
+            expect(run.stdout[repeatAt + 4]?.startsWith('CHECKS ',),).toBe(true,);
+            expect(run.stdout.at(-1,)?.startsWith('VERDICT ',),).toBe(true,);
+          },
+        },),
 
-    it({
-      name: 'WARNS ABOVE 15 POINTS AND NOT AT 15, counting exactly: 17 of 20 trials against 20 of 20 is 15 points, which a '
-        + 'float difference of 0.15000000000000002 would pass over, and 16 of 20 is 20 points',
-      fn: async () => {
-        expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 3, low: 0, },), word: 'WARN', },),)
-          .toStrictEqual([],);
-        expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 4, low: 0, },), word: 'WARN', },)[0],)
-          .toContain('high 100 percent, medium 80 percent and low 100 percent differ by 20 points, over 15',);
-      },
-    },),
-
-    it({
-      name: 'COMPARES ARMS THAT WERE ASKED AGAIN IN DIFFERENT NUMBERS OF TRIALS by their shares: 17 of 20 against 40 of 40 is '
-        + '15 points and says nothing',
-      fn: async () => {
-        /**
-         The arm asked 40 trials twice, which repeats every one.
-         */
-        const whole = armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: 40, differ: 0, },), },);
-        /**
-         The arms asked 20 trials twice, 3 of which disagree.
-         */
-        const [, medium, low,] = benchOf({ trials: 20, high: 0, medium: 3, low: 3, },);
-        const arms = [whole, medium as ArmLog, low as ArmLog,];
-        expect(linesStarting({ arms, word: 'WARN', },),).toStrictEqual([],);
-        expect(linesStarting({ arms, word: 'REPEAT', },)[0],)
-          .toBe('REPEAT high: 40 of 40 trials gave the same reading in every pass (100 percent)',);
-      },
-    },),
-
-    it({
-      name: 'SAYS WHEN NO TRIAL WAS ASKED IN MORE THAN ONE PASS, as an arm that walks the pool once never does, and does not '
-        + 'warn, nor when only one arm has trials asked again',
-      fn: async () => {
-        /**
-         One pass of 44 trials for each arm.
-         */
-        const once = [
-          armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
-          armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
-          armOf({ arm: 'low', cardId: LOW_CARD, rows: twoPassRows({ trials: 44, differ: 0, },).slice(0, 44,), },),
-        ];
-        expect(linesStarting({ arms: once, word: 'REPEAT', },),).toStrictEqual([
-          'REPEAT high: no trial was asked in more than one pass',
-          'REPEAT medium: no trial was asked in more than one pass',
-          'REPEAT low: no trial was asked in more than one pass',
-        ],);
-        expect(linesStarting({ arms: once, word: 'WARN', },),).toStrictEqual([],);
-        /**
-         The first arm asked twice with 11 trials disagreeing, the others once.
-         */
-        const [first,] = benchOf({ trials: 44, high: 11, medium: 0, low: 0, },);
-        expect(linesStarting({ arms: [first as ArmLog, ...once.slice(1,),], word: 'WARN', },),).toStrictEqual([],);
-      },
-    },),
-
-    it({
-      name: 'LEAVES OUT A ROW IN WHICH AN ASK THREW, as the shared trials do: the second pass of the first trial threw, so '
-        + 'that trial was asked once and 43 trials are counted, all of them alike',
-      fn: async () => {
-        /**
-         The high arm whose second-pass row of the first trial threw, and would have disagreed.
-         */
-        const high = armOf({
-          arm: 'high',
-          cardId: HIGH_CARD,
-          rows: twoPassRows({
-            trials: 44,
-            differ: 1,
-            secondStops: function threwFirst(index,): string {
-              return (index === 0) ? 'threw+ok' : 'ok';
-            },
-          },),
-        },);
-        expect(linesStarting({ arms: [high, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
-          .toBe('REPEAT high: 43 of 43 trials gave the same reading in every pass (100 percent)',);
-      },
-    },),
-
-    it({
-      name: 'READS A ROW THAT ENDED AT THE OUTPUT CAP AS NOT A FIX, as the paired test does: a trial fixed in the first pass '
-        + 'and cut off at the cap in the second disagrees with itself',
-      fn: async () => {
-        /**
-         The high arm whose second-pass row of the first trial reads fixed but ended at the output cap.
-         */
-        const high = armOf({
-          arm: 'high',
-          cardId: HIGH_CARD,
-          rows: twoPassRows({
-            trials: 44,
-            differ: 0,
-            secondStops: function cappedFirst(index,): string {
-              return (index === 0) ? 'output-cap' : 'ok';
-            },
-          },),
-        },);
-        expect(linesStarting({ arms: [high, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
-          .toBe('REPEAT high: 43 of 44 trials gave the same reading in every pass (98 percent)',);
-      },
-    },),
-
-    it({
-      name: 'COUNTS A TRIAL NOT FIXED IN ANY PASS AS A REPEAT THAT AGREES, as it does a trial fixed in every pass',
-      fn: async () => {
-        /**
-         The high arm that fixes nothing in either pass.
-         */
-        const none = armOf({
-          arm: 'high',
-          cardId: HIGH_CARD,
-          rows: twoPassRows({ trials: 44, differ: 0, fixedAlike: false, },),
-        },);
-        expect(linesStarting({ arms: [none, ...benchOf({ trials: 44, high: 0, medium: 0, low: 0, },).slice(1,),], word: 'REPEAT', },)[0],)
-          .toBe('REPEAT high: 44 of 44 trials gave the same reading in every pass (100 percent)',);
-      },
-    },),
-
-    it({
-      name: 'PRINTS A LINE FOR EACH OF FOUR ARMS WHEN A SECOND MEDIUM IS READ, and names all four in the warning',
-      fn: async () => {
-        const [high, medium, low,] = benchOf({ trials: 44, high: 0, medium: 0, low: 0, },);
-        const arms = [
-          high as ArmLog,
-          medium as ArmLog,
-          armOf({ arm: 'medium-b', cardId: MEDIUM_CARD, rows: twoPassRows({ trials: 44, differ: 22, },), },),
-          low as ArmLog,
-        ];
-        expect(linesStarting({ arms, word: 'REPEAT', },).map(function armOfLine(line,): string {
-          return line.slice(0, line.indexOf(':',),);
-        },),).toStrictEqual(['REPEAT high', 'REPEAT medium', 'REPEAT medium-b', 'REPEAT low',],);
-        expect(linesStarting({ arms, word: 'WARN', },)[0],).toContain(
-          'high 100 percent, medium 100 percent, medium-b 50 percent and low 100 percent differ by 50 points, over 15',
-        );
-      },
-    },),
-  ],
-},);
-
-await describe({
-  name: 'the repeat agreement as the built read step prints it',
-  children: [
-    it({
-      name: 'PRINTS THE REPEAT LINES AND THE WARNING AFTER THE CHECKS AND BEFORE THEIR COUNT, over the logs of two whole '
-        + 'passes in which the high arm repeats itself on 68 of 88 trials, and still ends on the verdict',
-      fn: async () => {
-        /**
-         Rows of two whole passes of the invented pool, the leading `differ` trials disagreeing in the second.
-         */
-        const passes = (differ: number,): readonly RowSpec[] => twoPassRows({ trials: POOL_TRIALS, differ, },);
-        const run = await readAsBuilt({
-          arms: [
-            armOf({ arm: 'high', cardId: HIGH_CARD, rows: passes(20,), countedUsd: 2.5, },),
-            armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows: passes(0,), declaredUsd: 2.5, countedUsd: 1.5, },),
-            armOf({ arm: 'low', cardId: LOW_CARD, rows: passes(0,), declaredUsd: 4, countedUsd: 0.875, },),
-          ],
-        },);
-        expect(run.code,).toBe(0,);
-        const repeatAt = run.stdout.findIndex(function isRepeat(line,): boolean {
-          return line.startsWith('REPEAT high: ',);
-        },);
-        expect(run.stdout[repeatAt],).toBe('REPEAT high: 68 of 88 trials gave the same reading in every pass (77 percent)',);
-        expect(run.stdout[repeatAt + 1],).toBe('REPEAT medium: 88 of 88 trials gave the same reading in every pass (100 percent)',);
-        expect(run.stdout[repeatAt + 3]?.startsWith('WARN repeat agreement: high 77 percent, medium 100 percent and low 100 percent differ by 23 points, over 15;',),).toBe(true,);
-        expect(run.stdout[repeatAt + 4]?.startsWith('CHECKS ',),).toBe(true,);
-        expect(run.stdout.at(-1,)?.startsWith('VERDICT ',),).toBe(true,);
-      },
-    },),
-
-    it({
-      name: 'PRINTS THE REPEAT LINE OF THE HIGH ARM READ ALONE, as the runbook reads it before the other arms exist: the '
-        + 'bench check fails for want of three logs and the command exits with a refusal',
-      fn: async () => {
-        const run = await readAsBuilt({
-          arms: [armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: POOL_TRIALS, differ: 0, },), },),],
-        },);
-        expect(run.code,).not.toBe(0,);
-        expect(run.stdout.filter(function isRepeat(line,): boolean {
-          return line.startsWith('REPEAT ',);
-        },),).toStrictEqual(['REPEAT high: 88 of 88 trials gave the same reading in every pass (100 percent)',],);
-      },
+        it({
+          name: 'PRINTS THE REPEAT LINE OF THE HIGH ARM READ ALONE, as the runbook reads it before the other arms exist: the '
+            + 'bench check fails for want of three logs and the command exits with a refusal',
+          fn: async () => {
+            const run = await readAsBuilt({
+              arms: [armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPassRows({ trials: POOL_TRIALS, differ: 0, },), },),],
+            },);
+            expect(run.code,).not.toBe(0,);
+            expect(run.stdout.filter(function isRepeat(line,): boolean {
+              return line.startsWith('REPEAT ',);
+            },),).toStrictEqual(['REPEAT high: 88 of 88 trials gave the same reading in every pass (100 percent)',],);
+          },
+        },),
+      ],
     },),
   ],
 },);
