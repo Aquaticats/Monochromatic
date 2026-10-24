@@ -1,6 +1,6 @@
 /**
- Tests for the runs that parse alone and cannot stand beside another: a fence mark indented four spaces or more, and a
- name an earlier run still declares.
+ Tests for the runs that parse alone and cannot stand beside another: a fence mark indented four spaces or more, a
+ name an earlier run still declares, and an end inside a fence or display math.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -105,6 +105,25 @@ await describe({
       fn: async () => {
         expect(unfitAmong({ sources: ['import a from "b"\n', 'import c from "b"\n',], },),).toEqual([],);
         expect(unfitAmong({ sources: ['她说\n', '她又说\n',], },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'TAKES A RUN THAT ENDS INSIDE A FENCE OR DISPLAY MATH, which the opening line of the next run would close '
+        + 'and leave the text after that line outside it',
+      fn: async () => {
+        expect(unfitAmong({ sources: ['$$\n{x\n', '她说\n',], },),).toEqual([[1,],],);
+        expect(unfitAmong({ sources: ['她说\n', '```\n{a}\n',], },),).toEqual([[3,],],);
+        expect(unfitAmong({ sources: ['~~~~\n{a}\n', '```\n{b}\n',], },),).toEqual([[1,], [3,],],);
+      },
+    },),
+
+    it({
+      name: 'TAKES NO RUN THAT CLOSES ITS FENCE OR DISPLAY MATH, nor one with a fence in a container, which the '
+        + 'line after the run closes',
+      fn: async () => {
+        expect(unfitAmong({ sources: ['$$\n{x\n$$\n', '```\n{a}\n```\n',], },),).toEqual([],);
+        expect(unfitAmong({ sources: ['- ```\n  {a}\n', '> ```\n> {b}\n',], },),).toEqual([],);
       },
     },),
 

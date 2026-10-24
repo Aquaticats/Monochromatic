@@ -5,11 +5,11 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure';
 
 //region Live constructs of a page
-// WHAT THE STRICT MDX GRAMMAR TAKES FOR CODE IN A PAGE: an expression (`{b}`), an ES module (`import a from 'b'`), and a
-// JSX element with its attributes (`<a href="x">`). A page that carries an original as literal text must hold none of
-// them where the original had none, since the site compiles the page and runs them. The original is read as the
-// package reads Markdown pages (CommonMark with GFM and the site's math, no MDX), which builds none of these nodes, so
-// every one the strict grammar builds in the text of an encoded original is one the original lacks.
+// WHAT THE STRICT MDX GRAMMAR TAKES FOR CODE IN A PAGE: an expression (`{b}`), an ES module (`import a from 'b'`),
+// and a JSX element with its attributes (`<a href="x">`). A page that carries an original as literal text must hold
+// none of them where the original had none, since the site compiles the page and runs them. The original is read as
+// the package reads Markdown pages (CommonMark with GFM and the site's math, no MDX), which builds none of these
+// nodes, so every one the strict grammar builds in the text of an encoded original is one the original lacks.
 //
 // TEST SUPPORT, NOT PACKAGE SOURCE.
 

@@ -10,6 +10,15 @@ import {
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import { withModuleLinesWritten, } from './source-ships-module-line.ts';
 import {
+  closedWith,
+  closerOfWritten,
+  NO_MARK,
+} from './source-ships-open-flow.ts';
+import {
+  asTheParseReadsIt,
+  blanking,
+} from './source-ships-readable.ts';
+import {
   ESCAPABLE,
   type SourceSpans,
   spansOf,
@@ -43,7 +52,11 @@ import {
 // footnote is, each line giving up the four columns of indentation the footnote takes: a fence mark indented
 // under a footnote is a fence of it, which is copied, and the footnote ends where the strict grammar ends it
 // (`document-structure/src/gfm-block-ranges.ts`), so the lines after an unclosed fence that are not indented are
-// text of the page and are written as text. A bare address that a less-than sign ends is written as a link with
+// text of the page and are written as text. The last block of a footnote that is a raw HTML block, or indented code,
+// is a paragraph to the strict grammar, so a link reference definition that follows the footnote on the next line
+// would be a lazy line of that paragraph and its braces an expression: the line ending that ends the footnote is
+// written twice, and the definition is one on the page as it is in the original (`source-ships-nested.ts`). A bare
+// address that a less-than sign ends is written as a link with
 // the same text and target (`source-ships-addresses.ts`), since a backslash written before the sign is read as
 // part of the address and an entity written for it is read as part of the address too. An angle autolink inside
 // the text of a link is written as its address alone, since a link cannot hold a link.
@@ -91,32 +104,27 @@ import {
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
 // a text this does not make parse. The step search
 // (`doc/audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md` records its heads and counts) builds
-// forty thousand pairs of runs from a pool of fragments; run with the seeds 31415926 and 27182818 it took step 3 for
-// 4923 and 5115 pairs. A run nested past the bound the plain reading keeps (the 300-deep case in
-// `source-shipped-page.unit.test.ts` pins it, and the pool holds it on purpose) is in 4876 and 5070 of them. The rest,
-// 47 and 45 pairs, are not nested, and for 44 and 40 of them the cause is one limit, which is structural: a `$$` flow
-// or a fence that one run opens and no line of the run closes, and a later run closes, with the English between them
-// falling inside it and a tag after the closing line (each run of those pairs parses alone). The grammar leaves such a
-// flow open to the end of the page (`micromark-extension-math@3.1.0`, `lib/math-flow.js`, `beforeContentChunk`: at the
-// end of the input the flow ends with the document; `micromark-core-commonmark@2.0.4`, `lib/code-fenced.js`, the same
-// for a fence), where a reader of the run alone sees it end with the run, and closing it would add a line the original
-// does not hold. The fence case in `source-shipped-page.unit.test.ts` pins the behaviour. The other structural limit is
-// nesting past the bound of 256 (`NESTING_BOUND` in `markup/src/nesting-bound.ts`, which refuses such a text before any
-// parser reads it, and `withMdxExhaustionRefused` in `document-structure/src/parse-mdx.ts`, which answers a parse that
-// ran out of stack as the same refusal); no writing of the text makes the grammar accept what it refuses by depth. Step
-// 2 was taken for 383 and 412 pairs, all but 6 and 2 of each a nested one, and made the page parse for none. The pairs
-// the classification of the search leaves unexplained are 3 and 5, and each of them is one of two limits named here: a
-// tag alone on a line after a footnote's paragraph (3 and 3), and a byte order mark before a fence mark (0 and 2; the
-// same pairs with the marks removed take step 1 alone). These counts are what two seeds measured on one pool; they say
-// nothing of a shape the pool does not hold.
+// forty thousand pairs of runs from a pool of fragments, and its record names the pairs that reach the third step.
+// The limit that remains is structural: nesting past the bound of 256 (`NESTING_BOUND` in
+// `markup/src/nesting-bound.ts`, which refuses such a text before any parser reads it, and `withMdxExhaustionRefused`
+// in `document-structure/src/parse-mdx.ts`, which answers a parse that ran out of stack as the same refusal); no
+// writing of the text makes the grammar accept what it refuses by depth, and the 300-deep case in
+// `source-shipped-page.unit.test.ts` pins it (the pool holds it on purpose).
 //
-// A TAG ALONE ON A LINE BETWEEN A FOOTNOTE'S PARAGRAPH AND A DEFINITION LINE IS A LIMIT. The parse of the original
-// reads such a tag as a raw HTML block, which ends the footnote's paragraph, so a line after it that reads as a link
-// reference definition is a definition (and the encoder writes its braces as it writes any definition's). The page
-// writes the tag as text, so that line is a lazy line of the footnote's paragraph, and its braces stay live: the page
-// parses and holds an expression the source reader hides (`source-ships-encoding.unit.test.ts` pins the text). A parse
-// of the original with each tag read as a letter gave the page's structure for this shape and moved other footnote
-// texts the other way (96 of the generated footnote texts went from equal to unequal), so the reading is not changed.
+// A FENCE OR A `$$` FLOW THAT A RUN OPENS AND NO LINE OF THE RUN CLOSES was a structural limit and is closed. The
+// grammar leaves such a flow open to the end of the page (`micromark-extension-math@3.1.0`, `lib/math-flow.js`,
+// `beforeContentChunk`: at the end of the input the flow ends with the document; `micromark-core-commonmark@2.0.4`,
+// `lib/code-fenced.js`, the same for a fence), so the English between two runs fell inside it, and a line of the later
+// run that looks like its closing line ended it and left the text after that line outside, where a brace or a tag is
+// code. A reader of the run alone sees the flow end with the run, so a run written as literal text ends with the
+// closing line of its flow (`source-ships-open-flow.ts`), and the composition takes a run that ends so at its first
+// step (`source-ships-company.ts`). The closing line shows nothing: a fence and a display math read the same with it.
+//
+// THE WHOLE-PAGE CHECK reads the page the composition ships and finds every expression, ES module and element the
+// strict grammar builds in the text of a slice written as literal text (`source-live-constructs.test-fixture.ts`);
+// the original, read by the package's own grammar with GFM and the site's math, builds none, so there must be none.
+// It reads the cases of `source-ships-encoding.unit.test.ts` and, once for each state of the code, the generated
+// texts and the pairs of the step search.
 //
 // Smaller limits. A footnote definition indented four spaces or more inside a paragraph is a definition to MDX and a
 // line of the paragraph to a reader of CommonMark with GFM (the indented code that would cap it is off in MDX): the
@@ -128,36 +136,21 @@ import {
 // reference wherever it stands, inside code too, where it shows as written. A fence indented under a footnote
 // definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
 // takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
-// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark before a
-// fence mark makes the plain parse read the run as text and leaves a later fence of the same run open to the strict
-// grammar. An angle autolink inside the alternative text of an image is written with a backslash before its less-than
-// sign, as any text is, and the page shows the brackets there: the alternative text of an image is a string to the
-// plain parse, which holds no autolink node to write as its address (`source-ships-encoding.unit.test.ts` pins the
-// case). A table cuts a cell at every pipe, so an angle autolink that holds one is written as text there, as the source
-// reads it; a bare address that a pipe ends, and an angle autolink holding a pipe written with a backslash, are not cut
-// the same way, and the page shows one link across the cells (`source-ships-encoding.unit.test.ts` pins both).
+// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
+// opens a run is an ordinary character on the page, where a fence mark after it opens no fence, so the encoder reads
+// the run with a letter in its place (`source-ships-readable.ts`), and a fence that this leaves open at the end of the
+// run is closed like any other. An angle autolink inside the alternative text of an image is written with a backslash
+// before its less-than sign, as any text is, and the page shows the brackets there: the alternative text of an image
+// is a string to the plain parse, which holds no autolink node to write as its address
+// (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so an angle autolink that
+// holds one is written as text there, as the source reads it; a bare address that a pipe ends, and an angle autolink
+// holding a pipe written with a backslash, are not cut the same way, and the page shows one link across the cells
+// (`source-ships-encoding.unit.test.ts` pins both).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
  */
 const COMMENT_OPENER = '&lt;';
-
-/**
- The code point of the byte order mark.
- */
-const BYTE_ORDER_MARK_CODE_POINT = 0xFE_FF;
-
-/**
- The character a text may start with that the parser drops from its input.
- */
-const BYTE_ORDER_MARK = String.fromCodePoint(BYTE_ORDER_MARK_CODE_POINT,);
-
-/**
- What the parse is given in place of a byte order mark that opens a text. The page carries the text after a note and a
- blank line, so the mark stands in the middle of the page: an ordinary character, after which the first line of the text
- starts no block, where the parser drops a mark that opens its input and reads the line as the start of the document.
- */
-const LEADING_MARK_STAND_IN = 'x';
 
 /**
  What opens an HTML comment.
@@ -193,77 +186,6 @@ type TextReading = SourceSpans & {
    */
   readonly closedComments: readonly TextRange[];
 };
-
-/**
- Replaces every character of a text but its line endings with a space.
-
- @param text - text to blank
-
- @returns Text of the same length
-
- @example
- ```ts
- const spaces = spacesLike({ text: '<!-- a\n-->', },);
- ```
- */
-function spacesLike({ text, }: { readonly text: string; },): string {
-  return text
-    .split('\n',)
-    .map(function spaces(line,): string {
-      return ' '.repeat(line.length,);
-    },)
-    .join('\n',);
-}
-
-/**
- Replaces the characters of each stretch with spaces and keeps the line endings.
-
- @param text - text to blank
-
- @param ranges - stretches to blank, in text order
-
- @returns Text of the same length
-
- @example
- ```ts
- const blanked = blanking({ text: 'a<!-- b -->c', ranges: [{ start: 1, end: 11, },], },);
- ```
- */
-function blanking(
-  {
-    text,
-    ranges,
-  }: {
-    readonly text: string;
-    readonly ranges: readonly TextRange[];
-  },
-): string {
-  /**
-   Pieces of the result, joined at the end.
-   */
-  const pieces: string[] = [];
-  /**
-   Where the text not yet copied starts.
-   */
-  const copied = { upTo: 0, };
-  for (const range of ranges) {
-    pieces.push(
-      text.slice(
-        copied.upTo,
-        range.start,
-      ),
-      spacesLike({
-        text: text.slice(
-          range.start,
-          range.end,
-        ),
-      },),
-    );
-    copied.upTo = range.end;
-  }
-  pieces.push(text.slice(copied.upTo,),);
-  return pieces.join('',);
-}
 
 /**
  Writes the stand-in of an opener over each place an opener stands.
@@ -350,22 +272,6 @@ function openerStarts(
   )
     starts.push(at,);
   return starts;
-}
-
-/**
- Gives a text to the parse as the page holds it: a byte order mark that opens it is an ordinary character there.
-
- @param text - text
-
- @returns Text of the same length, with a letter in place of a mark that opens it
-
- @example
- ```ts
- const given = asTheParseReadsIt({ text: '\uFEFF- a', },);
- ```
- */
-function asTheParseReadsIt({ text, }: { readonly text: string; },): string {
-  return text.startsWith(BYTE_ORDER_MARK,) ? `${LEADING_MARK_STAND_IN}${text.slice(1,)}` : text;
 }
 
 /**
@@ -525,10 +431,8 @@ function escapesNext(
 }
 
 /**
- Writes the text of a slice so that the strict MDX grammar reads it as literal text.
-
- A backslash goes before each `{`, `}` and `<` that a reader sees as text, and the rewrites the module comment lists
- are made; nothing else changes.
+ Writes a backslash before each `{`, `}` and `<` of the text that a reader sees as text, and the other rewrites that
+ are made in place.
 
  @param text - slice text as the artifact records it
 
@@ -536,10 +440,10 @@ function escapesNext(
 
  @example
  ```ts
- const literal = encodeAsLiteralMdx({ text: '她说 { 然后走了。', },);
+ const escaped = escapedText({ text: '她说 { 然后走了。', },);
  ```
  */
-export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): string {
+function escapedText({ text, }: { readonly text: string; },): string {
   /**
    What the text holds.
    */
@@ -682,7 +586,52 @@ export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): stri
     }
     pieces.push(SYNTAX.includes(character,) ? `\\${character}` : character,);
   }
-  return withModuleLinesWritten({ text: pieces.join('',), },);
+  return pieces.join('',);
+}
+
+/**
+ Whether a text, once written as literal text, ends inside a fence or display math, which the page does not end where
+ the text does: the opening line of the next run closes it.
+
+ @param text - text as the artifact records it
+
+ @returns Whether encoding the text closes a fence or display math
+
+ @example
+ ```ts
+ const open = leavesFlowOpen({ text: '$$\nx', },);
+ ```
+ */
+export function leavesFlowOpen({ text, }: { readonly text: string; },): boolean {
+  return closerOfWritten({ text: escapedText({ text, },), },) !== NO_MARK;
+}
+
+/**
+ Writes the text of a slice so that the strict MDX grammar reads it as literal text.
+
+ A backslash goes before each `{`, `}` and `<` that a reader sees as text, a fence or display math the text leaves open
+ at its end is closed, and the rewrites the module comment lists are made; nothing else changes.
+
+ @param text - slice text as the artifact records it
+
+ @returns Text with those characters escaped, equal to the text when it holds none
+
+ @example
+ ```ts
+ const literal = encodeAsLiteralMdx({ text: '她说 { 然后走了。', },);
+ ```
+ */
+export function encodeAsLiteralMdx({ text, }: { readonly text: string; },): string {
+  /**
+   The text with its escapes made.
+   */
+  const escaped = escapedText({ text, },);
+  return withModuleLinesWritten({
+    text: closedWith({
+      text: escaped,
+      closer: closerOfWritten({ text: escaped, },),
+    },),
+  },);
 }
 
 //endregion Source ships encoding

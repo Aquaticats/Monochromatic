@@ -156,6 +156,57 @@ await describe({
         },),
 
         it({
+          name: 'DOUBLES THE LINE ENDING THAT ENDS THE FOOTNOTE WHEN A DEFINITION LINE FOLLOWS IT DIRECTLY, so the '
+            + 'paragraph the page writes for a tag alone on the last line ends there; a blank line already between '
+            + 'them, and a line of text, need no edit',
+          fn: async () => {
+            /**
+             A footnote and a tag alone on its last line, then a definition line.
+             */
+            const source = '[^1]: x\n<a href="x">\n[r]: u{b}\n';
+            /**
+             Where the footnote ends: after the tag.
+             */
+            const end = source.indexOf('\n[r]',);
+            expect(footnoteBodySpans({
+              source,
+              readable: source,
+              readSpans: spansOf,
+              footnotes: [{ start: 0, end, },],
+              range: { start: 6, end: source.length - 1, },
+            },).edits,).toContainEqual({ start: end, end: end + 1, replacement: '\n\n', },);
+            for (
+              const after of ['\n\n[r]: u{b}\n', '\n{z}\n', '\r\n[r]: u{b}\n',] as const
+            ) {
+              /**
+               The same footnote followed by lines that need no blank line, or a Windows line ending.
+               */
+              const other = `[^1]: x\n<a href="x">${after}`;
+              /**
+               The edits made for it.
+               */
+              const { edits, } = footnoteBodySpans({
+                source: other,
+                readable: other,
+                readSpans: spansOf,
+                footnotes: [{ start: 0, end, },],
+                range: { start: 6, end: other.length - 1, },
+              },);
+              expect(edits.filter(function doubles({ replacement, },): boolean {
+                return replacement
+                  .split('\r',)
+                  .join('',)
+                  .includes('\n\n',);
+              },),).toEqual(
+                (after === '\r\n[r]: u{b}\n')
+                  ? [{ start: end, end: end + 2, replacement: '\r\n\r\n', },]
+                  : [],
+              );
+            }
+          },
+        },),
+
+        it({
           name: 'READS THE LINES AFTER THE END OF THE FOOTNOTE AS A TEXT OF THEIR OWN: the fence the footnote opens '
             + 'does not reach them, so their braces are text',
           fn: async () => {

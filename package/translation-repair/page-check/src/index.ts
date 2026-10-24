@@ -163,7 +163,19 @@ export {
   UNTRANSLATED_PASSAGE_NOTE,
   withoutSourceRecordAt,
 } from './corpus-run/source-ships.ts';
-export { encodeAsLiteralMdx, } from './corpus-run/source-ships-encoding.ts';
+export {
+  encodeAsLiteralMdx,
+  leavesFlowOpen,
+} from './corpus-run/source-ships-encoding.ts';
+export {
+  closedWith,
+  closerOfWritten,
+  NO_MARK,
+} from './corpus-run/source-ships-open-flow.ts';
+export {
+  asTheParseReadsIt,
+  blanking,
+} from './corpus-run/source-ships-readable.ts';
 export {
   spansOf,
   type SourceSpans,

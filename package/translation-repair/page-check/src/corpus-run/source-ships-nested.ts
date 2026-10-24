@@ -207,6 +207,115 @@ function joinedSpans(
 }
 
 /**
+ The characters a blank line may hold.
+ */
+const BLANK_CHARACTERS = ' \t\r';
+
+/**
+ Whether a line holds nothing but spaces, tabs and a carriage return.
+
+ @param line - line, without its line ending
+
+ @returns Whether every character of the line is a space, a tab or a carriage return
+
+ @example
+ ```ts
+ const blank = isBlankLine({ line: '  ', },);
+ ```
+ */
+function isBlankLine({ line, }: { readonly line: string; },): boolean {
+  for (let at = 0; at < line.length; at += 1) {
+    if (!BLANK_CHARACTERS.includes(line.charAt(at,),))
+      return false;
+  }
+  return true;
+}
+
+/**
+ The edit that puts a blank line between the end of a footnote and a definition line that follows it directly.
+
+ THE FOOTNOTE ENDS WHERE A PARSE WITH GFM ENDS IT, and the line after it starts a block of the top: a link reference
+ definition, whose destination and title are not touched. The page writes the last block of the footnote as text when it
+ is raw HTML or indented code, so the line right after it would be a lazy line of the footnote's paragraph and its
+ braces would be an expression. A blank line ends the paragraph, and the definition is one on the page as it is in the
+ original.
+
+ @param source - whole text
+
+ @param readable - whole text with its comments blanked, the parse's own input
+
+ @param range - the lines after the end of the footnote, from the line ending of the footnote's last line
+
+ @returns The edit that doubles the line ending, none when a blank line stands there already or the first line after
+ it is no definition
+
+ @example
+ ```ts
+ const edits = separatingEdits({ source, readable, range: { start: 20, end: 30, }, },);
+ ```
+ */
+function separatingEdits(
+  {
+    source,
+    readable,
+    range,
+  }: {
+    readonly source: string;
+    readonly readable: string;
+    readonly range: TextRange;
+  },
+): readonly TextEdit[] {
+  /**
+   The line ending that ends the footnote's last line, absent where the text ends.
+   */
+  const ending = [
+    '\r\n',
+    '\n',
+  ].find(function endsHere(candidate,): boolean {
+    return source.startsWith(
+      candidate,
+      range.start,
+    );
+  },);
+  if (ending === undefined)
+    return [];
+  /**
+   Where the next line starts.
+   */
+  const lineStart = range.start + ending.length;
+  /**
+   The lines after the footnote, as the parse reads them.
+   */
+  const rest = readable.slice(
+    lineStart,
+    range.end,
+  );
+  /**
+   The line right after the footnote.
+   */
+  const [nextLine = '',] = rest.split('\n',);
+  if (isBlankLine({ line: nextLine, },))
+    return [];
+  /**
+   The blocks of those lines, as the parse reads them.
+   */
+  const { children, } = parseMarkdownMathBody({ body: rest, },);
+  /**
+   The first of them.
+   */
+  const [first,] = children;
+  if (first?.type !== 'definition')
+    return [];
+  return [
+    {
+      start: range.start,
+      end: lineStart,
+      replacement: `${ending}${ending}`,
+    },
+  ];
+}
+
+/**
  Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation
  the footnote takes, and the lines after the end of the footnote as a text of their own beside it.
 
@@ -285,18 +394,33 @@ export function footnoteBodySpans(
   },);
   if (bodyEnd >= range.end)
     return body;
+  /**
+   The lines after the end of the footnote.
+   */
+  const after: TextRange = {
+    start: bodyEnd,
+    end: range.end,
+  };
   return joinedSpans({
     first: body,
-    second: nestedSpans({
-      source,
-      readable,
-      readSpans,
-      indices: indicesOf({
-        range: {
-          start: bodyEnd,
-          end: range.end,
-        },
+    second: joinedSpans({
+      first: nestedSpans({
+        source,
+        readable,
+        readSpans,
+        indices: indicesOf({ range: after, },),
       },),
+      second: {
+        text: [],
+        literal: [],
+        edits: separatingEdits({
+          source,
+          readable,
+          range: after,
+        },),
+        insideLinks: [],
+        streamStarts: [],
+      },
     },),
   },);
 }

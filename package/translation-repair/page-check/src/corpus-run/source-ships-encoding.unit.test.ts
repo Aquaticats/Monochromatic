@@ -646,7 +646,7 @@ await describe({
           name: 'ENCODES AFTER A SPAN THAT NEVER CLOSES, which opens no code, and reads a fence that never closes as '
             + 'running to the end of the text',
           fn: async () => {
-            expect(encoded({ text: '`{a} 与 {b}\n\n~~~\n{c}', },),).toBe('`\\{a\\} 与 \\{b\\}\n\n~~~\n{c}',);
+            expect(encoded({ text: '`{a} 与 {b}\n\n~~~\n{c}', },),).toBe('`\\{a\\} 与 \\{b\\}\n\n~~~\n{c}\n~~~',);
           },
         },),
 
@@ -1065,8 +1065,8 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'CLOSES A FENCE OR DISPLAY MATH THE TEXT LEAVES OPEN AT ITS END, so the lines the page carries after the '
-            + 'text are no part of it: a fence mark in the next run would close it and expose the rest of that run',
+          name: 'CLOSES A FENCE OR DISPLAY MATH THE TEXT LEAVES OPEN AT ITS END, so the lines the page carries after '
+            + 'the text are no part of it: a fence mark in the next run would close it and expose the rest of that run',
           fn: async () => {
             for (
               const [text, written,] of [
@@ -1076,6 +1076,25 @@ https://example.net/b{c`,);
                 ['~~~~\n{a}', '~~~~\n{a}\n~~~~',],
                 ['```\r\n{a}', '```\r\n{a}\r\n```',],
                 ['\uFEFF```\n{\n```\n', '\uFEFF```\n\\{\n```\n```',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+            }
+          },
+        },),
+
+        it({
+          name: 'LEAVES A TEXT THAT CLOSES ITS FENCES, AND A FENCE IN A CONTAINER, AS IT IS: only a fence or display '
+            + 'math that is open at the end of the text, at its top, gets a closing line',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['```\n{a}\n```\n', '```\n{a}\n```\n',],
+                ['$$\nx\n$$', '$$\nx\n$$',],
+                ['```\n{a}\n```\n\n{b}', '```\n{a}\n```\n\n\\{b\\}',],
+                ['- ```\n  {a}\n', '- ```\n  {a}\n',],
+                ['> ```\n> {a}\n', '> ```\n> {a}\n',],
+                ['[^1]: x\n    ```\n    {a}\n', '[^1]: x\n    ```\n    {a}\n',],
               ] as const
             ) {
               expect(encoded({ text, },),).toBe(written,);
@@ -1118,8 +1137,8 @@ https://example.net/b{c`,);
             + 'the text after a note and the mark then stands in the middle of the page, where it starts no block '
             + 'and no module',
           fn: async () => {
-            expect(encoded({ text: '\uFEFF```\n{\n```\n', },),).toBe('\uFEFF```\n\\{\n```\n',);
-            expect(encoded({ text: '\uFEFF- ```\n  {\n  ```\n', },),).toBe('\uFEFF- ```\n  \\{\n  ```\n',);
+            expect(encoded({ text: '\uFEFF```\n{\n```\n', },),).toBe('\uFEFF```\n\\{\n```\n```',);
+            expect(encoded({ text: '\uFEFF- ```\n  {\n  ```\n', },),).toBe('\uFEFF- ```\n  \\{\n  ```\n```',);
             expect(encoded({ text: '\uFEFFimport a {\n', },),).toBe('\uFEFFimport a \\{\n',);
             expect(encoded({ text: '\uFEFF[r]: u{b "t {"\n', },),).toBe('\uFEFF[r]: u\\{b "t \\{"\n',);
           },
@@ -1154,6 +1173,7 @@ https://example.net/b{c`,);
                */
               const written = encoded({ text, },);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
               expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
             },
           },);
@@ -1169,6 +1189,7 @@ https://example.net/b{c`,);
                */
               const written = encoded({ text, },);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
               expect(withoutLinkTargets({ account: readerOfPage({ carried: written, },), },),)
                 .toBe(withoutLinkTargets({ account: readerOfSource({ source: text, },), },),);
             },
@@ -1184,6 +1205,7 @@ https://example.net/b{c`,);
                */
               const written = encoded({ text: source, },);
               expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
               expect(readerOfPage({ carried: written, },).startsWith(shown,),).toBe(true,);
             },
           },);

@@ -360,8 +360,8 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
 ];
 
 /**
- Two runs of which the first leaves a fence or display math open at its end and a line of the second would close it, with
- the slices the first step writes as literal text.
+ Two runs of which the first leaves a fence or display math open at its end and a line of the second would close it,
+ with the slices the first step writes as literal text.
  */
 const OPEN_FLOW_PAIRS: readonly {
   readonly name: string;
@@ -832,13 +832,14 @@ await describe({
         },),
 
         it({
-          name: 'SHIPS A PAGE WITHOUT BOTH RUNS WHEN A FENCE ONE OPENS THE NEXT CLOSES, which falls over the English '
-            + 'between them: each run parses alone and writing it as literal text changes nothing, so the third step '
-            + 'is the first taken, and the page read back agrees with its artifact and weighs what it should',
+          name: 'SHIPS BOTH RUNS WITH THE FENCE EACH LEAVES OPEN CLOSED AT ITS END, written as literal text at the '
+            + 'first step: each run parses alone and leaves a fence open, the second run\'s opening line would close '
+            + 'the first run\'s fence over the English between them and expose the tag after it, and the page read '
+            + 'back agrees with its artifact',
           fn: async () => {
             /**
-             Two runs that parse alone, the first opening a fence and the second holding a closing tag and the fence's
-             other end, with a paragraph the archive covers between them.
+             Two runs that parse alone, the first opening a fence and the second holding a tag inside the fence it
+             opens, with a paragraph the archive covers between them.
              */
             const rows: readonly SourceShippedRow[] = [
               OPENING_ROW,
@@ -856,13 +857,16 @@ await describe({
               rows,
               sourceText: PLAIN_SOURCE_PAGE,
             },);
-            expect(checks,).toEqual(['page-source-unparseable',],);
-            expect(page,).toBe(`${OPENING_ROW.incumbentText}${MIDDLE_ROW.incumbentText}`,);
+            expect(checks,).toEqual([],);
+            expect(page,).toBe(
+              `${OPENING_ROW.incumbentText}\n${NOTE}\n\n\`\`\`\n\`\`\`\n${MIDDLE_ROW.incumbentText}\n${NOTE}\n\n`
+                + '```\n</\n```\n',
+            );
+            expect(liveConstructsOf({ pageText: page, },),).toEqual([],);
             const lines = compositionLines({ warnings, },);
             expect(lines.length,).toBe(1,);
-            expect(lines[0],).toContain('step 3 of 3',);
+            expect(lines[0],).toContain('step 1 of 3',);
             expect(lines[0],).toContain('slices [1, 3]',);
-            expect(lines[0],).toContain('the page with its source text as written does not parse',);
             const judged = pageAgreement({
               artifact: {
                 ...artifact,
@@ -875,15 +879,16 @@ await describe({
               },
               pageText: page,
             },);
-            expect(judged.agreement,).toBe('agreed-weighed',);
-            expect(judged.sourceDropped,).toEqual([1, 3,],);
+            expect(judged.agreement,).not.toBe('disagreed',);
+            expect(judged.sourceDropped,).toEqual([],);
           },
         },),
 
         ...OPEN_FLOW_PAIRS.map(function toCase({ name, first, second, slices, },) {
           return it({
-            name: `SHIPS NO CODE FROM THE RUNS OF ${name.toUpperCase()}: the flow the first run leaves open is closed at `
-              + 'its end, so the opening line of the second run does not close it and expose the text after that line',
+            name: `SHIPS NO CODE FROM THE RUNS OF ${name.toUpperCase()}: the flow the first run leaves open is closed `
+              + 'at its end, so the opening line of the second run does not close it and expose the text after that '
+              + 'line',
             fn: async () => {
               const { page, checks, warnings, } = await publishRows({
                 rows: [
