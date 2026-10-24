@@ -143,6 +143,11 @@ export type ModuleFacts = {
   readonly file: string;
 
   /**
+   The file's program node, kept so that a second read of the file does not parse it again.
+   */
+  readonly program: TreeNode;
+
+  /**
    Whether the file writes a format or names the type of one.
    */
   readonly holdsFormat: boolean;

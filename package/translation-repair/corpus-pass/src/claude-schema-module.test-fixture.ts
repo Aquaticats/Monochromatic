@@ -18,12 +18,12 @@ import {
   loadBindingsIn,
   nestedBindingsIn,
 } from './claude-schema-nested.test-fixture.ts';
+import { referencesIn, } from './claude-schema-reference.test-fixture.ts';
 import {
   holdsFormatMention,
   isNoNode,
   nodeAt,
   nodesAt,
-  referencesIn,
   stringValueOf,
 } from './claude-schema-tree.test-fixture.ts';
 
@@ -361,6 +361,7 @@ export function moduleFactsOf(
   const nodes = nodesUnder({ root: program, },);
   return {
     file,
+    program,
     holdsFormat: holdsFormatMention({ root: program, },),
     declared: gathered.declared,
     bindings: new Map([

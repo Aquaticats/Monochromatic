@@ -11,13 +11,10 @@ import type {
   ModuleFacts,
 } from './claude-schema-facts.test-fixture.ts';
 import { moduleFactsOf, } from './claude-schema-module.test-fixture.ts';
-import {
-  type Family,
-  resolvePath,
-} from './claude-schema-resolve.test-fixture.ts';
+import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
   keyOf,
-  NOTHING_FOLLOWED,
+  standsForKnown,
   usagesIn,
   usersIn,
 } from './claude-schema-usage.test-fixture.ts';
@@ -232,7 +229,7 @@ function moduleOf({
  const family = familyOf({ sources: await familySources(), },);
  ```
  */
-function familyOf({ sources, }: { readonly sources: readonly SourceFile[]; },): Family {
+export function familyOf({ sources, }: { readonly sources: readonly SourceFile[]; },): Family {
   return new Map(sources.map(function entryOf(source,): readonly [
     string,
     ModuleFacts,
@@ -367,17 +364,15 @@ function withWrappers(
     return (!knownKeys.has(keyOf(candidate,),))
       && returnedCalleesOf({ fn: candidate.fn, },)
         .some(function callsKnown(path,): boolean {
-          /**
-           What the callee stands for in the file that declares the candidate.
-           */
-          const callee = resolvePath({
+          return standsForKnown({
             family,
             file: candidate.file,
             path,
-            seen: NOTHING_FOLLOWED,
+            known: {
+              keys: knownKeys,
+              names: knownNames,
+            },
           },);
-          return (callee.kind === 'function') ? knownKeys.has(keyOf(callee,),) : (callee.kind === 'free')
-            && knownNames.has(callee.name,);
         },);
   },);
   return (wrappers.length === 0)
@@ -442,7 +437,7 @@ export function buildersOf(
  const builders = buildersIn({ family, notStageSchemas: new Set(), },);
  ```
  */
-function buildersIn(
+export function buildersIn(
   {
     family,
     notStageSchemas,

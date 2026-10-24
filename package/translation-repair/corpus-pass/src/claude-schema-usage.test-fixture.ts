@@ -53,7 +53,7 @@ const PRODUCER_LIST_FILE = 'corpus-pass/src/claude-schema-producers.ts';
 /**
  The bindings and exports already followed when a walk starts.
  */
-export const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
+const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
 
 /**
  Where a function sits, as one text.
@@ -77,6 +77,68 @@ export function keyOf({
   readonly name: string
 },): string {
   return `${file}#${name}`;
+}
+
+/**
+ The functions a search has found so far, by where each sits and by name.
+ */
+export type KnownFunctions = {
+  /**
+   Keys of the functions, by the module that declares them.
+   */
+  readonly keys: ReadonlySet<string>;
+
+  /**
+   Names of the functions, which a name a file neither declares nor imports is read as.
+   */
+  readonly names: ReadonlySet<string>;
+};
+
+/**
+ Whether a chain of names written in a file stands for one of the known functions: the function the chain resolves to,
+ or, for a name the file neither declares nor imports, the function of that name.
+
+ @param family - the modules of the sources
+
+ @param file - path of the file that writes the chain
+
+ @param path - the names in order
+
+ @param known - the functions looked for
+
+ @returns Whether the chain stands for one of them
+
+ @example
+ ```ts
+ const calls = standsForKnown({ family, file, path: ['contestResponseFormat',], known, },);
+ ```
+ */
+export function standsForKnown(
+  {
+    family,
+    file,
+    path,
+    known,
+  }: {
+    readonly family: Family;
+    readonly file: string;
+    readonly path: readonly string[];
+    readonly known: KnownFunctions;
+  },
+): boolean {
+  /**
+   What the chain stands for in the file that writes it.
+   */
+  const callee = resolvePath({
+    family,
+    file,
+    path,
+    seen: NOTHING_FOLLOWED,
+  },);
+  return (callee.kind === 'function') ? known.keys
+    .has(keyOf(callee,),) : (callee.kind === 'free')
+      && known.names
+        .has(callee.name,);
 }
 
 /**

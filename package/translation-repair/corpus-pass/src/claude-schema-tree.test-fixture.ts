@@ -18,7 +18,7 @@ import {
 /**
  One node met in a walk, with the node that holds it and the field of that node it sits in.
  */
-type Visit = {
+export type Visit = {
   /**
    The node.
    */
@@ -202,7 +202,7 @@ export function nodesAt({
  // => true
  ```
  */
-function isTypeNode({ node, }: { readonly node: TreeNode; },): boolean {
+export function isTypeNode({ node, }: { readonly node: TreeNode; },): boolean {
   return node.type
     .startsWith('TS',)
     && (!TYPE_MARKED_EXPRESSION_KINDS.has(node.type,));
@@ -238,7 +238,7 @@ export function isFunctionNode({ node, }: { readonly node: TreeNode; },): boolea
  const visits = visitsUnder({ root: program, skips: isTypeVisit, },);
  ```
  */
-function visitsUnder(
+export function visitsUnder(
   {
     root,
     skips,
@@ -495,7 +495,7 @@ export function functionIn({ node, }: { readonly node: unknown; },): TreeNode {
 /**
  A dynamic `import()` or a `require` call, as the path it loads is written.
  */
-type ModuleLoad = {
+export type ModuleLoad = {
   /**
    Whether the expression is a load at all.
    */
@@ -539,7 +539,7 @@ const MODULE_HEAD = 'module:';
  const load = moduleLoadOf({ node: declarator.init, },);
  ```
  */
-function moduleLoadOf({ node, }: { readonly node: unknown; },): ModuleLoad {
+export function moduleLoadOf({ node, }: { readonly node: unknown; },): ModuleLoad {
   /**
    The expression without the type marks and parentheses around it.
    */
@@ -677,7 +677,7 @@ export function pathOf({ node, }: { readonly node: unknown; },): readonly string
  const skipped = isFunctionVisit({ node: fn, parent: NO_NODE, grandparent: NO_NODE, field: '', },);
  ```
  */
-function isFunctionVisit({ node, }: Visit,): boolean {
+export function isFunctionVisit({ node, }: Visit,): boolean {
   return isFunctionNode({ node, },);
 }
 
@@ -735,7 +735,7 @@ function returnedExpressionsOf({ fn, }: { readonly fn: TreeNode; },): readonly T
  const call = withoutAwait({ node: returned, },);
  ```
  */
-function withoutAwait({ node, }: { readonly node: TreeNode; },): unknown {
+export function withoutAwait({ node, }: { readonly node: TreeNode; },): unknown {
   /**
    The expression without type marks, parentheses and an optional chain.
    */
@@ -775,161 +775,6 @@ export function returnedCalleesOf({ fn, }: { readonly fn: TreeNode; },): readonl
       const path = (isTreeNode(call,) && (call.type === 'CallExpression'))
         ? pathOf({ node: call.callee, })
         : [];
-      return (path.length === 0) ? [] : [path,];
-    },);
-}
-
-/**
- The kinds of node whose identifier children are never a value: the entries of an import or export list, a label, the
- parameter of a catch clause, and the targets a pattern takes a value apart into.
- */
-const NON_VALUE_PARENT_KINDS: ReadonlySet<string> = new Set([
-  'ArrayPattern',
-  'BreakStatement',
-  'CatchClause',
-  'ContinueStatement',
-  'ExportAllDeclaration',
-  'ExportDefaultDeclaration',
-  'ExportSpecifier',
-  'ImportDefaultSpecifier',
-  'ImportNamespaceSpecifier',
-  'ImportSpecifier',
-  'LabeledStatement',
-  'ObjectPattern',
-  'RestElement',
-],);
-
-/**
- The kinds of node that declare a name in their `id` field, which is no value.
- */
-const DECLARING_KINDS: ReadonlySet<string> = new Set([
-  'ArrowFunctionExpression',
-  'ClassDeclaration',
-  'ClassExpression',
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'VariableDeclarator',
-],);
-
-/**
- Whether an identifier, seen in the place it sits, names a value: it is not a key, a declared name, a parameter, a label,
- a member read off an object, an entry of an import or export list, the target of a pattern, the target of an
- assignment or the operand of `typeof`.
-
- @param visit - the identifier, the node that holds it and the field it sits in
-
- @returns Whether the identifier is a reference to a value
-
- @example
- ```ts
- const isReference = namesValue({ visit, },);
- ```
- */
-function namesValue({ visit, }: { readonly visit: Visit; },): boolean {
-  return (visit.parent === NO_NODE)
-    || ((!NON_VALUE_PARENT_KINDS.has(visit.parent
-      .type,)) && namesValueUnder({ visit, }));
-}
-
-/**
- Whether an identifier whose parent is none of the kinds that never hold a value names a value.
-
- @param visit - the identifier, the node that holds it and the field it sits in
-
- @returns Whether the identifier is a reference to a value
-
- @example
- ```ts
- const isReference = namesValueUnder({ visit, },);
- ```
- */
-function namesValueUnder({ visit, }: { readonly visit: Visit; },): boolean {
-  /**
-   The node that holds the identifier, the node that holds that node and the field of the first the identifier sits in.
-   */
-  const {
-    parent,
-    grandparent,
-    field,
-  } = visit;
-  if (parent === NO_NODE)
-    return true;
-  if (parent.type === 'Property') {
-    return (grandparent.type !== 'ObjectPattern')
-      && ((field === 'value') || (parent.computed === true));
-  }
-  if (parent.type === 'MemberExpression')
-    return (field !== 'property') || (parent.computed === true);
-  if ((parent.type === 'MethodDefinition') || (parent.type === 'PropertyDefinition'))
-    return (field !== 'key') || (parent.computed === true);
-  if (DECLARING_KINDS.has(parent.type,))
-    return (field !== 'id') && (field !== 'params');
-  if ((parent.type === 'AssignmentPattern') || (parent.type === 'AssignmentExpression'))
-    return field !== 'left';
-  if (parent.type === 'UnaryExpression')
-    return parent.operator !== 'typeof';
-  return true;
-}
-
-/**
- Whether a visit is of a type, which the walk of references leaves out.
-
- @param node - the node visited
-
- @returns Whether the node is a type or part of one
-
- @example
- ```ts
- const skipped = isTypeVisit({ node: reference, parent: NO_NODE, grandparent: NO_NODE, field: '', },);
- ```
- */
-function isTypeVisit({ node, }: Visit,): boolean {
-  return isTypeNode({ node, },);
-}
-
-/**
- The names a file's code refers to as values, each as a path: `build`, `ns.build`, `kit.build`. A reference is a name
- or a chain of members that sits where a value does; types, keys, declared names and import or export list entries are
- left out, and so is the part of a chain that is only its start.
-
- @param root - node to look under
-
- @returns One path per reference
-
- @example
- ```ts
- const references = referencesIn({ root: program, },);
- // => [['contestResponseFormat'], ['contest', 'contestResponseFormat']]
- ```
- */
-export function referencesIn({ root, }: { readonly root: TreeNode; },): readonly (readonly string[])[] {
-  return visitsUnder({
-    root,
-    skips: isTypeVisit,
-  },)
-    .filter(function isReference(visit,): boolean {
-      /**
-       Whether the node starts a chain of members rather than sitting inside one as the object a member is read off.
-       */
-      const startsChain = (visit.node
-        .type
-        === 'Identifier') || (visit.node
-          .type
-          === 'MemberExpression');
-      /**
-       Whether the node is the object of a member, so the chain it starts is only part of a longer one.
-       */
-      const insideChain = (visit.parent
-        .type
-        === 'MemberExpression') && (visit.field === 'object');
-      return startsChain && (!insideChain)
-        && namesValue({ visit, });
-    },)
-    .flatMap(function pathOfReference({ node, },): readonly (readonly string[])[] {
-      /**
-       The names the reference is written with.
-       */
-      const path = pathOf({ node, },);
       return (path.length === 0) ? [] : [path,];
     },);
 }
