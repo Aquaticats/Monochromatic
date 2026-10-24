@@ -63,14 +63,14 @@ pub(in crate::native) struct Press {
 ///  the offset it scrolled to,
 ///  the caret it chose,
 ///  the text it was mapped on,
-///  and the sizes of the window and the minimap.
+///  and the size of the window.
 /// Why:
 ///  A layout change aims the press again only when every one of them still holds,
 ///  which means the reader has done nothing since.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Left = { offset: number; caret: [number, number, Affinity]; text: DocumentStamp; view: [number, number]; minimap: [number, number] };
+/// type Left = { offset: number; caret: [number, number, Affinity]; text: DocumentStamp; view: [number, number] };
 /// ```
 #[derive(Clone, Copy)]
 struct Left {
@@ -88,8 +88,6 @@ struct Left {
     text: DocumentStamp,
     /// Width and height of the view.
     view: (f32, f32),
-    /// Width and height of the minimap column.
-    minimap: (f32, f32),
 }
 
 /// What:
@@ -172,7 +170,6 @@ fn left_by(current: &State, offset: f32, view: (f32, f32)) -> Left {
         caret: (position.anchor, position.head, position.affinity),
         text: displayed(current),
         view,
-        minimap: current.minimap.size,
     };
 }
 
@@ -295,7 +292,6 @@ pub(in crate::native) fn aim_again(
         || now.caret != aim.left.caret
         || now.text != aim.left.text
         || now.view != aim.left.view
-        || now.minimap != aim.left.minimap
     {
         current.minimap.aim = None;
         return None;

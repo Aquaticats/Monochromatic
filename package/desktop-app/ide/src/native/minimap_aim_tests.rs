@@ -86,10 +86,24 @@ fn numbered() -> String {
 /// function hintFirst(reader: Reader, count: number): void;
 /// ```
 fn hint_first(reader: &Reader, count: usize) {
+    hint_on(reader, 0..count);
+}
+
+/// What:
+///  Install a snapshot with one hint on each of `lines`,
+///  as an answer that asked for the whole text.
+/// Why:
+///  A test that needs rows to arrive only below the view names the lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hintOn(reader: Reader, lines: Iterable<number>): void;
+/// ```
+fn hint_on(reader: &Reader, lines: impl Iterator<Item = usize>) {
     let (stamp, hints) = {
         let current = reader.source.borrow();
         let mut hints = Vec::new();
-        for line in 0..count {
+        for line in lines {
             hints.push(hint(
                 current.document.text().line_to_char(line) + 8,
                 ": u32",
@@ -324,7 +338,8 @@ fn a_second_layout_change_aims_the_press_again_until_something_else_happens() {
     opened.window.hide().expect("close minimap window");
 }
 
-/// A wheel step after the press means the reader followed it by scrolling:
+/// A wheel step after the press means the reader followed it by scrolling,
+///  also when the wheel brings the view back to the very offset the press had taken:
 ///  the next change of the layout keeps the view still.
 #[test]
 fn a_layout_change_after_a_wheel_step_keeps_the_view_still() {
@@ -332,10 +347,49 @@ fn a_layout_change_after_a_wheel_step_keeps_the_view_still() {
     aimed_once(&opened, low(&opened), FIRST);
     let y = high(&opened);
     let from = click(&opened, y);
-    scroll_to(&opened.window, offset(&opened) + 100.0);
+    let pressed = offset(&opened);
+    scroll_to(&opened.window, pressed + 100.0);
+    scroll_to(&opened.window, pressed);
     // Rows above the view wait for the scroll to stop; the quiet time passes first.
     idle();
     stays_kept(&opened, from, y, LATER);
+    opened.window.hide().expect("close minimap window");
+}
+
+/// A scroll step the toolkit has made but the window has not yet been told of is the reader scrolling too:
+///  rows that arrive below the view,
+///  which do not wait for the scroll to stop,
+///  must not take the view away from the step.
+#[test]
+fn a_layout_change_during_an_unreported_scroll_step_keeps_the_view_still() {
+    let (_project, opened) = scene();
+    aimed_once(&opened, low(&opened), FIRST);
+    let y = high(&opened);
+    let from = click(&opened, y);
+    let pressed = offset(&opened);
+    let caret = reading(&opened);
+    let before = map(&opened);
+    // The step is set without letting the toolkit run its change handler.
+    opened.window.set_scroll_y(-(pressed + 100.0));
+    hint_on(&opened, (0..FIRST).chain(1400..LINES));
+    let (_, aim) = pressed_at(&opened, y, from);
+    assert_ne!(
+        aim,
+        pressed + 100.0,
+        "the press would land where the step is, so the test cannot tell"
+    );
+    assert_eq!(
+        kept(&opened, &before, pressed + 100.0),
+        pressed + 100.0,
+        "rows below the view keep the offset, so they need not wait"
+    );
+    assert_eq!(
+        offset(&opened),
+        pressed + 100.0,
+        "the view stays where the step put it"
+    );
+    assert_eq!(reading(&opened), caret, "and the caret stays");
+    update_timers_and_animations();
     opened.window.hide().expect("close minimap window");
 }
 
