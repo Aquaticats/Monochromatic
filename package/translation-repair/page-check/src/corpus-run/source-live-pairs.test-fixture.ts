@@ -1,4 +1,6 @@
-import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  capturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   composeSourcePage,
   type ComposedPage,
@@ -24,9 +26,10 @@ import {
 } from './source-shipped.test-fixture.ts';
 
 //region Live constructs of a text and of a pair of runs
-// THE WHOLE-PAGE CHECK OF LIVE CONSTRUCTS FOR ONE TEXT AND FOR ONE PAIR OF RUNS (`source-live-constructs.test-fixture.ts`
-// finds the constructs of a page), shared by the sampled case and the full pass over the generated sets
-// (`source-live-sample.unit.test.ts`, `source-live-full.expensive.unit.test.ts`), so that both read a text the same way.
+// THE WHOLE-PAGE CHECK OF LIVE CONSTRUCTS FOR ONE TEXT AND FOR ONE PAIR OF RUNS
+// (`source-live-constructs.test-fixture.ts` finds the constructs of a page), shared by the sampled case and the full
+// pass over the generated sets (`source-live-sample.unit.test.ts`, `source-live-full.expensive.unit.test.ts`), so that
+// both read a text the same way.
 //
 // TEST SUPPORT, NOT PACKAGE SOURCE.
 
