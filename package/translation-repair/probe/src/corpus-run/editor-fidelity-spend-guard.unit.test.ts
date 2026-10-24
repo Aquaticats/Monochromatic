@@ -32,6 +32,7 @@ import {
   type TransportExchange,
 } from '@monochromatic-dev/translation-repair-provider-stream';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
+import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import {
   noteRunSpend,
   resetRunSpend,
@@ -56,6 +57,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 import {
   callCeilingUsd,
   cardsClientFrom,
+  ConcurrentGuardCallError,
   guardLine,
   guardTotalLine,
   pricesOf,
@@ -445,6 +447,40 @@ function attemptBoundOf({ exchanges, }: { readonly exchanges: readonly Transport
   const bytes = Buffer.byteLength(exchanges[0]?.bodyJson ?? '', 'utf8',);
   return ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
     + (Number(firstBodyOf({ exchanges, },).max_tokens,) * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
+}
+
+/**
+ Builds the client over the guard's admit, which on its one call tells the guard of an attempt of the bound given after
+ 0.5 USD of an earlier attempt is on the meter.
+
+ @param boundUsd - the most the attempt can be billed
+
+ @returns The builder a guard takes in place of a client
+
+ @example
+ ```ts
+ const inner = innerWithBound({ boundUsd: 0.5, },);
+ ```
+ */
+function innerWithBound(
+  { boundUsd, }: { readonly boundUsd: number; },
+): (admit: Parameters<typeof createClaudeClient>[0]['admitAttempt'],) => ModelClient {
+  return function build(admit,): ModelClient {
+    return {
+      ...scriptedClient({ script: { asked: [], reportsUsage: true, }, },),
+      chatJson: <ValueT,>(): Promise<ChatJsonOutcome<ValueT>> => {
+        noteRunSpend({ provider: 'anthropic', costUsd: 0.5, },);
+        admit?.({ label: LOW_CARD, bound: { promptTokens: 1_000, completionTokens: 32_000, usd: boundUsd, }, },);
+        noteRunSpend({ provider: 'anthropic', costUsd: 0.1, },);
+        return Promise.resolve({
+          kind: 'ok',
+          value: { edits: [], } as ValueT,
+          rawText: '{"edits":[]}',
+          usage: REPORTED,
+        },);
+      },
+    };
+  };
 }
 
 await describe({
@@ -890,8 +926,101 @@ await describe({
     },),
 
     describe({
+      name: `${spendGuardedClient.name} one call at a time`,
+      children: [
+        it({
+          name: 'ADMITS ONE CALL AT A TIME: a call asked while another is in flight throws before the inner client is '
+            + 'reached, does not end the arm, and the next call after the first settles is admitted',
+          fn: async () => {
+            resetRunSpend();
+            const asked: string[] = [];
+            const controller = new AbortController();
+            const release = Promise.withResolvers<ChatTextReply>();
+            const client = spendGuardedClient({
+              inner: {
+                ...scriptedClient({ script: { asked, pricedUsd: REPLY_USD, reportsUsage: true, }, },),
+                chatText: (request,): Promise<ChatTextReply> => {
+                  asked.push(request.modelId,);
+                  // Only the first call stays in flight; any other would answer, so a missing guard fails the case
+                  // by an assertion and not by a hang.
+                  return (asked.length === 1) ? release.promise : Promise.resolve({ text: 'meow', usage: REPORTED, },);
+                },
+              },
+              maxUsd: 5,
+              controller,
+            },);
+            const first = client.chatText({
+              modelId: LOW_CARD,
+              messages: THOUSAND_CHARS,
+              signal: controller.signal,
+            },);
+            const second = await raisedBy({
+              ask: function whileFirstFlies(): Promise<unknown> {
+                return client.chatText({
+                  modelId: LOW_CARD,
+                  messages: THOUSAND_CHARS,
+                  signal: controller.signal,
+                },);
+              },
+            },);
+            expect(second,).toBeInstanceOf(ConcurrentGuardCallError,);
+            expect(asked,).toStrictEqual([LOW_CARD,],);
+            expect(controller.signal.aborted,).toBe(false,);
+            release.resolve({ text: 'meow', usage: REPORTED, },);
+            await first;
+            expect(client.guardTotal().calls,).toBe(1,);
+            const third = await raisedBy({
+              ask: function afterFirstSettled(): Promise<unknown> {
+                return askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+              },
+            },);
+            expect(third,).toBeUndefined();
+            expect(client.guardTotal().calls,).toBe(2,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
       name: 'a guard over a client that tells it of each attempt',
       children: [
+        it({
+          name: 'ADMITS AN ATTEMPT WHOSE BOUND BRINGS THE SPEND EXACTLY TO --max-usd AND REFUSES ONE A CENT OVER, the '
+            + 'attempt-only boundary: 0.5 USD already on the meter and an attempt bound of 0.5 under 1.0 is sent, and '
+            + 'a bound of 0.51 is not',
+          fn: async () => {
+            resetRunSpend();
+            const atBoundary = new AbortController();
+            const sent = spendGuardedClient({
+              inner: innerWithBound({ boundUsd: 0.5, },),
+              maxUsd: 1,
+              controller: atBoundary,
+            },);
+            expect(await raisedBy({
+              ask: function atTheLine(): Promise<unknown> {
+                return askJson({ client: sent, modelId: LOW_CARD, signal: atBoundary.signal, },);
+              },
+            },),).toBeUndefined();
+            expect(atBoundary.signal.aborted,).toBe(false,);
+
+            resetRunSpend();
+            const pastBoundary = new AbortController();
+            const refused = spendGuardedClient({
+              inner: innerWithBound({ boundUsd: 0.51, },),
+              maxUsd: 1,
+              controller: pastBoundary,
+            },);
+            const raised = await raisedBy({
+              ask: function aCentOver(): Promise<unknown> {
+                return askJson({ client: refused, modelId: LOW_CARD, signal: pastBoundary.signal, },);
+              },
+            },);
+            expect(raised,).toBeInstanceOf(StatedRefusalError,);
+            expect((raised as StatedRefusalError).message,).toContain('this attempt can cost 0.5100 USD at most',);
+            expect(pastBoundary.signal.aborted,).toBe(true,);
+          },
+        },),
+
         it({
           name: 'REFUSES THE ATTEMPT THAT WOULD PASS --max-usd INSIDE A CALL IT ADMITTED: attempts each cut by an '
             + 'overloaded event are about 0.323 USD apiece on the meter, the call fits under 1.5 at its ceiling of '
@@ -1143,6 +1272,61 @@ await describe({
             expect(withAttempts.guardTotal().atCeiling,).toBe(0,);
             expect(withAttempts.guardTotal().usd,).toBeCloseTo(runSpendUsd({ provider: 'anthropic', },), 9,);
             expect(withAttempts.guardTotal().usd,).toBeCloseTo(attemptBoundOf({ exchanges, }), 6,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: `${cardsClientFrom.name} decide and quotas`,
+      children: [
+        it({
+          name: 'SENDS NOTHING FOR decide OR quotas, so neither can bill the Claude key: over the Claude key alone the '
+            + 'decisions exchange is refused for want of a decisions client and the quotas read is the exhausted '
+            + 'compatibility snapshot, each with no exchange on the transport, while a chat exchange on the same '
+            + 'client does reach it',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-decide-', },);
+            resetRunSpend();
+            const { transport, exchanges, } = scripted({
+              replies: [
+                {
+                  status: 200,
+                  bodyText: claudeStreamOf({ text: '{"edits":[]}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+                },
+              ],
+            },);
+            const controller = new AbortController();
+            const client = cardsClientFrom({
+              env: { [CLAUDE_KEY_VARIABLE]: CLAUDE_CAT_KEY, },
+              transport,
+              promptPayloadDir: scratch.path,
+              cardIds: [LOW_CARD,],
+            },);
+            expect(client.decide,).toBeDefined();
+            const decided = await raisedBy({
+              ask: function askDecide(): Promise<unknown> {
+                return (client.decide as NonNullable<ModelClient['decide']>)({
+                  modelId: LOW_CARD,
+                  state: 'The cat is asleep.',
+                  questions: { asleep: { type: 'noul', instructions: 'Is the cat asleep?', }, },
+                  signal: controller.signal,
+                },);
+              },
+            },);
+            expect(decided,).toBeInstanceOf(NoProviderForModelError,);
+            expect((decided as NoProviderForModelError).message,).toContain('no decisions client is configured',);
+            const quota = await client.quotas({ signal: controller.signal, },);
+            expect(quota.fiveHour?.limited,).toBe(true,);
+            expect(quota.fiveHour?.remaining,).toBe(0,);
+            expect(exchanges.length,).toBe(0,);
+
+            // The positive control: the same transport records the exchange a chat call makes.
+            await infoLinesDuring({
+              run: async () => await askJson({ client, modelId: LOW_CARD, signal: controller.signal, },),
+            },);
+            expect(exchanges.length,).toBe(1,);
           },
         },),
       ],

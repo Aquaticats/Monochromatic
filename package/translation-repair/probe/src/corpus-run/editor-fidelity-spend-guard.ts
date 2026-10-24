@@ -60,6 +60,25 @@ import {
 type ReportedUsage = NonNullable<ChatTextReply['usage']>;
 
 /**
+ Thrown when a call is asked of the guard while another is still in flight, which the guard's one-call-at-a-time
+ accounting of attempts cannot reckon.
+
+ @example
+ ```ts
+ throw new ConcurrentGuardCallError();
+ ```
+ */
+export class ConcurrentGuardCallError extends Error {
+  /**
+   Builds the error with its fixed message.
+   */
+  public constructor() {
+    super('the spend guard admits one call at a time, and a call was asked while another was in flight; nothing was sent',);
+    this.name = 'ConcurrentGuardCallError';
+  }
+}
+
+/**
  What the guard counted, for the line that ends an arm.
 
  @example

@@ -174,6 +174,7 @@ export {
   runEditorFidelityProbe,
 } from './corpus-run/editor-fidelity-probe-run.ts';
 export {
+  ConcurrentGuardCallError,
   type GuardedClient,
   guardLine,
   type GuardTotal,
