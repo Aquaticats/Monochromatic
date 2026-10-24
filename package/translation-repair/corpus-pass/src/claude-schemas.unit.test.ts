@@ -55,11 +55,12 @@ import {
   LOAD_IN_PLACE_CASES,
 } from './claude-schema-followed-forms.test-fixture.ts';
 import { CYCLE_CASES, } from './claude-schema-cycle-forms.test-fixture.ts';
-import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test-fixture.ts';
+import { CALL_FORM_CASES, type FormCase, textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
 import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
 import { FORMAT_LIMIT_CASES, SPELLING_CASES, } from './claude-schema-format-forms.test-fixture.ts';
 import {
+  FOLLOWED_LOAD_CASES,
   UNAWAITED_LOAD_CASES,
   UNREAD_BUILDER_CASES,
 } from './claude-schema-limit-forms.test-fixture.ts';
@@ -633,6 +634,7 @@ await describe({
       ...NAME_RULE_CASES,
       ...UNREAD_BUILDER_CASES,
       ...UNREAD_SHAPE_CASES,
+      ...FOLLOWED_LOAD_CASES,
       ...REFERENCE_POSITION_CASES,
       ...NOT_A_REFERENCE_CASES,
       ...OVER_READ_CASES,
@@ -668,7 +670,7 @@ await describe({
       },);
     },),
 
-    ...[...UNREAD_BUILDER_CASES, ...UNREAD_SHAPE_CASES,].map(function caseOfSpots(shapeCase: ShapeCase,) {
+    ...[...UNREAD_BUILDER_CASES, ...UNREAD_SHAPE_CASES, ...FOLLOWED_LOAD_CASES,].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({
         name: `REPORTS WITH FILE AND LINE THE SHAPE OF THIS CASE: ${shapeCase.name}`,
         fn: async () => {
@@ -692,6 +694,41 @@ await describe({
           .map(function named({ file, line, shape, },): string {
             return `${file}:${String(line,)} ${shape}`;
           },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'SKIPS A FILE NAMED AS NO STAGE SCHEMA WHEN IT LOOKS FOR A FUNCTION THAT HOLDS A FORMAT AND NO DECLARED '
+        + 'FUNCTION HOLDS, and reports the same file when it is not named',
+      fn: async () => {
+        /**
+         A file whose static method holds a format, which no declared function holds.
+         */
+        const sources = [
+          {
+            file: 'imaginary/src/not-stage-wire.ts',
+            text: textOf([
+              'export class NotStageWire {',
+              '  static format() {',
+              '    return { type: \'json_schema\', };',
+              '  }',
+              '}',
+            ],),
+          },
+        ];
+        expect({
+          named: blindSpotsOf({ sources, notStageSchemas: new Set(['imaginary/src/not-stage-wire.ts',],), },),
+          unnamed: blindSpotsOf({ sources, notStageSchemas: new Set<string>(), },),
+        },).toEqual({
+          named: [],
+          unnamed: [
+            {
+              file: 'imaginary/src/not-stage-wire.ts',
+              line: 2,
+              shape: 'format-in-undeclared-function',
+            },
+          ],
+        },);
       },
     },),
 

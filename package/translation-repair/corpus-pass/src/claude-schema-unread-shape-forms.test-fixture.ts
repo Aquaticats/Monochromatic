@@ -201,6 +201,11 @@ export const UNREAD_SHAPE_CASES: readonly ShapeCase[] = [
           '  const format = await contestResponseFormat({ schemaName, verdicts: [], asksArchive: false, },);',
           '  return format;',
           '}',
+          '',
+          'export async function throughReturnedAwait(schemaName: string,) {',
+          '  const format = contestResponseFormat({ schemaName, verdicts: [], asksArchive: false, },);',
+          '  return await format;',
+          '}',
         ],),
       },
       {
@@ -222,6 +227,11 @@ export const UNREAD_SHAPE_CASES: readonly ShapeCase[] = [
       {
         file: 'imaginary/src/blind-local-wire.ts',
         line: 8,
+        shape: 'result-returned-through-a-local',
+      },
+      {
+        file: 'imaginary/src/blind-local-wire.ts',
+        line: 13,
         shape: 'result-returned-through-a-local',
       },
     ],

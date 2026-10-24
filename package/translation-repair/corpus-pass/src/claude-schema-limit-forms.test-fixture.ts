@@ -177,12 +177,12 @@ export const UNREAD_BUILDER_CASES: readonly ShapeCase[] = [
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.
  */
-const UNAWAITED_SPECIFIER = '../../lane-contest/src/contest-ballot-wire.ts';
+const LOAD_SPECIFIER = '../../lane-contest/src/contest-ballot-wire.ts';
 
 /**
  The arguments of a call of the contest builder, as an imaginary file writes them.
  */
-const UNAWAITED_ARGUMENTS = '{ schemaName: \'unawaited\', verdicts: [], asksArchive: false, }';
+const LOAD_ARGUMENTS = '{ schemaName: \'load\', verdicts: [], asksArchive: false, }';
 
 /**
  Cases of a load that is not awaited, which yields a promise and no module.
@@ -195,21 +195,61 @@ export const UNAWAITED_LOAD_CASES: readonly FormCase[] = [
       {
         file: 'imaginary/src/unawaited-held-stage.ts',
         text: textOf([
-          `const pending = import('${UNAWAITED_SPECIFIER}');`,
+          `const pending = import('${LOAD_SPECIFIER}');`,
           '',
-          `export const UNAWAITED_HELD_RESPONSE_FORMAT = pending.contestResponseFormat(${UNAWAITED_ARGUMENTS},);`,
+          `export const UNAWAITED_HELD_RESPONSE_FORMAT = pending.contestResponseFormat(${LOAD_ARGUMENTS},);`,
         ],),
       },
       {
         file: 'imaginary/src/unawaited-in-place-stage.ts',
         text: textOf([
-          `export const UNAWAITED_IN_PLACE_RESPONSE_FORMAT = import('${UNAWAITED_SPECIFIER}')`,
-          `  .contestResponseFormat(${UNAWAITED_ARGUMENTS},);`,
+          `export const UNAWAITED_IN_PLACE_RESPONSE_FORMAT = import('${LOAD_SPECIFIER}')`,
+          `  .contestResponseFormat(${LOAD_ARGUMENTS},);`,
         ],),
       },
     ],
     found: [],
     builders: [],
+  },
+];
+
+/**
+ Cases of the loads the search follows, which the check behind it reports as nothing: held by a constant or taken apart
+ by a pattern, awaited or required, and read in place.
+ */
+export const FOLLOWED_LOAD_CASES: readonly ShapeCase[] = [
+  {
+    name: 'REPORTS NO SHAPE IN A LOAD THE SEARCH FOLLOWS, held by a constant, taken apart or read in place, awaited '
+      + 'or required',
+    files: [
+      {
+        file: 'imaginary/src/followed-load-held-stage.ts',
+        text: textOf([
+          `const contest = await import('${LOAD_SPECIFIER}');`,
+          `const { contestResponseFormat: lazyFormat, } = await import('${LOAD_SPECIFIER}');`,
+          `const required = require('${LOAD_SPECIFIER}');`,
+          '',
+          `export const HELD_RESPONSE_FORMAT = contest.contestResponseFormat(${LOAD_ARGUMENTS},);`,
+          `export const TAKEN_APART_RESPONSE_FORMAT = lazyFormat(${LOAD_ARGUMENTS},);`,
+          `export const REQUIRED_RESPONSE_FORMAT = required.contestResponseFormat(${LOAD_ARGUMENTS},);`,
+        ],),
+      },
+      {
+        file: 'imaginary/src/followed-load-in-place-stage.ts',
+        text: textOf([
+          `export const IN_PLACE_RESPONSE_FORMAT = (await import('${LOAD_SPECIFIER}'))`,
+          `  .contestResponseFormat(${LOAD_ARGUMENTS},);`,
+          `export const REQUIRED_IN_PLACE_RESPONSE_FORMAT = require('${LOAD_SPECIFIER}')`,
+          `  .contestResponseFormat(${LOAD_ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: [
+      'imaginary/src/followed-load-held-stage.ts',
+      'imaginary/src/followed-load-in-place-stage.ts',
+    ],
+    builders: [],
+    spots: [],
   },
 ];
 
