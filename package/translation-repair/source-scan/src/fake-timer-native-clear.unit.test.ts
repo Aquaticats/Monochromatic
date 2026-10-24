@@ -136,7 +136,7 @@ function isInstall({ node, }: { readonly node: TreeNode; },): boolean {
 
  @param name - key asked for
 
- @returns The properties keyed so, none where the literal holds no such key
+ @returns Properties keyed so, none where the literal holds no such key
 
  @example
  ```ts
@@ -163,7 +163,7 @@ function propertiesNamed(
 
  @param toFake - value of the `toFake` property
 
- @returns The reason it cannot be read, `names` where the list holds `clearTimeout`, `omits` where it does not
+ @returns Reason it cannot be read, `names` where the list holds `clearTimeout`, `omits` where it does not
 
  @example
  ```ts
@@ -197,7 +197,7 @@ function toFakeReading({ toFake, }: { readonly toFake: unknown; },): string {
 
  @param node - call of `useFakeTimers`
 
- @returns The reason, empty where the clock does not fake `clearTimeout` or clears native timers
+ @returns Reason, empty where the clock does not fake `clearTimeout` or clears native timers
 
  @example
  ```ts

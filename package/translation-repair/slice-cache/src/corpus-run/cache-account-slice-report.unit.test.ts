@@ -153,7 +153,7 @@ function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootF
 
  @param path - path whose resolution the filesystem refuses
 
- @returns The text of the refusal, which is what the audit logs of the failure
+ @returns Text of the refusal, which is what the audit logs of the failure
 
  @throws {@link Error} when the path resolves, since the case then holds no refusal to compare with
 
@@ -175,7 +175,7 @@ async function refusalSaid({ path, }: { readonly path: string; },): Promise<stri
 /**
  The line the audit logs for a root it could not resolve.
 
- @param root - the root as it was given
+ @param root - root as it was given
 
  @param code - filesystem code of the failure
 

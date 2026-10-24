@@ -171,6 +171,51 @@ export type UnresolvedRoot = {
 };
 
 /**
+ A searched root that reaches the runbook's runs root.
+
+ @example
+ ```ts
+ const reached: ReachedRoot = { kind: 'reached', };
+ ```
+ */
+type ReachedRoot = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'reached';
+};
+
+/**
+ A searched root that was resolved and does not reach the runbook's runs root.
+
+ @example
+ ```ts
+ const notReached: NotReachedRoot = { kind: 'not-reached', };
+ ```
+ */
+type NotReachedRoot = {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'not-reached';
+};
+
+/**
+ A searched root that could not be resolved, so it counts as not reaching the runbook's runs root.
+
+ @example
+ ```ts
+ const unresolved: UnresolvedRootReading = { kind: 'unresolved', root: '/cats/sealed/below', code: 'EACCES', };
+ ```
+ */
+type UnresolvedRootReading = UnresolvedRoot & {
+  /**
+   Which reading this is.
+   */
+  readonly kind: 'unresolved';
+};
+
+/**
  What the check found for one searched root.
 
  @example
@@ -178,35 +223,7 @@ export type UnresolvedRoot = {
  const reading: RootReading = { kind: 'unresolved', root: '/cats/sealed/below', code: 'EACCES', };
  ```
  */
-export type RootReading =
-  | {
-    /**
-     The root reaches the runbook's runs root.
-     */
-    readonly kind: 'reached';
-  }
-    | {
-    /**
-     The root was resolved and does not reach it.
-     */
-      readonly kind: 'not-reached';
-    }
-    | {
-    /**
-     The root could not be resolved, so it counts as not reaching it.
-     */
-      readonly kind: 'unresolved';
-
-    /**
-     The root as it was given.
-     */
-      readonly root: string;
-
-    /**
-     Filesystem code of the failure, or its class name where it carries none.
-     */
-      readonly code: string;
-    };
+export type RootReading = NotReachedRoot | ReachedRoot | UnresolvedRootReading;
 
 /**
  The runbook's runs root resolved.
@@ -324,7 +341,7 @@ export async function runbookRootReading(
 
  @param runbookRoot - where a launch that follows the runbook writes its runs, as the warning names it
 
- @param runbookReal - the real path of that root, resolved once by the caller
+ @param runbookReal - real path of that root, resolved once by the caller
 
  @param l - logger the refusal is written to
 
