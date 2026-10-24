@@ -910,6 +910,24 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'ENDS THE FOOTNOTE AT THE LINE AFTER AN UNCLOSED FENCE INDENTED UNDER IT, so the lines that follow are '
+            + 'written as the text they are and the page parses',
+          fn: async () => {
+            for (
+              const [source, written,] of [
+                ['[^1]: x\n    ~~~\n<>\n', '[^1]: x\n    ~~~\n\\<>\n',],
+                ['[^1]: x\n    ```\n</\n', '[^1]: x\n    ```\n\\</\n',],
+                ['[^1]: 注 ({)\n    ```\n[x][a {b]\n', '[^1]: 注 (\\{)\n    ```\n[x][a \\{b]\n',],
+                ['[^1]: x\n    ```\n{b}\n', '[^1]: x\n    ```\n\\{b\\}\n',],
+              ] as const
+            ) {
+              expect(encoded({ text: source, },),).toBe(written,);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            }
+          },
+        },),
+
+        it({
           name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION WHOSE FIRST LINE IS A TAG ALONE '
             + 'AND WHOSE SECOND LINE IS NOT INDENTED, and the page shows the marks (a limit the module comment names): '
             + 'the reader of the source ends the raw HTML block at the second line and reads the marks as a code '
