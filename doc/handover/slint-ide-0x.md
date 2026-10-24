@@ -4266,7 +4266,60 @@ a first click far down the minimap is mapped through a layout that lacks the hin
 The owner chose "Re-aim once" (answer through the question tool, 2026-10-24):
 when an answer changes the layout height while the view still stands where the last minimap click put it,
 scroll to where the same click lands in the new layout.
-An agent builds it with a test that fails first; its report is verified, landed and the IDE reinstalled.
+An agent built it with tests that failed first; my verification landed it and reinstalled the IDE.
+Landed 2026-10-24 as `76f7818e8f` (agent tip `2bb333a8b8`, plus my commit that breaks six README lines:
+the agent's branch passed its own lint, the merged tree failed `markdown/semantic-line-breaks`, so the gate on the merged tree was needed).
+Rule: `src/native/minimap/aim.rs` keeps the last jumping press (its place on the track, the share of the scroll range
+before it, and what it left: offset, caret, text stamp, view size);
+`rows::settle` maps it again through a newly installed layout;
+`viewport::place` forgets it when the view is placed anywhere else.
+Measured: the first click at y=1700 and the same click after a visit elsewhere both land on first line 223
+(before 214 and 223), minimap crops 994.01 px against 0.38 px, 53 to 56 fps in three alternating recordings per binary.
+Gates on the merged tree: `lint` 0 (after the README fix), `test:native` 299 passed and 5 skipped,
+`test` 804 passed, `test:bin` 0, `inspect:no-software-renderer` 0; 8 new tests in `src/native/minimap_aim_tests.rs`
+(7 of 7 red before the rule) and 10 guard cases `minimap-aim-*` (28 of 28 accepted).
+The IDE was rebuilt and installed from `76f7818e8f` (sha256 `01cf04773425e1bc…`, prints 0.1.1).
+Two costs the agent reported, both open and not asked for by the owner:
+the first click now costs one more report of visible lines and so one more hint request (the second range lies inside
+the first answered range, so a rule that skips a window the last answer covers would remove it);
+and the caret follows the aim (line 178 to line 171 about 260 ms after a click at y=1000 in one run).
+Owner answers of 2026-10-24 (question tool) to those two costs:
+add the skip rule (skip a hint request when the last answer already covers the window; an agent builds it with tests
+that fail first, then it is landed and the IDE reinstalled like the others),
+and the caret keeps following the view (no change).
+Hint skip rule built on branch `worktree-agent-a9205e2a0149fe20e` (not yet merged or installed):
+a hint request is not sent when its range (one view height above the first visible line, two below)
+lies inside the union of the ranges that stored answers of the same text revision asked about
+(`Annotations::answered_covers`, `src/annotation/coverage.rs`; the call is in `src/native/language/sync.rs`).
+Measured with debug binaries before and after, three alternating runs each:
+the first click at y=1700 sends 2 requests before and 1 (plus 1 skip) after;
+the press at y=1700 after a click at y=1000 sends 1 before and 0 after on the 287-line file,
+because the answer to the click at y=1000 already asked lines 70 to 288
+(the owner expected "still one"; the hints are stored);
+a wheel that leaves the covered lines still asks,
+and its hints are stored in the same time (403 to 421 ms against 414 to 428 ms).
+Record, counts, guard runs and known costs:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "Skip a hint request that stored answers cover: built".
+Hint skip rule (owner answer above): landed 2026-10-24 as `83f6240e4b` (fast-forward to the agent's tip),
+installed (sha256 `36c9caad610ced81…`, prints 0.1.1).
+A hint request is not sent when its range lies inside the lines that stored answers of the same text revision asked
+about (`Annotations::answered_covers`, `src/annotation/coverage.rs`, called from `hints` in `src/native/language/sync.rs`).
+Review finding of mine, fixed before landing: an answer with no hint on its asked lines covers nothing
+(a loading server answers empty or partial; `rust-analyzer` 1.98.1 cold: 0 hints at 7 ms, 5 at 261 ms,
+`content modified` at 514 and 858 ms, 15 from 2057 ms on; the TypeScript 7 server answers complete from 0 ms).
+Residual limit: a partial non-empty answer covers its lines until an edit, a reload, a reopen or a view that leaves them.
+Measured on the 287-line file, three alternating runs per binary: first click 2 requests before, 1 request plus 1 skip after;
+a press after a visit elsewhere 1 request before, 0 after; a wheel leaving the coverage still 1 request.
+Gates on the merged tree: `lint` 0, `test:native` 306 passed and 5 skipped, `test` 811 passed, `test:bin` 0,
+`inspect:no-software-renderer` 0; 17 `hint-skip-*` guard cases accepted, every changed-line run failing as expected.
+Known costs: after a skip the worker's window stays at the last view it was told
+(an external edit after a skip sent 2 requests, not measured without the rule),
+and with several servers one stored answer counts as covering the lines for all of them.
+Scratch left until the owner confirms the fixes on the installed binary
+(`~/temp/agent/cr` joins the list below):
+`~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
+disposable project `/tmp/ide-mm-proj-8MEEkc`.
 
 Correction of the residual, measured later on 2026-10-24 (`~/temp/agent/mm2`;
 record in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`):

@@ -1,6 +1,8 @@
 //! What the window keeps for the minimap besides the picture,
 //!  and the drag of the viewport box that is part of it.
 
+/// The press the next change of the layout maps again.
+use crate::native::minimap::aim::Aim;
 /// The key the newest request and the picture on screen are valid for,
 ///  and the worker the window starts on first use.
 use crate::native::minimap_worker::{Key, MinimapWorker};
@@ -81,6 +83,9 @@ pub(in crate::native) struct MinimapState {
     pub(super) awaited: u64,
     /// The drag in progress.
     pub(super) drag: Option<Drag>,
+    /// The last press that nothing has followed,
+    /// which the next change of the layout maps again.
+    pub(super) aim: Option<Aim>,
     /// Requests posted,
     /// counted in debug builds for the structural tests.
     #[cfg(debug_assertions)]
@@ -122,6 +127,7 @@ impl MinimapState {
             shown_id: 0,
             awaited: 0,
             drag: None,
+            aim: None,
             #[cfg(debug_assertions)]
             posts: 0,
             #[cfg(debug_assertions)]

@@ -316,7 +316,8 @@ impl Session {
             // `&self.script.hint_steps` lends the scripted list; the count picks this request's step.
             let step = step_for(&self.script.hint_steps, self.inlay_hints);
             // `&mut self.held_hint` lends the slot of a held-back answer, which `respond` fills or empties.
-            crate::inlay::respond(&self.wire, id, step, &mut self.held_hint);
+            let first_line = params["range"]["start"]["line"].as_u64().unwrap_or(0);
+            crate::inlay::respond(&self.wire, id, step, &mut self.held_hint, first_line);
         } else if method == "textDocument/diagnostic" {
             self.pulls += 1;
             // A scripted silence leaves this pull unanswered; the client's timeout decides.

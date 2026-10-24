@@ -1756,6 +1756,264 @@ const cases: Guard[] = [
     test: 'an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about',
     failure: 'an answer for lines 2 and 3 added hints to line 0'
   },
+  // A press on the minimap is mapped again through the layout that follows it, once for each change, while nothing
+  // else has moved the view: without the press remembered, the share of the scroll range kept, or the mapping run
+  // after the new layout is installed, the first press on a far place stays where the incomplete layout put it;
+  // without one of the rules that forget it (the view placed elsewhere, a scroll step not yet reported, the caret
+  // moved, another text, another view size), a layout change takes the view away from what the reader did since.
+  {
+    name: 'minimap-aim-remembered',
+    file: 'src/native/minimap/pointer.rs',
+    before: '    aim::remember(&mut current, press, share, (offset, (width, height)));',
+    after: '    let _ = (&press, share);',
+    native: true,
+    test: 'a_press_is_aimed_again_when_the_layout_changes',
+    failure: 'the view is at the place the same press gives in the new layout'
+  },
+  {
+    name: 'minimap-aim-share',
+    file: 'src/native/minimap/aim.rs',
+    before: '    return (offset / range).clamp(0.0, 1.0);',
+    after: '    return 0.0;',
+    native: true,
+    test: 'a_press_is_aimed_again_when_the_layout_changes',
+    failure: 'the view is at the place the same press gives in the new layout'
+  },
+  {
+    name: 'minimap-aim-after-install',
+    file: 'src/native/rows.rs',
+    before: '    let kept = aim_again(current, scale, (offset, width, height)).unwrap_or(still);',
+    after: '    let _ = aim_again;\n    let kept = still;',
+    native: true,
+    test: 'a_second_layout_change_aims_the_press_again_until_something_else_happens',
+    failure: 'the second change aims it again'
+  },
+  {
+    name: 'minimap-aim-placed-away',
+    file: 'src/native/minimap/aim.rs',
+    before: '        && aim.left.offset != offset',
+    after: '        && false',
+    native: true,
+    test: 'a_layout_change_after_a_wheel_step_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-place-forgets',
+    file: 'src/native/viewport.rs',
+    before: '    forget_unless(current, offset);',
+    after: '    let _ = forget_unless;',
+    native: true,
+    test: 'a_layout_change_after_a_wheel_step_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-unreported-step',
+    file: 'src/native/minimap/aim.rs',
+    before: '    if now.offset != aim.left.offset\n        || now.caret != aim.left.caret',
+    after: '    if false\n        || now.caret != aim.left.caret',
+    native: true,
+    test: 'a_layout_change_during_an_unreported_scroll_step_keeps_the_view_still',
+    failure: 'the view stays where the step put it'
+  },
+  {
+    name: 'minimap-aim-caret',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.caret != aim.left.caret',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_key_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-text',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.text != aim.left.text',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_reload_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-view',
+    file: 'src/native/minimap/aim.rs',
+    before: '        || now.view != aim.left.view',
+    after: '        || false',
+    native: true,
+    test: 'a_layout_change_after_a_resize_keeps_the_view_still',
+    failure: 'the view is kept still across the new rows, not aimed at the press'
+  },
+  {
+    name: 'minimap-aim-drag-start',
+    file: 'src/native/minimap/aim.rs',
+    before: '        drag.start_offset = wanted;',
+    after: '        let _ = (&drag, wanted);',
+    native: true,
+    test: 'a_drag_follows_the_aimed_press_and_then_the_live_layout',
+    failure: 'the drag moves the box from the aimed place, with the live layout'
+  },
+  // A view whose hint request would ask only lines that stored answers of the same text revision asked about sends no
+  // request. The rules: the skip itself; a stored answer adds its lines (and nothing else does: a request that is
+  // pending or failed never reaches the store); the lines of one revision belong to that revision only (an answer for
+  // another revision starts afresh, and a query for another revision is never covered); answers that touch or overlap
+  // cover their union; a range is covered only when one joined range holds all of it, ends included; an empty range
+  // is never covered; opening the file in the worker again forgets what was asked.
+  {
+    name: 'hint-skip-covered',
+    file: 'src/native/language/sync.rs',
+    before: '    if covered {',
+    after: '    if false && covered {',
+    native: true,
+    test: 'a_view_inside_the_answered_lines_sends_no_request',
+    failure: 'a view whose request asks only answered lines sent a request'
+  },
+  {
+    name: 'hint-skip-noted',
+    file: 'src/annotation/blocks.rs',
+    before: '        self.answered.note(snapshot.stamp, asked.clone());',
+    after: '        let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-revision-reset',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'an answer for the next revision kept the lines the earlier revision had covered'
+  },
+  {
+    name: 'hint-skip-edit',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    native: true,
+    test: 'an_edit_forgets_the_lines_the_earlier_revision_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-revision-query',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if lines.is_empty() {',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'lines asked in one revision were covered in the next, before any answer for it'
+  },
+  {
+    name: 'hint-skip-empty-range',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if self.stamp != Some(stamp) {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'an empty range was covered'
+  },
+  {
+    name: 'hint-skip-ends',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start <= lines.start && lines.end <= range.end {',
+    after: '            if range.start <= lines.start && lines.end < range.end {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-touching',
+    file: 'src/annotation/coverage.rs',
+    before: '                Some(last) if range.start <= last.end =>',
+    after: '                Some(last) if range.start < last.end =>',
+    integration: 'annotation',
+    test: 'answers_that_overlap_or_touch_cover_their_union_but_not_a_gap',
+    failure: 'three overlapping answers do not cover the lines together'
+  },
+  // A request recorded as covering its lines when it is sent, instead of when its answer is stored, makes a pending
+  // or failed request count.
+  {
+    name: 'hint-skip-pending',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_pending_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-failed',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_failed_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  // An answer that put no hint on its lines covers nothing, and takes those lines out of what earlier answers covered:
+  // a server still loading the project answers with none, and the lines must be asked again.
+  {
+    name: 'hint-skip-empty-answer',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    integration: 'annotation',
+    test: 'an_answer_with_no_hint_on_its_lines_covers_nothing',
+    failure: 'an answer with no hint covered the lines it asked about'
+  },
+  {
+    name: 'hint-skip-empty-answer-window',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    native: true,
+    test: 'an_empty_answer_covers_nothing_so_the_same_lines_are_asked_again',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-empty-uncover',
+    file: 'src/annotation/blocks.rs',
+    before: '            self.answered.uncover(asked.clone());',
+    after: '            let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'lines an empty answer replaced stayed covered'
+  },
+  {
+    name: 'hint-skip-uncover-left',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start < lines.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 35..40)'
+  },
+  {
+    name: 'hint-skip-uncover-right',
+    file: 'src/annotation/coverage.rs',
+    before: '            if lines.end < range.end {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 50..60)'
+  },
+  {
+    name: 'hint-skip-uncover-apart',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.end <= lines.start || lines.end <= range.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_leaves_answers_apart_from_its_lines_covered',
+    failure: 'an empty answer made the lines before its own covered'
+  },
+  {
+    name: 'hint-skip-reopen',
+    file: 'src/native/language/sync.rs',
+    before: '    stored.annotations.forget_answered();',
+    after: '    let _ = &mut stored;',
+    native: true,
+    test: 'opening_the_file_again_forgets_the_lines_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

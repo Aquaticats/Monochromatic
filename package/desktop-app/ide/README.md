@@ -1606,6 +1606,9 @@ a command the queue cannot take is sent again on the next 20 ms tick.
 The visible lines are reported for inlay hints once they stayed the same for 200 ms,
 a chosen value,
 and at once for newly displayed text.
+A report whose request would ask only lines that stored answers of the same text revision asked about is not sent
+(`src/native/language/sync.rs`;
+the rule is in the section "Inlay hints and diagnostics").
 Accepted hint and diagnostic snapshots are stored in `State::annotations`,
 the store the section "Inlay hints and diagnostics" describes,
 which hands a snapshot out only for the stamp of the text being drawn.
@@ -1718,6 +1721,60 @@ so its block grew by a copy per answer in the code view and in the minimap
 `hints_outside_the_asked_lines_are_not_part_of_an_answer` and
 `an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about`;
 `inspect:source-guards` cases `hints-asked-lines` and `hints-asked-lines-window`).
+
+A hint request is skipped when the store already holds the hints it would ask for
+(`Annotations::answered_covers`,
+`src/annotation/coverage.rs`,
+called from `hints` in `src/native/language/sync.rs`).
+The request for new visible lines asks one view height above the first visible line and two below it
+(`request_lines`,
+clipped to the text),
+and it is covered when that range lies inside the union of the ranges
+that hint snapshots stored for the displayed text revision asked about.
+Touching and overlapping ranges are joined,
+so two answers can cover a range together.
+A request that is pending,
+failed,
+or cancelled never reaches the store,
+so it covers nothing,
+and the lines of another text revision are never covered:
+the first stored answer for a new revision (an edit,
+a reload) drops the lines of the earlier one,
+a query for another revision (or another file) is not covered,
+and opening the file in the worker again forgets all of them,
+because the new worker holds no earlier request.
+An empty range is never covered.
+An answer counts only when it put a hint on one of the lines it asked about,
+because a server that is still loading the project answers with no hint or with some:
+an answer without one covers nothing,
+takes the lines it asked about out of what earlier answers covered
+(it replaced their hints with none),
+and so the view that settles over those lines asks again,
+as it did before the rule.
+Lines that really hold no hint are asked again on each settle for the same reason.
+A server that answers a loading project with some of its hints is not caught:
+`rust-analyzer` 1.98.1 answered a cold request for a 23-line file with 0 hints after 7 ms,
+5 after 261 ms,
+errors `content modified` after 514 and 858 ms,
+and 15 from 2057 ms on,
+so a partial answer of 5 covers its lines until an edit,
+a reload,
+or a view that leaves them.
+A skipped view is recorded as handled,
+so it is not examined again on each tick,
+and the worker keeps the window it was last told.
+With several servers,
+one stored answer covers the lines for all of them.
+The first click at the bottom of `build.unit.test.ts` (window of 1080 by 1880 logical px)
+reports its visible lines twice,
+first line 214 and then 223 after the minimap press is aimed again;
+the second request asks lines 146 to 287,
+inside the 137 to 287 of the first,
+so it is skipped
+(requests per scenario:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`;
+`a_view_inside_the_answered_lines_sends_no_request` and five more tests in `src/native/language/hint_skip_tests.rs`;
+`inspect:source-guards` cases `hint-skip-*`).
 
 ### Placement
 
@@ -3244,6 +3301,61 @@ and `render/MainMinimap.kt`.
   On a line too long to shape within a click's allowance the caret goes to the start of the line.
   A press in the virtual rows above a line jumps to that line's first row.
   The row under the pointer is the one of the picture as it has slid with the scroll when the pointer went down.
+- A press is aimed again,
+  once for each change of the layout,
+  while nothing else has moved the view
+  (`src/native/minimap/aim.rs`).
+  A press is mapped through the layout the window has when it lands,
+  and that layout is not final for a while:
+  the hints of lines no request has asked about arrive later and take rows.
+  A first press at the bottom of a file whose first request covered only the first screens
+  landed where the incomplete layout put it,
+  and the same press after a visit elsewhere landed about nine lines further down
+  (`build.unit.test.ts` in a window of 1080 by 1880 logical px:
+  line 214 against line 223).
+  The window therefore keeps the last press as its place on the track,
+  with the share of the scroll range the view stood at before it
+  (the picture slides by that share of its overhang,
+  so it is part of what the press means),
+  and with what the press left behind:
+  the scroll offset,
+  the caret,
+  the stamp of the text,
+  and the size of the view.
+  When a new layout is installed while all of them still hold,
+  the same press is mapped through the new layout,
+  and the view and the caret go there in the frame that shows the new rows.
+  The new place is what is left behind then,
+  so a further change of the layout aims the press once more,
+  and nothing is aimed while the layout stays as it is.
+  The press is forgotten as soon as the view is placed anywhere else
+  (a wheel step even when it returns to the same offset,
+  a key,
+  a drag that moved the view,
+  a page step,
+  a find jump,
+  a tree click),
+  the caret moves,
+  the text changes by an edit,
+  a reload,
+  or another file,
+  or the view changes size;
+  a scroll step the toolkit has made and the window has not yet been told of counts too.
+  A press that is still held has not been followed:
+  the box is dragged from the aimed place with the live layout,
+  as it is without an aim.
+  The caret moves with the view,
+  also by several lines,
+  because the press names a place in the layout and the caret goes to the place it names.
+  The correction comes with the answer that brings the rows,
+  about a quarter of a second after the press
+  (the settling time of the hint request plus the server's answer),
+  in the one frame that also shows those rows.
+  The view then stands on other lines,
+  so the hints of those lines were asked for after the settling time again,
+  one request more than the same press costs when every row is already there;
+  since 2026-10-24 the request is skipped when stored answers already cover its lines
+  (see "Inlay hints and diagnostics").
 - A press on the box starts a drag without a jump.
   A press outside the box jumps and then continues as a drag of the box from where the jump left it
   (`ScrollBar.mousePressed`:
@@ -3368,6 +3480,7 @@ and `render/MainMinimap.kt`.
   `pace.rs` decides when a request is posted,
   `request.rs` makes the key and posts the request,
   `picture.rs` takes in the finished pictures,
+  `aim.rs` keeps the last press and maps it again through a new layout,
   and `pointer.rs` turns a press,
   a drag,
   and a page step into scroll offsets.
@@ -3584,6 +3697,17 @@ a window of 12,000 px over the harness device of 8,192 px gets two textures that
 and a picture cut for a limit of 1,536 and of 1,024 rows is three and four textures whose texels,
 seams,
 and composited column equal the one texture's),
+and `src/native/minimap_aim_tests.rs`
+(a press is aimed again at the layout that follows it,
+with the caret on the line it names there;
+a second change aims it again and an unchanged layout does not move the view;
+a wheel step that returns to the same offset,
+a scroll step the window has not yet been told of,
+a key,
+a resize,
+a reload,
+and a drag that moved the view each keep the view still across the new rows;
+a held press is aimed and the drag then follows the live layout),
 and `src/native/minimap_seam_tests.rs`
 (the chunks stacked equal one render of the picture at scales 1 and 1.5),
 and `src/native/minimap_dense_tests.rs`
@@ -3642,6 +3766,16 @@ and a frame scaled down keeps the coverage of its edges).
 `minimap-throttle-period`,
 `minimap-slide-period`,
 `minimap-scroll-notes-bands`,
+`minimap-aim-remembered`,
+`minimap-aim-share`,
+`minimap-aim-after-install`,
+`minimap-aim-placed-away`,
+`minimap-aim-place-forgets`,
+`minimap-aim-unreported-step`,
+`minimap-aim-caret`,
+`minimap-aim-text`,
+`minimap-aim-view`,
+`minimap-aim-drag-start`,
 and `overscan-early-return`.
 
 Two native tests failed in full runs of the suite that run its tests in parallel (`mise run test:native` without a

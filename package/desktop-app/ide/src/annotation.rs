@@ -64,6 +64,11 @@ use std::{collections::BTreeMap, ops::Range, sync::Arc, time::Instant};
 ///  and assembly.
 mod blocks;
 
+/// The lines of one text revision that stored answers for hints asked about.
+mod coverage;
+/// The record of asked lines that the store keeps next to its hint labels.
+use coverage::Coverage;
+
 /// Severity vocabulary:
 ///  rank,
 ///  name,
@@ -295,6 +300,8 @@ pub struct Annotations {
     ///  in position order,
     ///  from every hint snapshot of the `labelled` revision.
     labels: BTreeMap<usize, Vec<Label>>,
+    /// The lines the hint snapshots of the `labelled` revision asked about.
+    answered: Coverage,
     /// Packed hint rows per line,
     ///  computed on demand at `placed_scale`,
     /// each at the wrap width it records.
@@ -670,6 +677,42 @@ impl Annotations {
             _ => false,
         };
         return same_hints && same_diagnostics;
+    }
+
+    /// What:
+    ///  Whether stored hint snapshots of the text revision `displayed` asked about every line in `lines`
+    ///  (the line before the last is the last one asked about);
+    ///  the answer is `false` for an empty range.
+    ///  `Range<usize>` is a half-open range of line numbers.
+    /// Why:
+    ///  The language poll skips a hint request for lines whose hints this store already holds.
+    ///  A request that is pending,
+    ///  failed,
+    ///  or was cancelled never reaches the store,
+    ///  and a snapshot for another revision is refused,
+    ///  so neither counts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// answeredCovers(displayed: DocumentStamp, lines: [number, number]): boolean;
+    /// ```
+    pub fn answered_covers(&self, displayed: DocumentStamp, lines: Range<usize>) -> bool {
+        return self.answered.covers(displayed, lines);
+    }
+
+    /// What:
+    ///  Forget which lines were asked about,
+    ///  and keep the hints themselves.
+    /// Why:
+    ///  A language worker told to open the displayed file again holds no hint request of the old session,
+    ///  so the next view must ask afresh.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forgetAnswered(): void;
+    /// ```
+    pub fn forget_answered(&mut self) {
+        self.answered.clear();
     }
 
     /// The shaping assembling blocks has done so far.

@@ -6,28 +6,18 @@
 //!  a caret move,
 //!  and a note of the new size.
 
+/// The press that is mapped again once the layout changes.
+use crate::native::minimap::aim::{self, Press};
 /// A resize changes what a picture would be valid for.
 use crate::native::minimap::request::note;
 /// The drag that a press starts.
 use crate::native::minimap::state::Drag;
 /// The window,
 ///  its state,
-///  the caret from a pixel position,
 ///  and the mapping of lines to pixels.
-use crate::native::{AppWindow, State, input::pointer_position, render::render, rows, viewport};
-/// Reading position sides.
-use ide_app::document::ReadingAffinity;
-/// The geometry of the minimap
-///  and the map of a position across it to the text's width.
-use ide_app::minimap::{Geometry, text_span, text_x};
-/// One code row,
-///  the unit of the vertical mapping.
-use ide_app::row_map::CODE_ROW;
-/// The work a line costs to shape,
-///  which bounds a click on a very long line.
-use ide_app::shaped_text::line_work;
-/// A wrap width must be a positive number of pixels.
-use ide_app::wrap::has_wrap_width;
+use crate::native::{AppWindow, State, render::render, rows, viewport};
+/// The geometry of the minimap.
+use ide_app::minimap::Geometry;
 /// Weak handles of the window.
 use slint::ComponentHandle;
 /// Shared state and its cell.
@@ -90,41 +80,10 @@ fn jump(window: &AppWindow, state: &Rc<RefCell<State>>, y: f32, x: f32, shift: b
     let width = window.get_viewport_width();
     let scale = window.window().scale_factor();
     let mut current = state.borrow_mut();
-    let geometry = Geometry::new(current.row_map.height(), height);
-    let target = geometry.target(&current.row_map, y, -window.get_scroll_y());
-    let top = current.row_map.code_top(target.line) + target.row as f32 * CODE_ROW;
-    // The picture is the text's whole width shrunk to the minimap's, so a position across it is the same share of
-    // the text's width.
-    let across = text_x(
-        x,
-        current.minimap.size.0,
-        text_span(has_wrap_width(current.width).then_some(current.width)),
-    );
-    // A line too long to shape within a click's allowance puts the caret at its start.
-    let (hit, side) = if line_work(&current.document, target.line) == usize::MAX {
-        (
-            current.document.text().line_to_char(target.line),
-            ReadingAffinity::Downstream,
-        )
-    } else {
-        pointer_position(
-            &mut current,
-            target.line,
-            (across, top + CODE_ROW / 2.0),
-            scale,
-        )
-    };
-    let mut position = current.document.position();
-    position.head = hit;
-    if !shift {
-        position.anchor = hit;
-    }
-    position.affinity = side;
-    current.document.select(position);
-    let offset = geometry
-        .centered(top + CODE_ROW / 2.0)
-        .clamp(0.0, rows::limit(&current.row_map, height))
-        .round();
+    let before = -window.get_scroll_y();
+    let press = Press { y, x, shift };
+    let share = aim::share(&Geometry::new(current.row_map.height(), height), before);
+    let (target, offset) = aim::map(&mut current, press, before, scale, height);
     tracing::debug!(
         line = target.line,
         row = target.row,
@@ -135,6 +94,8 @@ fn jump(window: &AppWindow, state: &Rc<RefCell<State>>, y: f32, x: f32, shift: b
         "minimap press jumped"
     );
     viewport::place(&mut current, offset, width, height);
+    // The layout may change before the reader does anything else; the press is then mapped through it again.
+    aim::remember(&mut current, press, share, (offset, (width, height)));
     drop(current);
     window.set_scroll_y(-offset);
     render(window, state);

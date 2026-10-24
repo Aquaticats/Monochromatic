@@ -11,7 +11,7 @@
 /// The source state,
 ///  the stamp of the displayed text,
 ///  and the tile and view the map decides.
-use super::{State, annotate::displayed, tile::requested, viewport::place};
+use super::{State, annotate::displayed, minimap::aim_again, tile::requested, viewport::place};
 /// The rank that orders severities.
 use ide_app::annotation::rank;
 /// Measured visual rows of every line.
@@ -345,7 +345,7 @@ pub(super) fn settle(
 ) -> Option<f32> {
     let (offset, width, height) = view;
     let layout = rebuilt(current, scale)?;
-    let kept = anchored(&current.row_map, &layout.map, offset).min(limit(&layout.map, height));
+    let still = anchored(&current.row_map, &layout.map, offset).min(limit(&layout.map, height));
     // A layout for the same text may wait; one for another text never does, its caller placed the view.
     let same_text = match current.row_key {
         Some(known) => known.0 == layout.key.0,
@@ -361,7 +361,7 @@ pub(super) fn settle(
     // const moving = Math.abs(offset - current.offset) > 0.01;
     // ```
     let moving = (offset - current.offset).abs() > 0.01;
-    if kept != offset && same_text && !force && (moving || scrolling(current)) {
+    if still != offset && same_text && !force && (moving || scrolling(current)) {
         tracing::debug!(
             offset,
             "rows above the view wait until scrolling has stopped"
@@ -370,6 +370,10 @@ pub(super) fn settle(
     }
     // `?` leaves with nothing when no position changed.
     install(current, layout)?;
+    // What: A press on the minimap that nothing has followed is mapped again through the layout just installed.
+    // Why: The press landed through a layout that lacked rows still to arrive; the same press lands elsewhere in
+    //      this one, and the reader has not moved the view since, so it goes where the press means now.
+    let kept = aim_again(current, scale, (offset, width, height)).unwrap_or(still);
     // A re-center that waits for the worker and is still needed under new bounds (a measurement moved the rows,
     // or the width changed again) stays a worker re-center, never a build on the window thread.
     let waiting = current.scroll_wanted.is_some();
