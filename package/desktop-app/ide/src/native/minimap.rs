@@ -46,6 +46,12 @@ mod picture;
 #[cfg(test)]
 pub(super) use picture::{PICTURE_FRAMES_ASKED, apply};
 
+/// A press on the minimap,
+///  mapped again through the layout that follows it while nothing else has moved the view.
+mod aim;
+/// What the view's placement and the vertical mapping ask of a remembered press.
+pub(super) use aim::{aim_again, forget_unless};
+
 /// The minimap as a scroll control:
 ///  press,
 ///  drag,

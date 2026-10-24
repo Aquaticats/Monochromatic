@@ -1,10 +1,18 @@
-//! A press on the minimap is aimed again, once for each change of the layout, while nothing else has moved the view.
+//! A press on the minimap is aimed again,
+//! once for each change of the layout,
+//! while nothing else has moved the view.
 //!
-//! The press lands where the layout of that moment puts it, and the hints of lines never asked about arrive later
-//!  and take rows, so the same press would land elsewhere a moment after.
-//!  These tests give a window a long text, press the minimap, and then let hints arrive:
+//! The press lands where the layout of that moment puts it,
+//! and the hints of lines never asked about arrive later
+//!  and take rows,
+//! so the same press would land elsewhere a moment after.
+//!  These tests give a window a long text,
+//! press the minimap,
+//! and then let hints arrive:
 //!  the view goes to where the same press lands in the new layout when the reader did nothing in between,
-//!  and keeps its place, kept still across the new rows, after any other input.
+//!  and keeps its place,
+//! kept still across the new rows,
+//! after any other input.
 
 /// The window the tests drive.
 use super::AppWindow;
@@ -44,16 +52,20 @@ use std::sync::Arc;
 /// Lines of the fixture text.
 const LINES: usize = 1500;
 
-/// Hints of the first answer after a press: on the first lines only.
+/// Hints of the first answer after a press:
+/// on the first lines only.
 const FIRST: usize = 400;
 
-/// Hints of a later answer: on more lines, so the layout grows again.
+/// Hints of a later answer:
+/// on more lines,
+/// so the layout grows again.
 const LATER: usize = 900;
 
 /// Hints of an answer after that.
 const LAST: usize = 1300;
 
-/// The text: `LINES` numbered lines of one length each.
+/// The text:
+/// `LINES` numbered lines of one length each.
 fn numbered() -> String {
     let mut text = String::new();
     for index in 0..LINES {
@@ -66,7 +78,8 @@ fn numbered() -> String {
 ///  Install a snapshot with one hint on each of the first `count` lines,
 ///  as an answer that asked for the whole text.
 /// Why:
-///  Every hint takes one block of rows above its line, so the layout grows with `count`.
+///  Every hint takes one block of rows above its line,
+/// so the layout grows with `count`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,18 +197,21 @@ fn click(reader: &Reader, y: f32) -> f32 {
     return from;
 }
 
-/// A press well down the minimap, outside the box.
+/// A press well down the minimap,
+/// outside the box.
 fn low(reader: &Reader) -> f32 {
     return outside_the_box(&reader.window, geometry(reader).track() * 0.8);
 }
 
-/// A press up the minimap, outside the box.
+/// A press up the minimap,
+/// outside the box.
 fn high(reader: &Reader) -> f32 {
     return outside_the_box(&reader.window, geometry(reader).track() * 0.3);
 }
 
 /// What:
-///  Press at `y`, let hints arrive for `count` lines,
+///  Press at `y`,
+/// let hints arrive for `count` lines,
 ///  and check that the view and the caret went to where the same press lands in the new layout,
 ///  not to where the view would have been kept still.
 ///  The answer is the offset the view took.
@@ -286,7 +302,10 @@ fn a_second_layout_change_aims_the_press_again_until_something_else_happens() {
     let first = offset(&opened);
     hint_first(&opened, LATER);
     let (line, expected) = pressed_at(&opened, y, from);
-    assert_ne!(expected, first, "the second layout puts the press elsewhere");
+    assert_ne!(
+        expected, first,
+        "the second layout puts the press elsewhere"
+    );
     assert_eq!(offset(&opened), expected, "the second change aims it again");
     assert_eq!(caret_line(&opened), line);
     // The same layout again changes nothing: the view does not move for an answer with the same hints.
@@ -321,7 +340,8 @@ fn a_layout_change_after_a_wheel_step_keeps_the_view_still() {
 }
 
 /// A key that moves the caret after the press means the reader went on from it:
-///  the next change of the layout keeps the view still, and the caret stays where the key put it.
+///  the next change of the layout keeps the view still,
+/// and the caret stays where the key put it.
 #[test]
 fn a_layout_change_after_a_key_keeps_the_view_still() {
     let (_project, opened) = scene();
@@ -381,9 +401,12 @@ fn a_layout_change_after_a_reload_keeps_the_view_still() {
 }
 
 /// A press that is still held has not been followed:
-///  the layout change aims it, and the drag that follows moves the box from the new place,
-///  with the live layout, as before.
-///  A drag that has moved the view has followed the press: the next change keeps the view still.
+///  the layout change aims it,
+/// and the drag that follows moves the box from the new place,
+///  with the live layout,
+/// as before.
+///  A drag that has moved the view has followed the press:
+/// the next change keeps the view still.
 #[test]
 fn a_drag_follows_the_aimed_press_and_then_the_live_layout() {
     let (_project, opened) = scene();
@@ -400,7 +423,10 @@ fn a_drag_follows_the_aimed_press_and_then_the_live_layout() {
     let shape = geometry(&opened);
     assert_eq!(
         offset(&opened),
-        shape.drag_offset(aimed, y, dragged).round().min(shape.max_offset()),
+        shape
+            .drag_offset(aimed, y, dragged)
+            .round()
+            .min(shape.max_offset()),
         "the drag moves the box from the aimed place, with the live layout"
     );
     assert_ne!(offset(&opened), aimed, "the drag moved the view");

@@ -175,6 +175,11 @@ mod language;
 /// the scroll control,
 /// and the picture of the whole text built off-thread.
 mod minimap;
+/// A press on the minimap,
+///  mapped again through the layout that follows it
+///  while nothing else has moved the view.
+#[cfg(test)]
+mod minimap_aim_tests;
 /// The densest slices of text the minimap draws render in the renderer's fixed buffers.
 #[cfg(test)]
 mod minimap_dense_tests;
@@ -191,11 +196,6 @@ mod minimap_reflection_tests;
 ///  equal one render of the picture.
 #[cfg(test)]
 mod minimap_seam_tests;
-/// A press on the minimap,
-///  mapped again through the layout that follows it
-///  while nothing else has moved the view.
-#[cfg(test)]
-mod minimap_aim_tests;
 /// The minimap's geometry,
 /// picture,
 /// and pointer paths.

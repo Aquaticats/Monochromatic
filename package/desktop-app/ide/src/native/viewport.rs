@@ -3,7 +3,9 @@
 /// Parent state owns the document and the currently displayed tile;
 ///  `rows` holds the map-based scroll rules.
 use super::{
-    AppWindow, State, gpu_tile, render, rows,
+    AppWindow, State, gpu_tile,
+    minimap::forget_unless,
+    render, rows,
     tile::{self, TileBounds},
 };
 /// The side of a soft-wrap offset a position is read on.
@@ -215,6 +217,8 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
     // Every caller that moves the view itself passes its new offset here first, so the offset the window
     // reports afterwards is recognized as not being the reader's own scrolling.
     current.offset = offset;
+    // A press on the minimap that the view has been placed away from has been followed by scrolling.
+    forget_unless(current, offset);
     // Any placement supersedes a scroll re-center still waiting for the worker; `place_scrolled` sets it again.
     current.scroll_wanted = None;
     // A width that cannot wrap keeps the last one.
