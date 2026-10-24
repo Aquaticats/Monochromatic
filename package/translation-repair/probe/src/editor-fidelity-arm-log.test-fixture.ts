@@ -1,15 +1,13 @@
-import type { ArmLog, } from './corpus-run/editor-fidelity-arm-facts.ts';
 import {
+  type ArmLog,
   type EditorCardTally,
   editorDefectOnlyLine,
   editorKindLines,
   type EditorKindTally,
   editorTallyLine,
-} from './corpus-run/editor-fidelity-plan.ts';
-import {
   guardLine,
   guardTotalLine,
-} from './corpus-run/editor-fidelity-spend-guard.ts';
+} from '../dist/final/node/index.mjs';
 
 //region Invented editor fidelity arm logs
 // Arm logs for the cases of the read step, written by the probe's own line writers so a writer that changes its wording
@@ -59,7 +57,8 @@ function kindTallyOf({ counts, }: { readonly counts: KindFixed; }): EditorKindTa
     equivalent: 0,
     defectOnly: counts.defectOnly,
     collateral: 0,
-    missed: counts.trials - counts.fixed - counts.defectOnly,
+    missed: counts.trials - counts.fixed
+      - counts.defectOnly,
     refused: 0,
     unusable: 0,
   };
@@ -69,9 +68,13 @@ function kindTallyOf({ counts, }: { readonly counts: KindFixed; }): EditorKindTa
  A card's tally from the counts of its two kinds.
 
  @param cardId - the card
+ 
  @param insertion - counts of the insertion trials
+ 
  @param alteration - counts of the alteration trials
+ 
  @param unusable - trials with no usable reply
+ 
  @param refused - trials where the card was heard and proposed no edit
 
  @returns The tally
@@ -118,10 +121,15 @@ export function tallyOf(
  The log of one arm: its opening, a row line for each stop given, the tallies, the seat and the guard's total.
 
  @param arm - the arm's name
+ 
  @param tally - the card's tally
- @param stops - for each row, the stop words its line states, absent for a row that states none
+ 
+ @param stops - for each row, the stop words its line states, empty for a row that states none
+ 
  @param seat - the SEAT line
+ 
  @param benchSpentUsd - the spend of the earlier arms the guard line states
+ 
  @param guardUsd - the total the guard line states
 
  @returns The arm, with a recorded exit of zero
@@ -142,7 +150,7 @@ export function armLogOf(
   }: {
     readonly arm: string;
     readonly tally: EditorCardTally;
-    readonly stops: readonly (string | undefined)[];
+    readonly stops: readonly string[];
     readonly seat: string;
     readonly benchSpentUsd: number;
     readonly guardUsd: number;
@@ -156,18 +164,25 @@ export function armLogOf(
     },
     lines: [
       `editors: ${tally.cardId}`,
-      guardLine({ maxUsd: 3, benchSpentUsd, },),
+      guardLine({
+        maxUsd: 3,
+        benchSpentUsd,
+      },),
       ...stops.map(function rowLine(
         stopped,
         at,
       ): string {
         return `row ${String(at + 1,)} of ${String(stops.length,)}: ${tally.cardId} on tabby-s${String(at,)}/insertion: `
-          + `clean fix exact, nothing else touched${(stopped === undefined) ? '' : `; stopped ${stopped}`}`;
+          + `clean fix exact, nothing else touched${(stopped === '') ? '' : `; stopped ${stopped}`}`;
       },),
       editorTallyLine({ tally, },),
       ...editorKindLines({ tally, },),
       editorDefectOnlyLine({ tally, },),
-      guardTotalLine({ total: { usd: guardUsd, calls: stops.length, atCeiling: 0, }, },),
+      guardTotalLine({ total: {
+        usd: guardUsd,
+        calls: stops.length,
+        atCeiling: 0,
+      }, },),
       seat,
     ].map(function prefixed(line,): string {
       return `${LOG_PREFIX}${line}`;

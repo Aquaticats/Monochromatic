@@ -13,6 +13,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type ArmLog,
   benchReportLines,
@@ -52,7 +53,7 @@ function benchArm(
     alteration,
   }: {
     readonly arm: string;
-    readonly cardId: typeof LOW_CARD | typeof MEDIUM_CARD | typeof HIGH_CARD;
+    readonly cardId: RosterModelId;
     readonly insertion: KindFixed;
     readonly alteration: KindFixed;
   },

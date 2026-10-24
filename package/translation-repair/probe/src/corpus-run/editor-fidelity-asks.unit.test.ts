@@ -66,7 +66,7 @@ function clientAnswering({ answers, }: { readonly answers: Answers; }): ModelCli
        */
       const answer = answers.json[next.json];
       next.json += 1;
-      if (answer instanceof Error)
+      if (Error.isError(answer,))
         throw answer;
       return answer as ChatJsonOutcome<never>;
     },
@@ -76,7 +76,7 @@ function clientAnswering({ answers, }: { readonly answers: Answers; }): ModelCli
        */
       const answer = answers.text?.[next.text];
       next.text += 1;
-      if (answer instanceof Error)
+      if (Error.isError(answer,))
         throw answer;
       return { text: answer ?? '', };
     },

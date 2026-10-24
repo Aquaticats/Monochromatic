@@ -86,7 +86,7 @@ await describe({
           log: armLogOf({
             arm: 'low',
             tally: TALLY,
-            stops: ['ok', 'refused+ok', undefined, 'output-cap',],
+            stops: ['ok', 'refused+ok', '', 'output-cap',],
             seat: SEAT,
             benchSpentUsd: 0,
             guardUsd: 0.5,

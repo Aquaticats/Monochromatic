@@ -32,7 +32,7 @@ const CLEAN_SEAT = `SEAT ${LOW_CARD} asked=40 usable=40 unusable=0 threw=0 silen
 /**
  An arm of the given stops and counts of unusable and refused trials.
 
- @param stops - for each row, its stop words, absent for a row that states none
+ @param stops - for each row, its stop words, empty for a row that states none
  @param unusable - trials with no usable reply
  @param refused - trials where the card was heard and proposed no edit
  @param seat - the SEAT line
@@ -51,7 +51,7 @@ function armWith(
     refused,
     seat,
   }: {
-    readonly stops: readonly (string | undefined)[];
+    readonly stops: readonly string[];
     readonly unusable: number;
     readonly refused: number;
     readonly seat: string;
@@ -105,7 +105,7 @@ await describe({
           check: 'stop reasons stated',
         },),).toBe('PASS low: stop reasons stated: 3 rows each state how their asks ended',);
         expect(lineOf({
-          log: armWith({ stops: ['ok', undefined, undefined,], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
+          log: armWith({ stops: ['ok', '', '',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
           check: 'stop reasons stated',
         },),).toBe('FAIL low: stop reasons stated: 2 of 3 rows state no stop reason',);
         expect(lineOf({

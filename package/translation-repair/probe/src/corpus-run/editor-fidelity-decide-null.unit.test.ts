@@ -196,7 +196,7 @@ await describe({
               correlation: 1,
             },);
             expect(chances.length,).toBe(9,);
-            expect(chances.filter((_each, count,) => count % 2 === 1,).every((each,) => each < 1e-12,),).toBe(true,);
+            expect(chances.filter((_each, count,) => (count % 2) === 1,).every((each,) => each < 1e-12,),).toBe(true,);
             expect(chances[0],).toBeCloseTo(1 / 16, 12,);
             expect(chances[8],).toBeCloseTo(1 / 16, 12,);
           },
