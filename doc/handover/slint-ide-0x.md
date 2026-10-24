@@ -4283,6 +4283,10 @@ Two costs the agent reported, both open and not asked for by the owner:
 the first click now costs one more report of visible lines and so one more hint request (the second range lies inside
 the first answered range, so a rule that skips a window the last answer covers would remove it);
 and the caret follows the aim (line 178 to line 171 about 260 ms after a click at y=1000 in one run).
+Owner answers of 2026-10-24 (question tool) to those two costs:
+add the skip rule (skip a hint request when the last answer already covers the window; an agent builds it with tests
+that fail first, then it is landed and the IDE reinstalled like the others),
+and the caret keeps following the view (no change).
 Scratch left until the owner confirms the fixes on the installed binary:
 `~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
 disposable project `/tmp/ide-mm-proj-8MEEkc`.
