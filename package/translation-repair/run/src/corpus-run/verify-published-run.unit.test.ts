@@ -147,7 +147,8 @@ await describe({
           code: 0,
           lines: [
             'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
-            'CatEntry1: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
@@ -171,8 +172,10 @@ await describe({
           code: 0,
           lines: [
             'verify-published: matched=2 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
-            'CatEntry001: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
-            'CatEntry002: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry002: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
             `verify-published: 2 of 2 pages carry every wording their artifacts promised; 2 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
@@ -238,7 +241,8 @@ await describe({
           code: 0,
           lines: [
             'verify-published: matched=2 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
-            'CatEntry001: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
             'CatEntry002: REFUSED by SyntaxError',
             `verify-published: 1 of 2 pages carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
@@ -284,9 +288,12 @@ await describe({
           code: 0,
           lines: [
             'verify-published: matched=3 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
-            'CatEntry001: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
-            'CatEntry002: wordings=2 silent=0 chars=UNWEIGHED(artifact predates stored archive text) missing=0 consistency-groups=0 read-at-generation=21',
-            'CatEntry003: wordings=2 silent=0 chars=18/expected 81 missing=2 consistency-groups=0 read-at-generation=21',
+            'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry002: wordings=2 silent=0 source-shipped=0 chars=UNWEIGHED(artifact predates stored archive text) '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry003: wordings=2 silent=0 source-shipped=0 chars=18/expected 81 '
+              + 'missing=2 consistency-groups=0 read-at-generation=21',
             '  WRONG LENGTH: page is -63 characters off what the archive plus every slice change comes to. '
               + 'Text no slice decided on was lost or added',
             '  MISSING slice 0, 43 characters the page does not carry in order',
@@ -389,7 +396,8 @@ await describe({
               + 'so no page should stand here; the next pass started in this runs directory removes it',
             '  PUBLISHED AND NOT SETTLED: StrayCat2. It ships as it stands, with no artifact to check it against, until a '
               + 'pass settles the entry again and overwrites it',
-            'CatEntry1: wordings=2 silent=0 chars=81=expected missing=0 consistency-groups=0 read-at-generation=21',
+            'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);

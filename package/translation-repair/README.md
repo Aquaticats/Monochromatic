@@ -514,13 +514,26 @@ into the one holding the larger share),
 so both lanes write it as part of the slice that carries it and the publish guard has nothing to find.
 
 A source passage still unfilled after the single translation round and its one follow-up
-ships as a recorded gap,
-not a refusal:
+ships its source text under a note,
+not as a refusal and no longer as a silent gap
+(owner ruling of 2026-10-23,
+"Source text + note",
+[the commitment](doc/design-commitments-shipping-and-the-archive.md)):
 the artifact records it (`lanes.translate.unfilled`),
 the log names each one (`corpus-run/pass-entry.ts`),
-and the page carries no text there.
+and the page carries the original text of the passage after one block-quote note per contiguous run,
+`> This passage has not been translated yet. The original text follows.`
+The text is each slice's original as the artifact records it,
+the slices of a run joined by one blank line;
+text between slices is not carried.
+Where the composed page does not parse as MDX with the original as recorded,
+the publisher writes the runs that do not parse as literal text,
+then every run,
+and last ships the page without the original under the defect `page-source-unparseable`,
+with a warn line for each step (ledger B832).
+A later run replaces the text once a wording is backed.
 Under the no-loop design of 2026-09-01 an insertion is recovered supplementary content,
-so its absence is a gap rather than a missing required page.
+so the entry still ships rather than failing for want of it.
 A passage admitted for translation when a provider outage leaves every translator unheard is different:
 the entry stops `INCOMPLETE` and keeps its slice cache for a later run.
 A stored prompt payload the run cannot read or write stops the entry `INCOMPLETE` too,

@@ -108,7 +108,27 @@ named for that subject and listed here.
   Findings in the page-assembly passes and the driver that runs a corpus pass,
   the archive's notices that a page is unfinished and the translators' notes that decided a contest (B698),
   an archive block revision that dropped the note its block held (B702),
-  and notes put back into a CRLF text with bare line feeds (B706).
+  notes put back into a CRLF text with bare line feeds (B706),
+  a page shipped without 30 slices of the original and nothing on it to say so (B827),
+  the footnote check on the page that was relative to the archive (B828),
+  a refinement rolled back with no line in the log (B829),
+  alignment findings that reached the artifact and not the log (B830),
+  and standings kept without contest endorsement that no `TALLY` field counted (B831).
+- [Audit ledger: the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md):
+  The original of an untranslated passage written as literal text from a CommonMark parse,
+  a page the grammar refuses with the original on it,
+  a page shipped without the runs no writing makes parse and how a page on disk is judged (B832),
+  and the corrections it made to A8,
+  B827,
+  B830
+  and B831.
+- [Audit ledger: the source text under a note, follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md):
+  The holes between the plain parse and the strict grammar that followed B832,
+  the limits of that follow-up closed and the shapes a second search found,
+  the wiring tests of the page on disk,
+  the sixth round after the re-check of round 4,
+  and the seventh round,
+  the module lines from the tokenizer and the footnote reading (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

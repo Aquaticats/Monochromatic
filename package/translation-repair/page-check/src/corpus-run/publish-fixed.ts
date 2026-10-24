@@ -21,14 +21,10 @@ import {
   assertHeadingsStayDistinct,
   CollapsedHeadingError,
   ContributorCompletenessError,
-  type SliceReplacement,
-  spliceSlices,
 } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
-import {
-  type WouldShipSource,
-  wouldShipTextPerSlice,
-} from './would-ship-text.ts';
+import { composeSourcePage, } from './source-ships-compose.ts';
+import type { WouldShipSource, } from './would-ship-text.ts';
 import {
   assertFrontMatterComplete,
   FrontMatterCompletenessError,
@@ -49,6 +45,10 @@ import {
   type DestinationCheck,
   droppedDestinations,
 } from './dropped-destinations.ts';
+import {
+  assertPageFootnotesResolve,
+  PageFootnoteResolutionError,
+} from './page-footnote-resolution.ts';
 import { assertPageParses, } from './page-grammar.ts';
 import {
   archiveKeptDefects,
@@ -126,75 +126,6 @@ export function fixedPagePath(
 }
 
 /**
- Turns one settled entry's per-slice readings into the replacements that
- assemble its page.
-
- A SILENT SLICE CONTRIBUTES EMPTY TEXT AT A CONTENT SPAN AND NOTHING AT ALL AT
- AN ANCHOR, which are two answers rather than one because silence itself means
- two things. Over a span the archive already renders, the empty string is what
- the deciders chose: they agreed the passage carries no wording, and omitting
- the row would republish the archive underneath that decision and undo it. At
- an anchor there is no archive wording to republish and none to remove, so the
- honest contribution is no row at all, leaving `spliceSlices` to pass the gap
- through exactly as it found it.
-
- THE ANCHOR HALF IS WHAT `XIEPT2` COST FOUR HOURS AND FORTY-EIGHT MINUTES TO
- ESTABLISH. This builder used to hand every silent slice the empty string, and
- `spliceSlices` refuses blank text at an anchor outright, correctly: an anchor
- is where a rendering belongs, so writing nothing there would leave the passage
- missing while the run reported it delivered. That refusal landed in
- `publishFixedPage`, which runs BEFORE the artifact is written, so an entry
- whose translate lane had already recorded slice 12 unfilled three and a half
- hours earlier died at the last step with no artifact and no page kept.
- `translate-absence.ts` promises the opposite and owns the policy: one refused
- anchor costs its own slice rather than the entry. The refusal stays; what
- changes is that a slice deliberately left unfilled no longer presents itself
- to the splice as a blank rendering.
-
- READ OFF `incumbentKind` RATHER THAN OFF AN EMPTY INCUMBENT, per the same
- file: absence is a mode decided once from the target chunk, and testing the
- text would conflate an anchor with a content span whose archive wording
- genuinely is blank.
-
- @param artifact - settled entry, read for what each slice would carry
-
- @returns Replacement per slice that contributes one, in comparison order
-
- @example
- ```ts
- const replacements = shippableReplacements({ artifact, },);
- ```
- */
-export function shippableReplacements(
-  { artifact, }: { readonly artifact: WouldShipSource; },
-): readonly SliceReplacement[] {
-  return wouldShipTextPerSlice({ artifact, },)
-    .flatMap(function toReplacement(slice,): readonly SliceReplacement[] {
-      /**
-       What this slice would carry, or that it carries nothing.
-       */
-      const { reading, } = slice;
-
-      if (reading.kind === 'wording')
-        return [{
-          sliceIndex: slice.sliceIndex,
-          replacementText: reading.text,
-        },];
-
-      // NOTHING SHIPS HERE, and at an anchor nothing is also what the assembler
-      // must be told: a row carrying blank text claims a rendering was written
-      // where none was, which is the claim the splice exists to refuse.
-      if (reading.incumbentKind === 'absent')
-        return [];
-
-      return [{
-        sliceIndex: slice.sliceIndex,
-        replacementText: '',
-      },];
-    },);
-}
-
-/**
  Writes one settled entry's fixed English page into the mirrored tree.
 
  CALLED BEFORE THE ARTIFACT IS WRITTEN, and that ordering is the whole
@@ -267,18 +198,24 @@ export async function publishFixedPage(
   readonly defects: readonly PublishDefect[];
 }> {
   /**
-   What each slice contributes, silent slices included.
+   This entry's page as the deciders settled it, with the original of every untranslated passage under its note and the
+   steps that make the page parse where the original as recorded does not.
    */
-  const replacements = shippableReplacements({ artifact, },);
-
-  /**
-   This entry's page as the deciders settled it.
-   */
-  const pageText = spliceSlices({
-    targetText: archiveText,
+  const composed = composeSourcePage({
+    artifact,
     slices,
-    replacements,
+    archiveText,
+    entryId,
+    l,
   },);
+  /**
+   The page.
+   */
+  const { pageText, } = composed;
+  /**
+   What the page was spliced from.
+   */
+  const { replacements, } = composed;
 
   /**
    What would-ship page carries of source destinations, the archive's
@@ -321,6 +258,12 @@ export async function publishFixedPage(
   // as one is among them, a defect no slice floor can see since a slice holds
   // one heading (yulianNyanner, 2026-09-06).
   /**
+   The artifact the page is weighed against: itself, or without its record of the originals the page was shipped
+   without, whose missing originals `page-source-unparseable` already names (the lanes' record stays the artifact's
+   own).
+   */
+  const { weighed, } = composed;
+  /**
    Failed content checks the page ships with.
    */
   const failedChecks = publishDefects({
@@ -336,7 +279,7 @@ export async function publishFixedPage(
         refusal: PublishedPageDisagreesError,
         run: function pageAgreement(): void {
           refusePageThatDisagrees({
-            artifact,
+            artifact: weighed,
             archive: {
               kind: 'stored',
               text: archiveText,
@@ -393,6 +336,18 @@ export async function publishFixedPage(
           },);
         },
       },
+      // THE PAGE'S OWN FOOTNOTES, NOT THE ARCHIVE'S (D7, XingZ6020): a reference
+      // with no definition, a definition nothing references, a doubled identifier.
+      {
+        check: 'page-footnotes',
+        refusal: PageFootnoteResolutionError,
+        run: function pageFootnotes(): void {
+          assertPageFootnotesResolve({
+            entryId,
+            pageText,
+          },);
+        },
+      },
       {
         check: 'headings',
         refusal: CollapsedHeadingError,
@@ -417,6 +372,7 @@ export async function publishFixedPage(
       entryId,
       consolidation: artifact.consolidation,
     },),
+    ...composed.defects,
   ];
   for (const {
     check,

@@ -95,7 +95,13 @@ export {
 } from './corpus-run/page-assembly-rounds.ts';
 export { assertPageFootnotesIntact, } from './corpus-run/page-footnote-integrity.ts';
 export {
+  assertPageFootnotesResolve,
+  PageFootnoteResolutionError,
+} from './corpus-run/page-footnote-resolution.ts';
+export {
   assertPageParses,
+  type PageGrammarReading,
+  readPageGrammar,
   UnparseablePageError,
 } from './corpus-run/page-grammar.ts';
 export {
@@ -124,8 +130,8 @@ export {
   fixedPagePath,
   PEOPLE_DIR,
   publishFixedPage,
-  shippableReplacements,
 } from './corpus-run/publish-fixed.ts';
+export { shippableReplacements, } from './corpus-run/shippable-replacements.ts';
 export {
   type MissingWording,
   pageCarriesEveryWording,
@@ -147,6 +153,117 @@ export {
   type VerifiableRun,
   whatThereIsToVerify,
 } from './corpus-run/published-tree-listing.ts';
+export {
+  carriesText,
+  carryingSource,
+  markRuns,
+  type TextCarryingReading,
+  type SourceEncoding,
+  textOnPage,
+  UNTRANSLATED_PASSAGE_NOTE,
+  withoutSourceRecordAt,
+} from './corpus-run/source-ships.ts';
+export {
+  encodeAsLiteralMdx,
+  leavesFlowOpen,
+} from './corpus-run/source-ships-encoding.ts';
+export {
+  closedWith,
+  closerOfWritten,
+  NO_MARK,
+} from './corpus-run/source-ships-open-flow.ts';
+export {
+  asTheParseReadsIt,
+  blanking,
+} from './corpus-run/source-ships-readable.ts';
+export {
+  spansOf,
+  type SourceSpans,
+  type TextEdit,
+  type TextRange,
+} from './corpus-run/source-ships-spans.ts';
+export {
+  addressAsLink,
+  type BareAddress,
+  bareAddresses,
+} from './corpus-run/source-ships-addresses.ts';
+export {
+  continuesDefinition,
+  endLineOf,
+  footnoteBodyStart,
+  footnoteStartInside,
+  isIndentedCode,
+  isLazyDefinition,
+  NO_FOOTNOTE_INSIDE,
+  opensFootnote,
+  withoutIndentation,
+} from './corpus-run/source-ships-footnote.ts';
+export {
+  footnoteRead,
+  type FootnoteRead,
+} from './corpus-run/source-ships-footnote-spans.ts';
+export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
+export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
+export { lazyUnderlinesBlanked, } from './corpus-run/source-ships-lazy.ts';
+export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
+export {
+  footnoteStateOf,
+  stateAfter,
+  takeContinuation,
+  takeFootnote,
+  topLevelPending,
+} from './corpus-run/source-ships-pending.ts';
+export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
+export {
+  holdsIndentedFenceMark,
+  indentedFenceMarkEnd,
+} from './corpus-run/source-ships-fence.ts';
+export {
+  contentStretches,
+  joinedLines,
+  lineJoinsOf,
+} from './corpus-run/source-ships-lines.ts';
+export {
+  autolinkAsText,
+  autolinkWritten,
+  escapedLabel,
+  cutByTable,
+  explicitLink,
+  linkInsteadOfAutolink,
+} from './corpus-run/source-ships-links.ts';
+export {
+  footnoteBodySpans,
+  footnoteInParagraphSpans,
+  nestedSpans,
+  type SpansReader,
+} from './corpus-run/source-ships-nested.ts';
+export { withModuleLinesWritten, } from './corpus-run/source-ships-module-line.ts';
+export {
+  closingBracket,
+  imageTextRanges,
+  indicesOf,
+  originalStretches,
+  rangeOf,
+  secondLabel,
+  startsAny,
+} from './corpus-run/source-ships-ranges.ts';
+export {
+  type ComposedPage,
+  composeSourcePage,
+  SourcePageCompositionError,
+  type SourcePageStep,
+} from './corpus-run/source-ships-compose.ts';
+export {
+  composeOverTiling,
+  tilingOf,
+} from './corpus-run/source-ships-tiling.ts';
+export {
+  droppedRunSets,
+  type GrammarReader,
+  namedSlices,
+  slicesRefusedAsLiteral,
+  sourceRunsOf,
+} from './corpus-run/source-ships-runs.ts';
 export { unifyQuoteStyle, } from './corpus-run/quote-style-unify.ts';
 export {
   applySpanRewrites,

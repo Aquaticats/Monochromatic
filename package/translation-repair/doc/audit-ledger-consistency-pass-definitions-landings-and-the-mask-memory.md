@@ -297,7 +297,8 @@ and is red only when the whole check is removed (`s237/mut-a2.log`).
 
 Recurrence:
 `mistake-prevention-text-comparison-and-structure.md`,
-"Offsets and positions".
+"Offsets and positions"
+(moved on 2026-10-24 (UTC) to `mistake-prevention-pairing-and-offsets-by-position.md`).
 
 ## B647: callers of the fold read a page-defined reference without the page's definitions
 

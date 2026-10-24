@@ -2,6 +2,7 @@
 // The names `@monochromatic-dev/translation-repair-translate-lane` gives its siblings and its own tests, each from the module that declares it.
 // Production siblings import it through `/ts`; tests and fixtures through the built entry, so a process loads one copy.
 
+export { logAlignmentFindings, } from './alignment-findings-log.ts';
 export {
   type DocumentLanesResult,
   runDocumentLanes,

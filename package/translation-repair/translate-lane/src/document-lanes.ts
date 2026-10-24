@@ -9,6 +9,7 @@ import {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import { logAlignmentFindings, } from './alignment-findings-log.ts';
 import type {
   ChunkPair,
   PairedReading,
@@ -389,6 +390,10 @@ export async function runDocumentLanes(
       },)
     }, repair first`,
   );
+  logAlignmentFindings({
+    findings: prepared.alignmentFindings,
+    l: dl,
+  },);
 
   /**
    Repair lane's answer: the archive's English, mended where critics found
