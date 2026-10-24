@@ -448,6 +448,16 @@ const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
     '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
     '猫 code { [b]: u{ "t"',
   ],
+  [
+    'an opener of a comment that never closes, then a blank line and a definition line holding a brace',
+    '<!-- open\n\n[a]: u{b "t"\n',
+    '<!-- open',
+  ],
+  [
+    'an opener of a comment that never closes, then a blank line and a definition line without a brace',
+    '<!-- open\n\n[a]: u "t"\n',
+    '<!-- open',
+  ],
 ];
 
 await describe({
