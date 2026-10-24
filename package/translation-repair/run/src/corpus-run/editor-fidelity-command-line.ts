@@ -32,7 +32,7 @@ export type EditorFidelityCommandLines = {
   readonly 'editor-fidelity-pool-draw': CommandLineSpec<'seed' | 'want' | 'out', never, 'check'>;
   readonly 'editor-fidelity-read': CommandLineSpec<never, never, never>;
   readonly 'editor-fidelity-probe': CommandLineSpec<
-    'only' | 'cap' | 'damage' | 'candidates' | 'max-usd' | 'bench-spent-usd',
+    'only' | 'cap' | 'damage' | 'candidates' | 'max-usd' | 'bench-spent-usd' | 'trials',
     never,
     'candidates-alone'
     >;
@@ -79,6 +79,7 @@ export const EDITOR_FIDELITY_COMMAND_LINES: EditorFidelityCommandLines = {
       candidates: SEATABLE_IDS,
       'max-usd': 'dollars',
       'bench-spent-usd': 'dollars',
+      trials: COUNT,
     },
     repeatable: {},
     switches: { 'candidates-alone': true, },
