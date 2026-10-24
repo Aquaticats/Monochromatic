@@ -318,6 +318,17 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'a footnote after a paragraph, a tag alone on a line, then a definition line holding a brace',
     'x\n[^1]: y\n<a href="x">\n[r]: u{b}\n',
   ],
+  ['a footnote that is a tag alone, then a definition line holding a brace', '[^1]: <b>\n[r]: u{b}\n'],
+  [
+    'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
+    '[^1]: <b>\n[r]: u{b "t {"\n',
+  ],
+  [
+    'a footnote that is a tag alone, then two definition lines holding braces',
+    '[^1]: <b>\n[r]: u{b}\n[s]: v{c}\n',
+  ],
+  ['a footnote after a paragraph that is a tag alone, then a definition line', 'x\n\n[^1]: <b>\n[r]: u{b}\n'],
+  ['a footnote of indented code, then a definition line holding a brace', '[^1]: x\n\n        c\n[r]: u{b}\n'],
   [
     'an angle autolink holding a pipe in the text of a link in a table cell',
     '| a | b |\n| - | - |\n| [<https://example.net/a|b>](u) | c |\n',

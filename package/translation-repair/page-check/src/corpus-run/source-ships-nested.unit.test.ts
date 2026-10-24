@@ -207,6 +207,28 @@ await describe({
         },),
 
         it({
+          name: 'DOUBLES THE LINE ENDING WHEN THE BODY ENDS WHERE THE FOOTNOTE DOES, so a definition line the plain '
+            + 'reading keeps as a block of its own after the footnote is still a definition on the page',
+          fn: async () => {
+            /**
+             A footnote that is a tag alone, then a definition line.
+             */
+            const source = '[^1]: <b>\n[r]: u{b}\n';
+            /**
+             Where the footnote and its body end: after the tag.
+             */
+            const end = source.indexOf('\n[r]',);
+            expect(footnoteBodySpans({
+              source,
+              readable: source,
+              readSpans: spansOf,
+              footnotes: [{ start: 0, end, },],
+              range: { start: 6, end, },
+            },).edits,).toEqual([{ start: end, end: end + 1, replacement: '\n\n', },],);
+          },
+        },),
+
+        it({
           name: 'READS THE LINES AFTER THE END OF THE FOOTNOTE AS A TEXT OF THEIR OWN: the fence the footnote opens '
             + 'does not reach them, so their braces are text',
           fn: async () => {
