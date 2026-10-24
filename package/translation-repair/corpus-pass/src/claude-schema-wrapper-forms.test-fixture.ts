@@ -175,8 +175,9 @@ export const WRAPPER_FORM_CASES: readonly FormCase[] = [
 
 /**
  Cases in which the files look like a builder or a use of one and are none: an import, a re-export, a type, an alias
- that is never called and a property of the same name read off some other object, and a function that calls a builder
- without returning its result, whose caller therefore builds no schema.
+ that is never called, a property of the same name read off some other object, a name against a quote, and a function
+ that calls a builder without returning its result, whose caller therefore builds no schema. The last case is the
+ reverse: a name inside a longer string or in a comment after code, which the search reads as a use on purpose.
  */
 export const NO_BUILDER_CASES: readonly FormCase[] = [
   {
@@ -242,6 +243,39 @@ export const NO_BUILDER_CASES: readonly FormCase[] = [
       },
     ],
     found: ['imaginary/src/asking-wire.ts',],
+    builders: [],
+  },
+  {
+    name: 'NAMES NOTHING IN A STRING THAT HOLDS ONLY A BUILDER\'S NAME OR STARTS OR ENDS WITH IT, because a quote '
+      + 'stands against the name',
+    files: [
+      {
+        file: 'imaginary/src/quoted-name.ts',
+        text: textOf([
+          'export const ONLY = \'contestResponseFormat\';',
+          'export const STARTS = \'contestResponseFormat is the builder\';',
+          'export const ENDS = \'the builder is contestResponseFormat\';',
+          'export const TEMPLATE = `contestResponseFormat`;',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+  },
+  {
+    name: 'NAMES NOTHING IN A LONGER STRING OR IN A COMMENT THAT TRAILS CODE, because the search reads the syntax '
+      + 'tree, where a string is one value and a comment is not a node',
+    files: [
+      {
+        file: 'imaginary/src/message-name.ts',
+        text: textOf(['export const MESSAGE = \'call contestResponseFormat() here\';',],),
+      },
+      {
+        file: 'imaginary/src/trailing-comment-name.ts',
+        text: textOf(['export const NOTHING = 4; // contestResponseFormat(...) is the builder',],),
+      },
+    ],
+    found: [],
     builders: [],
   },
 ];

@@ -12,13 +12,12 @@
  body the Claude client builds send a schema that meets every rule, and which bounds does the body drop (only the one
  the reader of its stage enforces). A FOURTH CASE KEEPS THE LIST HONEST: it reads the source of the family for files
  that declare a `json_schema` and fails when one is missing here, so a new stage schema cannot skip the check. THAT
- SEARCH IS HELD IN TURN BY ONE CASE PER FORM IT FOLLOWS, each with imaginary files: a call that names a type argument,
- a builder handed over by reference, a spread of its result, a call through a namespace import or an import alias, a
- builder written as an arrow function, a function expression, the default export, a method of an object, an argument
- of a call or an async arrow with one bare parameter, and a wrapper of any of them (returned at once, awaited, in
- parentheses, or through another wrapper). The fixtures `claude-schema-call-forms.test-fixture.ts`,
- `claude-schema-builder-forms.test-fixture.ts` and `claude-schema-wrapper-forms.test-fixture.ts` hold the files, and
- the header of `claude-schema-code.test-fixture.ts` lists the shapes the search does not read.
+ SEARCH READS THE SYNTAX TREE OF EACH FILE, and one case per form it reads or leaves unread holds it, each with
+ imaginary files: a call that names a type argument, a builder written as any kind of function, a wrapper of a builder,
+ a use through an import, an alias, a destructured member, a dynamic import or a module that exports the builder
+ again, and the forms it does not follow. The fixtures `claude-schema-*-forms.test-fixture.ts` hold the files, and the
+ header of `claude-schema-sources.test-fixture.ts` states, sentence by sentence, what the search reads and does not
+ read.
 
  A FIFTH CASE HOLDS THE LIMIT OF THE ENUM CASE FOLD (`provider/src/enum-case-fold.ts`): the fold takes a reply value
  back to the spelling its schema lists only along `properties` and `items`, and leaves `anyOf`, `oneOf`, `allOf`,
@@ -48,7 +47,14 @@ import {
 } from '@monochromatic-dev/translation-repair-provider';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
+import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
 import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test-fixture.ts';
+import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
+import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
+import { FORMAT_LIMIT_CASES, SPELLING_CASES, } from './claude-schema-format-forms.test-fixture.ts';
+import { UNREAD_BUILDER_CASES, } from './claude-schema-limit-forms.test-fixture.ts';
+import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
+import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
 import {
   buildersOf,
   callersOf,
@@ -57,7 +63,12 @@ import {
   type SchemaBuilder,
   type SourceFile,
 } from './claude-schema-sources.test-fixture.ts';
+import {
+  WRAPPED_BUILDER_CASES,
+  WRAPPER_OPENING_CASES,
+} from './claude-schema-wrapped-builder-forms.test-fixture.ts';
 import { NO_BUILDER_CASES, WRAPPER_FORM_CASES, } from './claude-schema-wrapper-forms.test-fixture.ts';
+import { NOT_A_WRAPPER_CASES, TYPE_MARK_WRAPPER_CASES, } from './claude-schema-wrapper-limit-forms.test-fixture.ts';
 
 //region Not stage schemas
 // Files that are listed beside the producers without being one.
@@ -78,7 +89,7 @@ const NOT_STAGE_SCHEMAS: ReadonlySet<string> = new Set([
 
 //region Shared builders
 // Functions that build an answer schema when called, so one file holds the schema text and several files each make a
-// schema of their own. The search for the text `json_schema` finds the file that holds the builder and no caller.
+// schema of their own. A search for the files that hold the schema text finds the file that holds the builder and no caller.
 
 /**
  One shared builder, the file that declares it and the files that call it.
@@ -577,7 +588,21 @@ await describe({
       ...CALL_FORM_CASES,
       ...BUILDER_FORM_CASES,
       ...WRAPPER_FORM_CASES,
+      ...WRAPPER_OPENING_CASES,
+      ...WRAPPED_BUILDER_CASES,
       ...NO_BUILDER_CASES,
+      ...DECLARATION_SHAPE_CASES,
+      ...NOT_A_USE_CASES,
+      ...CALL_SHAPE_CASES,
+      ...NOT_A_WRAPPER_CASES,
+      ...TYPE_MARK_WRAPPER_CASES,
+      ...SPELLING_CASES,
+      ...FORMAT_LIMIT_CASES,
+      ...RE_EXPORT_CASES,
+      ...DEFAULT_EXPORT_CASES,
+      ...BINDING_CASES,
+      ...NAME_RULE_CASES,
+      ...UNREAD_BUILDER_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
@@ -601,6 +626,26 @@ await describe({
               },)
               .toSorted(),
           },).toEqual({ found: formCase.found, builders: formCase.builders, },);
+        },
+      },);
+    },),
+
+    ...CALLER_CASES.map(function caseOfCallers(callerCase,) {
+      return it({
+        name: callerCase.name,
+        fn: async () => {
+          /**
+           The sources searched: the contest builder's file and the case's imaginary files.
+           */
+          const sources = [CONTEST_BUILDER_SOURCE, ...callerCase.files,];
+          /**
+           The builder whose callers are listed.
+           */
+          const builder = nonNullishOrThrow(buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+            .find(function isNamed({ name, },): boolean {
+              return name === callerCase.builder;
+            },),);
+          expect(callersOf({ sources, builder, },).toSorted(),).toEqual(callerCase.callers,);
         },
       },);
     },),
