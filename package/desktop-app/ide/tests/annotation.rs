@@ -736,10 +736,34 @@ const EDITED: DocumentStamp = DocumentStamp {
 ///  not including,
 ///  `last`.
 fn answered(store: &mut Annotations, stamp: DocumentStamp, first: usize, last: usize) {
-    let text = Rope::from(TEXT);
-    let snapshot = unwrapped(ranged(stamp, (first, last), Vec::new()));
+    let text = Rope::from(LONG);
+    let items = vec![hint(text.line_to_char(first), ": T")];
+    let snapshot = unwrapped(ranged(stamp, (first, last), items));
     assert!(store.accept_hints(stamp, &text, snapshot));
 }
+
+/// Store the answer of `stamp` that asked about the lines `first` up to,
+///  not including,
+///  `last`,
+///  and put the hints `items` in it.
+fn answered_with(
+    store: &mut Annotations,
+    stamp: DocumentStamp,
+    asked: (usize, usize),
+    items: Vec<InlayHint>,
+) {
+    let text = Rope::from(LONG);
+    let snapshot = unwrapped(ranged(stamp, asked, items));
+    assert!(store.accept_hints(stamp, &text, snapshot));
+}
+
+/// A hundred short lines,
+///  so answers for the lines of a long file can hold hints.
+const LONG: &str = "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n\
+a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n\
+a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n\
+a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n\
+a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n";
 
 /// The lines a stored answer asked about are covered,
 ///  the line before the first and the line the request ended before are not,
@@ -846,5 +870,77 @@ fn a_refused_snapshot_covers_nothing_and_forgetting_keeps_the_hints() {
         hint_texts(&blocks(&mut store, SHOWN), 0),
         [": i32"],
         "forgetting what was asked removed the stored hints"
+    );
+}
+
+/// An answer that put no hint on the lines it asked about covers nothing:
+///  a server that is still loading answers with no hint or with some,
+///  and the view that settles over the same lines must ask again.
+#[test]
+fn an_answer_with_no_hint_on_its_lines_covers_nothing() {
+    let mut store = Annotations::default();
+    answered_with(&mut store, SHOWN, (35, 60), Vec::new());
+    assert!(
+        !store.answered_covers(SHOWN, 35..60) && !store.answered_covers(SHOWN, 40..41),
+        "an answer with no hint covered the lines it asked about"
+    );
+    // A hint that stands on a line the answer did not ask about does not make the asked lines covered.
+    let text = Rope::from(LONG);
+    answered_with(
+        &mut store,
+        SHOWN,
+        (35, 60),
+        vec![hint(text.line_to_char(90), ": far")],
+    );
+    assert!(
+        !store.answered_covers(SHOWN, 35..60),
+        "a hint on an unasked line made the asked lines covered"
+    );
+    // The same lines answered with a hint on one of them are covered.
+    answered_with(
+        &mut store,
+        SHOWN,
+        (35, 60),
+        vec![hint(text.line_to_char(40), ": near")],
+    );
+    assert!(
+        store.answered_covers(SHOWN, 35..60),
+        "an answer with a hint on its lines does not cover them"
+    );
+}
+
+/// An answer replaces the hints of the lines it asked about,
+///  so one that put no hint there takes those lines out of what earlier answers covered,
+///  and the lines around them stay covered.
+#[test]
+fn an_empty_answer_uncovers_the_lines_it_replaced() {
+    let mut store = Annotations::default();
+    answered(&mut store, SHOWN, 35, 60);
+    answered_with(&mut store, SHOWN, (40, 50), Vec::new());
+    assert!(store.answered_covers(SHOWN, 35..40));
+    assert!(store.answered_covers(SHOWN, 50..60));
+    assert!(
+        !store.answered_covers(SHOWN, 40..50) && !store.answered_covers(SHOWN, 35..60),
+        "lines an empty answer replaced stayed covered"
+    );
+}
+
+/// An empty answer takes out only the lines it asked about,
+///  and leaves answers that lie apart from them covered.
+#[test]
+fn an_empty_answer_leaves_answers_apart_from_its_lines_covered() {
+    let mut store = Annotations::default();
+    answered(&mut store, SHOWN, 0, 30);
+    answered(&mut store, SHOWN, 50, 80);
+    answered_with(&mut store, SHOWN, (35, 45), Vec::new());
+    assert!(store.answered_covers(SHOWN, 0..30));
+    assert!(store.answered_covers(SHOWN, 50..80));
+    assert!(
+        !store.answered_covers(SHOWN, 30..35),
+        "an empty answer made the lines before its own covered"
+    );
+    assert!(
+        !store.answered_covers(SHOWN, 45..50),
+        "an empty answer made the lines after its own covered"
     );
 }

@@ -37,20 +37,32 @@ use serde_json::Value;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function answer(id: unknown): object { return { id, result: [/* two hints */] }; }
+/// function answer(id: unknown, firstLine: number): object { return { id, result: [/* two hints, and one on firstLine */] }; }
 /// ```
-fn answer(id: &Value) -> Value {
-    return json_value!({ "id": id, "result": [
-        {
+fn answer(id: &Value, first_line: u64) -> Value {
+    let mut hints = answer_hints();
+    // A request for lines below the first also gets a hint on its first line, as a server answers the lines asked.
+    if first_line > 0 {
+        hints.push(json_value!({ "position": { "line": first_line, "character": 0 }, "label": ": asked" }));
+    }
+    return json_value!({ "id": id, "result": hints });
+}
+
+/// The two hints of every answer:
+///  one with every field a client must read or ignore,
+///  and one on a line past the end of every test text.
+fn answer_hints() -> Vec<Value> {
+    return vec![
+        json_value!({
             "position": { "line": 0, "character": 5 },
             "label": [{ "value": "part-a" }, { "value": "-part-b", "command": { "title": "x", "command": "scripted.command" } }],
             "kind": 1,
             "paddingLeft": true,
             "textEdits": [{ "range": { "start": { "line": 0, "character": 5 }, "end": { "line": 0, "character": 5 } }, "newText": ": T" }],
             "data": { "resolveMe": true },
-        },
-        { "position": { "line": 99, "character": 0 }, "label": "past-end" },
-    ] });
+        }),
+        json_value!({ "position": { "line": 99, "character": 0 }, "label": "past-end" }),
+    ];
 }
 
 /// Write one message,
@@ -86,15 +98,16 @@ fn send(wire: &Wire, message: Value) {
 ///   if (held.value) { wire.send(held.value); held.value = undefined; }
 /// }
 /// ```
-pub fn respond(wire: &Wire, id: &Value, step: Step, held: &mut Option<Value>) {
+pub fn respond(wire: &Wire, id: &Value, step: Step, held: &mut Option<Value>, first_line: u64) {
     match step {
         Step::Silent => return,
         Step::Hold => {
             // `Some(...)` is the "value present" variant of `Option`: the answer waits in the slot.
-            *held = Some(answer(id));
+            *held = Some(answer(id, first_line));
             return;
         }
-        Step::Answer => send(wire, answer(id)),
+        Step::Answer => send(wire, answer(id, first_line)),
+        Step::Empty => send(wire, json_value!({ "id": id, "result": [] })),
         Step::Failed => send(
             wire,
             json_value!({ "id": id, "error": { "code": -32603, "message": "scripted internal error" } }),

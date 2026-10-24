@@ -205,8 +205,6 @@ impl Annotations {
             self.labelled = Some(snapshot.stamp);
         }
         let asked = snapshot.first_line..snapshot.last_line;
-        // Lines of this revision that an answer asked about are covered; another revision starts afresh.
-        self.answered.note(snapshot.stamp, asked.clone());
         // What: `range(...)` walks the stored lines inside the asked range; `copied()` yields the line numbers
         //       themselves and `collect()` gathers them into a list.
         // Why: The lines are removed afterwards; a map cannot be changed while it is being walked.
@@ -226,6 +224,7 @@ impl Annotations {
         }
         let length = text.len_chars();
         let mut outside = 0_usize;
+        let mut inside = 0_usize;
         for hint in &snapshot.hints {
             let trimmed = hint.label.trim();
             if trimmed.is_empty() {
@@ -241,6 +240,7 @@ impl Annotations {
                 outside += 1;
                 continue;
             }
+            inside += 1;
             // `entry(...).or_default()` lends the line's list, creating an empty one first when absent.
             self.labels.entry(line).or_default().push(Label {
                 position: hint.position,
@@ -248,6 +248,21 @@ impl Annotations {
                 text: trimmed.to_string(),
             });
             self.placed.remove(&line);
+        }
+        // What: The asked lines count as covered only when the answer put a hint on one of them.
+        // Why: A server that is still loading the project answers with no hint or with some; the view that
+        //      settles over the same lines then asks again, as it did before lines were counted as covered.
+        //      Lines that really hold no hint are asked again on each settle for the same reason.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (inside > 0) answered.note(snapshot.stamp, asked);
+        // ```
+        if inside > 0 {
+            self.answered.note(snapshot.stamp, asked.clone());
+        } else {
+            // The answer replaced the hints of the asked lines with none, so an earlier answer no longer covers them.
+            self.answered.uncover(asked.clone());
         }
         if outside > 0 {
             tracing::debug!(

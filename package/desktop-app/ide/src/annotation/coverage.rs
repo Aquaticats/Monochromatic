@@ -103,6 +103,35 @@ impl Coverage {
         return false;
     }
 
+    /// What:
+    ///  Take the lines `lines` out of the covered lines.
+    /// Why:
+    ///  A stored answer replaces the hints of the lines it asked about,
+    ///  so an answer that put no hint on them leaves nothing there that an earlier answer covered.
+    ///  Lines of an earlier revision lose them too,
+    ///  which changes nothing because that revision is never asked about again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// uncover(lines: [number, number]): void;
+    /// ```
+    pub(super) fn uncover(&mut self, lines: Range<usize>) {
+        let mut kept: Vec<Range<usize>> = Vec::new();
+        for range in self.ranges.drain(..) {
+            if range.end <= lines.start || lines.end <= range.start {
+                kept.push(range);
+                continue;
+            }
+            if range.start < lines.start {
+                kept.push(range.start..lines.start);
+            }
+            if lines.end < range.end {
+                kept.push(lines.end..range.end);
+            }
+        }
+        self.ranges = kept;
+    }
+
     /// Forget every covered line.
     pub(super) fn clear(&mut self) {
         *self = Self::default();

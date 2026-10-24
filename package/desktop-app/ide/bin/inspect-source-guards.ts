@@ -1949,6 +1949,62 @@ const cases: Guard[] = [
     test: 'a_failed_request_does_not_cover_its_lines',
     failure: 'the scripted server did not receive the expected hint request'
   },
+  // An answer that put no hint on its lines covers nothing, and takes those lines out of what earlier answers covered:
+  // a server still loading the project answers with none, and the lines must be asked again.
+  {
+    name: 'hint-skip-empty-answer',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    integration: 'annotation',
+    test: 'an_answer_with_no_hint_on_its_lines_covers_nothing',
+    failure: 'an answer with no hint covered the lines it asked about'
+  },
+  {
+    name: 'hint-skip-empty-answer-window',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    native: true,
+    test: 'an_empty_answer_covers_nothing_so_the_same_lines_are_asked_again',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-empty-uncover',
+    file: 'src/annotation/blocks.rs',
+    before: '            self.answered.uncover(asked.clone());',
+    after: '            let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'lines an empty answer replaced stayed covered'
+  },
+  {
+    name: 'hint-skip-uncover-left',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start < lines.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 35..40)'
+  },
+  {
+    name: 'hint-skip-uncover-right',
+    file: 'src/annotation/coverage.rs',
+    before: '            if lines.end < range.end {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 50..60)'
+  },
+  {
+    name: 'hint-skip-uncover-apart',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.end <= lines.start || lines.end <= range.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_leaves_answers_apart_from_its_lines_covered',
+    failure: 'an empty answer made the lines before its own covered'
+  },
   {
     name: 'hint-skip-reopen',
     file: 'src/native/language/sync.rs',

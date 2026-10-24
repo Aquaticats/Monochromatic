@@ -318,6 +318,30 @@ fn a_pending_request_does_not_cover_its_lines() {
     wait_requests(&scene, before.len() + 1);
 }
 
+/// An answer that holds no hint covers nothing:
+///  a server that is still loading the project answers with none,
+///  and the view that comes back to the same lines asks again.
+#[test]
+fn an_empty_answer_covers_nothing_so_the_same_lines_are_asked_again() {
+    // The start gets a hint, the second request (the view at FAR) gets none.
+    let scene = scene("answer,empty");
+    let view = scene.view;
+    show(&scene, FAR);
+    wait_requests(&scene, 2);
+    wait_answer(&scene, FAR - view, FAR + 2 * view);
+    // A view far away, whose answer holds a hint on its lines.
+    visit(&scene, FAR + 4 * view, 2);
+    assert_eq!(asked(&scene), [0, FAR - view, FAR + 3 * view]);
+    // The first place again: its lines were answered with no hint, so they are asked again.
+    show(&scene, FAR);
+    wait_requests(&scene, 4);
+    assert_eq!(
+        asked(&scene),
+        [0, FAR - view, FAR + 3 * view, FAR - view],
+        "lines that an empty answer asked about were not asked again"
+    );
+}
+
 /// A request the server failed covers nothing.
 #[test]
 fn a_failed_request_does_not_cover_its_lines() {
