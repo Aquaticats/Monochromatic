@@ -25,8 +25,8 @@ await describe({
   children: [
     it({
       name: 'DECLARES the judge probe\'s entry, cap, damage and candidate flags, its candidates-alone switch, the '
-        + 'amount it may spend and the number of trials an arm walks, and no context switch, which has no meaning for '
-        + 'an editor',
+        + 'amount it may spend, the number of trials an arm walks and the number of passes over the pool, and no '
+        + 'context switch, which has no meaning for an editor',
       fn: async () => {
         /**
          The declaration under test.
@@ -39,6 +39,7 @@ await describe({
           'damage',
           'max-usd',
           'only',
+          'passes',
           'trials',
         ],);
         expect(Object.keys(spec.switches,),).toEqual(['candidates-alone',],);
@@ -79,12 +80,19 @@ await describe({
             '3',
             '--trials',
             '57',
+            '--passes',
+            '2',
           ],
         },);
         expect(line.flag('trials',),).toEqual({
           kind: 'written',
           flag: '--trials',
           value: '57',
+        },);
+        expect(line.flag('passes',),).toEqual({
+          kind: 'written',
+          flag: '--passes',
+          value: '2',
         },);
         expect(line.flag('max-usd',),).toEqual({
           kind: 'written',
