@@ -1,9 +1,10 @@
 /**
- Tests for the rule the editor fidelity bench is read by: which effort it picks from the clean fix counts of the four
- arms, and which clause decided. The rule is code, and the line printed before any call is made from the same source.
+ Tests for the rule the editor fidelity bench is read by: which effort it picks from the trials every arm shared, by a
+ one-sided exact paired permutation test of each effort against the default at 0.025, and which clause decided. The rule
+ is code, and the line printed before any call is made from the same source.
 
- Counts are written as a pool of twenty-two insertion trials and eighteen alteration trials, the frozen pool's split.
- Fixtures are cat-themed invention.
+ Trials are written two to an entry, the insertion then the alteration, as the frozen pool draws them. Fixtures are
+ cat-themed invention.
 
  @module
  */
@@ -15,45 +16,94 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
-  type ArmCount,
+  ALPHA,
+  BOOTSTRAP_REPLICATES,
+  BOOTSTRAP_SEED,
+  clusterBootstrapInterval,
   decideEffort,
   decisionRuleText,
-  KIND_TOLERANCE_TRIALS,
-  POOLED_FLOOR_TRIALS,
+  MIN_SHARED_TRIALS,
+  type SharedTrial,
 } from '../../dist/final/node/index.mjs';
 
 /**
- The clean fix counts of an arm over the frozen pool's twenty-two insertion and eighteen alteration trials.
+ Shared trials of an invented bench, two to an entry.
 
- @param insertion - insertion trials fixed cleanly
- @param alteration - alteration trials fixed cleanly
+ @param count - how many shared trials
+ @param high - whether the high effort fixed the trial at an index
+ @param low - whether the low effort fixed it
+ @param mediums - whether each medium arm fixed it, one function for each medium arm
 
- @returns The arm's counts
+ @returns The trials
 
  @example
  ```ts
- const arm = armOf({ insertion: 11, alteration: 9, },);
+ const trials = trialsOf({ count: 40, high: every, low: none, mediums: [none,], },);
  ```
  */
-function armOf(
+function trialsOf(
   {
-    insertion,
-    alteration,
+    count,
+    high,
+    low,
+    mediums,
   }: {
-    readonly insertion: number;
-    readonly alteration: number;
+    readonly count: number;
+    readonly high: (index: number,) => boolean;
+    readonly low: (index: number,) => boolean;
+    readonly mediums: readonly ((index: number,) => boolean)[];
   },
-): ArmCount {
-  return {
-    insertion: { trials: 22, fixed: insertion, },
-    alteration: { trials: 18, fixed: alteration, },
-  };
+): readonly SharedTrial[] {
+  return Array.from(
+    { length: count, },
+    function trialAt(
+      _unused,
+      index,
+    ): SharedTrial {
+      return {
+        entryId: `cat-${String(Math.floor(index / 2,),)}`,
+        kind: ((index % 2) === 0) ? 'insertion' : 'alteration',
+        high: high(index,),
+        low: low(index,),
+        mediums: mediums.map(function fixedBy(medium,): boolean {
+          return medium(index,);
+        },),
+      };
+    },
+  );
 }
 
 /**
- Two medium arms of twenty clean fixes each, eleven insertions and nine alterations.
+ An arm that fixes every trial.
  */
-const MEDIUM = armOf({ insertion: 11, alteration: 9, },);
+function every(): boolean {
+  return true;
+}
+
+/**
+ An arm that fixes no trial.
+ */
+function none(): boolean {
+  return false;
+}
+
+/**
+ An arm that fixes the leading trials, as many as given.
+
+ @param count - how many leading trials it fixes
+
+ @returns The arm
+
+ @example
+ ```ts
+ const arm = leading({ count: 25, },);
+ ```
+ */
+function leading({ count, }: { readonly count: number; },): (index: number,) => boolean {
+  return function fixes(index,): boolean {
+    return index < count;
+  };
+}
 
 await describe({
   name: 'editor fidelity decision rule',
@@ -62,10 +112,12 @@ await describe({
       name: 'the constants',
       children: [
         it({
-          name: 'FIX THE FLOOR AT TWELVE TRIALS and the kind tolerance at three, the figures the printed rule states',
+          name: 'FIX THE LEVEL AT 0.025 FOR EACH EFFORT, the interval at 95 percent over ten thousand resamples, and the '
+            + 'least shared trials at forty, the figures the printed rule states',
           fn: async () => {
-            expect(POOLED_FLOOR_TRIALS,).toBe(12,);
-            expect(KIND_TOLERANCE_TRIALS,).toBe(3,);
+            expect(ALPHA,).toBe(0.025,);
+            expect(BOOTSTRAP_REPLICATES,).toBe(10_000,);
+            expect(MIN_SHARED_TRIALS,).toBe(40,);
           },
         },),
       ],
@@ -75,20 +127,26 @@ await describe({
       name: decisionRuleText.name,
       children: [
         it({
-          name: 'STATES THE FLOOR, THE TOLERANCE, WHAT A TIE KEEPS AND WHAT THE INSERTION TRIALS MEASURE, the widened '
-            + 'region named for what it is: locating an added sentence among its neighbours and copying the neighbours '
-            + 'verbatim, not production\'s span-only view',
+          name: 'STATES THE TEST, THE LEVEL, THE TIE-BREAK, WHAT A MEDIUM VERDICT MEANS, THE INTERVAL AND THE LEAST SHARED '
+            + 'TRIALS, and what the insertion trials measure',
           fn: async () => {
             /**
              The rule as printed.
              */
             const rule = decisionRuleText();
-            expect(rule,).toContain('by at least 12 trials',);
-            expect(rule,).toContain('more than 3 trials below the mean of the two medium arms for that kind',);
-            expect(rule,).toContain('A smaller gap, a tie, an effort that fixes fewer, and a gap a kind contradicts all keep the default effort',);
+            expect(rule,).toContain('one-sided exact paired permutation test',);
+            expect(rule,).toContain('permuting the arm labels within each entry, with entries as the units',);
+            expect(rule,).toContain('at 0.025 for each effort',);
+            expect(rule,).toContain('When both efforts are shown better, the one with the larger estimate is chosen; when the estimates are equal, the cheaper effort is chosen',);
+            expect(rule,).toContain('A medium verdict means no effort was shown better than medium, not that the others are as good',);
+            expect(rule,).toContain('95 percent interval from a seeded bootstrap over entries',);
+            expect(rule,).toContain(BOOTSTRAP_SEED,);
+            expect(rule,).toContain('fewer than 40 shared trials',);
+            expect(rule,).toContain('scores as unusable for its arm',);
+            expect(rule,).toContain('left out of every arm\'s comparison and counted',);
             expect(rule,).toContain('insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim',);
             expect(rule,).toContain('not the span-only view production gives an editor',);
-            expect(rule,).toContain('0.05',);
+            expect(rule,).toContain('at most 0.047',);
             expect(rule.includes('\n',),).toBe(false,);
           },
         },),
@@ -99,186 +157,188 @@ await describe({
       name: decideEffort.name,
       children: [
         it({
-          name: 'KEEPS MEDIUM ON A TIE, every arm at the same count, and says it was a tie',
+          name: 'KEEPS MEDIUM WHEN NO EFFORT IS SHOWN BETTER, arms that fix alike, and says that is not a finding that the '
+            + 'others are as good',
           fn: async () => {
             const verdict = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: MEDIUM,
+              trials: trialsOf({ count: 60, high: leading({ count: 30, },), low: leading({ count: 30, },), mediums: [leading({ count: 30, },),], },),
             },);
             expect(verdict.verdict,).toBe('medium',);
-            expect(verdict.clause,).toBe('tie',);
-            expect(verdict.thresholdTrials,).toBe(12,);
-            expect(verdict.mediumMean,).toBe(20,);
-            expect(verdict.high.gap,).toBe(0,);
+            expect(verdict.clause,).toBe('none-shown',);
+            expect(verdict.high.shown,).toBe(false,);
+            expect(verdict.low.shown,).toBe(false,);
+            expect(verdict.high.estimate,).toBe(0,);
+            expect(verdict.said.startsWith('VERDICT medium (none-shown): ',),).toBe(true,);
+            expect(verdict.said,).toContain('does not show the others are as good',);
           },
         },),
 
         it({
-          name: 'KEEPS MEDIUM FOR A GAP ONE BELOW THE THRESHOLD and picks the effort for a gap at it, since a difference '
-            + 'counts when it reaches the threshold',
-          fn: async () => {
-            /**
-             A gain of eleven clean fixes on the mediums' twenty.
-             */
-            const short = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: armOf({ insertion: 17, alteration: 14, },),
-            },);
-            expect(short.verdict,).toBe('medium',);
-            expect(short.clause,).toBe('inside-threshold',);
-            expect(short.high.gap,).toBe(11,);
-            /**
-             A gain of twelve.
-             */
-            const at = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: armOf({ insertion: 18, alteration: 14, },),
-            },);
-            expect(at.verdict,).toBe('high',);
-            expect(at.clause,).toBe('beats-medium',);
-            expect(at.high.gap,).toBe(12,);
-          },
-        },),
-
-        it({
-          name: 'PICKS THE LOW EFFORT when it beats the mediums by the threshold, since the rule is about the gap and not '
-            + 'about which side of medium the effort sits',
+          name: 'PICKS HIGH WHEN ONLY HIGH IS SHOWN BETTER, with its estimate the paired difference per shared trial: '
+            + 'high fixes all sixty trials, medium thirty, low the same thirty',
           fn: async () => {
             const verdict = decideEffort({
-              low: armOf({ insertion: 18, alteration: 14, },),
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: MEDIUM,
+              trials: trialsOf({ count: 60, high: every, low: leading({ count: 30, },), mediums: [leading({ count: 30, },),], },),
+            },);
+            expect(verdict.verdict,).toBe('high',);
+            expect(verdict.clause,).toBe('shown-better',);
+            expect(verdict.high.shown,).toBe(true,);
+            expect(verdict.high.estimate,).toBeCloseTo(0.5, 10,);
+            expect(verdict.low.shown,).toBe(false,);
+            expect(verdict.trials,).toBe(60,);
+            expect(verdict.entries,).toBe(30,);
+          },
+        },),
+
+        it({
+          name: 'PICKS LOW WHEN ONLY LOW IS SHOWN BETTER, since the rule tests each effort against medium and not high '
+            + 'against low',
+          fn: async () => {
+            const verdict = decideEffort({
+              trials: trialsOf({ count: 60, high: none, low: every, mediums: [leading({ count: 30, },),], },),
             },);
             expect(verdict.verdict,).toBe('low',);
-            expect(verdict.clause,).toBe('beats-medium',);
+            expect(verdict.clause,).toBe('shown-better',);
+            expect(verdict.low.estimate,).toBeCloseTo(0.5, 10,);
+            expect(verdict.high.estimate,).toBeCloseTo(-0.5, 10,);
           },
         },),
 
         it({
-          name: 'KEEPS MEDIUM FOR AN EFFORT THAT FIXES FEWER by the threshold, however far, and says so',
+          name: 'PICKS THE LARGER ESTIMATE WHEN BOTH EFFORTS ARE SHOWN BETTER: medium fixes none, low twenty-five of forty '
+            + 'and high thirty-five, so high is chosen by the larger estimate',
           fn: async () => {
             const verdict = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: armOf({ insertion: 4, alteration: 4, },),
+              trials: trialsOf({ count: 40, high: leading({ count: 35, },), low: leading({ count: 25, },), mediums: [none,], },),
             },);
-            expect(verdict.verdict,).toBe('medium',);
-            expect(verdict.clause,).toBe('fixes-fewer',);
-            expect(verdict.high.gap,).toBe(-12,);
+            expect(verdict.low.shown,).toBe(true,);
+            expect(verdict.high.shown,).toBe(true,);
+            expect(verdict.verdict,).toBe('high',);
+            expect(verdict.clause,).toBe('larger-estimate',);
+            expect(verdict.said,).toContain('larger estimate',);
           },
         },),
 
         it({
-          name: 'LETS A KIND DIP OF ONE TRIAL OR OF THE TOLERANCE STAND and vetoes a dip of more, the kind named: the '
-            + 'pooled gap is twelve in each, and the alteration trials fall one, three and four below the mediums',
-          fn: async () => {
-            /**
-             Mediums that fix six insertions and fourteen alterations, so the effort can gain twelve in all with an
-             alteration dip.
-             */
-            const medium = armOf({ insertion: 6, alteration: 14, },);
-            /**
-             The high arm, gaining twelve pooled while its alteration trials dip by the given amount.
-             */
-            const withDip = (dip: number) => decideEffort({
-              low: medium,
-              mediumA: medium,
-              mediumB: medium,
-              high: armOf({ insertion: 6 + 12 + dip, alteration: 14 - dip, },),
-            },);
-            expect(withDip(1,).verdict,).toBe('high',);
-            expect(withDip(3,).verdict,).toBe('high',);
-            /**
-             A dip of four.
-             */
-            const vetoed = withDip(4,);
-            expect(vetoed.verdict,).toBe('medium',);
-            expect(vetoed.clause,).toBe('kind-veto',);
-            expect(vetoed.high.kindShortfall,).toBe('alteration',);
-            expect(vetoed.high.gap,).toBe(12,);
-          },
-        },),
-
-        it({
-          name: 'READS THE THRESHOLD AS THE FLOOR FOR EQUAL MEDIUMS, and as the mediums\' own difference when that is '
-            + 'larger: mediums of fourteen and twenty-eight set the threshold at fourteen',
-          fn: async () => {
-            const equal = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: MEDIUM,
-            },);
-            expect(equal.thresholdTrials,).toBe(12,);
-            /**
-             Mediums of 14 and 28 clean fixes, mean 21, difference 14.
-             */
-            const unequal = {
-              low: MEDIUM,
-              mediumA: armOf({ insertion: 7, alteration: 7, },),
-              mediumB: armOf({ insertion: 14, alteration: 14, },),
-            };
-            /**
-             A gain of thirteen on the mean of 21.
-             */
-            const inside = decideEffort({
-              ...unequal,
-              high: armOf({ insertion: 20, alteration: 14, },),
-            },);
-            expect(inside.thresholdTrials,).toBe(14,);
-            expect(inside.mediumMean,).toBe(21,);
-            expect(inside.high.gap,).toBe(13,);
-            expect(inside.verdict,).toBe('medium',);
-            expect(inside.clause,).toBe('inside-threshold',);
-            /**
-             A gain of fourteen.
-             */
-            const at = decideEffort({
-              ...unequal,
-              high: armOf({ insertion: 21, alteration: 14, },),
-            },);
-            expect(at.high.gap,).toBe(14,);
-            expect(at.verdict,).toBe('high',);
-          },
-        },),
-
-        it({
-          name: 'CHOOSES THE LARGER GAP WHEN BOTH EFFORTS BEAT THE MEDIUMS, and keeps medium when the two gaps are equal',
-          fn: async () => {
-            const high = armOf({ insertion: 19, alteration: 14, },);
-            const low = armOf({ insertion: 18, alteration: 14, },);
-            expect(decideEffort({ low, mediumA: MEDIUM, mediumB: MEDIUM, high, },).verdict,).toBe('high',);
-            expect(decideEffort({ low: high, mediumA: MEDIUM, mediumB: MEDIUM, high: low, },).verdict,).toBe('low',);
-            /**
-             Two efforts with the same gap.
-             */
-            const equal = decideEffort({ low, mediumA: MEDIUM, mediumB: MEDIUM, high: low, },);
-            expect(equal.verdict,).toBe('medium',);
-            expect(equal.clause,).toBe('tie',);
-          },
-        },),
-
-        it({
-          name: 'SAYS THE VERDICT, THE CLAUSE, THE GAP AND THE THRESHOLD in a sentence for the read step to print',
+          name: 'PICKS THE CHEAPER EFFORT WHEN BOTH ARE SHOWN BETTER AND THE ESTIMATES ARE EQUAL: low and high fix the same '
+            + 'twenty-five of forty trials, so low is chosen',
           fn: async () => {
             const verdict = decideEffort({
-              low: MEDIUM,
-              mediumA: MEDIUM,
-              mediumB: MEDIUM,
-              high: armOf({ insertion: 17, alteration: 14, },),
+              trials: trialsOf({ count: 40, high: leading({ count: 25, },), low: leading({ count: 25, },), mediums: [none,], },),
             },);
-            expect(verdict.said,).toBe(
-              'VERDICT medium (inside-threshold): high has 11 more clean fixes than the mean of the two medium arms '
-                + '(20), the threshold is 12, so the default effort stays',
-            );
+            expect(verdict.verdict,).toBe('low',);
+            expect(verdict.clause,).toBe('cheaper-on-equal',);
+            expect(verdict.said,).toContain('cheaper',);
+          },
+        },),
+
+        it({
+          name: 'READS TWO MEDIUM ARMS AS ONE CONTROL: the estimate is the effort\'s fixes minus the mean of the two mediums\', '
+            + 'high fixing all forty, one medium twenty and the other ten',
+          fn: async () => {
+            const verdict = decideEffort({
+              trials: trialsOf({
+                count: 40,
+                high: every,
+                low: none,
+                mediums: [leading({ count: 20, },), leading({ count: 10, },),],
+              },),
+            },);
+            expect(verdict.mediumArms,).toBe(2,);
+            expect(verdict.high.estimate,).toBeCloseTo((40 - 15) / 40, 10,);
+            expect(verdict.high.shown,).toBe(true,);
+            expect(verdict.verdict,).toBe('high',);
+          },
+        },),
+
+        it({
+          name: 'GIVES THE INTERVAL OF THE SEEDED CLUSTER BOOTSTRAP over the entries, the one clusterBootstrapInterval '
+            + 'gives for the same entries and seed, so a reader can reproduce it',
+          fn: async () => {
+            const trials = trialsOf({ count: 60, high: every, low: leading({ count: 30, },), mediums: [leading({ count: 30, },),], },);
+            const verdict = decideEffort({ trials, },);
+            /**
+             The interval of the same entries by the module itself.
+             */
+            const expected = clusterBootstrapInterval({
+              clusters: Array.from(
+                { length: 30, },
+                function entryAt(
+                  _unused,
+                  at,
+                ) {
+                  return {
+                    entryId: `cat-${String(at,)}`,
+                    trials: 2,
+                    fixed: [2, at < 15 ? 2 : 0,],
+                  };
+                },
+              ),
+              seed: BOOTSTRAP_SEED,
+              replicates: BOOTSTRAP_REPLICATES,
+            },);
+            expect(verdict.high.interval,).toStrictEqual(expected,);
+          },
+        },),
+
+        it({
+          name: 'PRINTS EACH KIND\'S PAIRED ESTIMATE AS A SECONDARY LINE and lets no kind veto: high gains overall and falls '
+            + 'on the alteration trials, and is still chosen',
+          fn: async () => {
+            /**
+             High fixes every insertion and no alteration; medium fixes every other alteration and no insertion.
+             */
+            const verdict = decideEffort({
+              trials: trialsOf({
+                count: 120,
+                high: function highFixes(index,): boolean {
+                  return (index % 2) === 0;
+                },
+                low: none,
+                mediums: [
+                  function mediumFixes(index,): boolean {
+                    return (index % 4) === 3;
+                  },
+                ],
+              },),
+            },);
+            expect(verdict.verdict,).toBe('high',);
+            expect(verdict.high.kinds.insertion.estimate,).toBeCloseTo(1, 10,);
+            expect(verdict.high.kinds.alteration.estimate,).toBeCloseTo(-0.5, 10,);
+            expect(verdict.high.kinds.insertion.trials,).toBe(60,);
+            expect(verdict.lines.some(function isKinds(line,): boolean {
+              return line.startsWith('KINDS high vs medium (secondary, no veto): insertion +100.0 points over 60 trials, alteration -50.0 points over 60 trials',);
+            },),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'PRINTS A PAIRED LINE FOR EACH EFFORT with the estimate in points, the interval, the p-value, the verdict at '
+            + '0.025 and the shared trials, and the verdict last',
+          fn: async () => {
+            const verdict = decideEffort({
+              trials: trialsOf({ count: 60, high: every, low: leading({ count: 30, },), mediums: [leading({ count: 30, },),], },),
+            },);
+            expect(verdict.lines.at(-1,),).toBe(verdict.said,);
+            /**
+             The line for the high effort.
+             */
+            const high = verdict.lines.find(function isHigh(line,): boolean {
+              return line.startsWith('PAIRED high vs medium: ',);
+            },);
+            expect(high,).toContain('+50.0 points (95% interval +',);
+            expect(high,).toContain('seeded bootstrap over 30 entries)',);
+            expect(high,).toContain('p under 0.0001',);
+            expect(high,).toContain('shown better at 0.025: yes',);
+            expect(high,).toContain('60 shared trials',);
+            /**
+             The line for the low effort, whose estimate is zero.
+             */
+            const low = verdict.lines.find(function isLow(line,): boolean {
+              return line.startsWith('PAIRED low vs medium: ',);
+            },);
+            expect(low,).toContain('+0.0 points',);
+            expect(low,).toContain('shown better at 0.025: no',);
           },
         },),
       ],

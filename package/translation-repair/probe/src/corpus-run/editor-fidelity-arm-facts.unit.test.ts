@@ -89,6 +89,33 @@ await describe({
         expect(empty.maxUsd,).toBe(-1,);
         expect(empty.benchSpentUsd,).toBe(-1,);
         expect(empty.digest,).toBe('',);
+        expect(empty.planned,).toBe(-1,);
+        expect(empty.completed,).toBe(-1,);
+        expect(empty.completedOf,).toBe(-1,);
+        expect(empty.capped,).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'READS HOW MANY TRIALS THE ARM PLANNED AND COMPLETED and whether the guard capped it, minus one and false for '
+        + 'lines that are not there',
+      fn: async () => {
+        const prefix = '[info] [2026-10-23T12:00:00.000Z] [probe] ';
+        const facts = factsOf({
+          log: {
+            arm: 'high',
+            lines: [
+              `${prefix}planned: 80 of 88 trials`,
+              `${prefix}CAPPED at trial 42 of 80: 41 trials completed; the guard said so`,
+              `${prefix}TRIALS completed 41 of 80`,
+            ],
+            exit: { recorded: false, },
+          },
+        },);
+        expect(facts.planned,).toBe(80,);
+        expect(facts.completed,).toBe(41,);
+        expect(facts.completedOf,).toBe(80,);
+        expect(facts.capped,).toBe(true,);
       },
     },),
   ],

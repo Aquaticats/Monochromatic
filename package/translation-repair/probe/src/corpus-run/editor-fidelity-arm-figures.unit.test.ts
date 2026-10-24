@@ -14,7 +14,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { armFiguresOf, } from '../../dist/final/node/index.mjs';
+import {
+  type ArmLog,
+  armFiguresOf,
+} from '../../dist/final/node/index.mjs';
 import {
   armLogOf,
   tallyOf,
@@ -93,11 +96,61 @@ await describe({
           },),
         },);
         expect(rows,).toStrictEqual([
-          { row: 1, trial: 'tabby-s0/insertion', stops: ['ok',], stated: true, },
-          { row: 2, trial: 'tabby-s1/insertion', stops: ['refused', 'ok',], stated: true, },
-          { row: 3, trial: 'tabby-s2/insertion', stops: [], stated: false, },
-          { row: 4, trial: 'tabby-s3/insertion', stops: ['output-cap',], stated: true, },
+          { row: 1, trial: 'tabby-s0/insertion', entry: 'cat-0', kind: 'insertion', fixed: true, stops: ['ok',], stated: true, },
+          { row: 2, trial: 'tabby-s1/insertion', entry: 'cat-1', kind: 'insertion', fixed: true, stops: ['refused', 'ok',], stated: true, },
+          { row: 3, trial: 'tabby-s2/insertion', entry: 'cat-2', kind: 'insertion', fixed: true, stops: [], stated: false, },
+          { row: 4, trial: 'tabby-s3/insertion', entry: 'cat-3', kind: 'insertion', fixed: true, stops: ['output-cap',], stated: true, },
         ],);
+      },
+    },),
+
+    it({
+      name: 'READS THE ENTRY, THE KIND AND WHETHER THE ROW IS A CLEAN FIX of each row line: a reading that starts with '
+        + 'clean fix is one, and one that says defect only, not a clean fix is not',
+      fn: async () => {
+        /**
+         The first row fixed, the second not, the third a clean fix on an alteration trial of another entry.
+         */
+        const log = armLogOf({
+          arm: 'low',
+          tally: TALLY,
+          stops: [],
+          rows: [
+            { trial: 'tabby-s0/insertion', entry: 'tabby', fixed: true, stops: 'ok', },
+            { trial: 'tabby-s0/alteration', entry: 'tabby', fixed: false, stops: 'ok', },
+            { trial: 'ginger-reference/alteration', entry: 'ginger', fixed: true, stops: 'ok', },
+          ],
+          seat: SEAT,
+          benchSpentUsd: 0,
+          guardUsd: 0.5,
+        },);
+        const defectOnly: ArmLog = {
+          ...log,
+          lines: log.lines.map(function reword(line,): string {
+            return line.replace('on ginger-reference/alteration: clean fix exact, nothing else touched', 'on ginger-reference/alteration: defect only, not a clean fix, nothing else touched',);
+          },),
+        };
+        expect(armFiguresOf({ log, },).rows.map(function digest({ entry, kind, fixed, },): string {
+          return `${entry} ${kind} ${String(fixed,)}`;
+        },),).toStrictEqual(['tabby insertion true', 'tabby alteration false', 'ginger alteration true',],);
+        expect(armFiguresOf({ log: defectOnly, },).rows.map(function fixedOf({ fixed, },): boolean {
+          return fixed;
+        },),).toStrictEqual([true, false, false,],);
+      },
+    },),
+
+    it({
+      name: 'READS NO ENTRY AS EMPTY for a row line from before the entry was written, so the bench check names it and '
+        + 'the figures do not guess',
+      fn: async () => {
+        const log = armLogOf({ arm: 'low', tally: TALLY, stops: ['ok',], seat: SEAT, benchSpentUsd: 0, guardUsd: 0.5, },);
+        const old: ArmLog = {
+          ...log,
+          lines: log.lines.map(function drop(line,): string {
+            return line.replace('; entry cat-0', '',);
+          },),
+        };
+        expect(armFiguresOf({ log: old, },).rows[0]?.entry,).toBe('',);
       },
     },),
 

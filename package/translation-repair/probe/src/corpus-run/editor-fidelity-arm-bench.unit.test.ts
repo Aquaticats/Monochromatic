@@ -1,6 +1,7 @@
 /**
- Tests for the checks that make four logs a bench: four distinct arm logs, run at the cards low, medium, medium and high
- in that order, each arm having declared at least what the guards of the arms before it counted.
+ Tests for the checks that make three or four logs a bench: distinct arm logs, run at the cards high, medium, a second
+ medium if one was run, and low in that order, each arm having declared at least what the guards of the arms before it
+ counted, every later arm having walked the first arm's trials in its order, and enough trials shared by every arm.
 
  The logs hold only the lines these checks read, written by the probe's own writers, so a writer that changes its wording
  fails here before it fails an operator. Fixtures are cat-themed invention.
@@ -14,12 +15,17 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type ArmLog,
   checkEditorBench,
-  guardLine,
-  guardTotalLine,
 } from '../../dist/final/node/index.mjs';
+import {
+  armLogOf,
+  poolRows,
+  type RowSpec,
+  tallyFromRows,
+} from '../editor-fidelity-arm-log.test-fixture.ts';
 import {
   HIGH_CARD,
   LOW_CARD,
@@ -27,60 +33,111 @@ import {
 } from '../editor-fidelity.test-fixture.ts';
 
 /**
- Prefix the logger puts on every line.
+ Trials the first arm of a good bench completes.
  */
-const PREFIX = '[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
+const FIRST_ARM_TRIALS = 44;
+
+/**
+ The rows of a good arm: the leading trials, every other one a clean fix, all asks ok.
+ */
+const GOOD_ROWS: readonly RowSpec[] = poolRows({
+  count: FIRST_ARM_TRIALS,
+  fixed: function everyOther(index,): boolean {
+    return (index % 2) === 0;
+  },
+});
 
 /**
  One arm's log, holding the lines the bench checks read.
 
  @param arm - the arm's name
- @param card - card it seated
+ @param cardId - card it seated
+ @param rows - the rows it walked
  @param declaredUsd - what its guard line says the earlier arms spent
  @param countedUsd - what its guard total says it counted
+ @param capped - whether the guard capped it after its rows
 
  @returns The arm
 
  @example
  ```ts
- const log = armOf({ arm: 'low', card: LOW_CARD, declaredUsd: 0, countedUsd: 0.875, },);
+ const log = armOf({ arm: 'high', cardId: HIGH_CARD, rows: GOOD_ROWS, declaredUsd: 0, countedUsd: 0.875, },);
  ```
  */
 function armOf(
   {
     arm,
-    card,
+    cardId,
+    rows = GOOD_ROWS,
     declaredUsd,
     countedUsd,
+    capped = false,
   }: {
     readonly arm: string;
-    readonly card: string;
+    readonly cardId: RosterModelId;
+    readonly rows?: readonly RowSpec[];
     readonly declaredUsd: number;
     readonly countedUsd: number;
+    readonly capped?: boolean;
   },
 ): ArmLog {
-  return {
+  return armLogOf({
     arm,
-    exit: {
-      recorded: true,
-      code: 0,
-    },
-    lines: [
-      `${PREFIX}editors: ${card}`,
-      `${PREFIX}${guardLine({ maxUsd: 3, benchSpentUsd: declaredUsd, },)}`,
-      `${PREFIX}${guardTotalLine({ total: { usd: countedUsd, calls: 40, atCeiling: 0, }, },)}`,
-    ],
-  };
+    tally: tallyFromRows({ cardId, rows, },),
+    stops: [],
+    rows,
+    planned: capped ? FIRST_ARM_TRIALS : rows.length,
+    capped,
+    seat: `SEAT ${cardId} asked=${String(rows.length,)} usable=${String(rows.length,)} unusable=0 threw=0 silent=0 abandoned=0 unreachable=0`,
+    benchSpentUsd: declaredUsd,
+    guardUsd: countedUsd,
+  },);
 }
 
 /**
- A bench that ran as it should: each arm declared the sum of the counts before it, to the cent.
+ The medium arm with the first rows given as ones in which an ask threw.
+
+ @param count - how many leading rows threw
+
+ @returns The arm
+
+ @example
+ ```ts
+ const log = mediumThrowing({ count: 3, },);
+ ```
+ */
+function mediumThrowing({ count, }: { readonly count: number; },): ArmLog {
+  return armOf({
+    arm: 'medium',
+    cardId: MEDIUM_CARD,
+    rows: GOOD_ROWS.map(function thrown(
+      row,
+      at,
+    ): RowSpec {
+      return (at < count) ? { ...row, stops: 'threw+ok', } : row;
+    },),
+    declaredUsd: 2.5,
+    countedUsd: 1.5,
+  },);
+}
+
+/**
+ A bench that ran as it should, one medium arm: each arm declared the sum of the counts before it, to the cent.
  */
 const GOOD_BENCH: readonly ArmLog[] = [
-  armOf({ arm: 'low', card: LOW_CARD, declaredUsd: 0, countedUsd: 0.875, },),
-  armOf({ arm: 'medium-a', card: MEDIUM_CARD, declaredUsd: 0.88, countedUsd: 1.5, },),
-  armOf({ arm: 'medium-b', card: MEDIUM_CARD, declaredUsd: 2.38, countedUsd: 1.25, },),
-  armOf({ arm: 'high', card: HIGH_CARD, declaredUsd: 3.63, countedUsd: 2.5, },),
+  armOf({ arm: 'high', cardId: HIGH_CARD, declaredUsd: 0, countedUsd: 2.5, },),
+  armOf({ arm: 'medium', cardId: MEDIUM_CARD, declaredUsd: 2.5, countedUsd: 1.5, },),
+  armOf({ arm: 'low', cardId: LOW_CARD, declaredUsd: 4, countedUsd: 0.875, },),
+];
+
+/**
+ A bench with the second medium arm that the code still reads when one is given.
+ */
+const FOUR_ARM_BENCH: readonly ArmLog[] = [
+  GOOD_BENCH[0] as ArmLog,
+  GOOD_BENCH[1] as ArmLog,
+  armOf({ arm: 'medium-b', cardId: MEDIUM_CARD, declaredUsd: 4, countedUsd: 1.25, },),
+  armOf({ arm: 'low', cardId: LOW_CARD, declaredUsd: 5.25, countedUsd: 0.875, },),
 ];
 
 /**
@@ -94,7 +151,7 @@ const GOOD_BENCH: readonly ArmLog[] = [
 
  @example
  ```ts
- const line = lineFor({ lines, scope: 'bench', check: 'four distinct arm logs', },);
+ const line = lineFor({ lines, scope: 'bench', check: 'shared trials', },);
  ```
  */
 function lineFor(
@@ -118,70 +175,90 @@ await describe({
   name: checkEditorBench.name,
   children: [
     it({
-      name: 'PASSES THE BENCH CHECKS for four distinct logs at the cards low, medium, medium and high in the order run, '
-        + 'each declaring at least what the arms before it counted',
+      name: 'PASSES THE BENCH CHECKS for three distinct logs at the cards high, medium and low in the order run, each '
+        + 'declaring at least what the arms before it counted, the later arms walking the first arm\'s trials and enough '
+        + 'trials shared',
       fn: async () => {
         const { lines, } = checkEditorBench({ arms: GOOD_BENCH, },);
-        expect(lineFor({ lines, scope: 'bench', check: 'four distinct arm logs', },),).toBe(
-          'PASS bench: four distinct arm logs: low, medium-a, medium-b, high',
+        expect(lineFor({ lines, scope: 'bench', check: 'three or four distinct arm logs', },),).toBe(
+          'PASS bench: three or four distinct arm logs: high, medium, low',
         );
-        expect(lineFor({ lines, scope: 'bench', check: 'cards low, medium, medium, high', },),).toBe(
-          'PASS bench: cards low, medium, medium, high in the order run',
-        );
-        expect(lineFor({ lines, scope: 'low', check: 'earlier spend declared', },),).toBe(
-          'PASS low: earlier spend declared: --bench-spent-usd 0 covers the 0.000000 USD the arms before it counted',
+        expect(lineFor({ lines, scope: 'bench', check: 'cards high, medium, a second medium if run, low', },),).toBe(
+          'PASS bench: cards high, medium, a second medium if run, low in the order run',
         );
         expect(lineFor({ lines, scope: 'high', check: 'earlier spend declared', },),).toBe(
-          'PASS high: earlier spend declared: --bench-spent-usd 3.63 covers the 3.625000 USD the arms before it counted',
+          'PASS high: earlier spend declared: --bench-spent-usd 0 covers the 0.000000 USD the arms before it counted',
+        );
+        expect(lineFor({ lines, scope: 'low', check: 'earlier spend declared', },),).toBe(
+          'PASS low: earlier spend declared: --bench-spent-usd 4 covers the 4.000000 USD the arms before it counted',
+        );
+        expect(lineFor({ lines, scope: 'low', check: 'trials in the first arm\'s order', },),).toBe(
+          'PASS low: trials in the first arm\'s order: the 44 trials it walked are the first 44 of high\'s',
+        );
+        expect(lineFor({ lines, scope: 'bench', check: 'shared trials', },),).toBe(
+          'PASS bench: shared trials: 44 shared trials over 22 entries, 0 left out as thrown and 0 not completed by '
+            + 'every arm, at least the 40 the rule needs',
         );
       },
     },),
 
     it({
-      name: 'FAILS THE FOUR-LOGS CHECK for fewer or more than four logs, naming how many were given',
+      name: 'READS A SECOND MEDIUM ARM WHEN FOUR LOGS ARE GIVEN, at the cards high, medium, medium and low',
       fn: async () => {
-        expect(lineFor({
-          lines: checkEditorBench({ arms: GOOD_BENCH.slice(0, 3,), },).lines,
-          scope: 'bench',
-          check: 'four distinct arm logs',
-        },),).toBe('FAIL bench: four distinct arm logs: 3 logs were given, and a bench is four',);
-        expect(lineFor({
-          lines: checkEditorBench({ arms: [...GOOD_BENCH, ...GOOD_BENCH,], },).lines,
-          scope: 'bench',
-          check: 'four distinct arm logs',
-        },),).toContain('FAIL bench: four distinct arm logs: 8 logs were given, and a bench is four',);
+        const { lines, } = checkEditorBench({ arms: FOUR_ARM_BENCH, },);
+        expect(lineFor({ lines, scope: 'bench', check: 'three or four distinct arm logs', },),).toBe(
+          'PASS bench: three or four distinct arm logs: high, medium, medium-b, low',
+        );
+        expect(lineFor({ lines, scope: 'bench', check: 'cards high, medium, a second medium if run, low', },),).toBe(
+          'PASS bench: cards high, medium, a second medium if run, low in the order run',
+        );
       },
     },),
 
     it({
-      name: 'FAILS THE FOUR-LOGS CHECK for one log given twice, under one name or two, since a repeated log would count '
+      name: 'FAILS THE DISTINCT-LOGS CHECK for fewer than three or more than four logs, naming how many were given',
+      fn: async () => {
+        expect(lineFor({
+          lines: checkEditorBench({ arms: GOOD_BENCH.slice(0, 2,), },).lines,
+          scope: 'bench',
+          check: 'three or four distinct arm logs',
+        },),).toBe('FAIL bench: three or four distinct arm logs: 2 logs were given, and a bench is three or four',);
+        expect(lineFor({
+          lines: checkEditorBench({ arms: [...FOUR_ARM_BENCH, ...GOOD_BENCH,], },).lines,
+          scope: 'bench',
+          check: 'three or four distinct arm logs',
+        },),).toContain('FAIL bench: three or four distinct arm logs: 7 logs were given, and a bench is three or four',);
+      },
+    },),
+
+    it({
+      name: 'FAILS THE DISTINCT-LOGS CHECK for one log given twice, under one name or two, since a repeated log would count '
         + 'one arm as two',
       fn: async () => {
         /**
-         The second medium arm's log replaced by the first's, under its own name.
+         The low arm's log replaced by the medium arm's, under its own name.
          */
         const copied: readonly ArmLog[] = [
           ...GOOD_BENCH.slice(0, 2,),
           {
             ...GOOD_BENCH[1] as ArmLog,
-            arm: 'medium-b',
+            arm: 'low',
           },
-          ...GOOD_BENCH.slice(3,),
         ];
         expect(lineFor({
           lines: checkEditorBench({ arms: copied, },).lines,
           scope: 'bench',
-          check: 'four distinct arm logs',
-        },),).toBe('FAIL bench: four distinct arm logs: medium-a and medium-b hold the same lines',);
+          check: 'three or four distinct arm logs',
+        },),).toBe('FAIL bench: three or four distinct arm logs: medium and low hold the same lines',);
         /**
          The first log named twice.
          */
-        const named: readonly ArmLog[] = [GOOD_BENCH[0] as ArmLog, ...GOOD_BENCH.slice(0, 3,),];
+        const named: readonly ArmLog[] = [GOOD_BENCH[0] as ArmLog, ...GOOD_BENCH.slice(0, 2,),];
         expect(lineFor({
           lines: checkEditorBench({ arms: named, },).lines,
           scope: 'bench',
-          check: 'four distinct arm logs',
-        },),).toBe('FAIL bench: four distinct arm logs: low and low hold the same lines',);
+          check: 'three or four distinct arm logs',
+        },),).toBe('FAIL bench: three or four distinct arm logs: high and high hold the same lines',);
       },
     },),
 
@@ -189,34 +266,34 @@ await describe({
       name: 'FAILS THE CARDS CHECK for logs run at other cards or in another order, naming the cards they ran',
       fn: async () => {
         /**
-         High before the mediums.
+         Low before the medium arm.
          */
         const reordered: readonly ArmLog[] = [
           GOOD_BENCH[0] as ArmLog,
-          GOOD_BENCH[3] as ArmLog,
-          GOOD_BENCH[1] as ArmLog,
           GOOD_BENCH[2] as ArmLog,
+          GOOD_BENCH[1] as ArmLog,
         ];
         expect(lineFor({
           lines: checkEditorBench({ arms: reordered, },).lines,
           scope: 'bench',
-          check: 'cards low, medium, medium, high',
+          check: 'cards high, medium, a second medium if run, low',
         },),).toBe(
-          'FAIL bench: cards low, medium, medium, high in the order run: the logs ran low, high, medium, medium',
+          'FAIL bench: cards high, medium, a second medium if run, low in the order run: the logs ran high, low, medium',
         );
         /**
-         Low twice instead of the second medium.
+         The old order, with low first, the mediums twice, and high last.
          */
-        const doubled: readonly ArmLog[] = [
-          ...GOOD_BENCH.slice(0, 2,),
-          armOf({ arm: 'medium-b', card: LOW_CARD, declaredUsd: 2.38, countedUsd: 1.25, },),
-          GOOD_BENCH[3] as ArmLog,
+        const old: readonly ArmLog[] = [
+          armOf({ arm: 'low', cardId: LOW_CARD, declaredUsd: 0, countedUsd: 0.875, },),
+          GOOD_BENCH[1] as ArmLog,
+          armOf({ arm: 'medium-b', cardId: MEDIUM_CARD, declaredUsd: 2.38, countedUsd: 1.25, },),
+          armOf({ arm: 'high', cardId: HIGH_CARD, declaredUsd: 3.63, countedUsd: 2.5, },),
         ];
         expect(lineFor({
-          lines: checkEditorBench({ arms: doubled, },).lines,
+          lines: checkEditorBench({ arms: old, },).lines,
           scope: 'bench',
-          check: 'cards low, medium, medium, high',
-        },),).toContain('the logs ran low, medium, low, high',);
+          check: 'cards high, medium, a second medium if run, low',
+        },),).toContain('the logs ran low, medium, medium, high',);
       },
     },),
 
@@ -225,41 +302,130 @@ await describe({
         + 'nothing, and passes the arms before it',
       fn: async () => {
         /**
-         The second medium arm declared a spend short of the two arms before it.
+         The low arm declared a spend short of the two arms before it.
          */
         const short: readonly ArmLog[] = [
           ...GOOD_BENCH.slice(0, 2,),
-          armOf({ arm: 'medium-b', card: MEDIUM_CARD, declaredUsd: 2.37, countedUsd: 1.25, },),
-          GOOD_BENCH[3] as ArmLog,
+          armOf({ arm: 'low', cardId: LOW_CARD, declaredUsd: 3.99, countedUsd: 0.875, },),
         ];
         const { lines, } = checkEditorBench({ arms: short, },);
-        expect(lineFor({ lines, scope: 'medium-b', check: 'earlier spend declared', },),).toBe(
-          'FAIL medium-b: earlier spend declared: --bench-spent-usd 2.37 is less than the 2.375000 USD the arms '
+        expect(lineFor({ lines, scope: 'low', check: 'earlier spend declared', },),).toBe(
+          'FAIL low: earlier spend declared: --bench-spent-usd 3.99 is less than the 4.000000 USD the arms '
             + 'before it counted',
         );
-        expect(lineFor({ lines, scope: 'medium-a', check: 'earlier spend declared', },).startsWith('PASS ',),).toBe(
-          true,
-        );
-        // The high arm declared 3.63, which still covers the 3.625 the arms before it counted.
-        expect(lineFor({ lines, scope: 'high', check: 'earlier spend declared', },).startsWith('PASS ',),).toBe(true,);
+        expect(lineFor({ lines, scope: 'medium', check: 'earlier spend declared', },).startsWith('PASS ',),).toBe(true,);
         /**
          An arm whose guard line states no spend.
          */
         const silent: readonly ArmLog[] = [
-          armOf({ arm: 'low', card: LOW_CARD, declaredUsd: 0, countedUsd: 0.875, },),
+          GOOD_BENCH[0] as ArmLog,
           {
             ...GOOD_BENCH[1] as ArmLog,
             lines: (GOOD_BENCH[1] as ArmLog).lines.filter(function notGuard(line,): boolean {
               return !line.includes('spend guard: ',);
             },),
           },
-          ...GOOD_BENCH.slice(2,),
+          GOOD_BENCH[2] as ArmLog,
         ];
         expect(lineFor({
           lines: checkEditorBench({ arms: silent, },).lines,
-          scope: 'medium-a',
+          scope: 'medium',
           check: 'earlier spend declared',
-        },),).toBe('FAIL medium-a: earlier spend declared: the guard line states no --bench-spent-usd',);
+        },),).toBe('FAIL medium: earlier spend declared: the guard line states no --bench-spent-usd',);
+      },
+    },),
+
+    it({
+      name: 'FAILS THE TRIAL-ORDER CHECK of a later arm that walked another trial than the first arm at some row, or more '
+        + 'trials than the first arm completed, naming the row and both trials',
+      fn: async () => {
+        /**
+         The low arm walked the alteration of the second entry where the first arm walked its insertion.
+         */
+        const swapped = GOOD_ROWS.map(function swap(
+          row,
+          at,
+        ): RowSpec {
+          return (at === 2) ? { ...row, trial: 'cat-1-s0/alteration', } : row;
+        },);
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [
+              GOOD_BENCH[0] as ArmLog,
+              GOOD_BENCH[1] as ArmLog,
+              armOf({ arm: 'low', cardId: LOW_CARD, rows: swapped, declaredUsd: 4, countedUsd: 0.875, },),
+            ],
+          },).lines,
+          scope: 'low',
+          check: 'trials in the first arm\'s order',
+        },),).toBe(
+          'FAIL low: trials in the first arm\'s order: row 3 walked cat-1-s0/alteration where high walked cat-1-s0/insertion',
+        );
+        /**
+         The low arm walked past what the first arm completed.
+         */
+        const longer = poolRows({
+          count: FIRST_ARM_TRIALS + 2,
+          fixed: function every(): boolean {
+            return true;
+          },
+        });
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [
+              GOOD_BENCH[0] as ArmLog,
+              GOOD_BENCH[1] as ArmLog,
+              armOf({ arm: 'low', cardId: LOW_CARD, rows: longer, declaredUsd: 4, countedUsd: 0.875, },),
+            ],
+          },).lines,
+          scope: 'low',
+          check: 'trials in the first arm\'s order',
+        },),).toBe(
+          'FAIL low: trials in the first arm\'s order: it walked 46 trials and high completed 44',
+        );
+      },
+    },),
+
+    it({
+      name: 'FAILS THE SHARED-TRIALS CHECK when fewer than forty trials remain shared by every arm, and says how many were '
+        + 'left out as thrown and how many an arm did not complete; passes at forty-one with three thrown',
+      fn: async () => {
+        /**
+         The low arm capped after thirty-nine trials.
+         */
+        const capped = armOf({
+          arm: 'low',
+          cardId: LOW_CARD,
+          rows: GOOD_ROWS.slice(0, 39,),
+          declaredUsd: 4,
+          countedUsd: 0.875,
+          capped: true,
+        },);
+        expect(lineFor({
+          lines: checkEditorBench({ arms: [GOOD_BENCH[0] as ArmLog, GOOD_BENCH[1] as ArmLog, capped,], },).lines,
+          scope: 'bench',
+          check: 'shared trials',
+        },),).toBe(
+          'FAIL bench: shared trials: 39 shared trials remain of the 44 the first arm completed (0 left out as thrown, 5 not completed by every arm), under the 40 the rule needs',
+        );
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [GOOD_BENCH[0] as ArmLog, mediumThrowing({ count: 3, },), GOOD_BENCH[2] as ArmLog,],
+          },).lines,
+          scope: 'bench',
+          check: 'shared trials',
+        },),).toBe(
+          'PASS bench: shared trials: 41 shared trials over 21 entries, 3 left out as thrown and 0 not completed by every arm, at least the 40 the rule needs',
+        );
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [GOOD_BENCH[0] as ArmLog, mediumThrowing({ count: 5, },), GOOD_BENCH[2] as ArmLog,],
+          },).lines,
+          scope: 'bench',
+          check: 'shared trials',
+        },).startsWith(
+          'FAIL bench: shared trials: 39 shared trials remain of the 44 the first arm completed (5 left out as thrown, 0 not completed by every arm)',
+        ),).toBe(true,);
       },
     },),
 
@@ -271,7 +437,7 @@ await describe({
          */
         const report = checkEditorBench({ arms: GOOD_BENCH.slice(0, 2,), },);
         expect(report.lines.some(function isExit(line,): boolean {
-          return line.startsWith('FAIL low: manifest line',);
+          return line.startsWith('FAIL high: manifest line',);
         },),).toBe(true,);
         expect(report.lines.length,).toBeGreaterThan(20,);
         expect(report.failed,).toBe(report.lines.filter(function isFail(line,): boolean {

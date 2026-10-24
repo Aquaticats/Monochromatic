@@ -158,8 +158,8 @@ await describe({
     },),
 
     it({
-      name: 'PRINTS THE BENCH CHECKS and exits six for logs that are not four distinct arms at the cards low, medium, '
-        + 'medium and high, so a bench of one log, or of a log repeated, is not read as the bench',
+      name: 'PRINTS THE BENCH CHECKS and exits six for logs that are not three or four distinct arms at the cards high, '
+        + 'medium, a second medium if run, and low, so a bench of one log, or of a log repeated, is not read as the bench',
       fn: async () => {
         const one = await runAsBuilt({
           files: { 'low.log': '', },
@@ -167,26 +167,25 @@ await describe({
         },);
         expect(one.code,).toBe(REFUSED_AS_STATED,);
         expect(one.stdout,).toContain(
-          'FAIL bench: four distinct arm logs: 1 log was given, and a bench is four',
+          'FAIL bench: three or four distinct arm logs: 1 log was given, and a bench is three or four',
         );
         expect(one.stdout.some(function isCards(line,): boolean {
-          return line.startsWith('FAIL bench: cards low, medium, medium, high in the order run',);
+          return line.startsWith('FAIL bench: cards high, medium, a second medium if run, low in the order run',);
         },),).toBe(true,);
-        const four = await runAsBuilt({
+        const three = await runAsBuilt({
           files: {
-            'low.log': '',
-            'medium-a.log': '',
-            'medium-b.log': '',
             'high.log': '',
+            'medium.log': '',
+            'low.log': '',
           },
-          args: ['DIR/low.log', 'DIR/medium-a.log', 'DIR/medium-b.log', 'DIR/high.log',],
+          args: ['DIR/high.log', 'DIR/medium.log', 'DIR/low.log',],
         },);
-        expect(four.code,).toBe(REFUSED_AS_STATED,);
-        expect(four.stdout,).toContain(
-          'FAIL bench: four distinct arm logs: low and medium-a hold the same lines',
+        expect(three.code,).toBe(REFUSED_AS_STATED,);
+        expect(three.stdout,).toContain(
+          'FAIL bench: three or four distinct arm logs: high and medium hold the same lines',
         );
-        expect(four.stdout.some(function isEarlier(line,): boolean {
-          return line.startsWith('FAIL high: earlier spend declared: ',);
+        expect(three.stdout.some(function isEarlier(line,): boolean {
+          return line.startsWith('FAIL low: earlier spend declared: ',);
         },),).toBe(true,);
       },
     },),

@@ -61,10 +61,46 @@ await describe({
     it({
       name: 'ANSWERS THE ROW CHECK for a single trial in the singular, passing a row logged once',
       fn: async () => {
-        const rows = [`${PREFIX}pool: 1 trial over 1 entry (insertion 1, alteration 0)`, `${PREFIX}row 1 of 1: card on x: ok`,];
+        const rows = [`${PREFIX}planned: 1 of 1 trial`, `${PREFIX}row 1 of 1: card on x: ok`, `${PREFIX}TRIALS completed 1 of 1`,];
         const answer = rowAnswer({ facts: factsOf({ log: logOf({ lines: rows, },), },), },);
         expect(answer.ok,).toBe(true,);
         expect(answer.detail,).toBe('1 row logged, each once',);
+      },
+    },),
+
+    it({
+      name: 'ANSWERS THE ROW CHECK for an arm capped by the guard: the rows logged are the trials completed, fewer than '
+        + 'planned, and a CAPPED line says why; fewer completed than planned with no CAPPED line fails, and so does a log '
+        + 'with no TRIALS line',
+      fn: async () => {
+        const capped = [
+          `${PREFIX}planned: 3 of 88 trials`,
+          `${PREFIX}row 1 of 3: card on x: ok`,
+          `${PREFIX}row 2 of 3: card on y: ok`,
+          `${PREFIX}CAPPED at trial 3 of 3: 2 trials completed; the guard refused`,
+          `${PREFIX}TRIALS completed 2 of 3`,
+        ];
+        expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: capped, },), },), },).detail,).toBe(
+          '2 rows logged, each once; the guard capped the arm before trial 3',
+        );
+        expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: capped, },), },), },).ok,).toBe(true,);
+        /**
+         The same log without the line that says why it stopped short.
+         */
+        const silent = capped.filter(function notCapped(line,): boolean {
+          return !line.includes('CAPPED',);
+        },);
+        expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: silent, },), },), },),).toStrictEqual({
+          ok: false,
+          detail: '2 of 3 planned trials were completed and no CAPPED line says why the arm stopped',
+        },);
+        expect(rowAnswer({
+          facts: factsOf({
+            log: logOf({ lines: capped.filter(function notTrials(line,): boolean {
+              return !line.includes('TRIALS completed',);
+            },), },),
+          },),
+        },),).toStrictEqual({ ok: false, detail: 'no TRIALS line was logged', },);
       },
     },),
 

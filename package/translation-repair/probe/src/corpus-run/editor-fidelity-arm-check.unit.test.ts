@@ -97,6 +97,11 @@ type GoodArm = {
   readonly rows?: number;
 
   /**
+   Trials the TRIALS line says were completed, the pool's when omitted.
+   */
+  readonly completed?: number;
+
+  /**
    Cost of each SPEND line, in dollars.
    */
   readonly costs?: readonly number[];
@@ -165,6 +170,7 @@ function openingOf(
       },)[0],),
     },),
     guardLine({ maxUsd, benchSpentUsd, },),
+    `planned: ${String(TRIALS,)} of ${String(TRIALS,)} trials`,
   ].map(function prefixed(line,): string {
     return `${PREFIX}${line}`;
   },);
@@ -231,6 +237,7 @@ function goodArm({ arm, }: { readonly arm: GoodArm; }): ArmLog {
         },
       ),
       `${PREFIX}${editorTallyLine({ tally: TALLY, },)}`,
+      `${PREFIX}TRIALS completed ${String(arm.completed ?? TRIALS,)} of ${String(TRIALS,)}`,
       `${PREFIX}${editorKeptLine({ count: rows, keptAt: '/runs/x.json', },)}`,
       `${PREFIX}${guardTotalLine({ total: { usd: guardUsd, calls: 40, atCeiling: 0, }, },)}`,
       ...closing,
@@ -272,7 +279,7 @@ await describe({
         expect(report.failed,).toBe(0,);
         expect(report.lines.filter(function isPass(line,): boolean {
           return line.startsWith('PASS ',);
-        },).length,).toBe(12,);
+        },).length,).toBe(13,);
         expect(report.lines.some(function isFail(line,): boolean {
           return line.startsWith('FAIL ',);
         },),).toBe(false,);
@@ -332,6 +339,27 @@ await describe({
     },),
 
     it({
+      name: 'FAILS THE PLANNED CHECK for a log with no planned line, and one that planned more trials than the pool holds',
+      fn: async () => {
+        const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notPlanned(line,): boolean {
+          return !line.includes('planned: ',);
+        },);
+        expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'planned line', },),).toBe(
+          'FAIL low: planned line: no planned line was logged',
+        );
+        const over = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function grow(line,): string {
+          return line.replace('planned: 40 of 40 trials', 'planned: 41 of 40 trials',);
+        },);
+        expect(lineFor({ log: goodArm({ arm: { opening: over, }, },), check: 'planned line', },),).toBe(
+          'FAIL low: planned line: 41 trials planned of a pool of 40',
+        );
+        expect(lineFor({ log: goodArm({ arm: {}, },), check: 'planned line', },),).toBe(
+          'PASS low: planned line: 40 trials planned of a pool of 40',
+        );
+      },
+    },),
+
+    it({
       name: 'FAILS THE CEILING CHECK for a log with no ceiling line, or one for a different number of trials than the pool',
       fn: async () => {
         const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notCeiling(line,): boolean {
@@ -343,8 +371,8 @@ await describe({
         const other = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function cut(line,): string {
           return line.replace(': 40 trials, one ask', ': 12 trials, one ask',);
         },);
-        expect(lineFor({ log: goodArm({ arm: { opening: other, }, },), check: 'ceiling line', },),).toContain(
-          'FAIL low: ceiling line: 12 trials',
+        expect(lineFor({ log: goodArm({ arm: { opening: other, }, },), check: 'ceiling line', },),).toBe(
+          'FAIL low: ceiling line: 12 trials, for 40 planned',
         );
       },
     },),
@@ -389,15 +417,18 @@ await describe({
             return line.replace('clean fix 30 of 40', 'clean fix 30 of 38',);
           },),
         };
-        expect(lineFor({ log: other, check: 'EDITOR line', },),).toContain('FAIL low: EDITOR line: counts 38 trials',);
+        expect(lineFor({ log: other, check: 'EDITOR line', },),).toBe(
+          'FAIL low: EDITOR line: counts 38 trials, for 40 completed',
+        );
       },
     },),
 
     it({
-      name: 'FAILS THE ROW CHECK when fewer rows were logged than the pool holds, or a row is logged twice',
+      name: 'FAILS THE ROW CHECK when fewer rows were logged than the trials the arm says it completed, or a row is '
+        + 'logged twice',
       fn: async () => {
         expect(lineFor({ log: goodArm({ arm: { rows: 39, }, },), check: 'row count', },),).toBe(
-          'FAIL low: row count: 39 rows logged for 40 trials',
+          'FAIL low: row count: 39 rows logged for 40 completed trials',
         );
         const log = goodArm({ arm: {}, },);
         const twice: ArmLog = {

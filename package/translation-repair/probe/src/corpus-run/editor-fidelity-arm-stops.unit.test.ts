@@ -116,36 +116,48 @@ await describe({
     },),
 
     it({
-      name: 'FAILS THE CAP-AND-THROW CHECK when any trial ended at the output-token cap, naming the rows, and passes an '
-        + 'arm whose asks ended any other way',
+      name: 'PASSES THE TRIAL-ENDS CHECK FOR AN ARM WHOSE ASKS ENDED ANY WAY and says what became of the trials that ended '
+        + 'at the output-token cap (they score as unusable for the arm) or threw (they are left out of every arm): the '
+        + 'rule absorbs both by trial, so neither fails an arm',
       fn: async () => {
         expect(lineOf({
           log: armWith({ stops: ['ok', 'refused+ok', 'unparseable+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'no trial ended at the output cap or threw',
-        },),).toBe('PASS low: no trial ended at the output cap or threw: 3 trials, none at the cap, none threw',);
+          check: 'trials at the output cap or thrown',
+        },),).toBe('PASS low: trials at the output cap or thrown: 3 trials, none at the cap, none threw',);
         expect(lineOf({
           log: armWith({ stops: ['ok', 'output-cap', 'ok', 'output-cap+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'no trial ended at the output cap or threw',
-        },),).toBe('FAIL low: no trial ended at the output cap or threw: 2 trials ended at the output-token cap (rows 2, 4)',);
+          check: 'trials at the output cap or thrown',
+        },),).toBe(
+          'PASS low: trials at the output cap or thrown: 2 trials ended at the output-token cap (rows 2, 4) and score '
+            + 'as unusable for this arm',
+        );
+        expect(lineOf({
+          log: armWith({ stops: ['ok', 'threw+ok', 'output-cap',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
+          check: 'trials at the output cap or thrown',
+        },),).toBe(
+          'PASS low: trials at the output cap or thrown: 1 trial ended at the output-token cap (row 3) and scores as '
+            + 'unusable for this arm; 1 trial had an ask that threw (row 2) and is left out of every arm',
+        );
       },
     },),
 
     it({
-      name: 'FAILS THE CAP-AND-THROW CHECK when any ask threw, from the row lines or from the seat line, and says which',
+      name: 'FAILS NO ARM FOR THE SEAT LINE SAYING ASKS THREW, since the threw count belongs to the trials the row lines '
+        + 'name and the rule leaves those out',
       fn: async () => {
-        expect(lineOf({
-          log: armWith({ stops: ['ok', 'threw+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'no trial ended at the output cap or threw',
-        },),).toBe('FAIL low: no trial ended at the output cap or threw: 1 trial had an ask that threw (row 2)',);
-        expect(lineOf({
-          log: armWith({
-            stops: ['ok', 'ok',],
-            unusable: 0,
-            refused: 0,
-            seat: `SEAT ${LOW_CARD} asked=40 usable=39 unusable=0 threw=2 silent=0 abandoned=0 unreachable=0`,
-          },),
-          check: 'no trial ended at the output cap or threw',
-        },),).toBe('FAIL low: no trial ended at the output cap or threw: the seat line says 2 asks threw',);
+        const report = checkEditorBench({
+          arms: [
+            armWith({
+              stops: ['ok', 'ok',],
+              unusable: 0,
+              refused: 0,
+              seat: `SEAT ${LOW_CARD} asked=40 usable=39 unusable=0 threw=2 silent=0 abandoned=0 unreachable=0`,
+            },),
+          ],
+        },);
+        expect(report.lines.filter(function isTrialEnds(line,): boolean {
+          return line.includes('trials at the output cap or thrown',) && line.startsWith('FAIL ',);
+        },),).toStrictEqual([],);
       },
     },),
 
