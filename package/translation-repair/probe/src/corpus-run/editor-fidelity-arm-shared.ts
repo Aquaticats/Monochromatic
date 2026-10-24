@@ -129,7 +129,7 @@ type Classified =
  const fixed = fixedBy({ row, });
  ```
  */
-function fixedBy({ row, }: { readonly row: RowStops; },): boolean {
+export function fixedBy({ row, }: { readonly row: RowStops; },): boolean {
   return row.fixed && (!row.stops
     .includes('output-cap',));
 }

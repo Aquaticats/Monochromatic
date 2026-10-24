@@ -14,6 +14,7 @@ import {
 import { isWholeNumberText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { checkEditorBench, } from './editor-fidelity-arm-bench.ts';
+import { repeatLinesOf, } from './editor-fidelity-arm-repeats.ts';
 import { benchReportLines, } from './editor-fidelity-arm-report.ts';
 import type {
   ArmLog,
@@ -175,8 +176,18 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-fidelity-r
   const passed = lines.filter(function isPass(said,): boolean {
     return said.startsWith('PASS ',);
   },);
+  // THE REPEAT AGREEMENT OF EACH ARM IS PRINTED WITH THE CHECKS, even when one fails: the runbook reads the high arm's alone,
+  // before the other arms exist, to choose how many passes the later arms take. It informs that choice and the reading of
+  // the verdict; it is not a figure of the verdict.
+  /**
+   The check lines, then the repeat lines.
+   */
+  const printed = [
+    ...lines,
+    ...repeatLinesOf({ arms, },),
+  ];
   process.stdout
-    .write(`${lines.join('\n',)}\nCHECKS ${String(passed.length,)} pass, ${String(failed,)} fail\n`,);
+    .write(`${printed.join('\n',)}\nCHECKS ${String(passed.length,)} pass, ${String(failed,)} fail\n`,);
   if (failed > 0) {
     throw new StatedRefusalError({
       says: `${String(failed,)} of the checks failed, so the logs of these arms are not evidence of the bench; read the FAIL lines printed before this one`,

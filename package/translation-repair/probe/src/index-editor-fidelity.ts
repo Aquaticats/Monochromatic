@@ -79,6 +79,7 @@ export {
   type RowStops,
 } from './corpus-run/editor-fidelity-arm-figures.ts';
 export { benchReportLines, } from './corpus-run/editor-fidelity-arm-report.ts';
+export { repeatLinesOf, } from './corpus-run/editor-fidelity-arm-repeats.ts';
 export {
   stopsStatedAnswer,
   trialEndsAnswer,

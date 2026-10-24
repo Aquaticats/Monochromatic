@@ -52,12 +52,28 @@ import {
 export const MIN_SHARED_TRIALS = 60;
 
 /**
- The worst chance of choosing another effort when none is better that the simulation measured over the committed pool
- walked in one to three passes, at true fix rates from 0.30 to 0.95, within-entry correlations from 0 to 1 and
- agreements of a repeat with the arm's first answer from 0 to 1. Each cell ran 1000 replicates, so a reading is about
- 0.007 either way, and the test's own bound is 0.05 because each of the two efforts is tested at 0.025 exactly.
+ The bound on the chance of choosing another effort when none is better, which holds when every arm repeats itself alike:
+ each of the two efforts is tested at 0.025 exactly, and the simulation over the committed pool walked in one to three
+ passes, at true fix rates from 0.30 to 0.95 and within-entry correlations from 0 to 1, read 0.055 at the worst of 192
+ cells at 800 replicates (noise 0.008) and 0.035 at most for the four cells over 0.05 re-run at 4000.
  */
-const FALSE_PICK_WORST = 0.055;
+export const FALSE_PICK_BOUND_ALIKE = 0.05;
+
+/**
+ The chance of choosing another effort when none is better that the simulation reached at the worst when the arms repeat
+ themselves unlike one another: the default effort asked afresh in each pass and the others repeating their first
+ answer, at a true fix rate of 0.9 over three passes, read by the committed fixture at 4000 replicates (0.098 at the
+ same cell of a full grid re-run at 4000).
+ */
+export const FALSE_PICK_UNEQUAL_REACHED = 0.107;
+
+/**
+ The difference between the arms' repeat agreements, in points, above which the read step warns. At 15 the warning
+ fired on 4.5 percent of the simulated benches whose arms repeat alike, and the false pick chance was 0.046 at most
+ over the benches it did not fire on (3000 replicates a cell, 176 and 264 units, true fix rates 0.5, 0.7 and 0.9);
+ at 20 it fired on 0.9 percent and the chance was 0.049 at most; at 25 the chance reached 0.063.
+ */
+export const REPEAT_WARNED_ABOVE_POINTS = 15;
 
 /**
  The efforts the rule tests against the default.
@@ -99,9 +115,14 @@ export function decisionRuleText(): string {
         many: 'shared units',
       },)
     } the read step refuses to give a verdict. By simulation over the `
-    + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seed edr7-sim), at true fix rates from 0.30 to 0.95, '
-    + 'within-entry correlations from 0 to 1 and an agreement of a repeat with the arm\'s first answer from 0 to 1, the '
-    + `chance of choosing another effort when none is better is at most ${String(FALSE_PICK_WORST,)}; over the 88 trials `
+    + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seeds edr7-sim and edr8-sim), at true fix rates from '
+    + '0.30 to 0.95, within-entry correlations from 0 to 1 and an agreement of a repeat with the arm\'s first answer from '
+    + '0 to 1, the chance of choosing another effort when none is better is at most '
+    + `${String(FALSE_PICK_BOUND_ALIKE,)} when every arm repeats itself alike (the worst of 192 cells was 0.055 at 800 `
+    + 'replicates, within the noise of 0.008, and the four cells over 0.05 were at most 0.035 at 4000), and up to '
+    + `${String(FALSE_PICK_UNEQUAL_REACHED,)} when the default effort repeats itself far less than the others (a true fix `
+    + 'rate of 0.9, three passes); the read step prints each arm\'s repeat agreement and warns when they differ by more '
+    + `than ${String(REPEAT_WARNED_ABOVE_POINTS,)} points; over the 88 trials `
     + 'walked once the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half, 20 points '
     + 'when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, and over 176 units (two passes) '
     + '25, 21 and 14 points where a repeat always gives the arm\'s first answer again, 21, 17 and 12 points where it does '

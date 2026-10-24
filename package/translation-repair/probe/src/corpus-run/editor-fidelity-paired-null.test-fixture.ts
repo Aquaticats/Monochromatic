@@ -165,6 +165,16 @@ export type BenchScenario = {
    The chance that an arm, asked a trial again, gives the answer it gave the first time and not a new one.
    */
   readonly agreement: number;
+
+  /**
+   The agreement of each arm, the high, the low and the default effort in that order, in place of `agreement` for arms
+   that repeat themselves unlike one another.
+   */
+  readonly armAgreements?: readonly [
+    number,
+    number,
+    number
+  ];
 };
 
 /**
@@ -317,7 +327,7 @@ export function simulatedFixes(
         base,
         offset: REPEAT_AT,
         arm,
-      },) < scenario.agreement)
+      },) < (scenario.armAgreements?.[arm] ?? scenario.agreement))
         ? (numbers[first]?.[arm] ?? 0)
         : drawOf({
           draws,
