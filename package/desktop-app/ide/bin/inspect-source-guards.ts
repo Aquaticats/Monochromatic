@@ -1952,8 +1952,8 @@ const cases: Guard[] = [
   {
     name: 'hint-skip-reopen',
     file: 'src/native/language/sync.rs',
-    before: '    current.annotations.forget_answered();',
-    after: '    let _ = &mut current;',
+    before: '    stored.annotations.forget_answered();',
+    after: '    let _ = &mut stored;',
     native: true,
     test: 'opening_the_file_again_forgets_the_lines_asked_about',
     failure: 'the scripted server did not receive the expected hint request'

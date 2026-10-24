@@ -144,10 +144,10 @@ pub(super) fn update(language: &mut Language, source: &Rc<RefCell<State>>) -> Re
     language.synced = Some(stamp);
     language.reopen = false;
     // An older reload record is covered by the full text just sent.
-    let mut current = source.borrow_mut();
-    current.language_reload = None;
+    let mut stored = source.borrow_mut();
+    stored.language_reload = None;
     // A worker that opened the file again holds no earlier hint request, so no lines count as asked about.
-    current.annotations.forget_answered();
+    stored.annotations.forget_answered();
     return Ok(true);
 }
 
@@ -215,7 +215,10 @@ pub(super) fn hints(
     // if (annotations.answeredCovers(stamp, first, last)) return;
     // ```
     let (first, last) = request_lines(wanted, source.borrow().document.text().len_lines());
-    let covered = source.borrow().annotations.answered_covers(stamp, first..last);
+    let covered = source
+        .borrow()
+        .annotations
+        .answered_covers(stamp, first..last);
     if covered {
         tracing::debug!(
             ?stamp,

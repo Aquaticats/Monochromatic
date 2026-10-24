@@ -34,6 +34,12 @@ pub(super) struct Coverage {
     ranges: Vec<Range<usize>>,
 }
 
+/// The first line of a range,
+///  the order in which covered ranges are kept.
+fn first_line_of(range: &Range<usize>) -> usize {
+    return range.start;
+}
+
 /// Add asked lines, and ask whether given lines were asked.
 impl Coverage {
     /// What:
@@ -58,7 +64,7 @@ impl Coverage {
             return;
         }
         self.ranges.push(lines);
-        self.ranges.sort_by_key(|range| range.start);
+        self.ranges.sort_by_key(first_line_of);
         let mut joined: Vec<Range<usize>> = Vec::new();
         for range in self.ranges.drain(..) {
             match joined.last_mut() {

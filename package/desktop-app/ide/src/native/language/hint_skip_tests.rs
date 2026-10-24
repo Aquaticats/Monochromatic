@@ -210,6 +210,14 @@ fn skipped(scene: &Scene, line: usize) {
     );
 }
 
+/// Whether the language state still waits to tell the worker about the displayed file again.
+fn reopening(scene: &Scene) -> bool {
+    let Some(binding) = scene.reader.binding.as_ref() else {
+        return false;
+    };
+    return binding.language.borrow().reopen;
+}
+
 /// A first line far from the top,
 ///  with room for the views a test scrolls through.
 const FAR: usize = 200;
@@ -254,7 +262,11 @@ fn a_view_leaving_the_answered_lines_sends_a_request() {
     // Back inside what is answered now: no request.
     show(&scene, FAR + view / 2);
     idle(SETTLED_MS);
-    assert_eq!(asked(&scene).len(), 4, "a view inside the answers sent a request");
+    assert_eq!(
+        asked(&scene).len(),
+        4,
+        "a view inside the answers sent a request"
+    );
 }
 
 /// An edit from outside makes another revision:
@@ -338,12 +350,7 @@ fn opening_the_file_again_forgets_the_lines_asked_about() {
     }
     // The next tick tells the worker about the displayed file again.
     let mut waiting = Waiting::language();
-    while scene
-        .reader
-        .binding
-        .as_ref()
-        .is_some_and(|binding| binding.language.borrow().reopen)
-    {
+    while reopening(&scene) {
         waiting.step("the file was not displayed to the worker again");
     }
     idle(SETTLED_MS);
