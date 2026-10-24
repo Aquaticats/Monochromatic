@@ -727,3 +727,29 @@ They pass at their commit as guards of behaviour that already existed,
 and scratch mutations that returned the wrong reading or logged at the wrong level failed them.
 The audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+fix round 8:
+the statement above that both relative-root cases fail at the parent of the fix holds for the pair and not for the
+commit as run.
+At `4d0cb07e58` one case fails;
+the other sits in a later top-level suite of the file,
+which a failing earlier suite stops.
+Run against the red source with the test file of `92bc64f003`,
+which nests the suites under one,
+both fail.
+The `@throws` of `searchReaches` now also names what `process.cwd` raises for a relative root or directory
+when the working directory was removed
+(probed on a removed directory:
+`ENOENT`).
+The type `RunbookRootReading` is exported beside `runbookRootReading`,
+which returns it,
+as `RootReading` is beside `reachOfRoot`.
+A comment at the join says why the plain concatenation is POSIX-only
+and why that holds for this module:
+a drive-relative Windows path such as `C:foo` is not absolute and would be joined wrongly,
+but `searchReaches` takes both paths to share one filesystem root and compares no pair on two drives
+(`516d786709`).
+No behaviour changed.
+The audit reads versions and writes none,
+so no cache version moved.

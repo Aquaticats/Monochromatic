@@ -236,6 +236,42 @@ in the section "Real waits that a fake-clock walk leaves running" of
 No cached record holds a clock and no key covers one,
 so no cache version moved.
 
+Later,
+fix round 8:
+the scan read `clearTimeout` alone,
+yet the library's fake `clearInterval` and `clearImmediate` refuse a native timer in the same way
+(`clearTimer` and `getClearHandler` of `@sinonjs/fake-timers` 15.4.0),
+so a clock that faked only `setInterval` and `clearInterval`,
+or only `setImmediate` and `clearImmediate`,
+passed the scan with the hazard.
+The re-check's scratch mutant,
+the walk fixture's install changed to such a list with the option removed,
+passed the scan.
+No install of the family did this,
+so nothing was hidden.
+The scan now reads all three clear functions
+(an empty list or no list names all three,
+a list names the ones it holds),
+a finding names the first clear function the clock fakes,
+and its header,
+the task description and the record file say so
+(red `3a70e5cc1a`,
+which holds one fixture install for each extra function and two controls that stay clean,
+fix `bd5b9076e4`).
+The case `LEAVES NO REAL TIMER LIVE WHEN THE WALK HAS ENDED` compared two counts of the whole process's live timers,
+so a timer of the harness that ended between the counts hid a leaked wait:
+with the abort removed from the fixture,
+two hang stops leaked and the difference of the counts was one.
+The case now gives the walk a hang-stop figure no other timer holds,
+records the timers made with it through an async hook,
+lets the process turn once for the batched end notices,
+and expects none of them live and at least one made (`5de8d5ba20`).
+It is a guard of what the fixture already did and has no red commit;
+with the abort removed it fails with two live where none was expected,
+and the other cases of the file pass.
+No cached record holds a clock and no key covers one,
+so no cache version moved.
+
 ## B838: a wait judged a return against the quorum alone
 
 Status:

@@ -17,6 +17,9 @@ its start check,
 a native timer of five seconds.
 The fake `clearTimeout` refuses a timer it did not make:
 it writes `FakeTimers: clearTimeout was invoked to clear a native timer` to stderr and leaves the timer running.
+The fake `clearInterval` and `clearImmediate` do the same for an interval and an immediate they did not make,
+with the message naming the function
+(`clearTimer` and `getClearHandler` of `@sinonjs/fake-timers` 15.4.0 serve all three the same way).
 Two suites of about 100 ms each then held their process for about 5.3 s,
 and nothing the suite printed said so (ledger B837).
 The change had been gated on the suites' times (677 ms to 158 ms) and on the claim that no case sleeps,
@@ -25,8 +28,10 @@ Three more installs of a fake clock in three packages carried the same omission,
 and the payment-hold suite had the option and a comment saying why.
 
 The rule:
-a fake clock that fakes `clearTimeout` is installed with `shouldClearNativeTimers: true`,
-so a clear of a timer made before the clock was installed reaches the real `clearTimeout`.
+a fake clock that fakes `clearTimeout`,
+`clearInterval` or `clearImmediate`
+is installed with `shouldClearNativeTimers: true`,
+so a clear of a timer made before the clock was installed reaches the real function of the same name.
 A change that moves a suite to a fake clock is gated on the process,
 not only on the suite:
 the whole command of that file is timed three times,
@@ -42,12 +47,13 @@ What enforces it:
 among the source scans,
 fails any `useFakeTimers` call of any family package,
 tests and fixtures included,
-that fakes `clearTimeout`
+that fakes any of the three clear functions
 (no `toFake` list,
 an empty one,
-or a list that names it)
+or a list that names one of them)
 without the literal `true` for the option,
-naming the file and the line.
+naming the file,
+the line and the first clear function the clock fakes.
 Options the scan cannot read are findings
 (no options,
 a variable,
@@ -58,13 +64,19 @@ the `install` function of `@sinonjs/fake-timers` (version 15.4.0 installed here)
 takes the keys of every timer when the list it is handed has no member
 (`fake-timers-src.js`,
 the `hasToFake` branch),
-so `toFake: []` fakes `clearTimeout` and `toFake: ['Date']` does not.
-A clock whose non-empty list leaves `clearTimeout` out,
+so `toFake: []` fakes the three clear functions and `toFake: ['Date']` fakes none.
+A clock whose non-empty list leaves all three out,
 the date alone for one,
 is left alone by rule.
+The scan first read `clearTimeout` alone;
+the library's fake clear refuses a native timer of any of the three the same way,
+so a clock that fakes only `setInterval` and `clearInterval`,
+or only `setImmediate` and `clearImmediate`,
+met the hazard and passed (ledger B837).
+No install of the family did this when the scan was widened.
 Out of its reach:
 a clock installed through the fake-timers library itself,
-and a `toNotFake` list that keeps `clearTimeout` real.
+and a `toNotFake` list that keeps a clear function real.
 The process time stays a habit of the gate (ledger M288).
 
 ## Real waits that a fake-clock walk leaves running
@@ -95,10 +107,21 @@ The rule:
 a test fixture that starts a real wait it will not wait for
 hands it an abort signal and aborts it when the fixture returns,
 however it returns.
-The check that no real timer is left is a count of the process's live timers
-(`process.getActiveResourcesInfo()`) before and after,
-which names the cause in a case,
-where a bound on the process wall would only show it as slow.
+The check that no real timer is left counts only the timers the fixture made:
+the case gives the fixture a wait figure no other timer of the process holds,
+records with an async hook
+(`node:async_hooks` `createHook`,
+`init` and `destroy`)
+each `Timeout` made with that figure and each end,
+lets the process turn once for the batched end notices,
+and expects none to be live and at least one to have been made.
+A count of all the process's live timers before and after
+(`process.getActiveResourcesInfo()`) was the first form:
+a timer of the harness that ended between the two counts hid a leaked wait
+(two leaked,
+a difference of one),
+and one the harness started in the window could fail the case.
+A bound on the process wall would only show the leak as slow.
 
 What to do when a suite holds its process after its last case:
 preload a hook on `node:async_hooks` that writes the stack of every `Timeout` of a second or more,
@@ -111,7 +134,9 @@ What enforces it:
 the case `LEAVES NO REAL TIMER LIVE WHEN THE WALK HAS ENDED` of `fake-clock-walk.unit.test.ts`.
 No scan reads fixtures for real waits that are never ended;
 a scan would have to follow where each wait goes,
-and the count in the case reads the result.
+and the count of the timers the walk made reads the result.
+With the abort of the waits removed from the fixture,
+the case fails with two timers live where none is expected.
 
 [real-clocks]:
   mistake-prevention-tests-clocks-and-arrival-order.md#tests-on-the-real-clock
