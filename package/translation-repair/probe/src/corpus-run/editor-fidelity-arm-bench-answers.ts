@@ -6,7 +6,10 @@ import {
   countWithNoun,
   usdSaid,
 } from './editor-fidelity-arm-facts.ts';
-import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
+import type {
+  ArmFigures,
+  RowStops,
+} from './editor-fidelity-arm-figures.ts';
 import { effortOf, } from './editor-fidelity-arm-shared.ts';
 
 //region Editor fidelity bench answers
@@ -211,6 +214,23 @@ export function declaredAnswer(
 }
 
 /**
+ Says which trial a row walked and, for a later pass over the pool, the pass.
+
+ @param row - the row
+
+ @returns The trial's handle, then `(pass 2)` and so on after it for a later pass
+
+ @example
+ ```ts
+ // yields 'cat-0-s0/insertion (pass 2)'
+ const said = unitSaid({ row, },);
+ ```
+ */
+function unitSaid({ row, }: { readonly row: RowStops; },): string {
+  return (row.pass > 1) ? `${row.trial} (pass ${String(row.pass,)})` : row.trial;
+}
+
+/**
  The answer of the check that a later arm walked the first arm's trials in the first arm's order.
 
  @param first - the first arm's name and figures
@@ -258,28 +278,29 @@ export function trialOrderAnswer(
     };
   }
   /**
-   Where the later arm first walked another trial than the first arm, minus one when it never did.
+   The first arm's rows, the order the later arm is held to.
+   */
+  const firstRows = first.figures
+    .rows;
+  /**
+   Where the later arm first walked another trial, or the same trial in another pass, than the first arm, minus one
+   when it never did.
    */
   const differsAt = later.rows
     .findIndex(function walkedOther(
-      { trial, },
+      walked,
       at,
     ): boolean {
-      return trial
-        !== first.figures
-          .rows[at]
-          ?.trial;
+      return unitSaid({ row: walked, },)
+        !== unitSaid({ row: nonNullishOrThrow(firstRows[at],), },);
     },);
   if (differsAt !== (-1)) {
     return {
       ok: false,
-      detail: `row ${String(differsAt + 1,)} walked ${later.rows[differsAt]
-        ?.trial
-        ?? ''} where ${first.arm} walked ${
-        first.figures
-          .rows[differsAt]
-          ?.trial
-          ?? ''
+      detail: `row ${String(differsAt + 1,)} walked ${
+        unitSaid({ row: nonNullishOrThrow(later.rows[differsAt],), },)
+      } where ${first.arm} walked ${
+        unitSaid({ row: nonNullishOrThrow(firstRows[differsAt],), },)
       }`,
     };
   }

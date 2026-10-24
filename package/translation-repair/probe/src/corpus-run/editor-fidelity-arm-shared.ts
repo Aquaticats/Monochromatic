@@ -133,24 +133,41 @@ function fixedBy({ row, }: { readonly row: RowStops; },): boolean {
 }
 
 /**
- Keys an arm's rows by their trial handle.
+ Names a row's unit, a trial in one pass over the pool.
 
- @param rows - the arm's rows, none for an effort the bench has no arm at
+ @param row - the row
 
- @returns The rows by trial
+ @returns The trial handle and the pass, which no two rows of an arm share
 
  @example
  ```ts
- const byTrial = rowsByTrial({ rows, },);
+ // yields 'tabby-s0/insertion|2'
+ const unit = unitOf({ row, },);
  ```
  */
-function rowsByTrial({ rows, }: { readonly rows: readonly RowStops[]; },): ReadonlyMap<string, RowStops> {
+function unitOf({ row, }: { readonly row: RowStops; },): string {
+  return `${row.trial}|${String(row.pass,)}`;
+}
+
+/**
+ Keys an arm's rows by their unit, the trial handle and the pass.
+
+ @param rows - the arm's rows, none for an effort the bench has no arm at
+
+ @returns The rows by unit
+
+ @example
+ ```ts
+ const byUnit = rowsByUnit({ rows, },);
+ ```
+ */
+function rowsByUnit({ rows, }: { readonly rows: readonly RowStops[]; },): ReadonlyMap<string, RowStops> {
   return new Map(rows.map(function keyed(row,): readonly [
     string,
     RowStops
   ] {
     return [
-      row.trial,
+      unitOf({ row, },),
       row,
     ];
   },),);
@@ -222,7 +239,7 @@ export function sharedBenchOf(
    The rows by trial of the high, the low and each medium arm.
    */
   const rowsAt = {
-    high: rowsByTrial({
+    high: rowsByUnit({
       rows: figuresAt({
         arms,
         effort: 'high',
@@ -230,7 +247,7 @@ export function sharedBenchOf(
         ?.rows
         ?? [],
     },),
-    low: rowsByTrial({
+    low: rowsByUnit({
       rows: figuresAt({
         arms,
         effort: 'low',
@@ -242,8 +259,8 @@ export function sharedBenchOf(
       arms,
       effort: 'medium',
     },)
-      .map(function byTrial({ rows, },): ReadonlyMap<string, RowStops> {
-        return rowsByTrial({ rows, },);
+      .map(function byUnit({ rows, },): ReadonlyMap<string, RowStops> {
+        return rowsByUnit({ rows, },);
       },),
   };
   /**
@@ -251,24 +268,28 @@ export function sharedBenchOf(
    */
   const classified = reference.map(function classify(row,): Classified {
     /**
-     This trial's row in the high arm.
+     This unit, the trial in its pass.
+     */
+    const unit = unitOf({ row, },);
+    /**
+     This unit's row in the high arm.
      */
     const highRow = rowsAt.high
-      .get(row.trial,);
+      .get(unit,);
     /**
-     This trial's row in the low arm.
+     This unit's row in the low arm.
      */
     const lowRow = rowsAt.low
-      .get(row.trial,);
+      .get(unit,);
     /**
-     This trial's row in each medium arm that has one.
+     This unit's row in each medium arm that has one.
      */
     const mediumRows = rowsAt.mediums
       .flatMap(function rowIn(map,): readonly RowStops[] {
         /**
-         The medium arm's row, absent when it did not walk the trial.
+         The medium arm's row, absent when it did not walk the unit.
          */
-        const found = map.get(row.trial,);
+        const found = map.get(unit,);
         return (found === undefined) ? [] : [found,];
       },);
     if ((highRow === undefined) || (lowRow === undefined)

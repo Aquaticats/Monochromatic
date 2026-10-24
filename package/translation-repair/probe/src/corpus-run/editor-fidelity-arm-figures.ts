@@ -62,6 +62,11 @@ export type RowStops = {
   readonly entry: string;
 
   /**
+   The pass over the pool the row belongs to, counted from one; one when the line names none.
+   */
+  readonly pass: number;
+
+  /**
    The kind of defect the handle ends in, empty when it ends in neither.
    */
   readonly kind: '' | 'insertion' | 'alteration';
@@ -162,6 +167,30 @@ function kindFigureOf({ line, }: { readonly line: string; },): KindFigure {
 }
 
 /**
+ Reads the pass one row line names.
+
+ @param body - the row line's body
+
+ @returns The pass counted from one, one when the line names none, which is how a row of the first pass reads
+
+ @example
+ ```ts
+ // yields 2
+ const pass = passOf({ body: 'row 90 of 176: card on tabby/insertion: clean fix exact; entry tabby; pass 2; stopped ok', },);
+ ```
+ */
+function passOf({ body, }: { readonly body: string; },): number {
+  /**
+   The number after the pass marker, minus one when the line names none.
+   */
+  const named = numberAfter({
+    text: body,
+    marker: '; pass ',
+  },);
+  return (named === (-1)) ? 1 : named;
+}
+
+/**
  Reads the stops one row line states.
 
  @param body - the row line's body
@@ -221,6 +250,7 @@ function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
     },),
     trial,
     entry,
+    pass: passOf({ body, },),
     kind: (kindWord === 'insertion') || (kindWord === 'alteration') ? kindWord : '',
     fixed: afterTrial.join(': ',)
       .startsWith('clean fix',),
