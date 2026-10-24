@@ -55,7 +55,13 @@ export function plannedAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
     count: facts.planned,
     one: 'unit',
     many: 'units',
-  },)} planned in ${String(facts.passes,)} passes over a pool of ${
+  },)} planned in ${
+    countWithNoun({
+      count: facts.passes,
+      one: 'pass',
+      many: 'passes',
+    },)
+  } over a pool of ${
     countWithNoun({
       count: facts.poolTrials,
       one: 'trial',
@@ -64,7 +70,15 @@ export function plannedAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
   }`;
   return {
     ok: !over,
-    detail: over ? `${said}, more than the ${String(held,)} the passes hold` : said,
+    detail: over
+      ? `${said}, more than the ${
+        countWithNoun({
+          count: held,
+          one: 'unit',
+          many: 'units',
+        },)
+      } the passes hold`
+      : said,
   };
 }
 

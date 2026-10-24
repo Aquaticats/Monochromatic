@@ -1,4 +1,7 @@
-import type { ArmLog, } from './editor-fidelity-arm-facts.ts';
+import {
+  type ArmLog,
+  countWithNoun,
+} from './editor-fidelity-arm-facts.ts';
 import {
   armFiguresOf,
   type RowStops,
@@ -16,7 +19,7 @@ import { ALPHA, } from './editor-fidelity-paired.ts';
 // agrees with itself when it read the same way in every pass, a clean fix in each or in none (an ask that ended at the
 // output-token cap is not a clean fix, as in the paired test). The share of such trials that agree is an arm's repeat
 // agreement. The exact test holds its bound when the arms repeat themselves alike; when the default effort repeats itself
-// far less than the others the simulation reached a higher chance, so the lines below also warn when the arms' agreements
+// far less than the others the simulation reached a higher chance, so the repeat lines also warn when the arms' agreements
 // differ by more than the stated amount. The figures are read off each arm's own rows, a row in which an ask threw being
 // left out as the shared trials leave it out, so the lines are printed for one arm read alone, which the runbook does
 // before the other arms exist.
@@ -84,30 +87,32 @@ function repeatFigureOf(
   },
 ): RepeatFigure {
   /**
-   Whether each pass of a trial read as a clean fix, for each trial, the rows in which an ask threw left out.
+   The rows in which no ask threw.
    */
-  const readings = new Map<string, readonly boolean[]>();
-  for (const row of rows) {
-    /**
-     How the asks of the row ended.
-     */
-    const { stops, } = row;
-    if (stops.includes('threw',))
-      continue;
-    readings.set(
-      row.trial,
-      [
-        ...(readings.get(row.trial,) ?? []),
-        fixedBy({ row, },),
-      ],
-    );
-  }
-  /**
-   The trials asked in more than one pass, with how each read.
-   */
-  const again = [...readings.values(),].filter(function askedAgain(passes: readonly boolean[],): boolean {
-    return passes.length > 1;
+  const usable = rows.filter(function noThrow({ stops, },): boolean {
+    return !stops.includes('threw',);
   },);
+  /**
+   The rows of each trial, in the order of its passes.
+   */
+  const byTrial = Map.groupBy(
+    usable,
+    function trialOf({ trial, },): string {
+      return trial;
+    },
+  );
+  /**
+   Whether each pass read as a clean fix, for the trials asked in more than one pass.
+   */
+  const again = [...byTrial.values(),]
+    .filter(function askedAgain(passes: readonly RowStops[],): boolean {
+      return passes.length > 1;
+    },)
+    .map(function readings(passes: readonly RowStops[],): readonly boolean[] {
+      return passes.map(function fixedIn(row,): boolean {
+        return fixedBy({ row, },);
+      },);
+    },);
   /**
    Those that read alike in every pass.
    */
@@ -170,7 +175,13 @@ function percentOf({ figure, }: { readonly figure: RepeatFigure; },): number {
 function repeatLine({ figure, }: { readonly figure: RepeatFigure; },): string {
   if (figure.repeated === 0)
     return `REPEAT ${figure.arm}: no trial was asked in more than one pass`;
-  return `REPEAT ${figure.arm}: ${String(figure.agreed,)} of ${String(figure.repeated,)} trials gave the same reading in every pass (${
+  return `REPEAT ${figure.arm}: ${String(figure.agreed,)} of ${
+    countWithNoun({
+      count: figure.repeated,
+      one: 'trial',
+      many: 'trials',
+    },)
+  } gave the same reading in every pass (${
     String(percentOf({ figure, },),)
   } percent)`;
 }
@@ -200,8 +211,8 @@ function andList({ words, }: { readonly words: readonly string[]; },): string {
 }
 
 /**
- Whether two arms' shares differ by more than the warned-above amount, compared exactly by cross-multiplying the counts so
- that a difference of exactly that amount is not warned of.
+ Whether two arms' shares differ by more than the number of points the read step warns over, compared exactly by
+ cross-multiplying the counts so that a difference of exactly that number is not warned of.
 
  @param low - the arm with the lower share
 
@@ -228,14 +239,14 @@ function differsOver(
    */
   const scaledGap = 100 * ((high.agreed * low.repeated) - (low.agreed * high.repeated));
   /**
-   The amount warned above, times the same product.
+   The number of points the read step warns over, times the same product.
    */
   const scaledLimit = REPEAT_WARNED_ABOVE_POINTS * (low.repeated * high.repeated);
   return scaledGap > scaledLimit;
 }
 
 /**
- Says that the arms' repeat agreements differ by more than the warned-above amount.
+ Says that the arms' repeat agreements differ by more than the number of points the read step warns over.
 
  @param measured - the arms that have trials asked again, in the order they ran, at least two
 
