@@ -76,17 +76,46 @@ import {
 // The file that declares a builder and the producer list are not its users. A file is listed when it holds a format,
 // names the type of one or uses a builder.
 //
-// The check `blindSpotsOf`, in `claude-schema-blind-spots.test-fixture.ts`, reads every non-test source of the family
-// that the search reads, and names by file and line each place that holds a shape the search leaves unread; the real
-// sources hold none. A load whose path is a name, a joined path or a template with a substitution is such a shape
-// (`computed-load-path`). So is a load that is held un-awaited, chained with `.then` or handed to a call
-// (`load-in-unfollowed-form`). So is a builder stored as the value of an object, written in full or short
-// (`builder-stored-in-object`); a property of a pattern that takes a value apart stores nothing. So is a builder handed
-// to a call that a constant holds, as in `memoize(build)` (`builder-handed-to-a-call-held-by-a-constant`). So is a
-// result returned through a local (`result-returned-through-a-local`), and a builder called in a namespace, an enum
-// initializer or a parameter property (`builder-in-namespace-enum-or-parameter-property`). So is a function that holds
-// a format and that no declared function holds, as a static method, a getter or an anonymous default export does
-// (`format-in-undeclared-function`).
+// The search reads exactly these positions, and the check `blindSpotsOf`, in
+// `claude-schema-blind-spots.test-fixture.ts`, reports every other reference to a module that carries a builder or to a
+// binding that comes from one. The check reads every non-test source of the family; the real sources hold no such
+// reference. It makes two totals.
+//
+// The first total is the module-load boundary. A string that names a module that carries a builder (one that declares
+// a builder, or exports one by its own names, by `export *`, as a namespace or as an object with builder members) is
+// read as the source of an import or of an export from, as the one literal path of an `import()` or a `require`, or
+// inside a type. Any other such string is reported (`module-path-outside-a-load`): a literal handed to
+// `createRequire(...)`, `require.resolve`, `import.meta.resolve` or `new URL`, held by a constant, or named by an
+// import-equals declaration. An `import()` or a `require` whose path is not one literal is reported
+// (`computed-load-path`). A load of such a module with a literal path is followed when it is awaited or required and
+// held by a constant or a pattern the search binds name by name, or read in place with a member; any other load is
+// reported (`load-in-unfollowed-form`): an un-awaited one, a rest or a computed key or a nested pattern, a load that
+// is stored, handed to a call, chained with `.then` or dropped.
+//
+// The second total is every chain of names that stands for a builder, or for a module or object that carries one. A
+// builder is read as the callee of a call, of `new` or of a tagged template, after any of `.call`, `.apply` and
+// `.bind`, and as the value of a constant the search binds to it, or an alias of one. Every other place that holds one
+// is reported (`builder-outside-a-read-position`), with the kind of node and the field: a class field, an argument, a
+// default, an array, a conditional, a logical operand, a sequence, a getter, an assignment, a member that is no call
+// method (`.name`, `.length`, `.toString`) or a member computed from a name. The value of a builder's call is
+// followed through objects, arrays, spreads, fallbacks, conditionals, sequences, awaits, members, methods, locals,
+// patterns, defaults and names assigned; if it leaves a function by `return`, an arrow function's body or `yield`
+// and the search does not list that function as a builder, it is reported
+// (`builder-result-returned-outside-a-wrapper`). A call that takes the value as an argument ends the walk, since the
+// value is taken as the place the schema is sent, and the check follows no call further. A module or an object that
+// carries a builder is read as the object of a member the search reads, or as the value of a constant or a pattern that
+// the search binds; used as a whole (a computed member, an argument, a property, a spread, a rest, a default import
+// that the module does not export) it is reported (`module-binding-outside-a-read-position`). A namespace, an enum, a
+// parameter property, an export assignment or an import-equals declaration that holds either is walked and reported
+// (`builder-in-typescript-value-construct`). A function that holds a format and that no declared function holds, as a
+// static method, a getter or an anonymous default export does, is reported (`format-in-undeclared-function`); the
+// check leaves that one out for the four files the unit test names as writing the format without building a stage's
+// answer schema (`NOT_STAGE_SCHEMAS`: the model health probe of `bench` and `anthropic-tool.ts`, `chat-contract.ts`
+// and `claude-body.ts` of `provider`).
+//
+// The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
+// hides there, and a place it reports is answered by reading the place in the search or by naming the place in the
+// test.
 
 /**
  One source file of the family.

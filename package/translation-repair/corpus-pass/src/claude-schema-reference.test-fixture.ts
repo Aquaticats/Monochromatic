@@ -143,12 +143,29 @@ function isTypeVisit({ node, }: Visit,): boolean {
 }
 
 /**
+ Whether a node is a type that holds no value: not a namespace, an enum, a parameter property, an export assignment or an
+ import-equals declaration, which start with `TS` and hold what the program uses.
+
+ @param node - node read
+
+ @returns Whether the node is a type or part of one, and no construct that holds a value
+
+ @example
+ ```ts
+ const holdsNone = isTypeWithoutValue({ node, },);
+ ```
+ */
+export function isTypeWithoutValue({ node, }: { readonly node: TreeNode; },): boolean {
+  return isTypeNode({ node, },) && (!VALUE_HOLDING_TS_KINDS.has(node.type,));
+}
+
+/**
  Whether a visit is of a type that holds no value, which the walk inside a namespace, an enum or a parameter property
  leaves out.
 
  @param node - node visited
 
- @returns Whether the node is a type or part of one
+ @returns Whether the node is a type or part of one, and no construct that holds a value
 
  @example
  ```ts
@@ -156,7 +173,7 @@ function isTypeVisit({ node, }: Visit,): boolean {
  ```
  */
 export function isPureTypeVisit({ node, }: Visit,): boolean {
-  return isTypeNode({ node, },) && (!VALUE_HOLDING_TS_KINDS.has(node.type,));
+  return isTypeWithoutValue({ node, },);
 }
 
 /**

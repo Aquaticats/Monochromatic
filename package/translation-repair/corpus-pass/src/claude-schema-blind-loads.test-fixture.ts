@@ -6,9 +6,9 @@ import {
   positionOf,
 } from './claude-schema-blind-positions.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
 import { targetOf, } from './claude-schema-target.test-fixture.ts';
 import {
-  isTypeNode,
   type ModuleLoad,
   moduleLoadOf,
   nodesAt,
@@ -43,21 +43,6 @@ const SOURCE_DECLARATION_KINDS: ReadonlySet<string> = new Set([
   'ExportAllDeclaration',
   'ExportNamedDeclaration',
   'ImportDeclaration',
-],);
-
-/**
- The kinds of node that start with `TS` and hold a value or a module the program loads, which are no type.
- */
-const VALUE_HOLDING_TYPE_KINDS: ReadonlySet<string> = new Set([
-  'TSEnumBody',
-  'TSEnumDeclaration',
-  'TSEnumMember',
-  'TSExportAssignment',
-  'TSExternalModuleReference',
-  'TSImportEqualsDeclaration',
-  'TSModuleBlock',
-  'TSModuleDeclaration',
-  'TSParameterProperty',
 ],);
 
 /**
@@ -187,7 +172,7 @@ function isInsideType(
     readonly parents: ReadonlyMap<TreeNode, TreeNode>;
   },
 ): boolean {
-  if (isTypeNode({ node, },) && (!VALUE_HOLDING_TYPE_KINDS.has(node.type,)))
+  if (isTypeWithoutValue({ node, },))
     return true;
   /**
    The node that holds this one.
