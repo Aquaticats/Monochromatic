@@ -733,6 +733,127 @@ await describe({
       },
     },),
     it({
+      name: 'TELLS THE CALLER OF EVERY ATTEMPT BEFORE IT IS SENT, with the card and the most the attempt can be billed, '
+        + 'which is the figure the abandoned line writes, and sends the very request bodies a client told of '
+        + 'nothing sends',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        /**
+         The replies both clients are given: a cut stream, then a whole one.
+         */
+        const replies = [
+          { status: 200, bodyText: cut, },
+          {
+            status: 200,
+            bodyText: claudeStreamOf({ text: '{"spot":"sunbeam"}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+          },
+        ];
+        const plain = scripted({ replies, },);
+        const plainClient = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport: plain.transport,
+          retryPolicy: ONE_QUICK_RETRY,
+        },);
+        /**
+         What the caller was told, one entry for each attempt.
+         */
+        const asks: { readonly label: string; readonly usd: number; readonly sent: number; }[] = [];
+        const told = scripted({ replies, },);
+        const toldClient = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport: told.transport,
+          retryPolicy: ONE_QUICK_RETRY,
+          admitAttempt: function noteAsk({ label, bound, },): void {
+            asks.push({ label, usd: bound.usd, sent: told.exchanges.length, },);
+          },
+        },);
+
+        await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => {
+                await askCat({ client: plainClient, modelId: 'claude-sonnet-5-5-effort-low', },);
+                await askCat({ client: toldClient, modelId: 'claude-sonnet-5-5-effort-low', },);
+              },
+            },),
+        },);
+
+        /**
+         What one attempt is bounded at, off the body the plain client sent.
+         */
+        const bytes = Buffer.byteLength(plain.exchanges[0]?.bodyJson ?? '', 'utf8',);
+        const ceiling = Number(firstBodyOf({ exchanges: plain.exchanges, },).max_tokens,);
+        const oneAttempt = ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
+          + (ceiling * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
+        expect(asks.length,).toBe(2,);
+        expect(asks.map(function labelOf({ label, },): string {
+          return label;
+        },),).toStrictEqual(['claude-sonnet-5-5-effort-low', 'claude-sonnet-5-5-effort-low',],);
+        expect(asks[0]?.usd,).toBeCloseTo(oneAttempt, 8,);
+        expect(asks[1]?.usd,).toBeCloseTo(oneAttempt, 8,);
+        // Told before the request: the first telling saw no request sent, the second saw one.
+        expect(asks.map(function sentOf({ sent, },): number {
+          return sent;
+        },),).toStrictEqual([0, 1,],);
+        expect(told.exchanges.map(function toldBody({ bodyJson, },): string {
+          return bodyJson ?? '';
+        },),).toStrictEqual(plain.exchanges.map(function plainBody({ bodyJson, },): string {
+          return bodyJson ?? '';
+        },),);
+      },
+    },),
+    it({
+      name: 'SENDS NOTHING FOR THE ATTEMPT THE CALLER REFUSES: a refusal thrown before the second attempt leaves the '
+        + 'first attempt\'s abandoned line on the meter, reaches the caller of the call as it was thrown, and the '
+        + 'second request is never sent',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: cut, },], },);
+        /**
+         The refusal the caller throws.
+         */
+        const refusal = new Error('the second attempt would pass the amount',);
+        /**
+         Attempts the caller was told of.
+         */
+        const told = { count: 0, };
+        const client = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport,
+          retryPolicy: ONE_QUICK_RETRY,
+          admitAttempt: function refusesSecond(): void {
+            told.count += 1;
+            if (told.count === 2)
+              throw refusal;
+          },
+        },);
+
+        const { result: raised, logged, } = await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => await rejectionOf(() => askCat({ client, modelId: 'claude-sonnet-5-5-effort-low', },),),
+            },),
+        },);
+
+        expect(raised.result,).toBe(refusal,);
+        expect(told.count,).toBe(2,);
+        expect(exchanges.length,).toBe(1,);
+        expect(logged.filter(function isBound(line,): boolean {
+          return line.includes('SPEND ',) && line.includes(' estimated=abandoned-bound',);
+        },).length,).toBe(1,);
+      },
+    },),
+    it({
       name: 'STOPS A CARD EDITED PAST THE TYPES, the lock\'s third line: a wire model outside the two granted and an '
         + 'effort outside the three both refuse the call at the client, before a request is built',
       fn: async () => {

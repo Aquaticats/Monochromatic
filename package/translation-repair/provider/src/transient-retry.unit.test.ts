@@ -1071,6 +1071,91 @@ await describe({
     },),
 
     describe({
+      name: 'every attempt is told to the caller before it is sent',
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'TELLS THE CALLER BEFORE EVERY ATTEMPT, the first and each retry, and before the transport is reached: '
+            + 'two cut streams and a whole one are three tellings, each ahead of its request',
+          fn: async () => {
+            /**
+             What happened, in order: the caller told, the transport reached.
+             */
+            const order: string[] = [];
+            /**
+             The scripted transport the recording one answers through.
+             */
+            const answering = scriptedTransport({
+              script: [TRUNCATED_REPLY, TRUNCATED_REPLY, WHOLE_REPLY,],
+              calls: { count: 0, },
+            },);
+            await exchangeWithRetry({
+              provider: 'synthetic',
+              transport: async function recording(request,) {
+                order.push('send',);
+                return await answering(request,);
+              },
+              exchange: exchangeWith({ signal: new AbortController().signal, },),
+              policy: FAST_POLICY,
+              verify: requireDone,
+              beforeAttempt: async function told(): Promise<void> {
+                order.push('told',);
+              },
+            },);
+            expect(order,).toStrictEqual(['told', 'send', 'told', 'send', 'told', 'send',],);
+          },
+        },),
+        it({
+          name: 'ENDS THE EXCHANGE AT THE ATTEMPT THE CALLER REFUSES: what the caller throws before the third attempt '
+            + 'escapes untouched, is not retried and is not reported as an abandoned attempt, and the third request '
+            + 'is never sent',
+          fn: async () => {
+            /**
+             What the caller throws to refuse the third attempt.
+             */
+            const refusal = new Error('the third attempt would pass the amount',);
+            /**
+             Attempts the caller was told of.
+             */
+            const told = { count: 0, };
+            /**
+             Attempts that reached the transport.
+             */
+            const calls = { count: 0, };
+            /**
+             Attempts reported abandoned.
+             */
+            const reported: number[] = [];
+            /**
+             What the exchange threw.
+             */
+            const raised = await rejectionOf(async () =>
+              await exchangeWithRetry({
+                provider: 'synthetic',
+                transport: scriptedTransport({ script: [TRUNCATED_REPLY,], calls, },),
+                exchange: exchangeWith({ signal: new AbortController().signal, },),
+                policy: FAST_POLICY,
+                verify: requireDone,
+                beforeAttempt: async function refusesThird(): Promise<void> {
+                  told.count += 1;
+                  if (told.count === 3)
+                    throw refusal;
+                },
+                onAbandonedAttempt: async function record({ deliveredChars, },): Promise<void> {
+                  reported.push(deliveredChars,);
+                },
+              },),
+            );
+            expect(raised,).toBe(refusal,);
+            expect(told.count,).toBe(3,);
+            expect(calls.count,).toBe(2,);
+            expect(reported,).toStrictEqual([TRUNCATED_REPLY.bodyText.length, TRUNCATED_REPLY.bodyText.length,],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
       name: 'the retry line names the call it retries (ledger P12)',
       // ONE AT A TIME: its case diverts the process-wide `console.warn` across an
       // await (ledger B79).
