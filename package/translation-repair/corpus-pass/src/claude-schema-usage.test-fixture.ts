@@ -12,7 +12,7 @@ import {
 /**
  The functions a file refers to, and the names it refers to without declaring or importing them.
  */
-type Usage = {
+export type Usage = {
   /**
    Path of the file.
    */

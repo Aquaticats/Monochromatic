@@ -18,6 +18,7 @@ import {
   nodeAt,
   nodesAt,
 } from './claude-schema-tree.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region Where a stage hands the schema it makes to the bench
 // The senders of the third total of the check behind the schema search (`claude-schema-blind-spots.test-fixture.ts`):
@@ -80,6 +81,13 @@ const SENDERS: readonly Sender[] = [
       + 'that the provider accepts it, returns nothing and keeps nothing of the list',
   },
 ];
+
+/**
+ Keys of the senders, by the module that declares each.
+ */
+export const SENDER_KEYS: ReadonlySet<string> = new Set(SENDERS.map(function keyOfSender(sender,): string {
+  return keyOf(sender,);
+},),);
 
 /**
  The bindings and exports already followed when a callee is resolved from the start.
@@ -157,6 +165,120 @@ function argumentReadBy({ members, }: { readonly members: readonly string[]; },)
 }
 
 /**
+ What the senders need of the file around a call: the sources, the file and the parents of its nodes.
+ */
+type SenderScope =Pick<BlindContext, 'family' | 'file' | 'parents'>;
+
+/**
+ The senders a call names and the names its callee is written with after the head.
+
+ @param scope - what the file's names are read against
+
+ @param call - call
+
+ @returns Entries of the senders the callee resolves to, none when the callee is no chain of names, a computed member,
+ or a name that a scope around the call binds again; and the names after the head, empty then
+
+ @example
+ ```ts
+ const { senders, members, } = sendersNamedBy({ scope, call, },);
+ ```
+ */
+function sendersNamedBy(
+  {
+    scope,
+    call,
+  }: {
+    readonly scope: SenderScope;
+    readonly call: TreeNode;
+  },
+): {
+  readonly senders: readonly Sender[];
+  readonly members: readonly string[];
+} {
+  /**
+   The names the callee is written with.
+   */
+  const chain = chainOf({ node: call.callee, },);
+  if (chain === NO_CHAIN) {
+    return {
+      senders: [],
+      members: [],
+    };
+  }
+  if (chain.members
+    .includes(COMPUTED_MEMBER,)) {
+    return {
+      senders: [],
+      members: [],
+    };
+  }
+  if (isBoundAround({
+    node: call,
+    name: chain.head,
+    parents: scope.parents,
+  },)) {
+    return {
+      senders: [],
+      members: [],
+    };
+  }
+  /**
+   What the callee stands for in this file.
+   */
+  const callee = resolvePath({
+    family: scope.family,
+    file: scope.file,
+    path: [
+      chain.head,
+      ...chain.members,
+    ],
+    seen: NOTHING_FOLLOWED,
+  },);
+  return {
+    senders: SENDERS.filter(function isCallee(sender,): boolean {
+      if (callee.kind !== 'function')
+        return false;
+      return (sender.file === callee.file) && (sender.name === callee.name);
+    },),
+    members: chain.members,
+  };
+}
+
+/**
+ Whether a call is a call of a sender, written as the file writes it, whatever object it takes.
+
+ @param scope - what the file's names are read against
+
+ @param call - call
+
+ @returns Whether the callee resolves to a function of the list
+
+ @example
+ ```ts
+ const isSender = callsAnySender({ scope, call, },);
+ ```
+ */
+export function callsAnySender(
+  {
+    scope,
+    call,
+  }: {
+    readonly scope: SenderScope;
+    readonly call: TreeNode;
+  },
+): boolean {
+  /**
+   The senders the call names.
+   */
+  const { senders, } = sendersNamedBy({
+    scope,
+    call,
+  },);
+  return senders.length > 0;
+}
+
+/**
  Whether a call is a call of a sender, written as the file writes it.
 
  @param context - what the file's names are read against
@@ -182,45 +304,24 @@ function callsSender(
     parameter,
     argument,
   }: {
-    readonly context: BlindContext;
+    readonly context: SenderScope;
     readonly call: TreeNode;
     readonly parameter: string;
     readonly argument: number;
   },
 ): boolean {
   /**
-   The names the callee is written with.
+   The senders the call names and the names after the head of its callee.
    */
-  const chain = chainOf({ node: call.callee, },);
-  if (chain === NO_CHAIN)
-    return false;
-  if (chain.members
-    .includes(COMPUTED_MEMBER,))
-    return false;
-  if (argumentReadBy({ members: chain.members, },) !== argument)
-    return false;
-  if (isBoundAround({
-    node: call,
-    name: chain.head,
-    parents: context.parents,
-  },))
-    return false;
-  /**
-   What the callee stands for in this file.
-   */
-  const callee = resolvePath({
-    family: context.family,
-    file: context.file,
-    path: [
-      chain.head,
-      ...chain.members,
-    ],
-    seen: NOTHING_FOLLOWED,
+  const {
+    senders,
+    members,
+  } = sendersNamedBy({
+    scope: context,
+    call,
   },);
-  return (callee.kind === 'function') && SENDERS.some(function isCallee(sender,): boolean {
-    return (sender.file === callee.file)
-      && (sender.name === callee.name)
-      && (sender.parameter === parameter);
+  return (argumentReadBy({ members, },) === argument) && senders.some(function takesParameter(sender,): boolean {
+    return sender.parameter === parameter;
   },);
 }
 

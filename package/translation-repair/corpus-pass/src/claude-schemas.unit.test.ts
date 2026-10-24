@@ -84,6 +84,7 @@ import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-expor
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
 import { FORWARDER_CASES, } from './claude-schema-forwarder-forms.test-fixture.ts';
+import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts';
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
 import { SENDER_POSITION_CASES, } from './claude-schema-sender-position-forms.test-fixture.ts';
 import { SENDER_SHADOW_CASES, } from './claude-schema-sender-shadow-forms.test-fixture.ts';
@@ -197,6 +198,56 @@ const SHARED_BUILDERS: readonly SharedBuilder[] = [
 ];
 
 //endregion Shared builders
+
+//region Forwarders
+// Functions that make an answer schema from what their caller passes and hand it to a sender, so the files that call
+// them write the arguments of the schema and are listed beside the stages.
+
+/**
+ One function that hands a sender a builder call made from its own parameters.
+ */
+type Forwarder = {
+  /**
+   The function's name.
+   */
+  readonly forwarder: string;
+
+  /**
+   Path of the file that declares it.
+   */
+  readonly declaredIn: string;
+
+  /**
+   Each file that calls it, which writes the arguments of the schema.
+   */
+  readonly callers: readonly string[];
+};
+
+/**
+ Every function of the family that hands a sender a builder call made from its own parameters, and every file that calls
+ it. Each makes the schema of a consistency ask from the labels shown, and gives back the bench's answer, so its callers
+ are listed as stages and not reported for the answer they use. A function added or removed fails the case that reads
+ these until it is listed here.
+ */
+const FORWARDERS: readonly Forwarder[] = [
+  {
+    forwarder: 'askCarryChoice',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-carry-ask.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-carry-choose.ts',],
+  },
+  {
+    forwarder: 'askConsistencyBench',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-ask.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-bench-decide.ts',],
+  },
+  {
+    forwarder: 'askRunOff',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-run-off.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-bench-decide.ts',],
+  },
+];
+
+//endregion Forwarders
 
 //region Rules
 // What the feature accepts, written out here on its own so the case does not lean on the sanitiser it checks.
@@ -597,6 +648,9 @@ await describe({
               return file;
             },);
           },),
+          ...new Set(FORWARDERS.flatMap(function forwarderCallersOf({ callers, },): readonly string[] {
+            return callers;
+          },),),
         ].toSorted(),);
       },
     },),
@@ -934,6 +988,38 @@ await describe({
               },).toSorted(),
             },
           ];
+        },),);
+        expect(found,).toEqual(listed,);
+      },
+    },),
+
+    it({
+      name: 'LISTS EVERY FUNCTION THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS OWN PARAMETERS AND EVERY FILE THAT '
+        + 'CALLS IT, so a forwarder added later is named here before the files that write its arguments go unlisted',
+      fn: async () => {
+        /**
+         The family's source.
+         */
+        const sources = await familySources();
+        /**
+         Forwarders found, and the callers of each, in the shape the list is written.
+         */
+        const found = Object.fromEntries(forwardersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },)
+          .map(function listed(forwarder,): readonly [string, Forwarder,] {
+            return [
+              forwarder.name,
+              {
+                forwarder: forwarder.name,
+                declaredIn: forwarder.file,
+                callers: callersOf({ sources, builder: forwarder, },).toSorted(),
+              },
+            ];
+          },),);
+        /**
+         The forwarders the list names, in the same shape.
+         */
+        const listed = Object.fromEntries(FORWARDERS.map(function entryOf(forwarder,): readonly [string, Forwarder,] {
+          return [forwarder.forwarder, forwarder,];
         },),);
         expect(found,).toEqual(listed,);
       },

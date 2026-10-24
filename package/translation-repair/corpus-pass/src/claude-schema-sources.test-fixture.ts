@@ -6,6 +6,10 @@ import { join, } from 'node:path';
 
 import { parseSource, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import {
+  forwardersIn,
+  type FunctionAt,
+} from './claude-schema-blind-forwarders.test-fixture.ts';
 import type {
   DeclaredFunction,
   ModuleFacts,
@@ -75,6 +79,12 @@ import {
 //
 // The file that declares a builder and the producer list are not its users. A file is listed when it holds a format,
 // names the type of one or uses a builder.
+//
+// A forwarder is a function that calls a sender (`claude-schema-blind-senders.test-fixture.ts`) and calls a builder
+// with an argument that reads one of its own parameters, or a constant made from one
+// (`claude-schema-blind-forwarders.test-fixture.ts`). It is no builder, since what it gives back is the sender's
+// answer, but the files that use it write the arguments of the schema, so they are listed too. A function that forwards
+// through another forwarder is not followed past the first.
 //
 // The search reads exactly these positions, and the check `blindSpotsOf`, in
 // `claude-schema-blind-spots.test-fixture.ts`, reports every other reference to a module that carries a builder or to a
@@ -653,7 +663,7 @@ export function buildersOf(
 
  @param sources - files searched
 
- @param builder - builder whose uses are looked for
+ @param builder - builder, wrapper or forwarder whose uses are looked for
 
  @returns Paths, in the order of the sources
 
@@ -661,7 +671,7 @@ export function buildersOf(
 
  @example
  ```ts
- const callers = callersOf({ sources, builder: { name: 'build', file: 'a.ts', exportedAsDefault: false, }, },);
+ const callers = callersOf({ sources, builder: { name: 'build', file: 'a.ts', }, },);
  ```
  */
 export function callersOf(
@@ -670,7 +680,7 @@ export function callersOf(
     builder,
   }: {
     readonly sources: readonly SourceFile[];
-    readonly builder: SchemaBuilder;
+    readonly builder: FunctionAt;
   },
 ): readonly string[] {
   return usersIn({
@@ -713,20 +723,33 @@ export function declaringFilesOf(
    */
   const usages = usagesIn({ family, },);
   /**
-   Files that use some builder.
+   The builders and wrappers of the sources.
    */
-  const using = new Set(
-    buildersIn({
-      family,
-      notStageSchemas,
-    },)
-      .flatMap(function usersOfBuilder(builder,): readonly string[] {
-        return usersIn({
-          usages,
-          builder,
-        },);
-      },),
-  );
+  const builders = buildersIn({
+    family,
+    notStageSchemas,
+  },);
+  /**
+   The functions that hand a sender a builder call made from their own parameters, whose callers write the arguments of
+   the schema.
+   */
+  const forwarders = forwardersIn({
+    family,
+    builders,
+    usages,
+  },);
+  /**
+   Files that use some builder, or some function that forwards a builder's call to a sender.
+   */
+  const using = new Set([
+    ...builders,
+    ...forwarders,
+  ].flatMap(function usersOfBuilder(builder,): readonly string[] {
+    return usersIn({
+      usages,
+      builder,
+    },);
+  },),);
   return [...family.values(),]
     .filter(function writesOrUses({
       file,
