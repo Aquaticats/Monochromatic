@@ -1935,7 +1935,7 @@ const cases: Guard[] = [
     name: 'hint-skip-pending',
     file: 'src/native/language/sync.rs',
     before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
-    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(\': T\'), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
     native: true,
     test: 'a_pending_request_does_not_cover_its_lines',
     failure: 'the scripted server did not receive the expected hint request'
@@ -1944,7 +1944,7 @@ const cases: Guard[] = [
     name: 'hint-skip-failed',
     file: 'src/native/language/sync.rs',
     before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
-    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(\': T\'), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
     native: true,
     test: 'a_failed_request_does_not_cover_its_lines',
     failure: 'the scripted server did not receive the expected hint request'
