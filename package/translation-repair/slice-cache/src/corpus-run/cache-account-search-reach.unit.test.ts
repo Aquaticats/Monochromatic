@@ -1,6 +1,7 @@
 /**
  Tests for whether a search for runs directories from a root would find the runs of another directory: the same
- directory under two spellings, the depth the walk stops at and the names it never enters.
+ directory under two spellings, the depth the walk stops at and the names it never enters. The readings built on it
+ follow, one case per branch: the runbook's runs root resolved once, and each searched root read against it.
 
  Every directory is a scratch directory or a path that does not exist; no record is read.
 
@@ -426,8 +427,8 @@ await describe({
       },
     },),
     it({
-      name: 'LOGS THE ABSOLUTE PATH A RELATIVE RUNS ROOT WAS LOOKED UP AT: the line names the root as it was given, and '
-        + 'the failure\'s text names the working directory joined to it',
+      name: 'LOGS THE ABSOLUTE PATH A RELATIVE RUNS ROOT WAS LOOKED UP AT: the line names the root as it was given, '
+        + 'and the failure\'s text names the working directory joined to it',
       fn: async () => {
         await using base = await scratchDir({ prefix: 'cache-account-runbook-relative-', },);
         await writeFile(
@@ -468,8 +469,8 @@ await describe({
       },
     },),
     it({
-      name: 'READS A RUNS ROOT THE FILESYSTEM REFUSES AS UNRESOLVED, with the code, and logs one warning that names the '
-        + 'root, the code and the failure\'s text',
+      name: 'READS A RUNS ROOT THE FILESYSTEM REFUSES AS UNRESOLVED, with the code, and logs one warning that names '
+        + 'the root, the code and the failure\'s text',
       fn: async () => {
         await using base = await scratchDir({ prefix: 'cache-account-runbook-refused-', },);
         /**

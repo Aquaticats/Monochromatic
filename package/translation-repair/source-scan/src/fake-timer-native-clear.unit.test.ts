@@ -1,11 +1,11 @@
 /**
  Guards against a fake clock installed without clearing the native timers it meets (ledger B837). The fake
  `clearTimeout` of a clock refuses a timer it did not make: it writes `FakeTimers: clearTimeout was invoked to clear a
- native timer` to stderr and leaves the timer running. A module that starts a timer when it is loaded and clears it when its start
- settles meets exactly that: the start settled under the fake clock, the timer is a real one, and the process then
- stays alive until the real timer fires (five seconds for the logger's start check), so a suite of milliseconds held
- its process for five seconds. The option `shouldClearNativeTimers: true` hands such a clear to the real
- `clearTimeout`.
+ native timer` to stderr and leaves the timer running. A module that starts a timer when it is loaded and clears it
+ when its start settles meets exactly that: the start settled under the fake clock, the timer is a real one, and the
+ process then stays alive until the real timer fires (five seconds for the logger's start check), so a suite of
+ milliseconds held its process for five seconds. The option `shouldClearNativeTimers: true` hands such a clear to the
+ real `clearTimeout`.
 
  WHAT THE SCAN READS, in every file of every family package, tests and fixtures alike: each call of `useFakeTimers`, as
  a method of any object or called bare. A call whose clock fakes `clearTimeout` must pass an object literal that holds
@@ -376,7 +376,8 @@ await describe({
           'litter.ts:7: useFakeTimers passes options with a spread, so the scan cannot read them',
           'litter.ts:8: useFakeTimers passes a toFake that is no written-out list, so the scan cannot read it',
           'litter.ts:9: useFakeTimers passes a toFake element that is no string literal, so the scan cannot read it',
-          'litter.ts:10: useFakeTimers fakes clearTimeout but sets shouldClearNativeTimers to something other than true',
+          'litter.ts:10: useFakeTimers fakes clearTimeout but sets shouldClearNativeTimers to something other than '
+            + 'true',
           'litter.ts:11: useFakeTimers fakes clearTimeout without shouldClearNativeTimers',
           'litter.ts:12: useFakeTimers fakes clearTimeout without shouldClearNativeTimers',
         ],);
