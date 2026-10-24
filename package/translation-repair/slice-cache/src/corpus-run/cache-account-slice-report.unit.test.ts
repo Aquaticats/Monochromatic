@@ -15,13 +15,11 @@
 import {
   chmod,
   mkdir,
-  realpath,
   symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import {
   describe,
   expect,
@@ -38,6 +36,7 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { writeSliceRecord, } from './cache-account-repo.test-fixture.ts';
+import { refusalSaid, } from './refusal-said.test-fixture.ts';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 
 /**
@@ -146,30 +145,6 @@ function unresolvedRootsWords({ failures, }: { readonly failures: readonly RootF
     return `${root} (${code})`;
   },);
   return ` Roots the check could not resolve, and so counted as not reaching it: ${named.join(', ',)}.`;
-}
-
-/**
- What the filesystem says when a path is resolved to its real place and cannot be.
-
- @param path - path whose resolution the filesystem refuses
-
- @returns Text of the refusal, which is what the audit logs of the failure
-
- @throws {@link Error} when the path resolves, since the case then holds no refusal to compare with
-
- @example
- ```ts
- const said = await refusalSaid({ path: '/cats/file/below', },); // "ENOTDIR: not a directory, realpath '/cats/file/below'"
- ```
- */
-async function refusalSaid({ path, }: { readonly path: string; },): Promise<string> {
-  try {
-    await realpath(path,);
-  }
-  catch (error) {
-    return caughtValueText(error,);
-  }
-  throw new Error(`${path} resolves, so the case holds no refusal of the filesystem to compare with`,);
 }
 
 /**

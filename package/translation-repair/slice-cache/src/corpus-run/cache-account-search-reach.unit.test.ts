@@ -12,6 +12,7 @@
 import {
   chmod,
   mkdir,
+  realpath,
   symlink,
   writeFile,
 } from 'node:fs/promises';
@@ -27,8 +28,16 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { searchReaches, } from '../../dist/final/node/index.mjs';
+import {
+  reachOfRoot,
+  runbookRootReading,
+  searchReaches,
+} from '../../dist/final/node/index.mjs';
+import {
+  levelCapturingLogger,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import { refusalSaid, } from './refusal-said.test-fixture.ts';
 
 /**
  The code a failed attempt raised, or that it returned an answer.
@@ -362,6 +371,188 @@ await describe({
         },).toEqual({
           fourLevels: true,
           fiveLevels: false,
+        },);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: runbookRootReading.name,
+  concurrency: 1,
+  children: [
+    it({
+      name: 'READS THE RUNBOOK\'S RUNS ROOT BY ITS REAL PATH AND LOGS NOTHING: a link to a directory with a name below '
+        + 'it that does not exist yet resolves to the real directory with that name kept',
+      fn: async () => {
+        await using real = await scratchDir({ prefix: 'cache-account-runbook-real-', },);
+        await using links = await scratchDir({ prefix: 'cache-account-runbook-links-', },);
+        /**
+         A link to the real directory, in a directory of its own.
+         */
+        const link = join(
+          links.path,
+          'real-link',
+        );
+        await symlink(
+          real.path,
+          link,
+          'dir',
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await runbookRootReading({
+            runbookRoot: join(
+              link,
+              'temp',
+              'agent',
+            ),
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: {
+            kind: 'resolved',
+            real: join(
+              await realpath(real.path,),
+              'temp',
+              'agent',
+            ),
+          },
+          logged: [],
+        },);
+      },
+    },),
+    it({
+      name: 'READS A RUNS ROOT THE FILESYSTEM REFUSES AS UNRESOLVED, with the code, and logs one warning that names the '
+        + 'root, the code and the failure\'s text',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-runbook-refused-', },);
+        /**
+         A path that goes on below a file.
+         */
+        const belowFile = join(
+          base.path,
+          'file',
+          'below',
+        );
+        await writeFile(
+          join(
+            base.path,
+            'file',
+          ),
+          'meow',
+          'utf8',
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await runbookRootReading({ runbookRoot: belowFile, l: levelCapturingLogger({ lines: logged, },), },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'unresolved', code: 'ENOTDIR', },
+          logged: [
+            `warn [runbookRootReading] the runbook's runs root ${belowFile} could not be resolved (ENOTDIR); no `
+            + `searched root can be compared with it. The failure was: ${await refusalSaid({ path: belowFile, },)}`,
+          ],
+        },);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: reachOfRoot.name,
+  concurrency: 1,
+  children: [
+    it({
+      name: 'READS A ROOT THAT HOLDS THE RUNBOOK\'S RUNS ROOT AS REACHING IT, and logs nothing',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'cache-account-reading-root-', },);
+        /**
+         The runbook's runs root, two levels below the searched root.
+         */
+        const runbookRoot = join(
+          root.path,
+          'cats',
+          'agent',
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await reachOfRoot({
+            root: root.path,
+            runbookRoot,
+            runbookReal: runbookRoot,
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'reached', },
+          logged: [],
+        },);
+      },
+    },),
+    it({
+      name: 'READS A ROOT BESIDE THE RUNBOOK\'S RUNS ROOT AS NOT REACHING IT, and logs nothing: it resolved, it just '
+        + 'does not cover it',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'cache-account-reading-root-', },);
+        await using sibling = await scratchDir({ prefix: 'cache-account-reading-sibling-', },);
+        const logged: string[] = [];
+
+        expect({
+          reading: await reachOfRoot({
+            root: root.path,
+            runbookRoot: sibling.path,
+            runbookReal: sibling.path,
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'not-reached', },
+          logged: [],
+        },);
+      },
+    },),
+    it({
+      name: 'READS A ROOT THE FILESYSTEM REFUSES AS UNRESOLVED, with the root and the code, and logs one warning that '
+        + 'names the root, the runbook\'s runs root, the code and the failure\'s text',
+      fn: async () => {
+        await using base = await scratchDir({ prefix: 'cache-account-reading-refused-', },);
+        /**
+         A path that goes on below a file.
+         */
+        const belowFile = join(
+          base.path,
+          'file',
+          'below',
+        );
+        await writeFile(
+          join(
+            base.path,
+            'file',
+          ),
+          'meow',
+          'utf8',
+        );
+        const logged: string[] = [];
+
+        expect({
+          reading: await reachOfRoot({
+            root: belowFile,
+            runbookRoot: base.path,
+            runbookReal: base.path,
+            l: levelCapturingLogger({ lines: logged, },),
+          },),
+          logged,
+        },).toEqual({
+          reading: { kind: 'unresolved', root: belowFile, code: 'ENOTDIR', },
+          logged: [
+            `warn [reachOfRoot] ${belowFile} could not be compared with the runbook's runs root ${base.path} `
+            + `(ENOTDIR); it counts as not reaching it. The failure was: ${await refusalSaid({ path: belowFile, },)}`,
+          ],
         },);
       },
     },),
