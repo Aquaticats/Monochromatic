@@ -135,7 +135,7 @@ function importEqualsShapesIn(
 ): readonly FoundShape[] {
   return nodes
     .filter(function bringsInByName(node,): boolean {
-      return (node.type === 'TSImportEqualsDeclaration') && (node.importKind !== 'type')
+      return (node.type === 'TSImportEqualsDeclaration')
         && mayLeadToBuilder({
           context,
           name: leftmostNameOf({ node: node.moduleReference, },),

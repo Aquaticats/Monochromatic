@@ -57,8 +57,10 @@ import {
 } from './claude-schema-followed-forms.test-fixture.ts';
 import { CYCLE_CASES, } from './claude-schema-cycle-forms.test-fixture.ts';
 import { CALL_FORM_CASES, type FormCase, textOf, } from './claude-schema-call-forms.test-fixture.ts';
+import { WHITELIST_BEARING_CASES, } from './claude-schema-whitelist-bearing-forms.test-fixture.ts';
 import { WHITELIST_CALL_CASES, } from './claude-schema-whitelist-call-forms.test-fixture.ts';
 import { WHITELIST_CASES, } from './claude-schema-whitelist-forms.test-fixture.ts';
+import { WHITELIST_MARK_CASES, } from './claude-schema-whitelist-mark-forms.test-fixture.ts';
 import { WHITELIST_MODULE_CASES, } from './claude-schema-whitelist-module-forms.test-fixture.ts';
 import { WHITELIST_READ_CASES, } from './claude-schema-whitelist-read-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
@@ -650,8 +652,10 @@ await describe({
       ...CALL_METHOD_CASES,
       ...BINDING_KIND_CASES,
       ...BUILDER_MEMBER_CASES,
+      ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
+      ...WHITELIST_MARK_CASES,
       ...WHITELIST_MODULE_CASES,
       ...WHITELIST_READ_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
@@ -685,8 +689,10 @@ await describe({
       ...UNREAD_BUILDER_CASES,
       ...UNREAD_SHAPE_CASES,
       ...FOLLOWED_LOAD_CASES,
+      ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
+      ...WHITELIST_MARK_CASES,
       ...WHITELIST_MODULE_CASES,
       ...WHITELIST_READ_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
@@ -774,6 +780,17 @@ await describe({
           },
         ];
         /**
+         A second file that writes a format, to list the files in either order.
+         */
+        const secondSource = {
+          file: 'imaginary/src/memo-second-wire.ts',
+          text: textOf([
+            'export function secondFormat() {',
+            '  return { type: \'json_schema\', };',
+            '}',
+          ],),
+        };
+        /**
          The builders found for the family, and again.
          */
         const first = buildersOf({ sources, notStageSchemas: NOT_STAGE_SCHEMAS, },);
@@ -792,12 +809,22 @@ await describe({
             sources: [{ file: 'imaginary/src/memo-wire.ts', text: 'export function memoFormat() {}\n', },],
             notStageSchemas: new Set<string>(),
           },).length,
+          inOrder: buildersOf({ sources: [...memoSources, secondSource,], notStageSchemas: new Set<string>(), },)
+            .map(function nameOf({ name, },): string {
+              return name;
+            },),
+          reversed: buildersOf({ sources: [secondSource, ...memoSources,], notStageSchemas: new Set<string>(), },)
+            .map(function nameOf({ name, },): string {
+              return name;
+            },),
         },).toEqual({
           sameSources: true,
           copiedSources: true,
           namedFile: 0,
           unnamedFile: 1,
           editedFile: 0,
+          inOrder: ['memoFormat', 'secondFormat',],
+          reversed: ['secondFormat', 'memoFormat',],
         },);
       },
     },),

@@ -417,10 +417,10 @@ function builderShapesAlong(
     .slice(count,);
   /**
    The first member after the builder that is no call method, absent when there is none; a member computed from
-   anything but a string is one.
+   anything but a string is one, since the marker for it is no call method.
    */
   const stray = rest.find(function isStray(member,): boolean {
-    return (member === COMPUTED_MEMBER) || (!CALL_METHODS.has(member,));
+    return !CALL_METHODS.has(member,);
   },);
   if (stray !== undefined) {
     return [

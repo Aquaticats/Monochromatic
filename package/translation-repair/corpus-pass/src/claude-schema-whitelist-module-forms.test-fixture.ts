@@ -108,6 +108,7 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
           `const { ['contestResponseFormat']: computed, } = await import('${CONTEST_SPECIFIER}');`,
           `const { contestResponseFormat: { name, }, } = await import('${CONTEST_SPECIFIER}');`,
           `export const CALLED = mod.contestResponseFormat(${ARGUMENTS},);`,
+          `const {} = await import('${CONTEST_SPECIFIER}');`,
         ],),
       },
     ],
@@ -141,6 +142,12 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
       {
         file: 'imaginary/src/load-value-stage.ts',
         line: 6,
+        shape: 'load-in-unfollowed-form',
+        position: 'VariableDeclarator.init',
+      },
+      {
+        file: 'imaginary/src/load-value-stage.ts',
+        line: 8,
         shape: 'load-in-unfollowed-form',
         position: 'VariableDeclarator.init',
       },

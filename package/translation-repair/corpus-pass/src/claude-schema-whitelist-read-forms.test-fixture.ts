@@ -181,6 +181,10 @@ const READ_POSITIONS: readonly ReadPosition[] = [
       `  const format = contestResponseFormat(${ARGUMENTS},);`,
       '  return send(format,);',
       '}',
+      'export function returnsOther() {',
+      "  const format = 'unrelated';",
+      '  return format;',
+      '}',
     ],
   },
   {

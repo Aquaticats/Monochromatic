@@ -225,6 +225,11 @@ export function blindSpotsOf(
       references: [],
     } satisfies BlindContext;
     /**
+     Whether to look for a function that holds a format and that no declared function holds, which a file named as no
+     stage schema is not searched for.
+     */
+    const checksUndeclared = facts.holdsFormat && (!notStageSchemas.has(file,));
+    /**
      Whether the file holds a string that names a module carrying a builder, a load, or a chain of names that could lead
      to a builder, which is the only reason to read its tree further.
      */
@@ -248,7 +253,7 @@ export function blindSpotsOf(
           name,
         },);
       },);
-    if ((!isRelevant) && (!(facts.holdsFormat && (!notStageSchemas.has(file,)))))
+    if ((!isRelevant) && (!checksUndeclared))
       return [];
     /**
      What the names of the file are read against.
@@ -272,7 +277,7 @@ export function blindSpotsOf(
             .map(function holderOf({ holder, },): TreeNode {
               return holder;
             },),
-          checksUndeclared: facts.holdsFormat && (!notStageSchemas.has(file,)),
+          checksUndeclared,
         },),
       ],
       file,

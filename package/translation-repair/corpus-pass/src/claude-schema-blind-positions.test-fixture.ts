@@ -86,13 +86,12 @@ const TRANSPARENT_KINDS: ReadonlySet<string> = new Set([
 ],);
 
 /**
- The kinds of node that hold values the search does not read: a namespace, an enum, a parameter property, an export
- assignment and an import-equals declaration.
+ The kinds of node that hold values the search does not read: a namespace, an enum, a parameter property and an export
+ assignment. An import-equals declaration is reported by its own scan, since the chain it holds is no member chain.
  */
 const UNREAD_CONSTRUCT_KINDS: ReadonlySet<string> = new Set([
   'TSEnumDeclaration',
   'TSExportAssignment',
-  'TSImportEqualsDeclaration',
   'TSModuleDeclaration',
   'TSParameterProperty',
 ],);
@@ -205,8 +204,7 @@ export function enclosingFunctionOf(
 }
 
 /**
- The kind of a namespace, an enum, a parameter property, an export assignment or an import-equals declaration that holds
- a node.
+ The kind of a namespace, an enum, a parameter property or an export assignment that holds a node.
 
  @param node - node read
 

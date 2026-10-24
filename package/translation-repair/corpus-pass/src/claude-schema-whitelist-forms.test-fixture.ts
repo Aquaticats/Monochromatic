@@ -65,6 +65,15 @@ export const WHITELIST_CASES: readonly ShapeCase[] = [
           'export const key = contestResponseFormat[tag];',
           'export const sequenced = (0, contestResponseFormat);',
           'export const getter = { get: () => contestResponseFormat, };',
+          'registry.set(contestResponseFormat, contestResponseFormat,);',
+          'export const sized = contestResponseFormat<Gate>;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/position-load-stage.ts',
+        text: textOf([
+          `export const kit = { make: (await import('${CONTEST_SPECIFIER}')).contestResponseFormat, };`,
+          `register((await import('${CONTEST_SPECIFIER}')).contestResponseFormat,);`,
         ],),
       },
       {
@@ -93,6 +102,7 @@ export const WHITELIST_CASES: readonly ShapeCase[] = [
       },
     ],
     found: [
+      'imaginary/src/position-load-stage.ts',
       'imaginary/src/position-shadow-stage.ts',
       'imaginary/src/position-stage.ts',
     ],
@@ -199,6 +209,30 @@ export const WHITELIST_CASES: readonly ShapeCase[] = [
         line: 30,
         shape: 'builder-outside-a-read-position',
         position: 'ArrowFunctionExpression.body',
+      },
+      {
+        file: 'imaginary/src/position-stage.ts',
+        line: 31,
+        shape: 'builder-outside-a-read-position',
+        position: 'CallExpression.arguments',
+      },
+      {
+        file: 'imaginary/src/position-stage.ts',
+        line: 32,
+        shape: 'builder-outside-a-read-position',
+        position: 'VariableDeclarator.init',
+      },
+      {
+        file: 'imaginary/src/position-load-stage.ts',
+        line: 1,
+        shape: 'builder-outside-a-read-position',
+        position: 'Property.value',
+      },
+      {
+        file: 'imaginary/src/position-load-stage.ts',
+        line: 2,
+        shape: 'builder-outside-a-read-position',
+        position: 'CallExpression.arguments',
       },
       {
         file: 'imaginary/src/position-shadow-stage.ts',
