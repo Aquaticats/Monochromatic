@@ -1301,7 +1301,10 @@ await describe({
             + 'before it ends, and reads again and seats once it has',
           fn: async (ctx) => {
             /** The fake clock the production wait sleeps on. */
-            const clock = ctx.sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout',], },);
+            const clock = ctx.sinon.useFakeTimers({
+              toFake: ['setTimeout', 'clearTimeout',],
+              shouldClearNativeTimers: true,
+            },);
             /** Rig whose padded view is short of quorum, reporting the hold whole. */
             const rig = viewClient({ view: NEURALWATT_AND_BEDROCK, capMs: DRY_HOLD_MS, holdEndsAtRead: 2, },);
             rig.holds.synthetic = DRY_HOLD_MS;

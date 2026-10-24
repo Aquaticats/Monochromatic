@@ -49,13 +49,16 @@ export async function readOnFakeClock<ResultT,>(
   },
 ): Promise<ResultT> {
   /**
-   The fake clock the reading's wait sleeps on.
+   The fake clock the reading's wait sleeps on. A native timer made before the clock was installed and cleared under
+   it, such as the module logger's five-second start check, is cleared by the real `clearTimeout`: the fake one would
+   refuse it, write a `FakeTimers` message to stderr and leave the timer holding the process for its full length.
    */
   const clock = sinon.useFakeTimers({
     toFake: [
       'setTimeout',
       'clearTimeout',
     ],
+    shouldClearNativeTimers: true,
   },);
   /**
    Puts the real timers back when the call ends, however it ends.

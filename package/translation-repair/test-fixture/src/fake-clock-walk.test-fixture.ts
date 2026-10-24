@@ -196,10 +196,13 @@ export async function walkOnFakeClock(
   /**
    The fake clock.
    */
-  const clock = sinon.useFakeTimers({ toFake: [
-    'setTimeout',
-    'clearTimeout',
-  ], },);
+  const clock = sinon.useFakeTimers({
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+    ],
+    shouldClearNativeTimers: true,
+  },);
 
   /**
    The built-in's `setTimeout`, replaced by a wait on the fake clock.
