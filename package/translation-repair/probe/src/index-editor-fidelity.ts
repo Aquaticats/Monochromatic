@@ -101,6 +101,18 @@ export {
   POOLED_FLOOR_TRIALS,
 } from './corpus-run/editor-fidelity-decide.ts';
 export {
+  ALPHA,
+  BOOTSTRAP_REPLICATES,
+  BOOTSTRAP_SEED,
+  clusterBootstrapInterval,
+  INTERVAL_LEVEL,
+  type PairedCluster,
+  type PairedInterval,
+  pairedPermutationTest,
+  PairedShapeError,
+  type PairedTest,
+} from './corpus-run/editor-fidelity-paired.ts';
+export {
   type ArmCheckReport,
   checkEditorArms,
 } from './corpus-run/editor-fidelity-arm-check.ts';
