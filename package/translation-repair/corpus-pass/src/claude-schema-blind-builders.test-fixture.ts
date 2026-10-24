@@ -140,11 +140,25 @@ function storedBuilderShapesIn(
     readonly nodes: readonly TreeNode[];
   },
 ): readonly FoundShape[] {
+  /**
+   The properties of patterns that take a value apart, which name where a member goes and store nothing.
+   */
+  const patternProperties = new Set(nodes
+    .filter(function isPattern(node,): boolean {
+      return node.type === 'ObjectPattern';
+    },)
+    .flatMap(function propertiesOf(pattern,): readonly TreeNode[] {
+      return nodesAt({
+        node: pattern,
+        field: 'properties',
+      },);
+    },),);
   return nodes.flatMap(function shapeOfStore(node,): readonly FoundShape[] {
-    if ((node.type === 'Property') && (isBuilderExpression({
-      context,
-      node: node.value,
-    },))
+    if ((node.type === 'Property') && (!patternProperties.has(node,))
+      && (isBuilderExpression({
+        context,
+        node: node.value,
+      },))
       && (node.kind === 'init')) {
       return [
         {
