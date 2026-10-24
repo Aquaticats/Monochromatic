@@ -191,6 +191,11 @@ mod minimap_reflection_tests;
 ///  equal one render of the picture.
 #[cfg(test)]
 mod minimap_seam_tests;
+/// A press on the minimap,
+///  mapped again through the layout that follows it
+///  while nothing else has moved the view.
+#[cfg(test)]
+mod minimap_aim_tests;
 /// The minimap's geometry,
 /// picture,
 /// and pointer paths.
