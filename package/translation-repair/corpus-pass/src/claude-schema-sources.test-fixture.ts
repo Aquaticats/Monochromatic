@@ -79,7 +79,7 @@ import {
 // The search reads exactly these positions, and the check `blindSpotsOf`, in
 // `claude-schema-blind-spots.test-fixture.ts`, reports every other reference to a module that carries a builder or to a
 // binding that comes from one. The check reads every non-test source of the family; the real sources hold no such
-// reference. It makes two totals.
+// reference. It makes three totals.
 //
 // The first total is the module-load boundary. A string that names a module that carries a builder (one that declares
 // a builder, or exports one by its own names, by `export *`, as a namespace or as an object with builder members) is
@@ -97,21 +97,32 @@ import {
 // `.bind`, and as the value of a constant the search binds to it, or an alias of one. Every other place that holds one
 // is reported (`builder-outside-a-read-position`), with the kind of node and the field: a class field, an argument, a
 // default, an array, a conditional, a logical operand, a sequence, a getter, an assignment, a member that is no call
-// method (`.name`, `.length`, `.toString`) or a member computed from a name. The value of a builder's call is
-// followed through objects, arrays, spreads, fallbacks, conditionals, sequences, awaits, members, methods, locals,
-// patterns, defaults and names assigned; if it leaves a function by `return`, an arrow function's body or `yield`
-// and the search does not list that function as a builder, it is reported
-// (`builder-result-returned-outside-a-wrapper`). A call that takes the value as an argument ends the walk, since the
-// value is taken as the place the schema is sent, and the check follows no call further. A module or an object that
-// carries a builder is read as the object of a member the search reads, or as the value of a constant or a pattern that
-// the search binds; used as a whole (a computed member, an argument, a property, a spread, a rest, a default import
-// that the module does not export) it is reported (`module-binding-outside-a-read-position`). A namespace, an enum, a
+// method (`.name`, `.length`, `.toString`) or a member computed from a name. A module or an object that carries a
+// builder is read as the object of a member the search reads, or as the value of a constant or a pattern that the
+// search binds; used as a whole (a computed member, an argument, a property, a spread, a rest, a default import that
+// the module does not export) it is reported (`module-binding-outside-a-read-position`). A namespace, an enum, a
 // parameter property, an export assignment or an import-equals declaration that holds either is walked and reported
 // (`builder-in-typescript-value-construct`). A function that holds a format and that no declared function holds, as a
 // static method, a getter or an anonymous default export does, is reported (`format-in-undeclared-function`); the
 // check leaves that one out for the four files the unit test names as writing the format without building a stage's
 // answer schema (`NOT_STAGE_SCHEMAS`: the model health probe of `bench` and `anthropic-tool.ts`, `chat-contract.ts`
 // and `claude-body.ts` of `provider`).
+//
+// The third total is where the value of a builder's call goes, read by `claude-schema-blind-flow.test-fixture.ts`.
+// The value is followed through objects, arrays, spreads, fallbacks, conditionals, sequences, awaits, members,
+// methods, locals, patterns, defaults and names assigned, and it must end in one of three places. The first is a
+// `return`, an arrow function's body or a `yield` of a function the search lists as a builder; in any other function
+// the value leaves it, and the function is reported (`builder-result-returned-outside-a-wrapper`). The second is the
+// property of the object argument of a sender, a function named by module and by parameter in
+// `claude-schema-blind-senders.test-fixture.ts`. The third is a constant, a pattern, a default or a name assigned,
+// whose every reference ends in one of the three in turn. A constant at the top level is the place a schema is
+// declared, and the file that holds it is listed, so what reads it is not followed. Any other place that takes the
+// value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
+// call that is no sender, an argument of `new`, a store into a member, a field or `this`, a pattern an assignment
+// takes the value apart into, a thrown value, a loop that iterates it. A place that reads the value and gives back
+// nothing the schema could travel in ends the walk without a report: the test of a conditional or a loop, a computed
+// key, an operand of an operator, a substitution in a template, a statement that drops it, an element of a sequence
+// that is not the last, and the target of an assignment.
 //
 // The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
 // hides there, and a place it reports is answered by reading the place in the search or by naming the place in the
