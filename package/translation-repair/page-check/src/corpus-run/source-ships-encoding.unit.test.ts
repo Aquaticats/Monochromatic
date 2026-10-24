@@ -265,6 +265,25 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '她说 {\n\n    ```js\n    const a = {};\n    ```\n',
   ],
   ['an indented block of tildes whose first line starts with a fence mark', '<b>\n\n    ~~~\n    {a}\n    ~~~\n'],
+  ['a footnote definition with a tag and a fence mark indented four spaces under it', '[^1]: <b> abc\n    ```\n'],
+  ['a footnote definition, an indented fence mark and a fence at the first column', '[^1]: x\n    ```\n```\n'],
+  ['a footnote definition and a tilde fence mark indented four spaces under it', '[^1]: x\n    ~~~\n'],
+  [
+    'a footnote definition with a brace, a line of text and a fence mark indented four spaces',
+    '[^1]: x {\nabc\n    ```\n',
+  ],
+  [
+    'a footnote definition and a closed fence indented four spaces holding a brace',
+    '[^1]: x\n    ```\n    {a}\n    ```\n',
+  ],
+  [
+    'a footnote definition with a tag and an unclosed fence indented four spaces holding a brace',
+    '[^1]: <i> abc\n    ```\n    {a}\n',
+  ],
+  [
+    'a footnote definition and a closed fence indented four spaces, then text indented under it',
+    '[^1]: x {\n    ```\n    a\n    ```\n    tail {z}\n',
+  ],
 ];
 
 /**
