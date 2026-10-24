@@ -207,8 +207,13 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
   if (stoppedShort && (!facts.capped)) {
     return {
       ok: false,
-      detail: `${String(facts.completed,)} of ${String(facts.completedOf,)} planned trials were completed and no CAPPED `
-        + 'line says why the arm stopped',
+      detail: `${String(facts.completed,)} of ${
+        countWithNoun({
+          count: facts.completedOf,
+          one: 'planned trial',
+          many: 'planned trials',
+        },)
+      } were completed and no CAPPED line says why the arm stopped`,
     };
   }
   return {

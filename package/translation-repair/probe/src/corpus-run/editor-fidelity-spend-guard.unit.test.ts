@@ -213,6 +213,38 @@ function askJson(
 }
 
 /**
+ Builds the exchange that asks the guarded client one text exchange of a thousand characters.
+
+ @param client - the guarded client
+
+ @param controller - the arm's own
+
+ @returns The exchange, which settles with the reply the client gives
+
+ @example
+ ```ts
+ const second = await raisedBy({ ask: chatTextAsker({ client, controller, }), },);
+ ```
+ */
+function chatTextAsker(
+  {
+    client,
+    controller,
+  }: {
+    readonly client: ModelClient;
+    readonly controller: AbortController;
+  },
+): () => Promise<unknown> {
+  return function askText(): Promise<unknown> {
+    return client.chatText({
+      modelId: LOW_CARD,
+      messages: THOUSAND_CHARS,
+      signal: controller.signal,
+    },);
+  };
+}
+
+/**
  What asking raised, caught so a case can read it.
 
  @param ask - the exchange
@@ -627,15 +659,7 @@ await describe({
             expect(first,).toBeInstanceOf(StatedRefusalError,);
             expect(controller.signal.aborted,).toBe(true,);
             expect(controller.signal.reason,).toBe(first,);
-            const second = await raisedBy({
-              ask: function secondCall(): Promise<unknown> {
-                return client.chatText({
-                  modelId: LOW_CARD,
-                  messages: THOUSAND_CHARS,
-                  signal: controller.signal,
-                },);
-              },
-            },);
+            const second = await raisedBy({ ask: chatTextAsker({ client, controller, }), },);
             expect(second,).toBe(first,);
             expect(asked,).toStrictEqual([],);
           },
@@ -954,15 +978,7 @@ await describe({
               messages: THOUSAND_CHARS,
               signal: controller.signal,
             },);
-            const second = await raisedBy({
-              ask: function whileFirstFlies(): Promise<unknown> {
-                return client.chatText({
-                  modelId: LOW_CARD,
-                  messages: THOUSAND_CHARS,
-                  signal: controller.signal,
-                },);
-              },
-            },);
+            const second = await raisedBy({ ask: chatTextAsker({ client, controller, }), },);
             expect(second,).toBeInstanceOf(ConcurrentGuardCallError,);
             expect(asked,).toStrictEqual([LOW_CARD,],);
             expect(controller.signal.aborted,).toBe(false,);

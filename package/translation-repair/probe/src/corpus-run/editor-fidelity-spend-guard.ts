@@ -72,6 +72,11 @@ type ReportedUsage = NonNullable<ChatTextReply['usage']>;
  */
 export class ConcurrentGuardCallError extends Error {
   /**
+   The message is one sentence this class writes.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
    Builds the error with its fixed message.
    */
   public constructor() {

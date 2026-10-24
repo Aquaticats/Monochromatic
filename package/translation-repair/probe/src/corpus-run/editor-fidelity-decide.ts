@@ -1,4 +1,5 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
 import {
   decidedOf,
   kindsLine,
@@ -85,7 +86,13 @@ export function decisionRuleText(): string {
     + 'efforts are shown better, the one with the larger estimate is chosen; when the estimates are equal, the cheaper '
     + 'effort is chosen. A medium verdict means no effort was shown better than medium, not that the others are as good. '
     + 'The estimates for each kind of defect (insertion, alteration) are printed beside it and veto nothing. With fewer '
-    + `than ${String(MIN_SHARED_TRIALS,)} shared trials the read step refuses to give a verdict. By simulation over the `
+    + `than ${
+      countWithNoun({
+        count: MIN_SHARED_TRIALS,
+        one: 'shared trial',
+        many: 'shared trials',
+      },)
+    } the read step refuses to give a verdict. By simulation over the `
     + 'committed pool (editor-fidelity-paired-null.test-fixture.ts, seed edr6-sim), at true fix rates from 0.30 to 0.95 '
     + 'and within-entry correlations from 0 to 1, the chance of choosing another effort when none is better is at most '
     + `${String(FALSE_PICK_WORST,)}; over all 88 trials the smallest difference chosen with chance 0.8 is about 25 points `

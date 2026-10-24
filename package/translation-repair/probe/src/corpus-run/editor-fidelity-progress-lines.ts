@@ -9,7 +9,7 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
  Says how many of the pool's trials an arm planned to walk.
 
  @param planned - trials the arm was asked to walk
- 
+
  @param total - trials the pool holds
 
  @returns The line, without a newline
@@ -39,9 +39,9 @@ export function plannedLine({
  Says where the spend guard capped an arm.
 
  @param completed - trials completed before the cap
- 
+
  @param planned - trials the arm was asked to walk
- 
+
  @param said - the guard's own sentence
 
  @returns The line, without a newline
@@ -75,7 +75,7 @@ export function cappedLine(
  Says how many trials an arm completed.
 
  @param completed - trials completed
- 
+
  @param planned - trials the arm was asked to walk
 
  @returns The line, without a newline

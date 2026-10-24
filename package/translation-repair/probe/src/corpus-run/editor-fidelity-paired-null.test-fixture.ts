@@ -71,7 +71,7 @@ const MEDIUM = 2;
  const trial: PoolTrial = { entryId: 'tabby', kind: 'insertion', };
  ```
  */
-export type PoolTrial = {
+type PoolTrial = {
   /**
    The entry the trial comes from.
    */
@@ -223,7 +223,7 @@ const CRITICAL = new Map<string, number>();
  const least = criticalSumFor({ ones: 6, twos: 0, },);
  ```
  */
-export function criticalSumFor({
+function criticalSumFor({
   ones,
   twos,
 }: {
@@ -310,7 +310,7 @@ export function shownBetter(
 /**
  The chances the simulated bench is played with.
  */
-export type BenchScenario = {
+type BenchScenario = {
   /**
    The high effort's chance of fixing a trial.
    */
@@ -341,9 +341,9 @@ export type BenchScenario = {
  What the rule picks for one simulated bench over the first trials of the pool.
 
  @param trials - the trials the arms walk, in order
- 
+
  @param scenario - the chances
- 
+
  @param seed - the seed of this replicate
 
  @returns The effort picked
@@ -464,11 +464,11 @@ export function simulatedPick(
  picks each.
 
  @param trials - the trials the arms walk
- 
+
  @param scenario - the chances
- 
+
  @param replicates - how many benches
- 
+
  @param seed - the seed of the whole run
 
  @returns The shares

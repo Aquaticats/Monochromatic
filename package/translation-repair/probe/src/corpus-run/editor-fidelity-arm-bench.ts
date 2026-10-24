@@ -163,8 +163,14 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
         < MIN_SHARED_TRIALS)
         ? {
           ok: false,
-          detail: `${String(shared.trials
-            .length,)} shared trials remain of the ${
+          detail: `${
+            countWithNoun({
+              count: shared.trials
+                .length,
+              one: 'shared trial',
+              many: 'shared trials',
+            },)
+          } remain of the ${
             String(shared.firstRows,)
           } the first arm completed (${String(shared.thrown,)} left out as thrown, ${
             String(shared.unfinished,)

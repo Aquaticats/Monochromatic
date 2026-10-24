@@ -1211,12 +1211,16 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SETTING,
   },
-  'probe/corpus-run/editor-fidelity-arm-answers.ts#ceilingAnswer': {
+  'probe/corpus-run/editor-fidelity-arm-trial-answers.ts#ceilingAnswer': {
     tests: 1,
     why: SENTINEL,
   },
-  'probe/corpus-run/editor-fidelity-arm-answers.ts#editorAnswer': {
+  'probe/corpus-run/editor-fidelity-arm-trial-answers.ts#editorAnswer': {
     tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-shared.ts#classify': {
+    tests: 2,
     why: SENTINEL,
   },
   'probe/corpus-run/editor-fidelity-arm-answers.ts#manifestAnswer': {

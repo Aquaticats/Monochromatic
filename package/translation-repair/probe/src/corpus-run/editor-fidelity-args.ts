@@ -160,9 +160,9 @@ function refuseOverBench(
  Reads `--trials`, the number of leading pool trials an arm walks.
 
  @param asked - what the flag carried, or that nobody wrote it
- 
+
  @param cap - the cap as read
- 
+
  @param capWritten - whether the line wrote `--cap`
 
  @returns The number of trials as a `trials` member, an empty object when the flag was not written

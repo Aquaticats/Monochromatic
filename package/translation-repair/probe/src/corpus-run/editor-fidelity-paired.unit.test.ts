@@ -76,7 +76,7 @@ function bruteForceP({ clusters, }: { readonly clusters: readonly PairedCluster[
   /**
    The statistic of an assignment in doubled-and-scaled integers: arms times the chosen arm's fixes minus the entry's total.
    */
-  const scaled = (assignment: readonly number[]): number => 
+  const scaled = (assignment: readonly number[]): number =>
     clusters.reduce(
       function add(
         total: number,
@@ -199,7 +199,7 @@ await describe({
             /**
              Entries of one trial the effort fixed and the other arm did not.
              */
-            const winning = (count: number): readonly PairedCluster[] => 
+            const winning = (count: number): readonly PairedCluster[] =>
               Array.from(
                 { length: count, },
                 function won(

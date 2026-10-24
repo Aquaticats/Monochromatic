@@ -160,7 +160,7 @@ function rowsByTrial({ rows, }: { readonly rows: readonly RowStops[]; },): Reado
  The figures of the arms run at an effort.
 
  @param arms - the arms with their figures
- 
+
  @param effort - the effort, `high`, `medium` or `low`
 
  @returns Their figures, in the order the arms are given

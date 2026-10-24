@@ -3,6 +3,7 @@ import type { Answer, } from './editor-fidelity-arm-answers.ts';
 import {
   type ArmFacts,
   type ArmLog,
+  countWithNoun,
   usdSaid,
 } from './editor-fidelity-arm-facts.ts';
 import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
@@ -242,8 +243,14 @@ export function trialOrderAnswer(
       .length) {
     return {
       ok: false,
-      detail: `it walked ${String(later.rows
-        .length,)} trials and ${first.arm} completed ${
+      detail: `it walked ${
+        countWithNoun({
+          count: later.rows
+            .length,
+          one: 'trial',
+          many: 'trials',
+        },)
+      } and ${first.arm} completed ${
         String(first.figures
           .rows
           .length,)
@@ -278,9 +285,15 @@ export function trialOrderAnswer(
   }
   return {
     ok: true,
-    detail: `the ${String(later.rows
-      .length,)} trials it walked are the first ${String(later.rows
-        .length,)} of ${first.arm}'s`,
+    detail: `the ${
+      countWithNoun({
+        count: later.rows
+          .length,
+        one: 'trial',
+        many: 'trials',
+      },)
+    } it walked are the first ${String(later.rows
+      .length,)} of ${first.arm}'s`,
   };
 }
 

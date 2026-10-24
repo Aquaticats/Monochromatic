@@ -21,12 +21,12 @@ const LOG_PREFIX ='[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
 /**
  Trials the invented pool holds, which a log's planned line says.
  */
-export const POOL_TRIALS = 88;
+const POOL_TRIALS = 88;
 
 /**
  How many trials of one kind a card fixed cleanly, and how many replies removed the defect and changed more.
  */
-export type KindFixed = {
+type KindFixed = {
   /**
    Trials of the kind.
    */
@@ -74,9 +74,9 @@ export type RowSpec = {
  alteration, entries named `cat-0`, `cat-1` and so on.
 
  @param count - how many leading trials
- 
+
  @param fixed - whether the trial at an index reads as a clean fix
- 
+
  @param stops - the stop words of the trial at an index, `ok` when omitted
 
  @returns The rows
@@ -147,13 +147,13 @@ function kindTallyOf({ counts, }: { readonly counts: KindFixed; }): EditorKindTa
  A card's tally from the counts of its two kinds.
 
  @param cardId - the card
- 
+
  @param insertion - counts of the insertion trials
- 
+
  @param alteration - counts of the alteration trials
- 
+
  @param unusable - trials with no usable reply
- 
+
  @param refused - trials where the card was heard and proposed no edit
 
  @returns The tally
@@ -200,7 +200,7 @@ export function tallyOf(
  The counts of the rows of one kind.
 
  @param rows - the rows
- 
+
  @param kind - the kind of defect
 
  @returns The trials of the kind and how many read as a clean fix
@@ -237,7 +237,7 @@ function countsOfKind({
  A card's tally from the rows it walked.
 
  @param cardId - the card
- 
+
  @param rows - the rows
 
  @returns The tally, the clean fixes counted for each kind and nothing refused, unusable or defect-only
@@ -275,22 +275,22 @@ export function tallyFromRows(
  The log of one arm: its opening, a row line for each row, the tallies, the trials line, the seat and the guard's total.
 
  @param arm - the arm's name
- 
+
  @param tally - the card's tally
- 
+
  @param stops - for each row, the stop words its line states, empty for a row that states none; ignored when `rows` is
  given
- 
+
  @param rows - the rows the arm walked, for a log whose trials matter
- 
+
  @param planned - trials the planned line says, the number of rows when omitted
- 
+
  @param capped - whether the arm was capped by the spend guard after its rows
- 
+
  @param seat - the SEAT line
- 
+
  @param benchSpentUsd - the spend of the earlier arms the guard line states
- 
+
  @param guardUsd - the total the guard line states
 
  @returns The arm, with a recorded exit of zero

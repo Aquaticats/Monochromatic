@@ -79,9 +79,9 @@ function pSaid({ p, }: { readonly p: number; },): string {
  The paired line of an effort.
 
  @param reading - how the effort stands
- 
+
  @param trials - shared trials the verdict is over
- 
+
  @param entries - entries those trials come from
 
  @returns The line, without a newline
@@ -169,7 +169,7 @@ export function kindsLine({ reading, }: { readonly reading: EffortReading; },): 
  Settles which effort the rule picks among the efforts shown better, and says so.
 
  @param readings - how each effort stands
- 
+
  @param shown - the efforts shown better
 
  @returns The effort picked, the clause that decided and the verdict line

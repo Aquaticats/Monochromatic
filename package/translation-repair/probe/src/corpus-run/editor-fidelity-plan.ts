@@ -474,7 +474,13 @@ export function editorPreflightLine(
    */
   const priced = (planned === total)
     ? 'every trial of the pool'
-    : `the first ${String(planned,)} of ${String(total,)} trials`;
+    : `the first ${String(planned,)} of ${String(total,)} ${
+      wordForCount({
+        count: total,
+        one: 'trial',
+        many: 'trials',
+      },)
+    }`;
   return `preflight only: ${String(selected,)} pinned reference ${
     wordForCount({
       count: selected,

@@ -164,13 +164,13 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
  Writes the row line of a finished pair.
 
  @param position - zero-based place of the pair among the planned pairs
- 
+
  @param total - planned pairs
- 
+
  @param pair - the card and trial
- 
+
  @param reading - how the trial read
- 
+
  @param stops - how each ask of the trial ended
 
  @returns The line, without a newline

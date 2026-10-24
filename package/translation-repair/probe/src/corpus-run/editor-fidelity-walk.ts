@@ -1,5 +1,6 @@
 import { writeFile, } from 'node:fs/promises';
 
+import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { Logger, } from '@monochromatic-dev/module-logger/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -21,7 +22,7 @@ import { cappedLine, } from './editor-fidelity-progress-lines.ts';
  Each card's trials together, the first card's before the second's.
 
  @param cardIds - cards seated, in the order named
- 
+
  @param planned - the trials every card walks
 
  @returns The pairs, in the order they are asked
@@ -54,7 +55,7 @@ export function pairsOf(
  Writes a JSON document to a file that must not exist yet, readable by its owner alone.
 
  @param path - the file
- 
+
  @param value - what the file holds
 
  @throws {@link Error} when the file exists or cannot be written
@@ -89,11 +90,11 @@ export async function writeJsonOnce({
  Walks the pairs one at a time and keeps every row that finished, so an arm the spend guard caps returns the rows it has.
 
  @param pairs - the planned pairs, in the order walked
- 
+
  @param controller - the arm's own, which the guard aborts with its refusal as the reason
- 
+
  @param log - logger the walk writes its progress to
- 
+
  @param oneRow - asks one pair and returns its row
 
  @returns The rows that finished, in order; when the guard capped the arm, a CAPPED line has been logged
@@ -162,13 +163,13 @@ export async function walkPairs(
       .aborted
       && (reason instanceof StatedRefusalError)))
       throw error;
-    log.debug(`the walk stopped on the spend guard's refusal: ${String(error,)}`,);
+    log.debug(`the walk stopped on the spend guard's refusal: ${refusalText({ error, },)}`,);
     // THE GUARD'S REFUSAL ENDS THE ARM AS CAPPED, NOT AS FAILED: the rows it finished are a result, and the read step takes
     // the trials the later arms walk from how many were completed.
     log.warn(cappedLine({
       completed: finished.length,
       planned: pairs.length,
-      said: reason.message,
+      said: refusalText({ error: reason, },),
     },),);
   }
   return finished;
