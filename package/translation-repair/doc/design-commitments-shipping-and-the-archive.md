@@ -191,7 +191,9 @@ which lists every file of these commitments.
   any run that opens an HTML comment which never closes,
   and any run that parses alone and cannot stand beside another
   (a fence mark indented four spaces or more,
-  a name an earlier run still declares)
+  a name an earlier run still declares,
+  a fence or display math the run leaves open at its end,
+  which the strict grammar would end at a later run's line)
   (a backslash before each `{`,
   `}` and `<` the CommonMark parse of the run reads as text;
   a fence,
@@ -209,15 +211,18 @@ which lists every file of these commitments.
   The second step is taken when the page of the first step does not parse
   (the page as written when the first step changed nothing)
   and writing every run as literal text gives a page unlike the one last tried.
-  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 383 and 412 pairs,
-  all but 6 and 2 of each a run nested past the bound beside a run holding a character that step escapes,
+  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 365 and 403 pairs,
+  every one a run nested past the bound beside a run holding a character that step escapes,
   and it made the page parse for none.
   The third step is taken when no writing makes the page parse:
-  a run nested past the bound of the plain reading,
-  and a `$$` flow or a fence that one run opens and a later run closes with the English between them
-  (the two structural limits,
+  a run nested past the bound of the plain reading
+  (the structural limit,
   with the grammar's source cited in the module comment of `page-check/src/corpus-run/source-ships-encoding.ts`
   and in ledger B832).
+  A fence or a `$$` flow that a run opens and no line of it closes is written as literal text with a closing line
+  at its end (`page-check/src/corpus-run/source-ships-open-flow.ts`),
+  since the strict grammar would end it at the next run's line
+  and leave the text after that line outside it as code.
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,

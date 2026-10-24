@@ -650,6 +650,12 @@ That run predates the footnote fixes of this round and is not the record of the 
 
 #### Limits named
 
+Two of the limits named here,
+the tag alone on a line and the byte order mark before a fence mark,
+and the structural limit of a fence or display math that one run opens,
+are closed in the follow-up "The eighth round,
+the whole-page check and the limits it closed".
+
 - A tag alone on a line between a footnote's paragraph and a definition line.
   The parse of the original reads the tag as a raw HTML block and ends the footnote there,
   where the page writes the tag as text and goes on with the paragraph.
@@ -679,4 +685,233 @@ the same before and after,
 all the unequal ones in a container.
 No cache version moved:
 `git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' ec812f269b..HEAD` names no commit,
+and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
+
+### Follow-up: the eighth round, the whole-page check and the limits it closed
+
+This round follows the re-check of round 7.
+The commits are in the order they were made;
+each fix comes after a red commit that names the failing lines.
+
+- `54107958fa5c284e805899d4b581fff2002cc4d2`,
+  red:
+  the whole-page check and 11 failing cases.
+- `6c1651044db14569f9f5dbfc3fb5a797ad79b7bf`,
+  the fix of those 11:
+  a fence or display math a text leaves open is closed,
+  and a footnote that ends in a tag alone on its line ends before a definition line that follows.
+- `1c105209aa0b1ea283941127280530d344f2e773`,
+  red:
+  a footnote that is a block of its own,
+  then a definition line (10 failing lines).
+- `f97ac62bcf6843d1a3907ae53428691b68538075`,
+  the fix of those.
+
+#### The whole-page check
+
+The limit of round 7 for a tag alone on a line was a defect and not a limit.
+The text `[^1]: x`,
+then a line `<a href="x">`,
+then `[r]: u{b}` shipped a live `{b}` expression:
+a page that parses and holds code the original lacks.
+Pinning a text that does this made the pin pass for the wrong reason,
+so the check is now a function and not a case list.
+
+`liveConstructsOf` (`page-check/src/corpus-run/source-live-constructs.test-fixture.ts`)
+masks the comments of a page as the package does,
+parses it with the strict grammar,
+and lists every flow expression,
+text expression,
+flow element,
+text element and ES module in the tree.
+An attribute belongs to its element.
+The original read with the package's own grammar (GFM and the site's math,
+no MDX) builds none of these nodes,
+so one in the text of an encoded slice is a construct the original lacks.
+It is called from the reader,
+literal and shown cases of `source-ships-encoding.unit.test.ts`
+and from the page-level cases of `source-shipped-page.unit.test.ts`.
+Over the generated sets and the step search it runs once per code state in a driver that is not in the suite,
+because the search takes about two minutes per seed:
+the driver finds the text of each slice the composition wrote as literal text in the page
+and counts a construct that starts inside it.
+
+At the head before this round it found 5 of the 11398 texts of the sets with a live construct
+(all 5 the tag-alone class)
+and 4 and 1 pairs of the step search (seeds 31415926 and 27182818).
+At the final head it finds none in either:
+11398 texts with no live construct,
+and 40000 pairs per seed with 31534 and 31396 encoded pages and no violation.
+
+#### Why the two letter-reading attempts moved texts
+
+Round 7 read each tag as a letter before taking the footnote ranges,
+and 96 of the generated footnote texts went from equal to unequal;
+a second form that merged the two ends moved 648.
+The cause is that a letter in place of a tag changes the parse of the lines after it,
+and the encoder's other readings (spans,
+joins of lines in a paragraph) were made against the parse with the tag.
+For `[^1]: <b>`,
+then `abc`,
+then two lines of four spaces and a fence mark,
+the original has `abc` and the two indented marks as a paragraph of the top with a code span across them,
+and the encoder joins those lines with a space.
+With the letter,
+the footnote's paragraph is `x`,
+`abc` and the marks are a fence of the footnote,
+the encoder escaped the marks,
+and the page showed them.
+Any text of that shape changed reading.
+
+The fix keeps the parse of the original as it is.
+Where the footnote ends is already taken from the GFM parse of the original (`footnoteDefinitionRangesOf`).
+The page writes a tag as text,
+so the footnote's paragraph goes on where the original's footnote ended,
+and only the line ending that ends the footnote needs to change:
+`footnoteBodySpans` (`page-check/src/corpus-run/source-ships-nested.ts`)
+writes it twice when the next line directly follows and the first block of the lines up to the first blank one,
+read on their own,
+is a link reference definition.
+No other line is read differently.
+The page then has the definition where the original has it,
+and the reader of the page equals the reader of the source for the five cases of the red commit.
+Over the sets no text went from equal to unequal;
+6 went from unequal to equal and 2 from refused to equal.
+
+The second pair of commits covers the form in which the plain reading's block ends where the footnote does
+(`[^1]: <b>` is a link reference definition to the plain reading,
+and the code a footnote ends with is the same),
+which the first fix did not reach.
+The seeds 31415926 and 27182818 each took step 3 for three pairs of it
+(a footnote that is a tag alone,
+then `[r]: u{b "t {"`),
+which now take step 1.
+
+#### A fence or display math a run opens and no line of it closes
+
+This is the class the whole-page check found beyond the tag-alone class.
+The strict grammar ends such a flow where the page ends
+(`micromark-extension-math@3.1.0` `lib/math-flow.js`,
+`micromark-core-commonmark@2.0.4` `lib/code-fenced.js`),
+so the English between two runs fell inside it,
+and the first line of the next run that looked like its closing line ended it
+and left the text after that line outside it,
+where a brace or a tag is code.
+Round 7 named this a structural limit for 44 and 40 pairs and shipped the page without the originals.
+The four violations of seed 31415926 were an open display math beside a later run,
+and the one of seed 27182818 was a byte order mark case:
+the mark sits in the middle of the page,
+where the page reads the run's first fence as an ordinary line
+and a later fence of the run as open.
+
+An original is closed where its slice ends,
+so a text written as literal text now ends with a line of the closing mark
+(`closerOfWritten` and `closedWith`,
+`page-check/src/corpus-run/source-ships-open-flow.ts`),
+read from the text as the page holds it:
+comments blanked,
+a byte order mark that opens the text an ordinary character
+(`source-ships-readable.ts`),
+the mark as long as the one that opened the flow.
+The closing line shows nothing,
+since a reader of a fence or a display math reads it the same with or without it.
+A run that ends inside a flow is also taken at the first step
+(`leavesFlowOpen`,
+`source-ships-company.ts`),
+since a neighbour left as written could close it.
+The step search before the change had 47 and 45 pairs that were not nested,
+and none is left at the final head.
+The fence case of `source-shipped-page.unit.test.ts` used to pin that the page ships without both runs;
+it now pins that it ships both,
+and the lead may veto this change.
+
+#### What the step search found at `f97ac62bcf6843d1a3907ae53428691b68538075`
+
+Two searches of forty thousand pairs each,
+seeds 31415926 and 27182818,
+each in its own `systemd-run` unit with a memory and a CPU cap,
+on the pool of the seventh round (the file is unchanged).
+
+- Seed 31415926:
+  7101 pairs shipped as written;
+  step 1 was taken for 32363 and made the page parse for 28012 (27976 at round 7);
+  step 2 was taken for 365 (383) and made the page parse for none;
+  step 3 was taken for 4887 (4923).
+- Seed 27182818:
+  7202 pairs shipped as written;
+  step 1 was taken for 32244 and made the page parse for 27717 (27683);
+  step 2 was taken for 403 (412) and made the page parse for none;
+  step 3 was taken for 5081 (5115).
+
+Every pair that took step 3 holds a run nested past the bound,
+4887 of 4887 and 5081 of 5081,
+so no step-3 pair is left that the classification calls unexplained or structural of another kind.
+The seventh round listed 3 and 5 unexplained pairs.
+
+A byte order mark in a run:
+5605 pairs of seed 31415926 and 5681 of seed 27182818 hold one,
+3944 and 3940 of them with a fence or display math mark.
+Of those,
+2823 and 2906 took step 1,
+724 and 666 shipped as written,
+and 397 and 368 took step 3,
+every one for a run nested past the bound.
+None had a violation.
+(The count of these pairs came from a rerun of the composition on those pairs only,
+on the same code.)
+
+#### Reading differences that stay
+
+Over the sets of the round (11398 texts):
+7115 equal,
+99 equal without link targets,
+4181 unequal and 3 refused.
+At the head before this round the same sets held 7107 equal,
+99,
+4187 and 5.
+The 10800 generated footnote texts are as they were before this round:
+6636 equal and 4164 unequal,
+all 4164 in a list item or a block quote.
+Of the 598 texts that are not generated,
+17 are unequal and 3 refused:
+
+- A footnote in a list item or a block quote with an indented fenced block
+  (the marks are written with a backslash and the page shows them):
+  6 unequal.
+- A footnote definition indented four spaces in a paragraph:
+  2 unequal.
+- An angle autolink in the alternative text of an image:
+  3 unequal.
+- A bare address with emphasis marks beside a brace:
+  1 unequal;
+  a bare address with two dollar signs beside an angle bracket:
+  1 refused.
+- A table cell with an angle autolink holding a pipe written with a backslash,
+  or a bare address that a pipe ends:
+  2 unequal;
+  a code span holding a pipe:
+  1 refused.
+- A comment that never closes before a definition line:
+  2 unequal.
+- A text nested 300 deep:
+  1 refused.
+- A list item that opens with a tag,
+  then a definition line with a title:
+  1 unequal.
+
+None is new:
+each has the verdict it had at the head before this round,
+and the 6 unequal and 2 refused texts that became equal are not in this list.
+The module comment of `page-check/src/corpus-run/source-ships-encoding.ts` names the rest of the smaller limits.
+
+#### Checks
+
+`build`,
+`test:unit` (142 `[PASS]` lines and no `[FAIL]`),
+`lint:types` and `lint:oxlint` of `translation-repair-page-check`,
+and `test:unit` (67) and `source-scans` (52) of `translation-repair-source-scan`,
+run in turn and on the code of the last fix.
+No cache version moved:
+`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 75c33a64946a2be1e872d40b0a4a6e9c3b398084..HEAD`
+names no commit,
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.

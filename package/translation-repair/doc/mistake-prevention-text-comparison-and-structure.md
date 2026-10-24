@@ -792,6 +792,37 @@ and `document-structure/src/gfm-block-ranges.unit.test.ts` holds the table and f
 No scan finds a list of shapes standing in for a parser.
 
 
+## A defect pinned as a limit
+
+What happened:
+the encoder wrote a footnote whose last line was a tag,
+then a definition line holding a brace,
+as a page that parsed and carried a live `{b}` expression the original did not have.
+Round 7 named it a limit and pinned the text in a case that read the written page back,
+so the case passed whatever the page held,
+and two attempts to change the reading moved 96 and 648 other texts from equal to unequal
+without a check that said what the page must never hold (ledger B832 follow-ups).
+
+The rule:
+a limit of a writer that emits code in another grammar is named only after a property check on the written page
+says it holds no construct the source lacks:
+a function that parses the page with the strict grammar and lists every expression,
+element and module,
+run over every case and over the generated sets and the search of the round.
+A pinned text states what is written,
+and a limit is a statement about what the page may hold,
+so a pin is never the proof of a limit.
+An attempt that changes how the source is read is first run over the generated sets,
+and each text that moves from equal to unequal is read before a third attempt is made.
+
+What enforces it:
+`liveConstructsOf` in `page-check/src/corpus-run/source-live-constructs.test-fixture.ts` is called by the reader,
+literal and shown cases of `source-ships-encoding.unit.test.ts` and by the page cases of
+`source-shipped-page.unit.test.ts`;
+the generated sets and the step search run it once per code state in a driver outside the suite.
+Nothing runs the driver on its own.
+
+
 ## Quotes a judge gives back
 
 What happened:
