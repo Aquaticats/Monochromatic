@@ -792,8 +792,8 @@ with the header clause `0c4eecc1ed`):
 - The header states 41 sentences,
   each held by named cases and by mutants,
   listed one against the other in the report of the round:
-  146 mutants in all,
-  of which 144 changed what the code does and 143 fail at least one case.
+  147 mutants in all,
+  of which 145 changed what the code does and 144 fail at least one case.
   The one that does not is S02b,
   which is near-equivalent;
   the other two changed nothing on any input.
