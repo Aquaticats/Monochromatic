@@ -216,6 +216,40 @@ export const DESTINATION_SENDER_CASES: readonly ShapeCase[] = [
       },),
     ],
   },
+  {
+    name: 'REPORTS A NEW OF THE SENDER, WHICH IS NO CALL OF IT: the sender is called, never constructed, so the object '
+      + 'a `new` takes goes where nothing answers for it',
+    files: [
+      {
+        file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
+        text: textOf([
+          'export async function gatherThroughCache({ responseFormat, }: { readonly responseFormat: unknown; },) {',
+          '  return responseFormat;',
+          '}',
+        ],),
+      },
+      {
+        file: 'imaginary/src/constructed-sender-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          '',
+          'export function ask() {',
+          `  return new gatherThroughCache({ responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
+          '}',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/constructed-sender-stage.ts',],
+    builders: [],
+    spots: [
+      spotAt({
+        file: 'imaginary/src/constructed-sender-stage.ts',
+        line: 5,
+        position: 'NewExpression.arguments',
+      },),
+    ],
+  },
 ];
 
 //endregion The one sender the family names
