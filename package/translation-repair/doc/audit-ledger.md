@@ -249,7 +249,11 @@ named for that subject and listed here.
   The check of B864 rebuilt from a list of seven named shapes into a whitelist anchored at the module-load boundary,
   with two totals,
   eight shapes,
-  and a prevention rule that replaces the one of B864 (B865).
+  and a prevention rule that replaces the one of B864 (B865),
+  then a mutant called equivalent by an argument (B866),
+  a third total for where a builder's result goes (B867),
+  code the search cannot read and specifiers the check cannot resolve (B868),
+  and four surviving mutants with the cases they called for (B869).
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,

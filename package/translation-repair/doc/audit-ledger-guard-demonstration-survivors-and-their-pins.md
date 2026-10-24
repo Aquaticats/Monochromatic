@@ -646,8 +646,10 @@ The design that landed is open to the owner's veto.
 
 Superseded in part by B865 (in `audit-ledger-schema-source-check-as-a-whitelist.md`):
 the check of seven named shapes is a whitelist anchored at the module-load boundary with eight shapes,
-the sentence that the check "reports a place whether or not a producer hides there" holds only of the places the whitelist does not read,
-the check costs about 1.0 s over the real sources once the builders are found (2.0 s with them),
+the sentence that the check "reports a place whether or not a producer hides there"
+holds only of the places the whitelist does not read,
+the check costs about 1.0 s over the real sources once the builders are found
+(2.0 s without them),
 and the prevention rule of this entry
 (a header that lists unread shapes,
 paired with a check that names them)
