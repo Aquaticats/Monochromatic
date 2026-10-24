@@ -31,10 +31,15 @@ import {
 type BlindShape =
   | 'builder-handed-to-a-call-held-by-a-constant'
     | 'builder-in-namespace-enum-or-parameter-property'
+    | 'builder-in-typescript-value-construct'
+    | 'builder-outside-a-read-position'
+    | 'builder-result-returned-outside-a-wrapper'
     | 'builder-stored-in-object'
     | 'computed-load-path'
     | 'format-in-undeclared-function'
     | 'load-in-unfollowed-form'
+    | 'module-binding-outside-a-read-position'
+    | 'module-path-outside-a-load'
     | 'result-returned-through-a-local';
 
 /**
@@ -55,6 +60,12 @@ export type BlindSpot = {
    The shape the place holds.
    */
   readonly shape: BlindShape;
+
+  /**
+   Where the place sits, as the check of the next commit reports it: the kind of node that holds it and the field, or
+   what is wrong with it. This check leaves it unset.
+   */
+  readonly position?: string;
 };
 
 /**
