@@ -400,7 +400,7 @@ export function pairedPermutationTest({ clusters, }: { readonly clusters: readon
  const draws = unitDraws({ seed: 'a', count: 12, },);
  ```
  */
-function unitDraws({
+export function unitDraws({
   seed,
   count,
 }: {

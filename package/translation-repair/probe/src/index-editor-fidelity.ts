@@ -111,6 +111,7 @@ export {
   pairedPermutationTest,
   PairedShapeError,
   type PairedTest,
+  unitDraws,
 } from './corpus-run/editor-fidelity-paired.ts';
 export {
   type ArmCheckReport,
