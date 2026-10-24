@@ -1,4 +1,7 @@
-import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import type {
+  BlockRange,
+  TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -23,6 +26,43 @@ const FOOTNOTE_GAP = ' \t\r\n';
  How many columns a block under a footnote definition is indented by.
  */
 const FOOTNOTE_INDENT = 4;
+
+/**
+ What {@link footnoteStartInside} answers for a paragraph no footnote definition starts inside.
+ */
+export const NO_FOOTNOTE_INSIDE = -1;
+
+/**
+ Where a footnote definition starts inside a paragraph of the plain reading, on a line after the paragraph's first. The
+ plain reading has no footnotes, so it keeps the definition's line in the paragraph, and the inline constructs it reads
+ across that line (a code span, math, a link) go on past a place where the strict grammar ends the paragraph.
+
+ @param footnotes - where the strict grammar reads a footnote definition in the whole text
+
+ @param range - where the paragraph stands
+
+ @returns Index of the definition's first character, or {@link NO_FOOTNOTE_INSIDE} when none starts in the paragraph
+
+ @example
+ ```ts
+ const split = footnoteStartInside({ footnotes: [{ start: 4, end: 12, },], range: { start: 0, end: 12, }, },);
+ ```
+ */
+export function footnoteStartInside(
+  {
+    footnotes,
+    range,
+  }: {
+    readonly footnotes: readonly BlockRange[];
+    readonly range: TextRange;
+  },
+): number {
+  return footnotes.find(function startsInside({ start, },): boolean {
+    return (start > range.start) && (start < range.end);
+  },)
+    ?.start
+    ?? NO_FOOTNOTE_INSIDE;
+}
 
 /**
  Where the body of a footnote definition starts: after its label, the colon and the white space that follows.
@@ -68,8 +108,9 @@ export function footnoteBodyStart(
 }
 
 /**
- Whether a node opens a footnote definition that the strict grammar reads: a paragraph starting `[^label]:`, or a link
- reference definition whose label starts with a caret, which CommonMark reads as that and GFM as a footnote.
+ Whether a node opens a footnote definition that the strict grammar reads: a paragraph starting `[^label]:`, a heading
+ that starts so (its underline is a lazy line of the footnote's paragraph to the strict grammar), or a link reference
+ definition whose label starts with a caret, which CommonMark reads as that and GFM as a footnote.
 
  @param source - text
 
@@ -100,7 +141,7 @@ export function opensFootnote(
       .identifier
       .startsWith('^',);
   }
-  if (node.type !== 'paragraph')
+  if ((node.type !== 'paragraph') && (node.type !== 'heading'))
     return false;
   if (!source.startsWith(
     '[^',

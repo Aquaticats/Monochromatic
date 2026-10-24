@@ -179,18 +179,26 @@ export {
   continuesDefinition,
   endLineOf,
   footnoteBodyStart,
+  footnoteStartInside,
   isIndentedCode,
   isLazyDefinition,
+  NO_FOOTNOTE_INSIDE,
   opensFootnote,
   withoutIndentation,
 } from './corpus-run/source-ships-footnote.ts';
+export {
+  footnoteRead,
+  type FootnoteRead,
+} from './corpus-run/source-ships-footnote-spans.ts';
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
+export { lazyUnderlinesBlanked, } from './corpus-run/source-ships-lazy.ts';
 export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
 export {
   footnoteStateOf,
   stateAfter,
   takeContinuation,
+  takeFootnote,
   topLevelPending,
 } from './corpus-run/source-ships-pending.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
@@ -213,6 +221,7 @@ export {
 } from './corpus-run/source-ships-links.ts';
 export {
   footnoteBodySpans,
+  footnoteInParagraphSpans,
   nestedSpans,
   type SpansReader,
 } from './corpus-run/source-ships-nested.ts';

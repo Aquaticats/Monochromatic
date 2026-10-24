@@ -5,10 +5,8 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   endLineOf,
-  footnoteBodyStart,
   isIndentedCode,
   isLazyDefinition,
-  opensFootnote,
 } from './source-ships-footnote.ts';
 import {
   contentStretches,
@@ -18,12 +16,11 @@ import {
   autolinkWritten,
   cutByTable,
 } from './source-ships-links.ts';
-import { footnoteBodySpans, } from './source-ships-nested.ts';
+import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
   stateAfter,
-  takeContinuation,
   topLevelPending,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
@@ -59,7 +56,9 @@ export {
 // its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
 // the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
 // (`document-structure/src/gfm-block-ranges.ts`), and the lines the plain parse goes on to read after that are a text
-// of their own. A label of a reference definition and of the references to it are written alike, so the reference still
+// of their own. A paragraph in which a footnote starts on a later line is cut there, a heading made of a footnote's
+// lines opens it, and a lazy line of equals signs or hyphens in it is paragraph text (`source-ships-footnote-spans.ts`,
+// `source-ships-lazy.ts`). A label of a reference definition and of the references to it are written alike, so the reference still
 // resolves. An angle autolink inside the text of a link cannot become a link of its own, which a link cannot hold: its
 // address is written as text there, without the brackets, and the reader sees the address as the source shows it.
 
@@ -237,37 +236,29 @@ export function spansOf(
       parent,
       after,
     );
-    // A PARAGRAPH THAT OPENS A FOOTNOTE DEFINITION AT THE TOP, AND BLOCKS INDENTED UNDER A DEFINITION, are read as the
-    // body of the footnote is: the strict grammar reads the lines indented under it as its blocks, so a fence mark
-    // among them opens a fence of the footnote, which the plain reading takes for a line of the paragraph.
+    // A BLOCK THAT BELONGS TO A FOOTNOTE DEFINITION is read as the body of the footnote is, which
+    // `source-ships-footnote-spans.ts` says how.
     /**
-     Whether the node is a paragraph at the top whose first line opens a footnote definition.
+     What reading the block as part of a footnote says of it.
      */
-    const opensTopFootnote = isRootChild
-      && (node.type === 'paragraph')
-      && opensFootnote({
-        source,
-        node,
-        range,
-      },);
-    if (opensTopFootnote || continuesFootnote) {
-      absorb({
-        nested: footnoteBodySpans({
-          source,
-          readable,
-          readSpans: spansOf,
-          footnotes: footnoteRanges,
-          range: opensTopFootnote
-            ? {
-              start: footnoteBodyStart({
-                source,
-                range,
-              },),
-              end: range.end,
-            }
-            : range,
-        },),
-      },);
+    const read = footnoteRead({
+      source,
+      readable,
+      readSpans: spansOf,
+      footnotes: footnoteRanges,
+      pending,
+      node,
+      range,
+      isRootChild,
+      continuesFootnote,
+      state: after,
+    },);
+    if (read.kind === 'read') {
+      footnotes.set(
+        parent,
+        read.state,
+      );
+      absorb({ nested: read.spans, },);
       continue;
     }
     edits.push(...lineJoinsOf({
@@ -320,41 +311,8 @@ export function spansOf(
       }
       continue;
     }
-    // A FOOTNOTE DEFINITION CommonMark READS AS A LINK REFERENCE DEFINITION is a footnote to the strict grammar, whose
-    // body is blocks; any other definition keeps its destination and title and has a label read as text.
+    // A DEFINITION that is no footnote keeps its destination and title and has a label read as text.
     if (node.type === 'definition') {
-      if (node
-        .identifier
-        .startsWith('^',)) {
-        /**
-         Where the footnote's lines end: with the paragraph on the line right after the definition, whose lines the
-         footnote's paragraph continues and which is read with it, else with the definition itself.
-         */
-        const { end, } = rangeOf({
-          node: isRootChild
-            ? takeContinuation({
-              pending,
-              definition: node,
-            },)
-            : node,
-        },);
-        absorb({
-          nested: footnoteBodySpans({
-            source,
-            readable,
-            readSpans: spansOf,
-            footnotes: footnoteRanges,
-            range: {
-              start: footnoteBodyStart({
-                source,
-                range,
-              },),
-              end,
-            },
-          },),
-        },);
-        continue;
-      }
       text.push({
         start: range.start + 1,
         end: closingBracket({

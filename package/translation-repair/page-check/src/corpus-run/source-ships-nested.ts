@@ -3,7 +3,11 @@ import {
   parseMarkdownMathBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import { withoutIndentation, } from './source-ships-footnote.ts';
+import {
+  footnoteBodyStart,
+  withoutIndentation,
+} from './source-ships-footnote.ts';
+import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
   indicesOf,
   originalStretches,
@@ -268,7 +272,13 @@ export function footnoteBodySpans(
    */
   const body = nestedSpans({
     source,
-    readable,
+    readable: lazyUnderlinesBlanked({
+      readable,
+      range: {
+        start: range.start,
+        end: bodyEnd,
+      },
+    },),
     readSpans,
     indices: withoutIndentation({
       source,
@@ -292,6 +302,83 @@ export function footnoteBodySpans(
           end: range.end,
         },
       },),
+    },),
+  },);
+}
+
+/**
+ Reads a paragraph of the plain reading in which a footnote definition starts on a later line: the lines before the
+ definition as a text of their own, and the definition and what follows it as the footnote.
+
+ @param source - whole text
+
+ @param readable - whole text with its comments blanked, the parse's own input
+
+ @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
+
+ @param footnotes - where the strict grammar reads a footnote definition in the whole text
+
+ @param range - where the paragraph stands
+
+ @param split - where the footnote definition starts in the paragraph
+
+ @param end - where the lines of the footnote end, the end of the paragraph or beyond it
+
+ @returns Spans of both parts at the offsets of the whole text
+
+ @throws {@link Error} when a node of either part has no position, which the reading used never builds
+
+ @example
+ ```ts
+ const spans = footnoteInParagraphSpans({ source, readable, readSpans: spansOf, footnotes, range, split: 4, end: 12, },);
+ ```
+ */
+export function footnoteInParagraphSpans(
+  {
+    source,
+    readable,
+    readSpans,
+    footnotes,
+    range,
+    split,
+    end,
+  }: {
+    readonly source: string;
+    readonly readable: string;
+    readonly readSpans: SpansReader;
+    readonly footnotes: readonly TextRange[];
+    readonly range: TextRange;
+    readonly split: number;
+    readonly end: number;
+  },
+): SourceSpans {
+  return joinedSpans({
+    first: nestedSpans({
+      source,
+      readable,
+      readSpans,
+      indices: indicesOf({
+        range: {
+          start: range.start,
+          end: split,
+        },
+      },),
+    },),
+    second: footnoteBodySpans({
+      source,
+      readable,
+      readSpans,
+      footnotes,
+      range: {
+        start: footnoteBodyStart({
+          source,
+          range: {
+            start: split,
+            end,
+          },
+        },),
+        end,
+      },
     },),
   },);
 }

@@ -337,6 +337,10 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '[^1]: 注 ({)\nimport data from the old system\n===\n[r]: u{b "t {"\n',
   ],
   [
+    'a footnote definition the plain reading makes a heading of, then a definition line holding a brace',
+    '[^1]: x {\ny\n===\n[r]: u{b "t {"\n',
+  ],
+  [
     'a footnote definition, a line of two hyphens, then a definition line holding a brace',
     '[^1]: x\ny\n--\n[r]: u{b "t {"\n',
   ],
@@ -1019,25 +1023,6 @@ https://example.net/b{c`,);
               expect(encoded({ text, },),).toBe(written,);
               expect(readerOfPage({ carried: written, },) === readerOfSource({ source: text, },),).toBe(false,);
             }
-          },
-        },),
-
-        it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION THAT STARTS ON A LATER LINE '
-            + 'OF A PARAGRAPH, and the page shows the mark (a limit the module comment names): the paragraph is not '
-            + 'one that opens the definition, so the lines under it are read as a line of the paragraph',
-          fn: async () => {
-            /**
-             The source of the limit.
-             */
-            const text = 'x\n[^1]: 注 {\n    ```\n';
-            /**
-             The run as the encoder writes it.
-             */
-            const written = encoded({ text, },);
-            expect(written,).toBe('x\n[^1]: 注 \\{\n    \\`\\`\\`\n',);
-            expect(readerOfPage({ carried: written, },),).toBe('x [^1]: 注 { ```',);
-            expect(readerOfSource({ source: text, },),).toBe('x [^1]: 注 {',);
           },
         },),
 

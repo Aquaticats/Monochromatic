@@ -18,6 +18,7 @@ import {
 
 import {
   footnoteBodySpans,
+  footnoteInParagraphSpans,
   nestedSpans,
   spansOf,
   withoutIndentation,
@@ -194,6 +195,53 @@ await describe({
               return (start <= source.indexOf('{y}',)) && (source.indexOf('{y}',) < stop);
             },),).toBe(false,);
             expect(literal,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: footnoteInParagraphSpans.name,
+      children: [
+        it({
+          name: 'READS THE LINES BEFORE A FOOTNOTE DEFINITION AS A TEXT OF THEIR OWN AND THE DEFINITION AS THE '
+            + 'FOOTNOTE, so a code span that the plain reading runs across the definition holds nothing past it',
+          fn: async () => {
+            /**
+             A paragraph whose code span would run across the definition's line.
+             */
+            const source = 'a `b\n[^1]: c {d}\ne` f\n';
+            /**
+             Where the definition starts.
+             */
+            const split = source.indexOf('[^1]',);
+            const { text, } = footnoteInParagraphSpans({
+              source,
+              readable: source,
+              readSpans: spansOf,
+              footnotes: [
+                {
+                  start: split,
+                  end: source.length - 1,
+                },
+              ],
+              range: {
+                start: 0,
+                end: source.length - 1,
+              },
+              split,
+              end: source.length - 1,
+            },);
+            /**
+             Whether a stretch read as text holds the brace.
+             */
+            const holdsBrace = text.some(function holds({
+              start,
+              end,
+            },): boolean {
+              return (start <= source.indexOf('{d}',)) && (source.indexOf('{d}',) < end);
+            },);
+            expect(holdsBrace,).toBe(true,);
           },
         },),
       ],

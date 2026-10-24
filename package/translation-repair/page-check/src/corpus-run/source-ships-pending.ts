@@ -1,4 +1,5 @@
 import type {
+  BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
@@ -7,7 +8,10 @@ import {
   opensFootnote,
 } from './source-ships-footnote.ts';
 import { endsInLiteral, } from './source-ships-literal-end.ts';
-import type { TextRange, } from './source-ships-ranges.ts';
+import {
+  rangeOf,
+  type TextRange,
+} from './source-ships-ranges.ts';
 
 //region Source ships pending
 // THE STATE THE SPANS READER KEEPS while it walks the nodes of a parse: a node still to read with where it stands, and,
@@ -189,6 +193,215 @@ export function takeContinuation(
     return definition;
   pending.pop();
   return following.node;
+}
+
+/**
+ How far a footnote definition at the top reaches, and the state of the top once it is read.
+ */
+export type FootnoteReach = {
+  /**
+   Where the lines the footnote's body is read from end.
+   */
+  readonly end: number;
+
+  /**
+   State of the top once the footnote is read.
+   */
+  readonly state: FootnoteState;
+};
+
+/**
+ The most columns of indentation a footnote definition may start after.
+ */
+const MAX_DEFINITION_INDENT = 3;
+
+/**
+ Whether a footnote definition starts at a block: at its first character, or after spaces that a definition may start
+ after.
+
+ @param source - text
+
+ @param range - where the block stands
+
+ @param start - where the footnote definition starts
+
+ @returns Whether the footnote starts at the block
+
+ @example
+ ```ts
+ const same = startsAtBlock({ source: '[^1]: x', range: { start: 0, end: 7, }, start: 0, },);
+ ```
+ */
+function startsAtBlock(
+  {
+    source,
+    range,
+    start,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+    readonly start: number;
+  },
+): boolean {
+  if ((start < range.start) || (start > (range.start + MAX_DEFINITION_INDENT)))
+    return false;
+  /**
+   What stands between the block's first character and the footnote's.
+   */
+  const between = source.slice(
+    range.start,
+    start,
+  );
+  return between.trim() === '';
+}
+
+/**
+ Takes the blocks of the root that start before a place off the nodes still to read.
+
+ @param pending - nodes still to read, the next one on top; the blocks taken are removed from it
+
+ @param end - place the blocks must start before
+
+ @returns The blocks taken, in text order
+
+ @example
+ ```ts
+ const taken = takeRootBlocksBefore({ pending, end: 12, },);
+ ```
+ */
+function takeRootBlocksBefore(
+  {
+    pending,
+    end,
+  }: {
+    readonly pending: Pending[];
+    readonly end: number;
+  },
+): readonly TreeNode[] {
+  /**
+   Blocks taken.
+   */
+  const taken: TreeNode[] = [];
+  for (let next = pending.at(-1,); next !== undefined; next = pending.at(-1,)) {
+    if (!next.isRootChild)
+      break;
+    /**
+     Where the block stands.
+     */
+    const { start, } = rangeOf({ node: next.node, },);
+    if (start >= end)
+      break;
+    pending.pop();
+    taken.push(next.node,);
+  }
+  return taken;
+}
+
+/**
+ Takes the blocks the strict grammar reads as part of a footnote definition at the top off the nodes still to read, so
+ that they are read with the definition as the footnote's own text.
+
+ The strict grammar ends the footnote where a parse with GFM does; the plain reading goes on in paragraphs, raw HTML
+ and definitions that the footnote's paragraph takes for lazy lines, and a block that starts inside the footnote is
+ part of it.
+
+ @param pending - nodes still to read, the next one on top; the blocks the footnote reaches are removed from it
+
+ @param footnotes - where the strict grammar reads a footnote definition in the whole text
+
+ @param source - text
+
+ @param node - block that opens the footnote
+
+ @param range - where the footnote starts in the block, and where the block ends
+
+ @param state - state of the top once the block is read
+
+ @returns Where the footnote's lines end and the state of the top, the state given when no footnote starts at the block
+
+ @example
+ ```ts
+ const reach = takeFootnote({ pending, footnotes, source, node, range, state, },);
+ ```
+ */
+export function takeFootnote(
+  {
+    pending,
+    footnotes,
+    source,
+    node,
+    range,
+    state,
+  }: {
+    readonly pending: Pending[];
+    readonly footnotes: readonly BlockRange[];
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+    readonly state: FootnoteState;
+  },
+): FootnoteReach {
+  /**
+   The footnote the strict grammar starts at the block.
+   */
+  const footnote = footnotes.find(function opensHere({ start, },): boolean {
+    return startsAtBlock({
+      source,
+      range,
+      start,
+    },);
+  },);
+  if (footnote === undefined) {
+    /**
+     The block the definition's lines go on in: the paragraph right after a definition, else the block itself.
+     */
+    const continued = (node.type === 'definition')
+      ? takeContinuation({
+        pending,
+        definition: node,
+      },)
+      : node;
+    /**
+     Where the block the lines go on in ends.
+     */
+    const { end: continuedEnd, } = rangeOf({ node: continued, },);
+    return {
+      end: continuedEnd,
+      state,
+    };
+  }
+  /**
+   The blocks the footnote reaches into.
+   */
+  const taken = takeRootBlocksBefore({
+    pending,
+    end: footnote.end,
+  },);
+  /**
+   Where each of them ends.
+   */
+  const ends = taken.map(function endOf(block,): number {
+    /**
+     Where the block ends.
+     */
+    const { end, } = rangeOf({ node: block, },);
+    return end;
+  },);
+  return {
+    end: Math.max(
+      range.end,
+      footnote.end,
+      ...ends,
+    ),
+    state: {
+      open: false,
+      endLine: endLineOf({
+        node: taken.at(-1,) ?? node,
+        fallback: state.endLine,
+      },),
+      endsInLiteral: false,
+    },
+  };
 }
 
 /**

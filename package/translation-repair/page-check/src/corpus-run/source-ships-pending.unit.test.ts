@@ -11,13 +11,17 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
+import {
+  footnoteDefinitionRangesOf,
+  parseMarkdownMathBody,
+} from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
   footnoteStateOf,
   rangeOf,
   stateAfter,
   takeContinuation,
+  takeFootnote,
   topLevelPending,
 } from '../../dist/final/node/index.mjs';
 
@@ -269,6 +273,139 @@ await describe({
               pending: [],
               definition,
             },),).toBe(definition,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: takeFootnote.name,
+      children: [
+        it({
+          name: 'TAKES THE BLOCKS THE STRICT GRAMMAR READS IN THE FOOTNOTE OFF THE NODES STILL TO READ, a heading the '
+            + 'plain reading made of its lines and a definition line among them, and closes the top',
+          fn: async () => {
+            /**
+             A footnote whose paragraph holds a line of equals signs and a definition line, then a paragraph of its own.
+             */
+            const source = '[^1]: x\ny\n===\n[r]: u\n\n注\n';
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source, },);
+            const [definition, ...rest] = blocks;
+            if (definition === undefined)
+              throw new Error('the text holds no block',);
+            /**
+             The nodes still to read, the next one on top.
+             */
+            const pending = rest
+              .map(function pendingNode(node,) {
+                return {
+                  node,
+                  isRootChild: true,
+                  insideLink: false,
+                  parentType: 'root',
+                  parent: root,
+                };
+              },)
+              .toReversed();
+            /**
+             The block that stands apart from the footnote.
+             */
+            const apart = pending.at(0,);
+            const reach = takeFootnote({
+              pending,
+              footnotes: footnoteDefinitionRangesOf({ body: source, },),
+              source,
+              node: definition,
+              range: rangeOf({ node: definition, },),
+              state: OPEN_ON_LINE_ONE,
+            },);
+            expect(reach.end,).toBe(source.indexOf('\n\n',),);
+            expect(pending,).toEqual([apart,],);
+            expect(reach.state,).toEqual({
+              open: false,
+              endLine: 4,
+              endsInLiteral: false,
+            },);
+          },
+        },),
+
+        it({
+          name: 'HANDS BACK THE END OF THE BLOCK, the state given and the paragraph that goes on after a definition '
+            + 'when no footnote starts at the block',
+          fn: async () => {
+            /**
+             A definition with a paragraph on the next line.
+             */
+            const source = '[^1]: https://example.net/a\n注\n';
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source, },);
+            const [definition, paragraph,] = blocks;
+            if ((definition === undefined) || (paragraph === undefined))
+              throw new Error('the text holds no second block',);
+            const pending = [
+              {
+                node: paragraph,
+                isRootChild: true,
+                insideLink: false,
+                parentType: 'root',
+                parent: root,
+              },
+            ];
+            const reach = takeFootnote({
+              pending,
+              footnotes: [],
+              source,
+              node: definition,
+              range: rangeOf({ node: definition, },),
+              state: OPEN_ON_LINE_ONE,
+            },);
+            expect(reach.end,).toBe(rangeOf({ node: paragraph, },).end,);
+            expect(reach.state,).toEqual(OPEN_ON_LINE_ONE,);
+            expect(pending,).toEqual([],);
+          },
+        },),
+
+        it({
+          name: 'LEAVES A NODE THAT IS NOT A BLOCK OF THE ROOT, and one that starts where the footnote has ended',
+          fn: async () => {
+            const source = '[^1]: x\ny\n===\n\n注\n';
+            const {
+              root,
+              blocks,
+            } = blocksOf({ source, },);
+            const [definition, heading, paragraph,] = blocks;
+            if ((definition === undefined) || (heading === undefined) || (paragraph === undefined))
+              throw new Error('the text holds fewer than three blocks',);
+            const pending = [
+              {
+                node: paragraph,
+                isRootChild: true,
+                insideLink: false,
+                parentType: 'root',
+                parent: root,
+              },
+              {
+                node: heading,
+                isRootChild: false,
+                insideLink: false,
+                parentType: 'listItem',
+                parent: root,
+              },
+            ];
+            takeFootnote({
+              pending,
+              footnotes: footnoteDefinitionRangesOf({ body: source, },),
+              source,
+              node: definition,
+              range: rangeOf({ node: definition, },),
+              state: NOTHING_READ,
+            },);
+            expect(pending.length,).toBe(2,);
           },
         },),
       ],

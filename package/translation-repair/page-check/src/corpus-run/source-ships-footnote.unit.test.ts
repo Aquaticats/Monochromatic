@@ -13,6 +13,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 import {
+  footnoteDefinitionRangesOf,
   parseMarkdownMathBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure';
@@ -20,8 +21,10 @@ import {
 import {
   continuesDefinition,
   footnoteBodyStart,
+  footnoteStartInside,
   isIndentedCode,
   isLazyDefinition,
+  NO_FOOTNOTE_INSIDE,
   opensFootnote,
   rangeOf,
   withoutIndentation,
@@ -103,8 +106,8 @@ await describe({
       name: opensFootnote.name,
       children: [
         it({
-          name: 'READS A DEFINITION WITH A CARET LABEL AND A PARAGRAPH STARTING [^label]: AS THE FIRST LINE OF A '
-            + 'FOOTNOTE, and no other block',
+          name: 'READS A DEFINITION WITH A CARET LABEL, A PARAGRAPH AND A HEADING STARTING [^label]: AS THE FIRST LINE '
+            + 'OF A FOOTNOTE, and no other block',
           fn: async () => {
             /**
              Whether the only block of a text opens a footnote.
@@ -122,6 +125,8 @@ await describe({
               },);
             }
             expect(opens({ source: '[^1]: {', },),).toBe(true,);
+            expect(opens({ source: '[^1]: x {\ny\n===\n', },),).toBe(true,);
+            expect(opens({ source: '# [^1]: x {\n', },),).toBe(false,);
             expect(opens({ source: '[^1]: a b', },),).toBe(true,);
             expect(opens({ source: '[r]: u', },),).toBe(false,);
             expect(opens({ source: '[^1] a', },),).toBe(false,);
@@ -270,6 +275,54 @@ await describe({
               definition,
               block: heading,
             },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: footnoteStartInside.name,
+      children: [
+        it({
+          name: 'GIVES WHERE A FOOTNOTE DEFINITION STARTS ON A LATER LINE OF A PARAGRAPH, and says none does for a '
+            + 'paragraph that opens one, one that holds none and a definition after the paragraph',
+          fn: async () => {
+            /**
+             A paragraph whose code span runs across a footnote definition's line, then a footnote of its own.
+             */
+            const source = 'a `b\n[^1]: c\ne` f\n\n[^2]: g\n';
+            /**
+             Where the strict grammar reads the footnotes.
+             */
+            const footnotes = footnoteDefinitionRangesOf({ body: source, },);
+            expect(footnoteStartInside({
+              footnotes,
+              range: {
+                start: 0,
+                end: source.indexOf('\n\n',),
+              },
+            },),).toBe(source.indexOf('[^1]',),);
+            expect(footnoteStartInside({
+              footnotes,
+              range: {
+                start: source.indexOf('[^1]',),
+                end: source.indexOf('\n\n',),
+              },
+            },),).toBe(NO_FOOTNOTE_INSIDE,);
+            expect(footnoteStartInside({
+              footnotes: [],
+              range: {
+                start: 0,
+                end: source.indexOf('\n\n',),
+              },
+            },),).toBe(NO_FOOTNOTE_INSIDE,);
+            expect(footnoteStartInside({
+              footnotes,
+              range: {
+                start: 0,
+                end: source.indexOf('[^1]',),
+              },
+            },),).toBe(NO_FOOTNOTE_INSIDE,);
           },
         },),
       ],
