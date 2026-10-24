@@ -2562,6 +2562,29 @@ The cat loves sunbathing on the windowsill. The cat hates butterflies.
       },
     },),
     it({
+      name: 'COUNTS ONE ALIGNED UNIT AND ONE SLICE IN THE SINGULAR on the line it writes before the first slice, since '
+        + 'the noun agrees with the count',
+      fn: async () => {
+        /**
+         Messages the lane logged.
+         */
+        const messages: string[] = [];
+        await repairPreparedDocument({
+          client: scriptedClient({ criticIssues: [], },),
+          prepared: prepareDocumentPair({
+            sourceText: '## 甲\n\n猫猫喜欢在窗台上晒太阳。\n',
+            targetText: '## Alpha\n\nThe cat loves sunbathing on the windowsill.\n',
+          },),
+          models: MODELS,
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          parentLogger: capturingLogger({ messages, },),
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        expect(messages[0]?.startsWith('[repairPreparedDocument] 1 aligned unit, 1 slice, ',),).toBe(true,);
+      },
+    },),
+    it({
       name: 'NAMES THE SLICE on each slice\'s start line when slices run side by side (ledger A11: '
         + 'the repair lane\'s lines carried no slice under overlap)',
       fn: async () => {
