@@ -137,7 +137,8 @@ impl GpuTile {
     /// Make the scenes of the tile the ones to draw at the next frame;
     /// a tile not drawn yet is replaced.
     /// A tile whose textures differ in size from the last one's gets its new textures,
-    /// and the window its new slices, here and not in the frame,
+    /// and the window its new slices,
+    ///  here and not in the frame,
     /// because the window does not show a slice list it was given inside the frame that draws the tile.
     pub(super) fn submit_tile(&self, window: &AppWindow, stack: TileStack) {
         let mut inner = self.inner.borrow_mut();

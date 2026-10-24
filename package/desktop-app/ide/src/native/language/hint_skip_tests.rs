@@ -19,7 +19,8 @@ use crate::native::annotate::displayed;
 use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
-/// The slices the window draws the tile with, and one frame that draws the waiting scenes.
+/// The slices the window draws the tile with,
+///  and one frame that draws the waiting scenes.
 use crate::native::{
     tile_reads::draw_minimap,
     tile_slice_frame_tests::{slice_heights, texture_heights},
@@ -28,8 +29,6 @@ use crate::native::{
 use ide_app::row_map::CODE_ROW;
 /// The report is JSON lines.
 use serde_json::Value;
-/// The window handle.
-use slint::ComponentHandle;
 /// External writes and the report path.
 use std::{fs, path::PathBuf};
 
@@ -421,7 +420,8 @@ fn press_minimap_top(scene: &Scene) {
 
 /// A press whose view is covered by the stored answers sends no request,
 ///  and the window already holds the slices of the new tile when the press has been handled:
-///  the frame that draws it shows it, and no answer to a request is needed to bring another frame.
+///  the frame that draws it shows it,
+///  and no answer to a request is needed to bring another frame.
 #[test]
 fn a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile() {
     let scene = scene("");

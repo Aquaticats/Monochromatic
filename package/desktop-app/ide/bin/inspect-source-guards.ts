@@ -2051,7 +2051,7 @@ const cases: Guard[] = [
     after: '        let _ = (outcome, window);',
     native: true,
     test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
-    failure: 'the window holds the slices of the earlier tile after the press'
+    failure: 'the start drew no tile'
   },
   {
     name: 'tile-slices-applied-skipped',

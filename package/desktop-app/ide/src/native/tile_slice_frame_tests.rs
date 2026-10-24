@@ -1,9 +1,11 @@
 //! A tile of another size reaches the window before the frame that draws it.
 //!  The GPU draws the scene into textures during a frame,
 //!  and a tile whose textures differ in size from the last one's needs new textures and a new list of slices
-//!  (`source-slices`, the list the markup draws with a `for`).
+//!  (`source-slices`,
+//!  the list the markup draws with a `for`).
 //!  A list the window is given inside the frame is not shown by that frame (the real window draws nothing in the
-//!  code column in it), and an idle window draws no frame by itself,
+//!  code column in it),
+//!  and an idle window draws no frame by itself,
 //!  so a tile handed over for the next frame must bring its slices with it:
 //!  otherwise the code column stays blank beside the new rows until some other event draws a frame.
 //! The test harness draws every property the notifier set in the same snapshot,
@@ -12,13 +14,18 @@
 //!  when a tile is handed over and before any frame is drawn,
 //!  the window holds slices of the new textures.
 
-/// A press on the minimap, the viewport box, and the settling of the tile.
+/// A press on the minimap,
+///  the viewport box,
+///  and the settling of the tile.
 use super::minimap_tests::{calm, geometry, lift, over, press};
-/// One frame, which draws the scenes waiting for it.
+/// One frame,
+///  which draws the scenes waiting for it.
 use super::tile_reads::draw_minimap;
 /// Opening a long plain text and waiting for its first layout.
 use super::wrap_tests::{open, settled};
-/// The reader fixture, the window, and the source state.
+/// The reader fixture,
+///  the window,
+///  and the source state.
 use super::{AppWindow, State, find_tests::Reader};
 /// The window handle and the model trait.
 use slint::{ComponentHandle, Model};

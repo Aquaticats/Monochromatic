@@ -510,3 +510,255 @@ Probes and scripts:
 `big.ts`;
 scratch,
 not kept in the repository).
+
+## A press whose hint request is skipped leaves the code column blank
+
+Found on 2026-10-24 by a verification agent on the installed binary (merge `83f6240e4b`,
+the tree with the hint skip rule),
+and fixed the same day.
+
+### Symptom
+
+Opening `package/build-tool/css/src/build.unit.test.ts` (287 lines,
+window of 1080 by 1880 logical px at scale 2)
+and pressing the minimap at y=1000,
+1700,
+1000,
+560,
+and 1700 with a screenshot after each:
+the gutter numbers stay drawn and the code column is blank.
+The mean grey of the code area (crop 1300 by 3600 at +640+60) is 0.5000 to 0.500017 when blank
+and 0.5088 to 0.5114 when text is drawn.
+The installed binary drew the first press,
+left the second blank,
+the third blank,
+drew the fourth,
+and left the fifth blank.
+A later screenshot stayed blank,
+and one wheel notch brought the text back,
+so the picture was missing and not late.
+Every blank press coincided with the log line `skipped the hint request: stored answers already cover its lines`,
+but not the other way round:
+the skipped press at y=560 drew its text.
+
+### Cause
+
+`hints` in `src/native/language/sync.rs` skips correctly;
+it took away a frame that the code view needed and nothing else asked for.
+
+The code tile reaches the screen in two steps.
+`show` (`src/native/render/present.rs`) hands the scene to the GPU and asks for a frame.
+In that frame the rendering notifier (`bind` in `src/native/gpu_tile.rs`) draws the scene into textures,
+and when the new tile's textures differ in size from the last tile's (`tile_textures_fit` in
+`src/native/gpu_tile/source.rs`) it makes new textures first and gives the window their slices,
+the list `source-slices` that the markup draws with a `for` (`ui/app.slint`),
+through `outcome.apply(&active)` in the notifier closure,
+inside the frame.
+A frame does not show a slice list it was given inside itself,
+and an idle window draws no other frame.
+In the real window the code column is empty in that frame;
+the gutter,
+which comes from other properties,
+is drawn.
+A press places the view at another place,
+and the tile there has another height
+(188 lines for the first press and 117 lines for the second,
+in the 287-line file,
+the log line
+`window thread measured and built a tile`),
+so a press almost always replaces the textures.
+
+Before the skip rule the frame that showed the slices came by chance.
+The answer to the second hint request was stored,
+`tick` in `src/native/language/poll.rs` rendered the source again,
+and `show` asked for a frame.
+The log of the tree before the rule shows it,
+5 ms from the stored answer to the frame:
+`stored inlay hints for the displayed text`,
+`source reading state presented`,
+`winit asked for a redraw`,
+`the toolkit began drawing a frame`.
+A skipped request has no answer,
+so nothing rendered,
+and the frame that replaced the slices was the last one.
+The skipped press at y=560 drew its text because its tile had the size of the one before it:
+no textures were replaced and the slices already pointed at the textures the frame redrew.
+
+What was not found:
+why the real window shows nothing in that frame while the test harness
+(`Window::take_snapshot` through `gpu_snapshot.rs`) shows the new slices in the same snapshot.
+Both use the same femtovg-wgpu renderer,
+which calls the notifier before it draws the items
+(`i-slint-renderer-femtovg-1.18.1/lib.rs`,
+lines 246 to 262).
+The remedy does not depend on it,
+and the tests check the contract and not the frame (see below).
+
+### Fix
+
+A tile handed over for the next frame brings its slices with it.
+`GpuTile::submit_tile` (`src/native/gpu_tile.rs`) now takes the window and,
+when the device is held
+(`Inner::prepare_tile`,
+`src/native/gpu_tile/source.rs`) and the new tile's textures differ in size from the last one's,
+makes the textures and gives the window the slices at once,
+in the call from `show`,
+outside any frame.
+The frame that follows draws the scenes into those textures before the items are drawn,
+and shows the tile.
+The notifier keeps the old step for a tile handed over before the first frame,
+when no device is held yet,
+and asks for one more frame when it replaced the slices (`request_redraw`,
+logged as
+`replaced the slices of the source tile inside a frame, so asking for the next`).
+That step is not covered by a test of its own:
+it is reached only by the very first tile of a window.
+Textures of the same size are reused as before,
+so a scroll step that re-centers the tile still makes no texture
+and sets no list (`a_tile_of_the_same_shape_reuses_its_textures_and_the_list_of_images` passes unchanged).
+The skip rule is unchanged,
+and so are its request counts (below).
+
+Considered and not built:
+
+- Asking for one more frame after the notifier replaced the slices (built first,
+  commit `e0b6493f30`).
+  It showed the tile one frame late:
+  the recording below counted one blank frame for each replaced tile
+  (37 of 711 frames) where the fix above counts none,
+  and a test could only count frames,
+  not see the column.
+  The notifier keeps it for the first tile only.
+- Removing the skip rule.
+  It saves a request and its answer,
+  and the blank column was not its doing:
+  any tile handed over without a render after it would have the same defect.
+  Ranked:
+  the fix above,
+  then the ask-for-a-frame variant,
+  then the removal,
+  because the removal would hide the cause.
+
+### Measured
+
+The disposable project is a copy of `build.unit.test.ts` with the TypeScript 7.1.0-beta server,
+the window is 1080 by 1880 logical px at scale 2 on the hardware Vulkan device in the nested compositor,
+and the binaries are debug builds.
+The host was loaded throughout (load average 7 to 26,
+other sessions building and testing),
+so the numbers are what happened under that load.
+The recordings ask for 60 frames per second and got 21.6 to 22.7:
+at 2160 by 3760 pixels per frame the capture pipeline reads back fewer frames than that on this host,
+and none was dropped or failed in any recording.
+
+The five screenshots (presses at y=1000,
+1700,
+1000,
+560,
+1700;
+mean grey of the code area),
+three alternating runs per binary,
+the tree before the fix (`5e9584aa51`) and the fixed tree (`433856b8a6`):
+
+- Before:
+  0.511073,
+  0.500000,
+  0.500017,
+  0.510496,
+  0.500000 in 3 of 3 runs.
+  The second,
+  third,
+  and fifth screenshots are blank.
+- After:
+  0.511073,
+  0.509927,
+  0.511073,
+  0.510496,
+  0.509927 in 3 of 3 runs.
+  All five are drawn.
+- The first design (a frame asked for after the slices were replaced inside a frame,
+  commit `e0b6493f30`) also drew
+  all five in 4 of 4 runs.
+  The tree before the skip rule drew the first two presses here (0.511073,
+  0.509927),
+  and the verification agent reported all five.
+
+The requests per press,
+from the debug log,
+are unchanged by the fix.
+A first press at y=1700 sends 1 request and 1 skip;
+a press at y=1700 after a press at y=1000 sends 0 requests and 1 skip,
+and the same press again sends 0 requests and 1 skip.
+The first line shown by the first press and by the press after the visit elsewhere is the same,
+224 on the gutter
+(line 223 of the text,
+zero-based),
+in the fixed tree and in the tree before it,
+and the two minimap screenshots differ by 0 pixels.
+In the five-press sequence the log counted no slice list replaced inside a frame:
+every tile that needed new textures
+got them when it was handed over.
+
+The 88-click recording (the script of the verification agent:
+88 presses around the minimap,
+in order,
+reversed,
+and
+shuffled;
+PNG frames;
+a frame whose code area has a mean grey below 0.5005 is blank;
+the gap above the line-number row of line 96 is read by template):
+
+- Fixed tree:
+  726 frames at 22.0 per second,
+  0 blank,
+  line 96 found in 382 frames,
+  the gap above it 82 logical px in all
+  382 (a gap above 82 would be the doubled hints).
+  The log counts 4 hint requests and 29 skips.
+- Tree before the fix (`5e9584aa51`):
+  732 frames at 22.3 per second,
+  343 blank,
+  line 96 found in 386 frames,
+  the gap 82 in all of them.
+  4 hint requests and 28 skips.
+- First design (`e0b6493f30`):
+  711 frames at 21.6 per second,
+  37 blank,
+  each one frame long:
+  the frame that did not show the new slices.
+- Tree before the skip rule (`cr/base` of the earlier agents):
+  741 frames at 22.7 per second,
+  143 blank,
+  32 hint requests and no skip.
+  That tree also leaves the column blank for the time between a press and the answer that repaints it,
+  so the "0 blank frames" of the fixed tree is not a property the earlier trees had.
+
+### Proof that the tests and the guards see the fix
+
+- `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame` (`src/native/tile_slice_frame_tests.rs`)
+  presses the minimap on a 1500-line text and checks,
+  before any frame is drawn,
+  that the heights of the slices the window holds changed and are those of the textures the GPU holds.
+  `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile`
+  (`src/native/language/hint_skip_tests.rs`) does the same after two answered views,
+  with the press at the top of the
+  minimap and the request counts of the scripted server unchanged (the press is skipped).
+  Without the fix the window holds the slices of the earlier tile after the press
+  (`the window holds the slices of the earlier tile after the press`,
+  `the window still holds the slices of the tile before the press`).
+- The test harness cannot show the blank column.
+  A first version compared the last frame an event loop would draw with a frame drawn right after it and passed on the
+  tree without any fix:
+  the harness draws the slices the notifier set in the same snapshot.
+  A version that compared the tile's text pixels with the frame measured the antialiased glyph edges,
+  not the staleness.
+  A third counted the frames drawn when a frame asks for the next (commit `e0b6493f30`) and failed without the ask,
+  but it tested the first design.
+  What the tests check now is the contract the real window needs,
+  and the symptom is checked on the binary.
+- Five `inspect:source-guards` cases remove one line each in a disposable copy:
+  `tile-slices-prepared` and `tile-slices-prepared-skipped` (the condition that makes the textures),
+  `tile-slices-replaced` (the call that makes them),
+  and `tile-slices-applied` and `tile-slices-applied-skipped` (the call that gives the window the slices).
+  All fail with the line removed and pass again with it restored.
