@@ -325,10 +325,7 @@ function shapesAlong(
   /**
    What the chain stands for after the members read so far.
    */
-  const {
-    standing,
-    isFree,
-  } = standingAfter({
+  const { standing, } = standingAfter({
     context,
     chain,
     count,
@@ -342,7 +339,7 @@ function shapesAlong(
     },);
   }
   if (standing === 'other') {
-    return (isFree && (count < readable))
+    return (count < readable)
       ? shapesAlong({
         context,
         chain,
