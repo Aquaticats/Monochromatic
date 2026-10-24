@@ -4266,7 +4266,26 @@ a first click far down the minimap is mapped through a layout that lacks the hin
 The owner chose "Re-aim once" (answer through the question tool, 2026-10-24):
 when an answer changes the layout height while the view still stands where the last minimap click put it,
 scroll to where the same click lands in the new layout.
-An agent builds it with a test that fails first; its report is verified, landed and the IDE reinstalled.
+An agent built it with tests that failed first; my verification landed it and reinstalled the IDE.
+Landed 2026-10-24 as `76f7818e8f` (agent tip `2bb333a8b8`, plus my commit that breaks six README lines:
+the agent's branch passed its own lint, the merged tree failed `markdown/semantic-line-breaks`, so the gate on the merged tree was needed).
+Rule: `src/native/minimap/aim.rs` keeps the last jumping press (its place on the track, the share of the scroll range
+before it, and what it left: offset, caret, text stamp, view size);
+`rows::settle` maps it again through a newly installed layout;
+`viewport::place` forgets it when the view is placed anywhere else.
+Measured: the first click at y=1700 and the same click after a visit elsewhere both land on first line 223
+(before 214 and 223), minimap crops 994.01 px against 0.38 px, 53 to 56 fps in three alternating recordings per binary.
+Gates on the merged tree: `lint` 0 (after the README fix), `test:native` 299 passed and 5 skipped,
+`test` 804 passed, `test:bin` 0, `inspect:no-software-renderer` 0; 8 new tests in `src/native/minimap_aim_tests.rs`
+(7 of 7 red before the rule) and 10 guard cases `minimap-aim-*` (28 of 28 accepted).
+The IDE was rebuilt and installed from `76f7818e8f` (sha256 `01cf04773425e1bc…`, prints 0.1.1).
+Two costs the agent reported, both open and not asked for by the owner:
+the first click now costs one more report of visible lines and so one more hint request (the second range lies inside
+the first answered range, so a rule that skips a window the last answer covers would remove it);
+and the caret follows the aim (line 178 to line 171 about 260 ms after a click at y=1000 in one run).
+Scratch left until the owner confirms the fixes on the installed binary:
+`~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
+disposable project `/tmp/ide-mm-proj-8MEEkc`.
 
 Correction of the residual, measured later on 2026-10-24 (`~/temp/agent/mm2`;
 record in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`):
