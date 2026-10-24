@@ -46,7 +46,7 @@ export type RunPair = {
 /**
  A pair of runs with its place in the stream of draws it was taken from.
  */
-export type SampledPair = RunPair & {
+type SampledPair = RunPair & {
   /**
    Index of the draw, so a failure can be replayed by drawing up to it.
    */
@@ -78,19 +78,19 @@ const SCRAMBLE = {
 
  @param seed - starting state
 
- @returns Function giving an integer below its limit
+ @returns Function giving an integer under its limit
 
  @example
  ```ts
- const below = seededBelow({ seed: 31_415_926, },);
+ const draw = seededDraw({ seed: 31_415_926, },);
  ```
  */
-function seededBelow({ seed, }: { readonly seed: number; },): (limit: number,) => number {
+function seededDraw({ seed, }: { readonly seed: number; },): (limit: number,) => number {
   /**
    State the generator advances.
    */
   const state = { seed, };
-  return function below(limit: number,): number {
+  return function draw(limit: number,): number {
     // A product by one reads the sum as a 32-bit integer, which wraps it as the generator needs.
     state.seed = Math.imul(
       state.seed + STATE_STEP,
@@ -127,48 +127,48 @@ function seededBelow({ seed, }: { readonly seed: number; },): (limit: number,) =
 
  @param list - elements to draw from, not empty
 
- @param below - generator of integers below a limit
+ @param draw - generator of integers under a limit
 
  @returns The element the generator picks
 
  @example
  ```ts
- const separator = drawFrom({ list: RUN_SEPARATORS, below, },);
+ const separator = drawFrom({ list: RUN_SEPARATORS, draw, },);
  ```
  */
 function drawFrom(
   {
     list,
-    below,
+    draw,
   }: {
     readonly list: readonly string[];
-    readonly below: (limit: number,) => number;
+    readonly draw: (limit: number,) => number;
   },
 ): string {
   /**
    Index the generator picks.
    */
-  const at = below(list.length,);
+  const at = draw(list.length,);
   return list[at] ?? '';
 }
 
 /**
  Draws one run, one to three fragments joined by one separator.
 
- @param below - generator of integers below a limit
+ @param draw - generator of integers under a limit
 
  @returns Source text of a run, ending in a line ending
 
  @example
  ```ts
- const run = drawRun({ below, },);
+ const run = drawRun({ draw, },);
  ```
  */
-function drawRun({ below, }: { readonly below: (limit: number,) => number; },): string {
+function drawRun({ draw, }: { readonly draw: (limit: number,) => number; },): string {
   /**
    How many fragments the run holds.
    */
-  const count = 1 + below(FRAGMENTS_AT_MOST,);
+  const count = 1 + draw(FRAGMENTS_AT_MOST,);
   /**
    The fragments, drawn in order.
    */
@@ -177,7 +177,7 @@ function drawRun({ below, }: { readonly below: (limit: number,) => number; },): 
     function drawPart(): string {
       return drawFrom({
         list: RUN_FRAGMENTS,
-        below,
+        draw,
       },);
     },
   );
@@ -186,7 +186,7 @@ function drawRun({ below, }: { readonly below: (limit: number,) => number; },): 
    */
   const separator = drawFrom({
     list: RUN_SEPARATORS,
-    below,
+    draw,
   },);
   return `${parts.join(separator,)}\n`;
 }
@@ -228,11 +228,11 @@ export function sampledPairs(
   /**
    Generator of the stream of pairs.
    */
-  const below = seededBelow({ seed, },);
+  const draw = seededDraw({ seed, },);
   /**
    Generator that picks the pairs to keep.
    */
-  const pick = seededBelow({ seed: sampleSeed, },);
+  const pick = seededDraw({ seed: sampleSeed, },);
   return Array.from(
     { length: total, },
     function drawPair(
@@ -242,17 +242,17 @@ export function sampledPairs(
       /**
        Source text of the first run.
        */
-      const first = drawRun({ below, },);
+      const first = drawRun({ draw, },);
       /**
        Source text of the second run, drawn after the first.
        */
-      const second = drawRun({ below, },);
+      const second = drawRun({ draw, },);
       return {
         at,
         first,
         middle: drawFrom({
           list: ENGLISH_MIDDLES,
-          below,
+          draw,
         },),
         second,
       };
@@ -344,7 +344,7 @@ export function sampledTexts(
   /**
    Generator that picks the texts to keep.
    */
-  const pick = seededBelow({ seed: sampleSeed, },);
+  const pick = seededDraw({ seed: sampleSeed, },);
   return texts.filter(function isKept(): boolean {
     return pick(oneIn,) === 0;
   },);
