@@ -218,6 +218,38 @@ await describe({
       },
     },),
     it({
+      name: 'READS --passes as the number of times an arm walks the pool, leaving the member out when the flag is not '
+        + 'written, and takes it beside --trials, which then counts asks through the passes, and beside a cap',
+      fn: async () => {
+        expect(askedFrom({ typed: ['--passes', '2',], },).passes,).toBe(2,);
+        expect('passes' in askedFrom({ typed: [], },),).toBe(false,);
+        expect(askedFrom({ typed: ['--passes', '2', '--trials', '120', '--cap', '0',], },),).toMatchObject({
+          passes: 2,
+          trials: 120,
+          cap: 0,
+        },);
+        expect(askedFrom({ typed: ['--passes', '3', '--cap', '150',], },),).toMatchObject({
+          passes: 3,
+          cap: 150,
+        },);
+      },
+    },),
+    it({
+      name: 'REFUSES --passes of zero, which would walk the pool no time',
+      fn: async () => {
+        expect(refusalOf({
+          typed: ['--passes', '0',],
+          askedFrom,
+        },),).toBe('--passes needs at least 1, and 0 walks the pool no time');
+      },
+    },),
+    it({
+      name: 'LEAVES THE DEFAULT CAP at a thousand asks, more than the pool walked through several passes',
+      fn: async () => {
+        expect(DEFAULT_EDITOR_TRIAL_CAP,).toBe(1_000,);
+      },
+    },),
+    it({
       name: 'REFUSES a cap or an amount mistyped, and a flag written last or naming nobody',
       fn: async () => {
         /**
@@ -225,7 +257,7 @@ await describe({
          */
         const usage = 'Usage: editor-fidelity-probe [--only <entry ids>] [--cap <count>] '
           + '[--damage <insertion|alteration>] [--candidates <seatable ids>] [--max-usd <dollars>] '
-          + '[--bench-spent-usd <dollars>] [--trials <count>] [--candidates-alone]';
+          + '[--bench-spent-usd <dollars>] [--trials <count>] [--passes <count>] [--candidates-alone]';
         /**
          Command lines an operator mistyped, each with the refusal it must draw.
          */
