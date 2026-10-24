@@ -162,8 +162,12 @@ G-X03 changes time only,
 G-F15 reads names at the top of a file,
 whose range holds no node,
 and G-C07a walks on from a name that stands for neither a builder nor a carrier,
-which reaches no builder by the way the paths are resolved
-(an argument and not a measurement).
+which reaches no builder:
+a probe of a nested object path,
+a static class member,
+a namespace of a module that carries no builder
+and a member of a declared function gave the same places with and without the mutant,
+and a path that reaches a builder through a bound name makes that name a carrier.
 The first run left 34 alive:
 the cases that the survivors called for are `7bb024afce`,
 `dfa39ec392`
