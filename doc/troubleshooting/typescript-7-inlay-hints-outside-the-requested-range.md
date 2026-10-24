@@ -335,6 +335,13 @@ asked about:
   and another file reset it.
   Opening the file in the worker again (an explicit action that restarts failed servers) forgets all lines too,
   because the new worker holds no earlier request.
+- An answer counts only when it put a hint on one of the lines it asked about (a hint that stands on another line,
+  as TypeScript 7 gives for a statement that began above the range, does not count).
+  An answer without one covers nothing and takes the lines it asked about out of the earlier coverage,
+  because it replaced their hints with none.
+  A server that is still loading the project answers with no hint or with some,
+  and the view that settles over those lines then asks again, as it did before the rule.
+  Lines that really hold no hint are asked again on each settle for the same reason.
 - Ranges that overlap or touch are joined,
   so two answers can cover a range together,
   and a gap between answers is not covered.
@@ -408,6 +415,25 @@ skips the lines `skipped the hint request`.
   their lines were inside what the two earlier answers had asked,
   and their hints were stored.
 
+After the change that makes an answer without a hint cover nothing,
+the two first scenarios were measured again with the new binary (three alternating runs per binary):
+the first click at y=1700 is 2 requests in base and 1 request plus 1 skip in fix (3 of 3 runs each),
+and the press at y=1700 after the click at y=1000 is 1 request in base and 0 requests plus 1 skip in fix (3 of 3 runs).
+The counts are those of the earlier runs.
+
+### Servers the IDE starts, and what they answer while loading
+
+The IDE uses Helix's built-in definitions with its own overrides (`src/language/config.rs`),
+so the servers are those of Helix's languages: `rust-analyzer`, the TypeScript 7 server for the TypeScript family
+(`src/language/config/typescript.rs`), `slint-lsp` and `qmlls` (which announce no inlay hints on this host), and others.
+Measured on 2026-10-24 with a direct probe (`~/temp/agent/cr/ra.ts`, a 23-line crate, whole-file requests every 250 ms
+after `didOpen`, `rust-analyzer` 1.98.1 from the stable toolchain):
+0 hints at 7 ms, 5 at 261 ms, error `-32801 content modified` at 514 and 858 ms, then 15 from 2057 ms on, stable until 12 s.
+So a loading server does answer with no hint (the case the rule treats as covering nothing)
+and with part of its hints (the case it does not catch: the 5 of 15 would cover their lines).
+The TypeScript 7 server answered completely from 0 ms in the section "Residual first-visit difference of the minimap"
+(68 and 68 hints after delays of 0 to 6000 ms), and its `content modified` errors are retried by the worker.
+
 ### Known costs
 
 - A skipped view leaves the worker's window at the last view it was told about.
@@ -423,6 +449,8 @@ skips the lines `skipped the hint request`.
   and then one starting at line 186 (the view);
   a tree without the rule was not measured for this.
   The answer for the earlier window is dropped as "no longer wanted" when the current window differs.
+- A partial answer of a loading server (some of its hints, not all) covers its lines until an edit, a reload,
+  reopening the file in the worker, or a view that leaves them; the rule cannot tell it from a complete answer.
 - With several servers one stored answer covers the lines for all of them,
   although a server that started later has answered fewer lines.
 - A later press that lies wholly inside what an earlier visit asked costs no request,
@@ -449,7 +477,7 @@ skips the lines `skipped the hint request`.
   because the request they wait for is sent anyway;
   they fail against the guard cases `hint-skip-pending` and `hint-skip-failed`,
   which record a request as covering its lines when it is sent.
-- Eleven cases `hint-skip-*` in `bin/inspect-source-guards.ts` change one line each in a disposable copy
+- Seventeen cases `hint-skip-*` in `bin/inspect-source-guards.ts` change one line each in a disposable copy
   (`hint-skip-covered`,
   `hint-skip-noted`,
   `hint-skip-revision-reset`,
@@ -460,8 +488,14 @@ skips the lines `skipped the hint request`.
   `hint-skip-touching`,
   `hint-skip-pending`,
   `hint-skip-failed`,
-  `hint-skip-reopen`):
-  all eleven tests fail with the line changed,
+  `hint-skip-reopen`,
+  `hint-skip-empty-answer`,
+  `hint-skip-empty-answer-window`,
+  `hint-skip-empty-uncover`,
+  `hint-skip-uncover-left`,
+  `hint-skip-uncover-right`,
+  `hint-skip-uncover-apart`):
+  all seventeen tests fail with the line changed,
   with the expected message,
   and pass again with it restored.
   One line is not guarded:

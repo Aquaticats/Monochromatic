@@ -1744,6 +1744,22 @@ a query for another revision (or another file) is not covered,
 and opening the file in the worker again forgets all of them,
 because the new worker holds no earlier request.
 An empty range is never covered.
+An answer counts only when it put a hint on one of the lines it asked about,
+because a server that is still loading the project answers with no hint or with some:
+an answer without one covers nothing,
+takes the lines it asked about out of what earlier answers covered
+(it replaced their hints with none),
+and so the view that settles over those lines asks again,
+as it did before the rule.
+Lines that really hold no hint are asked again on each settle for the same reason.
+A server that answers a loading project with some of its hints is not caught:
+`rust-analyzer` 1.98.1 answered a cold request for a 23-line file with 0 hints after 7 ms,
+5 after 261 ms,
+errors `content modified` after 514 and 858 ms,
+and 15 from 2057 ms on,
+so a partial answer of 5 covers its lines until an edit,
+a reload,
+or a view that leaves them.
 A skipped view is recorded as handled,
 so it is not examined again on each tick,
 and the worker keeps the window it was last told.
