@@ -63,6 +63,56 @@ async function codeOfFailure({ attempt, }: { readonly attempt: () => Promise<boo
   }
 }
 
+/**
+ The line the runbook-root reading logs for a runs root it could not resolve.
+
+ @param root - runs root as it was given
+
+ @param said - text of the failure, as the filesystem words it
+
+ @returns Warning line, with its level and the tag of the function that wrote it
+
+ @example
+ ```ts
+ const line = runbookRootLine({ root: '/cats/file/below', said: 'ENOTDIR: not a directory', },);
+ ```
+ */
+function runbookRootLine({ root, said, }: { readonly root: string; readonly said: string; },): string {
+  return `warn [runbookRootReading] the runbook's runs root ${root} could not be resolved (ENOTDIR); no searched `
+    + `root can be compared with it. The failure was: ${said}`;
+}
+
+/**
+ The line the per-root reading logs for a root it could not resolve.
+
+ @param root - searched root as it was given
+
+ @param runbookRoot - runbook's runs root it was compared with
+
+ @param said - text of the failure, as the filesystem words it
+
+ @returns Warning line, with its level and the tag of the function that wrote it
+
+ @example
+ ```ts
+ const line = rootLine({ root: '/cats/file/below', runbookRoot: '/cats/home', said: 'ENOTDIR: not a directory', },);
+ ```
+ */
+function rootLine(
+  {
+    root,
+    runbookRoot,
+    said,
+  }: {
+    readonly root: string;
+    readonly runbookRoot: string;
+    readonly said: string;
+  },
+): string {
+  return `warn [reachOfRoot] ${root} could not be compared with the runbook's runs root ${runbookRoot} (ENOTDIR); `
+    + `it counts as not reaching it. The failure was: ${said}`;
+}
+
 await describe({
   name: searchReaches.name,
   concurrency: 1,
@@ -461,9 +511,10 @@ await describe({
         },).toEqual({
           reading: { kind: 'unresolved', code: 'ENOTDIR', },
           logged: [
-            `warn [runbookRootReading] the runbook's runs root ${relativeRoot} could not be resolved (ENOTDIR); no `
-            + 'searched root can be compared with it. The failure was: '
-            + await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+            runbookRootLine({
+              root: relativeRoot,
+              said: await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+            },),
           ],
         },);
       },
@@ -497,8 +548,10 @@ await describe({
         },).toEqual({
           reading: { kind: 'unresolved', code: 'ENOTDIR', },
           logged: [
-            `warn [runbookRootReading] the runbook's runs root ${belowFile} could not be resolved (ENOTDIR); no `
-            + `searched root can be compared with it. The failure was: ${await refusalSaid({ path: belowFile, },)}`,
+            runbookRootLine({
+              root: belowFile,
+              said: await refusalSaid({ path: belowFile, },),
+            },),
           ],
         },);
       },
@@ -547,9 +600,11 @@ await describe({
         },).toEqual({
           reading: { kind: 'unresolved', root: relativeRoot, code: 'ENOTDIR', },
           logged: [
-            `warn [reachOfRoot] ${relativeRoot} could not be compared with the runbook's runs root ${base.path} `
-            + '(ENOTDIR); it counts as not reaching it. The failure was: '
-            + await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+            rootLine({
+              root: relativeRoot,
+              runbookRoot: base.path,
+              said: await refusalSaid({ path: `${process.cwd()}${sep}${relativeRoot}`, },),
+            },),
           ],
         },);
       },
@@ -638,8 +693,11 @@ await describe({
         },).toEqual({
           reading: { kind: 'unresolved', root: belowFile, code: 'ENOTDIR', },
           logged: [
-            `warn [reachOfRoot] ${belowFile} could not be compared with the runbook's runs root ${base.path} `
-            + `(ENOTDIR); it counts as not reaching it. The failure was: ${await refusalSaid({ path: belowFile, },)}`,
+            rootLine({
+              root: belowFile,
+              runbookRoot: base.path,
+              said: await refusalSaid({ path: belowFile, },),
+            },),
           ],
         },);
       },
