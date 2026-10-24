@@ -261,6 +261,79 @@ function unreachedRootWarning(
 }
 
 /**
+ The line the audit logs once for the runbook's runs root when that root cannot be resolved.
+
+ @param code - filesystem code of the failure
+
+ @param said - text of the failure, as the filesystem words it
+
+ @param home - home directory the runbook's runs root sits under
+
+ @returns Warning line, without its level, with the tags of the functions that wrote it
+
+ @example
+ ```ts
+ const line = unresolvedRunbookRootLine({ code: 'ENOTDIR', said: 'ENOTDIR: not a directory', home: '/cats/file', },);
+ ```
+ */
+function unresolvedRunbookRootLine(
+  {
+    code,
+    said,
+    home,
+  }: {
+    readonly code: string;
+    readonly said: string;
+    readonly home: string;
+  },
+): string {
+  return `[warningWordsOf] [runbookRootReading] the runbook's runs root ${join(home, 'temp', 'agent',)} could not be `
+    + `resolved (${code}); no searched root can be compared with it. The failure was: ${said}`;
+}
+
+/**
+ What the audit says when it read records and the runbook's runs root cannot be resolved, so no root it searched can be
+ compared with it.
+
+ @param roots - every root it searched, in the order it printed them
+
+ @param home - home directory the runbook's runs root sits under
+
+ @param code - filesystem code of the failure
+
+ @returns Sentence, without the stdout prefix
+
+ @example
+ ```ts
+ const words = unresolvedRunbookRootWarning({ roots: ['/cats/runs',], home: '/cats/file', code: 'ENOTDIR', },);
+ ```
+ */
+function unresolvedRunbookRootWarning(
+  {
+    roots,
+    home,
+    code,
+  }: {
+    readonly roots: readonly string[];
+    readonly home: string;
+    readonly code: string;
+  },
+): string {
+  /**
+   Where a launch that follows the runbook writes its runs.
+   */
+  const runbookRoot = join(
+    home,
+    'temp',
+    'agent',
+  );
+  return `the runbook's runs root ${runbookRoot} could not be resolved (${code}), so none of the roots searched could `
+    + `be compared with it: ${roots.join(', ',)}. The newest record and the versions set after it speak only for those `
+    + `roots, and a launch that follows the runbook writes its runs under ${runbookRoot}; pass --runs-under `
+    + `${runbookRoot} after -- to read them.`;
+}
+
+/**
  The warnings the audit logs when it reads one record and searches the given roots for a given home directory.
 
  @param searched - directories named after --runs-under
@@ -1042,6 +1115,70 @@ await describe({
             },),
           ],
           printedWarning: false,
+        },);
+      },
+    },),
+    it({
+      name: 'NAMES THE RUNBOOK\'S RUNS ROOT ONCE WHERE IT IS THE ROOT THAT CANNOT BE RESOLVED: no searched root is '
+        + 'blamed, one line is logged with the runbook\'s root, and the newest record and the versions set after it '
+        + 'are still printed',
+      fn: async (ctx) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        await using root = await scratchDir({ prefix: 'cache-account-slice-root-', },);
+        await using runs = await scratchDir({ prefix: 'cache-account-slice-runs-', },);
+        await using under = await scratchDir({ prefix: 'cache-account-slice-under-', },);
+        await using beside = await scratchDir({ prefix: 'cache-account-slice-beside-', },);
+        await writeSliceRecord({ runsDir: runs.path, seconds: NEWEST_SECONDS, },);
+        const homeFile = join(
+          under.path,
+          'home-file',
+        );
+        await writeFile(
+          homeFile,
+          'meow',
+          'utf8',
+        );
+        const runbookRoot = join(
+          homeFile,
+          'temp',
+          'agent',
+        );
+        const roots = [
+          join(root.path, 'node_modules', '.monochromatic',),
+          runs.path,
+          under.path,
+          beside.path,
+        ];
+        const logged: string[] = [];
+
+        await reportSliceCaches({
+          root: root.path,
+          runsDir: runs.path,
+          searched: [under.path, beside.path,],
+          settings: [],
+          l: levelCapturingLogger({ lines: logged, },),
+          home: homeFile,
+        },);
+
+        expect({
+          logged: warningsIn({ lines: logged, },),
+          printedWarnings: printed.lines.filter(function isWarning(line,): boolean {
+            return line.startsWith('WARNING: ',);
+          },),
+          lastPrinted: printed.lines.at(-1,)?.startsWith('cache versions set after it: ',),
+        },).toEqual({
+          logged: [
+            unresolvedRunbookRootLine({
+              code: 'ENOTDIR',
+              said: await refusalSaid({ path: runbookRoot, },),
+              home: homeFile,
+            },),
+            unresolvedRunbookRootWarning({ roots, home: homeFile, code: 'ENOTDIR', },),
+          ],
+          printedWarnings: [
+            `WARNING: ${unresolvedRunbookRootWarning({ roots, home: homeFile, code: 'ENOTDIR', },)}`,
+          ],
+          lastPrinted: true,
         },);
       },
     },),
