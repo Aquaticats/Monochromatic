@@ -2,6 +2,7 @@ import {
   ancestorsOf,
   identifierName,
   type TreeNode,
+  unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
@@ -10,6 +11,7 @@ import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
 import {
   keyNameOf,
   nodeAt,
+  stringValueOf,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Code the schema search cannot read
@@ -18,7 +20,11 @@ import {
 // search could read, so each of these is reported where it is written, whether or not a builder is near it:
 // `createRequire` in any form (a call, an import of it, a member of a module), `require` anywhere but as the callee of
 // a direct call (`module.require`, an alias, `require.call`, a comma expression), `eval`, and `Function` with or
-// without `new`, also as the member of another object. A word inside a string, a longer name and a type are not code.
+// without `new`, also as the member of another object, and a member of `globalThis`, `window`, `self` or `global`
+// whose key is computed from anything but a string literal (`globalThis['ev' + 'al']`), since it can be either. A word
+// inside a string, a longer name and a type are not code. The check does not read the constructor of a function
+// (`(function () {}).constructor('...')`), the constructor of the prototype of an async function, nor `node:vm`; these
+// reach code from text without a name the search could tell, and are limits of the search that the ledger states.
 
 /**
  What a report says of a place that builds a loader.
@@ -41,6 +47,18 @@ const RUNS_TEXT = 'eval runs text the search cannot read';
 const BUILDS_FUNCTION = 'Function builds code from text the search cannot read';
 
 /**
+ What a report says of a member of the global object whose key is no string the search can read. The key can be
+ `eval` or `Function`, and nothing in the file says which.
+ */
+const COMPUTES_GLOBAL = 'global object member computed from a key the search cannot read';
+
+/**
+ The name that stands for a member of the global object with a key the search cannot read. It is no identifier, so no
+ file can write it, and no name a file writes can be taken for it.
+ */
+const COMPUTED_GLOBAL_KEY = '[computed global key]';
+
+/**
  The names that make code the search cannot read, each with what a report says of it.
  */
 const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
@@ -48,7 +66,52 @@ const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
   eval: RUNS_TEXT,
   Function: BUILDS_FUNCTION,
   require: REACHES_REQUIRE,
+  [COMPUTED_GLOBAL_KEY]: COMPUTES_GLOBAL,
 },),);
+
+/**
+ The names the global object is written with, in the runtimes the family runs in and in the browsers.
+ */
+const GLOBAL_OBJECTS: ReadonlySet<string> = new Set([
+  'global',
+  'globalThis',
+  'self',
+  'window',
+],);
+
+/**
+ The name of a member of the global object whose key is no string the search can read.
+
+ @param node - member expression read
+
+ @returns The name that stands for it among the unreadable names, empty for any other member
+
+ @example
+ ```ts
+ const name = computedGlobalNameOf({ node, },); // COMPUTED_GLOBAL_KEY for globalThis[key]
+ ```
+ */
+function computedGlobalNameOf({ node, }: { readonly node: TreeNode; },): string {
+  if (node.computed !== true)
+    return '';
+  /**
+   The key when it is a string the search can read, empty otherwise: a name in brackets is a variable's value, not a
+   string.
+   */
+  const key = stringValueOf({
+    node: nodeAt({
+      node,
+      field: 'property',
+    },),
+  },);
+  if (key !== '')
+    return '';
+  /**
+   The object the member is read from, without the marks that leave it the same.
+   */
+  const { inner: object, } = unwrapped({ node: node.object, },);
+  return GLOBAL_OBJECTS.has(identifierName({ node: object, },),) ? COMPUTED_GLOBAL_KEY : '';
+}
 
 /**
  The name an identifier or a member computed from a string is written with when it makes code the search cannot read.
@@ -76,6 +139,14 @@ function unreadableNameOf({ node, }: { readonly node: TreeNode; },): string {
       },), },)
       : '')
     : identifierName({ node, },);
+  if (node.type === 'MemberExpression') {
+    /**
+     The name of a member of the global object whose key is no string, empty for any other member.
+     */
+    const computedGlobal = computedGlobalNameOf({ node, },);
+    if (computedGlobal !== '')
+      return computedGlobal;
+  }
   return UNREADABLE_NAMES.has(name,) ? name : '';
 }
 

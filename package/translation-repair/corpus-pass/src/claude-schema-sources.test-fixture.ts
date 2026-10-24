@@ -93,7 +93,10 @@ import {
 // is stored, handed to a call, chained with `.then` or dropped. Code that can load a module with no path to read is
 // reported (`code-the-search-cannot-read`), in `claude-schema-blind-unreadable.test-fixture.ts`: `createRequire` in any
 // form, `require` anywhere but as the callee of a direct call (`module.require`, an alias, `require.call`), `eval`,
-// and `Function` with or without `new`. A specifier that is no built-in module, no package the lockfile holds for the
+// `Function` with or without `new`, and a member of `globalThis`, `window`, `self` or `global` whose key is not a
+// string literal (`globalThis['ev' + 'al']`); the constructor of a function, the constructor of the async function
+// prototype and `node:vm` make code from text too and are not read, a limit the ledger states. A specifier that is no
+// built-in module, no package the lockfile holds for the
 // family and no file is reported (`unresolved-module-specifier`), in `claude-schema-blind-specifiers.test-fixture.ts`:
 // an alias that begins with `#`, a package nothing holds, a relative path to a file that does not exist; a type-only
 // import or export and a type are left out. The lockfile gives the packages of every package of the family together,

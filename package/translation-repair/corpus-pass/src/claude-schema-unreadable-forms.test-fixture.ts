@@ -6,7 +6,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // The first total follows `import()` and a call of `require`. Code that builds a loader, reaches `require` by another
 // name, or makes code from text can load a module that carries a builder with no path the search could read, so the
 // check reports each of these where it is written, and reports nothing for a direct call of `require`, a string or a
-// name that only contains one of the words, or a type.
+// name that only contains one of the words, or a type. A member of the global object computed from anything but a
+// string literal is reported too, since the key can be `eval` or `Function`.
 
 /**
  The position a report gives for a place that builds a loader.
