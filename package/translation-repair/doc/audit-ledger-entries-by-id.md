@@ -429,6 +429,7 @@ which lists every file of this record.
 - [B862, the producer-list search and the readings no case held](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [B863, the producer-list search read as a syntax tree](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [B870 to B893, probes that read one editor card](audit-ledger-editor-card-probes.md)
+- [B894 to B898, the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

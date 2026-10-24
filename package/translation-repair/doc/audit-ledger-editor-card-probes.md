@@ -14,6 +14,8 @@ and the dry run that prints what the arm will do before it calls anything.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
+Entries from B894 on are in [the paired rule and shared trials file][paired-rule],
+because this file stood at 982 lines.
 
 ## B870: the editor calibration had no flag naming a card, so an unmeasured card could not be benched as an editor
 
@@ -72,7 +74,7 @@ The case now names the new flags.
 The failure was found by the package's own `test:unit`,
 and no behaviour changed.
 
-## B874: the editor calibration gives a relative share that moves too far between identical runs to separate effort levels
+## B874: the editor calibration's relative share moves too far between identical runs to separate effort levels
 
 Status:
 recorded on 2026-10-23 (UTC),
@@ -284,7 +286,7 @@ and a run prints its pool on the line `pool: N trials over M entries (insertion 
 No cache version moves:
 the probe reads no cache and the pool touches no stage key.
 
-## B881: the gate on the first-pass total refused every arm of a forty-trial pool, so a guard holds each call to the measured spend
+## B881: the gate on the first-pass total refused every arm of a forty-trial pool, so a per-call guard replaced it
 
 Status:
 fixed on 2026-10-23 (UTC) in `4434c4257a2a7462fce3700fcff3e7591dd2830e`,
@@ -396,7 +398,7 @@ The one exception is a layout change of a single statement,
 made in its own commit (`27b17b9065a6d91fbc77fe2d9a1536708bdd9741`) between the red commit and the fix,
 because the red commit left a `no-await-in-loop` warning that `lint:oxlint` reads as a failure.
 
-## B885: the spend guard did not count a call that threw or an attempt the Claude client retried, so an arm could spend past its amount unseen
+## B885: the spend guard did not count a call that threw or a retried attempt, so an arm could overspend unseen
 
 Status:
 fixed on 2026-10-23 (UTC) in `9a8b0a4c1fd801c25a9ab03930b2e017800628a6`
@@ -437,8 +439,8 @@ The one-way flag the client keeps moved to its own module (`provider/src/one-way
 because the source scans want every module to own one.
 
 Cache:
-`git log --no-merges -G _CACHE_VERSION` over every commit of this branch since `83194090a561fd1134e96c35b7164daf46c0cb3a`
-lists none.
+`git log --no-merges -G _CACHE_VERSION` over every commit of this branch since
+`83194090a561fd1134e96c35b7164daf46c0cb3a` lists none.
 The same search over `c265e8df9525f4513b8229482d3e8d932ea630df`,
 a commit known to move a cache version,
 lists it,
@@ -538,7 +540,7 @@ and that each arm states an earlier spend at least the `GUARD total=` of the arm
 (`checkEditorBench` in `probe/src/corpus-run/editor-fidelity-arm-bench.ts`).
 Each check that fails exits 6.
 
-## B887: a cheap reply could pass the probe, so the sheet carries the page's context and the headline counts exact fixes only
+## B887: a cheap reply could pass the probe, so the sheet carries page context and the headline counts only exact fixes
 
 Status:
 fixed on 2026-10-23 (UTC) in `84f697f3b46e6bb23cb7cb90e5c032215bbe5c3e`
@@ -802,13 +804,20 @@ and `fe1949dfaeed8c6f630155e505af8625d74b2504` edits three listing tests of the 
 The same follow-up corrects the index of the audit ledger,
 which called this entry the slips of a third round.
 
-## B891: the decision rule was prose and its threshold called a difference in over half the benches with none, so the rule is code with a floor taken from an exact enumeration
+## B891: the decision rule was prose and its threshold called a difference in over half the benches with none
 
 Status:
 fixed on 2026-10-24 (UTC) in `4f1cd29786853868de4d181e45709905af077f2f`
 and `0cd4f916b68c5dc6bcc58de7b09696a6c0c77598`,
 red `a2f92a6063ba03682b17ae964125abe109ba3794`,
 open to the owner's veto.
+The fix made the rule code with a floor taken from an exact enumeration.
+Superseded on 2026-10-24 by B894 in [the paired rule and shared trials file][paired-rule]:
+the floor,
+the kind clause and the enumeration fixture `editor-fidelity-decide-null.test-fixture.ts` were replaced by a paired
+exact test,
+and that fixture and its unit test were removed in
+`6404700c3457eb51a60d63bc76bbe5685aff875d`.
 
 The rule of B887 said an effort differs from the default when its pooled clean fix count is further from the mean of the
 two medium arms than the larger of 3 trials and the two medium arms' own difference.
@@ -817,8 +826,8 @@ no function took four arms and returned a verdict,
 so the verdict was the reader's.
 And a floor of 3 trials was never checked against what two identical arms do.
 
-`decideEffort` (`probe/src/corpus-run/editor-fidelity-decide.ts`) takes the clean fix counts of the four arms for each kind
-and returns the verdict with the clause that decided it:
+`decideEffort` (`probe/src/corpus-run/editor-fidelity-decide.ts`) takes the clean fix counts of the four arms for each
+kind and returns the verdict with the clause that decided it:
 `beats-medium`,
 `tie`,
 `fixes-fewer`,
@@ -980,3 +989,6 @@ They change no request body,
 no reply and no key,
 and nothing under `slice-cache` or `stage`.
 No cache version moves.
+B898 names the file of the hook this statement calls "a hook it calls before an attempt".
+
+[paired-rule]: audit-ledger-editor-bench-paired-rule-and-trials.md
