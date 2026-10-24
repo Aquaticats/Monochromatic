@@ -176,6 +176,9 @@ Development dependencies other than `test-fixture` (`devDependencies`,
 used by tests):
 
 - `adjudication`
+- `source-scan`
+  (the schema cases parse the family's source with its `parseSource` and walk the tree with its helpers,
+  through `@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts`)
 
 ### Used by
 

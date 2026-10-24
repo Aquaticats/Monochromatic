@@ -41,6 +41,15 @@ so a function one package exports and another uses still counts as reached.
   `readTaskFiles`,
   `runnerEntriesOf` and `declaringModule`.
   `source-scan.test-fixture.ts` parses TypeScript with the parser rolldown exposes and walks the syntax tree.
+  `corpus-pass` imports it too,
+  for the search over the family's source that keeps its list of answer-schema producers honest:
+  `parseSource` parses each file,
+  and `nodesUnder`,
+  `parentsOf`,
+  `isTreeNode`,
+  `identifierName`,
+  `memberName`,
+  `literalText` and `unwrapped` read the tree.
   `source-text-scan.test-fixture.ts` holds the text helpers `matchingClose`,
   `topLevelPieces` and `withoutBlockAndLineComments`.
   `prose-texts.test-fixture.ts` reads package and repository texts through `readPackageTexts` and
@@ -98,7 +107,12 @@ Development dependencies other than `test-fixture` (`devDependencies`):
 
 ### Used by
 
-No family package lists it in `dependencies` or `devDependencies`.
+No family package lists it in `dependencies`.
+
+Packages that list it only in `devDependencies`:
+
+- `corpus-pass`
+  (its schema cases import the scan fixtures through `@monochromatic-dev/translation-repair-source-scan/ts/`)
 
 ## Tests
 

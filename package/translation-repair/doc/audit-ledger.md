@@ -243,7 +243,8 @@ named for that subject and listed here.
   the two survivors that stay unpinned (B684),
   a producer-list search that read a builder in few shapes (B861),
   the readings of that search that no case held (B862),
-  and the rebuild of that search over each file's syntax tree (B863).
+  the rebuild of that search over each file's syntax tree (B863),
+  and the check over the family's real sources that names each shape the search leaves unread (B864).
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,
