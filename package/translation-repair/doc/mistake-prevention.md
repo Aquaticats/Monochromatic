@@ -90,6 +90,12 @@ named for that subject and listed here.
   - [Globals a case replaces](mistake-prevention-tests-clocks-and-arrival-order.md#globals-a-case-replaces)
   - [Output decided by arrival order](mistake-prevention-tests-clocks-and-arrival-order.md#output-decided-by-arrival-order)
   - [Orders and seats that a prompt hash decides](mistake-prevention-tests-clocks-and-arrival-order.md#orders-and-seats-that-a-prompt-hash-decides)
+- [Preventing mistakes: fake clocks and native timers](mistake-prevention-fake-clocks-and-native-timers.md):
+  Rules for tests that replace the clock:
+  which timers the fake clock owns,
+  and what happens to a timer it did not make.
+  Sections:
+  - [Fake clocks that leave native timers](mistake-prevention-fake-clocks-and-native-timers.md#fake-clocks-that-leave-native-timers)
 - [Preventing mistakes: comparing text and reading structure](mistake-prevention-text-comparison-and-structure.md):
   Rules for comparing text and reading a document's structure:
   code points,

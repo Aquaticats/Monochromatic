@@ -148,9 +148,15 @@ and each task sets it to its own name.
   a directory the process may not enter)
   does not end the audit:
   it counts as not reaching the runs root,
-  one warning is logged with the root and the filesystem's code,
-  and the warning on stdout ends by naming it,
+  one warning is logged with the root,
+  the filesystem's code and the failure's text,
+  and the warning on stdout ends by naming the root and the code,
   so the newest-record and versions-set-after lines are still printed.
+  The runs root itself is resolved once before any root is compared with it:
+  where it cannot be resolved,
+  one warning is logged with that root and the failure's text,
+  and the warning on stdout says the roots searched could not be compared with it,
+  without calling any of them unresolved.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.

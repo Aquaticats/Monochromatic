@@ -142,22 +142,60 @@ so no cache version moved.
 
 Later,
 fix round 5:
-the cases of `run-seats-cure.unit.test.ts` and `run-seats-ceiling.unit.test.ts` scripted holds of 40 ms and let the
-reader wait them out on the real clock,
+the cases of `run-seats-cure.unit.test.ts` and `run-seats-ceiling.unit.test.ts` scripted holds of 40 ms
+and let the reader wait them out on the real clock,
 in slices of 5 ms.
 The listing of `real-clock-bounds.unit.test.ts` cannot carry them:
 its scan reads holds of 1000 ms or more,
-and an entry for a hold below that is reported as a listed key the source no
-longer holds.
+and an entry for a hold below that is reported as a listed key the source no longer holds.
 Both files now read the seats through `run-seats-fake-clock.test-fixture.ts`,
 which fakes `setTimeout` and `clearTimeout`,
 moves the clock past one hold and one poll,
 and aborts the reading,
 so a reading still waiting afterwards fails instead of hanging.
 The two suites took 677 ms and 834 ms in the run package's `test:unit` before and 158 ms and 178 ms after
-(`ac27c68dc6`).
+(`ac27c68dc6`);
+those are times of the suites,
+and the paragraph of fix round 6 gives the times of the processes.
 A scratch copy of the fixture that moved the clock by 1 ms failed every waiting case of both suites.
 No cached record holds a hold and no key covers one,
+so no cache version moved.
+
+Later,
+fix round 6:
+the fake clock of that fixture was installed after the module logger had begun its start check,
+a native timer of five seconds,
+and the fake `clearTimeout` refuses a timer it did not make:
+it wrote `FakeTimers: clearTimeout was invoked to clear a native timer` to stderr
+and left the timer holding the process.
+The suites finished in milliseconds and each file's process stayed alive for five seconds after them.
+The process wall of the whole `mise run` command of each file,
+three runs each,
+had a median of 6.12 s for the cure file (5.95 to 7.27 s)
+and 5.94 s for the ceiling file (5.93 to 5.95 s),
+each run printing one `FakeTimers` line,
+while the suites themselves took 70 to 155 ms and 77 to 101 ms in the same runs.
+The fixture now passes `shouldClearNativeTimers: true`,
+which hands a clear of a native timer to the real `clearTimeout` (`c1d7e4db8d`).
+The same three runs afterwards had a median of 1.18 s for both files
+(1.18 to 1.22 s for the cure file and 1.16 to 1.19 s for the ceiling file),
+with no `FakeTimers` line in any run,
+and the suites took 85 to 96 ms and 89 to 92 ms,
+unchanged within their spread.
+The whole unit run of the run package prints no `FakeTimers` line either.
+Three more installs of a fake clock in the family carried the same omission:
+the probe client suite of the run package,
+the 300-second hold case of the corpus-pass package
+and the fake-clock walk of the test-fixture package,
+which the two bench suites that walk it use.
+The scan `fake-timer-native-clear.unit.test.ts` of the source-scan package now fails,
+naming file and line,
+on any `useFakeTimers` call that fakes `clearTimeout` without that option (`58b3bfe200`),
+and read all four installs at its red.
+A clock that fakes the date alone is left alone by rule.
+What to do about the family is in the section "Fake clocks that leave native timers" of
+[the fake-clock record of mistake prevention][clocks-family].
+No cached record holds a clock and no key covers one,
 so no cache version moved.
 
 ## B838: a wait judged a return against the quorum alone
@@ -577,3 +615,6 @@ Cache account:
 the cache keys of the passes do not read the generation,
 and nothing the mark records goes into one.
 No cache version moved.
+
+[clocks-family]:
+  mistake-prevention-fake-clocks-and-native-timers.md#fake-clocks-that-leave-native-timers

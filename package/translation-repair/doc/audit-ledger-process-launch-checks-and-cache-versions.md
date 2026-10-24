@@ -658,3 +658,40 @@ two cases of the reach module pass there as guards that the refusals still raise
 fix `93990e5e0d`.
 The audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+fix round 6:
+the reach check changed as follows.
+The log line of a root the filesystem refuses to resolve now ends with the failure's text,
+where fix round 5 kept the code alone on the ground that the message quotes the path:
+the line already prints the root and the runbook's runs root,
+the text of a failed real-path lookup names the path the lookup stopped at,
+which tells a reader which file or link on the way is to blame,
+and the logger takes one string,
+so the caught value is rendered into the line.
+The printed warning still names the code alone.
+Red `a51fe1ee88` (four cases fail at the parent),
+fix `f9529cb472`.
+A runbook runs root that cannot be resolved is named once.
+It used to fail every comparison,
+so the audit logged one line per searched root,
+four with the default roots,
+and the warning listed each as a root it could not resolve.
+The runbook's root is now resolved before any comparison;
+a failure logs one line with the root and the failure's text,
+the warning says the roots searched could not be compared with it,
+and the newest record and the versions set after it are still printed.
+Red `8410bf72fb`,
+fix `23bfbdf076`.
+The readings moved from the report module into `cache-account-search-reach.ts`,
+beside the walk,
+because the report module passed the line limit.
+The ternary of `realPathOf` that joined a relative path onto the working directory by name was dropped (`578429910d`):
+`realpath` resolves a relative path against the working directory itself,
+and a probe over ten relative paths in a disposable directory answered the same as the joined path in every case,
+the successes and `ENOENT`,
+`ENOTDIR` and `ELOOP` alike,
+so no case can tell the two apart and the commit has no red.
+`RootReading` is now named members and a one-line union (`b90f416665`).
+The audit reads versions and writes none,
+so no cache version moved.
