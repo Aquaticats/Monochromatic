@@ -118,7 +118,7 @@ fn fixture_reader(text: &str) -> (tempfile::TempDir, Reader) {
 /// ```ts
 /// async function idle(): Promise<void> { await sleep(250); }
 /// ```
-fn idle() {
+pub(super) fn idle() {
     let start = std::time::Instant::now();
     while start.elapsed() < std::time::Duration::from_millis(250) {
         update_timers_and_animations();

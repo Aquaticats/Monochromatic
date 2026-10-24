@@ -92,6 +92,9 @@ mod annotation_gutter_tests;
 ///  and display scale.
 #[cfg(test)]
 mod annotation_paint_tests;
+/// Hints a server places outside the lines it was asked about are not part of its answer.
+#[cfg(test)]
+mod annotation_range_tests;
 /// The pixels the GPU draws for annotations:
 /// one underline style per severity,
 /// virtual rows,
@@ -172,6 +175,11 @@ mod language;
 /// the scroll control,
 /// and the picture of the whole text built off-thread.
 mod minimap;
+/// A press on the minimap,
+///  mapped again through the layout that follows it
+///  while nothing else has moved the view.
+#[cfg(test)]
+mod minimap_aim_tests;
 /// The densest slices of text the minimap draws render in the renderer's fixed buffers.
 #[cfg(test)]
 mod minimap_dense_tests;

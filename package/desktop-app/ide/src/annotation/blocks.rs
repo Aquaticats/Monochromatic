@@ -182,7 +182,8 @@ impl Annotations {
     ///  Take the labels of `snapshot` into the per-line store:
     ///  lines the snapshot asked about are replaced
     ///       by its answer,
-    ///  other lines keep the labels an earlier snapshot of the same revision gave them.
+    ///  other lines keep the labels an earlier snapshot of the same revision gave them,
+    ///  and a hint of the snapshot that stands on another line is left out.
     ///       `&Rope` lends the text the snapshot describes.
     /// Why:
     ///  Hints are requested for one view height above and two below the visible lines.
@@ -222,12 +223,22 @@ impl Annotations {
             self.placed.remove(&line);
         }
         let length = text.len_chars();
+        let mut outside = 0_usize;
         for hint in &snapshot.hints {
             let trimmed = hint.label.trim();
             if trimmed.is_empty() {
                 continue;
             }
             let line = text.char_to_line(hint.position.min(length));
+            // A server answers for every node that reaches into the asked lines (TypeScript 7 answers a request for
+            // lines 100 to 200 with the four hints of the statement on line 96 whose body spans the file), so
+            // an answer can hold hints of lines it did not ask about. Their old hints were not removed above, so
+            // keeping these would add the same hints to that line again with every answer. A line the answer did
+            // not ask about keeps what the answer that asked for it gave.
+            if !asked.contains(&line) {
+                outside += 1;
+                continue;
+            }
             // `entry(...).or_default()` lends the line's list, creating an empty one first when absent.
             self.labels.entry(line).or_default().push(Label {
                 position: hint.position,
@@ -235,6 +246,14 @@ impl Annotations {
                 text: trimmed.to_string(),
             });
             self.placed.remove(&line);
+        }
+        if outside > 0 {
+            tracing::debug!(
+                first = asked.start,
+                last = asked.end,
+                outside,
+                "an answer held hints of lines it did not ask about; they were left out"
+            );
         }
         // Hint space held from the previous revision is given up for the lines this answer covers.
         for part in &mut self.held {
