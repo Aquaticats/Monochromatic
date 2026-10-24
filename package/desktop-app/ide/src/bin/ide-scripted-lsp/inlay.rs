@@ -43,7 +43,9 @@ fn answer(id: &Value, first_line: u64) -> Value {
     let mut hints = answer_hints();
     // A request for lines below the first also gets a hint on its first line, as a server answers the lines asked.
     if first_line > 0 {
-        hints.push(json_value!({ "position": { "line": first_line, "character": 0 }, "label": ": asked" }));
+        hints.push(
+            json_value!({ "position": { "line": first_line, "character": 0 }, "label": ": asked" }),
+        );
     }
     return json_value!({ "id": id, "result": hints });
 }
