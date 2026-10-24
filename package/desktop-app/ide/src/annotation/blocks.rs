@@ -205,6 +205,8 @@ impl Annotations {
             self.labelled = Some(snapshot.stamp);
         }
         let asked = snapshot.first_line..snapshot.last_line;
+        // Lines of this revision that an answer asked about are covered; another revision starts afresh.
+        self.answered.note(snapshot.stamp, asked.clone());
         // What: `range(...)` walks the stored lines inside the asked range; `copied()` yields the line numbers
         //       themselves and `collect()` gathers them into a list.
         // Why: The lines are removed afterwards; a map cannot be changed while it is being walked.
