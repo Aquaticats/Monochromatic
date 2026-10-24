@@ -52,17 +52,41 @@ import {
 // under `typeof` or in a type is no use.
 //
 // A use is followed through an import, an alias, a namespace import and a member taken out by destructuring, through a
-// dynamic `import()` or a `require` with a literal path, and through a module that exports the builder again by name,
-// under another name, with `export *`, as a namespace or as the default, however the default is written. An `import()`
-// or a `require` with a path that is no literal is not followed.
+// dynamic `import()` that is awaited or a `require` with a literal path, and through a module that exports the builder
+// again by name, under another name, with `export *`, as a namespace or as the default, however the default is written.
+// A name that a declaration inside a function or a block binds to a loaded module or to another name is read as the
+// file's own. The first binding of a name in the text is the one kept, and a binding at the top of the file wins over
+// one below it. A member read off a load in place, as in `(await import(path)).name(...)` and
+// `require(path).name(...)`, is followed like one read off a name that holds the module. An `import()` that is not
+// awaited yields a promise and is followed to no name. `.call`, `.apply` and `.bind` read off a builder are the
+// builder. A member named `call` of an object the file declares is that member. Two files that export everything of
+// each other, and two constants that are each other's value, end the search and name nothing. An `import()` or a
+// `require` with a path that is no literal, or that joins two literals, is not followed.
 //
 // A name the file neither declares nor imports from a file of the sources is read as the builder of that name. So is a
 // name imported from a specifier that names no file of the sources, and so is a parameter that shares the builder's
 // name; the scan over-reads there. A function of the builder's name that the file declares, or imports from another
 // file of the sources, is that function and not the builder.
 //
+// The scan over-reads where a class or a constant that is no function has the builder's name. It over-reads where a
+// constant, a function or a `catch` parameter inside a function has it. It over-reads where a function has a second
+// `return` that holds the call, and reads that function as a wrapper. It over-reads where a constant holds
+// `items.map((x) => build(x))`, and reads the constant as a wrapper.
+//
 // The file that declares a builder and the producer list are not its users. A file is listed when it holds a format,
 // names the type of one or uses a builder.
+//
+// The check `blindSpotsOf`, in `claude-schema-blind-spots.test-fixture.ts`, reads every non-test source of the family
+// that the search reads, and names by file and line each place that holds a shape the search leaves unread; the real
+// sources hold none. A load whose path is a name, a joined path or a template with a substitution is such a shape
+// (`computed-load-path`). So is a load that is held un-awaited, chained with `.then` or handed to a call
+// (`load-in-unfollowed-form`). So is a builder stored as the value of an object, written in full or short
+// (`builder-stored-in-object`), and a builder handed to a call that a constant holds, as in `memoize(build)`
+// (`builder-handed-to-a-call-held-by-a-constant`). So is a result returned through a local
+// (`result-returned-through-a-local`), and a builder called in a namespace, an enum initializer or a parameter
+// property (`builder-in-namespace-enum-or-parameter-property`). So is a function that holds a format and that no
+// declared function holds, as a static method, a getter or an anonymous default export does
+// (`format-in-undeclared-function`).
 
 /**
  One source file of the family.
