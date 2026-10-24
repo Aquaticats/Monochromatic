@@ -4301,7 +4301,23 @@ and its hints are stored in the same time (403 to 421 ms against 414 to 428 ms).
 Record, counts, guard runs and known costs:
 `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
 section "Skip a hint request that stored answers cover: built".
-Scratch left until the owner confirms the fixes on the installed binary:
+Hint skip rule (owner answer above): landed 2026-10-24 as `83f6240e4b` (fast-forward to the agent's tip),
+installed (sha256 `36c9caad610ced81…`, prints 0.1.1).
+A hint request is not sent when its range lies inside the lines that stored answers of the same text revision asked
+about (`Annotations::answered_covers`, `src/annotation/coverage.rs`, called from `hints` in `src/native/language/sync.rs`).
+Review finding of mine, fixed before landing: an answer with no hint on its asked lines covers nothing
+(a loading server answers empty or partial; `rust-analyzer` 1.98.1 cold: 0 hints at 7 ms, 5 at 261 ms,
+`content modified` at 514 and 858 ms, 15 from 2057 ms on; the TypeScript 7 server answers complete from 0 ms).
+Residual limit: a partial non-empty answer covers its lines until an edit, a reload, a reopen or a view that leaves them.
+Measured on the 287-line file, three alternating runs per binary: first click 2 requests before, 1 request plus 1 skip after;
+a press after a visit elsewhere 1 request before, 0 after; a wheel leaving the coverage still 1 request.
+Gates on the merged tree: `lint` 0, `test:native` 306 passed and 5 skipped, `test` 811 passed, `test:bin` 0,
+`inspect:no-software-renderer` 0; 17 `hint-skip-*` guard cases accepted, every changed-line run failing as expected.
+Known costs: after a skip the worker's window stays at the last view it was told
+(an external edit after a skip sent 2 requests, not measured without the rule),
+and with several servers one stored answer counts as covering the lines for all of them.
+Scratch left until the owner confirms the fixes on the installed binary
+(`~/temp/agent/cr` joins the list below):
 `~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
 disposable project `/tmp/ide-mm-proj-8MEEkc`.
 
