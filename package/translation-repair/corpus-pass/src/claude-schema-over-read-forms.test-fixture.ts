@@ -44,8 +44,9 @@ export const OVER_READ_CASES: readonly FormCase[] = [
     builders: [],
   },
   {
-    name: 'READS A CONSTANT INSIDE A FUNCTION AND THE PARAMETER OF A catch CLAUSE THAT HAVE THE BUILDER\'S NAME AS THE '
-      + 'BUILDER, which the search does not tell apart and so over-reads',
+    name: 'READS A CONSTANT OR A FUNCTION INSIDE A FUNCTION AND THE PARAMETER OF A catch CLAUSE THAT HAVE THE '
+      + 'BUILDER\'S NAME AS THE BUILDER, which the search does not tell apart and so over-reads (a function that '
+      + 'returns the local function\'s call is read as a wrapper)',
     files: [
       {
         file: 'imaginary/src/local-constant-named-like-builder.ts',
@@ -53,6 +54,15 @@ export const OVER_READ_CASES: readonly FormCase[] = [
           'export function localName() {',
           '  const contestResponseFormat = 1;',
           '  return contestResponseFormat;',
+          '}',
+        ],),
+      },
+      {
+        file: 'imaginary/src/local-function-named-like-builder.ts',
+        text: textOf([
+          'export function localFunction() {',
+          '  const contestResponseFormat = () => 1;',
+          '  return contestResponseFormat();',
           '}',
         ],),
       },
@@ -70,8 +80,9 @@ export const OVER_READ_CASES: readonly FormCase[] = [
     found: [
       'imaginary/src/catch-parameter-named-like-builder.ts',
       'imaginary/src/local-constant-named-like-builder.ts',
+      'imaginary/src/local-function-named-like-builder.ts',
     ],
-    builders: [],
+    builders: ['localFunction',],
   },
   {
     name: 'READS A FUNCTION WITH A SECOND return THAT HOLDS THE BUILDER\'S CALL AS A WRAPPER, which the search does '

@@ -3,7 +3,10 @@ import {
   methodFormatLinesOf,
   nestedMethodFormatLinesOf,
 } from './claude-schema-builder-forms.test-fixture.ts';
-import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
+import {
+  type FormCase,
+  textOf,
+} from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Builders the search does not read
@@ -168,6 +171,45 @@ export const UNREAD_BUILDER_CASES: readonly ShapeCase[] = [
         shape: 'format-in-undeclared-function',
       },
     ],
+  },
+];
+
+/**
+ The module of the contest builder, as a specifier written in a file under `imaginary/src`.
+ */
+const UNAWAITED_SPECIFIER = '../../lane-contest/src/contest-ballot-wire.ts';
+
+/**
+ The arguments of a call of the contest builder, as an imaginary file writes them.
+ */
+const UNAWAITED_ARGUMENTS = '{ schemaName: \'unawaited\', verdicts: [], asksArchive: false, }';
+
+/**
+ Cases of a load that is not awaited, which yields a promise and no module.
+ */
+export const UNAWAITED_LOAD_CASES: readonly FormCase[] = [
+  {
+    name: 'FOLLOWS NO NAME FROM AN import() THAT IS NOT AWAITED, held by a constant or read in place, since it yields '
+      + 'a promise and no module',
+    files: [
+      {
+        file: 'imaginary/src/unawaited-held-stage.ts',
+        text: textOf([
+          `const pending = import('${UNAWAITED_SPECIFIER}');`,
+          '',
+          `export const UNAWAITED_HELD_RESPONSE_FORMAT = pending.contestResponseFormat(${UNAWAITED_ARGUMENTS},);`,
+        ],),
+      },
+      {
+        file: 'imaginary/src/unawaited-in-place-stage.ts',
+        text: textOf([
+          `export const UNAWAITED_IN_PLACE_RESPONSE_FORMAT = import('${UNAWAITED_SPECIFIER}')`,
+          `  .contestResponseFormat(${UNAWAITED_ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
   },
 ];
 

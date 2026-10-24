@@ -5,12 +5,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Shapes the schema search does not read, one file each
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to show shapes the
-// search leaves unread: a load whose path is no literal, a load in a form no binding follows, a builder stored as the
-// value of an object, a builder handed to a call that a constant holds, a builder's result returned through a local,
-// and a builder called in a namespace, an enum or a parameter property. In each case the files the search lists show
-// what it reads of the shape (the file that names the builder, not the file that calls what the shape holds), and the
-// spots show where the check reports it, by file and line.
+// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to show shapes
+// the search leaves unread: a load whose path is no literal, a load in a form no binding follows, a builder stored as
+// the value of an object, a builder handed to a call that a constant holds, a builder's result returned through a
+// local, and a builder called in a namespace, an enum or a parameter property. In each case the files the search
+// lists show what it reads of the shape (the file that names the builder, not the file that calls what the shape
+// holds), and the spots show where the check reports it, by file and line.
 
 /**
  One shape the search leaves unread, with the files that show it, what the search lists, and where the check reports it.

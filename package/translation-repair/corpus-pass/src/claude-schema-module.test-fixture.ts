@@ -35,7 +35,7 @@ import {
 /**
  The name a module exports an imported name by.
 
- @param entry - the import specifier
+ @param entry - import specifier
 
  @returns `default` for a default import, `*` for a namespace import, the written name for a named import, empty for
  any other node
@@ -61,9 +61,9 @@ function importedNameOf({ entry, }: { readonly entry: TreeNode; },): string {
 /**
  What an import declaration adds: a binding for each name it brings in, unless it brings in types only.
 
- @param statement - the import declaration
+ @param statement - import declaration
 
- @returns The bindings
+ @returns Bindings
 
  @example
  ```ts
@@ -118,9 +118,9 @@ function gatherImport({ statement, }: { readonly statement: TreeNode; },): Gathe
 /**
  What a named export adds: the declaration it exports, or the entries of its list.
 
- @param statement - the export declaration
+ @param statement - export declaration
 
- @returns The declared functions, the bindings and the exports
+ @returns Declared functions, the bindings and the exports
 
  @example
  ```ts
@@ -212,9 +212,9 @@ function gatherNamedExport({ statement, }: { readonly statement: TreeNode; },): 
 /**
  What a default export adds: the function it declares, and the default entry for a declared function or a name.
 
- @param statement - the default export declaration
+ @param statement - default export declaration
 
- @returns The declared functions, the bindings and the exports
+ @returns Declared functions, the bindings and the exports
 
  @example
  ```ts
@@ -256,9 +256,9 @@ function gatherDefaultExport({ statement, }: { readonly statement: TreeNode; },)
 /**
  What an `export * from` adds: the module as a star source, or, with a name, a namespace entry.
 
- @param statement - the export declaration
+ @param statement - export declaration
 
- @returns The exports and the star sources
+ @returns Exports and the star sources
 
  @example
  ```ts
@@ -299,9 +299,9 @@ function gatherExportAll({ statement, }: { readonly statement: TreeNode; },): Ga
 /**
  What one top-level statement adds.
 
- @param statement - the statement
+ @param statement - statement
 
- @returns The declared functions, the bindings, the exports and the star sources
+ @returns Declared functions, the bindings, the exports and the star sources
 
  @example
  ```ts
@@ -325,9 +325,9 @@ function gatherStatement({ statement, }: { readonly statement: TreeNode; },): Ga
 
  @param file - path of the file under `package/translation-repair`
 
- @param program - the file's program node
+ @param program - file's program node
 
- @returns The facts of the module
+ @returns Facts of the module
 
  @example
  ```ts

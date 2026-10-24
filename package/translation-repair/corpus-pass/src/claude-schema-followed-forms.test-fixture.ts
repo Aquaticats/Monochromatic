@@ -121,7 +121,8 @@ export const BINDING_IN_FUNCTION_CASES: readonly FormCase[] = [
  */
 export const LOAD_IN_PLACE_CASES: readonly FormCase[] = [
   {
-    name: 'FOLLOWS A MEMBER READ OFF A LOAD IN PLACE, as in `(await import(path)).name(...)` and `require(path).name(...)`',
+    name: 'FOLLOWS A MEMBER READ OFF A LOAD IN PLACE, as in `(await import(path)).name(...)` and '
+      + '`require(path).name(...)`',
     files: [
       {
         file: 'imaginary/src/in-place-dynamic-stage.ts',

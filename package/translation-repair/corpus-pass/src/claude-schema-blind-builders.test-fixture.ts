@@ -252,7 +252,7 @@ function returnedLocalShapesIn(
 
  @param nodes - every node of the file
 
- @param declared - the nodes that hold the functions the file declares
+ @param declared - nodes that hold the functions the file declares
 
  @returns One entry per outermost such function
 
@@ -304,7 +304,7 @@ function undeclaredFormatShapesIn(
  @param refersToBuilder - whether the file refers to a builder anywhere in code, which the places that store a builder,
  hand it to a call or return its result through a local all need
 
- @param declared - the nodes that hold the functions the file declares
+ @param declared - nodes that hold the functions the file declares
 
  @param checksUndeclared - whether to look for a function that holds a format and that no declared function holds
 

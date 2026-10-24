@@ -31,11 +31,11 @@ const LOAD_WRAPPER_KINDS: ReadonlySet<string> = new Set([
 /**
  The outermost wrapper around a load, and whether an `await` is among the wrappers.
 
- @param node - the load, or a wrapper around it
+ @param node - load, or a wrapper around it
 
  @param parents - each node's parent
 
- @returns The outermost wrapper, the node itself when it has none, and whether an `await` waits for the load
+ @returns Outermost wrapper, the node itself when it has none, and whether an `await` waits for the load
 
  @example
  ```ts
@@ -78,10 +78,10 @@ function outermostWrapperOf(
 }
 
 /**
- Whether the search follows a load, given where it sits: it yields the module itself, and a constant that takes a name or
- members from it holds it, or a member is read off it.
+ Whether the search follows a load, given where it sits: it yields the module itself, and a constant that takes a name
+ or members from it holds it, or a member is read off it.
 
- @param node - the load
+ @param node - load
 
  @param parents - each node's parent
 
@@ -135,7 +135,7 @@ function isFollowedLoad(
 /**
  The loads of a file that the search does not follow.
 
- @param program - the file's program node
+ @param program - file's program node
 
  @param nodes - every node of the file
 

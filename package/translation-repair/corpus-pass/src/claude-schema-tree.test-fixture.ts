@@ -82,9 +82,9 @@ const FORMAT_VALUE = 'json_schema';
 /**
  The text of a template piece, with escapes read.
 
- @param value - the `value` field of a template piece, of any kind
+ @param value - `value` field of a template piece, of any kind
 
- @returns The cooked text, empty when the piece holds none
+ @returns Cooked text, empty when the piece holds none
 
  @example
  ```ts
@@ -107,7 +107,7 @@ function cookedTextOf({ value, }: { readonly value: unknown; },): string {
 
  @param field - name of the field
 
- @returns The node, `NO_NODE` when the field holds none
+ @returns Node, `NO_NODE` when the field holds none
 
  @example
  ```ts
@@ -167,7 +167,7 @@ function isNodeValue(value: unknown,): value is TreeNode {
 
  @param field - name of the field
 
- @returns The nodes in order, none when the field holds no list
+ @returns Nodes in order, none when the field holds no list
 
  @example
  ```ts
@@ -287,7 +287,7 @@ export function visitsUnder(
 
  @param node - node read, of any kind or none
 
- @returns The string, empty for any other node
+ @returns String, empty for any other node
 
  @example
  ```ts
@@ -320,9 +320,9 @@ export function stringValueOf({ node, }: { readonly node: unknown; },): string {
 /**
  The name a property or a member is written with: a plain name, or a string in quotes or in brackets.
 
- @param key - the node that holds the key
+ @param key - node that holds the key
 
- @returns The name, empty for any other key
+ @returns Name, empty for any other key
 
  @example
  ```ts
@@ -464,7 +464,7 @@ export function holdsFormatMention({ root, }: { readonly root: TreeNode; },): bo
 
  @param node - expression read, of any kind or none
 
- @returns The function, `NO_NODE` when the expression holds none
+ @returns Function, `NO_NODE` when the expression holds none
 
  @example
  ```ts
@@ -531,7 +531,7 @@ const MODULE_HEAD = 'module:';
 
  @param node - expression read, of any kind or none
 
- @returns The load; its `specifier` is empty for a path that is no literal, and it is settled when it is a `require`
+ @returns Load; its `specifier` is empty for a path that is no literal, and it is settled when it is a `require`
  or an `import()` under `await`
 
  @example
@@ -586,7 +586,7 @@ export function moduleLoadOf({ node, }: { readonly node: unknown; },): ModuleLoa
 
  @param node - expression read, of any kind or none
 
- @returns The path as written, empty for any other expression, for a path that is no literal and for an `import()`
+ @returns Path as written, empty for any other expression, for a path that is no literal and for an `import()`
  that is not awaited
 
  @example
@@ -605,9 +605,9 @@ export function settledSpecifierOf({ node, }: { readonly node: unknown; }): stri
 /**
  The name a loaded module is read through in a chain of names.
 
- @param specifier - the path as the load writes it
+ @param specifier - path as the load writes it
 
- @returns A name no identifier can be
+ @returns Name no identifier can be
 
  @example
  ```ts
@@ -626,7 +626,7 @@ export function moduleHeadOf({ specifier, }: { readonly specifier: string; },): 
 
  @param node - expression read, of any kind or none
 
- @returns The names in order, none for any other expression
+ @returns Names in order, none for any other expression
 
  @example
  ```ts
@@ -668,7 +668,7 @@ export function pathOf({ node, }: { readonly node: unknown; },): readonly string
 /**
  Whether a visit is of a function, which a walk of a function's own body does not enter.
 
- @param node - the node visited
+ @param node - node visited
 
  @returns Whether the node is a function
 
@@ -687,7 +687,7 @@ export function isFunctionVisit({ node, }: Visit,): boolean {
 
  @param fn - function read
 
- @returns The expressions in order
+ @returns Expressions in order
 
  @example
  ```ts
@@ -728,7 +728,7 @@ function returnedExpressionsOf({ fn, }: { readonly fn: TreeNode; },): readonly T
 
  @param node - expression read
 
- @returns The expression underneath
+ @returns Expression underneath
 
  @example
  ```ts
@@ -749,8 +749,8 @@ export function withoutAwait({ node, }: { readonly node: TreeNode; },): unknown 
 }
 
 /**
- The names of the functions a function returns the call of: for each returned expression that is a call, once an `await`,
- parentheses, type marks and an optional chain are taken off, the names its callee is written with.
+ The names of the functions a function returns the call of: for each returned expression that is a call, once an
+ `await`, parentheses, type marks and an optional chain are taken off, the names its callee is written with.
 
  @param fn - function read
 

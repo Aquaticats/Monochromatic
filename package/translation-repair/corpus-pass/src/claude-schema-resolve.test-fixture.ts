@@ -115,7 +115,7 @@ const NONE: Resolved = { kind: 'none', };
 
  @param resolved - what the export resolved to
 
- @returns The thing no function is read through for an export that is not there, the resolved thing otherwise
+ @returns Thing no function is read through for an export that is not there, the resolved thing otherwise
 
  @example
  ```ts
@@ -127,18 +127,22 @@ function valueOf({ resolved, }: { readonly resolved: Resolved; },): Resolved {
   return (resolved.kind === 'none') ? OPAQUE : resolved;
 }
 
+// `memberOf`, `resolveName`, `resolvePath` and `resolveExport` call one another: a name leads to a member, a member
+// to an export, an export to a name. One of them is called before its declaration, which source order cannot avoid;
+// the other functions of the fixtures are declared before they are called.
+
 /**
  What a member read off a thing stands for.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
- @param of - the thing
+ @param of - thing
 
- @param member - the member's name
+ @param member - member's name
 
- @param seen - the bindings and exports already followed
+ @param seen - bindings and exports already followed
 
- @returns The member: `call`, `apply` and `bind` of a function or of a free name are that function or name, a member of
+ @returns Member: `call`, `apply` and `bind` of a function or of a free name are that function or name, a member of
  an object is the function `object.member` when the module declares one, an export of a module is what the module
  exports, any member of an outside module is a free name, any other member of a free name extends it
 
@@ -209,13 +213,13 @@ function memberOf(
  What a name bound at the top level of a module stands for, followed through imports, aliases, destructured members and
  dynamic imports.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param file - path of the module
 
- @param name - the name
+ @param name - name
 
- @param seen - the bindings already followed, so a name that leads back to itself ends
+ @param seen - bindings already followed, so a name that leads back to itself ends
 
  @returns What it stands for; a name the module binds nowhere is a free name
 
@@ -338,13 +342,13 @@ function resolveName(
 /**
  What a chain of names written in a module stands for.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param file - path of the module that writes the chain
 
- @param path - the names in order, the first of which is bound at the top level of the module or free
+ @param path - names in order, the first of which is bound at the top level of the module or free
 
- @param seen - the bindings already followed
+ @param seen - bindings already followed
 
  @returns What the chain stands for
 
@@ -394,13 +398,13 @@ export function resolvePath(
 /**
  What a module exports under a name, followed through the modules it exports from.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param file - path of the module
 
- @param name - the name it exports, or `default`
+ @param name - name it exports, or `default`
 
- @param seen - the exports already followed, so a module that exports itself ends
+ @param seen - exports already followed, so a module that exports itself ends
 
  @returns What the export stands for, `none` when the module exports no such name
 
@@ -493,13 +497,13 @@ function resolveExport(
  What a module exports under a name that is none of its own entries: what the modules it exports everything of export,
  the first that exports the name winning, and never the default.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param file - path of the module
 
- @param name - the name it exports
+ @param name - name it exports
 
- @param seen - the exports already followed
+ @param seen - exports already followed
 
  @returns What the export stands for, `none` when no module it exports everything of exports the name
 

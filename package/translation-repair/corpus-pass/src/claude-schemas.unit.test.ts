@@ -59,7 +59,10 @@ import { CALL_FORM_CASES, type FormCase, } from './claude-schema-call-forms.test
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
 import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
 import { FORMAT_LIMIT_CASES, SPELLING_CASES, } from './claude-schema-format-forms.test-fixture.ts';
-import { UNREAD_BUILDER_CASES, } from './claude-schema-limit-forms.test-fixture.ts';
+import {
+  UNAWAITED_LOAD_CASES,
+  UNREAD_BUILDER_CASES,
+} from './claude-schema-limit-forms.test-fixture.ts';
 import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.ts';
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
@@ -100,7 +103,8 @@ const NOT_STAGE_SCHEMAS: ReadonlySet<string> = new Set([
 
 //region Shared builders
 // Functions that build an answer schema when called, so one file holds the schema text and several files each make a
-// schema of their own. A search for the files that hold the schema text finds the file that holds the builder and no caller.
+// schema of their own. A search for the files that hold the schema text finds the file that holds the builder and no
+// caller.
 
 /**
  One shared builder, the file that declares it and the files that call it.
@@ -635,6 +639,7 @@ await describe({
       ...CYCLE_CASES,
       ...BINDING_IN_FUNCTION_CASES,
       ...LOAD_IN_PLACE_CASES,
+      ...UNAWAITED_LOAD_CASES,
       ...CALL_METHOD_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({

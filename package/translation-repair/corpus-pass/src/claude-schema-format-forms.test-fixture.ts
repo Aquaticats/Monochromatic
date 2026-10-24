@@ -16,7 +16,7 @@ import {
 /**
  The lines of an imaginary builder's format with the line that names its type written another way.
 
- @param typeLine - the property that names the type, as the source writes it, without its indentation
+ @param typeLine - property that names the type, as the source writes it, without its indentation
 
  @returns Lines of an object literal, indented for a function body
 

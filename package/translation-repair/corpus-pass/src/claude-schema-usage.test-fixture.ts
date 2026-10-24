@@ -6,8 +6,8 @@ import {
 } from './claude-schema-resolve.test-fixture.ts';
 
 //region What the files of the sources refer to
-// What `claude-schema-sources.test-fixture.ts` asks to tell which files use a function: for each file, the functions its
-// references stand for, and, for a function, the files other than its own and the producer list that refer to it.
+// What `claude-schema-sources.test-fixture.ts` asks to tell which files use a function: for each file, the functions
+// its references stand for, and, for a function, the files other than its own and the producer list that refer to it.
 
 /**
  The functions a file refers to, and the names it refers to without declaring or importing them.
@@ -60,9 +60,9 @@ const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
 
  @param file - path of the file that declares the function
 
- @param name - the function's name
+ @param name - function's name
 
- @returns The key of the function
+ @returns Key of the function
 
  @example
  ```ts
@@ -98,13 +98,13 @@ export type KnownFunctions = {
  Whether a chain of names written in a file stands for one of the known functions: the function the chain resolves to,
  or, for a name the file neither declares nor imports, the function of that name.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param file - path of the file that writes the chain
 
- @param path - the names in order
+ @param path - names in order
 
- @param known - the functions looked for
+ @param known - functions looked for
 
  @returns Whether the chain stands for one of them
 
@@ -144,11 +144,11 @@ export function standsForKnown(
 /**
  What a file's references stand for, once.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
- @param facts - the file
+ @param facts - file
 
- @returns The functions and the free names
+ @returns Functions and the free names
 
  @example
  ```ts
@@ -201,7 +201,7 @@ function usageOf({
 
  @param usage - what the file's references stand for
 
- @param builder - the function, with the file that declares it
+ @param builder - function, with the file that declares it
 
  @returns Whether the file refers to it
 
@@ -262,9 +262,9 @@ export function usersIn(
 /**
  What the references of every file stand for.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
- @returns The usage of each file, in the order of the sources
+ @returns Usage of each file, in the order of the sources
 
  @example
  ```ts

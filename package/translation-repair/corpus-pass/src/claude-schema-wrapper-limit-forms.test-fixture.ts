@@ -152,8 +152,8 @@ export const NOT_A_WRAPPER_CASES: readonly FormCase[] = [
     builders: [],
   },
   {
-    name: 'NAMES NO WRAPPER IN A FUNCTION THAT CALLS A BUILDER IN A STATEMENT OF ITS OWN AND RETURNS SOMETHING ELSE, so '
-      + 'the file that calls it is not demanded in the producer list',
+    name: 'NAMES NO WRAPPER IN A FUNCTION THAT CALLS A BUILDER IN A STATEMENT OF ITS OWN AND RETURNS SOMETHING ELSE, '
+      + 'so the file that calls it is not demanded in the producer list',
     files: [
       {
         file: 'imaginary/src/statement-wire.ts',
@@ -173,8 +173,8 @@ export const NOT_A_WRAPPER_CASES: readonly FormCase[] = [
     builders: [],
   },
   {
-    name: 'NAMES NO WRAPPER IN A FUNCTION WHOSE INNER FUNCTION, WRITTEN WITH A BLOCK, RETURNS A BUILDER\'S CALL, so the '
-      + 'return of the inner function is not the outer function\'s',
+    name: 'NAMES NO WRAPPER IN A FUNCTION WHOSE INNER FUNCTION, WRITTEN WITH A BLOCK, RETURNS A BUILDER\'S CALL, '
+      + 'so the return of the inner function is not the outer function\'s',
     files: [
       {
         file: 'imaginary/src/inner-return-wire.ts',

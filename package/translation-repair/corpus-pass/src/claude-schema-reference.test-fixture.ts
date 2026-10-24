@@ -9,10 +9,10 @@ import {
 } from './claude-schema-tree.test-fixture.ts';
 
 //region The names a file's code refers to
-// What `claude-schema-module.test-fixture.ts` reads a parsed file for: the names its code refers to as values, each as a
-// path, and, for the check behind the search, the names the code inside a namespace, an enum or a parameter property
-// refers to. A reference is a name or a chain of members where a value sits; types, keys, declared names, labels,
-// pattern targets and entries of an import or export list are not.
+// What `claude-schema-module.test-fixture.ts` reads a parsed file for: the names its code refers to as values, each
+// as a path, and, for the check behind the search, the names the code inside a namespace, an enum or a parameter
+// property refers to. A reference is a name or a chain of members where a value sits; types, keys, declared names,
+// labels, pattern targets and entries of an import or export list are not.
 
 /**
  The kinds of node whose identifier children are never a value: the entries of an import or export list, a label, the
@@ -50,29 +50,9 @@ const DECLARING_KINDS: ReadonlySet<string> = new Set([
 ],);
 
 /**
- Whether an identifier, seen in the place it sits, names a value: it is not a key, a declared name, a parameter, a label,
- a member read off an object, an entry of an import or export list, the target of a pattern, the target of an
- assignment or the operand of `typeof`.
-
- @param visit - the identifier, the node that holds it and the field it sits in
-
- @returns Whether the identifier is a reference to a value
-
- @example
- ```ts
- const isReference = namesValue({ visit, },);
- ```
- */
-function namesValue({ visit, }: { readonly visit: Visit; },): boolean {
-  return (visit.parent === NO_NODE)
-    || ((!NON_VALUE_PARENT_KINDS.has(visit.parent
-      .type,)) && namesValueUnder({ visit, }));
-}
-
-/**
  Whether an identifier whose parent is none of the kinds that never hold a value names a value.
 
- @param visit - the identifier, the node that holds it and the field it sits in
+ @param visit - identifier, the node that holds it and the field it sits in
 
  @returns Whether the identifier is a reference to a value
 
@@ -123,9 +103,29 @@ const VALUE_HOLDING_TS_KINDS: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ Whether an identifier, seen in the place it sits, names a value: it is not a key, a declared name, a parameter, a
+ label, a member read off an object, an entry of an import or export list, the target of a pattern, the target of an
+ assignment or the operand of `typeof`.
+
+ @param visit - identifier, the node that holds it and the field it sits in
+
+ @returns Whether the identifier is a reference to a value
+
+ @example
+ ```ts
+ const isReference = namesValue({ visit, },);
+ ```
+ */
+function namesValue({ visit, }: { readonly visit: Visit; },): boolean {
+  return (visit.parent === NO_NODE)
+    || ((!NON_VALUE_PARENT_KINDS.has(visit.parent
+      .type,)) && namesValueUnder({ visit, }));
+}
+
+/**
  Whether a visit is of a type, which the walk of references leaves out.
 
- @param node - the node visited
+ @param node - node visited
 
  @returns Whether the node is a type or part of one
 
@@ -142,7 +142,7 @@ function isTypeVisit({ node, }: Visit,): boolean {
  Whether a visit is of a type that holds no value, which the walk inside a namespace, an enum or a parameter property
  leaves out.
 
- @param node - the node visited
+ @param node - node visited
 
  @returns Whether the node is a type or part of one
 
@@ -181,7 +181,7 @@ export function referencesIn({ root, }: { readonly root: TreeNode; },): readonly
  The names the code inside a namespace, an enum or a parameter property refers to as values, which `referencesIn` leaves
  out with the types.
 
- @param root - the namespace, the enum or the parameter property
+ @param root - namespace, the enum or the parameter property
 
  @returns One path per reference
 

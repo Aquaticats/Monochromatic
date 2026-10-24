@@ -26,15 +26,15 @@ import {
 
 //region What the declarations of a module add
 // What a top-level declaration adds to the facts of its module: a function declaration, and each constant a variable
-// declaration names, whether the constant holds a function, an object, a loaded module, a name or a chain of members, or
-// is taken apart into members.
+// declaration names, whether the constant holds a function, an object, a loaded module, a name or a chain of members,
+// or is taken apart into members.
 
 /**
  The object literal an expression is, once the type marks around it are taken off.
 
  @param node - expression read, of any kind or none
 
- @returns The object literal, `NO_NODE` for any other expression
+ @returns Object literal, `NO_NODE` for any other expression
 
  @example
  ```ts
@@ -54,7 +54,7 @@ function objectIn({ node, }: { readonly node: unknown; },): TreeNode {
 
  @param owner - name of the constant that holds the object
 
- @param object - the object literal
+ @param object - object literal
 
  @returns One entry per member that is a method or a property holding a function; a getter, a setter and a member with
  a computed name are not
@@ -107,11 +107,11 @@ function membersOf(
 /**
  What a declarator that names a constant adds: a function, an object and its members, a module, or an alias.
 
- @param declarator - the declarator, whose id is a plain name
+ @param declarator - declarator, whose id is a plain name
 
- @param name - the constant's name
+ @param name - constant's name
 
- @returns The declared functions and the binding
+ @returns Declared functions and the binding
 
  @example
  ```ts
@@ -212,9 +212,9 @@ function gatherConstant(
  What a declarator that takes a value apart adds: for each plain member it names, the name it binds to and where the
  value comes from.
 
- @param declarator - the declarator, whose id is an object pattern
+ @param declarator - declarator, whose id is an object pattern
 
- @returns The bindings
+ @returns Bindings
 
  @example
  ```ts
@@ -309,9 +309,9 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
 /**
  What a declaration adds: a function, or each constant a variable declaration names.
 
- @param declaration - the function declaration or the variable declaration
+ @param declaration - function declaration or the variable declaration
 
- @returns The declared functions and the bindings
+ @returns Declared functions and the bindings
 
  @example
  ```ts

@@ -70,7 +70,7 @@ export function loadBindingsIn({ nodes, }: { readonly nodes: readonly TreeNode[]
  of a constant that holds a loaded module or another name, or takes members out of one. The first binding of a name,
  in the order of the text, is the one kept.
 
- @param program - the file's program node
+ @param program - file's program node
 
  @param nodes - every node of the file
 

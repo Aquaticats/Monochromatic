@@ -5,8 +5,8 @@ import {
 } from 'node:path/posix';
 
 //region Which file of the sources a specifier names
-// What `claude-schema-resolve.test-fixture.ts` follows an import or an export through: the file a relative specifier or a
-// package specifier of the family names, when the sources hold it.
+// What `claude-schema-resolve.test-fixture.ts` follows an import or an export through: the file a relative specifier
+// or a package specifier of the family names, when the sources hold it.
 
 /**
  The start of the name of every package of the family.
@@ -17,7 +17,7 @@ const PACKAGE_PREFIX = '@monochromatic-dev/translation-repair-';
  The file of the family that a package specifier names: the package's entry point for the package and for its `/ts`
  subpath, one file under its `src` for `/ts/<file>`.
 
- @param specifier - the specifier as written
+ @param specifier - specifier as written
 
  @returns Path of the file, empty when the specifier names no package of the family or a subpath that is none of those
 
@@ -58,11 +58,11 @@ function packagedFileOf({ specifier, }: { readonly specifier: string; },): strin
 /**
  The module of the sources that a specifier names.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param from - path of the module that writes the specifier
 
- @param specifier - the specifier as written
+ @param specifier - specifier as written
 
  @returns Path of the module, empty when the specifier names none of the sources
 

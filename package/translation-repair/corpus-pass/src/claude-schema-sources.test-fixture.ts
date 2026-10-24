@@ -38,18 +38,18 @@ import {
 //
 // A function is declared by `function` or `async function`, exported or not, by a constant that holds an arrow
 // function, a function expression or a call that takes one first, and, as `object.member`, by a method or a property
-// that holds one in an object a constant holds. A static method, a getter, a member with a computed name, a member of an
-// object nested in that object and an anonymous default export declare no function.
+// that holds one in an object a constant holds. A static method, a getter, a member with a computed name, a member of
+// an object nested in that object and an anonymous default export declare no function.
 //
-// A wrapper is a function that returns the call of a builder, however the call is wrapped: awaited, in parentheses, with
-// type arguments, under a type mark or after an optional chain, as the body of an arrow function or in a `return`. A
-// function that returns the call of a wrapper is a wrapper, until no function is added. A function that returns more
-// than the call (a promise chain, a fallback, a conditional, an object, an array) or that calls without returning the
-// result is no wrapper.
+// A wrapper is a function that returns the call of a builder, however the call is wrapped: awaited, in parentheses,
+// with type arguments, under a type mark or after an optional chain, as the body of an arrow function or in a
+// `return`. A function that returns the call of a wrapper is a wrapper, until no function is added. A function that
+// returns more than the call (a promise chain, a fallback, a conditional, an object, an array) or that calls without
+// returning the result is no wrapper.
 //
 // A use is a name, or a chain of members, that sits where a value does: a call, also with type arguments, optional or
-// as a tagged template, a function handed over by reference, a spread. A key, a member name, a longer name, a name under
-// `typeof` or in a type is no use.
+// as a tagged template, a function handed over by reference, a spread. A key, a member name, a longer name, a name
+// under `typeof` or in a type is no use.
 //
 // A use is followed through an import, an alias, a namespace import and a member taken out by destructuring, through a
 // dynamic `import()` or a `require` with a literal path, and through a module that exports the builder again by name,
@@ -58,8 +58,8 @@ import {
 //
 // A name the file neither declares nor imports from a file of the sources is read as the builder of that name. So is a
 // name imported from a specifier that names no file of the sources, and so is a parameter that shares the builder's
-// name; the scan over-reads there. A function of the builder's name that the file declares, or imports from another file
-// of the sources, is that function and not the builder.
+// name; the scan over-reads there. A function of the builder's name that the file declares, or imports from another
+// file of the sources, is that function and not the builder.
 //
 // The file that declares a builder and the producer list are not its users. A file is listed when it holds a format,
 // names the type of one or uses a builder.
@@ -168,7 +168,7 @@ const READ_MODULES = new Map<string, ModuleFacts>();
 
  @param text - text of the file
 
- @returns The module
+ @returns Module
 
  @throws {@link Error} when the file does not parse, since a file a search cannot read hides what it holds
 
@@ -220,7 +220,7 @@ function moduleOf({
 
  @param sources - files read
 
- @returns The modules, by path
+ @returns Modules, by path
 
  @throws {@link Error} when a file does not parse, since a file a search cannot read hides what it holds
 
@@ -247,7 +247,7 @@ export function familyOf({ sources, }: { readonly sources: readonly SourceFile[]
 /**
  A declared function as a builder.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param candidate - function and the file that declares it
 
@@ -281,7 +281,7 @@ function builderOf({
 /**
  Every function the searched files declare.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
@@ -321,7 +321,7 @@ function candidatesIn(
 /**
  The builders and every function that returns the call of one of them, and so on until no function is added.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param candidates - every function the searched files declare
 
@@ -388,45 +388,9 @@ function withWrappers(
 }
 
 /**
- The functions that build an answer schema when called: those that write a `json_schema` response format inside their
- body, and those that return the result of such a function.
-
- @param sources - files searched
-
- @param notStageSchemas - paths of files that write the format without building a stage's answer schema
-
- @returns One entry per function, in the order of the sources, the wrappers after the functions they wrap
-
- @throws {@link Error} when a file does not parse
-
- @example
- ```ts
- const builders = buildersOf({ sources: await familySources(), notStageSchemas: new Set(), },);
- ```
- */
-export function buildersOf(
-  {
-    sources,
-    notStageSchemas,
-  }: {
-    readonly sources: readonly SourceFile[];
-    readonly notStageSchemas: ReadonlySet<string>;
-  },
-): readonly SchemaBuilder[] {
-  /**
-   The modules of the sources.
-   */
-  const family = familyOf({ sources, },);
-  return buildersIn({
-    family,
-    notStageSchemas,
-  },);
-}
-
-/**
  The builders of a family that is read already.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
@@ -466,6 +430,42 @@ export function buildersIn(
         candidate,
       },);
     },);
+}
+
+/**
+ The functions that build an answer schema when called: those that write a `json_schema` response format inside their
+ body, and those that return the result of such a function.
+
+ @param sources - files searched
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns One entry per function, in the order of the sources, the wrappers after the functions they wrap
+
+ @throws {@link Error} when a file does not parse
+
+ @example
+ ```ts
+ const builders = buildersOf({ sources: await familySources(), notStageSchemas: new Set(), },);
+ ```
+ */
+export function buildersOf(
+  {
+    sources,
+    notStageSchemas,
+  }: {
+    readonly sources: readonly SourceFile[];
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): readonly SchemaBuilder[] {
+  /**
+   The modules of the sources.
+   */
+  const family = familyOf({ sources, },);
+  return buildersIn({
+    family,
+    notStageSchemas,
+  },);
 }
 
 /**

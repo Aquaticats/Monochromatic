@@ -17,12 +17,13 @@ import {
 } from './claude-schema-usage.test-fixture.ts';
 
 //region Shapes the schema search does not read, found in the family's sources
-// The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list honest
-// reads a fixed set of shapes and leaves others unread, and a shape it leaves unread can hide a file that sends an
-// answer schema. `blindSpotsOf` reads the same sources and reports each place that holds one of those shapes, with the
-// file and the line, so a shape the search cannot read never turns up in the family without a failure that names it.
-// The check is a net, not a second search: it reports every place with the shape, whether or not a producer hides there,
-// and a place it reports is answered by reading the shape in the search or by naming the place in the test.
+// The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list
+// honest reads a fixed set of shapes and leaves others unread, and a shape it leaves unread can hide a file that
+// sends an answer schema. `blindSpotsOf` reads the same sources and reports each place that holds one of those
+// shapes, with the file and the line, so a shape the search cannot read never turns up in the family without a
+// failure that names it. The check is a net, not a second search: it reports every place with the shape, whether or
+// not a producer hides there, and a place it reports is answered by reading the shape in the search or by naming the
+// place in the test.
 
 /**
  The shapes the schema search leaves unread, each as the name a report gives it.
@@ -74,11 +75,11 @@ export type FoundShape = {
 /**
  The line a node starts on.
 
- @param text - the file's text
+ @param text - file's text
 
  @param node - node read
 
- @returns The line, counted from one
+ @returns Line, counted from one
 
  @example
  ```ts
