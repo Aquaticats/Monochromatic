@@ -82,6 +82,7 @@ import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.t
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
 import { SPECIFIER_CASES, } from './claude-schema-specifier-forms.test-fixture.ts';
+import { SURVIVOR_CASES, } from './claude-schema-survivor-forms.test-fixture.ts';
 import { type ShapeCase, UNREAD_SHAPE_CASES, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 import { UNREADABLE_CODE_CASES, } from './claude-schema-unreadable-forms.test-fixture.ts';
 import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
@@ -676,6 +677,7 @@ await describe({
       ...WHITELIST_PATH_CASES,
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
+      ...SURVIVOR_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
@@ -722,6 +724,7 @@ await describe({
       ...WHITELIST_PATH_CASES,
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
+      ...SURVIVOR_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({
         name: `REPORTS WITH FILE AND LINE THE SHAPE OF THIS CASE: ${shapeCase.name}`,
