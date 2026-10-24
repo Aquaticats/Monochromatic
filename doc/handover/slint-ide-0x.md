@@ -1866,6 +1866,31 @@ the one-step delay is the recorder's capture model plus winit's redraw gate, not
     `worktree-agent-a0207c18495764475`, `feat/ide-release-linux-arm64` (local and remote, tips verified in `origin/main`),
     sweep scratch and `ide-source-guard-*` dirs removed. Other sessions' worktrees (`agent-a563e0c526d53df51`,
     `tr-*`) were left alone.
+    OWNER REPORT 2026-10-24 (minimap "jumps around", hints "doubling" at line 96 of `build.unit.test.ts`), FIXED on
+    branch `worktree-agent-a0ae031be26535225`: not a minimap defect. The minimap code did not change between the
+    installed build (2026-10-22 12:48) and `origin/main`. Cause: TypeScript 7.1.0-beta answers a range request with the
+    hints of every node that reaches into the range, so a request for lines 100 to 200 returns the four hints of line 96
+    (the statement `const integrationChildren = ....map(...)` spans lines 96 to 269), and `Annotations::merge_labels`
+    kept them although it had removed only the old hints of the asked lines: each such answer added four hints to line
+    96 (counted 4, 8, 4, 8 in the application log before the fix; the owner's picture shows five copies). Every line
+    below moved by a block per copy, which is the jumping, and a later answer that asked for line 96 removed all copies
+    again. Editor frames recorded while clicking back to line 96 (22.5 frames per second kept): the installed build
+    showed a 130 px gap above line 96 for 5 frames (6 hint rows instead of 3), then 82 px; the fixed build 82 px in
+    all 34 frames. Reproduced in the headless nested compositor at 1080x1880 scale 2 with the real
+    TypeScript 7 server on a disposable copy, same clicks on the minimap gave minimap crops that differed by 17,028 px
+    (visit 2 against visit 3 of y=1700) and 1,925 px (y=1000); after the fix the same pairs differ by 0 px. Probe of the
+    server alone: `~/temp/agent/mm/lsp-probe.ts`; record `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
+    Fix: hints standing on lines outside the answer's asked lines are left out (`src/annotation/blocks.rs`); tests
+    `hints_outside_the_asked_lines_are_not_part_of_an_answer` and
+    `an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about` fail before, pass after; guards
+    `hints-asked-lines` and `hints-asked-lines-window` accepted in baseline, removed and restored. Gates on the fixed
+    tree: lint 0, `test:native` 291 passed 5 skipped, `test` (without the real-source wrap tests) 798 passed,
+    `test:minimap` 30 passed, `test:annotations` 51 passed, `test:bin` 71 passed. The installed IDE still has the
+    defect until reinstalled. Residual, not this defect: with the fix, the minimap of a first visit to the bottom
+    differs by 994 px (device rows 2500 to 3238 of the track) from the one after a visit to another place, and is
+    stable afterwards (0 px); the server's first answer had 68 hints against 72 in-range hints it gives when warm
+    (a probe of the server alone shows range answers equal the full-file answer inside the range), so it is most
+    likely the server's first, incomplete answer; not verified further.
     Committed `clip-rounding` test strengthening (`1b57f960de`, merge `3f220bd444`).
     Sweep re-run of the three environment failures: `frame-fit` and `tile-stamp-names-its-clip` accepted in all three
     phases; `refused-tile-keeps-image` is a fourth real stale guard (its `after` injects
@@ -4194,17 +4219,60 @@ and `QVS` in the visual-design-review skill
 The `PXQ` checkpoint-continuation idea was not re-proposed;
 `PXQ` already forbids ending a turn on a status report the user must answer with "continue".
 
-Minimap report of 2026-10-24 (open, an agent is on it):
+Minimap report of 2026-10-24 (fixed, landed, installed):
 the owner opened `package/build-tool/css/src/build.unit.test.ts` in the installed IDE (built 2026-10-22 12:48)
 and saw the minimap "jump around as I scroll",
 a band of its picture drawn doubled and wider (screenshot `~/Pictures/Screenshots/Screenshot_20261024_070953.png`),
-and "the inlay hints at line 96 keep doubling or something as I click around in the minimap".
-The cause is not known yet.
-An agent in a worktree reproduces it in the nested compositor on a build of current `origin/main`,
-finds the cause by measurement,
-and fixes it behind a test shown to fail first.
-Next action: verify its report, land it, reinstall the IDE from the fixed build
-(the installed binary is also still the 0.1.0 build, not 0.1.1).
+and "the inlay hints at line 96 keep doubling or something as I click around in the minimap";
+later the owner saw the same hint double in the main editor for a few ms when clicking away from line 96 and back.
+The installed binary and `main` held the same minimap code (diff since `cd49e20a92` is comments and tests only),
+so the minimap was not the cause.
+The cause is `Annotations::merge_labels` in `package/desktop-app/ide/src/annotation/blocks.rs`:
+TypeScript 7 answers a range request with the hints of every syntax node that reaches into the range,
+line 96 is a statement whose body runs to line 269,
+so every answer asked for lines 100 to 269 added line 96's four hints again,
+and each copy pushed the lines below it down.
+The fix leaves out hints that stand on lines the answer did not ask about.
+Tests that failed first: `hints_outside_the_asked_lines_are_not_part_of_an_answer` (`tests/annotation.rs`) and
+`an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about` (`src/native/annotation_range_tests.rs`);
+source guards `hints-asked-lines` and `hints-asked-lines-window` accepted in all three phases.
+The agent's measurements: minimap crops after the same click differed by 17,028 px before the fix and about 0 after;
+the gap above line 96 was 130 px for about 0.2 s in 5 of 35 frames before and 82 px in all 34 frames after.
+Landed as merge `acb620dd6a` (branch tip `7a5063dfc6`);
+my gates on the merged tree: `lint` 0, `test:native` 291 passed and 5 skipped, `test` 804 passed,
+`test:bin` 0, `inspect:no-software-renderer` 0.
+The IDE was rebuilt and installed from that tree (sha256 `9c8c51a8bd96ff49…`, prints 0.1.1;
+the previous binary is `~/.local/bin/monochromatic-ide.previous`).
+Agent worktree and branch removed locally and on the remote;
+the agent's captures stay in `~/temp/agent/mm` until the owner confirms the fix on the installed binary.
+Open from this report:
+the first visit to the bottom of the file still gives a minimap that differs by 994 px (device rows 2500 to 3238)
+from the one after a visit elsewhere, then stays stable;
+the agent's reading is the server's first answer being incomplete (68 hints against 72), not verified.
+The doubling lasted about 0.2 s (5 of 35 frames), not a few ms:
+`HINT_SETTLE` in `src/native/language/sync.rs:58` is 200 ms,
+the time the visible lines must stay the same before hints are asked for them,
+so the extra copies stayed until the next request that covered line 96 was answered.
+The agent also left a stale `tail --pid=0` wait loop in its worktree (stopped by me).
+Next action: ask the owner to confirm on the installed binary, then clear `~/temp/agent/mm`.
+Started 2026-10-24: an agent in a worktree measures the 994 px residual
+(the server's first and warm answers diffed hint by hint,
+whether the IDE re-asks or the minimap rebuilds when hints change)
+and fixes it behind a failing test if it is an IDE defect;
+its report is verified, landed and the IDE reinstalled like the first one.
+
+Correction of the residual, measured later on 2026-10-24 (`~/temp/agent/mm2`;
+record in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`):
+the server's first answer is not incomplete
+(equal ranges gave identical answers hint by hint, and every range equals the full-file answer on its lines),
+and the 994 px are the minimap's viewport box, not the picture.
+The first click at the bottom is mapped through a layout of 8688 px that holds only the hints of the first answer,
+so the view lands on line 214;
+the answer for lines 137 to 287 then makes the layout 9522 px,
+and the same click after a visit elsewhere lands at the end (line 223 on top).
+In a window tall enough for the first request to cover the file the difference is 0 px.
+No IDE change was made;
+options (re-aim once, ask for the whole file, leave it) are ranked in the record and wait for the owner.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

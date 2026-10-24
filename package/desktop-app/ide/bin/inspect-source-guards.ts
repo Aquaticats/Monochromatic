@@ -1735,6 +1735,27 @@ const cases: Guard[] = [
     test: 'struck_text_is_lighter_than_the_source_weight',
     failure: 'faces: '
   },
+  // Hints of an answer: a hint that stands on a line the answer did not ask about is not part of the answer, or the
+  // same hints are added to that line again with every answer (the block of line 96 of a test file four rows, then
+  // eight, then twelve, in the code view and in the minimap).
+  {
+    name: 'hints-asked-lines',
+    file: 'src/annotation/blocks.rs',
+    before: '            if !asked.contains(&line) {',
+    after: '            if false && !asked.contains(&line) {',
+    integration: 'annotation',
+    test: 'hints_outside_the_asked_lines_are_not_part_of_an_answer',
+    failure: 'an answer that repeated the hint of an unasked line added it again'
+  },
+  {
+    name: 'hints-asked-lines-window',
+    file: 'src/annotation/blocks.rs',
+    before: '            if !asked.contains(&line) {',
+    after: '            if false && !asked.contains(&line) {',
+    native: true,
+    test: 'an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about',
+    failure: 'an answer for lines 2 and 3 added hints to line 0'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

@@ -1708,6 +1708,16 @@ Hints accumulate within one revision.
 A server is asked about the lines around the view,
 so each answer replaces the hints of the lines it was asked about and keeps those of every other line:
 rows seen once are still there when the view returns to them.
+A hint of an answer that stands on a line the answer did not ask about is left out,
+because a server answers with the hints of every node that reaches into the asked lines,
+and a statement that began above them answers with the hints of its first line:
+TypeScript 7.1.0-beta answered a request for lines 100 to 200 of a 286-line test file with the four hints of line 96,
+and keeping them added those four hints to line 96 again with each such answer,
+so its block grew by a copy per answer in the code view and in the minimap
+(`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`;
+`hints_outside_the_asked_lines_are_not_part_of_an_answer` and
+`an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about`;
+`inspect:source-guards` cases `hints-asked-lines` and `hints-asked-lines-window`).
 
 ### Placement
 
