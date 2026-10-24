@@ -32,6 +32,15 @@ await describe({
             expect(plannedLine({ planned: 1, total: 1, },),).toBe('planned: 1 of 1 trial',);
           },
         },),
+        it({
+          name: 'SAYS THE PASSES when the arm walks the pool more than once, counting asks, with the pool\'s size in each',
+          fn: async () => {
+            expect(plannedLine({ planned: 120, total: 176, passes: 2, },),).toBe(
+              'planned: 120 of 176 asks (2 passes over the 88 trials of the pool)',
+            );
+            expect(plannedLine({ planned: 41, total: 88, passes: 1, },),).toBe('planned: 41 of 88 trials',);
+          },
+        },),
       ],
     },),
 

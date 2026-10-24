@@ -207,6 +207,22 @@ await describe({
               reading,
               stops: ['refused', 'ok',],
             },).endsWith(`; entry ${TRIAL.spec.entryId}; stopped refused+ok`,),).toBe(true,);
+            // A trial asked again in a later pass names the pass, counted from one, after the entry.
+            expect(rowLineOf({
+              position: 90,
+              total: 176,
+              pair: {
+                cardId: LOW_CARD,
+                trial: TRIAL,
+                pass: 1,
+              },
+              reading,
+              stops: ['ok',],
+            },),).toBe(
+              `row 91 of 176: ${LOW_CARD} on ${TRIAL.trialId}: clean fix exact, nothing else touched; entry ${
+                TRIAL.spec.entryId
+              }; pass 2; stopped ok`,
+            );
           },
         },),
       ],

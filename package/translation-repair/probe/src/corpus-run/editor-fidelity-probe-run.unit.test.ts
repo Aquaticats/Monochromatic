@@ -1110,6 +1110,101 @@ await describe({
         },),
 
         it({
+          name: 'WALKS THE POOL AGAIN when --passes names more than one: the planned line says the passes, every later '
+            + 'pass asks every trial once more, its row lines name the pass, and the plan counts the passes as the '
+            + 'matrix',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--passes', '2',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD, LOW_CARD, LOW_CARD,],);
+            expect(seen.lines,).toContain('planned: 4 of 4 asks (2 passes over the 2 trials of the pool)',);
+            expect(seen.lines,).toContain('TRIALS completed 4 of 4',);
+            /**
+             The row lines, the first pass's two and the second pass's two.
+             */
+            const rowLines = seen.lines.filter(function isRow(line,): boolean {
+              return line.startsWith('row ',);
+            },);
+            expect(rowLines.length,).toBe(4,);
+            expect(rowLines.map(function stopsAfterEntry(line,): string {
+              return line.slice(line.indexOf('; entry ',),);
+            },),).toStrictEqual([
+              `; entry ${SPEC.entryId}; stopped ok`,
+              `; entry ${SPEC.entryId}; stopped ok`,
+              `; entry ${SPEC.entryId}; pass 2; stopped ok`,
+              `; entry ${SPEC.entryId}; pass 2; stopped ok`,
+            ],);
+            expect(seen.lines,).toContain(
+              `EDITOR ${LOW_CARD}: clean fix 4 of 4 (exact 4, equivalent 0), defect only 0, collateral 0, missed 0, `
+                + 'refused 0, unusable 0',
+            );
+            const [runName,] = (await readdir(scratch.path,)).filter(function isRun(name,): boolean {
+              return name.startsWith('editor-fidelity-',);
+            },);
+            const plan = JSON.parse(await readFile(
+              join(
+                scratch.path,
+                nonNullishOrThrow(runName,),
+                'plan.json',
+              ),
+              'utf8',
+            ),) as {
+              readonly plannedRows: number;
+              readonly fullMatrixRows: number;
+              readonly completeRequestedMatrix: boolean;
+            };
+            expect(plan.plannedRows,).toBe(4,);
+            expect(plan.fullMatrixRows,).toBe(4,);
+            expect(plan.completeRequestedMatrix,).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'WALKS ONLY THE LEADING ASKS OF SEVERAL PASSES when --trials is written beside --passes, the first pass '
+            + 'whole and then the start of the second, and warns that the matrix is partial',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--passes', '2', '--trials', '3',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.asked.length,).toBe(3,);
+            expect(seen.lines,).toContain('planned: 3 of 4 asks (2 passes over the 2 trials of the pool)',);
+            expect(seen.lines,).toContain('TRIALS completed 3 of 3',);
+            expect(seen.lines,).toContain('partial reviewed matrix: 3 of 4 rows; not complete admission evidence',);
+            expect(seen.lines.filter(function isSecondPass(line,): boolean {
+              return line.startsWith('row ',) && line.includes('; pass 2;',);
+            },).length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'PRICES SEVERAL PASSES under a cap of zero: a ceiling for every ask of the passes, and a preflight line '
+            + 'that says the ceiling is priced over them',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--passes', '2', '--cap', '0',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.lines.some(function isCeiling(line,): boolean {
+              return line.startsWith(`ceiling ${LOW_CARD}: 4 trials, one ask each, at most `,);
+            },),).toBe(true,);
+            expect(seen.lines,).toContain('planned: 4 of 4 asks (2 passes over the 2 trials of the pool)',);
+            expect(seen.lines.at(-1,),).toBe(
+              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every ask of the 2 passes over the pool`,
+            );
+            expect(seen.clientBuilds,).toStrictEqual([],);
+          },
+        },),
+
+        it({
           name: 'WARNS WHEN THE CAP LEAVES TRIALS OUT, in the judge probe\'s wording, and runs only the first',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
