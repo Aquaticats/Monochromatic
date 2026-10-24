@@ -695,3 +695,35 @@ so no case can tell the two apart and the commit has no red.
 `RootReading` is now named members and a one-line union (`b90f416665`).
 The audit reads versions and writes none,
 so no cache version moved.
+
+Later,
+fix round 7:
+the dropped ternary of `realPathOf` did change one thing the round-6 paragraph said it could not:
+the text of a failure.
+A relative root's lookup now failed with `realpath 'file/below'`,
+where the joined form named the working directory followed by the path,
+and the log line of an unresolved root prints that text,
+so a reader could not tell which directory a relative root had been read against.
+Results and codes were the same in every case of the probe;
+only the text differed.
+`realPathOf` now joins a relative path onto the working directory by plain concatenation before the lookup,
+which leaves `..` to the filesystem as the rest of the path is left,
+and the walk up an absent path runs over the joined path,
+so the failure text names the absolute path the lookup stopped at.
+Red `4d0cb07e58` (a searched root and the runbook's runs root,
+each given relative to the working directory and running through a file;
+both fail at the parent),
+fix `3086c465d1`.
+The two readings,
+`runbookRootReading` and `reachOfRoot`,
+are exported through the package index so that the built-artifact tests of the reach module call them,
+one case per branch:
+the runs root resolved,
+refused and given relative,
+and a searched root that reaches,
+does not reach,
+is refused and is given relative (`51ead37b6c`).
+They pass at their commit as guards of behaviour that already existed,
+and scratch mutations that returned the wrong reading or logged at the wrong level failed them.
+The audit reads versions and writes none,
+so no cache version moved.

@@ -44,6 +44,7 @@ fails any `useFakeTimers` call of any family package,
 tests and fixtures included,
 that fakes `clearTimeout`
 (no `toFake` list,
+an empty one,
 or a list that names it)
 without the literal `true` for the option,
 naming the file and the line.
@@ -52,11 +53,65 @@ Options the scan cannot read are findings
 a variable,
 a spread,
 a `toFake` that is not a written-out list).
-A clock that fakes the date alone is left alone by rule.
+An empty `toFake` list is read as naming every timer:
+the `install` function of `@sinonjs/fake-timers` (version 15.4.0 installed here)
+takes the keys of every timer when the list it is handed has no member
+(`fake-timers-src.js`,
+the `hasToFake` branch),
+so `toFake: []` fakes `clearTimeout` and `toFake: ['Date']` does not.
+A clock whose non-empty list leaves `clearTimeout` out,
+the date alone for one,
+is left alone by rule.
 Out of its reach:
 a clock installed through the fake-timers library itself,
 and a `toNotFake` list that keeps `clearTimeout` real.
 The process time stays a habit of the gate (ledger M288).
+
+## Real waits that a fake-clock walk leaves running
+
+What happened:
+the two bench suites that walk a call on a fake clock
+(`model-health-probe.unit.test.ts` and `translate-probe-run.unit.test.ts`)
+held their process for about 61 s after the last case,
+with `shouldClearNativeTimers` already set on their fake clock.
+The walk races its calls against real waits of the hang stop,
+one minute each,
+and never ended them.
+Each is a real timer,
+and a real timer nobody ends keeps its process alive until it fires.
+A trace of every timer of a second or more,
+taken with an async-hook preload on the model-health-probe suite,
+named those waits in `fake-clock-walk.test-fixture.ts`
+(five timers of 60,000 ms)
+and nothing else (ledger B837).
+The whole `mise run` command of each file took 60.96 s and 61.05 s,
+and 61.78 s and 61.28 s,
+two runs each;
+it takes 0.98 s to 1.26 s and 1.30 s to 1.56 s,
+three runs each,
+with the waits ended.
+
+The rule:
+a test fixture that starts a real wait it will not wait for
+hands it an abort signal and aborts it when the fixture returns,
+however it returns.
+The check that no real timer is left is a count of the process's live timers
+(`process.getActiveResourcesInfo()`) before and after,
+which names the cause in a case,
+where a bound on the process wall would only show it as slow.
+
+What to do when a suite holds its process after its last case:
+preload a hook on `node:async_hooks` that writes the stack of every `Timeout` of a second or more,
+run the file with `node --import <preload> <file>`,
+and read the stacks;
+the caller that made the long timer is the one to fix.
+The `FakeTimers` line on stderr is only one cause of a held process.
+
+What enforces it:
+the case `LEAVES NO REAL TIMER LIVE WHEN THE WALK HAS ENDED` of `fake-clock-walk.unit.test.ts`.
+No scan reads fixtures for real waits that are never ended;
+a scan would have to follow where each wait goes,
+and the count in the case reads the result.
 
 [real-clocks]:
   mistake-prevention-tests-clocks-and-arrival-order.md#tests-on-the-real-clock

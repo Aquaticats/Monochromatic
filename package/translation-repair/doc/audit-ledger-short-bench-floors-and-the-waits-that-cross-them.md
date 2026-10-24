@@ -198,6 +198,44 @@ What to do about the family is in the section "Fake clocks that leave native tim
 No cached record holds a clock and no key covers one,
 so no cache version moved.
 
+Later,
+fix round 7:
+the scan read an empty `toFake` list as a clock that fakes the date alone and left the install alone.
+The fake-timers library fakes every timer for an empty list,
+so `toFake: []` with no clearing option passed the scan and is the hazard it exists for.
+No install did this,
+so nothing was hidden;
+the scan now reads an empty list as naming every timer,
+and its header and the section "Fake clocks that leave native timers" of the fake-clock record say so
+(red `ab657f918d`,
+fix `b65d31ca09`).
+The cause of the sixty seconds that the two bench suites hold their process at exit
+(`model-health-probe.unit.test.ts` and `translate-probe-run.unit.test.ts`)
+was found with a trace of every timer of a second or more:
+the fake-clock walk of the test-fixture package races its calls against real hang-stop waits of one minute each
+and never ended them,
+five real timers in all,
+and a real timer nobody ends keeps the process alive until it fires.
+The cause is in a test fixture of the family,
+not in the logger or the provider package.
+The walk now hands those waits one abort signal and aborts it as it returns.
+The process wall of the whole `mise run` command of each file,
+two runs each before,
+was 60.96 s and 61.05 s for the first and 61.78 s and 61.28 s for the second;
+three runs each after took 0.98 to 1.26 s and 1.30 to 1.56 s.
+The suites themselves are unchanged.
+The case `LEAVES NO REAL TIMER LIVE WHEN THE WALK HAS ENDED` of `fake-clock-walk.unit.test.ts` counts the live timers
+before and after a walk and failed at the parent of the fix
+(ten live after,
+nine before;
+red `88d5f73355`,
+fix `7e2340cf38`).
+The record file names the family's second member and what to do about it,
+in the section "Real waits that a fake-clock walk leaves running" of
+[the fake-clock record of mistake prevention][clocks-family].
+No cached record holds a clock and no key covers one,
+so no cache version moved.
+
 ## B838: a wait judged a return against the quorum alone
 
 Status:
