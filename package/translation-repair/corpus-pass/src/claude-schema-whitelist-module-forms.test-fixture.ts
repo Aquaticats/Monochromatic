@@ -4,10 +4,10 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 //region Modules that carry a builder in positions the search does not read
 // What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the
 // first and the second total of the check for the modules that carry a builder: a namespace or a loaded module used as
-// a value, a load whose names the search cannot bind, a path literal outside an import, an export from and a load, and
-// a builder inside a namespace, an enum, a parameter property or an export assignment. Each case is one imaginary file
-// that holds one place on each line, with the files the search lists and the places the check reports, by file, line,
-// shape and position.
+// a value, a load whose names the search cannot bind, and a builder inside a namespace, an enum, a parameter property
+// or an export assignment (the path literal outside a load is in `claude-schema-whitelist-path-forms.test-fixture.ts`).
+// Each case is one imaginary file that holds one place on each line, with the files the search lists and the places the
+// check reports, by file, line, shape and position.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.
@@ -20,8 +20,7 @@ const CONTEST_SPECIFIER = '../../lane-contest/src/contest-ballot-wire.ts';
 const ARGUMENTS = '{ schemaName: \'module\', verdicts: [], asksArchive: false, }';
 
 /**
- Cases of a module that carries a builder used as a value, a path literal outside a load, and a builder in a construct
- the search does not read.
+ Cases of a module that carries a builder used as a value, and a builder in a construct the search does not read.
  */
 export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
   {
@@ -156,74 +155,6 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
         file: 'imaginary/src/load-value-stage.ts',
         line: 9,
         shape: 'load-in-unfollowed-form',
-        position: 'VariableDeclarator.init',
-      },
-    ],
-  },
-  {
-    name: 'LEAVES UNREAD A PATH LITERAL THAT NAMES A MODULE CARRYING A BUILDER OUTSIDE AN IMPORT, AN EXPORT FROM AND A '
-      + 'LOAD, as an argument of a call or of new, a constant, or the module of an import-equals declaration, and '
-      + 'the check reports each',
-    files: [
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        text: textOf([
-          'import { createRequire, } from \'node:module\';',
-          '',
-          `export const viaCreate = createRequire(import.meta.url,)('${CONTEST_SPECIFIER}');`,
-          `export const resolved = require.resolve('${CONTEST_SPECIFIER}');`,
-          `export const meta = import.meta.resolve('${CONTEST_SPECIFIER}');`,
-          `export const url = new URL('${CONTEST_SPECIFIER}', import.meta.url,);`,
-          `export const kept = '${CONTEST_SPECIFIER}';`,
-          `import equalled = require('${CONTEST_SPECIFIER}');`,
-          `export type Typed = typeof import('${CONTEST_SPECIFIER}');`,
-          `export const templated = \`${CONTEST_SPECIFIER}\`;`,
-        ],),
-      },
-    ],
-    found: [],
-    builders: [],
-    spots: [
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 3,
-        shape: 'module-path-outside-a-load',
-        position: 'CallExpression.arguments',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 4,
-        shape: 'module-path-outside-a-load',
-        position: 'CallExpression.arguments',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 5,
-        shape: 'module-path-outside-a-load',
-        position: 'CallExpression.arguments',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 6,
-        shape: 'module-path-outside-a-load',
-        position: 'NewExpression.arguments',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 7,
-        shape: 'module-path-outside-a-load',
-        position: 'VariableDeclarator.init',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 8,
-        shape: 'module-path-outside-a-load',
-        position: 'TSExternalModuleReference.expression',
-      },
-      {
-        file: 'imaginary/src/path-literal-stage.ts',
-        line: 10,
-        shape: 'module-path-outside-a-load',
         position: 'VariableDeclarator.init',
       },
     ],

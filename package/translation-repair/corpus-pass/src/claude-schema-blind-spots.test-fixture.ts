@@ -21,6 +21,10 @@ import {
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
 import {
+  namesUnreadableCode,
+  unreadableShapesIn,
+} from './claude-schema-blind-unreadable.test-fixture.ts';
+import {
   buildersIn,
   familyOf,
   type SourceFile,
@@ -31,9 +35,11 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 //region Places the schema search reads nothing of, found in the family's sources
 // The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list
 // honest follows a fixed set of positions, and a place it does not follow can hide a file that sends an answer schema.
-// `blindSpotsOf` reads the same sources and holds two totals. Every string that names a module which carries a builder
-// must sit in a position the search follows, and every `import()` and `require` must have a path that is one literal;
-// every chain of names that stands for a builder, or for a module that carries one, must sit where the search reads it.
+// `blindSpotsOf` reads the same sources and holds three totals. Every string that names a module which carries a builder
+// must sit in a position the search follows, and every `import()` and `require` must have a path that is one literal,
+// and no code may build a loader or run text (`claude-schema-blind-unreadable.test-fixture.ts`); every chain of names
+// that stands for a builder, or for a module that carries one, must sit where the search reads it; and the value of a
+// builder's call must end in a sender, a wrapper or a constant that does (`claude-schema-blind-flow.test-fixture.ts`).
 // Anything else is reported with the file, the line and the position, so a place the search cannot read never turns up
 // in the family without a failure that names it. The check is a net, not a second search: it reports every place it
 // does not understand, whether or not a producer hides there, and a place it reports is answered by reading the place
@@ -241,6 +247,7 @@ export function blindSpotsOf(
         node,
       },)
         || (node.type === 'ImportExpression')
+        || namesUnreadableCode({ node, })
         || ((node.type === 'CallExpression')
           && moduleLoadOf({ node, },)
             .isLoad);
@@ -269,6 +276,10 @@ export function blindSpotsOf(
       text,
       found: [
         ...loadShapesIn({
+          context,
+          nodes,
+        },),
+        ...unreadableShapesIn({
           context,
           nodes,
         },),

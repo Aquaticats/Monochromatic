@@ -67,6 +67,7 @@ import { WHITELIST_CALL_CASES, } from './claude-schema-whitelist-call-forms.test
 import { WHITELIST_CASES, } from './claude-schema-whitelist-forms.test-fixture.ts';
 import { WHITELIST_MARK_CASES, } from './claude-schema-whitelist-mark-forms.test-fixture.ts';
 import { WHITELIST_MODULE_CASES, } from './claude-schema-whitelist-module-forms.test-fixture.ts';
+import { WHITELIST_PATH_CASES, } from './claude-schema-whitelist-path-forms.test-fixture.ts';
 import { WHITELIST_READ_CASES, } from './claude-schema-whitelist-read-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
 import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
@@ -671,6 +672,7 @@ await describe({
       ...WHITELIST_CASES,
       ...WHITELIST_MARK_CASES,
       ...WHITELIST_MODULE_CASES,
+      ...WHITELIST_PATH_CASES,
       ...WHITELIST_READ_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
@@ -715,6 +717,7 @@ await describe({
       ...WHITELIST_CASES,
       ...WHITELIST_MARK_CASES,
       ...WHITELIST_MODULE_CASES,
+      ...WHITELIST_PATH_CASES,
       ...WHITELIST_READ_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({

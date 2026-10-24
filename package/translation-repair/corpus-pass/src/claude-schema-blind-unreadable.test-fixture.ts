@@ -1,0 +1,188 @@
+import {
+  ancestorsOf,
+  identifierName,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
+
+import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
+import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
+import {
+  keyNameOf,
+  nodeAt,
+} from './claude-schema-tree.test-fixture.ts';
+
+//region Code the schema search cannot read
+// The first total follows `import()` and a call of `require` whose path is one literal. Code that builds a loader,
+// reaches `require` by another name, or makes code from text can load a module that carries a builder with no path the
+// search could read, so each of these is reported where it is written, whether or not a builder is near it:
+// `createRequire` in any form (a call, an import of it, a member of a module), `require` anywhere but as the callee of
+// a direct call (`module.require`, an alias, `require.call`, a comma expression), `eval`, and `Function` with or
+// without `new`, also as the member of another object. A word inside a string, a longer name and a type are not code.
+
+/**
+ What a report says of a place that builds a loader.
+ */
+const MAKES_LOADER = 'createRequire builds a loader the search cannot follow';
+
+/**
+ What a report says of a place that reaches `require` by another way than a direct call.
+ */
+const REACHES_REQUIRE = 'require used beyond a direct call';
+
+/**
+ What a report says of a place that runs text as code.
+ */
+const RUNS_TEXT = 'eval runs text the search cannot read';
+
+/**
+ What a report says of a place that makes a function from text.
+ */
+const BUILDS_FUNCTION = 'Function builds code from text the search cannot read';
+
+/**
+ The names that make code the search cannot read, each with what a report says of it.
+ */
+const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
+  createRequire: MAKES_LOADER,
+  eval: RUNS_TEXT,
+  Function: BUILDS_FUNCTION,
+  require: REACHES_REQUIRE,
+},),);
+
+/**
+ The name an identifier or a member computed from a string is written with when it makes code the search cannot read.
+
+ @param node - node read, of any kind
+
+ @returns The name, empty for any node that is neither an identifier nor a member computed from a string, and for a
+ name that makes no such code
+
+ @example
+ ```ts
+ const name = unreadableNameOf({ node, },);
+ // => 'eval'
+ ```
+ */
+function unreadableNameOf({ node, }: { readonly node: TreeNode; },): string {
+  /**
+   The name the node is written with.
+   */
+  const name = (node.type === 'MemberExpression')
+    ? ((node.computed === true)
+      ? keyNameOf({ key: nodeAt({
+        node,
+        field: 'property',
+      },), },)
+      : '')
+    : identifierName({ node, },);
+  return UNREADABLE_NAMES.has(name,) ? name : '';
+}
+
+/**
+ Whether a node is written with a name that makes code the search cannot read, wherever it sits.
+
+ @param node - node read, of any kind
+
+ @returns Whether the node is an identifier of that name, or a member computed from a string of that name
+
+ @example
+ ```ts
+ const names = namesUnreadableCode({ node, },);
+ ```
+ */
+export function namesUnreadableCode({ node, }: { readonly node: TreeNode; },): boolean {
+  return unreadableNameOf({ node, },) !== '';
+}
+
+/**
+ Whether a node is the identifier `require` as the callee of a direct call, which is the one place `require` is read.
+
+ @param name - name that makes the code, as `unreadableNameOf` reads it
+
+ @param node - node read
+
+ @param parents - each node's parent
+
+ @returns Whether the node is that identifier and a call takes it as its callee
+
+ @example
+ ```ts
+ const isCall = isRequireCall({ name: 'require', node, parents, },);
+ ```
+ */
+function isRequireCall(
+  {
+    name,
+    node,
+    parents,
+  }: {
+    readonly name: string;
+    readonly node: TreeNode;
+    readonly parents: ReadonlyMap<TreeNode, TreeNode>;
+  },
+): boolean {
+  if ((name !== 'require') || (node.type !== 'Identifier'))
+    return false;
+  /**
+   The node that holds the identifier.
+   */
+  const holder = parents.get(node,);
+  return (holder?.type === 'CallExpression') && (holder.callee === node);
+}
+
+/**
+ The places in a file that make code the search cannot read.
+
+ @param context - what the file's names are read against
+
+ @param nodes - every node of the file
+
+ @returns One entry per place, outside types, a direct call of `require` excepted
+
+ @example
+ ```ts
+ const found = unreadableShapesIn({ context, nodes: nodesUnder({ root: program, },), },);
+ ```
+ */
+export function unreadableShapesIn(
+  {
+    context,
+    nodes,
+  }: {
+    readonly context: BlindContext;
+    readonly nodes: readonly TreeNode[];
+  },
+): readonly FoundShape[] {
+  return nodes.flatMap(function shapesOfNode(node,): readonly FoundShape[] {
+    /**
+     The name that makes the code, empty for a node that does not.
+     */
+    const name = unreadableNameOf({ node, },);
+    if (name === '')
+      return [];
+    if (isRequireCall({
+      name,
+      node,
+      parents: context.parents,
+    },))
+      return [];
+    if (ancestorsOf({
+      node,
+      parents: context.parents,
+    },)
+      .some(function isType(ancestor,): boolean {
+        return isTypeWithoutValue({ node: ancestor, },);
+      },))
+      return [];
+    return [
+      {
+        shape: 'code-the-search-cannot-read',
+        node,
+        position: UNREADABLE_NAMES.get(name,) ?? name,
+      },
+    ];
+  },);
+}
+
+//endregion Code the schema search cannot read
