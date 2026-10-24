@@ -187,6 +187,29 @@ fn visit(scene: &Scene, line: usize, before: usize) {
     wait_answer(scene, line - scene.view, line + 2 * scene.view);
 }
 
+/// What:
+///  Show `line`,
+///  let the settling time pass,
+///  and check that no request went out for it.
+/// Why:
+///  A test of what forgets the covered lines first shows that the lines were covered,
+///  so it fails on a tree that never skips and does not pass for lack of the rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function skipped(scene: Scene, line: number): void
+/// ```
+fn skipped(scene: &Scene, line: usize) {
+    let before = asked(scene);
+    show(scene, line);
+    idle(SETTLED_MS);
+    assert_eq!(
+        asked(scene),
+        before,
+        "a view whose request asks only answered lines sent a request"
+    );
+}
+
 /// A first line far from the top,
 ///  with room for the views a test scrolls through.
 const FAR: usize = 200;
@@ -219,8 +242,7 @@ fn a_view_leaving_the_answered_lines_sends_a_request() {
     let view = scene.view;
     visit(&scene, FAR, 1);
     visit(&scene, FAR + view, 2);
-    show(&scene, FAR + view / 2);
-    idle(SETTLED_MS);
+    skipped(&scene, FAR + view / 2);
     // One line above the lines the first answer asked about.
     show(&scene, FAR - 1);
     wait_requests(&scene, 4);
@@ -244,6 +266,9 @@ fn an_edit_forgets_the_lines_the_earlier_revision_asked_about() {
     let view = scene.view;
     visit(&scene, FAR, 1);
     visit(&scene, FAR + view, 2);
+    // The earlier revision covers the lines between the views; the view then stands where the second answer left it.
+    skipped(&scene, FAR + view / 2);
+    skipped(&scene, FAR + view);
     let revision = scene.reader.source.borrow().document.revision();
     fs::write(
         scene.project.root.join("main.scripted"),
@@ -258,7 +283,7 @@ fn an_edit_forgets_the_lines_the_earlier_revision_asked_about() {
     wait_answer(&scene, FAR, FAR + 3 * view);
     idle(SETTLED_MS);
     let before = asked(&scene).len();
-    // These lines lie between the two answers of the earlier revision, which is gone.
+    // These lines lay between the two answers of the earlier revision, which is gone.
     show(&scene, FAR + view / 2);
     wait_requests(&scene, before + 1);
 }
@@ -305,6 +330,8 @@ fn opening_the_file_again_forgets_the_lines_asked_about() {
     let view = scene.view;
     visit(&scene, FAR, 1);
     visit(&scene, FAR + view, 2);
+    skipped(&scene, FAR + view / 2);
+    skipped(&scene, FAR + view);
     {
         let binding = scene.reader.binding.as_ref().expect("language binding");
         binding.language.borrow_mut().reopen = true;
