@@ -50,7 +50,7 @@ function isParseEndHook(value: unknown,): value is ParseEndHook {
 
  @internal
 
- @param root - the tree, final once the grammar has made its own reads of it
+ @param root - tree, final once the grammar has made its own reads of it
 
  @example
  ```ts

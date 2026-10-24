@@ -164,7 +164,7 @@ export function stateAfter(
 
  @param definition - footnote definition about to be read
 
- @returns The paragraph taken, which the definition's lines go on in, or the definition itself when none follows it
+ @returns Paragraph taken, which the definition's lines go on in, or the definition itself when none follows it
 
  @example
  ```ts
@@ -263,7 +263,7 @@ function startsAtBlock(
 
  @param end - place the blocks must start before
 
- @returns The blocks taken, in text order
+ @returns Blocks taken, in text order
 
  @example
  ```ts

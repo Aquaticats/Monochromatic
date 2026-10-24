@@ -352,8 +352,8 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
     carried: '见 [https://example.net/a](https://example.net/a)',
   },
   {
-    name: 'a definition with a brace and a heading of an open bracket and a bare address, which the parser starts at the '
-      + 'definition',
+    name: 'a definition with a brace and a heading of an open bracket and a bare address, which the parser starts at '
+      + 'the definition',
     source: '[a {b]: u\n[ https://example.net/a{b\n---\n',
     carried: '[a \\{b]: u\n[ https://example.net/a\\{b\n---',
   },

@@ -271,9 +271,9 @@ function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): Sourc
 
  @param readable - whole text with its comments blanked, the parse's own input
 
- @param range - the lines after the end of the footnote, from the line ending of the footnote's last line
+ @param range - lines after the end of the footnote, from the line ending of the footnote's last line
 
- @returns The edit that doubles the line ending, none when a blank line stands there already or the first line after
+ @returns Edit that doubles the line ending, none when a blank line stands there already or the first line after
  it is no definition
 
  @example

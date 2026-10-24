@@ -73,9 +73,9 @@ type Shape = {
 /**
  Picks one of the two grammar functions by name.
 
- @param name - the function wanted
+ @param name - function wanted
 
- @returns The function
+ @returns Function
 
  @example
  ```ts
@@ -145,7 +145,7 @@ const SHAPES: readonly Shape[] = [
 
  @param hook - what the grammar calls with the final tree
 
- @returns A disposable that takes the hook away
+ @returns Disposable that takes the hook away
 
  @example
  ```ts

@@ -119,7 +119,7 @@ const UNCHANGED_TEXTS: readonly (readonly [string, string])[] = [
 
  @param text - text with line feeds
 
- @returns The text with a lone carriage return for each line feed
+ @returns Text with a lone carriage return for each line feed
 
  @example
  ```ts

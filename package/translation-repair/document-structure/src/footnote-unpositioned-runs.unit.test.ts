@@ -22,7 +22,7 @@ import {
 
  @param body - text, parsed as the strict grammar parses a page
 
- @returns The text's tree, and its heading
+ @returns Text's tree, and its heading
 
  @throws {@link Error} when the text holds no heading at the top
 

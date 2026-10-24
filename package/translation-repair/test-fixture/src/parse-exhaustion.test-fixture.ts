@@ -140,7 +140,7 @@ const ARMINGS = new WeakMap<object, Arming>();
  Marks a tree as read by the grammar for the last time, which is when the grammar's function hands it to its caller: the
  grammar calls this at its end, with the final tree.
 
- @param root - the tree the grammar's function is about to return
+ @param root - tree the grammar's function is about to return
 
  @example
  ```ts
@@ -163,7 +163,7 @@ function armedAtParseEnd({ root, }: { readonly root: unknown; },): void {
 
  @param hook - what the grammar calls with the final tree
 
- @returns A disposable that puts back what stood there before
+ @returns Disposable that puts back what stood there before
 
  @example
  ```ts
@@ -207,7 +207,7 @@ function parseEndHookSet(
  answers the grammar's own reads from the tree the parser built until the grammar says it has finished them, so the
  exhaustion comes from the boundary's code and not from the grammar's.
 
- @param built - the tree the real parser built
+ @param built - tree the real parser built
 
  @returns A stand-in for a parsed root
 

@@ -99,7 +99,7 @@ export function joinedLines(
 
  @param text - text
 
- @returns The text without it
+ @returns Text without it
 
  @example
  ```ts
@@ -119,7 +119,7 @@ function trimmed({ text, }: { readonly text: string; },): string {
 
  @param to - second offset
 
- @returns The text between them, trimmed
+ @returns Text between them, trimmed
 
  @example
  ```ts

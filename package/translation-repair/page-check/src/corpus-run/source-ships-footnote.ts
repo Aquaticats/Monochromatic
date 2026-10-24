@@ -36,7 +36,7 @@ const FOOTNOTE_GAPS: readonly string[] = [
  Whether a label is spelled as the label of a footnote definition: a caret and at least one more character, none of
  them white space.
 
- @param label - the text between the brackets
+ @param label - text between the brackets
 
  @returns Whether the label is one a footnote definition can have
 
