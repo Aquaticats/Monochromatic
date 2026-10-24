@@ -596,8 +596,8 @@ await describe({
       name: 'a zero cap',
       children: [
         it({
-          name: 'SAYS THE CARD SEATED AND THE ENTRIES SELECTED and returns before the corpus is read, a directory '
-            + 'is made or a client is built',
+          name: 'WRITES THE MANIFEST, POOL, CEILING, GUARD AND RULE LINES a run writes before its first call, then '
+            + 'the preflight line, with the corpus read and no directory made, no client built and nothing asked',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
             const seen = await probeIn({
@@ -605,11 +605,17 @@ await describe({
               typed: [...ONE_CARD, '--cap', '0',],
             },);
             expect(seen.failures,).toStrictEqual([],);
-            expect(seen.lines,).toStrictEqual([
-              `editors: ${LOW_CARD}`,
-              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}; no corpus or model calls`,
-            ],);
-            expect(seen.readFor,).toStrictEqual([],);
+            expect(seen.lines.length,).toBe(7,);
+            expect(seen.lines[0],).toBe(`editors: ${LOW_CARD}`,);
+            expect(seen.lines[1]?.startsWith('manifest: 1 specification, digest ',),).toBe(true,);
+            expect(seen.lines[2],).toBe('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
+            expect(seen.lines[3]?.startsWith(`ceiling ${LOW_CARD}: 2 trials, one ask each, at most `,),).toBe(true,);
+            expect(seen.lines[4],).toBe(guardLine({ maxUsd: 2, benchSpentUsd: 0, },),);
+            expect(seen.lines[5],).toBe(editorDecisionRuleLine(),);
+            expect(seen.lines[6],).toBe(
+              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
+            );
+            expect(seen.readFor.length,).toBe(1,);
             expect(seen.runsAsked,).toStrictEqual([],);
             expect(seen.clientBuilds,).toStrictEqual([],);
             expect(seen.written,).toBe('',);
@@ -631,8 +637,7 @@ await describe({
             },);
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.lines,).toContain(
-              `preflight only: ${String(EDITOR_FIDELITY_POOL.length,)} pinned reference specifications selected for ${LOW_CARD}; `
-                + 'no corpus or model calls',
+              `preflight only: ${String(EDITOR_FIDELITY_POOL.length,)} pinned reference specifications selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
             );
           },
         },),
@@ -931,6 +936,27 @@ await describe({
                 'row-1.json',
               ),),
             ).toBe(true,);
+            /**
+             The row lines, each with how the asks of its trial ended.
+             */
+            const rowLines = seen.lines.filter(function isRow(line,): boolean {
+              return line.startsWith('row ',);
+            },);
+            expect(rowLines.length,).toBe(2,);
+            expect(rowLines.every(function statesStop(line,): boolean {
+              return line.endsWith('; stopped ok',);
+            },),).toBe(true,);
+            /**
+             The first kept row.
+             */
+            const keptRow = JSON.parse(await readFile(
+              join(
+                runDir,
+                'row-0.json',
+              ),
+              'utf8',
+            ),) as { readonly stops: readonly string[]; };
+            expect(keptRow.stops,).toStrictEqual(['ok',],);
             expect(seen.lines,).toContain(
               `EDITOR ${LOW_CARD}: clean fix 2 of 2 (exact 2, equivalent 0), defect only 0, collateral 0, missed 0, `
                 + 'refused 0, unusable 0',
@@ -976,6 +1002,16 @@ await describe({
               `EDITOR ${LOW_CARD}: clean fix 0 of 2 (exact 0, equivalent 0), defect only 0, collateral 0, missed 0, `
                 + 'refused 0, unusable 2',
             );
+            /**
+             The row lines, whose asks the guard of the reply rejected every time.
+             */
+            const rowLines = seen.lines.filter(function isRow(line,): boolean {
+              return line.startsWith('row ',);
+            },);
+            expect(rowLines.length,).toBe(2,);
+            expect(rowLines.every(function statesRejection(line,): boolean {
+              return line.includes('; stopped rejected',);
+            },),).toBe(true,);
           },
         },),
 

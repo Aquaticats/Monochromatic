@@ -1,9 +1,9 @@
 /**
- Tests for the compiled `editor-fidelity-probe` command's zero-call paths: what it accepts and prints at a cap of zero,
- and which requests it refuses before any corpus or provider access, with which exit status and stderr.
+ Tests for the compiled `editor-fidelity-probe` command's zero-call paths: what it does at a cap of zero over a clone that
+ holds no corpus, and which requests it refuses before any corpus or provider access, with which exit status and stderr.
 
- Each run is the built command in an owned empty directory with no provider key set, so no case can read a corpus or
- spend. Fixtures are cat-themed invention.
+ Each run is the built command in an owned empty directory with no provider key set, so no case can spend. Fixtures are
+ cat-themed invention.
 
  @module
  */
@@ -16,7 +16,6 @@ import {
 
 import { runBuiltCommand, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
-import { EDITOR_FIDELITY_POOL, } from '../../dist/final/node/index.mjs';
 import { PROBE_ENTRY, } from './built-entry.test-fixture.ts';
 import { withoutStamp, } from '../fidelity-reference.test-fixture.ts';
 import { LOW_CARD, } from '../editor-fidelity.test-fixture.ts';
@@ -87,21 +86,20 @@ await describe({
   name: 'editor-fidelity-probe as built',
   children: [
     it({
-      name: 'ACCEPTS A CAP OF ZERO for one card alone, saying the card seated and the entries selected, with no key '
-        + 'set and no call made',
+      name: 'READS THE CORPUS AT A CAP OF ZERO, so over a clone that holds none it stops there with a nonzero status and '
+        + 'no preflight line, having called nothing and needing no key',
       fn: async () => {
         const run = await runAsBuilt({
           args: ['--cap', '0', '--bench-spent-usd', '0', '--candidates', LOW_CARD, '--candidates-alone',],
         },);
-        expect(run.code,).toBe(0,);
-        expect(run.stderr,).toStrictEqual([],);
+        expect(run.code,).not.toBe(0,);
         expect(run.stdout.map(function plain(line,): string {
           return line.replace('[editor-fidelity-probe] ', '',);
-        },),).toEqual([
-          `[info] editors: ${LOW_CARD}`,
-          `[info] preflight only: ${String(EDITOR_FIDELITY_POOL.length,)} pinned reference specifications selected for ${LOW_CARD}; `
-            + 'no corpus or model calls',
-        ],);
+        },),).toEqual([`[info] editors: ${LOW_CARD}`,],);
+        expect(run.stderr.length,).toBeGreaterThan(0,);
+        expect(run.stderr.some(function names(line,): boolean {
+          return line.includes('preflight only',);
+        },),).toBe(false,);
       },
     },),
 

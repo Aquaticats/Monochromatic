@@ -5,6 +5,7 @@
  @module
  */
 
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   describe,
   expect,
@@ -12,8 +13,12 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  decisionRuleText,
+  EDITOR_DAMAGE_KINDS,
   editorDecisionRuleLine,
   editorDefectOnlyLine,
+  editorFidelityRow,
+  editorFidelityTrials,
   editorKeptLine,
   editorKindLines,
   editorPreflightLine,
@@ -23,6 +28,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import {
   HIGH_CARD,
+  inventedReference,
   LOW_CARD,
 } from '../editor-fidelity.test-fixture.ts';
 
@@ -261,6 +267,36 @@ await describe({
     },),
 
     describe({
+      name: editorFidelityRow.name,
+      children: [
+        it({
+          name: 'KEEPS HOW THE ASKS OF THE TRIAL ENDED in the row, in the order asked, and an empty list for a row built '
+            + 'without them',
+          fn: async () => {
+            /**
+             The invented reference's first trial.
+             */
+            const trial = nonNullishOrThrow(editorFidelityTrials({
+              references: [inventedReference(),],
+              damageKinds: EDITOR_DAMAGE_KINDS,
+            },)[0],);
+            /**
+             A reading to build rows of.
+             */
+            const reading = { kind: 'refused', findings: [], } as const;
+            expect(editorFidelityRow({
+              cardId: LOW_CARD,
+              trial,
+              reading,
+              stops: ['refused', 'ok',],
+            },).stops,).toStrictEqual(['refused', 'ok',],);
+            expect(editorFidelityRow({ cardId: LOW_CARD, trial, reading, },).stops,).toStrictEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
       name: editorTallyLine.name,
       children: [
         it({
@@ -327,14 +363,23 @@ await describe({
       name: editorDecisionRuleLine.name,
       children: [
         it({
-          name: 'STATES WHICH COUNTS ARE COMPARED, WHAT DIFFERENCE COUNTS AND WHAT A TIE KEEPS, in one line',
+          name: 'STATES WHICH COUNTS ARE COMPARED, WHAT DIFFERENCE COUNTS, WHAT A TIE KEEPS AND WHAT THE INSERTION '
+            + 'TRIALS MEASURE, in one line made from the same text as the rule the read step applies',
           fn: async () => {
             expect(editorDecisionRuleLine(),).toBe(
-              'RULE clean fix is exact plus equivalent, read pooled and per kind of defect; an effort differs from the '
-                + 'default (medium) only when its pooled clean fix count is further from the mean of the two medium '
-                + 'arms than the larger of 3 and the two medium arms\' own difference, and neither kind moves against '
-                + 'it; any other difference, and any tie, keeps the default effort',
+              'RULE clean fix is exact plus equivalent, counted over the trials of both kinds of defect. An effort '
+                + 'other than the default (medium) is chosen only when its clean fix count is above the mean of the two '
+                + 'medium arms by at least 12 trials, or by at least the two medium arms\' own difference when that is '
+                + 'larger, and neither kind of defect (insertion, alteration) is more than 3 trials below the mean of '
+                + 'the two medium arms for that kind. A smaller gap, a tie, an effort that fixes fewer, and a gap a kind '
+                + 'contradicts all keep the default effort. With no true difference, a gap of 12 trials is the least '
+                + 'that keeps the chance of choosing another effort under 0.05 at every true fix rate from 0.30 to 0.95, '
+                + 'counting the two trials of an entry as one draw at the worst (editor-fidelity-decide-null.ts), so the '
+                + 'bench cannot separate efforts that differ by less. The insertion trials measure locating an added '
+                + 'sentence among its neighbours and copying the neighbours verbatim, not the span-only view production '
+                + 'gives an editor.',
             );
+            expect(editorDecisionRuleLine(),).toBe(`RULE ${decisionRuleText()}`,);
           },
         },),
       ],
@@ -344,21 +389,20 @@ await describe({
       name: editorPreflightLine.name,
       children: [
         it({
-          name: 'SAYS WHAT A CAP OF ZERO BOUGHT: cards named and the references selected, and that nothing was read or '
-            + 'asked',
+          name: 'SAYS WHAT A CAP OF ZERO BOUGHT: cards named and the references selected, that the corpus was read and '
+            + 'no model was called, and that the ceiling is priced over every trial',
           fn: async () => {
             expect(editorPreflightLine({
               cardIds: [LOW_CARD,],
               selected: 3,
             },),).toBe(
-              `preflight only: 3 pinned reference specifications selected for ${LOW_CARD}; no corpus or model calls`,
+              `preflight only: 3 pinned reference specifications selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
             );
             expect(editorPreflightLine({
               cardIds: [LOW_CARD, HIGH_CARD,],
               selected: 1,
             },),).toBe(
-              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}, ${HIGH_CARD}; no corpus or `
-                + 'model calls',
+              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}, ${HIGH_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
             );
           },
         },),
