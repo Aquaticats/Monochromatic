@@ -339,6 +339,7 @@ await describe({
                 'export const prowl = sinon.useFakeTimers({ toFake: [faked, \'setTimeout\',], },);',
                 'export const yawn = sinon.useFakeTimers({ shouldClearNativeTimers: !!flag, },);',
                 'export const roll = (sinon as Sandbox).useFakeTimers({ toFake: [\'clearTimeout\',], } as const,);',
+                'export const lounge = sinon.useFakeTimers({ toFake: [], },);',
               ].join('\n',),
               isTest: false,
             },
@@ -351,6 +352,7 @@ await describe({
                 '},);',
                 'export const bare = useFakeTimers({ shouldClearNativeTimers: true, },);',
                 'export const dated = sinon.useFakeTimers({ now: new Date(0,), toFake: [\'Date\',], },);',
+                'export const emptied = sinon.useFakeTimers({ toFake: [], shouldClearNativeTimers: true, },);',
                 'export const ticking = sinon.useFakeTimers({ toFake: [\'setTimeout\', \'performance\',], },);',
                 'export const quoted = sinon.useFakeTimers({ \'shouldClearNativeTimers\': true, } satisfies Options,);',
                 'export const text = \'sinon.useFakeTimers()\';',
@@ -373,6 +375,7 @@ await describe({
           'litter.ts:9: useFakeTimers passes a toFake element that is no string literal, so the scan cannot read it',
           'litter.ts:10: useFakeTimers fakes clearTimeout but sets shouldClearNativeTimers to something other than true',
           'litter.ts:11: useFakeTimers fakes clearTimeout without shouldClearNativeTimers',
+          'litter.ts:12: useFakeTimers fakes clearTimeout without shouldClearNativeTimers',
         ],);
       },
     },),
