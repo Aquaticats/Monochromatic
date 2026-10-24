@@ -115,6 +115,9 @@ mod definition_tests;
 /// Reply admission rules on fabricated replies.
 #[cfg(test)]
 mod guard_tests;
+/// A view whose hint request would ask only lines that stored answers already asked about sends none.
+#[cfg(test)]
+mod hint_skip_tests;
 /// Hover by key and pointer,
 ///  its placement,
 ///  and every dismissal.

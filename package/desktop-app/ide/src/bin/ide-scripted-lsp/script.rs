@@ -102,12 +102,15 @@ pub enum Hover {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Step = 'answer' | 'silent' | 'hold' | 'modified' | 'modifiedThenNotify' | 'failed';
+/// type Step = 'answer' | 'empty' | 'silent' | 'hold' | 'modified' | 'modifiedThenNotify' | 'failed';
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     /// Answer at once.
     Answer,
+    /// Answer at once with a list that holds no hint,
+    ///  as a server does that is still loading the project.
+    Empty,
     /// Never answer.
     Silent,
     /// Keep the answer and write it right after the next answer of the same kind.
@@ -144,6 +147,7 @@ fn steps(name: &str) -> Vec<Step> {
     for word in read(name, "").split(',') {
         let step = match word.trim() {
             "" => continue,
+            "empty" => Step::Empty,
             "silent" => Step::Silent,
             "hold" => Step::Hold,
             "modified" => Step::Modified,
