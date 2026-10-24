@@ -188,7 +188,6 @@ export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { endsInLiteral, } from './corpus-run/source-ships-literal-end.ts';
 export {
   footnoteStateOf,
-  isAfterFootnote,
   stateAfter,
 } from './corpus-run/source-ships-pending.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
@@ -212,14 +211,7 @@ export {
   nestedSpans,
   type SpansReader,
 } from './corpus-run/source-ships-nested.ts';
-export {
-  isEmptyMarkerLine,
-  laterModuleLines,
-  moduleEdits,
-  moduleLetterEdit,
-  startsEsModule,
-  startsFootnoteLine,
-} from './corpus-run/source-ships-module-line.ts';
+export { withModuleLinesWritten, } from './corpus-run/source-ships-module-line.ts';
 export {
   closingBracket,
   imageTextRanges,

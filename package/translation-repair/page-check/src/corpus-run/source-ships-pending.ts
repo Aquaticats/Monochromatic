@@ -151,41 +151,4 @@ export function stateAfter(
   };
 }
 
-/**
- Whether a block stands on the line right after the block read last in its container, which is part of a footnote
- definition, or starts at that line: a setext heading whose first line the
- plain reading took for a definition starts there.
-
- @param state - what the block read last in the container was
-
- @param node - block to look at
-
- @returns Whether the strict grammar reads the block as what follows a footnote definition
-
- @example
- ```ts
- const after = isAfterFootnote({ state: { open: true, endLine: 1, endsInLiteral: false, }, node, },);
- ```
- */
-export function isAfterFootnote(
-  {
-    state,
-    node,
-  }: {
-    readonly state: FootnoteState;
-    readonly node: TreeNode;
-  },
-): boolean {
-  if (!state.open)
-    return false;
-  /**
-   Line the block starts on.
-   */
-  const startLine = node.position
-    ?.start
-    .line
-    ?? 0;
-  return startLine <= (state.endLine + 1);
-}
-
 //endregion Source ships pending

@@ -23,7 +23,6 @@ export type SpansReader = (
     readonly source: string;
     readonly readable: string;
     readonly root: TreeNode;
-    readonly isNested: boolean;
   },
 ) => SourceSpans;
 
@@ -111,7 +110,6 @@ export function nestedSpans(
     source: body,
     readable: bodyReadable,
     root: parseMarkdownMathBody({ body: bodyReadable, },),
-    isNested: true,
   },);
   return {
     text: inner

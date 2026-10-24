@@ -128,6 +128,7 @@ export {
   maskHtmlComments,
 } from './mask-html-comments.ts';
 export { maskInvisibleLines, } from './mask-invisible-lines.ts';
+export { moduleLineStartsOf, } from './module-line-starts.ts';
 export {
   MarkdownParseError,
   MdxParseError,

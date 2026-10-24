@@ -15,7 +15,6 @@ import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-do
 
 import {
   footnoteStateOf,
-  isAfterFootnote,
   rangeOf,
   stateAfter,
 } from '../../dist/final/node/index.mjs';
@@ -159,48 +158,6 @@ await describe({
               endLine: 3,
               endsInLiteral: true,
             },);
-          },
-        },),
-      ],
-    },),
-
-    describe({
-      name: isAfterFootnote.name,
-      children: [
-        it({
-          name: 'ANSWERS YES FOR A BLOCK ON THE LINE RIGHT AFTER A FOOTNOTE DEFINITION, and for one that starts at the '
-            + 'definition\'s line, a setext heading whose first line was taken for the definition',
-          fn: async () => {
-            const [, paragraph,] = blocksOf({ source: '[^1]: 注\n*\nfoo\n', },).blocks;
-            const [, heading,] = blocksOf({ source: '[^1]: 注\n*\nfoo\n===\n', },).blocks;
-            if ((paragraph === undefined) || (heading === undefined))
-              throw new Error('the text holds no second block',);
-            expect(isAfterFootnote({
-              state: OPEN_ON_LINE_ONE,
-              node: paragraph,
-            },),).toBe(true,);
-            expect(isAfterFootnote({
-              state: OPEN_ON_LINE_ONE,
-              node: heading,
-            },),).toBe(true,);
-          },
-        },),
-
-        it({
-          name: 'ANSWERS NO WHEN THE BLOCK READ LAST IS NO FOOTNOTE DEFINITION, or a line stands between it and the '
-            + 'block',
-          fn: async () => {
-            const [, paragraph,] = blocksOf({ source: '[^1]: 注\n\nfoo\n', },).blocks;
-            if (paragraph === undefined)
-              throw new Error('the text holds no second block',);
-            expect(isAfterFootnote({
-              state: OPEN_ON_LINE_ONE,
-              node: paragraph,
-            },),).toBe(false,);
-            expect(isAfterFootnote({
-              state: NOTHING_READ,
-              node: paragraph,
-            },),).toBe(false,);
           },
         },),
       ],

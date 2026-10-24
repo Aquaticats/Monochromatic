@@ -136,37 +136,11 @@ await describe({
     },),
 
     it({
-      name: 'WRITES THE FIRST LETTER OF A PARAGRAPH THAT MDX READS AS AN ES MODULE as a character reference, at the '
-        + 'first column of the root only',
+      name: 'MAKES NO EDIT FOR A LINE MDX READS AS AN ES MODULE, which is written after every other rewrite from the '
+        + 'page as it will stand (`source-ships-module-line.ts`) and not from this parse of the text',
       fn: async () => {
-        expect(spansIn({ source: 'import a from "b"\n\nexport c\n', },).edits,).toEqual([
-          {
-            start: 0,
-            end: 1,
-            replacement: '&#105;',
-          },
-          {
-            start: 19,
-            end: 20,
-            replacement: '&#101;',
-          },
-        ],);
-        expect(spansIn({ source: '> import a\n\n  import b\n\n- import c\n\nimporting\n', },).edits,).toEqual([],);
-      },
-    },),
-
-    it({
-      name: 'WRITES THE FIRST LETTER OF A SETEXT HEADING THAT STARTS WITH AN ES MODULE WORD as a character '
-        + 'reference too, and of no ATX heading',
-      fn: async () => {
-        expect(spansIn({ source: 'import a\n===\n', },).edits,).toEqual([
-          {
-            start: 0,
-            end: 1,
-            replacement: '&#105;',
-          },
-        ],);
-        expect(spansIn({ source: '# import a\n', },).edits,).toEqual([],);
+        expect(spansIn({ source: 'import a from "b"\n\nexport c\n', },).edits,).toEqual([],);
+        expect(spansIn({ source: 'import a\n===\n', },).edits,).toEqual([],);
       },
     },),
 

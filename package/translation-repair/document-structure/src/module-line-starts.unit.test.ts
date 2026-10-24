@@ -83,18 +83,21 @@ await describe({
         + 'is a fresh block in a paragraph, a list item and a block quote',
       fn: async () => {
         for (const opening of ['x', '- x', '1. 项', '> x', '- x\n  y',]) {
-          for (const invisible of ['﻿', ' ', '​', '　',]) {
+          for (const invisible of ['\uFEFF', '\u00A0', '\u200B', '\u3000',]) {
             /**
              Text with a line of one invisible character between a container's lines and a module line.
              */
             const body = `${opening}\n${invisible}\nimport q\n===\nexport to PDF\n`;
-            expect(moduleLineStartsOf({ body, },),).toEqual(indicesOfWord({
-              text: body,
-              word: 'import',
-            },).concat(indicesOfWord({
-              text: body,
-              word: 'export',
-            },),),);
+            expect(moduleLineStartsOf({ body, },),).toEqual([
+              ...indicesOfWord({
+                text: body,
+                word: 'import',
+              },),
+              ...indicesOfWord({
+                text: body,
+                word: 'export',
+              },),
+            ],);
           }
         }
       },
@@ -104,8 +107,8 @@ await describe({
       name: 'READS A LINE OF INVISIBLE CHARACTERS THE PACKAGE DOES NOT MASK AS A LINE OF THE PARAGRAPH: a soft hyphen '
         + 'and a left-to-right mark show nothing, and the line after one is a lazy line',
       fn: async () => {
-        expect(moduleLineStartsOf({ body: 'x\n­\nimport q\n', },),).toEqual([],);
-        expect(moduleLineStartsOf({ body: 'x\n‎\nimport q\n', },),).toEqual([],);
+        expect(moduleLineStartsOf({ body: 'x\n\u00AD\nimport q\n', },),).toEqual([],);
+        expect(moduleLineStartsOf({ body: 'x\n\u200E\nimport q\n', },),).toEqual([],);
       },
     },),
 
@@ -146,8 +149,8 @@ await describe({
       name: 'READS A BYTE ORDER MARK THAT OPENS THE TEXT AS A CHARACTER OF ITS FIRST LINE, since the text stands in '
         + 'the middle of a page, so the offsets index the text as written',
       fn: async () => {
-        expect(moduleLineStartsOf({ body: '﻿import a\n', },),).toEqual([],);
-        expect(moduleLineStartsOf({ body: '﻿\nimport a\n', },),).toEqual([2,],);
+        expect(moduleLineStartsOf({ body: '\uFEFFimport a\n', },),).toEqual([],);
+        expect(moduleLineStartsOf({ body: '\uFEFF\nimport a\n', },),).toEqual([2,],);
       },
     },),
 

@@ -12,11 +12,9 @@ import {
 } from './source-ships-lines.ts';
 import { autolinkWritten, } from './source-ships-links.ts';
 import { nestedSpans, } from './source-ships-nested.ts';
-import { moduleEdits, } from './source-ships-module-line.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
-  isAfterFootnote,
   type Pending,
   stateAfter,
 } from './source-ships-pending.ts';
@@ -86,8 +84,6 @@ const INLINE_CONTENT: ReadonlySet<string> = new Set([
  @param readable - text as the parse read it, with its comments blanked, the source itself where none is; a block
  nested in another is parsed from this
 
- @param isNested - whether the text is a block nested in another, none of whose nodes MDX reads as an ES module
-
  @returns Stretches a reader sees as text, the stretches rewritten whole and the links
 
  @throws {@link Error} when a node has no position, which the reading used never builds
@@ -102,12 +98,10 @@ export function spansOf(
     source,
     root,
     readable = source,
-    isNested = false,
   }: {
     readonly source: string;
     readonly root: TreeNode;
     readonly readable?: string;
-    readonly isNested?: boolean;
   },
 ): SourceSpans {
   /**
@@ -213,13 +207,6 @@ export function spansOf(
       continue;
     }
     /**
-     Whether the node stands on the line right after a footnote definition.
-     */
-    const followsFootnote = isAfterFootnote({
-      state: footnote,
-      node,
-    },);
-    /**
      Whether the node is indented code under a footnote definition, which the
      strict grammar reads as the blocks of the definition.
      */
@@ -263,13 +250,6 @@ export function spansOf(
         source,
         node,
         range,
-      },),);
-      edits.push(...moduleEdits({
-        source,
-        node,
-        range,
-        isTopLevel: false,
-        isNested,
       },),);
       continue;
     }
@@ -379,16 +359,6 @@ export function spansOf(
     }
     if (INLINE_CONTENT.has(node.type,))
       streamStarts.push(range.start,);
-    // A PARAGRAPH OR SETEXT HEADING STARTING AT THE FIRST COLUMN WITH `import ` OR `export `, which MDX reads as an ES
-    // module and no backslash makes plain; a character reference for the first letter does.
-    edits.push(...moduleEdits({
-      source,
-      node,
-      range,
-      isTopLevel: isRootChild && (!isNested),
-      isNested,
-      afterFootnote: followsFootnote || after.open,
-    },),);
     if ('children' in node) {
       /**
        The node's children, the last first so they come out in order.

@@ -11,435 +11,117 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
-import {
-  isEmptyMarkerLine,
-  laterModuleLines,
-  moduleEdits,
-  moduleLetterEdit,
-  rangeOf,
-  startsEsModule,
-  startsFootnoteLine,
-} from '../../dist/final/node/index.mjs';
+import { withModuleLinesWritten, } from '../../dist/final/node/index.mjs';
 
 /**
- Whether the first block of a text is read as an ES module.
+ Writes the module lines of a text.
 
- @param source - text
+ @param text - text with every other rewrite made
 
- @param isTopLevel - whether the block stands directly under the root
-
- @returns Answer
+ @returns Text with the first letter of each module line written as a character reference
 
  @example
  ```ts
- const esm = firstBlockIsModule({ source: 'export a\n', isTopLevel: true, },);
+ const written = writtenOf({ text: 'x\n\nimport a\n', },);
  ```
  */
-function firstBlockIsModule(
-  {
-    source,
-    isTopLevel,
-  }: {
-    readonly source: string;
-    readonly isTopLevel: boolean;
-  },
-): boolean {
-  const [node,] = parseMarkdownMathBody({ body: source, },).children;
-  if (node === undefined)
-    throw new Error('the text holds no block',);
-  return startsEsModule({
-    source,
-    node,
-    isTopLevel,
-    range: rangeOf({ node, },),
-  },);
-}
-
-/**
- Where the later module lines of the first block of a text start.
-
- @param source - text
-
- @param isNested - whether the text is read apart from the document
-
- @param afterFootnote - whether the block follows or opens a footnote definition
-
- @returns Indices of the first letters
-
- @example
- ```ts
- const at = laterLinesOf({ source: 'x\n\n\u200B\nimport a\n', },);
- ```
- */
-function laterLinesOf(
-  {
-    source,
-    isNested = false,
-    afterFootnote = false,
-  }: {
-    readonly source: string;
-    readonly isNested?: boolean;
-    readonly afterFootnote?: boolean;
-  },
-): readonly number[] {
-  const [, node,] = parseMarkdownMathBody({ body: source, },).children;
-  if (node === undefined)
-    throw new Error('the text holds no second block',);
-  return laterModuleLines({
-    source,
-    node,
-    range: rangeOf({ node, },),
-    isNested,
-    afterFootnote,
-  },);
+function writtenOf({ text, }: { readonly text: string; },): string {
+  return withModuleLinesWritten({ text, },);
 }
 
 await describe({
-  name: 'the lines MDX reads as an ES module',
+  name: withModuleLinesWritten.name,
   children: [
-    describe({
-      name: laterModuleLines.name,
-      children: [
-        it({
-          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LINE OF SEPARATORS OR FORMAT CHARACTERS ONLY, a '
-            + 'byte order mark, a no-break space and a zero-width space among them, in a paragraph and in a setext '
-            + 'heading',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'x\n\n\uFEFF\nimport a\n', },),).toEqual([5,],);
-            expect(laterLinesOf({ source: 'x\n\n\u00A0\nexport to PDF\n---\n', },),).toEqual([5,],);
-            expect(laterLinesOf({ source: 'x\n\n\u200B\r\nimport a\n', },),).toEqual([6,],);
-          },
-        },),
-
-        it({
-          name: 'FINDS AN import OR export LINE IN A RAW HTML BLOCK THAT FOLLOWS A BLANK LINE OR A LINE OF FORMAT '
-            + 'CHARACTERS, which the plain reading keeps in the block and the strict grammar reads as a paragraph',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'x\n\n<script>\n\nimport a\n', },),).toEqual([13,],);
-            expect(laterLinesOf({ source: 'x\n\n<details>\n\uFEFF\nexport to PDF\n', },),).toEqual([15,],);
-          },
-        },),
-
-        it({
-          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LINE OF A LIST MARKER ALONE IN A BLOCK THAT FOLLOWS A '
-            + 'FOOTNOTE DEFINITION, a bullet, a dash, a plus and an ordered marker among them, since the strict '
-            + 'grammar starts a list at the marker there and the line after it is a block of its own',
-          fn: async () => {
-            expect(laterLinesOf({
-              source: '[^1]: 注\n*\nexport to PDF\n',
-              afterFootnote: true,
-            },),).toEqual([10,],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n-\nimport a\n',
-              afterFootnote: true,
-            },),).toEqual([10,],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n+ \nimport a\n',
-              afterFootnote: true,
-            },),).toEqual([11,],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n 12)\nimport a\n',
-              afterFootnote: true,
-            },),).toEqual([13,],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n*\n*\nexport to PDF\n',
-              afterFootnote: true,
-            },),).toEqual([12,],);
-          },
-        },),
-
-        it({
-          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LIST MARKER ALONE AFTER A LINE THAT STARTS A FOOTNOTE '
-            + 'DEFINITION INSIDE THE PARAGRAPH, at any indentation, since the strict grammar lets a definition '
-            + 'interrupt a paragraph and keeps it open for the line after it',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\n*\nexport to PDF\n', },),).toEqual([15,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n   [^1]: 注\n2.\nimport a\n', },),).toEqual([19,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n    [^1]: 注\n*\nexport to PDF\n', },),).toEqual([19,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\nfoo\n*\nexport to PDF\n', },),).toEqual([19,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n[^1]: 注\n[^2]: 注\n*\nimport a\n', },),).toEqual([23,],);
-          },
-        },),
-
-        it({
-          name: 'FINDS AN import OR export LINE THAT FOLLOWS A LIST MARKER ALONE AFTER A LINE OF INVISIBLE '
-            + 'CHARACTERS, since that line ends the paragraph for the strict grammar and the marker then starts a list',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'y\n\nx\n\uFEFF\n*\nexport to PDF\n', },),).toEqual([9,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n\u200B\n2.\nimport a\n', },),).toEqual([10,],);
-            expect(laterLinesOf({ source: 'y\n\nx\n\uFEFF\n*\n*\nexport to PDF\n', },),).toEqual([11,],);
-          },
-        },),
-
-        it({
-          name: 'FINDS NOTHING AFTER A LIST MARKER THAT STANDS BEFORE THE LINE STARTING A FOOTNOTE DEFINITION, or '
-            + 'after a line that only looks like the start of one',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'y\n\nx\n*\n[^1]: 注\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'y\n\nx\n[^1 ]: 注\n*\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'y\n\nx\n[^1] 注\n*\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'y\n\nx\n[1]: 注\n*\nexport to PDF\n', },),).toEqual([],);
-          },
-        },),
-
-        it({
-          name: 'FINDS NOTHING AFTER A LIST MARKER WHEN THE BLOCK FOLLOWS NO FOOTNOTE DEFINITION, where the marker '
-            + 'is a line of the paragraph, and nothing after a marker that has text or is no marker',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'x\n\nabc\n*\nexport to PDF\n', },),).toEqual([],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n* a\nexport to PDF\n',
-              afterFootnote: true,
-            },),).toEqual([],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n**\nexport to PDF\n',
-              afterFootnote: true,
-            },),).toEqual([],);
-            expect(laterLinesOf({
-              source: '[^1]: 注\n*\nfoo\nexport to PDF\n',
-              afterFootnote: true,
-            },),).toEqual([],);
-          },
-        },),
-
-        it({
-          name: 'FINDS NOTHING IN A TEXT READ APART FROM THE DOCUMENT, a block none of whose lines stands at the first '
-            + 'column of it',
-          fn: async () => {
-            expect(laterLinesOf({
-              source: 'x\n\n\uFEFF\nimport q\n',
-              isNested: true,
-            },),).toEqual([],);
-          },
-        },),
-
-        it({
-          name: 'FINDS NOTHING AFTER A LINE OF VISIBLE CHARACTERS, in a block that is not top level, or in another '
-            + 'kind of block, and none that start with a word of another spelling',
-          fn: async () => {
-            expect(laterLinesOf({ source: 'x\n\n\uFEFFy\nimport a\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n\n\uFEFF\nimported a\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n\n\uFEFF\n  import a\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n\n# \uFEFF\nimport a\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n\n> a\n> \uFEFF\n> import q\n', },),).toEqual([],);
-            expect(laterLinesOf({ source: 'x\n\n<script>\n\n  import a\n', },),).toEqual([],);
-          },
-        },),
-      ],
+    it({
+      name: 'WRITES THE FIRST LETTER OF A LINE THAT STARTS A MODULE AS A CHARACTER REFERENCE, at the start of the '
+        + 'text and after a blank line, and leaves a lazy line of a paragraph alone',
+      fn: async () => {
+        expect(writtenOf({ text: 'export to PDF\n', },),).toBe('&#101;xport to PDF\n',);
+        expect(writtenOf({ text: '她说\n\nimport data\n\nexport to PDF\n', },),)
+          .toBe('她说\n\n&#105;mport data\n\n&#101;xport to PDF\n',);
+        expect(writtenOf({ text: '她说\nimport data\n', },),).toBe('她说\nimport data\n',);
+        expect(writtenOf({ text: 'imported data\n', },),).toBe('imported data\n',);
+      },
     },),
 
-    describe({
-      name: moduleEdits.name,
-      children: [
-        it({
-          name: 'WRITES THE FIRST WORD OF A MODULE PARAGRAPH AND THE FIRST WORD OF EACH LATER MODULE LINE, each as a '
-            + 'character reference',
-          fn: async () => {
-            /**
-             The text and its first block.
-             */
-            const source = 'import a\n\uFEFF\nimport b\n';
-            const [node,] = parseMarkdownMathBody({ body: source, },).children;
-            if (node === undefined)
-              throw new Error('the text holds no block',);
-            expect(moduleEdits({
-              source,
-              node,
-              range: rangeOf({ node, },),
-              isTopLevel: true,
-              isNested: false,
-            },),).toEqual([
-              {
-                start: 0,
-                end: 1,
-                replacement: '&#105;',
-              },
-              {
-                start: 11,
-                end: 12,
-                replacement: '&#105;',
-              },
-            ],);
-          },
-        },),
-
-        it({
-          name: 'WRITES NOTHING FOR A BLOCK THAT STARTS NO MODULE, a word that only begins like the keyword',
-          fn: async () => {
-            /**
-             The text and its first block.
-             */
-            const source = 'imported a\n';
-            const [node,] = parseMarkdownMathBody({ body: source, },).children;
-            if (node === undefined)
-              throw new Error('the text holds no block',);
-            expect(moduleEdits({
-              source,
-              node,
-              range: rangeOf({ node, },),
-              isTopLevel: true,
-              isNested: false,
-            },),).toEqual([],);
-          },
-        },),
-      ],
+    it({
+      name: 'LEAVES A TEXT WITH NO MODULE LINE AS IT IS, an indented line, a line in a container and a line in code '
+        + 'among them',
+      fn: async () => {
+        expect(writtenOf({ text: ' import data\n', },),).toBe(' import data\n',);
+        expect(writtenOf({ text: '> import data\n', },),).toBe('> import data\n',);
+        expect(writtenOf({ text: '```\nimport data\n```\n', },),).toBe('```\nimport data\n```\n',);
+        expect(writtenOf({ text: '<!--\n\nimport data\n\n-->\n', },),).toBe('<!--\n\nimport data\n\n-->\n',);
+      },
     },),
 
-    describe({
-      name: isEmptyMarkerLine.name,
-      children: [
-        it({
-          name: 'READS A BULLET, A DASH, A PLUS AND AN ORDERED MARKER OF ONE TO NINE DIGITS ALONE ON A LINE AS A '
-            + 'MARKER, with up to three columns of indentation before it and white space after it',
-          fn: async () => {
-            for (
-              const line of [
-                '*',
-                '-',
-                '+',
-                ' *',
-                '   -',
-                '*  ',
-                '* \t',
-                '1.',
-                '2)',
-                ' 12)',
-                '123456789.',
-              ]
-            ) {
-              expect(isEmptyMarkerLine({ line, },),).toBe(true,);
-            }
-          },
-        },),
-
-        it({
-          name: 'READS NOTHING ELSE AS ONE: an empty line, a marker with text, a rule, indentation of four columns or '
-            + 'a tab, ten digits, a number with no end, a lone digit, and a marker with a no-break space beside it',
-          fn: async () => {
-            for (
-              const line of [
-                '',
-                '   ',
-                '* a',
-                '**',
-                '***',
-                '--',
-                '    *',
-                '\t*',
-                '1234567890.',
-                '12',
-                '1',
-                'a.',
-                '1.a',
-                '1 .',
-                '\u00A0*',
-                '*\u00A0',
-              ]
-            ) {
-              expect(isEmptyMarkerLine({ line, },),).toBe(false,);
-            }
-          },
-        },),
-      ],
+    it({
+      name: 'WRITES THE LINE AFTER A LINE OF INVISIBLE CHARACTERS THE PACKAGE MASKS, a byte order mark, a no-break '
+        + 'space and a zero-width space among them, in a paragraph and in a setext heading',
+      fn: async () => {
+        expect(writtenOf({ text: 'x\n\uFEFF\nimport a\n', },),).toBe('x\n\uFEFF\n&#105;mport a\n',);
+        expect(writtenOf({ text: 'x\n\u00A0\nexport to PDF\n---\n', },),).toBe('x\n\u00A0\n&#101;xport to PDF\n---\n',);
+        expect(writtenOf({ text: 'x\n\u200B\r\nimport a\n', },),).toBe('x\n\u200B\r\n&#105;mport a\n',);
+      },
     },),
 
-    describe({
-      name: startsFootnoteLine.name,
-      children: [
-        it({
-          name: 'READS A LABEL OF A CARET AND NON-SPACE CHARACTERS AND A COLON AS THE START OF A DEFINITION, at any '
-            + 'indentation, with a body or none',
-          fn: async () => {
-            for (const line of ['[^1]: 注', '[^1]:', '   [^note]: x', '    [^1]: x', '\t[^猫]: x', '[^a^b]: x',]) {
-              expect(startsFootnoteLine({ line, },),).toBe(true,);
-            }
-          },
-        },),
-
-        it({
-          name: 'READS NOTHING ELSE AS ONE: an empty line, a label with nothing in it, a space in the label, no colon, '
-            + 'no caret, an unclosed label, and a bracket inside the label',
-          fn: async () => {
-            for (
-              const line of ['', '[^]: x', '[^1 2]: x', '[^1] x', '[^1]x', '[1]: x', '[^1', 'a [^1]: x', '[^a[b]: x',]
-            ) {
-              expect(startsFootnoteLine({ line, },),).toBe(false,);
-            }
-          },
-        },),
-      ],
+    it({
+      name: 'LEAVES THE LINE AFTER A LINE OF CHARACTERS THE PACKAGE DOES NOT MASK, a soft hyphen and a left-to-right '
+        + 'mark, which the paragraph keeps',
+      fn: async () => {
+        expect(writtenOf({ text: 'x\n\u00AD\nimport a\n', },),).toBe('x\n\u00AD\nimport a\n',);
+        expect(writtenOf({ text: 'x\n\u200E\nimport a\n', },),).toBe('x\n\u200E\nimport a\n',);
+      },
     },),
 
-    describe({
-      name: moduleLetterEdit.name,
-      children: [
-        it({
-          name: 'WRITES THE LETTER AS A CHARACTER REFERENCE OF ITS CODE POINT, over that letter alone',
-          fn: async () => {
-            expect(moduleLetterEdit({
-              source: 'x import',
-              at: 2,
-            },),).toEqual({
-              start: 2,
-              end: 3,
-              replacement: '&#105;',
-            },);
-          },
-        },),
-      ],
+    it({
+      name: 'WRITES THE LINE AFTER A SETEXT UNDERLINE, in a list item and in a block quote after a line of invisible '
+        + 'characters, which the strict grammar reads as a block of its own',
+      fn: async () => {
+        expect(writtenOf({ text: '1. 项\n\uFEFF\nimport q\n===\nexport to PDF\n', },),)
+          .toBe('1. 项\n\uFEFF\n&#105;mport q\n===\n&#101;xport to PDF\n',);
+        expect(writtenOf({ text: '> a\n\uFEFF\nimport q\n===\nimport r\n', },),)
+          .toBe('> a\n\uFEFF\n&#105;mport q\n===\n&#105;mport r\n',);
+        expect(writtenOf({ text: '- a\n  b\n\u00A0\nimport q\nmore\n===\nexport to PDF\n', },),)
+          .toBe('- a\n  b\n\u00A0\n&#105;mport q\nmore\n===\n&#101;xport to PDF\n',);
+      },
     },),
 
-    describe({
-      name: startsEsModule.name,
-      children: [
-        it({
-          name: 'READS A PARAGRAPH OR A SETEXT HEADING AT THE FIRST COLUMN OF THE ROOT STARTING import OR export AS '
-            + 'A MODULE',
-          fn: async () => {
-            expect(firstBlockIsModule({
-              source: 'import a from "b"\n',
-              isTopLevel: true,
-            },),).toBe(true,);
-            expect(firstBlockIsModule({
-              source: 'export to PDF\n---\n',
-              isTopLevel: true,
-            },),).toBe(true,);
-          },
-        },),
+    it({
+      name: 'WRITES THE LINE AFTER A LIST MARKER ALONE THAT FOLLOWS A FOOTNOTE DEFINITION, wherever the definition '
+        + 'stands, and leaves it where a paragraph is open',
+      fn: async () => {
+        expect(writtenOf({ text: '[^1]: 注\n*\nexport to PDF\n', },),).toBe('[^1]: 注\n*\n&#101;xport to PDF\n',);
+        expect(writtenOf({ text: 'x\n[^1]: 注\n2.\nimport a\n', },),).toBe('x\n[^1]: 注\n2.\n&#105;mport a\n',);
+        expect(writtenOf({ text: '\uFEFF\n*\nimport a\n', },),).toBe('\uFEFF\n*\n&#105;mport a\n',);
+        expect(writtenOf({ text: 'abc\n*\nexport to PDF\n', },),).toBe('abc\n*\nexport to PDF\n',);
+      },
+    },),
 
-        it({
-          name: 'READS NOTHING ELSE AS ONE: an ATX heading, a word without the space, an upper-case word, indented '
-            + 'text, a block that is not top level, a block of another kind',
-          fn: async () => {
-            expect(firstBlockIsModule({
-              source: '# import a\n',
-              isTopLevel: true,
-            },),).toBe(false,);
-            expect(firstBlockIsModule({
-              source: 'imported a\n',
-              isTopLevel: true,
-            },),).toBe(false,);
-            expect(firstBlockIsModule({
-              source: 'Import a\n',
-              isTopLevel: true,
-            },),).toBe(false,);
-            expect(firstBlockIsModule({
-              source: '  import a\n',
-              isTopLevel: true,
-            },),).toBe(false,);
-            expect(firstBlockIsModule({
-              source: 'import a\n',
-              isTopLevel: false,
-            },),).toBe(false,);
-            expect(firstBlockIsModule({
-              source: '- import a\n',
-              isTopLevel: true,
-            },),).toBe(false,);
-          },
-        },),
-      ],
+    it({
+      name: 'WRITES A LINE IN A RAW HTML BLOCK OR INDENTED CODE THAT FOLLOWS A BLANK LINE, which the strict grammar '
+        + 'reads as a paragraph',
+      fn: async () => {
+        expect(writtenOf({ text: '<script>\n\nimport a\n', },),).toBe('<script>\n\n&#105;mport a\n',);
+        expect(writtenOf({ text: '猫\n\n    code\n\nimport a\n', },),).toBe('猫\n\n    code\n\n&#105;mport a\n',);
+      },
+    },),
+
+    it({
+      name: 'READS A BYTE ORDER MARK THAT OPENS THE TEXT AS A CHARACTER OF ITS FIRST LINE, as the page does',
+      fn: async () => {
+        expect(writtenOf({ text: '\uFEFFimport a\n', },),).toBe('\uFEFFimport a\n',);
+        expect(writtenOf({ text: '\uFEFF\nimport a\n', },),).toBe('\uFEFF\n&#105;mport a\n',);
+      },
+    },),
+
+    it({
+      name: 'COUNTS POSITIONS IN UTF-16 UNITS, so a character beyond the first plane before a module line does not '
+        + 'shift the letter',
+      fn: async () => {
+        expect(writtenOf({ text: '\u{1F408}\n\nimport a\n', },),).toBe('\u{1F408}\n\n&#105;mport a\n',);
+      },
     },),
   ],
 },);
