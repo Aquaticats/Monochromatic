@@ -363,18 +363,7 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '> a ```\n[^1]: <b>\n\t```\n',
   ],
   ['a code span across a line that starts a footnote definition, at the top', 'a `x\n[^1]: <b>` y\n'],
-  [
-    'a footnote definition inside a block quote after a paragraph line, a tag alone, then a definition line with a brace',
-    '> a\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
-  ],
-  [
-    'a footnote definition inside a block quote after an indented fence mark, a tag alone, then a definition line',
-    '> a\n>     ```\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
-  ],
-  [
-    'a footnote definition inside a list item after a paragraph line, a tag alone, then a definition line',
-    '- a\n  [^1]: x\n  <a href="x">\n  [r]: u{b}\n',
-  ],
+
   [
     'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
     '[^1]: <b>\n[r]: u{b "t {"\n',
@@ -1030,6 +1019,28 @@ https://example.net/b{c`,);
               .toBe(String.raw`![\<https://example.net/a>](u.png) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '![<https://example.net/a>](u.png) {', },), },),)
               .toBe('<https://example.net/a> {',);
+          },
+        },),
+
+        it({
+          name: 'PARSES AND HOLDS NO EXPRESSION FOR A FOOTNOTE DEFINITION INSIDE A CONTAINER, A TAG ALONE AND A '
+            + 'DEFINITION LINE WITH A BRACE (a reading difference the follow-ups name): the definition line shows as '
+            + 'text on the page, where the source reads it as a definition',
+          fn: async () => {
+            for (
+              const text of [
+                '> a\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
+                '> a\n>     ```\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
+                '- a\n  [^1]: x\n  <a href="x">\n  [r]: u{b}\n',
+              ]
+            ) {
+              /**
+               What the encoder writes for the text.
+               */
+              const written = encoded({ text, },);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
+            }
           },
         },),
 
