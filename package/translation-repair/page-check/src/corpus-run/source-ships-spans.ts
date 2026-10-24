@@ -140,6 +140,10 @@ export function spansOf(
    Where each run of inline content starts.
    */
   const streamStarts: number[] = [];
+  /**
+   Where each link reference definition read so far ends.
+   */
+  const definitionEnds: number[] = [];
 
   /**
    Adds what the parse of a nested block says of it.
@@ -262,10 +266,13 @@ export function spansOf(
       absorb({ nested: read.spans, },);
       continue;
     }
+    if (node.type === 'definition')
+      definitionEnds.push(range.end,);
     edits.push(...lineJoinsOf({
       source,
       node,
       range,
+      definitionEnds,
     },),);
     // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {

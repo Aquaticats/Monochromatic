@@ -1,5 +1,6 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import { hasFootnoteLabel, } from './source-ships-footnote.ts';
 import {
   closingBracket,
   type TextEdit,
@@ -94,6 +95,57 @@ export function joinedLines(
 }
 
 /**
+ Takes the white space off both ends of a text.
+
+ @param text - text
+
+ @returns The text without it
+
+ @example
+ ```ts
+ const kept = trimmed({ text: ' a ', },); // 'a'
+ ```
+ */
+function trimmed({ text, }: { readonly text: string; },): string {
+  return text.trim();
+}
+
+/**
+ What stands between two offsets of a text once the white space at both ends is left out.
+
+ @param source - text
+
+ @param from - first offset
+
+ @param to - second offset
+
+ @returns The text between them, trimmed
+
+ @example
+ ```ts
+ const gap = gapBetween({ source: 'a  \n', from: 1, to: 4, },); // ''
+ ```
+ */
+function gapBetween(
+  {
+    source,
+    from,
+    to,
+  }: {
+    readonly source: string;
+    readonly from: number;
+    readonly to: number;
+  },
+): string {
+  return trimmed({
+    text: source.slice(
+      from,
+      to,
+    ),
+  },);
+}
+
+/**
  The edit that joins a code span to the line before it when the span starts with a fence mark indented four spaces or
  more: the plain reading takes the run of backticks for the opening of the span, so no backslash can be written into it,
  and the strict grammar takes it for a fence that cuts the paragraph.
@@ -102,21 +154,28 @@ export function joinedLines(
 
  @param range - where the code span stands
 
+ @param definitionEnds - where each link reference definition of the text ends, since a line that ends a definition
+ ends its block in both readings, and the fence mark after it opens a fence in the strict grammar with no paragraph
+ line to join to: joining it would make the definition line a paragraph, whose braces are then code
+
  @returns One edit replacing the line ending before the span and the marks before it with a space; none when the span
- does not start with such a mark or starts the text
+ does not start with such a mark, starts the text or follows the end of a definition
 
  @example
  ```ts
- const edits = joinBeforeFenceMark({ source: 'a\n    ```\n`x\n    ```', range: { start: 6, end: 20, }, },);
+ const range = { start: 6, end: 20, };
+ const edits = joinBeforeFenceMark({ source: 'a\n    ```\n`x\n    ```', range, definitionEnds: [], },);
  ```
  */
 function joinBeforeFenceMark(
   {
     source,
     range,
+    definitionEnds,
   }: {
     readonly source: string;
     readonly range: TextRange;
+    readonly definitionEnds: readonly number[];
   },
 ): readonly TextEdit[] {
   if (indentedFenceMarkEnd({
@@ -131,6 +190,14 @@ function joinBeforeFenceMark(
   while ((before.at >= 0) && CONTAINER_PREFIX.includes(source.charAt(before.at,),))
     before.at -= 1;
   if (source.charAt(before.at,) !== '\n')
+    return [];
+  if (definitionEnds.some(function endsTheLineBefore(end,): boolean {
+    return (end <= before.at) && (gapBetween({
+      source,
+      from: end,
+      to: before.at,
+    }) === '');
+  },))
     return [];
   return [
     {
@@ -151,6 +218,9 @@ function joinBeforeFenceMark(
 
  @param range - where the node stands
 
+ @param definitionEnds - where each link reference definition read so far ends, none where the caller reads no
+ definitions
+
  @returns Edits, none for a node of another kind and none for a footnote definition
 
  @example
@@ -163,10 +233,12 @@ export function lineJoinsOf(
     source,
     node,
     range,
+    definitionEnds = [],
   }: {
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
+    readonly definitionEnds?: readonly number[];
   },
 ): readonly TextEdit[] {
   if (SPAN_TYPES.has(node.type,)) {
@@ -174,6 +246,7 @@ export function lineJoinsOf(
       ...joinBeforeFenceMark({
         source,
         range,
+        definitionEnds,
       },),
       ...joinedLines({
         source,
@@ -197,9 +270,7 @@ export function lineJoinsOf(
       },
     },);
   }
-  if ((node.type === 'definition') && (!node
-    .identifier
-    .startsWith('^',))) {
+  if ((node.type === 'definition') && (!hasFootnoteLabel({ node, },))) {
     return joinedLines({
       source,
       range: {

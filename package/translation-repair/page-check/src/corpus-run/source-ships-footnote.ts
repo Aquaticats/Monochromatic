@@ -23,6 +23,59 @@ import {
 const FOOTNOTE_GAP = ' \t\r\n';
 
 /**
+ Each white space character of a footnote label's forbidden set, one by one.
+ */
+const FOOTNOTE_GAPS: readonly string[] = [
+  ' ',
+  '\t',
+  '\r',
+  '\n',
+];
+
+/**
+ Whether a label is spelled as the label of a footnote definition: a caret and at least one more character, none of
+ them white space.
+
+ @param label - the text between the brackets
+
+ @returns Whether the label is one a footnote definition can have
+
+ @example
+ ```ts
+ const spelled = isFootnoteLabel({ label: '^1', },); // true
+ ```
+ */
+export function isFootnoteLabel({ label, }: { readonly label: string; },): boolean {
+  if ((label.length < 2) || (!label.startsWith('^',)))
+    return false;
+  return FOOTNOTE_GAPS.every(function absent(gap,): boolean {
+    return !label.includes(gap,);
+  },);
+}
+
+/**
+ Whether a link reference definition of the plain reading has the label of a footnote definition. CommonMark reads
+ `[^a b]: x` as a link reference definition and so does GFM, whose footnote label holds no space, tab or line ending
+ (`micromark-extension-gfm-footnote@2.1.0`, `lib/syntax.js`, `labelInside`), so a definition with such a label is no
+ footnote definition to the strict grammar.
+
+ @param node - node of the parse
+
+ @returns Whether the node is a link reference definition the strict grammar reads as a footnote definition
+
+ @example
+ ```ts
+ const footnote = hasFootnoteLabel({ node, },);
+ ```
+ */
+export function hasFootnoteLabel({ node, }: { readonly node: TreeNode; },): boolean {
+  if (node.type !== 'definition')
+    return false;
+  // The label as written, or its identifier where the parse kept no label.
+  return isFootnoteLabel({ label: node.label ?? node.identifier, },);
+}
+
+/**
  How many columns a block under a footnote definition is indented by.
  */
 const FOOTNOTE_INDENT = 4;
@@ -110,7 +163,8 @@ export function footnoteBodyStart(
 /**
  Whether a node opens a footnote definition that the strict grammar reads: a paragraph starting `[^label]:`, a heading
  that starts so (its underline is a lazy line of the footnote's paragraph to the strict grammar), or a link reference
- definition whose label starts with a caret, which CommonMark reads as that and GFM as a footnote.
+ definition whose label starts with a caret and holds no white space, which CommonMark reads as that and GFM as a
+ footnote.
 
  @param source - text
 
@@ -136,11 +190,8 @@ export function opensFootnote(
     readonly range: TextRange;
   },
 ): boolean {
-  if (node.type === 'definition') {
-    return node
-      .identifier
-      .startsWith('^',);
-  }
+  if (node.type === 'definition')
+    return hasFootnoteLabel({ node, },);
   if ((node.type !== 'paragraph') && (node.type !== 'heading'))
     return false;
   if (!source.startsWith(
@@ -148,11 +199,20 @@ export function opensFootnote(
     range.start,
   ))
     return false;
-  return source.charAt(closingBracket({
+  /**
+   Where the bracket that closes the label stands.
+   */
+  const close = closingBracket({
     source,
     from: range.start + 1,
     limit: range.end,
-  },) + 1,) === ':';
+  },);
+  return (source.charAt(close + 1,) === ':') && isFootnoteLabel({
+    label: source.slice(
+      range.start + 1,
+      close,
+    ),
+  },);
 }
 
 /**
@@ -251,9 +311,7 @@ export function isLazyDefinition(
     return false;
   if (node.type !== 'definition')
     return false;
-  if (node
-    .identifier
-    .startsWith('^',))
+  if (hasFootnoteLabel({ node, },))
     return false;
   return node.position
     ?.start

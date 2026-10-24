@@ -1,6 +1,7 @@
 import { declaredNamesOf, } from './source-ships-declared.ts';
 import { leavesFlowOpen, } from './source-ships-encoding.ts';
 import { holdsIndentedFenceMark, } from './source-ships-fence.ts';
+import { foldLoneCarriageReturns, } from './source-ships-readable.ts';
 import { runTextOf, } from './source-ships-runs.ts';
 import type { WouldShipSlice, } from './would-ship-text.ts';
 
@@ -17,6 +18,10 @@ import type { WouldShipSlice, } from './would-ship-text.ts';
 //   for a fence that swallows the page up to the mark that closes it (`source-ships-fence.ts`).
 // - A run that declares a name an earlier run still declares as it was written, since a page declares a name once
 //   (`source-ships-declared.ts`). The first run keeps its module; the runs after it are written as literal text.
+//
+// A CARRIAGE RETURN THAT ENDS A LINE ON ITS OWN is a line ending to the grammar, and these readers split lines on the
+// line feed, so the text is read with each such carriage return written as a line feed (same length). The page itself
+// keeps the run as it was written.
 
 /**
  Runs that cannot stand beside the others as they are written.
@@ -48,11 +53,13 @@ export function runsUnfitForCompany(
   const declared = new Set<string>();
   return runs.filter(function isUnfit(run,): boolean {
     /**
-     Text the run puts on the page.
+     Text the run puts on the page, read with a lone carriage return as a line feed.
      */
-    const text = runTextOf({
-      run,
-      slices,
+    const text = foldLoneCarriageReturns({
+      text: runTextOf({
+        run,
+        slices,
+      },),
     },);
     /**
      Names the run declares.
