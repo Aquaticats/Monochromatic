@@ -41,8 +41,8 @@ export function noteHeadingFloor(
 
  @param heading - heading node of a tree the floors were noted for
 
- @returns Offset after the last definition before the heading, or zero for a heading none overlaps, which no start is
- below
+ @returns Offset after the last definition before the heading, or zero for a heading none overlaps, which no start can
+ fall under
 
  @example
  ```ts

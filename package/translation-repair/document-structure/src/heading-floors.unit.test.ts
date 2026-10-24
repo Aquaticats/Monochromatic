@@ -59,7 +59,8 @@ await describe({
     },),
 
     it({
-      name: 'GIVES ZERO FOR A HEADING NO DEFINITION OVERLAPS, an ATX heading after a definition and a setext heading alone',
+      name: 'GIVES ZERO FOR A HEADING NO DEFINITION OVERLAPS, an ATX heading after a definition and a setext heading '
+        + 'alone',
       fn: async () => {
         expect(headingFloorOf({ heading: firstHeading({ root: parseMdxBody({ body: '[a]: u\n# 猫\n', },), },), },),)
           .toBe(0,);

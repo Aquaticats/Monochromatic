@@ -24,11 +24,11 @@ import { maskInvisibleLines, } from './mask-invisible-lines.ts';
 // alone. A reader of the lines cannot be right about all of them; the tokenizer is, by construction.
 //
 // THE TOKENIZER RUNS HERE WITH A CONSTRUCT THAT RECORDS AND REFUSES. At the two letters the module construct is
-// registered at, it checks the same two conditions, reads the word and one space, notes where the line starts, and then
-// refuses, so the line is read as what it is once its first letter is written as a character reference: the start of
-// a paragraph. Refusing is what lets every later line be read in the state the page will hold. A line the module
-// construct accepts would swallow every line up to the next blank one, and a second module line among them would never
-// be seen.
+// registered at, it checks the same two conditions, reads the word and one space, notes where the line starts,
+// and then refuses, so the line is read as what it is once its first letter is written as a character reference:
+// the start of a paragraph. Refusing is what lets every later line be read in the state the page will hold. A
+// line the module construct accepts would swallow every line up to the next blank one, and a second module line
+// among them would never be seen.
 //
 // WHAT IS READ AS THE PACKAGE READS A PAGE. The text is masked as `parseDocument` masks a body before the strict parse:
 // a line of invisible characters is blanked first (it is not blank to the tokenizer, which keeps a line of a byte order

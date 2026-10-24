@@ -674,6 +674,10 @@ const ALLOWED_BLIND_SETS: ReadonlyMap<string, string> = new Map<string, string>(
     'the offset advances through the scan, and each occurrence is paired once',
   ],
   [
+    'document-structure/heading-floor-store.ts#noteHeadingFloor: HEADING_FLOORS.set(heading,...)',
+    'the key is a heading node of a tree, and the walk that notes floors visits each node of the tree once',
+  ],
+  [
     'adjudication/introduced-defect-screen.ts#resolveProberChecks: checks.set(modelId,...)',
     'the model ids are the own keys of one record, which holds each once',
   ],

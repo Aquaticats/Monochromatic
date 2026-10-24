@@ -31,7 +31,6 @@ import {
   closingBracket,
   FENCE_MARKS,
   imageTextRanges,
-  indicesOf,
   rangeOf,
   secondLabel,
   type SourceSpans,
@@ -239,8 +238,8 @@ export function spansOf(
       after,
     );
     // A PARAGRAPH THAT OPENS A FOOTNOTE DEFINITION AT THE TOP, AND BLOCKS INDENTED UNDER A DEFINITION, are read as the
-    // body of the footnote is: the strict grammar reads the lines indented under it as its blocks, so a fence mark among
-    // them opens a fence of the footnote, which the plain reading takes for a line of the paragraph.
+    // body of the footnote is: the strict grammar reads the lines indented under it as its blocks, so a fence mark
+    // among them opens a fence of the footnote, which the plain reading takes for a line of the paragraph.
     /**
      Whether the node is a paragraph at the top whose first line opens a footnote definition.
      */

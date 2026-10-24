@@ -7,15 +7,14 @@ import {
 } from './source-ships-ranges.ts';
 
 //region Source ships lines
-// LINE ENDINGS THE STRICT GRAMMAR READS A BLOCK AT. MDX starts a flow expression at a `{` and a flow tag at a `<`
-// that stand first on a line (after the indentation and the marks of the containers), and a fence at a mark indented
-// four spaces or more (`source-ships-fence.ts`), and each ends the paragraph the line would continue. The plain
-// reading keeps such a line in the paragraph, so a code span, inline math or the title of a link that runs over the
-// line stays whole there, and its brace, tag or mark is no syntax. The strict grammar cuts the span at the line, and
-// the brace, tag or mark is read as syntax there with no way to escape it, since a backslash written into code or math
-// shows. What is written instead is the line ending, and the indentation and container marks
-// after it, as one space: a line ending in a code span or in math is read as a space already, and in a title it is
-// white space.
+// LINE ENDINGS THE STRICT GRAMMAR READS A BLOCK AT. MDX starts a flow expression at a `{` and a flow tag at a `<` that
+// stand first on a line (after the indentation and the marks of the containers), and a fence at a mark indented four
+// spaces or more (`source-ships-fence.ts`), and each ends the paragraph the line would continue. The plain reading
+// keeps such a line in the paragraph, so a code span, inline math or the title of a link that runs over the line stays
+// whole there, and its brace, tag or mark is no syntax. The strict grammar cuts the span at the line, and the brace,
+// tag or mark is read as syntax there with no way to escape it, since a backslash written into code or math shows. What
+// is written instead is the line ending, and the indentation and container marks after it, as one space: a line ending
+// in a code span or in math is read as a space already, and in a title it is white space.
 
 /**
  Node types whose characters are code or math, which no backslash may be written into.

@@ -128,7 +128,10 @@ export {
   maskHtmlComments,
 } from './mask-html-comments.ts';
 export { maskInvisibleLines, } from './mask-invisible-lines.ts';
-export { headingFloorOf, } from './heading-floor-store.ts';
+export {
+  headingFloorOf,
+  noteHeadingFloor,
+} from './heading-floor-store.ts';
 export { noteHeadingFloors, } from './heading-floors.ts';
 export { moduleLineStartsOf, } from './module-line-starts.ts';
 export {

@@ -919,8 +919,8 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'READS THE LINES INDENTED UNDER A FOOTNOTE DEFINITION AT THE TOP AS THE BLOCKS OF THE FOOTNOTE, so a fence '
-            + 'mark among them is left as it stands and the braces inside the fence are not escaped',
+          name: 'READS THE LINES INDENTED UNDER A FOOTNOTE DEFINITION AT THE TOP AS THE BLOCKS OF THE FOOTNOTE, so a '
+            + 'fence mark among them is left as it stands and the braces inside the fence are not escaped',
           fn: async () => {
             expect(encoded({ text: '[^1]: x {\nabc\n    ```\n    {a}\n', },),)
               .toBe('[^1]: x \\{\nabc\n    ```\n    {a}\n',);
@@ -948,9 +948,9 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARKS OF A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR A BLOCK '
-            + 'QUOTE, and the page shows the marks (a limit the module comment names): the lines the nested reading '
-            + 'takes carry the prefix of the container, which it does not strip',
+          name: 'WRITES A BACKSLASH BEFORE THE MARKS OF A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR '
+            + 'A BLOCK QUOTE, and the page shows the marks (a limit the module comment names): the lines the nested '
+            + 'reading takes carry the prefix of the container, which it does not strip',
           fn: async () => {
             expect(encoded({ text: '- [^1]: x {\n\n      ```\n      {a}\n      ```\n', },),)
               .toBe('- [^1]: x \\{\n\n      \\`\\`\\`\n      \\{a\\}\n      \\`\\`\\`\n',);
@@ -960,9 +960,9 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR A BARE ADDRESS THAT A PIPE ENDS AND FOR AN ANGLE AUTOLINK '
-            + 'HOLDING A PIPE WRITTEN WITH A BACKSLASH (limits the module comment names): the table cuts the source at '
-            + 'the pipe and the page holds one link',
+          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR A BARE ADDRESS THAT A PIPE ENDS AND FOR AN ANGLE '
+            + 'AUTOLINK HOLDING A PIPE WRITTEN WITH A BACKSLASH (limits the module comment names): the table cuts '
+            + 'the source at the pipe and the page holds one link',
           fn: async () => {
             for (
               const [text, written,] of [
@@ -983,9 +983,9 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION THAT STARTS ON A LATER LINE OF A '
-            + 'PARAGRAPH, and the page shows the mark (a limit the module comment names): the paragraph is not one '
-            + 'that opens the definition, so the lines under it are read as a line of the paragraph',
+          name: 'WRITES A BACKSLASH BEFORE THE MARK OF A FENCE UNDER A FOOTNOTE DEFINITION THAT STARTS ON A LATER LINE '
+            + 'OF A PARAGRAPH, and the page shows the mark (a limit the module comment names): the paragraph is not '
+            + 'one that opens the definition, so the lines under it are read as a line of the paragraph',
           fn: async () => {
             /**
              The source of the limit.

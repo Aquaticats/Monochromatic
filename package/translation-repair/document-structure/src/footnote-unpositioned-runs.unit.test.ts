@@ -109,7 +109,8 @@ await describe({
     },),
 
     it({
-      name: 'KEEPS THE START OF A HEADING THAT NO DEFINITION PRECEDES, a paragraph after a definition and an ATX heading',
+      name: 'KEEPS THE START OF A HEADING THAT NO DEFINITION PRECEDES, a paragraph after a definition and an ATX '
+        + 'heading',
       fn: async () => {
         /**
          A heading alone.

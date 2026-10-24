@@ -1,7 +1,6 @@
 /**
- Tests the reading of where the strict grammar starts an ES module in a text that stands in the middle of a page: a
- line that opens a fresh block at the first column and starts with `import ` or `export `. Fixtures are cat-themed
- invention.
+ Tests the reading of where the strict grammar starts an ES module in a text that stands in the middle of a page: a line
+ that opens a fresh block at the first column and starts with `import ` or `export `. Fixtures are cat-themed invention.
 
  @module
  */

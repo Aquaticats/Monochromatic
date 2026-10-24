@@ -16,8 +16,8 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // invisible characters the package's mask blanks, a footnote definition that stays open, a list marker alone. A list of
 // the shapes that change that state (an earlier version of this module held one) is right for the shapes it lists and
 // silent about the rest, and the rest kept turning up: the line after a setext underline that follows a restarted block
-// was the last. The reading here is made from the page as it will be written, after every other rewrite, so the lines it
-// names are the lines the page holds.
+// was the last. The reading here is made from the page as it will be written, after every other rewrite, so the lines
+// it names are the lines the page holds.
 //
 // A LINE INSIDE A CODE SPAN OR INLINE MATH IS JOINED TO THE LINE BEFORE IT, NOT WRITTEN AS A REFERENCE. The plain
 // reading keeps a span across a line of invisible characters, which the strict grammar blanks and so ends the paragraph

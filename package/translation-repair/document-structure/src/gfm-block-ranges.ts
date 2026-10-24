@@ -10,14 +10,13 @@ import {
 } from '@monochromatic-dev/translation-repair-markup/ts';
 
 //region GFM block ranges
-// WHERE THE STRICT GRAMMAR READS A GFM BLOCK, read off a parse with GFM on. The plain reading (`parse-markdown-math.ts`)
-// has no GFM, so a caller that reads a text by it cannot see these two, and each changes where its nodes end:
-//
-// - A table splits each row into cells at every pipe that is not written with a backslash, whatever the pipe stands in
-//   (a code span, the address of an autolink), so text read without GFM as one construct can be two cells.
-// - A footnote definition ends at the first line that is not indented once a block of the footnote has closed the
-//   paragraph the definition opened with (an unclosed fence indented under it, say), where the plain reading takes every
-//   line after the label for the same paragraph.
+// WHERE THE STRICT GRAMMAR READS A GFM BLOCK, read off a parse with GFM on. The plain reading
+// (`parse-markdown-math.ts`) has no GFM, so a caller that reads a text by it cannot see these two, and each changes
+// where its nodes end. A table splits each row into cells at every pipe that is not written with a backslash, whatever
+// the pipe stands in (a code span, the address of an autolink), so text read without GFM as one construct can be two
+// cells. A footnote definition ends at the first line that is not indented once a block of the footnote has closed the
+// paragraph the definition opened with (an unclosed fence indented under it, say), where the plain reading takes every
+// line after the label for the same paragraph.
 
 /**
  A stretch of a text, as offsets in UTF-16 units.

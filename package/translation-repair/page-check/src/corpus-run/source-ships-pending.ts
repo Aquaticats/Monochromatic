@@ -153,8 +153,8 @@ export function stateAfter(
 }
 
 /**
- Takes the paragraph that goes on right after a footnote definition off the nodes still to read, so that it is read with
- the definition.
+ Takes the paragraph that goes on right after a footnote definition off the nodes
+ still to read, so that it is read with the definition.
 
  @param pending - nodes still to read, the next one on top; the paragraph is removed from it when there is one
 

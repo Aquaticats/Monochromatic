@@ -24,30 +24,29 @@ import {
 //
 // WHAT IS WRITTEN, AND WHERE IT IS READ FROM. The grammar the package parses pages with is `remark-mdx`, which reads a
 // `{` as the start of an expression (acorn, through `micromark-extension-mdxjs`, parses it; the `package.json` of
-// `remark-mdx` lists the extension), a `<` as the start of a tag, and a line starting `import ` or `export ` as an
-// ES module. The text is parsed once as CommonMark with the site's math and nothing else
+// `remark-mdx` lists the extension), a `<` as the start of a tag, and a line starting `import ` or `export ` as an ES
+// module. The text is parsed once as CommonMark with the site's math and nothing else
 // (`document-structure/src/parse-markdown-math.ts`), which never refuses a text, and the parse says where those
-// characters stand in text a reader sees: a backslash goes before each `{`, `}` and `<` there, and an angle
-// autolink, which MDX reads as a tag, is written as a link with the same text and target. Then the strict grammar's own
-// tokenizer reads the text so written, and each line it starts an ES module at has its first letter written as a
-// character reference (`&#105;mport` shows as `import`; `source-ships-module-line.ts`). Everything else is copied, which
-// is the point of reading the structure from a parse and not
-// from lines: a fence is found wherever it stands (in a list item, in a block quote), as are code spans across lines,
-// math, link destinations and titles, bare addresses and escapes the
+// characters stand in text a reader sees: a backslash goes before each `{`, `}` and `<` there, and an angle autolink,
+// which MDX reads as a tag, is written as a link with the same text and target. Then the strict grammar's own tokenizer
+// reads the text so written, and each line it starts an ES module at has its first letter written as a character
+// reference (`&#105;mport` shows as `import`; `source-ships-module-line.ts`). Everything else is copied, which is the
+// point of reading the structure from a parse and not from lines: a fence is found wherever it stands (in a list item,
+// in a block quote), as are code spans across lines, math, link destinations and titles, bare addresses and escapes the
 // original wrote, none of which a backslash may touch.
 //
-// WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is met).
-// GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark takes for link
-// reference definitions, are footnotes to the strict grammar with a body to encode, and a block indented under a
-// footnote definition is a block of the footnote and no indented code, so a paragraph that opens a footnote definition
-// at the top, and a paragraph on the line right after one, are read as the body of the footnote is, each line giving up
-// the four columns of indentation the footnote takes: a fence mark indented under a footnote is a fence of it, which is
-// copied, and the footnote ends where the strict grammar ends it (`document-structure/src/gfm-block-ranges.ts`), so the
-// lines after an unclosed fence that are not indented are text of the page and are written as text. A bare address that
-// a less-than sign ends is written as a link with the same text and target (`source-ships-addresses.ts`), since a
-// backslash written before the sign is read as part of the address and an entity written for it is read as part of the
-// address too. An angle autolink inside the text of a link is written as its address alone, since a link cannot hold a
-// link.
+// WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is
+// met). GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark
+// takes for link reference definitions, are footnotes to the strict grammar with a body to encode, and a block
+// indented under a footnote definition is a block of the footnote and no indented code, so a paragraph that opens
+// a footnote definition at the top, and a paragraph on the line right after one, are read as the body of the
+// footnote is, each line giving up the four columns of indentation the footnote takes: a fence mark indented
+// under a footnote is a fence of it, which is copied, and the footnote ends where the strict grammar ends it
+// (`document-structure/src/gfm-block-ranges.ts`), so the lines after an unclosed fence that are not indented are
+// text of the page and are written as text. A bare address that a less-than sign ends is written as a link with
+// the same text and target (`source-ships-addresses.ts`), since a backslash written before the sign is read as
+// part of the address and an entity written for it is read as part of the address too. An angle autolink inside
+// the text of a link is written as its address alone, since a link cannot hold a link.
 //
 // - `>` stays. It is syntax in MDX only inside a tag, and a `<` written as `\<` opens none; at the start of a line it
 //   is a block quote of the original, which encoding would turn into a line starting with a greater-than sign.
@@ -70,10 +69,9 @@ import {
 // SHAPES THE PLAIN PARSE HIDES, and how each is met. The plain parse reads a node as one text and the strict grammar
 // reads more in it, or reads the lines of a block as a paragraph. A raw HTML block and indented code are paragraphs to
 // MDX, so every character Markdown reads as syntax in them is escaped and the reader sees the characters of the source
-// (`source-ships-lines.ts`, `contentStretches`), and no address is read in them after an open bracket. A line CommonMark
-// reads as a link
-// reference definition right after a footnote definition, or right after a block that ends in a raw HTML block or
-// indented code, is a lazy line of a paragraph to the strict grammar and is written as text
+// (`source-ships-lines.ts`, `contentStretches`), and no address is read in them after an open bracket. A line
+// CommonMark reads as a link reference definition right after a footnote definition, or right after a block that ends
+// in a raw HTML block or indented code, is a lazy line of a paragraph to the strict grammar and is written as text
 // (`source-ships-footnote.ts`, `source-ships-literal-end.ts`). A bare address after a bracket nothing closes is no
 // address to the tokenizer, so its brace is escaped. A code span, inline math, or the title of a link across lines, a
 // later one of which starts with `{`, `<` or a fence mark indented four spaces or more, is cut by the strict grammar,
@@ -84,11 +82,11 @@ import {
 // (`source-ships-lines.ts`). Two runs that declare one name, or a run holding an indented fence mark, are taken by the
 // composition at its first step (`source-ships-company.ts`).
 //
-// THE MODULE LINES ARE NOT READ FROM THE PLAIN PARSE. They were, and each shape the plain parse and the strict grammar
-// read differently (a line of invisible characters, a list marker alone after a footnote definition, a line after a
-// setext underline that follows a restarted block) needed a rule of its own, and the next shape was always missing. The
-// tokenizer says where a line opens a block, so the lines are taken from it, on the text with every other rewrite made
-// (`document-structure/src/module-line-starts.ts`).
+// THE MODULE LINES ARE NOT READ FROM THE PLAIN PARSE. They were, and each shape the plain parse and the strict
+// grammar read differently (a line of invisible characters, a list marker alone after a footnote definition, a
+// line after a setext underline that follows a restarted block) needed a rule of its own, and the next shape was
+// always missing. The tokenizer says where a line opens a block, so the lines are taken from it, on the text with
+// every other rewrite made (`document-structure/src/module-line-starts.ts`).
 //
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
 // a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments, run

@@ -203,8 +203,8 @@ function joinedSpans(
 }
 
 /**
- Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation the
- footnote takes, and the lines after the end of the footnote as a text of their own beside it.
+ Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation
+ the footnote takes, and the lines after the end of the footnote as a text of their own beside it.
 
  @param source - whole text
 
@@ -223,7 +223,13 @@ function joinedSpans(
 
  @example
  ```ts
- const spans = footnoteBodySpans({ source, readable, readSpans: spansOf, range: { start: 6, end: 12, }, },);
+ const spans = footnoteBodySpans({
+   source,
+   readable,
+   readSpans: spansOf,
+   footnotes: [{ start: 0, end: 12, },],
+   range: { start: 6, end: 12, },
+ },);
  ```
  */
 export function footnoteBodySpans(

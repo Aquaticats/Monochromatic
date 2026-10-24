@@ -177,7 +177,8 @@ await describe({
               source: '[^1]: 注\n[b]: u{\n',
               footnoteOpen: true,
             },),).toBe(true,);
-            // A blank line ends the footnote, no footnote is open, the label is a footnote's, or the node is a paragraph.
+            // A blank line ends the footnote, no footnote is open, the label is
+            // a footnote's, or the node is a paragraph.
             expect(lazy({
               source: '[^1]: 注\n\n[b]: u{\n',
               footnoteOpen: true,
@@ -235,8 +236,8 @@ await describe({
       name: continuesDefinition.name,
       children: [
         it({
-          name: 'TAKES A PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION AS ITS CONTINUATION, and no paragraph after a '
-            + 'blank line and no block that is not a paragraph',
+          name: 'TAKES A PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION AS ITS CONTINUATION, and no paragraph after '
+            + 'a blank line and no block that is not a paragraph',
           fn: async () => {
             /**
              The blocks of a definition that a paragraph goes on in.

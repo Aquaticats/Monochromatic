@@ -139,7 +139,12 @@ await describe({
              */
             const source = '![图 {a}](u.png "t")\n\n![x][a {b]\n\n[a {b]: u\n';
             const [first, second,] = parseMarkdownMathBody({ body: source, },).children;
-            if ((first === undefined) || (second === undefined) || (!('children' in first)) || (!('children' in second)))
+            if (
+              (first === undefined)
+                || (second === undefined)
+                || (!('children' in first))
+                || (!('children' in second))
+            )
               throw new Error('the text holds no two paragraphs',);
             const [image,] = first.children;
             const [reference,] = second.children;

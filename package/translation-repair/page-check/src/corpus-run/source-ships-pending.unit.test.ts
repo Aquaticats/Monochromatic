@@ -207,7 +207,8 @@ await describe({
       name: takeContinuation.name,
       children: [
         it({
-          name: 'TAKES THE PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION OFF THE NODES STILL TO READ and hands it back',
+          name: 'TAKES THE PARAGRAPH ON THE LINE RIGHT AFTER THE DEFINITION OFF THE NODES STILL TO READ and hands it '
+            + 'back',
           fn: async () => {
             const {
               root,
@@ -237,8 +238,8 @@ await describe({
         },),
 
         it({
-          name: 'HANDS THE DEFINITION BACK AND LEAVES THE NODES ALONE when the next block is parted from it by a blank line, '
-            + 'and when nothing is left to read',
+          name: 'HANDS THE DEFINITION BACK AND LEAVES THE NODES ALONE when the next block is parted from it by a blank '
+            + 'line, and when nothing is left to read',
           fn: async () => {
             const {
               root,

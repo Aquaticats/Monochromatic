@@ -59,7 +59,8 @@ await describe({
       name: escapedLabel.name,
       children: [
         it({
-          name: 'WRITES A BACKSLASH BEFORE EACH CHARACTER MARKDOWN READS AND LEAVES THE OTHERS, an ampersand among them',
+          name: 'WRITES A BACKSLASH BEFORE EACH CHARACTER MARKDOWN READS AND LEAVES THE OTHERS, an ampersand among '
+            + 'them',
           fn: async () => {
             expect(escapedLabel({ label: 'a_b*c&amp;{d}[e]<f> 猫', },),)
               .toBe(String.raw`a\_b\*c\&amp;\{d\}\[e\]\<f\> 猫`,);
@@ -156,7 +157,8 @@ await describe({
       name: cutByTable.name,
       children: [
         it({
-          name: 'CUTS A STRETCH THAT HOLDS A PIPE AND STANDS INSIDE A TABLE, and no stretch outside one or without a pipe',
+          name: 'CUTS A STRETCH THAT HOLDS A PIPE AND STANDS INSIDE A TABLE, and no stretch outside one or without a '
+            + 'pipe',
           fn: async () => {
             /**
              A table whose body cell holds an autolink with a pipe.
