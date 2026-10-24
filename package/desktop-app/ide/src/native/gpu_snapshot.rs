@@ -117,6 +117,12 @@ impl WindowAdapter for GpuWindow {
         self.size.set(size.to_physical(1.0));
     }
 
+    /// A window that asks for a frame is drawn by the next frame the event loop gives it;
+    ///  the harness has no event loop, so the ask is recorded for `draw_wanted_frames`.
+    fn request_redraw(&self) {
+        FRAME_WANTED.with(|wanted| wanted.set(true));
+    }
+
     /// The GPU renderer that draws and reads back this window.
     fn renderer(&self) -> &dyn slint::platform::Renderer {
         return &self.renderer;
@@ -274,6 +280,8 @@ fn install_once(limit: Option<u32>) -> String {
 }
 
 std::thread_local! {
+    /// Whether some window on this thread asked for a frame that no snapshot has drawn since.
+    static FRAME_WANTED: Cell<bool> = const { Cell::new(false) };
     /// The leaked device once this thread installed the platform.
     static DEVICE: Cell<Option<&'static GpuDevice>> = const { Cell::new(None) };
     /// The adapter name once this thread installed the platform;
@@ -319,6 +327,58 @@ pub(super) fn install_uncapped_gpu_platform() -> String {
     return INSTALLED.with(|installed| {
         return installed.get_or_init(|| return install_once(None)).clone();
     });
+}
+
+/// The most frames `draw_wanted_frames` draws,
+///  so a window that asks for a frame after every frame ends the test with a count instead of hanging it.
+pub(super) const FRAMES_AT_MOST: usize = 12;
+
+/// What:
+///  The frames `draw_wanted_frames` drew:
+///  how many,
+///  and the pixels of the last one (`Option` is empty when none was asked for).
+/// Why:
+///  What the last frame showed is what stays on screen,
+///  and drawing one more frame to look would change it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WantedFrames = { frames: number; last?: PixelBuffer };
+/// ```
+pub(super) struct WantedFrames {
+    /// Frames drawn.
+    pub(super) frames: usize,
+    /// The window as the last frame drew it.
+    pub(super) last: Option<SharedPixelBuffer<Rgba8Pixel>>,
+}
+
+/// What:
+///  Draw frames of `window` the way an event loop would:
+///  one for each time a frame was asked for since the last one,
+///  until none is asked for,
+///  at most `FRAMES_AT_MOST`.
+/// Why:
+///  A window draws a frame only when one was asked for,
+///  by a property change that the last frame had evaluated or by `request_redraw`,
+///  so a change made while a frame is drawn is shown only if that frame asked for the next;
+///  one `snapshot` call is a frame whether or not one was asked for,
+///  and would hide a change that no frame follows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function drawWantedFrames(window: Window): WantedFrames { while (wanted && frames < MAX) { wanted = false; last = snapshot(window); frames++; } }
+/// ```
+pub(super) fn draw_wanted_frames(window: &Window) -> WantedFrames {
+    let mut drawn = WantedFrames {
+        frames: 0,
+        last: None,
+    };
+    while drawn.frames < FRAMES_AT_MOST && FRAME_WANTED.with(|wanted| return wanted.replace(false))
+    {
+        drawn.last = Some(snapshot(window));
+        drawn.frames += 1;
+    }
+    return drawn;
 }
 
 /// The pixels of a window as RGBA bytes (red,

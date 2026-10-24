@@ -438,7 +438,24 @@ pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
             _ => return,
         };
         if let Some(active) = weak.upgrade() {
+            // What: New textures for the tile reach the window's list of slices inside the frame that made them,
+            //       and that frame does not show them; the window asks for the frame that does.
+            // Why: Nothing else asks for it. The window draws no frame by itself, and before the hint skip rule the
+            //      answer to a hint request repainted the source a moment later and so drew one by chance.
+            //      A press whose request is skipped has no answer, and its code column stayed blank.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const replaced = outcome.tile !== undefined; apply(outcome, window); if (replaced) window.requestRedraw();
+            // ```
+            let replaced = outcome.tile.is_some();
             outcome.apply(&active);
+            if replaced {
+                tracing::debug!(
+                    "replaced the slices of the source tile inside a frame, so asking for the next"
+                );
+                active.window().request_redraw();
+            }
         }
     });
     if let Err(error) = installed {

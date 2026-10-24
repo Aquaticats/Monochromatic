@@ -2014,6 +2014,44 @@ const cases: Guard[] = [
     test: 'opening_the_file_again_forgets_the_lines_asked_about',
     failure: 'the scripted server did not receive the expected hint request'
   },
+  // New textures for the code tile reach the window inside the frame that made them, and that frame does not show them:
+  // the frame must ask for the next, or the code column stays blank beside the new rows until another event draws one.
+  {
+    name: 'tile-frame-asks',
+    file: 'src/native/gpu_tile.rs',
+    before: '                active.window().request_redraw();',
+    after: '                let _ = &active;',
+    native: true,
+    test: 'a_frame_that_replaces_the_textures_of_the_tile_asks_for_the_next',
+    failure: 'the frame that gave the window new textures asked for no frame to show them'
+  },
+  {
+    name: 'tile-frame-asks-skipped',
+    file: 'src/native/gpu_tile.rs',
+    before: '                active.window().request_redraw();',
+    after: '                let _ = &active;',
+    native: true,
+    test: 'a_press_whose_request_is_skipped_still_gets_a_frame_that_shows_its_rows',
+    failure: 'the frame that gave the window new textures asked for no frame to show them'
+  },
+  {
+    name: 'tile-frame-replaced',
+    file: 'src/native/gpu_tile.rs',
+    before: '            let replaced = outcome.tile.is_some();',
+    after: '            let replaced = false && outcome.tile.is_some();',
+    native: true,
+    test: 'a_frame_that_replaces_the_textures_of_the_tile_asks_for_the_next',
+    failure: 'the frame that gave the window new textures asked for no frame to show them'
+  },
+  {
+    name: 'tile-frame-harness-asks',
+    file: 'src/native/gpu_snapshot.rs',
+    before: '        FRAME_WANTED.with(|wanted| wanted.set(true));',
+    after: '        let _ = &FRAME_WANTED;',
+    native: true,
+    test: 'a_frame_that_replaces_the_textures_of_the_tile_asks_for_the_next',
+    failure: 'the frame that gave the window new textures asked for no frame to show them'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

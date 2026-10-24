@@ -14,14 +14,19 @@
 use super::test_support::{LanguageReader, definitions, idle, project, reader, ready};
 /// The stamp of the displayed text.
 use crate::native::annotate::displayed;
-/// A scroll the toolkit reports to the change handler.
-use crate::native::overscan_tile_tests::scroll_to;
+/// The frames an event loop would draw.
+use crate::native::gpu_snapshot::draw_wanted_frames;
+/// A scroll the toolkit reports to the change handler,
+///  and the wait for the tile worker.
+use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// One code row is the least a line takes.
 use ide_app::row_map::CODE_ROW;
 /// The report is JSON lines.
 use serde_json::Value;
+/// The window handle.
+use slint::ComponentHandle;
 /// External writes and the report path.
 use std::{fs, path::PathBuf};
 
@@ -222,6 +227,10 @@ fn reopening(scene: &Scene) -> bool {
 ///  with room for the views a test scrolls through.
 const FAR: usize = 200;
 
+/// A first line near the top,
+///  below the lines the start asks about.
+const NEAR: usize = 40;
+
 /// Two answered views leave the lines between them covered:
 ///  a view between them sends no request.
 #[test]
@@ -381,4 +390,64 @@ fn opening_the_file_again_forgets_the_lines_asked_about() {
     let before = asked(&scene).len();
     show(&scene, FAR + view / 2);
     wait_requests(&scene, before + 1);
+}
+
+/// What:
+///  Press the minimap at its top,
+///  release,
+///  and let the window thread build the tile of the new view.
+/// Why:
+///  The press moves the view to the start of the text,
+///  where the tile is cut short and so has a height of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pressMinimapTop(scene: Scene): void
+/// ```
+fn press_minimap_top(scene: &Scene) {
+    // The language fixture binds no minimap; this test presses it.
+    crate::native::minimap::bind(&scene.reader.window, &scene.reader.source);
+    // The markup's callbacks of a press outside the viewport box and its release, as the minimap raises them.
+    scene
+        .reader
+        .window
+        .invoke_minimap_press(0.0, 10.0, false, false);
+    scene.reader.window.invoke_minimap_release();
+    settle_tile(&scene.reader.source);
+}
+
+/// A press whose view is covered by the stored answers sends no request,
+///  and the frames that follow it still show the rows of the new view:
+///  the frame that gave the window the new tile asks for the next,
+///  because the answer to a request that is not sent cannot bring a frame.
+#[test]
+fn a_press_whose_request_is_skipped_still_gets_a_frame_that_shows_its_rows() {
+    let scene = scene("");
+    let view = scene.view;
+    // Two answered views near the start: together they ask the lines from the start to a little below the second view.
+    visit(&scene, NEAR, 1);
+    visit(&scene, NEAR + view, 2);
+    draw_wanted_frames(scene.reader.window.window());
+    let requests = asked(&scene);
+    let before = scene.reader.source.borrow().gpu.tile_texture_sizes();
+    // The start of the text, whose lines the answers asked about: the tile there is cut short by the text's start.
+    press_minimap_top(&scene);
+    idle(SETTLED_MS);
+    assert_eq!(
+        asked(&scene),
+        requests,
+        "the press sent a request, so the test cannot tell a skipped one from it"
+    );
+    let drawn = draw_wanted_frames(scene.reader.window.window());
+    let after = scene.reader.source.borrow().gpu.tile_texture_sizes();
+    assert_ne!(
+        before, after,
+        "the press kept the textures of the tile, so the test cannot tell whether new ones are shown"
+    );
+    // The frame that replaced the textures asked for the next, which shows them.
+    assert!(
+        drawn.frames >= 2,
+        "the frame that gave the window new textures asked for no frame to show them: {} drawn",
+        drawn.frames
+    );
 }
