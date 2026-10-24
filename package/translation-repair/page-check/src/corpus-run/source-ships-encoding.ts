@@ -154,7 +154,11 @@ import {
 // (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so an angle autolink that
 // holds one is written as text there, as the source reads it; a bare address that a pipe ends, and an angle autolink
 // holding a pipe written with a backslash, are not cut the same way, and the page shows one link across the cells
-// (`source-ships-encoding.unit.test.ts` pins both).
+// (`source-ships-encoding.unit.test.ts` pins both). A footnote label that holds a brace or a less-than sign is
+// written with a backslash in the reference, as any text is, and left as it stands in the definition, where the page
+// holds no expression for it: the two no longer name one footnote, and the page shows the
+// reference as text (`source-ships-encoding.unit.test.ts` pins three labels). Writing the same backslash into both
+// labels would make them agree again, and has not been done.
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.

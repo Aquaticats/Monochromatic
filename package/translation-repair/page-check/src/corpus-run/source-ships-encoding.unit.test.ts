@@ -355,6 +355,14 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'a link reference definition with a caret label holding a space, then a definition line holding a brace',
     '[^a b]: x\n[r]: u{b}\n',
   ],
+  ['a code span across a line that starts a footnote definition, in a block quote', '> a `x\n[^1]: <b>` y\n'],
+  ['a code span across a footnote definition line holding a brace, in a block quote', '> a `x\n[^1]: {` y\n'],
+  ['a code span across a line that starts a footnote definition, in a list item', '- a `x\n[^1]: <b>` y\n'],
+  [
+    'a code span that opens with three backticks across a line that starts a footnote definition, in a block quote',
+    '> a ```\n[^1]: <b>\n\t```\n',
+  ],
+  ['a code span across a line that starts a footnote definition, at the top', 'a `x\n[^1]: <b>` y\n'],
   [
     'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
     '[^1]: <b>\n[r]: u{b "t {"\n',
@@ -1010,6 +1018,24 @@ https://example.net/b{c`,);
               .toBe(String.raw`![\<https://example.net/a>](u.png) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '![<https://example.net/a>](u.png) {', },), },),)
               .toBe('<https://example.net/a> {',);
+          },
+        },),
+
+        it({
+          name: 'WRITES A REFERENCE WHOSE LABEL HOLDS A BRACE OR A LESS-THAN SIGN WITH A BACKSLASH AND LEAVES THE '
+            + 'LABEL OF ITS DEFINITION AS IT STANDS (a limit the module comment names): the page parses and holds no '
+            + 'expression, and the reference no longer names the definition, so it shows as text',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['猫[^{a}]\n\n[^{a}]: 注\n', '猫[^\\{a\\}]\n\n[^{a}]: 注\n',],
+                ['猫[^a}]\n\n[^a}]: 注\n', '猫[^a\\}]\n\n[^a}]: 注\n',],
+                ['猫[^<b>]\n\n[^<b>]: 注\n', '猫[^\\<b>]\n\n[^<b>]: 注\n',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            }
           },
         },),
 
