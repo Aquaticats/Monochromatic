@@ -1,27 +1,29 @@
-//! A tile of another size is shown by a frame that follows its hand-over.
+//! A tile of another size reaches the window before the frame that draws it.
 //!  The GPU draws the scene into textures during a frame,
-//!  and a tile whose textures differ in size from the last one's gets new textures,
-//!  which the window learns of only inside that frame (`Outcome::apply` in the rendering notifier):
-//!  the real window draws nothing in the code column in that frame,
-//!  and an idle window draws no frame by itself,
-//!  so the frame that replaced the textures must ask for the next,
-//!  or the code column stays blank beside the new rows until some other event draws a frame.
+//!  and a tile whose textures differ in size from the last one's needs new textures and a new list of slices
+//!  (`source-slices`, the list the markup draws with a `for`).
+//!  A list the window is given inside the frame is not shown by that frame (the real window draws nothing in the
+//!  code column in it), and an idle window draws no frame by itself,
+//!  so a tile handed over for the next frame must bring its slices with it:
+//!  otherwise the code column stays blank beside the new rows until some other event draws a frame.
 //! The test harness draws every property the notifier set in the same snapshot,
 //!  so it cannot show the blank column;
-//!  these tests draw frames the way an event loop does,
-//!  one for each time a frame was asked for,
-//!  and check that a second one was asked for.
+//!  these tests check the contract the real window needs:
+//!  when a tile is handed over and before any frame is drawn,
+//!  the window holds slices of the new textures.
 
-/// The reader fixture, the window, and the source state.
-use super::find_tests::Reader;
-/// The frames an event loop would draw.
-use super::gpu_snapshot::draw_wanted_frames;
 /// A press on the minimap, the viewport box, and the settling of the tile.
 use super::minimap_tests::{calm, geometry, lift, over, press};
+/// One frame, which draws the scenes waiting for it.
+use super::tile_reads::draw_minimap;
 /// Opening a long plain text and waiting for its first layout.
 use super::wrap_tests::{open, settled};
-/// The window handle.
-use slint::ComponentHandle;
+/// The reader fixture, the window, and the source state.
+use super::{AppWindow, State, find_tests::Reader};
+/// The window handle and the model trait.
+use slint::{ComponentHandle, Model};
+/// The shared source state.
+use std::{cell::RefCell, rc::Rc};
 
 /// Lines of the fixture text.
 const LINES: usize = 1500;
@@ -37,25 +39,54 @@ fn numbered() -> String {
 }
 
 /// What:
+///  The heights in physical pixels of the slices the window draws the tile with,
+///  top first.
+/// Why:
+///  The slices are what the markup shows,
+///  and each is as tall as the texture it shows,
+///  so they say which textures the next frame draws.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sliceHeights(window: AppWindow): number[];
+/// ```
+pub(super) fn slice_heights(window: &AppWindow) -> Vec<u32> {
+    let slices = window.get_source_slices();
+    let mut heights = Vec::with_capacity(slices.row_count());
+    for row in 0..slices.row_count() {
+        let slice = slices.row_data(row).expect("a slice of the list");
+        heights.push(slice.height as u32);
+    }
+    return heights;
+}
+
+/// The heights of the textures the GPU holds for the tile,
+///  top first.
+pub(super) fn texture_heights(source: &Rc<RefCell<State>>) -> Vec<u32> {
+    let sizes = source.borrow().gpu.tile_texture_sizes();
+    return sizes.iter().map(|size| return size.1).collect();
+}
+
+/// What:
 ///  A reader on the numbered text at its start,
-///  with the frames it asked for drawn.
-///  The textures of its tile are returned with it.
+///  with the frame that draws its first tile drawn.
+///  The heights of the slices it shows are returned with it.
 /// Why:
 ///  The press that follows must hand over a tile of another size,
 ///  which the test checks against these.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function scene(): [TempDir, Reader, Array<[width: number, height: number]>];
+/// function scene(): [TempDir, Reader, number[]];
 /// ```
-fn scene() -> (tempfile::TempDir, Reader, Vec<(u32, u32)>) {
+fn scene() -> (tempfile::TempDir, Reader, Vec<u32>) {
     let (project, opened) = open(&numbered());
     settled(&opened);
     calm(&opened);
-    draw_wanted_frames(opened.window.window());
-    let sizes = opened.source.borrow().gpu.tile_texture_sizes();
-    assert!(!sizes.is_empty(), "the start drew no tile");
-    return (project, opened, sizes);
+    draw_minimap(&opened.window);
+    let heights = slice_heights(&opened.window);
+    assert!(!heights.is_empty(), "the start drew no tile");
+    return (project, opened, heights);
 }
 
 /// What:
@@ -78,22 +109,21 @@ fn press_at(reader: &Reader, share: f32) {
 }
 
 /// A press on the minimap hands a tile of another height to the window:
-///  the frame that gave the window the new textures asks for the next,
-///  which shows them.
+///  before any frame is drawn the window already holds slices of the new textures,
+///  so the frame that draws the scenes into them shows them.
 #[test]
-fn a_frame_that_replaces_the_textures_of_the_tile_asks_for_the_next() {
+fn a_tile_of_another_size_gives_the_window_its_slices_before_any_frame() {
     let (_project, opened, before) = scene();
     press_at(&opened, 0.5);
-    let drawn = draw_wanted_frames(opened.window.window());
-    let after = opened.source.borrow().gpu.tile_texture_sizes();
+    let shown = slice_heights(&opened.window);
     assert_ne!(
-        before, after,
-        "the press kept the textures of the tile, so the test cannot tell whether new ones are shown"
+        shown, before,
+        "the window holds the slices of the earlier tile after the press: a frame would draw the scenes into textures it does not show"
     );
-    assert!(
-        drawn.frames >= 2,
-        "the frame that gave the window new textures asked for no frame to show them: {} drawn",
-        drawn.frames
+    assert_eq!(
+        shown,
+        texture_heights(&opened.source),
+        "the slices the window holds are not those of the textures the GPU draws the tile into"
     );
     opened.window.hide().expect("close tile window");
 }

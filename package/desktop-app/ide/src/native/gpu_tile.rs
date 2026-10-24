@@ -136,8 +136,15 @@ pub(super) struct GpuTile {
 impl GpuTile {
     /// Make the scenes of the tile the ones to draw at the next frame;
     /// a tile not drawn yet is replaced.
-    pub(super) fn submit_tile(&self, stack: TileStack) {
-        self.inner.borrow_mut().pending_tile = Some(stack);
+    /// A tile whose textures differ in size from the last one's gets its new textures,
+    /// and the window its new slices, here and not in the frame,
+    /// because the window does not show a slice list it was given inside the frame that draws the tile.
+    pub(super) fn submit_tile(&self, window: &AppWindow, stack: TileStack) {
+        let mut inner = self.inner.borrow_mut();
+        let outcome = inner.prepare_tile(&stack);
+        inner.pending_tile = Some(stack);
+        drop(inner);
+        outcome.apply(window);
     }
 
     /// Make the scene of the wrap indicator the one to draw at the next frame.

@@ -14,13 +14,16 @@
 use super::test_support::{LanguageReader, definitions, idle, project, reader, ready};
 /// The stamp of the displayed text.
 use crate::native::annotate::displayed;
-/// The frames an event loop would draw.
-use crate::native::gpu_snapshot::draw_wanted_frames;
 /// A scroll the toolkit reports to the change handler,
 ///  and the wait for the tile worker.
 use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
+/// The slices the window draws the tile with, and one frame that draws the waiting scenes.
+use crate::native::{
+    tile_reads::draw_minimap,
+    tile_slice_frame_tests::{slice_heights, texture_heights},
+};
 /// One code row is the least a line takes.
 use ide_app::row_map::CODE_ROW;
 /// The report is JSON lines.
@@ -417,19 +420,18 @@ fn press_minimap_top(scene: &Scene) {
 }
 
 /// A press whose view is covered by the stored answers sends no request,
-///  and the frames that follow it still show the rows of the new view:
-///  the frame that gave the window the new tile asks for the next,
-///  because the answer to a request that is not sent cannot bring a frame.
+///  and the window already holds the slices of the new tile when the press has been handled:
+///  the frame that draws it shows it, and no answer to a request is needed to bring another frame.
 #[test]
-fn a_press_whose_request_is_skipped_still_gets_a_frame_that_shows_its_rows() {
+fn a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile() {
     let scene = scene("");
     let view = scene.view;
     // Two answered views near the start: together they ask the lines from the start to a little below the second view.
     visit(&scene, NEAR, 1);
     visit(&scene, NEAR + view, 2);
-    draw_wanted_frames(scene.reader.window.window());
+    draw_minimap(&scene.reader.window);
     let requests = asked(&scene);
-    let before = scene.reader.source.borrow().gpu.tile_texture_sizes();
+    let before = slice_heights(&scene.reader.window);
     // The start of the text, whose lines the answers asked about: the tile there is cut short by the text's start.
     press_minimap_top(&scene);
     idle(SETTLED_MS);
@@ -438,16 +440,14 @@ fn a_press_whose_request_is_skipped_still_gets_a_frame_that_shows_its_rows() {
         requests,
         "the press sent a request, so the test cannot tell a skipped one from it"
     );
-    let drawn = draw_wanted_frames(scene.reader.window.window());
-    let after = scene.reader.source.borrow().gpu.tile_texture_sizes();
+    let shown = slice_heights(&scene.reader.window);
     assert_ne!(
-        before, after,
-        "the press kept the textures of the tile, so the test cannot tell whether new ones are shown"
+        shown, before,
+        "the window still holds the slices of the tile before the press: the press kept the tile's textures, or the window was not given the new ones"
     );
-    // The frame that replaced the textures asked for the next, which shows them.
-    assert!(
-        drawn.frames >= 2,
-        "the frame that gave the window new textures asked for no frame to show them: {} drawn",
-        drawn.frames
+    assert_eq!(
+        shown,
+        texture_heights(&scene.reader.source),
+        "the window holds slices that are not those of the textures the tile is drawn into"
     );
 }
