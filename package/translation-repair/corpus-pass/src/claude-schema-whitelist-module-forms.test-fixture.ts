@@ -2,9 +2,9 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Modules that carry a builder in positions the search does not read
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the first
-// and the second total of the check for the modules that carry a builder: a namespace or a loaded module used as a
-// value, a load whose names the search cannot bind, a path literal outside an import, an export from and a load, and
+// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the
+// first and the second total of the check for the modules that carry a builder: a namespace or a loaded module used as
+// a value, a load whose names the search cannot bind, a path literal outside an import, an export from and a load, and
 // a builder inside a namespace, an enum, a parameter property or an export assignment. Each case is one imaginary file
 // that holds one place on each line, with the files the search lists and the places the check reports, by file, line,
 // shape and position.

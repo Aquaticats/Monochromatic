@@ -412,7 +412,107 @@ function withWrappers(
 }
 
 /**
+ The builders already found, by the modules that were searched and the files named as no stage schema, so the suite
+ searches the family's builders once however many questions it asks of them.
+ */
+const FOUND_BUILDERS = new Map<string, readonly SchemaBuilder[]>();
+
+/**
+ Numbers given to the modules, in the order the key of a search first meets them.
+ */
+const MODULE_NUMBERS = new Map<ModuleFacts, number>();
+
+/**
+ The key of a search: the modules searched, in order, and the files named as no stage schema.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns A string that two searches share when they read the same modules, in the same order, with the same names
+
+ @example
+ ```ts
+ const key = searchKeyOf({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+function searchKeyOf(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): string {
+  return [
+    ...[...family.entries(),].map(function numberedModule([file, facts,],): string {
+      if (!MODULE_NUMBERS.has(facts,)) {
+        MODULE_NUMBERS.set(
+          facts,
+          MODULE_NUMBERS.size,
+        );
+      }
+      return `${file}=${String(MODULE_NUMBERS.get(facts,),)}`;
+    },),
+    '--',
+    ...[...notStageSchemas,].toSorted(),
+  ].join('\n',);
+}
+
+/**
  The builders of a family that is read already.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap; the same
+ array for the same modules and names
+
+ @example
+ ```ts
+ const builders = buildersIn({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+export function buildersIn(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): readonly SchemaBuilder[] {
+  /**
+   What this search and an earlier one share when they read the same modules.
+   */
+  const key = searchKeyOf({
+    family,
+    notStageSchemas,
+  },);
+  /**
+   The builders an earlier search found.
+   */
+  const found = FOUND_BUILDERS.get(key,);
+  if (found !== undefined)
+    return found;
+  /**
+   The builders this search finds.
+   */
+  const builders = searchBuildersIn({
+    family,
+    notStageSchemas,
+  },);
+  FOUND_BUILDERS.set(
+    key,
+    builders,
+  );
+  return builders;
+}
+
+/**
+ The builders of a family that is read already, searched afresh.
 
  @param family - modules of the sources
 
@@ -422,10 +522,10 @@ function withWrappers(
 
  @example
  ```ts
- const builders = buildersIn({ family, notStageSchemas: new Set(), },);
+ const builders = searchBuildersIn({ family, notStageSchemas: new Set(), },);
  ```
  */
-export function buildersIn(
+function searchBuildersIn(
   {
     family,
     notStageSchemas,

@@ -413,7 +413,7 @@ export function resolvePath(
  const resolved = resolveExport({ family, file: 'a/src/index.ts', name: 'build', seen: new Set<string>(), },);
  ```
  */
-function resolveExport(
+export function resolveExport(
   {
     family,
     file,

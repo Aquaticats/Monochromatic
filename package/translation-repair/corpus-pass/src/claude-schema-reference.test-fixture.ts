@@ -200,6 +200,54 @@ export function typeScriptValueReferencesIn(
 }
 
 /**
+ The visits under a root that start a reference: a name or a chain of members that sits where a value does, with the
+ chain kept whole whatever its members are.
+
+ @param root - node to look under
+
+ @param skips - whether to leave a visit and everything under it out
+
+ @returns One visit per chain, in no particular order
+
+ @example
+ ```ts
+ const starts = referenceVisitsUnder({ root: program, skips: isTypeVisit, },);
+ ```
+ */
+export function referenceVisitsUnder(
+  {
+    root,
+    skips,
+  }: {
+    readonly root: TreeNode;
+    readonly skips: (visit: Visit,) => boolean;
+  },
+): readonly Visit[] {
+  return visitsUnder({
+    root,
+    skips,
+  },)
+    .filter(function isReference(visit,): boolean {
+      /**
+       Whether the node starts a chain of members rather than sitting inside one as the object a member is read off.
+       */
+      const startsChain = (visit.node
+        .type
+        === 'Identifier') || (visit.node
+          .type
+          === 'MemberExpression');
+      /**
+       Whether the node is the object of a member, so the chain it starts is only part of a longer one.
+       */
+      const insideChain = (visit.parent
+        .type
+        === 'MemberExpression') && (visit.field === 'object');
+      return startsChain && (!insideChain)
+        && namesValue({ visit, });
+    },);
+}
+
+/**
  The references under a root, leaving out the visits a test names.
 
  @param root - node to look under
@@ -222,28 +270,10 @@ function referencesUnder(
     readonly skips: (visit: Visit,) => boolean;
   },
 ): readonly (readonly string[])[] {
-  return visitsUnder({
+  return referenceVisitsUnder({
     root,
     skips,
   },)
-    .filter(function isReference(visit,): boolean {
-      /**
-       Whether the node starts a chain of members rather than sitting inside one as the object a member is read off.
-       */
-      const startsChain = (visit.node
-        .type
-        === 'Identifier') || (visit.node
-          .type
-          === 'MemberExpression');
-      /**
-       Whether the node is the object of a member, so the chain it starts is only part of a longer one.
-       */
-      const insideChain = (visit.parent
-        .type
-        === 'MemberExpression') && (visit.field === 'object');
-      return startsChain && (!insideChain)
-        && namesValue({ visit, });
-    },)
     .flatMap(function pathOfReference({ node, },): readonly (readonly string[])[] {
       /**
        The names the reference is written with.

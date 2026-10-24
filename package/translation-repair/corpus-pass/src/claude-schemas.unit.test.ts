@@ -60,6 +60,7 @@ import { CALL_FORM_CASES, type FormCase, textOf, } from './claude-schema-call-fo
 import { WHITELIST_CALL_CASES, } from './claude-schema-whitelist-call-forms.test-fixture.ts';
 import { WHITELIST_CASES, } from './claude-schema-whitelist-forms.test-fixture.ts';
 import { WHITELIST_MODULE_CASES, } from './claude-schema-whitelist-module-forms.test-fixture.ts';
+import { WHITELIST_READ_CASES, } from './claude-schema-whitelist-read-forms.test-fixture.ts';
 import { BINDING_CASES, NAME_RULE_CASES, } from './claude-schema-binding-forms.test-fixture.ts';
 import { DECLARATION_SHAPE_CASES, } from './claude-schema-declaration-forms.test-fixture.ts';
 import { FORMAT_LIMIT_CASES, SPELLING_CASES, } from './claude-schema-format-forms.test-fixture.ts';
@@ -652,6 +653,7 @@ await describe({
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
       ...WHITELIST_MODULE_CASES,
+      ...WHITELIST_READ_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
@@ -686,6 +688,7 @@ await describe({
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
       ...WHITELIST_MODULE_CASES,
+      ...WHITELIST_READ_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({
         name: `REPORTS WITH FILE AND LINE THE SHAPE OF THIS CASE: ${shapeCase.name}`,
@@ -742,6 +745,7 @@ await describe({
               file: 'imaginary/src/not-stage-wire.ts',
               line: 2,
               shape: 'format-in-undeclared-function',
+              position: 'FunctionExpression',
             },
           ],
         },);

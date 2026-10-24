@@ -1,49 +1,59 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
+  identifierName,
   nodesUnder,
+  parentsOf,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { builderShapesIn, } from './claude-schema-blind-builders.test-fixture.ts';
-import { loadShapesIn, } from './claude-schema-blind-loads.test-fixture.ts';
+import {
+  bearingFilesOf,
+  carryingObjectsOf,
+} from './claude-schema-blind-bearing.test-fixture.ts';
+import {
+  builderShapesIn,
+  chainVisitsIn,
+} from './claude-schema-blind-builders.test-fixture.ts';
+import {
+  loadShapesIn,
+  namesBearingModule,
+} from './claude-schema-blind-loads.test-fixture.ts';
+import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
+import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
 import {
   buildersIn,
   familyOf,
   type SourceFile,
 } from './claude-schema-sources.test-fixture.ts';
-import {
-  keyOf,
-  standsForKnown,
-} from './claude-schema-usage.test-fixture.ts';
+import { moduleLoadOf, } from './claude-schema-tree.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
-//region Shapes the schema search does not read, found in the family's sources
+//region Places the schema search reads nothing of, found in the family's sources
 // The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list
-// honest reads a fixed set of shapes and leaves others unread, and a shape it leaves unread can hide a file that
-// sends an answer schema. `blindSpotsOf` reads the same sources and reports each place that holds one of those
-// shapes, with the file and the line, so a shape the search cannot read never turns up in the family without a
-// failure that names it. The check is a net, not a second search: it reports every place with the shape, whether or
-// not a producer hides there, and a place it reports is answered by reading the shape in the search or by naming the
-// place in the test.
+// honest follows a fixed set of positions, and a place it does not follow can hide a file that sends an answer schema.
+// `blindSpotsOf` reads the same sources and holds two totals. Every string that names a module which carries a builder
+// must sit in a position the search follows, and every `import()` and `require` must have a path that is one literal;
+// every chain of names that stands for a builder, or for a module that carries one, must sit where the search reads it.
+// Anything else is reported with the file, the line and the position, so a place the search cannot read never turns up
+// in the family without a failure that names it. The check is a net, not a second search: it reports every place it
+// does not understand, whether or not a producer hides there, and a place it reports is answered by reading the place
+// in the search or by naming the place in the test.
 
 /**
- The shapes the schema search leaves unread, each as the name a report gives it.
+ The shapes the check reports, each as the name a report gives it.
  */
-type BlindShape =
-  | 'builder-handed-to-a-call-held-by-a-constant'
-    | 'builder-in-namespace-enum-or-parameter-property'
-    | 'builder-in-typescript-value-construct'
+export type BlindShape =
+  | 'builder-in-typescript-value-construct'
     | 'builder-outside-a-read-position'
     | 'builder-result-returned-outside-a-wrapper'
-    | 'builder-stored-in-object'
     | 'computed-load-path'
     | 'format-in-undeclared-function'
     | 'load-in-unfollowed-form'
     | 'module-binding-outside-a-read-position'
-    | 'module-path-outside-a-load'
-    | 'result-returned-through-a-local';
+    | 'module-path-outside-a-load';
 
 /**
- One place in a source file that holds a shape the search leaves unread.
+ One place in a source file that the search does not read.
  */
 export type BlindSpot = {
   /**
@@ -62,10 +72,9 @@ export type BlindSpot = {
   readonly shape: BlindShape;
 
   /**
-   Where the place sits, as the check of the next commit reports it: the kind of node that holds it and the field, or
-   what is wrong with it. This check leaves it unset.
+   Where the place sits: the kind of the node that holds it and the field, or what is wrong with it.
    */
-  readonly position?: string;
+  readonly position: string;
 };
 
 /**
@@ -81,6 +90,11 @@ export type FoundShape = {
    The node the place starts at.
    */
   readonly node: TreeNode;
+
+  /**
+   Where the place sits.
+   */
+  readonly position: string;
 };
 
 /**
@@ -116,7 +130,7 @@ function lineOf(
 }
 
 /**
- The places in the sources that hold a shape the schema search leaves unread.
+ The places in the sources that the schema search does not read.
 
  @param sources - files searched
 
@@ -163,6 +177,17 @@ export function blindSpotsOf(
       return name;
     },),),
   };
+  /**
+   The modules that carry a builder.
+   */
+  const bearing = bearingFilesOf({
+    family,
+    builders,
+  },);
+  /**
+   The objects that hold a builder as a member.
+   */
+  const carriers = carryingObjectsOf({ builders, },);
   return sources.flatMap(function spotsOfSource({
     file,
     text,
@@ -176,71 +201,145 @@ export function blindSpotsOf(
      */
     const nodes = nodesUnder({ root: facts.program, },);
     /**
-     What the names of the file are read against.
+     What the names of the file are read against, before the tree around them is known.
      */
-    const context = {
+    const base = {
       family,
       file,
+      facts,
       builders: known,
-    };
-    /**
-     Every place the shapes are found at, a place that holds the same shape twice listed twice.
-     */
-    const found = [
-      ...loadShapesIn({
-        program: facts.program,
-        nodes,
-      },),
-      ...builderShapesIn({
-        context,
-        nodes,
-        refersToBuilder: facts.references
-          .some(function isBuilder(path,): boolean {
-            return standsForKnown({
-              family,
+      bearing,
+      carriers,
+      recognized: new Set(facts.declared
+        .filter(function isKnown({ name, },): boolean {
+          return known.keys
+            .has(keyOf({
               file,
-              path,
-              known,
-            },);
-          },),
-        declared: facts.declared
-          .map(function holderOf({ holder, },): TreeNode {
-            return holder;
-          },),
-        checksUndeclared: facts.holdsFormat && (!notStageSchemas.has(file,)),
-      },),
-    ]
-      .map(function spotOf({
-        shape,
+              name,
+            },),);
+        },)
+        .map(function fnOf({ fn, },): TreeNode {
+          return fn;
+        },),),
+      parents: new Map<TreeNode, TreeNode>(),
+      references: [],
+    } satisfies BlindContext;
+    /**
+     Whether the file holds a string that names a module carrying a builder, a load, or a chain of names that could lead
+     to a builder, which is the only reason to read its tree further.
+     */
+    const isRelevant = nodes.some(function isLoadOrPath(node,): boolean {
+      return namesBearingModule({
+        context: base,
         node,
-      },): BlindSpot {
-        return {
-          file,
-          line: lineOf({
-            text,
-            node,
-          },),
-          shape,
-        };
+      },)
+        || (node.type === 'ImportExpression')
+        || ((node.type === 'CallExpression')
+          && moduleLoadOf({ node, },)
+            .isLoad);
+    },)
+      || [
+        ...new Set(nodes.map(function nameOf(node,): string {
+          return identifierName({ node, },);
+        },),),
+      ].some(function leadsToBuilder(name,): boolean {
+        return (name !== '') && mayLeadToBuilder({
+          context: base,
+          name,
+        },);
       },);
-    return [
-      ...new Map(found.map(function keyedSpot(spot,): readonly [
-        string,
-        BlindSpot,
-      ] {
-        return [
-          `${String(spot.line,)} ${spot.shape}`,
-          spot,
-        ];
-      },),)
-        .values(),
-    ].toSorted(function byLine(
-      first,
-      second,
-    ): number {
-      return first.line - second.line;
+    if ((!isRelevant) && (!(facts.holdsFormat && (!notStageSchemas.has(file,)))))
+      return [];
+    /**
+     What the names of the file are read against.
+     */
+    const context: BlindContext = {
+      ...base,
+      parents: parentsOf({ program: facts.program, },),
+      references: chainVisitsIn({ program: facts.program, },),
+    };
+    return spotsOf({
+      text,
+      found: [
+        ...loadShapesIn({
+          context,
+          nodes,
+        },),
+        ...builderShapesIn({
+          context,
+          nodes,
+          declared: facts.declared
+            .map(function holderOf({ holder, },): TreeNode {
+              return holder;
+            },),
+          checksUndeclared: facts.holdsFormat && (!notStageSchemas.has(file,)),
+        },),
+      ],
+      file,
     },);
   },);
 }
 
-//endregion Shapes the schema search does not read, found in the family's sources
+/**
+ The places a file's shapes are at, each place once, in the order of the lines.
+
+ @param text - file's text
+
+ @param found - shapes found, a place that holds the same shape twice listed twice
+
+ @param file - path of the file
+
+ @returns One entry per line and shape
+
+ @example
+ ```ts
+ const spots = spotsOf({ text, found, file: 'a/src/a.ts', },);
+ ```
+ */
+function spotsOf(
+  {
+    text,
+    found,
+    file,
+  }: {
+    readonly text: string;
+    readonly found: readonly FoundShape[];
+    readonly file: string;
+  },
+): readonly BlindSpot[] {
+  return [
+    ...new Map(found.map(function keyedSpot({
+      shape,
+      node,
+      position,
+    },): readonly [
+      string,
+      BlindSpot,
+    ] {
+      /**
+       The line the place starts on.
+       */
+      const line = lineOf({
+        text,
+        node,
+      },);
+      return [
+        `${String(line,)} ${shape}`,
+        {
+          file,
+          line,
+          shape,
+          position,
+        },
+      ];
+    },),)
+      .values(),
+  ].toSorted(function byLine(
+    first,
+    second,
+  ): number {
+    return first.line - second.line;
+  },);
+}
+
+//endregion Places the schema search reads nothing of, found in the family's sources
