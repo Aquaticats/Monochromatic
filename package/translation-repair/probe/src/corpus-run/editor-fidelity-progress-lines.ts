@@ -31,7 +31,19 @@ export function plannedLine({
   readonly passes?: number
 },): string {
   if (passes > 1) {
-    return `planned: ${String(planned,)} of ${String(total,)} asks (${String(passes,)} passes over the ${
+    return `planned: ${String(planned,)} of ${String(total,)} ${
+      wordForCount({
+        count: total,
+        one: 'ask',
+        many: 'asks',
+      },)
+    } (${String(passes,)} ${
+      wordForCount({
+        count: passes,
+        one: 'pass',
+        many: 'passes',
+      },)
+    } over the ${
       String(total / passes,)
     } ${
       wordForCount({

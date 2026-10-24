@@ -45,7 +45,15 @@ export function editorPreflightLine(
    leading asks.
    */
   const priced = (planned === total)
-    ? ((passes > 1) ? `every ask of the ${String(passes,)} passes over the pool` : 'every trial of the pool')
+    ? ((passes > 1)
+      ? `every ask of the ${String(passes,)} ${
+        wordForCount({
+          count: passes,
+          one: 'pass',
+          many: 'passes',
+        },)
+      } over the pool`
+      : 'every trial of the pool')
     : `the first ${String(planned,)} of ${String(total,)} ${
       (passes > 1)
         ? 'asks'
