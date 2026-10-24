@@ -53,6 +53,10 @@ import {
  ```
  */
 async function realPathOf({ path, }: { readonly path: string; },): Promise<string> {
+  // THE JOIN IS POSIX-ONLY: on Windows a drive-relative path such as `C:foo` is not absolute, yet the working
+  // directory is not what it is relative to, so this join would put the working directory in front of the drive. That
+  // cannot arise in this module: `searchReaches` takes both of its paths to share one filesystem root, as the paths
+  // under a home directory on a POSIX system do, and compares no pair on two drives.
   /**
    The path as the lookup is asked for it, whole from the filesystem root.
    */
@@ -99,7 +103,8 @@ async function realPathOf({ path, }: { readonly path: string; },): Promise<strin
  @returns Whether `directory` is the root or lies below it, and the deepest runs of it are within the walk
 
  @throws What `realpath` raises for any failure but an absent path, such as a path through a file (`ENOTDIR`), a loop
- of links (`ELOOP`) or a directory nobody may enter (`EACCES`), which the caller decides what to make of
+ of links (`ELOOP`) or a directory nobody may enter (`EACCES`), which the caller decides what to make of; and, where
+ `root` or `directory` is relative, what `process.cwd` raises when the working directory was removed (`ENOENT`)
 
  @example
  ```ts
@@ -282,7 +287,7 @@ type UnresolvedRunbookRoot = {
  const reading: RunbookRootReading = { kind: 'resolved', real: '/cats/home/temp/agent', };
  ```
  */
-type RunbookRootReading = ResolvedRunbookRoot | UnresolvedRunbookRoot;
+export type RunbookRootReading = ResolvedRunbookRoot | UnresolvedRunbookRoot;
 
 /**
  Resolves the runbook's runs root once, so a failure of that root is named once.
