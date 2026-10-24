@@ -118,14 +118,17 @@ named for that subject and listed here.
   The original of an untranslated passage written as literal text from a CommonMark parse,
   a page the grammar refuses with the original on it,
   a page shipped without the runs no writing makes parse and how a page on disk is judged (B832),
-  the holes between the plain parse and the strict grammar that followed it,
-  the limits of that follow-up closed and the shapes a second search found (B832 follow-ups),
-  the wiring tests of the page on disk (B832 follow-ups),
-  the sixth round after the re-check of round 4 (B832 follow-ups),
   and the corrections it made to A8,
   B827,
   B830
   and B831.
+- [Audit ledger: the source text under a note, follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md):
+  The holes between the plain parse and the strict grammar that followed B832,
+  the limits of that follow-up closed and the shapes a second search found,
+  the wiring tests of the page on disk,
+  the sixth round after the re-check of round 4,
+  and the seventh round,
+  the module lines from the tokenizer and the footnote reading (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

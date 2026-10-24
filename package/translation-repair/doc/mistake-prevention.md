@@ -99,7 +99,8 @@ named for that subject and listed here.
   escapes,
   paired marks,
   the parse,
-  positions and quotes.
+  lists of shapes where the parser decides,
+  and quotes.
   Sections:
   - [Text by code point](mistake-prevention-text-comparison-and-structure.md#text-by-code-point)
   - [Words inside words](mistake-prevention-text-comparison-and-structure.md#words-inside-words)
@@ -109,9 +110,13 @@ named for that subject and listed here.
   - [Escapes and the layer that reads them](mistake-prevention-text-comparison-and-structure.md#escapes-and-the-layer-that-reads-them)
   - [Paired marks](mistake-prevention-text-comparison-and-structure.md#paired-marks)
   - [Structure read off the parse](mistake-prevention-text-comparison-and-structure.md#structure-read-off-the-parse)
-  - [Pairing by position](mistake-prevention-text-comparison-and-structure.md#pairing-by-position)
-  - [Offsets and positions](mistake-prevention-text-comparison-and-structure.md#offsets-and-positions)
+  - [Lists of shapes where the parser decides](mistake-prevention-text-comparison-and-structure.md#lists-of-shapes-where-the-parser-decides)
   - [Quotes a judge gives back](mistake-prevention-text-comparison-and-structure.md#quotes-a-judge-gives-back)
+- [Preventing mistakes: pairing and offsets by position](mistake-prevention-pairing-and-offsets-by-position.md):
+  Rules for pairing items of two texts by their place and for offsets compared or carried between texts.
+  Sections:
+  - [Pairing by position](mistake-prevention-pairing-and-offsets-by-position.md#pairing-by-position)
+  - [Offsets and positions](mistake-prevention-pairing-and-offsets-by-position.md#offsets-and-positions)
 - [Preventing mistakes: sheets, quorums and outcome rules](mistake-prevention-sheets-quorums-and-outcome-rules.md):
   Rules for what each model is shown,
   what a sheet rule names as outside its reach,

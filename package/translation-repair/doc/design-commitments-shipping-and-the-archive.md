@@ -209,9 +209,9 @@ which lists every file of these commitments.
   The second step is taken when the page of the first step does not parse
   (the page as written when the first step changed nothing)
   and writing every run as literal text gives a page unlike the one last tried.
-  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 402 and 407 pairs,
-  all but three of each a run nested past the bound beside a run holding a character that step escapes,
-  and it made the page parse for none and for 1 pair.
+  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 383 and 412 pairs,
+  all but 6 and 2 of each a run nested past the bound beside a run holding a character that step escapes,
+  and it made the page parse for none.
   The third step is taken when no writing makes the page parse:
   a run nested past the bound of the plain reading,
   and a `$$` flow or a fence that one run opens and a later run closes with the English between them
