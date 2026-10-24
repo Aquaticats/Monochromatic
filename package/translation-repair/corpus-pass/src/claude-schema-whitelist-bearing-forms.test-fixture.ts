@@ -1,3 +1,7 @@
+import {
+  methodFormatLinesOf,
+  nestedMethodFormatLinesOf,
+} from './claude-schema-builder-forms.test-fixture.ts';
 import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
@@ -6,8 +10,10 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // of modules that carry a builder: a module that declares one, exports one by name, exports everything of a module that
 // carries one, exports such a module as a namespace, exports an object that holds one, or exports a namespace of a
 // module that became a carrier a pass earlier. A path literal that names such a module outside a load is reported; one
-// that names a module that carries none is not. The second case holds a load whose path is no single literal in a file
-// that names no module at all, which the check reads all the same.
+// that names a module that carries none is not; a module that exports everything of one whose builder is its default
+// carries none, since a star leaves the default out, and one that exports an object that holds a builder carries it.
+// The second case holds a function inside a function that holds a format, which is reported once; the third holds a
+// load whose path is no single literal in a file that names no module at all, which the check reads all the same.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.
@@ -32,7 +38,8 @@ export const WHITELIST_BEARING_CASES: readonly ShapeCase[] = [
     name: 'READS A MODULE AS CARRYING A BUILDER WHEN IT DECLARES ONE, EXPORTS ONE BY NAME, EXPORTS EVERYTHING OF A '
       + 'MODULE THAT CARRIES ONE, EXPORTS THAT MODULE AS A NAMESPACE, EXPORTS AN OBJECT THAT HOLDS ONE, OR EXPORTS A '
       + 'NAMESPACE OF A MODULE THAT CARRIES ONE ONLY AFTER A PASS, and reports a path literal that names any of them '
-      + 'outside a load, and none that names a module that carries none',
+      + 'outside a load, and none that names a module that carries none, one that exports everything of a default '
+      + 'builder included',
     files: [
       {
         file: 'imaginary/src/bearing-named.ts',
@@ -83,6 +90,28 @@ export const WHITELIST_BEARING_CASES: readonly ShapeCase[] = [
         ],),
       },
       {
+        file: 'imaginary/src/bearing-default.ts',
+        text: textOf([
+          'export default function defaultFormat(moods: readonly string[],) {',
+          '  return {',
+          ...methodFormatLinesOf({ name: 'bearing_default', },),
+          '  };',
+          '}',
+        ],),
+      },
+      {
+        file: 'imaginary/src/bearing-star-default.ts',
+        text: textOf([
+          'export * from \'./bearing-default.ts\';',
+        ],),
+      },
+      {
+        file: 'imaginary/src/bearing-object-reexport.ts',
+        text: textOf([
+          'export { kit, } from \'./bearing-object.ts\';',
+        ],),
+      },
+      {
         file: 'imaginary/src/bearing-plain.ts',
         text: textOf([
           'export const PLAIN = 1;',
@@ -99,6 +128,9 @@ export const WHITELIST_BEARING_CASES: readonly ShapeCase[] = [
           '  \'./bearing-seed.ts\',',
           '  \'./bearing-second.ts\',',
           '  \'./bearing-plain.ts\',',
+          '  \'./bearing-default.ts\',',
+          '  \'./bearing-star-default.ts\',',
+          '  \'./bearing-object-reexport.ts\',',
           '];',
           '',
           'import plain from \'./bearing-plain.ts\';',
@@ -108,10 +140,12 @@ export const WHITELIST_BEARING_CASES: readonly ShapeCase[] = [
       },
     ],
     found: [
+      'imaginary/src/bearing-default.ts',
       'imaginary/src/bearing-object.ts',
       'imaginary/src/bearing-seed.ts',
     ],
     builders: [
+      'defaultFormat',
       'hidden',
       'kit.make',
     ],
@@ -151,6 +185,50 @@ export const WHITELIST_BEARING_CASES: readonly ShapeCase[] = [
         line: 7,
         shape: 'module-path-outside-a-load',
         position: 'ArrayExpression.elements',
+      },
+      {
+        file: 'imaginary/src/bearing-consumer.ts',
+        line: 9,
+        shape: 'module-path-outside-a-load',
+        position: 'ArrayExpression.elements',
+      },
+      {
+        file: 'imaginary/src/bearing-consumer.ts',
+        line: 11,
+        shape: 'module-path-outside-a-load',
+        position: 'ArrayExpression.elements',
+      },
+    ],
+  },
+  {
+    name: 'REPORTS ONLY THE OUTERMOST FUNCTION THAT HOLDS A FORMAT AND THAT NO DECLARED FUNCTION HOLDS, a getter '
+      + 'inside a getter once and not twice',
+    files: [
+      {
+        file: 'imaginary/src/nested-undeclared-wire.ts',
+        text: textOf([
+          'export const outer = {',
+          '  get inner() {',
+          '    return {',
+          '      get deeper() {',
+          '        return {',
+          ...nestedMethodFormatLinesOf({ name: 'nested_mood', },),
+          '        };',
+          '      },',
+          '    };',
+          '  },',
+          '};',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/nested-undeclared-wire.ts',],
+    builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/nested-undeclared-wire.ts',
+        line: 2,
+        shape: 'format-in-undeclared-function',
+        position: 'FunctionExpression',
       },
     ],
   },
