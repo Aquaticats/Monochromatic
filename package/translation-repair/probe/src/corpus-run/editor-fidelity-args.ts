@@ -30,12 +30,13 @@ export const DEFAULT_EDITOR_TRIAL_CAP = 200;
 export const DEFAULT_EDITOR_MAX_USD = 2;
 
 /**
- Most the four arms of one editor fidelity bench may spend together, in US dollars: the owner's ruling for the bench, which
- the third round's proposed caps (37 USD in all) passed. The arms are separate processes, so nothing holds them together
- but the operator, who writes the spend the earlier arms measured as `--bench-spent-usd`; an arm whose `--max-usd` added
- to that passes this amount is refused before it reads or spends anything.
+ Most the arms of one editor fidelity bench may spend together, in US dollars: the owner's ruling of 2026-10-24, which
+ raised the amount from 20 to 60 so that the bench could buy more evidence about which effort repairs best. The arms are
+ separate processes, so nothing holds them together but the operator, who writes the spend the earlier arms measured as
+ `--bench-spent-usd`; an arm whose `--max-usd` added to that passes this amount is refused before it reads or spends
+ anything.
  */
-export const EDITOR_BENCH_MAX_USD = 20;
+export const EDITOR_BENCH_MAX_USD = 60;
 
 /**
  Cents in a dollar, the unit amounts are compared in.
