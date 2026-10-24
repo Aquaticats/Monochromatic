@@ -332,6 +332,46 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'a code span across a line of a byte order mark, then two lines that start with import',
     '`a\n\uFEFF\nimport x\nimport y` b\n',
   ],
+  [
+    'a footnote definition, lines of the paragraph and a line of equals signs, then a definition line holding a brace',
+    '[^1]: 注 ({)\nimport data from the old system\n===\n[r]: u{b "t {"\n',
+  ],
+  [
+    'a footnote definition, a line of two hyphens, then a definition line holding a brace',
+    '[^1]: x\ny\n--\n[r]: u{b "t {"\n',
+  ],
+  [
+    'a footnote definition, a line of equals signs indented four spaces, then a definition line holding a brace',
+    '[^1]: x\n    ===\n[r]: u{b "t {"\n',
+  ],
+  [
+    'a code span across a footnote definition that starts on a later line of the paragraph',
+    'a `b\n[^1]: c {d}\ne` f\n',
+  ],
+  [
+    'inline math across a footnote definition that starts on a later line of the paragraph',
+    'a $b\n[^1]: c {d}\ne$ f\n',
+  ],
+  [
+    'a link across a footnote definition that starts on a later line of the paragraph',
+    'a [b\n[^1]: c {d}\ne](u) f\n',
+  ],
+  [
+    'an indented fence mark in a paragraph, then a footnote definition holding a brace',
+    'abc\n    ```\n[^1]: x {\n    ```\n',
+  ],
+  [
+    'an indented fence mark, a footnote definition, a definition line holding a brace and a fence',
+    'abc\n    ```\n[^1]: 注\n[b]: u{ "t"\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a footnote definition that starts on a later line of a paragraph, an indented fence mark under it',
+    'x\n[^1]: 注 {\n    ```\n',
+  ],
+  [
+    'two footnote definitions in one paragraph of the plain reading, a code span across them',
+    'a `b\n[^1]: c {d}\n[^2]: e` {f}\n',
+  ],
 ];
 
 /**
