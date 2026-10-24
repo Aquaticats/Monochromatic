@@ -117,11 +117,21 @@ export function footnoteRead(
   },
 ): FootnoteRead {
   /**
+   The footnote definitions a paragraph can be cut at: any for a paragraph at the top, and for a paragraph in a
+   container only those that start a line, since the strict grammar ends a container at such a line and a definition
+   behind the marks of the container belongs to the container.
+   */
+  const cuttingFootnotes = isRootChild
+    ? footnotes
+    : footnotes.filter(function startsLine({ start, },): boolean {
+      return (start === 0) || (source.charAt(start - 1,) === '\n');
+    },);
+  /**
    Where a footnote definition starts inside the paragraph, when one does on a line after its first.
    */
   const split = (node.type === 'paragraph')
     ? footnoteStartInside({
-      footnotes,
+      footnotes: cuttingFootnotes,
       range,
     },)
     : NO_FOOTNOTE_INSIDE;
