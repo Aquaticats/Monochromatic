@@ -1851,6 +1851,113 @@ const cases: Guard[] = [
     test: 'a_drag_follows_the_aimed_press_and_then_the_live_layout',
     failure: 'the drag moves the box from the aimed place, with the live layout'
   },
+  // A view whose hint request would ask only lines that stored answers of the same text revision asked about sends no
+  // request. The rules: the skip itself; a stored answer adds its lines (and nothing else does: a request that is
+  // pending or failed never reaches the store); the lines of one revision belong to that revision only (an answer for
+  // another revision starts afresh, and a query for another revision is never covered); answers that touch or overlap
+  // cover their union; a range is covered only when one joined range holds all of it, ends included; an empty range
+  // is never covered; opening the file in the worker again forgets what was asked.
+  {
+    name: 'hint-skip-covered',
+    file: 'src/native/language/sync.rs',
+    before: '    if covered {',
+    after: '    if false && covered {',
+    native: true,
+    test: 'a_view_inside_the_answered_lines_sends_no_request',
+    failure: 'a view whose request asks only answered lines sent a request'
+  },
+  {
+    name: 'hint-skip-noted',
+    file: 'src/annotation/blocks.rs',
+    before: '        self.answered.note(snapshot.stamp, asked.clone());',
+    after: '        let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-revision-reset',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'an answer for the next revision kept the lines the earlier revision had covered'
+  },
+  {
+    name: 'hint-skip-edit',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    native: true,
+    test: 'an_edit_forgets_the_lines_the_earlier_revision_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-revision-query',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if lines.is_empty() {',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'lines asked in one revision were covered in the next, before any answer for it'
+  },
+  {
+    name: 'hint-skip-empty-range',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if self.stamp != Some(stamp) {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'an empty range was covered'
+  },
+  {
+    name: 'hint-skip-ends',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start <= lines.start && lines.end <= range.end {',
+    after: '            if range.start <= lines.start && lines.end < range.end {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-touching',
+    file: 'src/annotation/coverage.rs',
+    before: '                Some(last) if range.start <= last.end =>',
+    after: '                Some(last) if range.start < last.end =>',
+    integration: 'annotation',
+    test: 'answers_that_overlap_or_touch_cover_their_union_but_not_a_gap',
+    failure: 'three overlapping answers do not cover the lines together'
+  },
+  // A request recorded as covering its lines when it is sent, instead of when its answer is stored, makes a pending
+  // or failed request count.
+  {
+    name: 'hint-skip-pending',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: Vec::new() }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_pending_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-failed',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: Vec::new() }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_failed_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-reopen',
+    file: 'src/native/language/sync.rs',
+    before: '    current.annotations.forget_answered();',
+    after: '    let _ = &mut current;',
+    native: true,
+    test: 'opening_the_file_again_forgets_the_lines_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env
