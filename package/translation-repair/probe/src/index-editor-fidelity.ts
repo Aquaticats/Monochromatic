@@ -151,9 +151,15 @@ export {
   pairName,
   readingWord,
   reportTallies,
+  rowLineOf,
   seatedCardsOf,
   sheetCharsOf,
 } from './corpus-run/editor-fidelity-probe-read.ts';
+export {
+  cappedLine,
+  plannedLine,
+  trialsLine,
+} from './corpus-run/editor-fidelity-progress-lines.ts';
 export {
   type EditorProbeSink,
   runEditorFidelityProbe,

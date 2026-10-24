@@ -395,14 +395,33 @@ await describe({
             expect(editorPreflightLine({
               cardIds: [LOW_CARD,],
               selected: 3,
+              planned: 88,
+              total: 88,
             },),).toBe(
               `preflight only: 3 pinned reference specifications selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
             );
             expect(editorPreflightLine({
               cardIds: [LOW_CARD, HIGH_CARD,],
               selected: 1,
+              planned: 2,
+              total: 2,
             },),).toBe(
               `preflight only: 1 pinned reference specification selected for ${LOW_CARD}, ${HIGH_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
+            );
+          },
+        },),
+
+        it({
+          name: 'SAYS THE CEILING IS PRICED OVER THE FIRST TRIALS when the arm was asked for fewer than the pool holds, '
+            + 'so a preflight of a later arm does not claim to price the whole pool',
+          fn: async () => {
+            expect(editorPreflightLine({
+              cardIds: [LOW_CARD,],
+              selected: 53,
+              planned: 41,
+              total: 88,
+            },),).toBe(
+              `preflight only: 53 pinned reference specifications selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over the first 41 of 88 trials`,
             );
           },
         },),

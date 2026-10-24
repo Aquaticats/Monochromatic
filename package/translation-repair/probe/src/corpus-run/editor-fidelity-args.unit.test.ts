@@ -189,6 +189,35 @@ await describe({
       },
     },),
     it({
+      name: 'READS --trials as the number of leading trials an arm walks, leaving the member out when the flag is not '
+        + 'written, and takes it beside a cap of zero, the preflight that prices those trials',
+      fn: async () => {
+        expect(askedFrom({ typed: ['--trials', '41',], },).trials,).toBe(41,);
+        expect('trials' in askedFrom({ typed: [], },),).toBe(false,);
+        expect(askedFrom({ typed: ['--trials', '41', '--cap', '0',], },).trials,).toBe(41,);
+        expect(askedFrom({ typed: ['--trials', '41', '--cap', '0',], },).cap,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'REFUSES --trials of zero, which would walk nothing, and --trials beside a cap above zero, since the two both '
+        + 'name how many trials to run',
+      fn: async () => {
+        expect(refusalOf({
+          typed: ['--trials', '0',],
+          askedFrom,
+        },),).toBe(
+          '--trials needs at least 1, and 0 walks no trial; write --cap 0 to price an arm without running it',
+        );
+        expect(refusalOf({
+          typed: ['--trials', '41', '--cap', '5',],
+          askedFrom,
+        },),).toBe(
+          '--trials 41 and --cap 5 both name how many trials to run; write one of them, or --cap 0 beside --trials to '
+            + 'price those trials without running them',
+        );
+      },
+    },),
+    it({
       name: 'REFUSES a cap or an amount mistyped, and a flag written last or naming nobody',
       fn: async () => {
         /**

@@ -605,20 +605,43 @@ await describe({
               typed: [...ONE_CARD, '--cap', '0',],
             },);
             expect(seen.failures,).toStrictEqual([],);
-            expect(seen.lines.length,).toBe(7,);
+            expect(seen.lines.length,).toBe(8,);
             expect(seen.lines[0],).toBe(`editors: ${LOW_CARD}`,);
             expect(seen.lines[1]?.startsWith('manifest: 1 specification, digest ',),).toBe(true,);
             expect(seen.lines[2],).toBe('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
             expect(seen.lines[3]?.startsWith(`ceiling ${LOW_CARD}: 2 trials, one ask each, at most `,),).toBe(true,);
             expect(seen.lines[4],).toBe(guardLine({ maxUsd: 2, benchSpentUsd: 0, },),);
             expect(seen.lines[5],).toBe(editorDecisionRuleLine(),);
-            expect(seen.lines[6],).toBe(
+            expect(seen.lines[6],).toBe('planned: 2 of 2 trials',);
+            expect(seen.lines[7],).toBe(
               `preflight only: 1 pinned reference specification selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over every trial of the pool`,
             );
             expect(seen.readFor.length,).toBe(1,);
             expect(seen.runsAsked,).toStrictEqual([],);
             expect(seen.clientBuilds,).toStrictEqual([],);
             expect(seen.written,).toBe('',);
+          },
+        },),
+
+        it({
+          name: 'PRICES ONLY THE FIRST TRIALS when --trials is written beside it: a ceiling for that many, a planned line '
+            + 'that says so, and a preflight line that does not claim to price the whole pool',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--trials', '1', '--cap', '0',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.lines,).toContain('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
+            expect(seen.lines.some(function isCeiling(line,): boolean {
+              return line.startsWith(`ceiling ${LOW_CARD}: 1 trial, one ask each, at most `,);
+            },),).toBe(true,);
+            expect(seen.lines,).toContain('planned: 1 of 2 trials',);
+            expect(seen.lines.at(-1,),).toBe(
+              `preflight only: 1 pinned reference specification selected for ${LOW_CARD}; the corpus was read and no model was called; the ceiling is priced over the first 1 of 2 trials`,
+            );
+            expect(seen.clientBuilds,).toStrictEqual([],);
           },
         },),
       ],
@@ -745,28 +768,33 @@ await describe({
         },),
 
         it({
-          name: 'STOPS THE ARM BEFORE THE CALL THAT WOULD PASS --max-usd: the first reply costs 0.2050 USD measured, the '
-            + 'second call\'s ceiling would take the total past 0.5, so the second is never made, the refusal names the '
-            + 'three figures, the finished row stays in its file and no kept line or document is written',
+          name: 'CAPS THE ARM BEFORE THE CALL THAT WOULD PASS --max-usd, and ends it as a capped arm, not a failure: the '
+            + 'first reply costs 0.2050 USD measured, the second call\'s ceiling would take the total past 0.5, so the '
+            + 'second is never made, the run returns, a CAPPED line names the trial and the guard\'s three figures, the '
+            + 'finished row stays in its file, and the tally, the kept line and the document of the finished row are '
+            + 'written',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
             const seen = await probeIn({
               runsDir: scratch.path,
               typed: [...ONE_CARD, '--max-usd', '0.5',],
             },);
+            expect(seen.failures,).toStrictEqual([],);
             expect(seen.asked,).toStrictEqual([LOW_CARD,],);
             /**
-             What the refusal says.
+             The line that says where the arm was capped.
              */
-            const said = refusedWith({ seen, },);
-            expect(said.startsWith(
-              `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this call `
-                + 'can cost 0.3',
+            const capped = nonNullishOrThrow(seen.lines.find(function isCapped(line,): boolean {
+              return line.startsWith('CAPPED at trial 2 of 2: 1 trial completed; ',);
+            },),);
+            expect(capped.includes(
+              `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this call can cost 0.3`,
             ),).toBe(true,);
-            expect(said.endsWith(
+            expect(capped.endsWith(
               ' USD at most, and together they pass --max-usd 0.5000; the arm ends here, and the rows it finished stay in '
                 + 'their files',
             ),).toBe(true,);
+            expect(seen.lines,).toContain('TRIALS completed 1 of 2',);
             const [runName,] = (await readdir(scratch.path,)).filter(function isRun(name,): boolean {
               return name.startsWith('editor-fidelity-',);
             },);
@@ -787,9 +815,31 @@ await describe({
               ),),
             ).toBe(false,);
             expect(seen.lines.some(function isKept(line,): boolean {
-              return line.startsWith('kept ',);
-            },),).toBe(false,);
-            expect(seen.written,).toBe('',);
+              return line.startsWith('kept 1 editor row at ',);
+            },),).toBe(true,);
+            expect(seen.lines,).toContain(
+              `EDITOR ${LOW_CARD}: clean fix 1 of 1 (exact 1, equivalent 0), defect only 0, collateral 0, missed 0, `
+                + 'refused 0, unusable 0',
+            );
+            expect((JSON.parse(seen.written,) as { readonly rows: readonly unknown[]; }).rows.length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'ENDS AN ARM CAPPED BEFORE ITS FIRST TRIAL as a capped arm with nothing completed: a cap under the first '
+            + 'call\'s ceiling asks nothing, says TRIALS completed 0, and returns',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--max-usd', '0.1',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.asked,).toStrictEqual([],);
+            expect(seen.lines.some(function isCapped(line,): boolean {
+              return line.startsWith('CAPPED at trial 1 of 2: 0 trials completed; ',);
+            },),).toBe(true,);
+            expect(seen.lines,).toContain('TRIALS completed 0 of 2',);
           },
         },),
 
@@ -806,8 +856,10 @@ await describe({
               attemptUsd: 0.6,
             },);
             expect(seen.asked,).toStrictEqual([LOW_CARD,],);
-            expect(refusedWith({ seen, },),).toBe(
-              `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this attempt can `
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.lines,).toContain(
+              'CAPPED at trial 2 of 2: 1 trial completed; '
+                + `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this attempt can `
                 + 'cost 0.6000 USD at most, and together they pass --max-usd 0.7000; the arm ends here, and the rows it '
                 + 'finished stay in their files',
             );
@@ -832,7 +884,7 @@ await describe({
               runsDir: scratch.path,
               typed: [...ONE_CARD, '--max-usd', '0.5',],
             },);
-            expect(stopped.failures.length,).toBe(1,);
+            expect(stopped.failures,).toStrictEqual([],);
             expect(stopped.lines.filter(function isGuardTotal(line,): boolean {
               return line.startsWith('GUARD total=',);
             },),).toStrictEqual(['GUARD total=0.205000 calls=1 atCeiling=0',],);
@@ -946,6 +998,14 @@ await describe({
             expect(rowLines.every(function statesStop(line,): boolean {
               return line.endsWith('; stopped ok',);
             },),).toBe(true,);
+            expect(rowLines.every(function statesEntry(line,): boolean {
+              return line.includes(`; entry ${SPEC.entryId}; stopped `,);
+            },),).toBe(true,);
+            expect(seen.lines,).toContain('planned: 2 of 2 trials',);
+            expect(seen.lines,).toContain('TRIALS completed 2 of 2',);
+            expect(seen.lines.some(function isCapped(line,): boolean {
+              return line.startsWith('CAPPED ',);
+            },),).toBe(false,);
             /**
              The first kept row.
              */
@@ -1012,6 +1072,40 @@ await describe({
             expect(rowLines.every(function statesRejection(line,): boolean {
               return line.includes('; stopped rejected',);
             },),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'WALKS ONLY THE FIRST TRIALS when --trials is written, says how many it planned and completed, and asks '
+            + 'once for each, so a later arm walks the trials the first arm completed',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--trials', '1',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.asked,).toStrictEqual([LOW_CARD,],);
+            expect(seen.lines,).toContain('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
+            expect(seen.lines,).toContain('planned: 1 of 2 trials',);
+            expect(seen.lines,).toContain('TRIALS completed 1 of 1',);
+            expect(seen.lines.filter(function isRow(line,): boolean {
+              return line.startsWith('row ',);
+            },).length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'PLANS THE WHOLE POOL when --trials names more trials than it holds, since the pool is all there is to walk',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--trials', '50',],
+            },);
+            expect(seen.failures,).toStrictEqual([],);
+            expect(seen.lines,).toContain('planned: 2 of 2 trials',);
+            expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD,],);
           },
         },),
 

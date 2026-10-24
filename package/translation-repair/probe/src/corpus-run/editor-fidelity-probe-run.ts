@@ -249,6 +249,8 @@ export async function runEditorFidelityProbe(
     log.info(editorPreflightLine({
       cardIds,
       selected: specs.length,
+      planned: planned.length,
+      total: trials.length,
     },),);
     return;
   }

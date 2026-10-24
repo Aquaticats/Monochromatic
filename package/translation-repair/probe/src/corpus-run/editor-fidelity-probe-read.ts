@@ -5,6 +5,10 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 import { sheetFieldsOf, } from '../editor-fidelity-context.ts';
 import type { EditorFidelityTrial, } from '../editor-fidelity-trials.ts';
 import {
+  type AskEnd,
+  stoppedWord,
+} from './editor-fidelity-asks.ts';
+import {
   messageChars,
   pricesOf,
 } from './editor-fidelity-ceiling.ts';
@@ -154,6 +158,36 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
     return `defect only, not a clean fix, ${touched}`;
   return `clean fix ${reading.score
     .fixed}, ${touched}`;
+}
+
+/**
+ Writes the row line of a finished pair.
+
+ @param position - zero-based place of the pair among the planned pairs
+ @param total - planned pairs
+ @param pair - the card and trial
+ @param reading - how the trial read
+ @param stops - how each ask of the trial ended
+
+ @returns The line, without a newline
+
+ @example
+ ```ts
+ log.info(rowLineOf({ position: 0, total: 2, pair, reading, stops: ['ok',], },),);
+ ```
+ */
+export function rowLineOf(
+  { position, total, pair, reading, stops, }: {
+    readonly position: number;
+    readonly total: number;
+    readonly pair: EditorPair;
+    readonly reading: EditorTrialReading;
+    readonly stops: readonly AskEnd[];
+  },
+): string {
+  return `${String(position,)}${String(total,)}${pairName({ item: pair, },)}${readingWord({ reading, },)}${
+    stoppedWord({ ends: stops, },)
+  }`;
 }
 
 /**

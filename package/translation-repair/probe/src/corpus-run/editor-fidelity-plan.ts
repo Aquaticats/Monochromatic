@@ -445,11 +445,15 @@ export function editorDecisionRuleLine(): string {
 
  @param selected - pinned reference specifications the request selected
 
+ @param planned - trials the ceiling is priced over
+
+ @param total - trials the pool holds
+
  @returns The line, without a newline
 
  @example
  ```ts
- log.info(editorPreflightLine({ cardIds, selected: 3, },),);
+ log.info(editorPreflightLine({ cardIds, selected: 3, planned: 88, total: 88, },),);
  ```
  */
 export function editorPreflightLine(
@@ -459,6 +463,8 @@ export function editorPreflightLine(
   }: {
     readonly cardIds: readonly RosterModelId[];
     readonly selected: number;
+    readonly planned: number;
+    readonly total: number;
   },
 ): string {
   return `preflight only: ${String(selected,)} pinned reference ${

@@ -24,6 +24,7 @@ import {
   pairName,
   readingWord,
   reportTallies,
+  rowLineOf,
   seatedCardsOf,
   sheetCharsOf,
 } from '../../dist/final/node/index.mjs';
@@ -160,6 +161,52 @@ await describe({
                 trial: TRIAL,
               },
             },),).toBe(`${LOW_CARD} on ${TRIAL.trialId}`,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: rowLineOf.name,
+      children: [
+        it({
+          name: 'WRITES THE ROW LINE with the row\'s place, the card and trial handles, how the trial read, the entry it '
+            + 'comes from and how its asks ended, in that order, so a reader can group trials by entry',
+          fn: async () => {
+            /**
+             A trial that read as a clean fix, asked once and heard once.
+             */
+            const reading: EditorTrialReading = {
+              kind: 'answered',
+              score: { fixed: 'exact', collateral: false, },
+              applied: 1,
+              rejected: 0,
+              findings: [],
+            };
+            expect(rowLineOf({
+              position: 4,
+              total: 88,
+              pair: {
+                cardId: LOW_CARD,
+                trial: TRIAL,
+              },
+              reading,
+              stops: ['ok',],
+            },),).toBe(
+              `row 5 of 88: ${LOW_CARD} on ${TRIAL.trialId}: clean fix exact, nothing else touched; entry ${
+                TRIAL.spec.entryId
+              }; stopped ok`,
+            );
+            expect(rowLineOf({
+              position: 0,
+              total: 2,
+              pair: {
+                cardId: LOW_CARD,
+                trial: TRIAL,
+              },
+              reading,
+              stops: ['refused', 'ok',],
+            },).endsWith(`; entry ${TRIAL.spec.entryId}; stopped refused+ok`,),).toBe(true,);
           },
         },),
       ],
