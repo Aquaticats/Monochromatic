@@ -92,7 +92,7 @@ await describe({
          The same in a block quote.
          */
         const quoted = '> [a]: u\n> [ https://example.net/a\n> ---\n';
-        const quote = parseMdxBody({ body: quoted, },).children[0];
+        const [quote,] = parseMdxBody({ body: quoted, },).children;
         const inner = (quote !== undefined) && ('children' in quote)
           ? quote.children.find(function isHeading({ type, },): boolean {
             return type === 'heading';
