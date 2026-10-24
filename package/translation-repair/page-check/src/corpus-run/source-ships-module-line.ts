@@ -20,12 +20,12 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // it names are the lines the page holds.
 //
 // A LINE INSIDE A CODE SPAN OR INLINE MATH IS JOINED TO THE LINE BEFORE IT, NOT WRITTEN AS A REFERENCE. The plain
-// reading keeps a span across a line of invisible characters, which the strict grammar blanks and so ends the paragraph
-// at; a character reference written inside the span shows as its characters. A line ending inside a span reads as a
-// space, so replacing the line ending before the module word with a space shows the same, and the line before it is no
-// longer blank to the strict grammar, which then reads the span as the plain reading does. Joining and writing can
-// change what the next reading finds, so the reading is repeated until it finds no line; each pass removes the lines it
-// found and makes none, so it ends.
+// reading keeps a span across a line of invisible characters, which the mask of `parseDocument` blanks before the
+// strict parse and so ends the paragraph at; a character reference written inside the span shows as its characters. A
+// line ending inside a span reads as a space, so replacing the line ending before the module word with a space shows
+// the same, and the line before it is no longer blank to the strict grammar, which then reads the span as the plain
+// reading does. Joining and writing can change what the next reading finds, so the reading is repeated until it finds
+// no line; each pass removes the lines it found and makes none, so it ends.
 
 /**
  Finds the code spans and the inline math of a text, as the plain reading with the site's math reads them.

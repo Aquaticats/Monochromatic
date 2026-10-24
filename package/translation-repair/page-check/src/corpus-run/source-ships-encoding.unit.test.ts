@@ -1027,6 +1027,27 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'LEAVES THE BRACES OF A DEFINITION LINE LIVE ON THE PAGE WHEN A TAG STANDS ALONE ON A LINE BETWEEN A '
+            + 'FOOTNOTE AND IT (a limit the module comment names): the original reads the tag as a block that ends the '
+            + 'footnote, and the page, which writes the tag as text, goes on with the paragraph',
+          fn: async () => {
+            /**
+             A footnote, a tag alone on the next line, then a line the plain parse reads as a definition.
+             */
+            const text = '[^1]: x\n<a href="x">\n[r]: u{b}\n';
+            /**
+             What the encoder writes for it: the brace of the definition line is not escaped.
+             */
+            const written = '[^1]: x\n\\<a href="x">\n[r]: u{b}\n';
+            expect(encoded({ text, },),).toBe(written,);
+            expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            expect(function readsThePage(): string {
+              return readerOfPage({ carried: written, },);
+            },).toThrow('mdxTextExpression',);
+          },
+        },),
+
+        it({
           name: 'KEEPS THE LINE ENDINGS OF A CARRIAGE-RETURN TEXT, a closing fence among them',
           fn: async () => {
             expect(encoded({ text: '```\r\n{a}\r\n```\r\n{b}\r\n', },),).toBe('```\r\n{a}\r\n```\r\n\\{b\\}\r\n',);

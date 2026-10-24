@@ -89,22 +89,34 @@ import {
 // every other rewrite made (`document-structure/src/module-line-starts.ts`).
 //
 // LIMITS, kept because the composition in `source-ships-compose.ts` ends in shipping the page without the original for
-// a text this does not make parse. A seeded search of forty thousand pairs of runs built from a pool of fragments, run
-// with two seeds, took step 3 for 5009 and 4920 pairs; 4969 and 4882 of them hold a run nested past the bound the plain
-// reading keeps (the 300-deep case in `source-shipped-page.unit.test.ts` pins it), which the pool holds on purpose. The
-// rest, 40 and 38 pairs, are one limit, which is structural: a `$$` flow or a fence that one run opens and no line of
-// the run closes, and a later run closes, with the English between them falling inside it and a tag after the closing
-// line (each run of those pairs parses alone; a byte order mark before a fence mark makes the run read as text and
-// leaves a later fence of the same run open). The grammar leaves such a flow open to the end of the page
-// (`micromark-extension-math@3.1.0`, `lib/math-flow.js`, `beforeContentChunk`: at the end of the input the flow ends
-// with the document; `micromark-core-commonmark@2.0.4`, `lib/code-fenced.js`, the same for a fence), where a reader of
-// the run alone sees it end with the run, and closing it would add a line the original does not hold. The fence case in
-// `source-shipped-page.unit.test.ts` pins the behaviour. The other structural limit is nesting past the bound of 256
-// (`NESTING_BOUND` in `markup/src/nesting-bound.ts`, which refuses such a text before any parser reads it, and
-// `withMdxExhaustionRefused` in `document-structure/src/parse-mdx.ts`, which answers a parse that ran out of stack as
-// the same refusal); no writing of the text makes the grammar accept what it refuses by depth. Step 2 was taken for 402
-// and 407 pairs, all but three of each a nested one, and made the page parse for none and for 1 (a pair of `$$` flows).
-// This pool is larger than the one of the earlier rounds, so these counts are not theirs.
+// a text this does not make parse. The step search
+// (`doc/audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md` records its heads and counts) builds
+// forty thousand pairs of runs from a pool of fragments; run with the seeds 31415926 and 27182818 it took step 3 for
+// 4923 and 5115 pairs. A run nested past the bound the plain reading keeps (the 300-deep case in
+// `source-shipped-page.unit.test.ts` pins it, and the pool holds it on purpose) is in 4876 and 5070 of them. The rest,
+// 47 and 45 pairs, are not nested, and for 44 and 40 of them the cause is one limit, which is structural: a `$$` flow
+// or a fence that one run opens and no line of the run closes, and a later run closes, with the English between them
+// falling inside it and a tag after the closing line (each run of those pairs parses alone). The grammar leaves such a
+// flow open to the end of the page (`micromark-extension-math@3.1.0`, `lib/math-flow.js`, `beforeContentChunk`: at the
+// end of the input the flow ends with the document; `micromark-core-commonmark@2.0.4`, `lib/code-fenced.js`, the same
+// for a fence), where a reader of the run alone sees it end with the run, and closing it would add a line the original
+// does not hold. The fence case in `source-shipped-page.unit.test.ts` pins the behaviour. The other structural limit is
+// nesting past the bound of 256 (`NESTING_BOUND` in `markup/src/nesting-bound.ts`, which refuses such a text before any
+// parser reads it, and `withMdxExhaustionRefused` in `document-structure/src/parse-mdx.ts`, which answers a parse that
+// ran out of stack as the same refusal); no writing of the text makes the grammar accept what it refuses by depth. Step
+// 2 was taken for 383 and 412 pairs, all but 6 and 2 of each a nested one, and made the page parse for none. The pairs
+// the classification of the search leaves unexplained are 3 and 5, and each of them is one of two limits named here: a
+// tag alone on a line after a footnote's paragraph (3 and 3), and a byte order mark before a fence mark (0 and 2; the
+// same pairs with the marks removed take step 1 alone). These counts are what two seeds measured on one pool; they say
+// nothing of a shape the pool does not hold.
+//
+// A TAG ALONE ON A LINE BETWEEN A FOOTNOTE'S PARAGRAPH AND A DEFINITION LINE IS A LIMIT. The parse of the original
+// reads such a tag as a raw HTML block, which ends the footnote's paragraph, so a line after it that reads as a link
+// reference definition is a definition (and the encoder writes its braces as it writes any definition's). The page
+// writes the tag as text, so that line is a lazy line of the footnote's paragraph, and its braces stay live: the page
+// parses and holds an expression the source reader hides (`source-ships-encoding.unit.test.ts` pins the text). A parse
+// of the original with each tag read as a letter gave the page's structure for this shape and moved other footnote
+// texts the other way (96 of the generated footnote texts went from equal to unequal), so the reading is not changed.
 //
 // Smaller limits. A footnote definition indented four spaces or more inside a paragraph is a definition to MDX and a
 // line of the paragraph to a reader of CommonMark with GFM (the indented code that would cap it is off in MDX): the
@@ -116,14 +128,14 @@ import {
 // reference wherever it stands, inside code too, where it shows as written. A fence indented under a footnote
 // definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
 // takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
-// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A footnote definition that
-// starts on a later line of a paragraph keeps the same limit when the fence under it never closes. An angle autolink
-// inside the alternative text of an image is written with a backslash before its less-than sign, as any text is, and
-// the page shows the brackets there: the alternative text of an image is a string to the plain parse, which holds no
-// autolink node to write as its address (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at
-// every pipe, so an angle autolink that holds one is written as text there, as the source reads it; a bare address that
-// a pipe ends, and an angle autolink holding a pipe written with a backslash, are not cut the same way, and the page
-// shows one link across the cells (`source-ships-encoding.unit.test.ts` pins both).
+// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark before a
+// fence mark makes the plain parse read the run as text and leaves a later fence of the same run open to the strict
+// grammar. An angle autolink inside the alternative text of an image is written with a backslash before its less-than
+// sign, as any text is, and the page shows the brackets there: the alternative text of an image is a string to the
+// plain parse, which holds no autolink node to write as its address (`source-ships-encoding.unit.test.ts` pins the
+// case). A table cuts a cell at every pipe, so an angle autolink that holds one is written as text there, as the source
+// reads it; a bare address that a pipe ends, and an angle autolink holding a pipe written with a backslash, are not cut
+// the same way, and the page shows one link across the cells (`source-ships-encoding.unit.test.ts` pins both).
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
