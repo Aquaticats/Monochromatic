@@ -14,7 +14,11 @@
  @module
  */
 
-import { setTimeout as sleepFor, } from 'node:timers/promises';
+import { createHook, } from 'node:async_hooks';
+import {
+  setImmediate as nextTurn,
+  setTimeout as sleepFor,
+} from 'node:timers/promises';
 
 import {
   describe,
@@ -50,11 +54,17 @@ const SHORT_HANG_STOP_MS = 200;
 const HUNG_RIG_BOUND_MS = 5_000;
 
 /**
+ A hang stop no other timer of the process is given, so the timers a walk made are told from the harness's own.
+ */
+const DISTINCT_HANG_STOP_MS = 61_234;
+
+/**
  Walks one nap on the fake clock.
 
  @param sinon - case's own sandbox
  @param nap - how the walk waits, given the signal that ends it early
  @param ticks - fake milliseconds to advance, one step after another
+ @param hangStopMs - real milliseconds the rig's waits for the walk give up after, the rig's own figure where absent
 
  @returns Whether the nap ended by itself
 
@@ -72,10 +82,12 @@ async function napWalk(
     sinon,
     nap,
     ticks,
+    hangStopMs,
   }: {
     readonly sinon: Parameters<typeof walkOnFakeClock>[0]['sinon'];
     readonly nap: (signal: AbortSignal,) => Promise<unknown>;
     readonly ticks: readonly number[];
+    readonly hangStopMs?: number;
   },
 ): Promise<boolean> {
   /**
@@ -99,26 +111,102 @@ async function napWalk(
     ticks,
     cutCount: () => 0,
     waitForEnd: false,
+    ...(hangStopMs === undefined ? {} : { hangStopMs, }),
   },);
   return walk.endedByItself;
 }
 
 /**
- How many real timers are live in the process now, which is what keeps a process from exiting after its work is done.
+ Whether a timer object, as the process's async hooks hand it over, was made with a wait figure.
 
- @returns Count of live timers, the ones faked by a sandbox's clock not among them
+ @param resource - object an async hook was given for a resource of type `Timeout`
+ @param figure - wait in milliseconds asked about
+
+ @returns Whether the timer's wait is the figure
 
  @example
  ```ts
- const before = liveTimers();
+ const mine = hasWaitFigure({ resource, figure: 61_234, },); // true for a timer made with setTimeout(fn, 61_234)
  ```
  */
-function liveTimers(): number {
-  return process.getActiveResourcesInfo()
-    .filter(function isTimer(resource,): boolean {
-      return resource === 'Timeout';
-    },)
-    .length;
+function hasWaitFigure({ resource, figure, }: { readonly resource: object; readonly figure: number; },): boolean {
+  return ('_idleTimeout' in resource) && (resource._idleTimeout === figure);
+}
+
+/**
+ What a run did with the real timers made with one wait figure.
+ */
+type TimersOfFigure = {
+  /**
+   How many such timers the run made, which shows the watch could see them.
+   */
+  readonly made: number;
+
+  /**
+   How many of those were still live after the run returned and the process had turned once.
+   */
+  readonly live: number;
+};
+
+/**
+ Counts the real timers a run makes with one wait figure and how many of them outlive it. Only the timers the run made
+ are counted, so a timer of the harness that ends or starts meanwhile cannot hide a leak or fake one.
+
+ @param figure - wait in milliseconds that no timer outside the run is made with
+ @param run - work whose timers are counted
+
+ @returns Timers made with the figure, and those still live once the run has returned
+
+ @example
+ ```ts
+ const { live, } = await timersOfFigure({ figure: 61_234, run: async () => { await walk(); }, },);
+ ```
+ */
+async function timersOfFigure(
+  {
+    figure,
+    run,
+  }: {
+    readonly figure: number;
+    readonly run: () => Promise<void>;
+  },
+): Promise<TimersOfFigure> {
+  /**
+   Whether each timer made with the figure is live, by its async id.
+   */
+  const liveById = new Map<number, boolean>();
+
+  /**
+   Hooks that note each timer made with the figure and each end of one.
+   */
+  const watch = createHook({
+    init(id, type, _trigger, resource,): void {
+      if ((type === 'Timeout') && hasWaitFigure({ resource, figure, },))
+        liveById.set(
+          id,
+          true,
+        );
+    },
+    destroy(id,): void {
+      if (liveById.has(id,))
+        liveById.set(
+          id,
+          false,
+        );
+    },
+  },);
+  watch.enable();
+  /**
+   Stops the watch when the run is counted, however it ends.
+   */
+  using _watching = { [Symbol.dispose]: () => watch.disable(), };
+  await run();
+  // The destroy hook of an ended timer runs in a batch after the turn that ended it, so the process turns once.
+  await nextTurn();
+  return {
+    made: liveById.size,
+    live: [...liveById.values(),].filter(Boolean,).length,
+  };
 }
 
 await describe({
@@ -212,20 +300,27 @@ await describe({
         + 'minute after its last case',
       fn: async ctx => {
         /**
-         Real timers live before the walk.
+         The hang-stop timers the walk made, which carry a figure no other timer of the process does.
          */
-        const before = liveTimers();
-        await napWalk({
-          sinon: ctx.sinon,
-          nap: signal => sleepFor(
-            NAP_MS,
-            undefined,
-            { signal, },
-          ),
-          ticks: [PAST_NAP_MS,],
+        const hangStops = await timersOfFigure({
+          figure: DISTINCT_HANG_STOP_MS,
+          run: async () => {
+            await napWalk({
+              sinon: ctx.sinon,
+              nap: signal => sleepFor(
+                NAP_MS,
+                undefined,
+                { signal, },
+              ),
+              ticks: [PAST_NAP_MS,],
+              hangStopMs: DISTINCT_HANG_STOP_MS,
+            },);
+          },
         },);
 
-        expect(liveTimers(),).toBeLessThanOrEqual(before,);
+        // The walk races a hang stop before its first call and another after the release, so the watch saw both.
+        expect(hangStops.made,).toBeGreaterThan(0,);
+        expect(hangStops.live,).toBe(0,);
       },
     },),
 
