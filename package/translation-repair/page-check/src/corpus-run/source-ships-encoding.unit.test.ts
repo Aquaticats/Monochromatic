@@ -300,6 +300,22 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'an angle autolink without a pipe in a table cell',
     '| a | b |\n| - | - |\n| <https://example.net/a> | c |\n',
   ],
+  [
+    'a code span across a line of invisible characters, then a line that starts with import',
+    '`a\n\u200B\nimport x` b\n',
+  ],
+  [
+    'inline math across a line of invisible characters, then a line that starts with export',
+    '$a\n\u200B\nexport x$ b\n',
+  ],
+  [
+    'a code span across a line of a no-break space, then a line that starts with export',
+    '`a\n\u00A0\nexport to PDF` b\n',
+  ],
+  [
+    'a code span across a line of a byte order mark, then two lines that start with import',
+    '`a\n\uFEFF\nimport x\nimport y` b\n',
+  ],
 ];
 
 /**
