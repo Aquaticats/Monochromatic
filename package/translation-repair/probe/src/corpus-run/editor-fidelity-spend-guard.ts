@@ -104,18 +104,29 @@ export type GuardedClient = ModelClient & {
 
  @param maxUsd - amount from `--max-usd`
 
+ @param benchSpentUsd - amount from `--bench-spent-usd`, what the arms run before this one measured
+
  @returns The line, without a newline
 
  @example
  ```ts
- log.info(guardLine({ maxUsd: 2, },),);
+ log.info(guardLine({ maxUsd: 2, benchSpentUsd: 0, },),);
  ```
  */
-export function guardLine({ maxUsd, }: { readonly maxUsd: number; },): string {
-  return 'spend guard: each call is refused, and the arm ends, when the spend so far plus that call\'s ceiling would '
-    + `pass --max-usd ${usdText({ usd: maxUsd, },)}; the spend so far is every SPEND line the client wrote, the `
-    + 'attempts it abandoned included, and a call that throws, or a reply that reports no usage, is counted at its '
-    + 'ceiling';
+export function guardLine(
+  {
+    maxUsd,
+    benchSpentUsd,
+  }: {
+    readonly maxUsd: number;
+    readonly benchSpentUsd: number;
+  },
+): string {
+  return 'spend guard: each call, and each attempt the client makes inside it, is refused, and the arm ends, when the '
+    + `spend so far plus its ceiling would pass --max-usd ${usdText({ usd: maxUsd, },)}; the arms run before this one `
+    + `spent --bench-spent-usd ${usdText({ usd: benchSpentUsd, },)}; the spend so far is every SPEND line the client `
+    + 'wrote, the attempts it abandoned included, and a call whose last attempt wrote no line and threw, or a reply '
+    + 'that reports no usage, is counted at its ceiling';
 }
 
 /**

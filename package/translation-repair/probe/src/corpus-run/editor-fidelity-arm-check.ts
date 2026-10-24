@@ -60,7 +60,7 @@ export type ArmCheckReport = {
  const line = lineOfCheck({ scope: 'low', check: 'exit 0', answer, },);
  ```
  */
-function lineOfCheck({
+export function lineOfCheck({
   scope,
   check,
   answer,

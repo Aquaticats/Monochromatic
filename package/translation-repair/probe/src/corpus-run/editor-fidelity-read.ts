@@ -13,7 +13,7 @@ import {
 } from '@monochromatic-dev/translation-repair-run/ts';
 import { isWholeNumberText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
-import { checkEditorArms, } from './editor-fidelity-arm-check.ts';
+import { checkEditorBench, } from './editor-fidelity-arm-bench.ts';
 import type {
   ArmLog,
   ExitRecord,
@@ -167,7 +167,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-fidelity-r
   const {
     lines,
     failed,
-  } = checkEditorArms({ arms, },);
+  } = checkEditorBench({ arms, },);
   process.stdout
     .write(`${lines.join('\n',)}\nCHECKS ${String(lines.length - failed,)} pass, ${String(failed,)} fail\n`,);
   if (failed > 0) {

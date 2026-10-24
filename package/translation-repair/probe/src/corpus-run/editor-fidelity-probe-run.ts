@@ -11,8 +11,6 @@ import type {
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
@@ -27,12 +25,8 @@ import type {
 import { EDITOR_FIDELITY_POOL, } from '../editor-fidelity-pool-manifest.ts';
 import { editorFidelityTrials, } from '../editor-fidelity-trials.ts';
 import { readEditorFidelityArguments, } from './editor-fidelity-args.ts';
+import { editorCeilings, } from './editor-fidelity-ceiling.ts';
 import {
-  ceilingLine,
-  editorCeilings,
-} from './editor-fidelity-ceiling.ts';
-import {
-  editorDecisionRuleLine,
   editorFidelityPlan,
   type EditorFidelityRow,
   editorFidelityRow,
@@ -42,11 +36,13 @@ import {
   editorPreflightLine,
 } from './editor-fidelity-plan.ts';
 import {
-  guardLine,
+  manifestDigest,
+  openingLines,
+} from './editor-fidelity-opening.ts';
+import {
   guardTotalLine,
   spendGuardedClient,
 } from './editor-fidelity-spend-guard.ts';
-import { poolLine, } from './editor-fidelity-pool-line.ts';
 import { runEditorTrial, } from './editor-fidelity-trial.ts';
 import {
   pairName,
@@ -173,6 +169,7 @@ export async function runEditorFidelityProbe(
     cap,
     damageKinds,
     maxUsd,
+    benchSpentUsd,
   } = readEditorFidelityArguments({ line, },);
   /**
    Cards seated, each alone, checked before anything is read.
@@ -218,14 +215,6 @@ export async function runEditorFidelityProbe(
     references,
     damageKinds,
   },);
-  log.info(`manifest: ${String(specs.length,)} ${
-    wordForCount({
-      count: specs.length,
-      one: 'specification',
-      many: 'specifications',
-    },)
-  }, digest ${hashContent({ content: JSON.stringify(specs,), },)}`,);
-  log.info(poolLine({ trials, },),);
   /**
    Leading trials within the cap, counted in attempts for each card.
    */
@@ -248,10 +237,14 @@ export async function runEditorFidelityProbe(
       return sheetCharsOf({ trial, },);
     },),
   },);
-  for (const ceiling of ceilings)
-    log.info(ceilingLine({ ceiling, },),);
-  log.info(guardLine({ maxUsd, },),);
-  log.info(editorDecisionRuleLine(),);
+  for (const said of openingLines({
+    specs,
+    trials,
+    ceilings,
+    maxUsd,
+    benchSpentUsd,
+  },))
+    log.info(said,);
 
   /**
    Operator-selected output root; calibration callers use a disposable directory.
@@ -300,7 +293,7 @@ export async function runEditorFidelityProbe(
     startedAt,
     pipelineDigest,
     runnerClosure,
-    referenceManifestDigest: hashContent({ content: JSON.stringify(specs,), },),
+    referenceManifestDigest: manifestDigest({ specs, },),
     specs,
     cardIds,
     trials,

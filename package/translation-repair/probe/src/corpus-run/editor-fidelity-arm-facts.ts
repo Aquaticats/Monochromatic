@@ -289,6 +289,11 @@ export type ArmFacts = {
   readonly maxUsd: number;
 
   /**
+   Spend of the earlier arms the guard line says the arm was told, minus one when there is none.
+   */
+  readonly benchSpentUsd: number;
+
+  /**
    Digest the manifest line says, empty when there is none.
    */
   readonly digest: string;
@@ -346,6 +351,13 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
         marker: 'spend guard: ',
       },),
       marker: '--max-usd ',
+    },),
+    benchSpentUsd: numberAfter({
+      text: firstStarting({
+        bodies,
+        marker: 'spend guard: ',
+      },),
+      marker: '--bench-spent-usd ',
     },),
     digest: wordAfter({
       text: firstStarting({

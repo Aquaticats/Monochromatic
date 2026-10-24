@@ -37,6 +37,11 @@ export {
   type EntryPages,
   type PoolDraw,
 } from './corpus-run/editor-fidelity-pool-selection.ts';
+export {
+  manifestDigest,
+  manifestLine,
+  openingLines,
+} from './corpus-run/editor-fidelity-opening.ts';
 export { poolLine, } from './corpus-run/editor-fidelity-pool-line.ts';
 export {
   type Section,
@@ -63,6 +68,7 @@ export {
   seatAnswer,
   spendAnswer,
 } from './corpus-run/editor-fidelity-arm-answers.ts';
+export { checkEditorBench, } from './corpus-run/editor-fidelity-arm-bench.ts';
 export {
   type ArmCheckReport,
   checkEditorArms,

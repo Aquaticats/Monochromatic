@@ -168,7 +168,8 @@ function refuseOverBench(
  what the earlier arms of the bench measured
 
  @throws StatedRefusalError when a cap is not a whole number written in digits or is below zero, an amount is not a
- plain decimal, a defect is one this probe does not build, or the amounts together pass the bench total
+ plain decimal, a defect is one this probe does not build, `--bench-spent-usd` is not written, or the amounts together
+ pass the bench total
 
  @example
  ```ts
@@ -196,10 +197,22 @@ export function readEditorFidelityArguments(
     unwritten: DEFAULT_EDITOR_MAX_USD,
   },);
   /**
-   What the earlier arms of the bench measured, none when this is the first.
+   What the line says of the spend of the earlier arms.
+   */
+  const benchSpentAsked = line.flag('bench-spent-usd',);
+  // NO DEFAULT: an arm that is not told what the earlier arms spent would hold the bench to a total it cannot see, and a
+  // default of zero would let a later arm be launched without it. The first arm writes zero.
+  if (benchSpentAsked.kind === 'unwritten') {
+    throw new StatedRefusalError({
+      says: '--bench-spent-usd is required: write what the arms already run measured (the sum of their GUARD total= '
+        + 'lines, rounded up to the cent), or 0 for the first arm of a bench',
+    },);
+  }
+  /**
+   What the earlier arms of the bench measured, zero for the first.
    */
   const benchSpentUsd = usdFlag({
-    asked: line.flag('bench-spent-usd',),
+    asked: benchSpentAsked,
     unwritten: 0,
   },);
   refuseOverBench({

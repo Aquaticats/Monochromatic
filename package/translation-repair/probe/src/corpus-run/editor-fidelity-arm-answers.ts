@@ -213,7 +213,7 @@ export function ceilingAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
 
  @param facts - the arm's facts
 
- @returns Whether a guard line naming the cap was logged
+ @returns Whether a guard line naming the cap and the spend of the earlier arms was logged
 
  @example
  ```ts
@@ -221,14 +221,22 @@ export function ceilingAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
  ```
  */
 export function guardAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
-  return (facts.maxUsd < 0)
-    ? {
+  if (facts.maxUsd < 0) {
+    return {
       ok: false,
       detail: 'no guard line was logged',
+    };
+  }
+  return (facts.benchSpentUsd < 0)
+    ? {
+      ok: false,
+      detail: 'the guard line states no --bench-spent-usd',
     }
     : {
       ok: true,
-      detail: `held to --max-usd ${String(facts.maxUsd,)} USD`,
+      detail: `held to --max-usd ${String(facts.maxUsd,)} USD after ${
+        String(facts.benchSpentUsd,)
+      } USD spent by the arms before it`,
     };
 }
 
