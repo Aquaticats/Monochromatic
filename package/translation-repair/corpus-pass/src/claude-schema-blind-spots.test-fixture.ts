@@ -42,7 +42,7 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 /**
  The shapes the check reports, each as the name a report gives it.
  */
-export type BlindShape =
+type BlindShape =
   | 'builder-in-typescript-value-construct'
     | 'builder-outside-a-read-position'
     | 'builder-result-returned-outside-a-wrapper'

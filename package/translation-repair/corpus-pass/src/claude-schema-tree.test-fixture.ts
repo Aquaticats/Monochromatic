@@ -677,7 +677,7 @@ export function pathOf({ node, }: { readonly node: unknown; },): readonly string
  const skipped = isFunctionVisit({ node: fn, parent: NO_NODE, grandparent: NO_NODE, field: '', },);
  ```
  */
-export function isFunctionVisit({ node, }: Visit,): boolean {
+function isFunctionVisit({ node, }: Visit,): boolean {
   return isFunctionNode({ node, },);
 }
 
@@ -735,7 +735,7 @@ function returnedExpressionsOf({ fn, }: { readonly fn: TreeNode; },): readonly T
  const call = withoutAwait({ node: returned, },);
  ```
  */
-export function withoutAwait({ node, }: { readonly node: TreeNode; },): unknown {
+function withoutAwait({ node, }: { readonly node: TreeNode; },): unknown {
   /**
    The expression without type marks, parentheses and an optional chain.
    */

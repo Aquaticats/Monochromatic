@@ -4,14 +4,16 @@ import {
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import { chainShapesAt, } from './claude-schema-blind-chains.test-fixture.ts';
-import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
-import { referenceVisitsUnder, } from './claude-schema-reference.test-fixture.ts';
+import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
+import {
+  isPureTypeVisit,
+  referenceVisitsUnder,
+} from './claude-schema-reference.test-fixture.ts';
 import {
   holdsFormatValue,
   isFunctionNode,
-  isTypeNode,
   type Visit,
 } from './claude-schema-tree.test-fixture.ts';
 
@@ -19,38 +21,6 @@ import {
 // The part of the check behind the search (`claude-schema-blind-spots.test-fixture.ts`) that needs to know which names
 // are builders and which modules carry one: every chain of names in the file that stands for either, read where the
 // search reads it or reported, and a function that holds a format and that no declared function holds.
-
-/**
- The kinds of node that start with `TS` and hold a value the program uses, which are no type: a namespace, an enum, a
- parameter property, an export assignment and the two forms of import-equals.
- */
-const VALUE_HOLDING_TS_KINDS: ReadonlySet<string> = new Set([
-  'TSEnumBody',
-  'TSEnumDeclaration',
-  'TSEnumMember',
-  'TSExportAssignment',
-  'TSExternalModuleReference',
-  'TSImportEqualsDeclaration',
-  'TSModuleBlock',
-  'TSModuleDeclaration',
-  'TSParameterProperty',
-],);
-
-/**
- Whether a visit is of a type that holds no value, which the walk of a file's chains leaves out.
-
- @param node - node visited
-
- @returns Whether the node is a type or part of one, and not a construct that holds values
-
- @example
- ```ts
- const skipped = isPureTypeVisit({ node, parent: NO_NODE, grandparent: NO_NODE, field: '', },);
- ```
- */
-function isPureTypeVisit({ node, }: Visit,): boolean {
-  return isTypeNode({ node, },) && (!VALUE_HOLDING_TS_KINDS.has(node.type,));
-}
 
 /**
  The chains of names a file writes where a value sits, with the node that holds each; the namespaces, enums and

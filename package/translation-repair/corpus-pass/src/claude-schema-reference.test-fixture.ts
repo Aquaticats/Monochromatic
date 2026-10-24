@@ -90,13 +90,17 @@ function namesValueUnder({ visit, }: { readonly visit: Visit; },): boolean {
 }
 
 /**
- The kinds of node that start with `TS` and hold values: a namespace, an enum and a parameter property. The search
- leaves them out with the types, and the check behind it reads what they hold.
+ The kinds of node that start with `TS` and hold a value the program uses, which are no type: a namespace, an enum, a
+ parameter property, an export assignment and the two forms of import-equals. The search leaves them out with the types,
+ and the check behind it reads what they hold.
  */
 const VALUE_HOLDING_TS_KINDS: ReadonlySet<string> = new Set([
   'TSEnumBody',
   'TSEnumDeclaration',
   'TSEnumMember',
+  'TSExportAssignment',
+  'TSExternalModuleReference',
+  'TSImportEqualsDeclaration',
   'TSModuleBlock',
   'TSModuleDeclaration',
   'TSParameterProperty',
@@ -151,7 +155,7 @@ function isTypeVisit({ node, }: Visit,): boolean {
  const skipped = isPureTypeVisit({ node: reference, parent: NO_NODE, grandparent: NO_NODE, field: '', },);
  ```
  */
-function isPureTypeVisit({ node, }: Visit,): boolean {
+export function isPureTypeVisit({ node, }: Visit,): boolean {
   return isTypeNode({ node, },) && (!VALUE_HOLDING_TS_KINDS.has(node.type,));
 }
 
@@ -174,28 +178,6 @@ export function referencesIn({ root, }: { readonly root: TreeNode; },): readonly
   return referencesUnder({
     root,
     skips: isTypeVisit,
-  },);
-}
-
-/**
- The names the code inside a namespace, an enum or a parameter property refers to as values, which `referencesIn` leaves
- out with the types.
-
- @param root - namespace, the enum or the parameter property
-
- @returns One path per reference
-
- @example
- ```ts
- const references = typeScriptValueReferencesIn({ root: namespaceDeclaration, },);
- ```
- */
-export function typeScriptValueReferencesIn(
-  { root, }: { readonly root: TreeNode; },
-): readonly (readonly string[])[] {
-  return referencesUnder({
-    root,
-    skips: isPureTypeVisit,
   },);
 }
 

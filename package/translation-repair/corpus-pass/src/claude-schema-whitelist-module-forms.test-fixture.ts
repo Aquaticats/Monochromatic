@@ -209,7 +209,8 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'LEAVES UNREAD A BUILDER INSIDE A NAMESPACE, AN ENUM INITIALIZER, A PARAMETER PROPERTY OR AN EXPORT '
-      + 'ASSIGNMENT, which the search leaves out with the types, and the check reports each',
+      + 'ASSIGNMENT, OR BROUGHT IN BY AN IMPORT-EQUALS DECLARATION, which the search leaves out with the types, and '
+      + 'the check reports each',
     files: [
       {
         file: 'imaginary/src/construct-stage.ts',
@@ -229,6 +230,16 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
           '}',
           '',
           'export = contestResponseFormat;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/equals-stage.ts',
+        text: textOf([
+          `import * as contest from '${CONTEST_SPECIFIER}';`,
+          '',
+          'import made = contest.contestResponseFormat;',
+          '',
+          `export const CALLED = made(${ARGUMENTS},);`,
         ],),
       },
     ],
@@ -258,6 +269,12 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
         line: 15,
         shape: 'builder-in-typescript-value-construct',
         position: 'TSExportAssignment',
+      },
+      {
+        file: 'imaginary/src/equals-stage.ts',
+        line: 3,
+        shape: 'builder-in-typescript-value-construct',
+        position: 'TSImportEqualsDeclaration',
       },
     ],
   },
