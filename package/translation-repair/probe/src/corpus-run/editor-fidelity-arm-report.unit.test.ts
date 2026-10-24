@@ -155,7 +155,7 @@ await describe({
         + 'many were left out as thrown or not completed by every arm',
       fn: async () => {
         expect(benchReportLines({ arms: BENCH, },),).toContain(
-          'SHARED 44 trials over 22 entries (high completed 44, medium completed 44, low completed 44; 0 left out as '
+          'SHARED 44 units over 22 entries (high completed 44, medium completed 44, low completed 44; 0 left out as '
             + 'thrown, 0 not completed by every arm)',
         );
       },
@@ -206,7 +206,7 @@ await describe({
           return line.startsWith('PAIRED high vs medium: ',);
         },),).toContain('+47.7 points',);
         expect(lines,).toContain(
-          'SHARED 44 trials over 22 entries (high completed 44, medium completed 44, low completed 44; 0 left out as '
+          'SHARED 44 units over 22 entries (high completed 44, medium completed 44, low completed 44; 0 left out as '
             + 'thrown, 0 not completed by every arm)',
         );
       },
@@ -226,12 +226,12 @@ await describe({
         },);
         const lines = benchReportLines({ arms: [BENCH[0] as ArmLog, threw, BENCH[2] as ArmLog,], },);
         expect(lines,).toContain(
-          'SHARED 43 trials over 22 entries (high completed 44, medium completed 44, low completed 44; 1 left out as '
+          'SHARED 43 units over 22 entries (high completed 44, medium completed 44, low completed 44; 1 left out as '
             + 'thrown, 0 not completed by every arm)',
         );
         expect(lines.find(function isHigh(line,): boolean {
           return line.startsWith('PAIRED high vs medium: ',);
-        },),).toContain('43 shared trials',);
+        },),).toContain('43 shared units',);
       },
     },),
 
@@ -314,7 +314,7 @@ await describe({
           guardUsd: 0.5,
         },);
         expect(benchReportLines({ arms: [BENCH[0] as ArmLog, BENCH[1] as ArmLog, capped,], },),).toContain(
-          'SHARED 42 trials over 21 entries (high completed 44, medium completed 44, low completed 42; 0 left out as '
+          'SHARED 42 units over 21 entries (high completed 44, medium completed 44, low completed 42; 0 left out as '
             + 'thrown, 2 not completed by every arm)',
         );
       },
@@ -330,7 +330,7 @@ await describe({
           return line.startsWith('PAIRED low vs medium: +0.0 points',);
         },),).toBe(true,);
         expect(lines.some(function isKinds(line,): boolean {
-          return line.startsWith('KINDS high vs medium (secondary, no veto): insertion +0.0 points over 22 trials, alteration +100.0 points over 22 trials',);
+          return line.startsWith('KINDS high vs medium (secondary, no veto): insertion +0.0 points over 22 units, alteration +100.0 points over 22 units',);
         },),).toBe(true,);
       },
     },),

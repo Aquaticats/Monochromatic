@@ -36,7 +36,7 @@ import {
 /**
  Trials the first arm of a good bench completes.
  */
-const FIRST_ARM_TRIALS = 44;
+const FIRST_ARM_TRIALS = 64;
 
 /**
  The rows of a good arm: the leading trials, every other one a clean fix, all asks ok.
@@ -152,7 +152,7 @@ const FOUR_ARM_BENCH: readonly ArmLog[] = [
 
  @example
  ```ts
- const line = lineFor({ lines, scope: 'bench', check: 'shared trials', },);
+ const line = lineFor({ lines, scope: 'bench', check: 'shared units', },);
  ```
  */
 function lineFor(
@@ -194,11 +194,11 @@ await describe({
           'PASS low: earlier spend declared: --bench-spent-usd 4 covers the 4.000000 USD the arms before it counted',
         );
         expect(lineFor({ lines, scope: 'low', check: 'trials in the first arm\'s order', },),).toBe(
-          'PASS low: trials in the first arm\'s order: the 44 trials it walked are the first 44 of high\'s',
+          'PASS low: trials in the first arm\'s order: the 64 trials it walked are the first 64 of high\'s',
         );
-        expect(lineFor({ lines, scope: 'bench', check: 'shared trials', },),).toBe(
-          'PASS bench: shared trials: 44 shared trials over 22 entries, 0 left out as thrown and 0 not completed by '
-            + 'every arm, at least the 40 the rule needs',
+        expect(lineFor({ lines, scope: 'bench', check: 'shared units', },),).toBe(
+          'PASS bench: shared units: 64 shared units over 32 entries, 0 left out as thrown and 0 not completed by '
+            + 'every arm, at least the 60 the rule needs',
         );
       },
     },),
@@ -382,7 +382,7 @@ await describe({
           scope: 'low',
           check: 'trials in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: it walked 46 trials and high completed 44',
+          'FAIL low: trials in the first arm\'s order: it walked 66 trials and high completed 64',
         );
       },
     },),
@@ -412,7 +412,7 @@ await describe({
           },).lines,
           scope: 'low',
           check: 'trials in the first arm\'s order',
-        },),).toBe('PASS low: trials in the first arm\'s order: the 88 trials it walked are the first 88 of high\'s',);
+        },),).toBe('PASS low: trials in the first arm\'s order: the 128 trials it walked are the first 128 of high\'s',);
         expect(lineFor({
           lines: checkEditorBench({
             arms: [
@@ -429,23 +429,23 @@ await describe({
           scope: 'low',
           check: 'trials in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: row 45 walked cat-0-s0/insertion where high walked '
+          'FAIL low: trials in the first arm\'s order: row 65 walked cat-0-s0/insertion where high walked '
             + 'cat-0-s0/insertion (pass 2)',
         );
       },
     },),
 
     it({
-      name: 'FAILS THE SHARED-TRIALS CHECK when fewer than forty trials remain shared by every arm, and says how many were '
-        + 'left out as thrown and how many an arm did not complete; passes at forty-one with three thrown',
+      name: 'FAILS THE SHARED-UNITS CHECK when fewer than sixty units remain shared by every arm, and says how many were '
+        + 'left out as thrown and how many an arm did not complete; passes at sixty-one with three thrown',
       fn: async () => {
         /**
-         The low arm capped after thirty-nine trials.
+         The low arm capped after fifty-nine trials.
          */
         const capped = armOf({
           arm: 'low',
           cardId: LOW_CARD,
-          rows: GOOD_ROWS.slice(0, 39,),
+          rows: GOOD_ROWS.slice(0, 59,),
           declaredUsd: 4,
           countedUsd: 0.875,
           capped: true,
@@ -453,28 +453,70 @@ await describe({
         expect(lineFor({
           lines: checkEditorBench({ arms: [GOOD_BENCH[0] as ArmLog, GOOD_BENCH[1] as ArmLog, capped,], },).lines,
           scope: 'bench',
-          check: 'shared trials',
+          check: 'shared units',
         },),).toBe(
-          'FAIL bench: shared trials: 39 shared trials remain of the 44 the first arm completed (0 left out as thrown, 5 not completed by every arm), under the 40 the rule needs',
+          'FAIL bench: shared units: 59 shared units remain of the 64 the first arm completed (0 left out as thrown, 5 not completed by every arm), under the 60 the rule needs',
         );
         expect(lineFor({
           lines: checkEditorBench({
             arms: [GOOD_BENCH[0] as ArmLog, mediumThrowing({ count: 3, },), GOOD_BENCH[2] as ArmLog,],
           },).lines,
           scope: 'bench',
-          check: 'shared trials',
+          check: 'shared units',
         },),).toBe(
-          'PASS bench: shared trials: 41 shared trials over 21 entries, 3 left out as thrown and 0 not completed by every arm, at least the 40 the rule needs',
+          'PASS bench: shared units: 61 shared units over 31 entries, 3 left out as thrown and 0 not completed by every arm, at least the 60 the rule needs',
         );
         expect(lineFor({
           lines: checkEditorBench({
             arms: [GOOD_BENCH[0] as ArmLog, mediumThrowing({ count: 5, },), GOOD_BENCH[2] as ArmLog,],
           },).lines,
           scope: 'bench',
-          check: 'shared trials',
+          check: 'shared units',
         },).startsWith(
-          'FAIL bench: shared trials: 39 shared trials remain of the 44 the first arm completed (5 left out as thrown, 0 not completed by every arm)',
+          'FAIL bench: shared units: 59 shared units remain of the 64 the first arm completed (5 left out as thrown, 0 not completed by every arm)',
         ),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'COUNTS UNITS, NOT TRIALS, AGAINST THE FLOOR: two passes over thirty trials are sixty units and pass it, '
+        + 'where one pass over the same thirty trials is thirty units and fails it',
+      fn: async () => {
+        /**
+         Thirty trials, fifteen entries.
+         */
+        const thirty = poolRows({
+          count: 30,
+          fixed: function everyOther(index,): boolean {
+            return (index % 2) === 0;
+          },
+        });
+        /**
+         Both passes over them.
+         */
+        const both: readonly RowSpec[] = [...thirty, ...inPass({ rows: thirty, pass: 2, },),];
+        /**
+         A bench of three arms over the given rows.
+         */
+        const benchOver = (rows: readonly RowSpec[],): readonly ArmLog[] => [
+          armOf({ arm: 'high', cardId: HIGH_CARD, rows, declaredUsd: 0, countedUsd: 2.5, },),
+          armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows, declaredUsd: 2.5, countedUsd: 1.5, },),
+          armOf({ arm: 'low', cardId: LOW_CARD, rows, declaredUsd: 4, countedUsd: 0.875, },),
+        ];
+        expect(lineFor({
+          lines: checkEditorBench({ arms: benchOver(both,), },).lines,
+          scope: 'bench',
+          check: 'shared units',
+        },),).toBe(
+          'PASS bench: shared units: 60 shared units over 15 entries, 0 left out as thrown and 0 not completed by every arm, at least the 60 the rule needs',
+        );
+        expect(lineFor({
+          lines: checkEditorBench({ arms: benchOver(thirty,), },).lines,
+          scope: 'bench',
+          check: 'shared units',
+        },),).toBe(
+          'FAIL bench: shared units: 30 shared units remain of the 30 the first arm completed (0 left out as thrown, 0 not completed by every arm), under the 60 the rule needs',
+        );
       },
     },),
 

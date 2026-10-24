@@ -113,11 +113,11 @@ await describe({
       children: [
         it({
           name: 'FIX THE LEVEL AT 0.025 FOR EACH EFFORT, the interval at 95 percent over ten thousand resamples, and the '
-            + 'least shared trials at forty, the figures the printed rule states',
+            + 'least shared units at sixty, the figures the printed rule states',
           fn: async () => {
             expect(ALPHA,).toBe(0.025,);
             expect(BOOTSTRAP_REPLICATES,).toBe(10_000,);
-            expect(MIN_SHARED_TRIALS,).toBe(40,);
+            expect(MIN_SHARED_TRIALS,).toBe(60,);
           },
         },),
       ],
@@ -141,12 +141,18 @@ await describe({
             expect(rule,).toContain('A medium verdict means no effort was shown better than medium, not that the others are as good',);
             expect(rule,).toContain('95 percent interval from a seeded bootstrap over entries',);
             expect(rule,).toContain(BOOTSTRAP_SEED,);
-            expect(rule,).toContain('fewer than 40 shared trials',);
+            expect(rule,).toContain('fewer than 60 shared units',);
+            expect(rule,).toContain('a unit is a trial in one pass over the pool',);
+            expect(rule,).toContain('a trial asked again joins the cluster of its entry',);
+            expect(rule,).toContain('seed edr7-sim',);
+            expect(rule,).toContain('an agreement of a repeat with the arm\'s first answer from 0 to 1',);
             expect(rule,).toContain('scores as unusable for its arm',);
             expect(rule,).toContain('left out of every arm\'s comparison and counted',);
             expect(rule,).toContain('insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim',);
             expect(rule,).toContain('not the span-only view production gives an editor',);
-            expect(rule,).toContain('at most 0.047',);
+            expect(rule,).toContain('at most 0.055',);
+            expect(rule,).toContain('about 26 points when medium fixes half',);
+            expect(rule,).toContain('over 176 units (two passes) 25, 21 and 14 points where a repeat always gives the arm\'s first answer again',);
             expect(rule.includes('\n',),).toBe(false,);
           },
         },),
@@ -307,7 +313,7 @@ await describe({
             expect(verdict.high.kinds.alteration.estimate,).toBeCloseTo(-0.5, 10,);
             expect(verdict.high.kinds.insertion.trials,).toBe(60,);
             expect(verdict.lines.some(function isKinds(line,): boolean {
-              return line.startsWith('KINDS high vs medium (secondary, no veto): insertion +100.0 points over 60 trials, alteration -50.0 points over 60 trials',);
+              return line.startsWith('KINDS high vs medium (secondary, no veto): insertion +100.0 points over 60 units, alteration -50.0 points over 60 units',);
             },),).toBe(true,);
           },
         },),
@@ -330,7 +336,7 @@ await describe({
             expect(high,).toContain('seeded bootstrap over 30 entries)',);
             expect(high,).toContain('p under 0.0001',);
             expect(high,).toContain('shown better at 0.025: yes',);
-            expect(high,).toContain('60 shared trials',);
+            expect(high,).toContain('60 shared units',);
             /**
              The line for the low effort, whose estimate is zero.
              */
