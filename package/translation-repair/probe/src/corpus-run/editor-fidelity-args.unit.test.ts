@@ -23,7 +23,33 @@ import { refusalOf, } from '@monochromatic-dev/translation-repair-glossary/ts/co
 import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/command-line.test-fixture.ts';
 
 /**
- Reads the probe's arguments off a command line carrying what was typed.
+ Reads the probe's arguments off a command line carrying exactly what was typed.
+
+ @param typed - what the operator wrote after the script path
+
+ @returns What the reader settled on
+
+ @throws StatedRefusalError when the reader refuses what was typed
+
+ @example
+ ```ts
+ const asked = exactlyAskedFrom({ typed: ['--bench-spent-usd', '0',], },);
+ ```
+ */
+function exactlyAskedFrom(
+  { typed, }: { readonly typed: readonly string[]; },
+): ReturnType<typeof readEditorFidelityArguments> {
+  return readEditorFidelityArguments({
+    line: lineOf({
+      command: 'editor-fidelity-probe',
+      typed,
+    },),
+  },);
+}
+
+/**
+ Reads the probe's arguments off a command line carrying what was typed, with the spend of the earlier arms stated as
+ zero in front when the line does not state it, since the probe refuses a line that leaves it out.
 
  @param typed - what the operator wrote after the script path
 
@@ -39,11 +65,8 @@ import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run
 function askedFrom(
   { typed, }: { readonly typed: readonly string[]; },
 ): ReturnType<typeof readEditorFidelityArguments> {
-  return readEditorFidelityArguments({
-    line: lineOf({
-      command: 'editor-fidelity-probe',
-      typed,
-    },),
+  return exactlyAskedFrom({
+    typed: typed.includes('--bench-spent-usd',) ? typed : ['--bench-spent-usd', '0', ...typed,],
   },);
 }
 
@@ -51,7 +74,28 @@ await describe({
   name: readEditorFidelityArguments.name,
   children: [
     it({
-      name: 'TAKES every entry, the default cap, both defects and two dollars when no flag is written',
+      name: 'REFUSES A LINE THAT DOES NOT STATE --bench-spent-usd, since an arm that is not told what the earlier arms '
+        + 'spent cannot hold the bench to its total, and says that zero is what the first arm writes',
+      fn: async () => {
+        /**
+         The refusal both lines draw.
+         */
+        const expected = '--bench-spent-usd is required: write what the arms already run measured (the sum of their '
+          + 'GUARD total= lines, rounded up to the cent), or 0 for the first arm of a bench';
+        expect(refusalOf({
+          typed: [],
+          askedFrom: exactlyAskedFrom,
+        },),).toBe(expected,);
+        expect(refusalOf({
+          typed: ['--max-usd', '3', '--cap', '0',],
+          askedFrom: exactlyAskedFrom,
+        },),).toBe(expected,);
+        expect(exactlyAskedFrom({ typed: ['--bench-spent-usd', '0',], },).benchSpentUsd,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'TAKES every entry, the default cap, both defects and two dollars when no flag but the spend of the earlier '
+        + 'arms is written',
       fn: async () => {
         expect(DEFAULT_EDITOR_MAX_USD,).toBe(2,);
         expect(askedFrom({ typed: [], },),).toEqual({

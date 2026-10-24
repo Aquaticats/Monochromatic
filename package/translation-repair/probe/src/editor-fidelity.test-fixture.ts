@@ -25,6 +25,11 @@ export const LOW_CARD: RosterModelId = 'claude-sonnet-5-5-effort-low';
 export const HIGH_CARD: RosterModelId = 'claude-sonnet-5-5-effort-high';
 
 /**
+ The default effort of the same wire model, which the bench runs twice to measure its own spread.
+ */
+export const MEDIUM_CARD: RosterModelId = 'claude-sonnet-5-5-effort-medium';
+
+/**
  A card of the other wire model, whose prices differ.
  */
 export const HAIKU_CARD: RosterModelId = 'claude-haiku-5-5-effort-low';

@@ -48,6 +48,7 @@ import {
   editorDecisionRuleLine,
   editorFidelityTrials,
   type FidelityReferenceSpec,
+  guardLine,
   REVIEWED_FIDELITY_REFERENCES,
   type ReviewedFidelityReference,
   runEditorFidelityProbe,
@@ -314,6 +315,8 @@ function fixingClient(
 
  @param attemptUsd - the most each scripted attempt tells the admit the run handed the client builder it can cost
 
+ @param exactly - whether the line is passed as typed, without the spend of the earlier arms stated as zero for it
+
  @returns What the run did, once it settles, including what it threw
 
  @example
@@ -327,11 +330,13 @@ async function probeIn(
     typed,
     silent = false,
     attemptUsd,
+    exactly = false,
   }: {
     readonly runsDir: string;
     readonly typed: readonly string[];
     readonly silent?: boolean;
     readonly attemptUsd?: number;
+    readonly exactly?: boolean;
   },
 ): Promise<ProbeRunSeen> {
   // The guard reads the process-wide run meter, so every run starts from a clean one.
@@ -376,7 +381,8 @@ async function probeIn(
     await runEditorFidelityProbe({
       line: lineOf({
         command: 'editor-fidelity-probe',
-        typed,
+        // The probe refuses a line that leaves out what the earlier arms spent, so a case that is not about that says zero.
+        typed: (exactly || typed.includes('--bench-spent-usd',)) ? typed : ['--bench-spent-usd', '0', ...typed,],
       },),
       pin: {
         cloneDir: join(
@@ -553,6 +559,24 @@ await describe({
         },),
 
         it({
+          name: 'REFUSES A LINE THAT DOES NOT STATE --bench-spent-usd before reading or building anything, even with a '
+            + 'cap of zero, since an arm told nothing of the earlier arms cannot hold the bench to its total',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--cap', '0',],
+              exactly: true,
+            },);
+            expect(refusedWith({ seen, },),).toContain('--bench-spent-usd is required: write what the arms already run measured',);
+            expect(seen.lines,).toStrictEqual([],);
+            expect(seen.readFor,).toStrictEqual([],);
+            expect(seen.clientBuilds,).toStrictEqual([],);
+            expect(seen.runsAsked,).toStrictEqual([],);
+          },
+        },),
+
+        it({
           name: 'REFUSES A CARD WITH NO PRICE TABLE before reading anything, since no ceiling could be printed for it',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
@@ -702,18 +726,14 @@ await describe({
             await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
             const seen = await probeIn({
               runsDir: scratch.path,
-              typed: [...ONE_CARD, '--max-usd', '0.5',],
+              typed: [...ONE_CARD, '--max-usd', '0.5', '--bench-spent-usd', '3.25',],
             },);
             const ceilingAt = seen.lines.findIndex(function isCeiling(line,): boolean {
               return line.startsWith(`ceiling ${LOW_CARD}: 2 trials, one ask each, at most `,);
             },);
             expect(ceilingAt,).toBeGreaterThanOrEqual(0,);
-            expect(seen.lines[ceilingAt + 1],).toBe(
-              'spend guard: each call is refused, and the arm ends, when the spend so far plus that call\'s ceiling '
-                + 'would pass --max-usd 0.5000; the spend so far is every SPEND line the client wrote, the attempts it '
-                + 'abandoned included, and a call that throws, or a reply that reports no usage, is counted at its '
-                + 'ceiling',
-            );
+            expect(seen.lines[ceilingAt + 1],).toBe(guardLine({ maxUsd: 0.5, benchSpentUsd: 3.25, },),);
+            expect(seen.lines[ceilingAt + 1],).toContain('--max-usd 0.5000; the arms run before this one spent --bench-spent-usd 3.2500;',);
             expect(seen.clientBuilds.length,).toBe(1,);
             expect(seen.clientBuilds[0]?.planWasOnDisk,).toBe(true,);
           },

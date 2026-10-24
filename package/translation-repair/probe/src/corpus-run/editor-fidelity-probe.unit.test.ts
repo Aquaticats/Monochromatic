@@ -91,7 +91,7 @@ await describe({
         + 'set and no call made',
       fn: async () => {
         const run = await runAsBuilt({
-          args: ['--cap', '0', '--candidates', LOW_CARD, '--candidates-alone',],
+          args: ['--cap', '0', '--bench-spent-usd', '0', '--candidates', LOW_CARD, '--candidates-alone',],
         },);
         expect(run.code,).toBe(0,);
         expect(run.stderr,).toStrictEqual([],);
@@ -106,10 +106,24 @@ await describe({
     },),
 
     it({
+      name: 'REFUSES A LINE WITH NO --bench-spent-usd at exit six with one line, since the arm is not told what the '
+        + 'earlier arms spent',
+      fn: async () => {
+        const run = await runAsBuilt({
+          args: ['--cap', '0', '--candidates', LOW_CARD, '--candidates-alone',],
+        },);
+        expect(run.code,).toBe(REFUSED_AS_STATED,);
+        expect(run.stdout,).toStrictEqual([],);
+        expect(run.stderr.length,).toBe(1,);
+        expect(run.stderr[0],).toContain('editor-fidelity-probe: --bench-spent-usd is required: ',);
+      },
+    },),
+
+    it({
       name: 'REFUSES A CARD THE ROSTER DOES NOT KNOW at exit six with one line, in the judge probe\'s wording',
       fn: async () => {
         const run = await runAsBuilt({
-          args: ['--cap', '0', '--candidates', 'nobody/such-model', '--candidates-alone',],
+          args: ['--cap', '0', '--bench-spent-usd', '0', '--candidates', 'nobody/such-model', '--candidates-alone',],
         },);
         expect(run.code,).toBe(REFUSED_AS_STATED,);
         expect(run.stderr.length,).toBe(1,);
@@ -123,7 +137,7 @@ await describe({
       name: 'REFUSES A RUN THAT DOES NOT SAY ALONE, and a flag the judge probe reads and this one does not',
       fn: async () => {
         const unaccompanied = await runAsBuilt({
-          args: ['--cap', '0', '--candidates', LOW_CARD,],
+          args: ['--cap', '0', '--bench-spent-usd', '0', '--candidates', LOW_CARD,],
         },);
         expect(unaccompanied.code,).toBe(REFUSED_AS_STATED,);
         expect(unaccompanied.stderr,).toStrictEqual([
@@ -131,7 +145,7 @@ await describe({
             + '--candidates-alone to say so',
         ],);
         const withContext = await runAsBuilt({
-          args: ['--cap', '0', '--candidates', LOW_CARD, '--candidates-alone', '--context',],
+          args: ['--cap', '0', '--bench-spent-usd', '0', '--candidates', LOW_CARD, '--candidates-alone', '--context',],
         },);
         expect(withContext.code,).toBe(REFUSED_AS_STATED,);
         expect(withContext.stderr[0],).toContain('editor-fidelity-probe: ',);

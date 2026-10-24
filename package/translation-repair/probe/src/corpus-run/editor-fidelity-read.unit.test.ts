@@ -158,6 +158,40 @@ await describe({
     },),
 
     it({
+      name: 'PRINTS THE BENCH CHECKS and exits six for logs that are not four distinct arms at the cards low, medium, '
+        + 'medium and high, so a bench of one log, or of a log repeated, is not read as the bench',
+      fn: async () => {
+        const one = await runAsBuilt({
+          files: { 'low.log': '', },
+          args: ['DIR/low.log',],
+        },);
+        expect(one.code,).toBe(REFUSED_AS_STATED,);
+        expect(one.stdout,).toContain(
+          'FAIL bench: four distinct arm logs: 1 log was given, and a bench is four',
+        );
+        expect(one.stdout.some(function isCards(line,): boolean {
+          return line.startsWith('FAIL bench: cards low, medium, medium, high in the order run',);
+        },),).toBe(true,);
+        const four = await runAsBuilt({
+          files: {
+            'low.log': '',
+            'medium-a.log': '',
+            'medium-b.log': '',
+            'high.log': '',
+          },
+          args: ['DIR/low.log', 'DIR/medium-a.log', 'DIR/medium-b.log', 'DIR/high.log',],
+        },);
+        expect(four.code,).toBe(REFUSED_AS_STATED,);
+        expect(four.stdout,).toContain(
+          'FAIL bench: four distinct arm logs: low and medium-a hold the same lines',
+        );
+        expect(four.stdout.some(function isEarlier(line,): boolean {
+          return line.startsWith('FAIL high: earlier spend declared: ',);
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
       name: 'REFUSES A LOG THAT IS NOT THERE, naming the path, before it prints any check',
       fn: async () => {
         const run = await runAsBuilt({

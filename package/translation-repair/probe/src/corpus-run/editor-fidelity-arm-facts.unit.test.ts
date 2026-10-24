@@ -71,7 +71,8 @@ await describe({
           `${prefix}editors: claude-cat`,
           `${prefix}manifest: 36 specifications, digest d1g`,
           `${prefix}pool: 40 trials over 24 entries (insertion 22, alteration 18)`,
-          `${prefix}spend guard: each call is refused, and the arm ends, when the spend would pass --max-usd 3.0000; x`,
+          `${prefix}spend guard: each call is refused, and the arm ends, when the spend would pass --max-usd 3.0000; `
+            + 'the arms run before this one spent --bench-spent-usd 1.2500; x',
           `${prefix}GUARD total=0.875000 calls=40 atCeiling=0`,
         ];
         const facts = factsOf({ log: { arm: 'low', lines, exit: { recorded: false, }, }, },);
@@ -79,12 +80,14 @@ await describe({
         expect(facts.poolTrials,).toBe(40,);
         expect(facts.guardUsd,).toBe(0.875,);
         expect(facts.maxUsd,).toBe(3,);
+        expect(facts.benchSpentUsd,).toBe(1.25,);
         expect(facts.digest,).toBe('d1g',);
         const empty = factsOf({ log: { arm: 'none', lines: [], exit: { recorded: false, }, }, },);
         expect(empty.card,).toBe('',);
         expect(empty.poolTrials,).toBe(-1,);
         expect(empty.guardUsd,).toBe(-1,);
         expect(empty.maxUsd,).toBe(-1,);
+        expect(empty.benchSpentUsd,).toBe(-1,);
         expect(empty.digest,).toBe('',);
       },
     },),

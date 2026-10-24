@@ -473,14 +473,16 @@ await describe({
       children: [
         it({
           name: 'SAYS WHAT HOLDS THE ARM TO --max-usd and what it counts, so a log shows the guard was on, at what amount, '
-            + 'and that a call that throws is counted at its ceiling',
+            + 'what the earlier arms of the bench spent, and that a call that throws is counted at its ceiling',
           fn: async () => {
-            expect(guardLine({ maxUsd: 2, },),).toBe(
-              'spend guard: each call is refused, and the arm ends, when the spend so far plus that call\'s ceiling '
-                + 'would pass --max-usd 2.0000; the spend so far is every SPEND line the client wrote, the attempts '
-                + 'it abandoned included, and a call that throws, or a reply that reports no usage, is counted at its '
-                + 'ceiling',
+            expect(guardLine({ maxUsd: 2, benchSpentUsd: 7.25, },),).toBe(
+              'spend guard: each call, and each attempt the client makes inside it, is refused, and the arm ends, '
+                + 'when the spend so far plus its ceiling would pass --max-usd 2.0000; the arms run before this one '
+                + 'spent --bench-spent-usd 7.2500; the spend so far is every SPEND line the client wrote, the '
+                + 'attempts it abandoned included, and a call whose last attempt wrote no line and threw, or a reply '
+                + 'that reports no usage, is counted at its ceiling',
             );
+            expect(guardLine({ maxUsd: 3, benchSpentUsd: 0, },),).toContain('--bench-spent-usd 0.0000;',);
           },
         },),
       ],

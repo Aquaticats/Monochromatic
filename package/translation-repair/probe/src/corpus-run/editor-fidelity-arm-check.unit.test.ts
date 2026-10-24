@@ -129,6 +129,8 @@ type GoodArm = {
 
  @param maxUsd - cap the guard line prints
 
+ @param benchSpentUsd - spend of the earlier arms the guard line prints
+
  @returns The lines, with the logger's prefix on each
 
  @example
@@ -136,7 +138,17 @@ type GoodArm = {
  const lines = openingOf({ digest: DIGEST, maxUsd: 3, },);
  ```
  */
-function openingOf({ digest, maxUsd, }: { readonly digest: string; readonly maxUsd: number; },): readonly string[] {
+function openingOf(
+  {
+    digest,
+    maxUsd,
+    benchSpentUsd = 0,
+  }: {
+    readonly digest: string;
+    readonly maxUsd: number;
+    readonly benchSpentUsd?: number;
+  },
+): readonly string[] {
   return [
     `editors: ${LOW_CARD}`,
     `manifest: 36 specifications, digest ${digest}`,
@@ -152,7 +164,7 @@ function openingOf({ digest, maxUsd, }: { readonly digest: string; readonly maxU
         ),
       },)[0],),
     },),
-    guardLine({ maxUsd, },),
+    guardLine({ maxUsd, benchSpentUsd, },),
   ].map(function prefixed(line,): string {
     return `${PREFIX}${line}`;
   },);
@@ -338,13 +350,23 @@ await describe({
     },),
 
     it({
-      name: 'FAILS THE GUARD CHECK for a log with no guard line',
+      name: 'FAILS THE GUARD CHECK for a log with no guard line, and for a guard line that does not state what the '
+        + 'earlier arms spent',
       fn: async () => {
         const without = openingOf({ digest: DIGEST, maxUsd: 3, },).filter(function notGuard(line,): boolean {
           return !line.includes('spend guard: ',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'guard line', },),).toContain(
           'FAIL low: guard line: ',
+        );
+        const unstated = openingOf({ digest: DIGEST, maxUsd: 3, },).map(function dropBench(line,): string {
+          return line.replace('the arms run before this one spent --bench-spent-usd 0.0000; ', '',);
+        },);
+        expect(lineFor({ log: goodArm({ arm: { opening: unstated, }, },), check: 'guard line', },),).toBe(
+          'FAIL low: guard line: the guard line states no --bench-spent-usd',
+        );
+        expect(lineFor({ log: goodArm({ arm: {}, },), check: 'guard line', },),).toBe(
+          'PASS low: guard line: held to --max-usd 3 USD after 0 USD spent by the arms before it',
         );
       },
     },),
