@@ -390,6 +390,38 @@ await describe({
         },),
 
         it({
+          name: 'GIVES EACH ARM ITS OWN AGREEMENT when the scenario names one for each: the high and the default effort '
+            + 'repeat their first answer and the low effort is asked afresh',
+          fn: async () => {
+            /**
+             The asks of two passes.
+             */
+            const units = twoPasses();
+            /**
+             Fixes of a bench in which only the low effort's replicates are asked afresh.
+             */
+            const fixes = simulatedFixes({
+              units,
+              scenario: { ...FAR_APART, high: 0.5, low: 0.5, medium: 0.5, agreement: 0.5, armAgreements: [1, 0, 1,], },
+              seed: 'own-agreement',
+            },);
+            /**
+             For an arm, how many of the second pass's asks give the answer the first pass gave.
+             */
+            const repeatedBy = (arm: number,): number => units.filter(function isRepeatSame(
+              unit,
+              at,
+            ): boolean {
+              return (unit.pass === 1) && (fixes[at]?.[arm] === fixes[at - 88]?.[arm]);
+            },).length;
+            expect(repeatedBy(0,),).toBe(88,);
+            expect(repeatedBy(2,),).toBe(88,);
+            expect(repeatedBy(1,),).toBeLessThan(80,);
+            expect(repeatedBy(1,),).toBeGreaterThan(30,);
+          },
+        },),
+
+        it({
           name: 'MAKES THE TRIALS OF AN ENTRY ALIKE when the correlation is one, and not when it is zero',
           fn: async () => {
             /**
@@ -464,6 +496,38 @@ await describe({
               replicates: 400,
               seed: 'null',
             },).any,).toBeLessThanOrEqual(0.07,);
+          },
+        },),
+
+        it({
+          name: 'PICKS ANOTHER EFFORT MORE OFTEN THAN SEVEN IN A HUNDRED when the default effort is asked afresh and the others '
+            + 'repeat their first answer, over three passes at a rate of nine in ten and trials that read alike in an '
+            + 'entry, and not when every arm repeats alike',
+          fn: async () => {
+            /**
+             The whole pool walked three times.
+             */
+            const units = unitsOf({
+              trials: poolTrialOrder(),
+              passes: 3,
+              units: 264,
+            },);
+            /**
+             Every arm fixing nine in ten, the trials of an entry alike.
+             */
+            const arms = { high: 0.9, low: 0.9, medium: 0.9, correlation: 1, share: 0, agreement: 0, };
+            expect(pickShares({
+              units,
+              scenario: { ...arms, armAgreements: [1, 1, 0,], },
+              replicates: 1_000,
+              seed: 'unequal',
+            },).any,).toBeGreaterThan(0.07,);
+            expect(pickShares({
+              units,
+              scenario: { ...arms, armAgreements: [1, 1, 1,], },
+              replicates: 1_000,
+              seed: 'unequal',
+            },).any,).toBeLessThanOrEqual(0.05,);
           },
         },),
 
