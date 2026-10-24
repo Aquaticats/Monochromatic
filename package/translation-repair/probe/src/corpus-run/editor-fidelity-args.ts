@@ -18,10 +18,11 @@ import {
 // and with the amount the run may spend.
 
 /**
- How many trials one invocation runs by default, counted in attempts like the judge probe's own: enough for every trial
- of the frozen pool, so an arm run with no `--cap` asks them all and every arm sees the same ones.
+ How many asks one invocation runs by default, counted in attempts like the judge probe's own: enough for every trial of
+ the frozen pool walked through several passes, so an arm run with no `--cap` asks them all and every arm sees the same
+ ones.
  */
-export const DEFAULT_EDITOR_TRIAL_CAP = 200;
+export const DEFAULT_EDITOR_TRIAL_CAP = 1_000;
 
 /**
  Most a run may spend, in US dollars, when `--max-usd` is not written: the spend guard refuses the call that would take
@@ -212,7 +213,37 @@ function trialsOf(
 }
 
 /**
- Reads `--only`, `--cap`, `--trials`, `--damage`, `--max-usd` and `--bench-spent-usd` from the command line.
+ Reads `--passes`, the number of times an arm walks the pool.
+
+ @param asked - what the flag carried, or that nobody wrote it
+
+ @returns The number of passes as a `passes` member, an empty object when the flag was not written
+
+ @throws StatedRefusalError when the flag is not a whole number written in digits, or is zero
+
+ @example
+ ```ts
+ const passes = passesOf({ asked: line.flag('passes',), },);
+ ```
+ */
+function passesOf({ asked, }: { readonly asked: FlagValue; },): { readonly passes?: number } {
+  if (asked.kind === 'unwritten')
+    return {};
+  /**
+   The number as written.
+   */
+  const passes = wholeNumberFlag({
+    asked,
+    unwritten: 1,
+    leaveOffTo: 'walk the pool once',
+  },);
+  if (passes === 0)
+    throw new StatedRefusalError({ says: '--passes needs at least 1, and 0 walks the pool no time', },);
+  return { passes, };
+}
+
+/**
+ Reads `--only`, `--cap`, `--trials`, `--passes`, `--damage`, `--max-usd` and `--bench-spent-usd` from the command line.
 
  @internal
 
@@ -220,12 +251,13 @@ function trialsOf(
  subprocess
 
  @returns Entry ids to trial, empty for every entry, the trial cap, the number of leading trials to walk when `--trials`
- is written (the member is absent otherwise), the defects to build, the most the run may cost and what the earlier arms
- of the bench measured
+ is written (the member is absent otherwise), the number of passes over the pool when `--passes` is written (absent
+ otherwise), the defects to build, the most the run may cost and what the earlier arms of the bench measured
 
- @throws StatedRefusalError when a cap or a trial count is not a whole number written in digits or is below zero, a
- trial count is zero or is written beside a cap above zero, an amount is not a plain decimal, a defect is one this probe
- does not build, `--bench-spent-usd` is not written, or the amounts together pass the bench total
+ @throws StatedRefusalError when a cap, a trial count or a pass count is not a whole number written in digits or is below
+ zero, a trial count or a pass count is zero, a trial count is written beside a cap above zero, an amount is not a plain
+ decimal, a defect is one this probe does not build, `--bench-spent-usd` is not written, or the amounts together pass the
+ bench total
 
  @example
  ```ts
@@ -238,6 +270,7 @@ export function readEditorFidelityArguments(
   readonly onlyIds: readonly string[];
   readonly cap: number;
   readonly trials?: number;
+  readonly passes?: number;
   readonly damageKinds: readonly EditorDamageKind[];
   readonly maxUsd: number;
   readonly benchSpentUsd: number;
@@ -305,6 +338,8 @@ export function readEditorFidelityArguments(
         .kind
         === 'written',
     },),
+    // How many passes over the pool the arm walks, a member only when the line says.
+    ...passesOf({ asked: line.flag('passes',), },),
     maxUsd,
     benchSpentUsd,
   };
