@@ -20,6 +20,7 @@ import {
 } from './claude-schema-blind-loads.test-fixture.ts';
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
+import { unresolvedSpecifiersIn, } from './claude-schema-blind-specifiers.test-fixture.ts';
 import {
   namesUnreadableCode,
   unreadableShapesIn,
@@ -35,11 +36,13 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 //region Places the schema search reads nothing of, found in the family's sources
 // The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list
 // honest follows a fixed set of positions, and a place it does not follow can hide a file that sends an answer schema.
-// `blindSpotsOf` reads the same sources and holds three totals. Every string that names a module which carries a builder
-// must sit in a position the search follows, and every `import()` and `require` must have a path that is one literal,
-// and no code may build a loader or run text (`claude-schema-blind-unreadable.test-fixture.ts`); every chain of names
-// that stands for a builder, or for a module that carries one, must sit where the search reads it; and the value of a
-// builder's call must end in a sender, a wrapper or a constant that does (`claude-schema-blind-flow.test-fixture.ts`).
+// `blindSpotsOf` reads the same sources and holds three totals. Every string that names a module which carries a
+// builder must sit in a position the search follows, every `import()` and `require` must have a path that is one
+// literal, every specifier must name something the check can resolve
+// (`claude-schema-blind-specifiers.test-fixture.ts`), and no code may build a loader or run text
+// (`claude-schema-blind-unreadable.test-fixture.ts`); every chain of names that stands for a builder, or for a module
+// that carries one, must sit where the search reads it; and the value of a builder's call must end in a sender, a
+// wrapper or a constant that does (`claude-schema-blind-flow.test-fixture.ts`).
 // Anything else is reported with the file, the line and the position, so a place the search cannot read never turns up
 // in the family without a failure that names it. The check is a net, not a second search: it reports every place it
 // does not understand, whether or not a producer hides there, and a place it reports is answered by reading the place
@@ -263,7 +266,21 @@ export function blindSpotsOf(
           name,
         },);
       },);
-    if ((!isRelevant) && (!checksUndeclared))
+    /**
+     The specifiers of the file that the check cannot resolve, which are read whether or not the file is relevant
+     otherwise, since an alias can name a module the search does not know.
+     */
+    const unresolved = unresolvedSpecifiersIn({
+      family,
+      file,
+      nodes,
+    },);
+    /**
+     Whether the file is read no further: nothing in it leads to a builder, it holds no undeclared format to look for and
+     it writes no specifier the check cannot resolve.
+     */
+    const isIdle = (!isRelevant) && (!checksUndeclared);
+    if (isIdle && (unresolved.length === 0))
       return [];
     /**
      What the names of the file are read against.
@@ -284,6 +301,7 @@ export function blindSpotsOf(
           context,
           nodes,
         },),
+        ...unresolved,
         ...builderShapesIn({
           context,
           nodes,

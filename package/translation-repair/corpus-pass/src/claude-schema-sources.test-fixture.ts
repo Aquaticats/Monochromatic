@@ -90,7 +90,14 @@ import {
 // (`computed-load-path`). A load of such a module with a literal path is followed when it is awaited or required and
 // held by a constant or a pattern the search binds name by name, or read in place with a member; any other load is
 // reported (`load-in-unfollowed-form`): an un-awaited one, a rest or a computed key or a nested pattern, a load that
-// is stored, handed to a call, chained with `.then` or dropped.
+// is stored, handed to a call, chained with `.then` or dropped. Code that can load a module with no path to read is
+// reported (`code-the-search-cannot-read`), in `claude-schema-blind-unreadable.test-fixture.ts`: `createRequire` in any
+// form, `require` anywhere but as the callee of a direct call (`module.require`, an alias, `require.call`), `eval`,
+// and `Function` with or without `new`. A specifier that is no built-in module, no package the lockfile holds for the
+// family and no file is reported (`unresolved-module-specifier`), in `claude-schema-blind-specifiers.test-fixture.ts`:
+// an alias that begins with `#`, a package nothing holds, a relative path to a file that does not exist; a type-only
+// import or export and a type are left out. The lockfile gives the packages of every package of the family together,
+// and the check reads it from the root of the repository.
 //
 // The second total is every chain of names that stands for a builder, or for a module or object that carries one. A
 // builder is read as the callee of a call, of `new` or of a tagged template, after any of `.call`, `.apply` and

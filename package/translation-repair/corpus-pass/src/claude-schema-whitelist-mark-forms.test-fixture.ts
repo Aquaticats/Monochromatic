@@ -118,7 +118,7 @@ const MARK_POSITIONS: readonly ReadPosition[] = [
     name: 'read-other-loads',
     lines: [
       'export const LATER = import(\'node:fs\').then((fs,) => fs,);',
-      'void import(\'./elsewhere.ts\');',
+      'void import(\'node:os\');',
       'export const REQUIRED_OTHER = [require(\'node:path\'),];',
     ],
   },

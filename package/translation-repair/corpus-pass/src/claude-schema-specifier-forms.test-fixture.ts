@@ -4,8 +4,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 
 //region Specifiers that name nothing the check can resolve
 // A specifier that is no built-in module, no package the lockfile holds for the family and no file can name a module
-// that the search does not read, as an alias in an import map does (`#shared`). The check reports each such specifier of
-// an import, an export from, an `import()` and a `require`, and reports nothing for a built-in, a package of the
+// that the search does not read, as an alias in an import map does (`#shared`). The check reports each such specifier
+// of an import, an export from, an `import()` and a `require`, and reports nothing for a built-in, a package of the
 // lockfile with any subpath, a file the sources hold, a file that exists beside them, a type-only import and a type.
 
 /**
@@ -48,9 +48,9 @@ function unresolvedAt(
  */
 export const SPECIFIER_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS A SPECIFIER THAT IS NO BUILT-IN MODULE, NO PACKAGE OF THE LOCKFILE AND NO FILE, in an import, an export '
-      + 'from, an import() and a require, and nothing for a built-in, a package of the lockfile, a file, a type-only '
-      + 'import or a type',
+    name: 'REPORTS A SPECIFIER THAT IS NO BUILT-IN MODULE, NO PACKAGE OF THE LOCKFILE AND NO FILE, in an import, an '
+      + 'export from, an import() and a require, and nothing for a built-in, a package of the lockfile, a file, a '
+      + 'type-only import or a type',
     files: [
       {
         file: 'imaginary/src/alias-stage.ts',
