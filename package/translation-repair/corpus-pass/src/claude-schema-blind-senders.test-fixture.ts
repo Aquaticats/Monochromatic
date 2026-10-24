@@ -16,12 +16,14 @@ import {
   keyNameOf,
   NO_NODE,
   nodeAt,
+  nodesAt,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Where a stage hands the schema it makes to the bench
 // The senders of the third total of the check behind the schema search (`claude-schema-blind-spots.test-fixture.ts`):
 // the value of a builder's call may end in an argument of a call only when the call is one of these functions and the
-// value is the property of the one object argument that the entry names. A sender is named by the module that declares
+// value is the property of the one object argument that the entry names, at the argument the sender reads: the first,
+// or the second through `.call`, and none through `.apply` or `.bind`. A sender is named by the module that declares
 // it, so another function of the same name, a free name, or a name that a scope around the call binds again (a
 // parameter, a constant, a nested function or class, a loop variable, a `catch` binding) is no sender; any other call
 // that takes the value is reported, since it may keep it, copy it or send it where the search cannot read.
@@ -117,6 +119,37 @@ function callTaking(
 }
 
 /**
+ The place of an argument among the arguments of a call that no sender reads: the call is a `.apply` or a `.bind`. It
+ differs from -1, which is what the index of an object that is no argument of the call is.
+ */
+const NO_ARGUMENT = -2;
+
+/**
+ The place among the arguments of a call where the function the callee names reads its object. A function called
+ directly reads its first argument; through `.call` the first argument is the `this` it is called with, so it reads the
+ second; through `.apply` the arguments are a list, and through `.bind` they are a partial application, so none of the
+ arguments written there is read as the object.
+
+ @param members - names the callee is written with after its head
+
+ @returns Index among the arguments, `NO_ARGUMENT` when the call writes none that is read
+
+ @example
+ ```ts
+ const read = argumentReadBy({ members: ['call',], },); // 1
+ ```
+ */
+function argumentReadBy({ members, }: { readonly members: readonly string[]; },): number {
+  /**
+   The last name of the callee.
+   */
+  const last = members.at(-1,);
+  if (last === 'call')
+    return 1;
+  return ((last === 'apply') || (last === 'bind')) ? NO_ARGUMENT : 0;
+}
+
+/**
  Whether a call is a call of a sender, written as the file writes it.
 
  @param context - what the file's names are read against
@@ -125,11 +158,14 @@ function callTaking(
 
  @param parameter - property of the object argument that holds the value
 
- @returns Whether the callee resolves to a function of the list whose parameter is the property
+ @param argument - index of the object among the arguments of the call
+
+ @returns Whether the callee resolves to a function of the list whose parameter is the property, and reads the object
+ at that argument
 
  @example
  ```ts
- const isSender = callsSender({ context, call, parameter: 'responseFormat', },);
+ const isSender = callsSender({ context, call, parameter: 'responseFormat', argument: 0, },);
  ```
  */
 function callsSender(
@@ -137,10 +173,12 @@ function callsSender(
     context,
     call,
     parameter,
+    argument,
   }: {
     readonly context: BlindContext;
     readonly call: TreeNode;
     readonly parameter: string;
+    readonly argument: number;
   },
 ): boolean {
   /**
@@ -151,6 +189,8 @@ function callsSender(
     return false;
   if (chain.members
     .includes(COMPUTED_MEMBER,))
+    return false;
+  if (argumentReadBy({ members: chain.members, },) !== argument)
     return false;
   if (isBoundAround({
     node: call,
@@ -223,13 +263,21 @@ export function isSenderProperty(
     context,
     object,
   },);
-  return (key !== '')
-    && (!isNoNode({ node: call, },))
-    && callsSender({
-      context,
-      call,
-      parameter: key,
-    },);
+  if ((key === '') || isNoNode({ node: call, },))
+    return false;
+  return callsSender({
+    context,
+    call,
+    parameter: key,
+    argument: nodesAt({
+      node: call,
+      field: 'arguments',
+    },)
+      .indexOf(outermostValueOf({
+        node: object,
+        parents: context.parents,
+      },),),
+  },);
 }
 
 //endregion Where a stage hands the schema it makes to the bench
