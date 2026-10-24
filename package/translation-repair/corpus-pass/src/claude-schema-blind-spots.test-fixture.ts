@@ -18,20 +18,28 @@ import {
   loadShapesIn,
   namesBearingModule,
 } from './claude-schema-blind-loads.test-fixture.ts';
-import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
+import { constantReadersOf, } from './claude-schema-blind-constants.test-fixture.ts';
+import type {
+  BlindContext,
+  ConstantReaders,
+} from './claude-schema-blind-positions.test-fixture.ts';
 import { mayLeadToBuilder, } from './claude-schema-blind-standing.test-fixture.ts';
 import { unresolvedSpecifiersIn, } from './claude-schema-blind-specifiers.test-fixture.ts';
 import {
   namesUnreadableCode,
   unreadableShapesIn,
 } from './claude-schema-blind-unreadable.test-fixture.ts';
+import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
   buildersIn,
   familyOf,
   type SourceFile,
 } from './claude-schema-sources.test-fixture.ts';
 import { moduleLoadOf, } from './claude-schema-tree.test-fixture.ts';
-import { keyOf, } from './claude-schema-usage.test-fixture.ts';
+import {
+  keyOf,
+  type KnownFunctions,
+} from './claude-schema-usage.test-fixture.ts';
 
 //region Places the schema search reads nothing of, found in the family's sources
 // The check behind the header of `claude-schema-sources.test-fixture.ts`: the search that keeps the producer list
@@ -204,6 +212,74 @@ function spotsOf(
 }
 
 /**
+ What the names of a file are read against before the tree around them is known: the sources, the builders, the modules
+ that carry one and the functions of the file that are known.
+
+ @param family - modules of the sources
+
+ @param file - path of the file
+
+ @param known - builders and wrappers of the sources, by where each sits and by name
+
+ @param bearing - paths of the modules that carry a builder
+
+ @param carriers - keys of the objects that hold a builder as a member
+
+ @param constants - where the other files read a constant a file exports
+
+ @returns The context, with no parents and no references yet
+
+ @example
+ ```ts
+ const base = baseContextOf({ family, file, known, bearing, carriers, constants, });
+ ```
+ */
+function baseContextOf(
+  {
+    family,
+    file,
+    known,
+    bearing,
+    carriers,
+    constants,
+  }: {
+    readonly family: Family;
+    readonly file: string;
+    readonly known: KnownFunctions;
+    readonly bearing: ReadonlySet<string>;
+    readonly carriers: ReadonlySet<string>;
+    readonly constants: ConstantReaders;
+  },
+): BlindContext {
+  /**
+   What the file declares, binds and refers to, and its syntax tree.
+   */
+  const facts = nonNullishOrThrow(family.get(file,),);
+  return {
+    family,
+    file,
+    facts,
+    builders: known,
+    bearing,
+    carriers,
+    recognized: new Set(facts.declared
+      .filter(function isKnown({ name, },): boolean {
+        return known.keys
+          .has(keyOf({
+            file,
+            name,
+          },),);
+      },)
+      .map(function fnOf({ fn, },): TreeNode {
+        return fn;
+      },),),
+    parents: new Map<TreeNode, TreeNode>(),
+    references: [],
+    constants,
+  };
+}
+
+/**
  The places in the sources that the schema search does not read.
 
  @param sources - files searched
@@ -262,6 +338,56 @@ export function blindSpotsOf(
    The objects that hold a builder as a member.
    */
   const carriers = carryingObjectsOf({ builders, },);
+  /**
+   The contexts of the files whose tree has been read, so a file that another file's constant leads to is read once.
+   */
+  const contexts = new Map<string, BlindContext>();
+  /**
+   What the names of a file are read against, with the tree around them, made once for each file.
+
+   @param file - path of the file
+
+   @returns The context of the file
+   */
+  function contextOfFile({ file, }: { readonly file: string; },): BlindContext {
+    /**
+     The context made before, absent when the file has not been read.
+     */
+    const made = contexts.get(file,);
+    if (made !== undefined)
+      return made;
+    /**
+     What the file declares, binds and refers to, and its syntax tree.
+     */
+    const { program, } = nonNullishOrThrow(family.get(file,),);
+    /**
+     What the names of the file are read against, with the tree around them.
+     */
+    const read = {
+      ...baseContextOf({
+        family,
+        file,
+        known,
+        bearing,
+        carriers,
+        constants,
+      },),
+      parents: parentsOf({ program, },),
+      references: chainVisitsIn({ program, },),
+    };
+    contexts.set(
+      file,
+      read,
+    );
+    return read;
+  }
+  /**
+   Where the other files read a constant a file exports.
+   */
+  const constants: ConstantReaders = constantReadersOf({
+    family,
+    contextOf: contextOfFile,
+  },);
   return sources.flatMap(function spotsOfSource({
     file,
     text,
@@ -277,27 +403,14 @@ export function blindSpotsOf(
     /**
      What the names of the file are read against, before the tree around them is known.
      */
-    const base = {
+    const base = baseContextOf({
       family,
       file,
-      facts,
-      builders: known,
+      known,
       bearing,
       carriers,
-      recognized: new Set(facts.declared
-        .filter(function isKnown({ name, },): boolean {
-          return known.keys
-            .has(keyOf({
-              file,
-              name,
-            },),);
-        },)
-        .map(function fnOf({ fn, },): TreeNode {
-          return fn;
-        },),),
-      parents: new Map<TreeNode, TreeNode>(),
-      references: [],
-    } satisfies BlindContext;
+      constants,
+    },);
     /**
      Whether to look for a function that holds a format and that no declared function holds, which a file named as no
      stage schema is not searched for.
@@ -347,11 +460,7 @@ export function blindSpotsOf(
     /**
      What the names of the file are read against.
      */
-    const context: BlindContext = {
-      ...base,
-      parents: parentsOf({ program: facts.program, },),
-      references: chainVisitsIn({ program: facts.program, },),
-    };
+    const context: BlindContext = contextOfFile({ file, },);
     return spotsOf({
       text,
       found: [

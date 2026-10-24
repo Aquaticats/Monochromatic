@@ -1,11 +1,14 @@
 import {
   identifierName,
-  isTreeNode,
   type TreeNode,
-  unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import { isSenderProperty, } from './claude-schema-blind-senders.test-fixture.ts';
+import {
+  acrossFilesOf,
+  type Pending,
+  pendingIn,
+} from './claude-schema-blind-pending.test-fixture.ts';
 import {
   type BlindContext,
   enclosingFunctionOf,
@@ -13,6 +16,7 @@ import {
   outermostValueOf,
   positionOf,
 } from './claude-schema-blind-positions.test-fixture.ts';
+import { readsOfName, } from './claude-schema-blind-reads.test-fixture.ts';
 import {
   isNoNode,
   NO_NODE,
@@ -30,7 +34,9 @@ import {
 //   function the value leaves it, and the function is reported);
 // - the property of a sender's object argument, which `claude-schema-blind-senders.test-fixture.ts` lists by module,
 //   function and parameter;
-// - a constant, a pattern, a default or a name assigned, whose every reference is followed in turn.
+// - a constant, a pattern, a default or a name assigned, whose every reference is followed in turn; a name bound at the
+//   top level of a file is also followed into the files that read it, through the imports, the exports from, the
+//   namespace imports and the `import()` of the file (`claude-schema-blind-constants.test-fixture.ts`).
 //
 // A place that takes the value and gives nothing the schema could travel in ends the walk without a report: the test
 // of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
@@ -333,71 +339,6 @@ function stepOf(
 }
 
 /**
- The identifier a chain of members starts with, `a` in `a.b.c`.
-
- @param node - chain, or a plain name, of any kind or none
-
- @returns Identifier, `NO_NODE` when the chain starts with anything else
-
- @example
- ```ts
- const head = headIdentifierOf({ node: chain, },);
- ```
- */
-function headIdentifierOf({ node, }: { readonly node: unknown; },): TreeNode {
-  /**
-   The chain without the marks around it.
-   */
-  const { inner, } = unwrapped({ node, },);
-  if (!isTreeNode(inner,))
-    return NO_NODE;
-  if (inner.type === 'Identifier')
-    return inner;
-  return (inner.type === 'MemberExpression')
-    ? headIdentifierOf({ node: inner.object, },)
-    : NO_NODE;
-}
-
-/**
- The references to a name inside a function, other than the place that binds it, also where a member is read off the
- name.
-
- @param context - what the file's names are read against
-
- @param name - name bound
-
- @param scope - function that holds the binding
-
- @returns Identifiers that read the name
-
- @example
- ```ts
- const reads = readsOfName({ context, name: 'format', scope, });
- ```
- */
-function readsOfName(
-  {
-    context,
-    name,
-    scope,
-  }: {
-    readonly context: BlindContext;
-    readonly name: string;
-    readonly scope: TreeNode;
-  },
-): readonly TreeNode[] {
-  return context.references
-    .map(function headOfVisit({ node, },): TreeNode {
-      return headIdentifierOf({ node, },);
-    },)
-    .filter(function readsName(head,): boolean {
-      return (!isNoNode({ node: head, },)) && (identifierName({ node: head, },) === name)
-        && (scope.start <= head.start)
-        && (head.end <= scope.end);
-    },);
-}
-
-/**
  Where the value of a builder's call goes.
  */
 type Destinations = {
@@ -408,20 +349,28 @@ type Destinations = {
   readonly leaving: TreeNode;
 
   /**
-   The places the value goes that the check reports, as the kind of node and the field, each once.
+   The path of the file the function sits in when it is not the file of the call, empty when it is.
+   */
+  readonly leavingIn: string;
+
+  /**
+   The places the value goes that the check reports, as the kind of node and the field, each once, with the file after
+   the place when it is not the file of the call.
    */
   readonly strays: readonly string[];
 };
 
 /**
  Where a builder's call sends its value: the function it is returned from when the search does not know that function
- as a builder, and every place that takes it that no sender, wrapper or constant answers for.
+ as a builder, and every place that takes it that no sender, wrapper or constant answers for. A constant that a file
+ exports is followed into the files that read it.
 
  @param context - what the file's names are read against
 
  @param call - call of a builder, or the node that holds its value
 
- @returns First such function found, `NO_NODE` when the value stays in the function, and the places reported
+ @returns First such function found and the file it sits in when that is not the file of the call, `NO_NODE` when the
+ value stays in the function, and the places reported
 
  @example
  ```ts
@@ -448,12 +397,23 @@ export function destinationsOf(
   /**
    Nodes whose value is still to follow.
    */
-  const pending: TreeNode[] = [call,];
+  const pending: Pending[] = [...pendingIn({
+    context,
+    nodes: [call,],
+  },),];
   /**
-   The functions left by that the search does not know, in the order they were met.
+   The functions left by that the search does not know, in the order they were met, with the context of their file.
    */
-  const leavers: TreeNode[] = [];
-  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+  const leavers: Pending[] = [];
+  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    /**
+     What the names of the node's file are read against.
+     */
+    const here = item.context;
+    /**
+     The program of the node's file.
+     */
+    const { program, } = here.facts;
     /**
      Where the value goes next.
      */
@@ -464,43 +424,76 @@ export function destinationsOf(
       leaves,
       stray,
     } = stepOf({
-      context,
-      node,
+      context: here,
+      node: item.node,
     },);
-    if ((!isNoNode({ node: leaves, },)) && (!context.recognized
-      .has(leaves,)))
-      leavers.push(leaves,);
+    if ((!isNoNode({ node: leaves, },)) && (!here.recognized
+      .has(leaves,))) {
+      leavers.push(...pendingIn({
+        context: here,
+        nodes: [leaves,],
+      },),);
+    }
     if (stray !== '')
-      strays.add(stray,);
-    pending.push(...onward,);
+      strays.add((here.file === context.file) ? stray : `${stray} in ${here.file}`,);
+    pending.push(...pendingIn({
+      context: here,
+      nodes: onward,
+    },),);
     /**
      The function that binds the names, `NO_NODE` at the top level.
      */
     const binding = enclosingFunctionOf({
-      node,
-      parents: context.parents,
+      node: item.node,
+      parents: here.parents,
     },);
     /**
      Where the names are read: the function that binds them, the whole file at the top level and for a name that an
      assignment stores the value in.
      */
-    const scope = (isFileWide || isNoNode({ node: binding, },))
-      ? context.facts
-        .program
-      : binding;
+    const scope = (isFileWide || isNoNode({ node: binding, },)) ? program : binding;
     for (const name of names) {
-      if (!followed.has(`${String(scope.start,)}:${name}`,)) {
-        followed.add(`${String(scope.start,)}:${name}`,);
-        pending.push(...readsOfName({
-          context,
-          name,
-          scope,
+      /**
+       The name as a place to stop when the walk comes back to it.
+       */
+      const place = `${here.file}:${String(scope.start,)}:${name}`;
+      if (!followed.has(place,)) {
+        followed.add(place,);
+        pending.push(...pendingIn({
+          context: here,
+          nodes: readsOfName({
+            context: here,
+            name,
+            scope,
+          },),
         },),);
+        if (scope === program) {
+          /**
+           What the other files read of the name.
+           */
+          const across = acrossFilesOf({
+            context: here,
+            name,
+          },);
+          pending.push(...across.pending,);
+          for (const reported of across.strays) {
+            strays.add(reported,);
+          }
+        }
       }
     }
   }
+  /**
+   The first function left by that the search does not know.
+   */
+  const [first,] = leavers;
+  /**
+   What the names of that function's file are read against.
+   */
+  const leftIn = first?.context ?? context;
   return {
-    leaving: leavers[0] ?? NO_NODE,
+    leaving: first?.node ?? NO_NODE,
+    leavingIn: (leftIn.file === context.file) ? '' : leftIn.file,
     strays: [...strays,],
   };
 }

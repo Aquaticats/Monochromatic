@@ -72,6 +72,13 @@ const SENDERS: readonly Sender[] = [
     reason: 'it is the schema every reply of the windowed rounds must fit; the function keeps it in the request each '
       + 'round asks with',
   },
+  {
+    file: 'corpus-pass/src/corpus-run/pass-schema-check.ts',
+    name: 'assertSchemasSendable',
+    parameter: 'producers',
+    reason: 'it is the list of schema producers the pass checks at its start: the function reads each schema to see '
+      + 'that the provider accepts it, returns nothing and keeps nothing of the list',
+  },
 ];
 
 /**

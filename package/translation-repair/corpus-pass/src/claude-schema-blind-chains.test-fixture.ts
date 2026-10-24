@@ -64,6 +64,7 @@ function callShapesAt(
    */
   const {
     leaving,
+    leavingIn,
     strays,
   } = destinationsOf({
     context,
@@ -76,7 +77,7 @@ function callShapesAt(
         {
           shape: 'builder-result-returned-outside-a-wrapper',
           node: call,
-          position: `${leaving.type} returns it`,
+          position: `${leaving.type} returns it${(leavingIn === '') ? '' : ` in ${leavingIn}`}`,
         } satisfies FoundShape,
       ]),
     ...((strays.length === 0)

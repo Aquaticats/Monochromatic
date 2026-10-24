@@ -22,6 +22,37 @@ import type { KnownFunctions, } from './claude-schema-usage.test-fixture.ts';
 // the search reads it.
 
 /**
+ One place in a file where the value of a constant that another file exports is read.
+ */
+export type ConstantReader = {
+  /**
+   What the file's names are read against.
+   */
+  readonly context: BlindContext;
+
+  /**
+   The node that holds the value there, `NO_NODE` when the place is reported at once and has none.
+   */
+  readonly node: TreeNode;
+
+  /**
+   What a report says of the place when it is reported at once, empty when the walk goes on from the node.
+   */
+  readonly stray: string;
+};
+
+/**
+ The places in the other files of the sources where a constant a file exports is read, found through the imports, the
+ exports from, the stars, the namespace imports and the `import()` of the file.
+ */
+export type ConstantReaders = (
+  input: {
+    readonly file: string;
+    readonly name: string;
+  },
+) => readonly ConstantReader[];
+
+/**
  What a file's names are read against: the modules of the sources, the file, the builders and the modules that carry
  one.
  */
@@ -70,6 +101,11 @@ export type BlindContext = {
    The chains of names the file's code writes where a value sits, with the node that holds each.
    */
   readonly references: readonly Visit[];
+
+  /**
+   Where the other files of the sources read a constant that a file exports.
+   */
+  readonly constants: ConstantReaders;
 };
 
 /**

@@ -8,8 +8,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 
 //region The places where the walk of an exported constant ends
 // The files that read a constant a file exports are followed (`claude-schema-constant-reader-forms.test-fixture.ts`).
-// The walk ends without a report where the value ends in a sender, in the one function that checks that each schema of a
-// list of producers is sendable, in an export from, which only gives the name to other files, in a member of a
+// The walk ends without a report where the value ends in a sender, in the one function that checks that each schema
+// of a list of producers is sendable, in an export from, which only gives the name to other files, in a member of a
 // namespace that is not the constant, and in a name another module exports under the same name. The case holds the
 // real shape the family has: a constant read by a sender in its own file, exported again by an index, put in a list of
 // producers, and the list handed to the check by two files.

@@ -125,7 +125,13 @@ import {
 // the value leaves it, and the function is reported (`builder-result-returned-outside-a-wrapper`). The second is the
 // property of the object argument of a sender, a function named by module and by parameter in
 // `claude-schema-blind-senders.test-fixture.ts`. The third is a constant, a pattern, a default or a name assigned,
-// whose every reference ends in one of the three in turn, also at the top level of a file. Any other place that takes
+// whose every reference ends in one of the three in turn, also at the top level of a file, and for a constant a file
+// exports also in every other file of the family that reads it, by its name, by an alias, through a module that
+// exports it again (by name or by `export *`), through a member of a namespace import, or through an `import()` or a
+// `require` of the file (`claude-schema-blind-constants.test-fixture.ts`). A namespace import read as a whole, a
+// namespace export and a load of the file are reported at once, and a place in another file is reported with that
+// file after it. The one function that only checks each schema of a list of producers is sendable is a sender too
+// (`assertSchemasSendable`), since the list of producers holds every schema. Any other place that takes
 // the value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
 // call that is no sender, an argument of `new`, a substitution of a tagged template (the arguments of the tag
 // function), a store into a member, a field or `this`, a pattern an assignment takes the value apart into, a thrown
