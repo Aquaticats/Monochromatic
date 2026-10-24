@@ -29,27 +29,45 @@ export {
 // same trial gives the arm's first answer with chance `agreement`, else a number of its own. Every number is uniform, so the
 // arm's chance of fixing any ask is its rate. The agreement of an arm with itself on one prompt is not measured; the
 // simulation states the figures for several values and does not pick one.
+//
+// THE TEST IS DECIDED BY A TABLE (`editor-fidelity-paired-null-table.test-fixture.ts`), built from the magnitudes of the
+// entries' differences, and the unit test checks it against the rule's own exact test.
 
 /**
- Draws a trial needs: its own shared number, then for each of three arms the arm's own number, the choice of the shared
- number and the choice of copying the entry's first trial.
+ Arms the bench plays, the high, the low and the default effort; each entry draws one number for each before any ask.
  */
-const DRAWS_PER_TRIAL = 10;
+const ARMS = 3;
 
 /**
- Offset of the arm's own number among a trial's draws, after the shared number.
+ Draws an ask needs: its own shared number, then for each of three arms the arm's own number, the choice of the shared
+ number, the choice of the entry's number, the choice of repeating the first answer and a fresh number for a later pass.
+ */
+const DRAWS_PER_UNIT = 16;
+
+/**
+ Offset of the arm's own number among an ask's draws, after the shared number.
  */
 const OWN_AT = 1;
 
 /**
- Offset of the choice of the shared number among a trial's draws.
+ Offset of the choice of the shared number among an ask's draws.
  */
 const SHARE_AT = 4;
 
 /**
- Offset of the choice of copying among a trial's draws.
+ Offset of the choice of the entry's number among an ask's draws.
  */
-const COPY_AT = 7;
+const ANCHOR_AT = 7;
+
+/**
+ Offset of the choice of repeating the first answer among an ask's draws.
+ */
+const REPEAT_AT = 10;
+
+/**
+ Offset of the fresh number of a later pass among an ask's draws.
+ */
+const FRESH_AT = 13;
 
 /**
  The place of the high effort among the arms' draws and counts.
@@ -65,6 +83,49 @@ const LOW = 1;
  The place of the default effort among the arms' draws and counts.
  */
 const MEDIUM = 2;
+
+/**
+ Every arm's place, the high effort first.
+ */
+const ALL_ARMS = [
+  HIGH,
+  LOW,
+  MEDIUM,
+];
+
+/**
+ Reads one draw of an ask.
+
+ @param draws - the draws of the bench
+
+ @param base - where the ask's draws begin
+
+ @param offset - which kind of draw, among the ask's
+
+ @param arm - the place of the arm among the arms
+
+ @returns The draw, a number in the unit interval
+
+ @example
+ ```ts
+ const chosen = drawOf({ draws, base: 160, offset: SHARE_AT, arm: HIGH, },);
+ ```
+ */
+function drawOf(
+  {
+    draws,
+    base,
+    offset,
+    arm,
+  }: {
+    readonly draws: readonly number[];
+    readonly base: number;
+    readonly offset: number;
+    readonly arm: number;
+  },
+): number {
+  return draws[base + (offset + arm)] ?? 0;
+}
 
 /**
  The chances the simulated bench is played with.
@@ -91,7 +152,7 @@ export type BenchScenario = {
   readonly medium: number;
 
   /**
-   The chance that the second trial of an entry reads like the first, for one arm.
+   The chance that two trials of an entry read alike, for one arm.
    */
   readonly correlation: number;
 
@@ -105,6 +166,67 @@ export type BenchScenario = {
    */
   readonly agreement: number;
 };
+
+/**
+ The number that decides one arm's answer to one ask, before any later pass is considered.
+
+ @param draws - the draws of the bench
+
+ @param base - where the ask's draws begin
+
+ @param entryAt - where the entry's draws begin
+
+ @param arm - the place of the arm among the arms
+
+ @param scenario - the chances
+
+ @returns A number in the unit interval
+
+ @example
+ ```ts
+ const first = firstNumber({ draws, base: 160, entryAt: 0, arm: HIGH, scenario, },);
+ ```
+ */
+function firstNumber(
+  {
+    draws,
+    base,
+    entryAt,
+    arm,
+    scenario,
+  }: {
+    readonly draws: readonly number[];
+    readonly base: number;
+    readonly entryAt: number;
+    readonly arm: number;
+    readonly scenario: BenchScenario;
+  },
+): number {
+  /**
+   The ask's number before the entry is considered: the shared one or the arm's own.
+   */
+  const own = (drawOf({
+    draws,
+    base,
+    offset: SHARE_AT,
+    arm,
+  },) < scenario.share)
+    ? (draws[base] ?? 0)
+    : drawOf({
+      draws,
+      base,
+      offset: OWN_AT,
+      arm,
+    },);
+  return (drawOf({
+    draws,
+    base,
+    offset: ANCHOR_AT,
+    arm,
+  },) < Math.sqrt(scenario.correlation,))
+    ? (draws[entryAt + arm] ?? own)
+    : own;
+}
 
 /**
  Which arms fixed each ask of a simulated bench.
@@ -133,12 +255,85 @@ export function simulatedFixes(
     readonly seed: string;
   },
 ): readonly (readonly boolean[])[] {
-  return units.map(function nothingFixed(): readonly boolean[] {
-    return [
-      scenario.high < 0,
-      scenario.low < 0,
-      seed.length < 0,
-    ];
+  /**
+   The entries, in the order they first appear.
+   */
+  const entries = [...new Set(units.map(function entryOf({ entryId, },): string {
+    return entryId;
+  },),),];
+  /**
+   The draws of the bench: the entries' numbers, then the draws of each ask.
+   */
+  const draws = unitDraws({
+    seed,
+    count: (ARMS * entries.length) + (DRAWS_PER_UNIT * units.length),
+  },);
+  /**
+   The rates by arm.
+   */
+  const rates = [
+    scenario.high,
+    scenario.low,
+    scenario.medium,
+  ];
+  /**
+   The numbers of each ask by arm, in the order of the asks.
+   */
+  const numbers: (readonly number[])[] = [];
+  /**
+   The place of the first ask of each trial.
+   */
+  const firstAskOf = new Map<string, number>();
+  for (const [at, unit,] of units.entries()) {
+    /**
+     Where this ask's draws begin.
+     */
+    const base = (ARMS * entries.length) + (at * DRAWS_PER_UNIT);
+    /**
+     The ask of this trial in the first pass, absent when this is it.
+     */
+    const first = firstAskOf.get(unit.trialId,);
+    if (first === undefined)
+      firstAskOf.set(
+        unit.trialId,
+        at,
+      );
+    numbers.push(rates.map(function numberFor(
+      _unused,
+      arm,
+    ): number {
+      if (first === undefined) {
+        return firstNumber({
+          draws,
+          base,
+          entryAt: ARMS * entries.indexOf(unit.entryId,),
+          arm,
+          scenario,
+        },);
+      }
+      // A later ask of the trial repeats the arm's first answer with the stated agreement, else gives a number of its own.
+      return (drawOf({
+        draws,
+        base,
+        offset: REPEAT_AT,
+        arm,
+      },) < scenario.agreement)
+        ? (numbers[first]?.[arm] ?? 0)
+        : drawOf({
+          draws,
+          base,
+          offset: FRESH_AT,
+          arm,
+        },);
+    },),);
+  }
+  return numbers.map(function fixedBy(row,): readonly boolean[] {
+    return row.map(function underRate(
+      number,
+      arm,
+    ): boolean {
+      return number < (rates[arm] ?? 0);
+    },);
   },);
 }
 
@@ -170,72 +365,22 @@ export function simulatedPick(
   },
 ): 'high' | 'low' | 'medium' {
   /**
-   The draws of the bench.
+   Fixes by arm for each ask.
    */
-  const draws = unitDraws({
+  const fixes = simulatedFixes({
+    units,
+    scenario,
     seed,
-    count: DRAWS_PER_TRIAL * units.length,
   },);
-  /**
-   The rates by arm.
-   */
-  const rates = [
-    scenario.high,
-    scenario.low,
-    scenario.medium,
-  ];
-  /**
-   For each trial and arm, the number that decides it, in the order of the trials.
-   */
-  const numbers: (readonly number[])[] = [];
-  /**
-   The first trial of each entry seen so far, by entry.
-   */
-  const firstOf = new Map<string, number>();
-  for (const [at, trial,] of units.entries()) {
-    /**
-     Where this trial's draws begin.
-     */
-    const base = at * DRAWS_PER_TRIAL;
-    /**
-     The first trial of this entry, absent when this is the first.
-     */
-    const first = firstOf.get(trial.entryId,);
-    if (first === undefined)
-      firstOf.set(
-        trial.entryId,
-        at,
-      );
-    numbers.push(rates.map(function numberFor(
-      _unused,
-      arm,
-    ): number {
-      /**
-       The arm's number before copying: the shared one or its own.
-       */
-      const own = ((draws[base + SHARE_AT
-        + arm] ?? 0) < scenario.share)
-        ? (draws[base] ?? 0)
-        : (draws[base + OWN_AT
-          + arm] ?? 0);
-      return ((first !== undefined) && ((draws[base + COPY_AT
-        + arm] ?? 0) < scenario.correlation))
-        ? (numbers[first]?.[arm] ?? own)
-        : own;
-    },),);
-  }
   /**
    Fixes by arm in each entry, in the order the entries first appear.
    */
   const entries = new Map<string, readonly number[]>();
-  for (const [at, trial,] of units.entries()) {
+  for (const [at, unit,] of units.entries()) {
     entries.set(
-      trial.entryId,
-      rates.map(function fixesOf(
-        rate,
-        arm,
-      ): number {
-        return (entries.get(trial.entryId,)?.[arm] ?? 0) + (((numbers[at]?.[arm] ?? 1) < rate) ? 1 : 0);
+      unit.entryId,
+      ALL_ARMS.map(function fixesOf(arm,): number {
+        return (entries.get(unit.entryId,)?.[arm] ?? 0) + ((fixes[at]?.[arm] === true) ? 1 : 0);
       },),
     );
   }
@@ -247,8 +392,8 @@ export function simulatedPick(
     LOW,
   ].map(function differencesOf(arm,): ReturnType<typeof shownBetter> {
     return shownBetter({
-      differences: [...entries.values(),].map(function differenceOf(fixes,): number {
-        return (fixes[arm] ?? 0) - (fixes[MEDIUM] ?? 0);
+      differences: [...entries.values(),].map(function differenceOf(counts,): number {
+        return (counts[arm] ?? 0) - (counts[MEDIUM] ?? 0);
       },),
     },);
   },);
@@ -332,6 +477,5 @@ export function pickShares(
     any: 1 - (counts.medium / replicates),
   };
 }
-
 
 //endregion Editor fidelity paired test under a simulated bench

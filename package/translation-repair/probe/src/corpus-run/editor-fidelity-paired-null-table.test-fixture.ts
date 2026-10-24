@@ -11,8 +11,112 @@
 const LEVEL = 0.025;
 
 /**
- The chance that a sum of independent signed magnitudes reaches each value, and the least sum whose chance of being reached
- is at most the level.
+ Convolves the chances of the sums so far with one more entry, which adds or takes its magnitude with equal chance.
+
+ @param held - the chance of each sum, the least sum first, the middle being zero
+
+ @param magnitude - how many trials the entry's two arms differ by
+
+ @returns The chances once the entry is in
+
+ @example
+ ```ts
+ const next = withEntry({ held: [0, 1, 0,], magnitude: 1, },);
+ ```
+ */
+function withEntry(
+  {
+    held,
+    magnitude,
+  }: {
+    readonly held: readonly number[];
+    readonly magnitude: number;
+  },
+): readonly number[] {
+  return held.map(function sumAt(
+    _unused,
+    at,
+  ): number {
+    return ((held[at - magnitude] ?? 0) + (held[at + magnitude] ?? 0)) / 2;
+  },);
+}
+
+/**
+ The least sum of entries' differences whose chance of being reached is at most the level, for entries that differ by any
+ number of trials.
+
+ @param magnitudes - for each entry, how many trials its two arms differ by, whatever the sign
+
+ @returns The least sum that is at most the level, positive infinity when none is
+
+ @example
+ ```ts
+ const least = criticalSumOf({ magnitudes: [3, 3, 3, 3, 3, 3,], },);
+ ```
+ */
+export function criticalSumOf({ magnitudes, }: { readonly magnitudes: readonly number[]; },): number {
+  /**
+   The largest sum there can be.
+   */
+  const top = magnitudes.reduce(
+    function add(
+      total: number,
+      magnitude,
+    ): number {
+      return total + magnitude;
+    },
+    0,
+  );
+  /**
+   The chance of each sum, from the least up, the least being minus the top.
+   */
+  const chances = magnitudes.reduce(
+    function spread(
+      held: readonly number[],
+      magnitude: number,
+    ): readonly number[] {
+      return withEntry({
+        held,
+        magnitude,
+      },);
+    },
+    Array.from(
+      { length: (2 * top) + 1, },
+      function startAt(
+        _unused,
+        at,
+      ): number {
+        return (at === top) ? 1 : 0;
+      },
+    ),
+  );
+  /**
+   The running chance of reaching the sum at the place the walk from the top has come to, and the least place whose chance
+   is at most the level, minus one while none is.
+   */
+  const walk = {
+    reached: 0,
+    at: -1,
+  };
+  for (const from of Array.from(
+    { length: chances.length, },
+    function downFrom(
+      _unused,
+      step,
+    ): number {
+      return chances.length - (step + 1);
+    },
+  )) {
+    walk.reached += chances[from] ?? 0;
+    if (walk.reached > LEVEL)
+      break;
+    walk.at = from;
+  }
+  return (walk.at === (-1)) ? Number.POSITIVE_INFINITY : (walk.at - top);
+}
+
+/**
+ The least sum of entries that differ by one trial or by two.
 
  @param ones - entries that differ by one trial
 
@@ -32,134 +136,52 @@ export function criticalSum({
   readonly ones: number;
   readonly twos: number
 },): number {
-  /**
-   The largest sum there can be.
-   */
-  const top = ones + (2 * twos);
-  /**
-   The chance of each sum, from the least up, the least being minus the top.
-   */
-  const chances = [
-    ...Array.from(
-      { length: ones, },
-      function one(): number {
-        return 1;
-      },
-    ),
-    ...Array.from(
-      { length: twos, },
-      function two(): number {
-        return 2;
-      },
-    ),
-  ].reduce(
-    function spread(
-      held: readonly number[],
-      size: number,
-    ): readonly number[] {
-      return Array.from(
-        { length: (2 * top) + 1, },
-        function sumAt(
-          _unused,
-          at,
-        ): number {
-          return ((held[at - size] ?? 0) + (held[at + size] ?? 0)) / 2;
+  return criticalSumOf({
+    magnitudes: [
+      ...Array.from(
+        { length: ones, },
+        function one(): number {
+          return 1;
         },
-      );
-    },
-    Array.from(
-      { length: (2 * top) + 1, },
-      function startAt(
-        _unused,
-        at,
-      ): number {
-        return (at === top) ? 1 : 0;
-      },
-    ),
-  );
-  /**
-   The chance of reaching each sum, from the top down.
-   */
-  const reach = chances.map(function reachFrom(
-    _unused,
-    from,
-  ): number {
-    return chances.slice(from,)
-      .reduce(
-      function add(
-        total: number,
-        chance,
-      ): number {
-        return total + chance;
-      },
-      0,
-      );
-  },);
-  /**
-   Where the chance first falls to the level.
-   */
-  const at = reach.findIndex(function atMost(chance,): boolean {
-    return chance <= LEVEL;
-  },);
-  return (at === (-1)) ? Number.POSITIVE_INFINITY : (at - top);
-}
-
-/**
- The least sum of entries' differences whose chance of being reached is at most the level, for entries that differ by any
- number of trials.
-
- @param magnitudes - for each entry, how many trials its two arms differ by, whatever the sign
-
- @returns The least sum that is at most the level, positive infinity when none is
-
- @example
- ```ts
- const least = criticalSumOf({ magnitudes: [3, 3, 3, 3, 3, 3,], },);
- ```
- */
-export function criticalSumOf({ magnitudes, }: { readonly magnitudes: readonly number[]; },): number {
-  return criticalSum({
-    ones: magnitudes.filter(function isOne(magnitude,): boolean {
-      return magnitude === 1;
-    },)
-      .length,
-    twos: magnitudes.filter(function isTwo(magnitude,): boolean {
-      return magnitude === 2;
-    },)
-      .length,
+      ),
+      ...Array.from(
+        { length: twos, },
+        function two(): number {
+          return 2;
+        },
+      ),
+    ],
   },);
 }
 
 /**
- Memo of the critical sums by the counts they were made for.
+ Memo of the critical sums by the sorted magnitudes they were made for.
  */
 const CRITICAL = new Map<string, number>();
 
 /**
- The critical sum of the entries' differences, from the table, made once for each pair of counts.
+ The critical sum of the entries' differences, from the table, made once for each set of magnitudes.
 
- @param ones - entries that differ by one trial
-
- @param twos - entries that differ by two trials
+ @param magnitudes - for each entry that differs, how many trials its two arms differ by
 
  @returns The least sum at most the level
 
  @example
  ```ts
- const least = criticalSumFor({ ones: 6, twos: 0, },);
+ const least = criticalSumFor({ magnitudes: [1, 1, 2,], },);
  ```
  */
-function criticalSumFor({
-  ones,
-  twos,
-}: {
-  readonly ones: number;
-  readonly twos: number
-},): number {
+function criticalSumFor({ magnitudes, }: { readonly magnitudes: readonly number[]; },): number {
   /**
    The memo key.
    */
-  const key = `${String(ones,)}/${String(twos,)}`;
+  const key = magnitudes.toSorted(function ascending(
+    left,
+    right,
+  ): number {
+    return left - right;
+  },)
+    .join(',',);
   /**
    The sum made before, if any.
    */
@@ -169,10 +191,7 @@ function criticalSumFor({
   /**
    The sum made now.
    */
-  const fresh = criticalSum({
-    ones,
-    twos,
-  },);
+  const fresh = criticalSumOf({ magnitudes, },);
   CRITICAL.set(
     key,
     fresh,
@@ -199,20 +218,6 @@ export function shownBetter(
   readonly sum: number
 } {
   /**
-   Entries that differ by one trial.
-   */
-  const ones = differences.filter(function isOne(difference,): boolean {
-    return Math.abs(difference,) === 1;
-  },)
-    .length;
-  /**
-   Entries that differ by two trials.
-   */
-  const twos = differences.filter(function isTwo(difference,): boolean {
-    return Math.abs(difference,) === 2;
-  },)
-    .length;
-  /**
    The sum of the differences.
    */
   const sum = differences.reduce(
@@ -226,12 +231,15 @@ export function shownBetter(
   );
   return {
     shown: sum >= criticalSumFor({
-      ones,
-      twos,
+      magnitudes: differences.map(function sizeOf(difference,): number {
+        return Math.abs(difference,);
+      },)
+        .filter(function differs(magnitude,): boolean {
+          return magnitude > 0;
+        },),
     },),
     sum,
   };
 }
-
 
 //endregion Editor fidelity paired test table

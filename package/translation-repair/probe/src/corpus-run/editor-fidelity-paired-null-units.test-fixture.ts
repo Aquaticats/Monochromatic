@@ -104,21 +104,25 @@ export function unitsOf(
     readonly units: number;
   },
 ): readonly BenchUnit[] {
-  return trials
+  return Array.from(
+    { length: passes, },
+    function passAt(
+      _unused,
+      pass,
+    ): readonly BenchUnit[] {
+      return trials.map(function unitOf(trial,): BenchUnit {
+        return {
+          ...trial,
+          pass,
+        };
+      },);
+    },
+  )
+    .flat()
     .slice(
     0,
     units,
-    )
-    .filter(function walked(): boolean {
-      return passes > 0;
-    },)
-    .map(function unitOf(trial,): BenchUnit {
-      return {
-        ...trial,
-        pass: 0,
-      };
-    },);
+    );
 }
-
 
 //endregion Editor fidelity bench units
