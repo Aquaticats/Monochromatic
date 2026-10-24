@@ -81,6 +81,7 @@ import { OUTSIDE_MODULE_CASES, } from './claude-schema-outside-module-forms.test
 import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.ts';
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
+import { SENDER_SHADOW_CASES, } from './claude-schema-sender-shadow-forms.test-fixture.ts';
 import { SPECIFIER_CASES, } from './claude-schema-specifier-forms.test-fixture.ts';
 import { SURVIVOR_CASES, } from './claude-schema-survivor-forms.test-fixture.ts';
 import { TAGGED_TEMPLATE_CASES, } from './claude-schema-tagged-template-forms.test-fixture.ts';
@@ -679,6 +680,7 @@ await describe({
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
       ...SURVIVOR_CASES,
+      ...SENDER_SHADOW_CASES,
       ...TAGGED_TEMPLATE_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
@@ -727,6 +729,7 @@ await describe({
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
       ...SURVIVOR_CASES,
+      ...SENDER_SHADOW_CASES,
       ...TAGGED_TEMPLATE_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({

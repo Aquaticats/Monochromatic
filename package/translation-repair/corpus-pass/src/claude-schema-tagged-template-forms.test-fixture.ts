@@ -38,9 +38,9 @@ const TAG_DECLARATION = 'const tag = (_strings: TemplateStringsArray, value: unk
  */
 export const TAGGED_TEMPLATE_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS A BUILDER\'S RESULT IN A SUBSTITUTION OF A TAGGED TEMPLATE, tagged by a name or by a member, nested in '
-      + 'another tagged template, held by a constant at the top level, or the object a sender takes, and nothing for a '
-      + 'substitution of a plain template: a tag function is a call that can keep what it is given',
+    name: 'REPORTS A BUILDER\'S RESULT IN A SUBSTITUTION OF A TAGGED TEMPLATE, tagged by a name or by a member, nested '
+      + 'in another tagged template, held by a constant at the top level, or the object a sender takes, and nothing '
+      + 'for a substitution of a plain template: a tag function is a call that can keep what it is given',
     files: [
       {
         file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
@@ -101,7 +101,7 @@ export const TAGGED_TEMPLATE_CASES: readonly ShapeCase[] = [
           '}',
           '',
           'export async function plain() {',
-          `  return await gatherThroughCache(\`${DOLLAR}{{ responseFormat: contestResponseFormat(${ARGUMENTS},), }}\`);`,
+          `  return await gatherThroughCache(\`${DOLLAR}{{ responseFormat: contestResponseFormat(${ARGUMENTS},) }}\`);`,
           '}',
         ],),
       },
