@@ -21,48 +21,13 @@ import {
   nodeAt,
   nodesAt,
   pathOf,
-  stringValueOf,
+  settledSpecifierOf,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region What the declarations of a module add
 // What a top-level declaration adds to the facts of its module: a function declaration, and each constant a variable
 // declaration names, whether the constant holds a function, an object, a loaded module, a name or a chain of members, or
 // is taken apart into members.
-
-/**
- The module a dynamic `import()` or a `require` loads, when its path is a literal.
-
- @param node - expression read, of any kind or none
-
- @returns The path as the call writes it, empty for any other expression and for a path that is no literal
-
- @example
- ```ts
- const specifier = loadedModuleOf({ node: declarator.init, },);
- ```
- */
-function loadedModuleOf({ node, }: { readonly node: unknown; },): string {
-  /**
-   The expression without the type marks and parentheses around it.
-   */
-  const { inner, } = unwrapped({ node, },);
-  if (!isTreeNode(inner,))
-    return '';
-  if (inner.type === 'AwaitExpression')
-    return loadedModuleOf({ node: inner.argument, },);
-  if (inner.type === 'ImportExpression')
-    return stringValueOf({ node: inner.source, },);
-  if ((inner.type !== 'CallExpression') || (identifierName({ node: inner.callee, },) !== 'require'))
-    return '';
-  /**
-   The first argument of the call.
-   */
-  const [first = NO_NODE,] = nodesAt({
-    node: inner,
-    field: 'arguments',
-  },);
-  return stringValueOf({ node: first, },);
-}
 
 /**
  The object literal an expression is, once the type marks around it are taken off.
@@ -180,7 +145,7 @@ function gatherConstant(
   /**
    The module a dynamic import or a require of a literal path loads.
    */
-  const specifier = loadedModuleOf({ node: init, },);
+  const specifier = settledSpecifierOf({ node: init, },);
   /**
    The names the value is read through when it is a name or a chain of members.
    */
@@ -274,7 +239,7 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
   /**
    The module a dynamic import or a require of a literal path loads.
    */
-  const specifier = loadedModuleOf({ node: init, },);
+  const specifier = settledSpecifierOf({ node: init, },);
   /**
    The names the value is read through when it is a name or a chain of members.
    */

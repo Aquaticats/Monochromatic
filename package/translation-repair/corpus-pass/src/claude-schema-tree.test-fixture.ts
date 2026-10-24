@@ -493,8 +493,136 @@ export function functionIn({ node, }: { readonly node: unknown; },): TreeNode {
 }
 
 /**
+ A dynamic `import()` or a `require` call, as the path it loads is written.
+ */
+type ModuleLoad = {
+  /**
+   Whether the expression is a load at all.
+   */
+  readonly isLoad: boolean;
+
+  /**
+   The path as written, empty unless it is a string or a template with no substitution.
+   */
+  readonly specifier: string;
+
+  /**
+   Whether the load yields the module itself: a `require`, or an `import()` under `await`.
+   */
+  readonly isSettled: boolean;
+};
+
+/**
+ What an expression that is no load stands for.
+ */
+const NO_LOAD: ModuleLoad = {
+  isLoad: false,
+  specifier: '',
+  isSettled: false,
+};
+
+/**
+ The first part of the name a load is read through in a chain of names, which no identifier can spell.
+ */
+const MODULE_HEAD = 'module:';
+
+/**
+ The dynamic `import()` or `require` an expression is, once parentheses, type marks and `await` are taken off.
+
+ @param node - expression read, of any kind or none
+
+ @returns The load; its `specifier` is empty for a path that is no literal, and it is settled when it is a `require`
+ or an `import()` under `await`
+
+ @example
+ ```ts
+ const load = moduleLoadOf({ node: declarator.init, },);
+ ```
+ */
+function moduleLoadOf({ node, }: { readonly node: unknown; },): ModuleLoad {
+  /**
+   The expression without the type marks and parentheses around it.
+   */
+  const { inner, } = unwrapped({ node, },);
+  if (!isTreeNode(inner,))
+    return NO_LOAD;
+  if (inner.type === 'AwaitExpression') {
+    /**
+     What the `await` waits for.
+     */
+    const awaited = moduleLoadOf({ node: inner.argument, },);
+    return awaited.isLoad
+      ? {
+        ...awaited,
+        isSettled: true,
+      }
+      : NO_LOAD;
+  }
+  if (inner.type === 'ImportExpression') {
+    return {
+      isLoad: true,
+      specifier: stringValueOf({ node: inner.source, },),
+      isSettled: false,
+    };
+  }
+  if ((inner.type !== 'CallExpression') || (identifierName({ node: inner.callee, },) !== 'require'))
+    return NO_LOAD;
+  /**
+   The first argument of the call.
+   */
+  const [first = NO_NODE,] = nodesAt({
+    node: inner,
+    field: 'arguments',
+  },);
+  return {
+    isLoad: true,
+    specifier: stringValueOf({ node: first, },),
+    isSettled: true,
+  };
+}
+
+/**
+ The literal path of the module an expression loads, when it yields the module itself.
+
+ @param node - expression read, of any kind or none
+
+ @returns The path as written, empty for any other expression, for a path that is no literal and for an `import()`
+ that is not awaited
+
+ @example
+ ```ts
+ const specifier = settledSpecifierOf({ node: declarator.init, },);
+ ```
+ */
+export function settledSpecifierOf({ node, }: { readonly node: unknown; }): string {
+  /**
+   The load the expression is.
+   */
+  const load = moduleLoadOf({ node, },);
+  return load.isSettled ? load.specifier : '';
+}
+
+/**
+ The name a loaded module is read through in a chain of names.
+
+ @param specifier - the path as the load writes it
+
+ @returns A name no identifier can be
+
+ @example
+ ```ts
+ const head = moduleHeadOf({ specifier: './a.ts', },);
+ // => 'module:./a.ts'
+ ```
+ */
+export function moduleHeadOf({ specifier, }: { readonly specifier: string; },): string {
+  return `${MODULE_HEAD}${specifier}`;
+}
+
+/**
  The names an expression is written with when it is a plain name or a chain of members: `build`, `ns.build`,
- `kit.build`, also `kit['build']`.
+ `kit.build`, also `kit['build']`, and, for a member read off a load in place, the name of the module first:
+ `(await import('./a.ts')).build` is `module:./a.ts`, `build`.
 
  @param node - expression read, of any kind or none
 
@@ -515,6 +643,12 @@ export function pathOf({ node, }: { readonly node: unknown; },): readonly string
     return [];
   if (inner.type === 'Identifier')
     return [identifierName({ node: inner, },),];
+  /**
+   The literal path of the module the expression loads, empty when it loads none.
+   */
+  const specifier = settledSpecifierOf({ node: inner, },);
+  if (specifier !== '')
+    return [moduleHeadOf({ specifier, },),];
   if (inner.type !== 'MemberExpression')
     return [];
   /**

@@ -1,5 +1,6 @@
 import {
   identifierName,
+  nodesUnder,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
@@ -13,6 +14,10 @@ import {
   nameWrittenBy,
   NOTHING,
 } from './claude-schema-facts.test-fixture.ts';
+import {
+  loadBindingsIn,
+  nestedBindingsIn,
+} from './claude-schema-nested.test-fixture.ts';
 import {
   holdsFormatMention,
   isNoNode,
@@ -350,11 +355,22 @@ export function moduleFactsOf(
         return gatherStatement({ statement, },);
       },),
   },);
+  /**
+   Every node of the file, which the reads of loads and of bindings made in functions share.
+   */
+  const nodes = nodesUnder({ root: program, },);
   return {
     file,
     holdsFormat: holdsFormatMention({ root: program, },),
     declared: gathered.declared,
-    bindings: new Map(gathered.bindings,),
+    bindings: new Map([
+      ...nestedBindingsIn({
+        program,
+        nodes,
+      },),
+      ...loadBindingsIn({ nodes, },),
+      ...gathered.bindings,
+    ],),
     exports: new Map(gathered.exports,),
     stars: gathered.stars,
     references: referencesIn({ root: program, },),

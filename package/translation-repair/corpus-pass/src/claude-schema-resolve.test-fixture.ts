@@ -96,6 +96,15 @@ export type Family = ReadonlyMap<string, ModuleFacts>;
 const OPAQUE: Resolved = { kind: 'opaque', };
 
 /**
+ The members of a function that call it: `build.call(...)`, `build.apply(...)` and `build.bind(...)` are `build`.
+ */
+const CALL_METHODS: ReadonlySet<string> = new Set([
+  'apply',
+  'bind',
+  'call',
+],);
+
+/**
  What a module exports under a name it does not export.
  */
 const NONE: Resolved = { kind: 'none', };
@@ -129,8 +138,9 @@ function valueOf({ resolved, }: { readonly resolved: Resolved; },): Resolved {
 
  @param seen - the bindings and exports already followed
 
- @returns The member: a member of an object is the function `object.member` when the module declares one, an export of a
- module is what the module exports, any member of an outside module is a free name, any member of a free name extends it
+ @returns The member: `call`, `apply` and `bind` of a function or of a free name are that function or name, a member of
+ an object is the function `object.member` when the module declares one, an export of a module is what the module
+ exports, any member of an outside module is a free name, any other member of a free name extends it
 
  @example
  ```ts
@@ -151,6 +161,8 @@ function memberOf(
     readonly seen: ReadonlySet<string>;
   },
 ): Resolved {
+  if (CALL_METHODS.has(member,) && ((of.kind === 'function') || (of.kind === 'free')))
+    return of;
   if (of.kind === 'free') {
     return {
       kind: 'free',
