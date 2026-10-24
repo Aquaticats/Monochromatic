@@ -29,6 +29,11 @@ const RUNS_TEXT = 'eval runs text the search cannot read';
 const BUILDS_FUNCTION = 'Function builds code from text the search cannot read';
 
 /**
+ The position a report gives for a member of the global object whose key is no string the search can read.
+ */
+const COMPUTES_GLOBAL = 'global object member computed from a key the search cannot read';
+
+/**
  The place the check reports for code the search cannot read.
 
  @param file - path of the imaginary file
@@ -189,7 +194,7 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'REPORTS A MEMBER COMPUTED FROM A STRING THAT IS createRequire, require, eval OR Function, and nothing for a '
-      + 'member computed from another string or from a name',
+      + 'member computed from another string',
     files: [
       {
         file: 'imaginary/src/computed-code-stage.ts',
@@ -199,7 +204,6 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
           'export const evaluated = globalThis[\'eval\'](\'1\',);',
           'export const made = globalThis[\'Function\'](\'return 1\',);',
           'export const other = globalThis[\'evaluate\'](\'1\',);',
-          'export const named = globalThis[key](\'1\',);',
         ],),
       },
     ],
@@ -225,6 +229,82 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
         file: 'imaginary/src/computed-code-stage.ts',
         line: 4,
         position: BUILDS_FUNCTION,
+      },),
+    ],
+  },
+  {
+    name: 'REPORTS A MEMBER OF globalThis, window, self OR global COMPUTED FROM ANYTHING BUT A STRING, which can name '
+      + 'eval or Function, and nothing for a literal key, a dotted member, a computed member of another object, '
+      + 'and the three stated limits: the constructor of a function, node:vm and the constructor of the async '
+      + 'prototype',
+    files: [
+      {
+        file: 'imaginary/src/computed-global-stage.ts',
+        text: textOf([
+          'export const joined = (globalThis as any)[\'ev\' + \'al\'](\'1\',);',
+          'export const named = globalThis[key](\'1\',);',
+          'export const onWindow = window[name](\'1\',);',
+          'export const onSelf = self[prefix + \'al\'](\'1\',);',
+          'export const onGlobal = global[pick()](\'1\',);',
+          'export const optional = globalThis?.[key]?.(\'1\',);',
+          'globalThis[key] = 1;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/literal-global-stage.ts',
+        text: textOf([
+          'export const literal = globalThis[\'fetch\'](\'x\',);',
+          'export const dotted = globalThis.fetch(\'x\',);',
+          'export const other = config[key](\'1\',);',
+          'export const constructed = (function () {}).constructor(\'return 1\',)();',
+          'export const prototyped = Object.getPrototypeOf(async function () {}).constructor(\'return 1\',);',
+        ],),
+      },
+      {
+        file: 'imaginary/src/vm-stage.ts',
+        text: textOf([
+          'import vm from \'node:vm\';',
+          'export const ran = vm.runInThisContext(\'1\',);',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+    spots: [
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 1,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 2,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 3,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 4,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 5,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 6,
+        position: COMPUTES_GLOBAL,
+      },),
+      spotAt({
+        file: 'imaginary/src/computed-global-stage.ts',
+        line: 7,
+        position: COMPUTES_GLOBAL,
       },),
     ],
   },
