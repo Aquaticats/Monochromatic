@@ -284,6 +284,22 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'a footnote definition and a closed fence indented four spaces, then text indented under it',
     '[^1]: x {\n    ```\n    a\n    ```\n    tail {z}\n',
   ],
+  [
+    'an angle autolink holding a pipe in the text of a link in a table cell',
+    '| a | b |\n| - | - |\n| [<https://example.net/a|b>](u) | c |\n',
+  ],
+  [
+    'an angle autolink holding a pipe in a table cell',
+    '| a | b |\n| - | - |\n| <https://example.net/a|b> | c |\n',
+  ],
+  [
+    'an angle autolink holding a pipe in a table cell in a block quote',
+    '> | a | b |\n> | - | - |\n> | <https://example.net/a|b> | c |\n',
+  ],
+  [
+    'an angle autolink without a pipe in a table cell',
+    '| a | b |\n| - | - |\n| <https://example.net/a> | c |\n',
+  ],
 ];
 
 /**
