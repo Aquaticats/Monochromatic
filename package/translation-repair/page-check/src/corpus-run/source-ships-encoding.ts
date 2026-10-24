@@ -17,6 +17,7 @@ import {
 import {
   asTheParseReadsIt,
   blanking,
+  foldLoneCarriageReturns,
 } from './source-ships-readable.ts';
 import {
   ESCAPABLE,
@@ -71,6 +72,14 @@ import {
 //   parser, and no backslash stops that (the mask looks for the four characters and not for an escape), so its
 //   opener, and each later `<!--` inside it, is written as `&lt;!--`, which shows as the same characters and masks
 //   nothing (a second opener left in place opens a comment of its own, and the English after the run is hidden).
+//
+// A LONE CARRIAGE RETURN IS FOLDED TO A LINE FEED BEFORE ANYTHING IS READ (`source-ships-readable.ts`,
+// `foldLoneCarriageReturns`). The grammar and the plain parse read it as a line ending and every reader here splits
+// lines on the line feed, so a text of such endings was one line to them: a footnote's separator and the closing line
+// of a flow were missed, an expression leaked on the page and a closed flow was closed twice. Folding at the one entry
+// keeps the length, so every offset stands, and leaves Windows line endings as they are. The text a run that parses as
+// written ships is not encoded and keeps whatever endings it has; the corpus folds Windows endings at the read and holds
+// no lone carriage return (`slice-reading/src/line-endings.ts`).
 //
 // WHAT IS NOT ENCODED, AND WHY. A source run that parses as written ships as written, `<Foo />` and a balanced
 // `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there
@@ -434,16 +443,24 @@ function escapesNext(
  Writes a backslash before each `{`, `}` and `<` of the text that a reader sees as text, and the other rewrites that
  are made in place.
 
- @param text - slice text as the artifact records it
+ @param text - slice text as the artifact records it, a lone carriage return among its line endings included
 
- @returns Text with those characters escaped, equal to the text when it holds none
+ @returns Text with those characters escaped and every lone carriage return written as a line feed, equal to the text
+ when it holds none
 
  @example
  ```ts
  const escaped = escapedText({ text: '她说 { 然后走了。', },);
  ```
  */
-function escapedText({ text, }: { readonly text: string; },): string {
+function escapedText({ text: recorded, }: { readonly text: string; },): string {
+  // THE ONE PLACE A LONE CARRIAGE RETURN IS READ: the readers below split lines on the line feed and the grammar
+  // reads a carriage return as a line ending, so a text of such endings was read as a single line, its footnote
+  // separator and the closing line of its flow were missed, and the page held an expression the original lacked.
+  /**
+   The text with every lone carriage return written as a line feed, of the same length.
+   */
+  const text = foldLoneCarriageReturns({ text: recorded, },);
   /**
    What the text holds.
    */

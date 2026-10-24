@@ -3,7 +3,10 @@ import type { TextRange, } from './source-ships-ranges.ts';
 //region Source ships readable
 // A TEXT AS THE PARSE READS IT, which the encoder and the closing of a flow share: the comments that close blanked,
 // so what stands inside them is not parsed, and a byte order mark that opens the text an ordinary character, since
-// the page carries the text after a note and a blank line and the mark then stands in the middle of the page.
+// the page carries the text after a note and a blank line and the mark then stands in the middle of the page. Every
+// reader of the encoder splits lines on the line feed, and a carriage return that is no part of a Windows line ending
+// is a line ending to the grammar and to the plain parse, so a text is folded to line feeds and Windows line endings
+// before anything reads it (`foldLoneCarriageReturns`).
 
 /**
  The code point of the byte order mark.
@@ -91,6 +94,37 @@ export function blanking(
   }
   pieces.push(text.slice(copied.upTo,),);
   return pieces.join('',);
+}
+
+/**
+ Writes a line feed for every carriage return that does not start a Windows line ending, and keeps the Windows line
+ endings, so every reader of the encoder meets line feeds and Windows line endings only.
+
+ The text keeps its length, so an offset of the folded text is an offset of the original. A carriage return at the end
+ of the text has nothing after it to make a pair with, and is folded.
+
+ @param text - text as the artifact records it
+
+ @returns Text of the same length, equal to the text when it holds no lone carriage return
+
+ @example
+ ```ts
+ const folded = foldLoneCarriageReturns({ text: 'a\rb\r\nc', },); // 'a\nb\r\nc'
+ ```
+ */
+export function foldLoneCarriageReturns({ text, }: { readonly text: string; },): string {
+  /**
+   The characters of the result, joined at the end.
+   */
+  const characters: string[] = [];
+  for (let at = 0; at < text.length; at += 1) {
+    /**
+     Character read.
+     */
+    const character = text.charAt(at,);
+    characters.push(((character === '\r') && (text.charAt(at + 1,) !== '\n')) ? '\n' : character,);
+  }
+  return characters.join('',);
 }
 
 /**

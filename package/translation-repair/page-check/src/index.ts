@@ -175,6 +175,7 @@ export {
 export {
   asTheParseReadsIt,
   blanking,
+  foldLoneCarriageReturns,
 } from './corpus-run/source-ships-readable.ts';
 export {
   spansOf,
