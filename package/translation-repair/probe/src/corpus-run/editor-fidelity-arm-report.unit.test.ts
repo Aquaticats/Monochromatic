@@ -21,6 +21,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import {
   armLogOf,
+  inPass,
   poolRows,
   type RowSpec,
   tallyFromRows,
@@ -231,6 +232,67 @@ await describe({
         expect(lines.find(function isHigh(line,): boolean {
           return line.startsWith('PAIRED high vs medium: ',);
         },),).toContain('43 shared trials',);
+      },
+    },),
+
+    it({
+      name: 'KEYS THE ROWS BY PASS AND TRIAL, so a trial asked again in a second pass is a second unit in its entry, '
+        + 'compared with the other arms\' answer in the same pass: high fixes every trial in the first pass and none in '
+        + 'the second, so over 88 units it stands level with medium',
+      fn: async () => {
+        /**
+         The rows of a second pass over the same trials.
+         */
+        const second = inPass({ rows: HALF_ROWS, pass: 2, },);
+        /**
+         High fixed every trial the first time and none the second.
+         */
+        const highRows = [
+          ...ALL_ROWS,
+          ...inPass({
+            rows: poolRows({
+              count: TRIALS,
+              fixed: function none(): boolean {
+                return false;
+              },
+            }),
+            pass: 2,
+          },),
+        ];
+        const lines = benchReportLines({
+          arms: [
+            benchArm({ arm: 'high', cardId: HIGH_CARD, rows: highRows, },),
+            benchArm({ arm: 'medium', cardId: MEDIUM_CARD, rows: [...HALF_ROWS, ...second,], },),
+            benchArm({ arm: 'low', cardId: LOW_CARD, rows: [...HALF_ROWS, ...second,], },),
+          ],
+        },);
+        expect(lines.some(function isShared(line,): boolean {
+          return line.startsWith('SHARED 88 ',) && line.includes(' over 22 entries (high completed 88,',);
+        },),).toBe(true,);
+        expect(lines.find(function isHigh(line,): boolean {
+          return line.startsWith('PAIRED high vs medium: ',);
+        },),).toContain('+0.0 points',);
+      },
+    },),
+
+    it({
+      name: 'LEAVES OUT ONLY THE UNIT IN WHICH AN ASK THREW: a second-pass row of the medium arm threw, so 87 of 88 units '
+        + 'are shared and the same trial in the first pass stays',
+      fn: async () => {
+        /**
+         The rows of a second pass, the third of them with an ask that threw.
+         */
+        const second = withStops({ rows: inPass({ rows: HALF_ROWS, pass: 2, },), stops: { 2: 'threw+ok', }, },);
+        const lines = benchReportLines({
+          arms: [
+            benchArm({ arm: 'high', cardId: HIGH_CARD, rows: [...ALL_ROWS, ...inPass({ rows: ALL_ROWS, pass: 2, },),], },),
+            benchArm({ arm: 'medium', cardId: MEDIUM_CARD, rows: [...HALF_ROWS, ...second,], },),
+            benchArm({ arm: 'low', cardId: LOW_CARD, rows: [...HALF_ROWS, ...inPass({ rows: HALF_ROWS, pass: 2, },),], },),
+          ],
+        },);
+        expect(lines.some(function isShared(line,): boolean {
+          return line.startsWith('SHARED 87 ',) && line.includes('; 1 left out as thrown, 0 not completed by every arm)',);
+        },),).toBe(true,);
       },
     },),
 

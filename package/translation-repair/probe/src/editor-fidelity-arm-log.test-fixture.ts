@@ -67,7 +67,43 @@ export type RowSpec = {
    The stop words the row states, empty for a row that states none.
    */
   readonly stops: string;
+
+  /**
+   The pass over the pool the row belongs to, counted from one; absent for the first pass, whose row lines name none.
+   */
+  readonly pass?: number;
 };
+
+/**
+ The rows put into a later pass over the pool, each with the pass its line names.
+
+ @param rows - the rows of a pass
+
+ @param pass - the pass, counted from one
+
+ @returns The same rows, each in that pass
+
+ @example
+ ```ts
+ const second = inPass({ rows: poolRows({ count: 44, fixed, },), pass: 2, },);
+ ```
+ */
+export function inPass(
+  {
+    rows,
+    pass,
+  }: {
+    readonly rows: readonly RowSpec[];
+    readonly pass: number;
+  },
+): readonly RowSpec[] {
+  return rows.map(function passed(row,): RowSpec {
+    return {
+      ...row,
+      pass,
+    };
+  },);
+}
 
 /**
  The rows of an arm that walks the leading trials of the invented pool: two to an entry, the insertion then the
@@ -360,7 +396,9 @@ export function armLogOf(
       ): string {
         return `row ${String(at + 1,)} of ${String(plannedTrials,)}: ${tally.cardId} on ${row.trial}: ${
           row.fixed ? 'clean fix exact, nothing else touched' : 'not fixed, nothing else touched'
-        }; entry ${row.entry}${(row.stops === '') ? '' : `; stopped ${row.stops}`}`;
+        }; entry ${row.entry}${((row.pass ?? 1) > 1) ? `; pass ${String(row.pass,)}` : ''}${
+          (row.stops === '') ? '' : `; stopped ${row.stops}`
+        }`;
       },),
       ...(capped
         ? [

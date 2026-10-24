@@ -22,6 +22,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import {
   armLogOf,
+  inPass,
   poolRows,
   type RowSpec,
   tallyFromRows,
@@ -382,6 +383,54 @@ await describe({
           check: 'trials in the first arm\'s order',
         },),).toBe(
           'FAIL low: trials in the first arm\'s order: it walked 46 trials and high completed 44',
+        );
+      },
+    },),
+
+    it({
+      name: 'CHECKS THE PASS AS WELL AS THE TRIAL IN THE ORDER CHECK: a later arm that walked the first pass again where '
+        + 'the first arm walked its second fails at that row, naming the pass, and one that walked both passes in order '
+        + 'passes',
+      fn: async () => {
+        /**
+         The rows of two passes over the same trials.
+         */
+        const twoPasses: readonly RowSpec[] = [...GOOD_ROWS, ...inPass({ rows: GOOD_ROWS, pass: 2, },),];
+        /**
+         The first arm and a medium arm that walked both passes.
+         */
+        const first = [
+          armOf({ arm: 'high', cardId: HIGH_CARD, rows: twoPasses, declaredUsd: 0, countedUsd: 2.5, },),
+          armOf({ arm: 'medium', cardId: MEDIUM_CARD, rows: twoPasses, declaredUsd: 2.5, countedUsd: 1.5, },),
+        ];
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [
+              ...first,
+              armOf({ arm: 'low', cardId: LOW_CARD, rows: twoPasses, declaredUsd: 4, countedUsd: 0.875, },),
+            ],
+          },).lines,
+          scope: 'low',
+          check: 'trials in the first arm\'s order',
+        },),).toBe('PASS low: trials in the first arm\'s order: the 88 trials it walked are the first 88 of high\'s',);
+        expect(lineFor({
+          lines: checkEditorBench({
+            arms: [
+              ...first,
+              armOf({
+                arm: 'low',
+                cardId: LOW_CARD,
+                rows: [...GOOD_ROWS, ...GOOD_ROWS,],
+                declaredUsd: 4,
+                countedUsd: 0.875,
+              },),
+            ],
+          },).lines,
+          scope: 'low',
+          check: 'trials in the first arm\'s order',
+        },),).toBe(
+          'FAIL low: trials in the first arm\'s order: row 45 walked cat-0-s0/insertion where high walked '
+            + 'cat-0-s0/insertion (pass 2)',
         );
       },
     },),

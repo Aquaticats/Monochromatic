@@ -96,11 +96,36 @@ await describe({
           },),
         },);
         expect(rows,).toStrictEqual([
-          { row: 1, trial: 'tabby-s0/insertion', entry: 'cat-0', kind: 'insertion', fixed: true, stops: ['ok',], stated: true, },
-          { row: 2, trial: 'tabby-s1/insertion', entry: 'cat-1', kind: 'insertion', fixed: true, stops: ['refused', 'ok',], stated: true, },
-          { row: 3, trial: 'tabby-s2/insertion', entry: 'cat-2', kind: 'insertion', fixed: true, stops: [], stated: false, },
-          { row: 4, trial: 'tabby-s3/insertion', entry: 'cat-3', kind: 'insertion', fixed: true, stops: ['output-cap',], stated: true, },
+          { row: 1, trial: 'tabby-s0/insertion', entry: 'cat-0', pass: 1, kind: 'insertion', fixed: true, stops: ['ok',], stated: true, },
+          { row: 2, trial: 'tabby-s1/insertion', entry: 'cat-1', pass: 1, kind: 'insertion', fixed: true, stops: ['refused', 'ok',], stated: true, },
+          { row: 3, trial: 'tabby-s2/insertion', entry: 'cat-2', pass: 1, kind: 'insertion', fixed: true, stops: [], stated: false, },
+          { row: 4, trial: 'tabby-s3/insertion', entry: 'cat-3', pass: 1, kind: 'insertion', fixed: true, stops: ['output-cap',], stated: true, },
         ],);
+      },
+    },),
+
+    it({
+      name: 'READS THE PASS OF EACH ROW LINE, counted from one, as the first pass when the line names none, and still '
+        + 'reads the entry and the stops of a line that names a pass',
+      fn: async () => {
+        const { rows, } = armFiguresOf({
+          log: armLogOf({
+            arm: 'low',
+            tally: TALLY,
+            stops: [],
+            rows: [
+              { trial: 'tabby-s0/insertion', entry: 'tabby', fixed: true, stops: 'ok', },
+              { trial: 'tabby-s0/insertion', entry: 'tabby', fixed: false, stops: 'refused+ok', pass: 2, },
+              { trial: 'tabby-s0/insertion', entry: 'tabby', fixed: true, stops: '', pass: 3, },
+            ],
+            seat: SEAT,
+            benchSpentUsd: 0,
+            guardUsd: 0.5,
+          },),
+        },);
+        expect(rows.map(function digest({ pass, entry, stops, },): string {
+          return `${String(pass,)} ${entry} ${stops.join('+',)}`;
+        },),).toStrictEqual(['1 tabby ok', '2 tabby refused+ok', '3 tabby ',],);
       },
     },),
 
