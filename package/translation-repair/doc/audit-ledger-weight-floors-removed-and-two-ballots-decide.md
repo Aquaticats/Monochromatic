@@ -16,6 +16,8 @@ B913 and B914)
 records the owner's answer
 "Ship the slate's pick (Recommended)"
 and the lead's ruling on the tie of a challenge round across every offered candidate.
+Round 3 (B915 and B916, with notes in B902, B906, B909 and B912)
+records the lead's ruling on the page title and the findings of the second independent re-check.
 The rulings are quoted in
 [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md)
 and referenced from
@@ -155,14 +157,35 @@ and the document-level dominance block is report-only
 (`repair/src/repair-translation.ts` logs it as "reported,
 not blocking" and adds a finding),
 so no block discards a translation.
-The earlier wording of the TSDoc in `archive/src/non-translation-evidence.ts`,
+The wording of the TSDoc in `archive/src/non-translation-evidence.ts` before commit `1439ea1e5a`,
 that a false block
 "still discards a faithful translation whole",
-overstated this and is corrected in the same commit series
-(finding F1 of the independent re-check).
-The measured effect at two votes:
-nothing newly blocks in the pinned corpus,
-as the re-check measured.
+overstated this and was corrected in that commit series
+(finding F1 of the first independent re-check).
+What was measured at two votes:
+at document level,
+nothing newly blocks in the artifacts the first re-check scanned.
+Two facts that sentence leaves out (finding F7 of re-check 2):
+- The `AkiraComplex` false-block slice itself is measured by no recorded artifact.
+  Every `AkiraComplex.json` on disk
+  (the run directories `translation-repair-runs`,
+  `translation-repair-runs-pass13`,
+  `translation-repair-runs-pass14`,
+  `round-one-archive` and `round-two-archive` of the scratch copies)
+  holds statuses `repaired`,
+  `accepted`,
+  `rejected` and `needs-human` and no block,
+  and no artifact stores the wire-level critic votes,
+  so the shape of two critics of seven on an English-epigraph slice cannot be replayed.
+  The only record after the fix is `probe-akiracomplex.log` of the sentinel probe on 2026-07-24:
+  both slices drew 7 of 7 critics heard and one non-translation vote each,
+  which stands under a floor of two as it did under three.
+  The risk of that shape at two votes is therefore unmeasured.
+  The guards are the contradiction check and the good-translation anchor named in this entry,
+  and the case "does not stand one vote under the floor (AkiraComplex false block)" pins the one-vote shape.
+- At slice level,
+  slices 68 and 69 of `XingZ6021` newly stand at two votes (B905),
+  where they did not stand at three.
 
 The follow-up test:
 the block review of the archive asks three of its four seats after the selection fan-out change,
@@ -331,7 +354,7 @@ all at a summed weight of 2):
 - Rejected,
   3:
   "her life was short" (twice) and a closing assertion of remembrance;
-  the panel found 她的一生虽然短暂 in the source's later body,
+  the panel found 她的一生虽然短暂 in the original,
   so rejecting those is right.
 - Stay `needs-human`,
   2:
@@ -484,6 +507,25 @@ Counts the first census omitted (finding F8):
   (`repair/src/restoration-judge.ts`) still read their verdicts at that quorum,
   and are left alone because they feed the benchmark scorecard only (`repair/src/repair-scorecard.ts`).
 
+Single-voice effects that remain,
+accepted (finding F8 of re-check 2),
+each with its reason:
+- `regressed` in `adjudication/src/tally-resolution.ts` keeps no ballot floor:
+  a lone `worse` ballot, where the other checker cast no verdict on the issue, marks a patched candidate regressed
+  (`worse > fixed + notFixed`),
+  and `adjudication/src/select-candidate.ts` then ranks it below a candidate that regressed nothing.
+  Accepted because it only demotes and never ships text,
+  with one checker `worse` against one `fixed` or `notFixed` it ties and does not regress,
+  and the checkers voted `worse` 55 times over the recent runs without `regressed` firing (ledger L1).
+  It is more reachable at two checkers (B907) than at three.
+- The derivability probe (`repair/src/derivability-probe.ts`) decides a seed on one cast verdict once its quorum is met.
+  Accepted because its verdicts feed the benchmark scorecard only (`repair/src/repair-scorecard.ts`) and no page changes.
+- The restoration judge (`repair/src/restoration-judge.ts`) reads its verdict the same way.
+  Accepted for the same reason.
+- A `source-defect` vote decides at a share of one third,
+  and `disposeMerge` merges members on one opining panelist.
+  Accepted because the outcome is protective (no edit follows) and authority stays per member.
+
 The rule for next time:
 when a rule is about how many judges decide,
 write the count where the code reads it,
@@ -581,8 +623,8 @@ red `371977693b`,
 fix `b2dd131f80`;
 widened to a flawed-majority standing in the addendum,
 red `728a164502`,
-fix `d8e1674fbf`,
-cache version `784efa1591`.
+fix `d8e1674fbf`
+(the cache bump of that series, `784efa1591`, stands on the tie rule alone, B912).
 
 The owner's answer of 2026-10-25,
 "Ship the slate's wording" (finding F5):
@@ -636,7 +678,33 @@ and an eligible standing no contest majority called flawed never reaches the rul
 The red case that pinned the narrower reading was replaced
 (pick of two and three slate ballots with one and no usable answers ship `consolidated`),
 with controls for a pick of one ballot and for a standing no majority called flawed.
-`CONSOLIDATE_CACHE_VERSION` is 37 for it (B912).
+`CONSOLIDATE_CACHE_VERSION` moved to 37 in the same series,
+on the tie rule alone (B912).
+
+What the owner should see in this entry (findings F3 and F4 of re-check 2):
+- The five slices of `XingZ6021` (13,
+  14,
+  33,
+  44 and 84) keep a rule-failing archive,
+  and the page reports it (finding `no-valid-wording`,
+  terminal `slate-declined-standing`).
+  That is what the owner's two answers together require,
+  since the picks drew one slate ballot,
+  and it differs from the brief's expectation that those slices ship the slate's proposal again.
+- The branch "unheard gate keeps the standing" (`UNHEARD_GATE_KEEPS_STANDING_FINDING`,
+  a pick of one slate ballot) is a guard that the stage cannot reach on a fresh decision:
+  a fresh slate decision carries at least two ballots now
+  (selected,
+  tie-broken and shipped-past-decline all need two),
+  so a pick of fewer than two never arrives at `shipPastForfeitStanding`.
+  The function's tests pin it in isolation,
+  and the gate replay row that shows it holds a hard-coded one ballot taken from the log.
+- A slate pick shipped past an unheard gate (`UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING`) is never persisted,
+  because `consolidate/src/consolidate-persistence.ts` stores a gated settlement only when the gate heard
+  `CONSOLIDATE_GATE_QUORUM` usable ballots and refuses an archive-kept one.
+  The pick ships on the page of that run and the slice is asked again on the next run,
+  which costs one re-ask per run and is consistent with "the hour, not the slice".
+  For the same reason no stored record stands behind the cache bumps for the unheard gate (B912).
 
 ## B910: a page title settles only on two or more heard voices (round 2)
 
@@ -656,9 +724,11 @@ logs why,
 adds a finding saying every repeated title keeps its current rendering,
 and stores nothing,
 so a later run asks again.
-`PAGE_TITLE_CACHE_VERSION` is 7.
-A tie among three or more heard voices is still broken by the earliest seat on the roster,
-which is a tie of two judges and outside this ruling.
+`PAGE_TITLE_CACHE_VERSION` was 7 here.
+This entry left a tie among three or more heard voices to the earliest seat on the roster,
+and a title one voice alone rendered still settled when two or more were heard.
+Re-check 2 (finding F1) showed that this met the lead's words and missed the owner's rule,
+and B915 closes it.
 
 ## B911: the consistency round decides only on two or more answering ballots (round 2)
 
@@ -701,8 +771,10 @@ not the rule that reads the ballots.
 - `TRANSLATE_SLICE_CACHE_VERSION` 28 to 29 in `1c72668739`:
   a declined round ships a candidate only when two judges named it.
 - `CONSOLIDATE_CACHE_VERSION` 35 to 36 in `5828f9efe6`:
-  the same rule on the consolidation slate,
-  and the unheard gate over a refused archive.
+  the same rule on the consolidation slate.
+  The commit message and the first text of this entry named the unheard gate over a refused archive as a second reason;
+  that part is withdrawn (finding F4 of re-check 2),
+  since no settlement made over an unheard gate is stored (B909).
 - `PAGE_TITLE_CACHE_VERSION` 6 to 7 in `c52409ad5a`:
   a title settles on two or more heard voices.
 - `CONSISTENCY_CACHE_VERSION` 8 to 9 in `9445a2c28f`:
@@ -715,12 +787,30 @@ one commit per stage:
 - `TRANSLATE_SLICE_CACHE_VERSION` 29 to 30 in `21cda9419e`:
   a tie across every candidate ships by preference only among candidates two judges named (B914).
 - `CONSOLIDATE_CACHE_VERSION` 36 to 37 in `784efa1591`:
-  the unheard gate over a flawed-majority standing ships the slate's pick (B909),
-  and the same tie rule on the consolidation slate (B914).
+  the same tie rule on the consolidation slate (B914).
+  The flawed-majority gate answer (B909) is not a reason:
+  a settlement made over an unheard gate is never stored,
+  because `consolidate/src/consolidate-persistence.ts` refuses an archive-kept settlement
+  and stores a gated one only when the gate heard `CONSOLIDATE_GATE_QUORUM` usable ballots.
+  The bumps stand on the decline and tie rules:
+  a stored settlement with a gate of two or more usable ballots can hold a candidate the fixed order shipped.
   The key needs it because a stored settlement holds the wording that shipped,
   and the same texts now ship another;
   the numbers 29 and 36 were set a few commits before and whether a record stands at either is not known,
   so the bump is the safe side and its cost is one re-run of the affected slices.
+  The doc comments of versions 36 and 37 in `artifact/src/consolidate-key.ts` were corrected in `7cb19250db`.
+
+Moved again in round 3,
+one commit per stage:
+- `PAGE_TITLE_CACHE_VERSION` 7 to 8 in `073ad8bfc0`:
+  a title settles only on a rendering two or more voices gave (B915).
+- `TRANSLATE_SLICE_CACHE_VERSION` 30 to 31 in `8c8331da79`
+  and `CONSOLIDATE_CACHE_VERSION` 37 to 38 in `7cb19250db`:
+  the reworded sheet text about a declined round over wording that cannot ship (B916).
+  By the repository's convention a change to a sheet's wording moves the version of every key whose records hold
+  ballots cast under it.
+  The repair slice (47) and refine (17) versions stay,
+  because neither reads this sentence (`declineConsequenceFor` is read by the translate and consolidation slates only).
 
 Stay,
 with the reason:
@@ -731,7 +821,7 @@ the pairing version and the artifact generation.
 `MINIMUM_CHECKER_COUNT` is a run guard and not a key input.
 
 Checked by `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 53b55cf5c3..HEAD`,
-which lists exactly those six commits,
+which lists exactly those nine commits (the six of round 2 and its addendum, and the three of round 3),
 and by the positive control over `c265e8df95~1..c265e8df95`,
 which lists `c265e8df95`.
 
@@ -894,3 +984,88 @@ What the run showed:
 the log of `XingZ6021` holds no tie-path line (B913),
 so no figure of the replay moves.
 The five preferences it does hold came from declined rounds and were handled in B908.
+
+## B915: a page title settles only on a rendering two or more voices gave (round 3)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `71a11223cc`,
+fix `ae68de2303`,
+cache version `073ad8bfc0`.
+
+The lead's ruling of 2026-10-25 on finding F1 of re-check 2,
+settled by the owner's rule that one judge alone never decides,
+so no question went to the owner.
+B910 stopped a round that heard fewer than two voices,
+but `mostGiven` still returned the leader of any count,
+so a title settled on one voice's rendering when two or more were heard:
+two of seven seats answered and one of them gave an empty or zero-width rendering,
+or the two answered with a different rendering each and the earliest seat won the tie.
+The title was cached and read by translators and judges as an identity-context line.
+
+The rule now:
+`settlePageTitles` keeps a title only when `chosen.voices >= MIN_STAGE_VOICES`.
+A title that one voice alone rendered,
+or that tied at one voice apiece,
+stays unsettled,
+and a finding says how many titles were left
+(`page title lexicon left N repeated titles unsettled, since no rendering was given by 2 voices`).
+A tie of two voices apiece or more is still broken by the earliest seat,
+which is a tie of two judges or more.
+`corpus-pass/src/corpus-run/pass-page-titles.ts` needed no change:
+it stores the titles the stage returns.
+`PAGE_TITLE_CACHE_VERSION` is 8 (B912).
+
+The tests:
+the pins of `page-title-lexicon.unit.test.ts` at the lines of "BREAKS A TIE BY THE EARLIEST SEAT"
+and of the zero-width case,
+which settled on one voice,
+were replaced by cases expecting the title unsettled with the finding.
+New cases:
+a title one voice of three rendered,
+a tie of two voices apiece on four seats that the earliest seat breaks (the positive control),
+and a round where one seat shows nothing and two seats give words (the title settles on two voices).
+The red commit fails three cases (the tie of one voice apiece,
+the one voice of three and the padded round) and its two-voice controls pass.
+
+The same shape elsewhere,
+checked and found absent:
+the lead asked whether the consistency carry and the run-off decide on one named winner where several were heard.
+They do not.
+`winnerOf`,
+`carryChoiceOf` and `runOffWinnerOf` name a winner only on a strict majority of the usable ballots
+(`majorityText` in `consistency/src/consistency-majority.ts` needs more than half of the usable ballots),
+and the quorum is raised to two (`decidingQuorumOf`).
+A strict majority of two or more usable ballots is two ballots or more,
+so no winner rests on one ballot,
+and nothing needed fixing.
+The finalists of a run-off are named from the same usable ballots and decide nothing alone.
+
+## B916: the sheet text about a declined round over wording that cannot ship contradicted itself (round 3)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `acb4c4b413`,
+fix `beae57ce8a`,
+cache versions `8c8331da79` and `7cb19250db`.
+
+Finding F2 of re-check 2.
+`SHIPS_WHAT_TWO_JUDGES_NAMED` (`adjudication/src/select-decline-consequence.ts`) is the sentence the judges of the
+translate lane's and the consolidation's slates read about what declining does over a withheld standing.
+It said that declining does not keep the wording as the shipped text,
+and, in its last clause, that the archive's wording stays.
+A judge told two things about the cost of declining is asked for caution by a promise that contradicts itself.
+
+The sentence now says what happens in order:
+the wording in place cannot ship unreported,
+so declining is not a quiet keep;
+a slate declined in every round ships a candidate only when two or more judges named it,
+chosen among those by the fixed order;
+and when no candidate was named by two judges that wording stays and the page reports it.
+The module had no unit test of its own.
+`select-decline-consequence.unit.test.ts` pins the order of the three statements,
+the absence of the old clause and the three consequences by caller.
+The rendered-sheets fixtures of `repair` import the constant and follow it without an edit.
+By the repository's convention a change to a sheet's wording moves the cache versions of the keys whose records
+hold ballots cast under it,
+so the translate slice version is 31 and the consolidate version is 38 (B912).

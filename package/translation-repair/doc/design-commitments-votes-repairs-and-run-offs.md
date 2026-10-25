@@ -233,7 +233,8 @@ which lists every file of these commitments.
   refused ships the slate's pick when two or more slate ballots chose it),
   and "Ship the slate's pick (Recommended)" (the same for an eligible standing a majority of the contest judges
   called flawed).
-  The lead ruled that a page title settles on two or more heard voices
+  The lead ruled that a page title settles only on a rendering two or more voices gave
+  (a title one voice alone rendered, or a tie of one voice apiece, stays unsettled)
   and that a consistency round decides on two or more answering ballots,
   and that the derivability probe and the restoration judge,
   which feed the benchmark scorecard only,
@@ -244,4 +245,4 @@ which lists every file of these commitments.
   only among the candidates two or more judges named,
   and otherwise the wording in place stays by the path of the declined round.
   The stage quorum that sizes a round (a majority of the seated bench,
-  two on a short bench) was not changed (ledger B900 to B914).
+  two on a short bench) was not changed (ledger B900 to B916).
