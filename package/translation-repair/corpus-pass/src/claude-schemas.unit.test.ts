@@ -133,6 +133,7 @@ import { SENDER_SHADOW_CASES, } from './claude-schema-sender-shadow-forms.test-f
 import { SPECIFIER_CASES, } from './claude-schema-specifier-forms.test-fixture.ts';
 import { SURVIVOR_CASES, } from './claude-schema-survivor-forms.test-fixture.ts';
 import { TAGGED_TEMPLATE_CASES, } from './claude-schema-tagged-template-forms.test-fixture.ts';
+import { MEMBER_KEY_CASES, } from './claude-schema-member-key-forms.test-fixture.ts';
 import { type ShapeCase, UNREAD_SHAPE_CASES, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 import { UNREADABLE_CODE_CASES, } from './claude-schema-unreadable-forms.test-fixture.ts';
 import { CODE_FROM_TEXT_CASES, } from './claude-schema-code-from-text-forms.test-fixture.ts';
@@ -881,6 +882,7 @@ await describe({
       ...MUTANT_PIN_CASES,
       ...SENDER_NAMESPACE_CASES,
       ...TAGGED_TEMPLATE_CASES,
+      ...MEMBER_KEY_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
         name: formCase.name,
@@ -963,6 +965,7 @@ await describe({
       ...MUTANT_PIN_CASES,
       ...SENDER_NAMESPACE_CASES,
       ...TAGGED_TEMPLATE_CASES,
+      ...MEMBER_KEY_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({
         name: `REPORTS WITH FILE AND LINE THE SHAPE OF THIS CASE: ${shapeCase.name}`,

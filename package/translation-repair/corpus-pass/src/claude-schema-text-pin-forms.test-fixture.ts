@@ -230,6 +230,28 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
+    name: 'ACCEPTS AN IMPORT-EQUALS DECLARATION OF vm THAT NAMES TYPES ONLY, and reports the same declaration without '
+      + 'the type mark',
+    files: [
+      {
+        file: STAGE,
+        text: textOf([
+          'import type Typed = require(\'node:vm\');',
+          'import Loaded = require(\'node:vm\');',
+          'export const kept = [Loaded,];',
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+    spots: [
+      textSpotAt({
+        line: 2,
+        position: LOADS_VM,
+      },),
+    ],
+  },
+  {
     name: 'REPORTS THE GLOBAL OBJECT WRITTEN AS THE KEY OF A MEMBER AND UNDER VOID, since neither reads it as the '
       + 'operand of typeof',
     files: [
