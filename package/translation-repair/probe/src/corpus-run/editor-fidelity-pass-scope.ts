@@ -17,9 +17,9 @@ import type { ModelClient, } from '@monochromatic-dev/translation-repair-provide
 /**
  Names a pass in the words of the row line, counted from one.
 
- @param pass - the pass over the pool, from zero, as the walk counts it
+ @param pass - pass over the pool, from zero, as the walk counts it
 
- @returns The scope the reuse layer keeps in its identity
+ @returns Scope the reuse layer keeps in its identity
 
  @example
  ```ts
@@ -36,9 +36,9 @@ export function passScopeOf({ pass, }: { readonly pass: number; },): string {
 
  @param client - client to wrap
 
- @param pass - the pass over the pool the exchanges belong to, from zero
+ @param pass - pass over the pool that the exchanges belong to, from zero
 
- @returns A client with every member of the one wrapped, its text and JSON exchanges carrying the pass
+ @returns Client with every member of the wrapped one, its text and JSON exchanges carrying the pass
 
  @example
  ```ts

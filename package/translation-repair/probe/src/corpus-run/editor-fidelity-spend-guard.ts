@@ -305,6 +305,12 @@ async function attemptOf<ReplyT,>(
 /**
  Wraps a client so no call is made that could take the arm past its amount.
 
+ THE LIMIT OF THE REUSE CHECK: only a client built over the guard's admit tells the guard of its attempts, so only it can
+ prove that a reply came with no request behind it. A client given as itself tells the guard nothing, a reply of the
+ prompt reuse layer looks to the guard exactly like a reply whose provider wrote no line on the meter, and the guard counts it
+ at its ceiling as an unreported cost. Every construction in production passes a builder (`probe-run.ts`), so a reply
+ with no request behind it ends the arm there; an ungated client is given by tests alone.
+
  @param inner - client to wrap, or the builder of one that is handed the guard's admit and passes it to the client
  it builds, which then tells the guard before each attempt it sends and is held to the amount attempt by attempt
 
@@ -411,7 +417,7 @@ export function spendGuardedClient(
 
    @throws StatedRefusalError the refusal an earlier call or attempt ended the arm with
 
-   @throws RepliedWithoutCallError the ending an earlier reply with no request behind it gave the arm
+   @throws RepliedWithoutCallError ending that an earlier reply with no request behind it gave the arm
    */
   function throwStanding(): void {
     /**
@@ -683,7 +689,8 @@ export function spendGuardedClient(
       }
       throw attempt.error;
     }
-    // A REPLY WITH NO ATTEMPT TOLD was not asked of the model. Nothing is booked, the arm's signal carries the ending so the
+    // A REPLY WITH NO ATTEMPT TOLD was not asked of the model (only a gated client tells, see the limit in the TSDoc of
+    // spendGuardedClient: an ungated client's reuse is booked below as an unreported cost). Nothing is booked, the arm's signal carries the ending so the
     // stage cannot take it for a lost voice and ask again, and the walk throws it out of the run without scoring the row.
     if (gated && (told.attempts === 0)) {
       /**
