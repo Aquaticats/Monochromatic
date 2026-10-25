@@ -532,7 +532,8 @@ then every run,
 and last ships the page without the original under the defect `page-source-unparseable`,
 with a warn line for each step (ledger B832).
 A run written as literal text is compared with its source,
-block by block,
+as a whole,
+and block by block where a footnote that the two readings end at different places reaches a block,
 and the page ships a defect that names the slices and no text:
 `source-reads-differently` for a block that shows other text than the source,
 `source-reading-undecided` for a block the comparison cannot decide (a footnote in a block quote or a list item

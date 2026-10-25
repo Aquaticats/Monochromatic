@@ -60,7 +60,10 @@ it comes from the page.
 The comparison cannot give the page's reading of a footnote,
 so a difference between the accounts is not reported when the
 source's footnote ranges and the page's differ at a place a block quote or a list holds
-(`footnoteRangesDifferInContainer`).
+(`footnoteRangesDifferInContainer`,
+removed in the fifth round by `4f1ba3055b`:
+`containerFootnoteDisagreementsOf` gives the ranges,
+and the fifth round decides for each top-level block).
 After a footnote the page is made to read as the source does (the blank line of `separatingEdits`),
 so no difference is left there.
 
@@ -97,7 +100,8 @@ The defect names the slices and no text of the page,
 because `PublishDefect.message` carries ids,
 counts and slice indices only,
 so "the affected text named" is the slices.
-In the fourth round `undecided` was keyed on whether a footnote range disagreement exists inside a container of the text,
+In the fourth round `undecided` was keyed on whether a footnote range disagreement
+exists inside a container of the text,
 not on whether it caused the difference,
 so a difference of another kind in a text that also holds such a disagreement was withheld too
 (57 of the 1174 undecided texts still differed without the footnote caret).
@@ -129,7 +133,9 @@ The search over the generated texts ran in a capped unit,
 #### The commits
 
 `76d1c2e53a` is the red cases (`red-r21-failing-lines.txt`),
-`dedb7886c0` moves `parseGfmMathBody` into `document-structure` and adds `footnoteRangesDifferInContainer`,
+`dedb7886c0` moves `parseGfmMathBody` into `document-structure` and adds `footnoteRangesDifferInContainer`
+(removed in the fifth round by `4f1ba3055b`;
+`containerFootnoteDisagreementsOf` gives the ranges),
 `9d0d9d5dc7` adds the comparison and the defect,
 `2797c8f871` adds the unit tests of the modules and the findings of the source scans,
 and `6ef07ed14a`,

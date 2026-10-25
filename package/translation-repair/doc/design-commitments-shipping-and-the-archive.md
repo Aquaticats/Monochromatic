@@ -250,9 +250,10 @@ which lists every file of these commitments.
   and the composition runs it over every run it writes as literal text (`source-ships-differences.ts`).
   A run that ships as recorded is not compared,
   since what the site compiles is what the original is upstream.
-  The answer is `same`,
-  `differs` or `undecided`,
-  decided for each top-level block (`source-reading-blocks.ts`).
+  The answer is `same` when the two accounts agree,
+  and `differs` when they do not
+  and no footnote range the two readings disagree on starts inside a block quote or a list item.
+  Where such a range exists the answer is decided for each top-level block (`source-reading-blocks.ts`).
   The two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
   which a reader of plain Markdown cannot give,
   so a block that a footnote range the two readings disagree on reaches is `undecided`,

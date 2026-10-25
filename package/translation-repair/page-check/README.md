@@ -118,13 +118,16 @@ The groups that follow name the main ones.
   the source as plain Markdown with GFM,
   math and raw HTML,
   and both are reduced to the text of their leaves.
-  The answer is `same`,
-  `differs` or `undecided`,
-  decided for each top-level block:
+  The answer is `same` when the two accounts agree,
+  and `differs` when they do not
+  and no footnote range the two readings disagree on starts inside a block quote or a list item.
+  Where such a range exists the answer is decided for each top-level block:
   the two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
   which a reader of plain Markdown cannot give,
-  so a block that a footnote range the two readings disagree on reaches is `undecided`
-  and every other block is compared on its own.
+  so a block that the range reaches is `undecided`
+  and every other block is compared on its own,
+  which makes the answer `differs`,
+  `undecided` or `same`.
   A run always ships,
   so the answers are reported and never stop a page,
   in three defects that name slices and no text of the page:

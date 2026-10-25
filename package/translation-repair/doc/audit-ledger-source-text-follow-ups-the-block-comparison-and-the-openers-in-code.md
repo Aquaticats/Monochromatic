@@ -239,6 +239,13 @@ All of these die:
 - Every footnote start the page reads taken as one the source does not (`source-ships-spans.ts`):
   1 case of `source-ships-footnote-code-span.unit.test.ts`,
   the control indented three spaces.
+- The two mutants of `source-reading-blocks.ts` (a disagreement placed in no block taken as placed;
+  a block reached only where it holds the first character of a range) died first on the version of the file of
+  `b1ddb37040`,
+  which placed each block at the first place its words stand on the page.
+  The file was rewritten in `cb0bc55427`,
+  so both were made again on that final source and each died (the case of the unplaced disagreement,
+  and the case of the range that runs over two blocks).
 - The page's account keeping the targets of links in `readingDifferenceOf`:
   1 case of `source-reading-difference.unit.test.ts`.
 
@@ -249,8 +256,14 @@ every run of both seeds' 40000 pairs,
 the footnote product texts and the shapes),
 each put to the production comparison (`dx1f3/scratch/search5.ts`,
 in a capped unit with `MemoryMax=8G` and `CPUQuota=800%`,
-four times:
-after each of the fixes that the search itself called for).
+five times:
+after each of the fixes that the search itself called for,
+and a last time on the head `d57b80ea0ab4c4c2541ed43d2a87f2db4642aeaf`,
+whose code is that of `4f1ba3055b8d288e320bfed893d06889ff487927`;
+the run before it,
+on `cb0bc554279b34871120820a4682d900af98f082`,
+gave the same counts and the same texts,
+since `4f1ba3055b` only removed a function and an unused helper and made one filter call another).
 
 The answers of the final code:
 
@@ -306,6 +319,9 @@ read with `git cat-file` and never written (`dx1f3/scratch/corpus5.ts`,
 in a capped unit with `MemoryMax=4G` and `CPUQuota=200%`).
 Counts only;
 no text of the corpus is written here.
+It ran twice,
+on `cb0bc55427` and on the head `d57b80ea0a`,
+and the two outputs are identical.
 
 - 276 files `page.md`,
   `page.en.md` and `page.zh_hant.md`,
