@@ -4801,6 +4801,50 @@ and the orchestrating session's design was built and measured.
   a touchpad fling is not followed;
   the minimap runs ahead of the held text for 1 to 3 frames.
 
+## A hover request names the row under the pointer after a far wheel jump, 2026-10-25 (branch worktree-agent-a84733523872cff39)
+
+A verifier found on the installed hold build that the hover request after a 300-notch jump named a line far from the one
+drawn under the pointer (a constant position for a resting pointer).
+
+- Cause:
+  `Rest` (`src/native/language/pointer.rs`) kept the character found at the last pointer move,
+  and the toolkit sends no pointer event for text that moves under a still pointer.
+  The dwell timer handed that character back after 350 ms.
+- New or old:
+  the two resting variants are old (11 of 11 wrong in `main`,
+  11 of 11 wrong in `52056f6fbc` before the hold).
+  The variant of a pointer moved inside the hold is new with the hold:
+  `main` sent 3 requests in 11 trials,
+  all 55 to 56 lines off;
+  before the hold sent none (the rows under the pointer were not drawn).
+  The positive control (hover after the view settled) is right in every build,
+  11 of 11.
+- Fix:
+  `Spot` keeps the pointer's distance from the top of the view,
+  `Rest::follow` starts a not yet asked rest again when the drawn offset moves,
+  `rest` in `src/native/language/rest_step.rs` finds the character in the drawn view when the request is built.
+  Like editord,
+  no request follows a scroll for a rest already asked for.
+- Measured on the fixed build:
+  every request named the line drawn under the pointer (gap 0) in all trials that sent one
+  (5,
+  5,
+  2,
+  and 11 requests in the four cells),
+  and in the others the pointer was over no character
+  (`resolved=None` at the due time, or no character where it moved).
+  Details in `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+  "A hover request after a far wheel jump".
+- Tests:
+  `src/native/language/pointer_scroll_tests.rs` (5 tests),
+  6 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+- Open:
+  a pointer that rested and was asked about shows no new popup after a scroll until it moves
+  (as in editord).
+  The harness (nested compositor,
+  OCR of the gutter,
+  four builds alternating) was kept only in the session scratch and removed.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

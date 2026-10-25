@@ -2330,6 +2330,63 @@ const cases: Guard[] = [
     test: 'a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one',
     failure: 'a turn the tile holds is not followed'
   },
+  // A resting pointer while the view scrolls under it (src/native/language/pointer_scroll_tests.rs). The toolkit sends
+  // no pointer event for text that moves under a still pointer, so the request names the character found again from the
+  // pointer's place in the view when the rest is over, and a view that is still moving is not a rest.
+  {
+    name: 'hover-resolve-at-due',
+    file: 'src/native/language/rest_step.rs',
+    before: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + offset, spot.x);',
+    after: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + spot.offset, spot.x);',
+    native: true,
+    test: 'resting_pointer_names_the_row_under_it_after_a_scroll',
+    failure: 'hover for the row under the pointer'
+  },
+  {
+    name: 'hover-resolve-at-due-far',
+    file: 'src/native/language/rest_step.rs',
+    before: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + offset, spot.x);',
+    after: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + spot.offset, spot.x);',
+    native: true,
+    test: 'resting_pointer_names_the_row_under_it_after_a_far_jump',
+    failure: 'hover for the row under the pointer'
+  },
+  {
+    name: 'hover-spot-from-top',
+    file: 'src/native/language/actions.rs',
+    before: '            below_top: y - offset,',
+    after: '            below_top: y,',
+    native: true,
+    test: 'pointer_moved_during_the_hold_names_the_settled_row',
+    failure: 'hover for the row under the pointer'
+  },
+  {
+    name: 'hover-view-moving-restarts',
+    file: 'src/native/language/pointer.rs',
+    before: '        if (offset - self.seen).abs() <= VIEW_MOVE {',
+    after: '        if true {',
+    native: true,
+    test: 'a_view_still_scrolling_asks_nothing_until_it_stops',
+    failure: 'a hover was asked for while the view moved'
+  },
+  {
+    name: 'hover-view-moving-restarts-unit',
+    file: 'src/native/language/pointer.rs',
+    before: '        if (offset - self.seen).abs() <= VIEW_MOVE {',
+    after: '        if true {',
+    native: true,
+    test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
+    failure: 'a moved view did not restart the rest'
+  },
+  {
+    name: 'hover-view-move-tolerance',
+    file: 'src/native/language/pointer.rs',
+    before: 'const VIEW_MOVE: f32 = 0.5;',
+    after: 'const VIEW_MOVE: f32 = 0.0;',
+    native: true,
+    test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
+    failure: 'rounding restarted the rest'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env
