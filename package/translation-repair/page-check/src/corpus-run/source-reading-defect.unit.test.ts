@@ -179,11 +179,12 @@ await describe({
       },
     },),
     it({
-      name: 'REPORTS A DEFECT NAMING THE SLICE FOR A RUN THE PAGE CARRIES AS TEXT AND THE COMPARISON CANNOT MAKE, a link target that is no UTF-8',
+      name: 'REPORTS NO DEFECT FOR A RUN WHOSE LINK TARGET IS NO TEXT IN UTF-8, the target decoded as far as it reads',
       fn: async () => {
         /**
          The page of a run with a link whose target holds a percent escape that decodes to no text, and a bare brace: the page
-         parses as literal text, so it ships with its original, and both readings throw when they decode the target.
+         parses as literal text, so it ships with its original, and both readings decode the target as far as it reads, so
+         the comparison is made and finds the page to show what the source shows.
          */
         const composed = composeRows({
           rows: [
@@ -195,11 +196,7 @@ await describe({
           ],
         },);
         expect(composed.step,).toBe('encoded-failing-runs',);
-        expect(composed.defects.map(function checkOf({ check, },): string {
-          return check;
-        },),).toEqual(['source-reading-not-compared',],);
-        expect(composed.defects[0]?.message,).toContain('slices [1]',);
-        expect(composed.defects[0]?.message,).not.toContain('%E0',);
+        expect(composed.defects,).toEqual([],);
       },
     },),
     it({

@@ -195,11 +195,12 @@ await describe({
       },
     },),
     it({
-      name: 'LOGS A RUN IT CANNOT COMPARE THOUGH THE PAGE PARSES, a link target the reading cannot decode',
+      name: 'COMPARES A RUN WHOSE LINK TARGET IS NO TEXT IN UTF-8, the target decoded as far as it reads',
       fn: async () => {
         /**
          A run with a link whose target holds a percent escape that is no text in UTF-8 and a bare brace, which the grammar
-         refuses as recorded: the page it is written as parses, and both readings decode the target before they compare.
+         refuses as recorded: the page it is written as parses, both readings decode the target as far as it reads, and the
+         page shows what the source shows.
          */
         const { defects, lines, } = differenceFor({
           rows: [
@@ -211,15 +212,8 @@ await describe({
           ],
           encoded: [1,],
         },);
-        expect(defects.map(function checkOf({ check, },): string {
-          return check;
-        },),).toEqual(['source-reading-not-compared',],);
-        expect(defects[0]?.message,).toContain('slices [1]',);
-        expect(defects[0]?.message,).not.toContain('%E0',);
-        expect(lines.map(function levelOf(line,): string {
-          return line.split(' ', 1,)[0] ?? '';
-        },),).toEqual(['warn',],);
-        expect(lines[0],).toContain('could not be compared (URIError)',);
+        expect(defects,).toEqual([],);
+        expect(lines,).toEqual([],);
       },
     },),
     it({

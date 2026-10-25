@@ -44,6 +44,15 @@ await describe({
           },
         },),
         it({
+          name: 'DECODES THE TARGET OF A LINK AS FAR AS IT READS, a percent escape that is no UTF-8 and a lone percent sign',
+          fn: async () => {
+            expect(readerOfPage({ carried: '[虎斑](%E0%A4)', },),).toBe('⟦\uFFFD⟧虎斑',);
+            expect(readerOfPage({ carried: '[虎斑](a%zzb)', },),).toBe('⟦a%zzb⟧虎斑',);
+            expect(readerOfPage({ carried: '[虎斑](100%)', },),).toBe('⟦100%⟧虎斑',);
+            expect(readerOfPage({ carried: '[虎斑](a%20b%E4%BD%A0%2Fc)', },),).toBe('⟦a b你%2Fc⟧虎斑',);
+          },
+        },),
+        it({
           name: 'MASKS A COMMENT THAT CLOSES AND READS THE TEXT AFTER IT',
           fn: async () => {
             expect(readerOfPage({ carried: '她说 <!-- 注释 --> 然后走了。', },),).toBe('她说 然后走了。',);
@@ -59,6 +68,15 @@ await describe({
           fn: async () => {
             expect(readerOfSource({ source: '她说 { 然后走了。', },),).toBe('她说 { 然后走了。',);
             expect(readerOfSource({ source: '<div>\n猫\n', },),).toBe('<div> 猫',);
+          },
+        },),
+        it({
+          name: 'DECODES THE TARGET OF A LINK AS FAR AS IT READS, a percent escape that is no UTF-8 and a lone percent sign',
+          fn: async () => {
+            expect(readerOfSource({ source: '[虎斑](%E0%A4)', },),).toBe('⟦\uFFFD⟧虎斑',);
+            expect(readerOfSource({ source: '[虎斑](a%zzb)', },),).toBe('⟦a%zzb⟧虎斑',);
+            expect(readerOfSource({ source: '[虎斑](100%)', },),).toBe('⟦100%⟧虎斑',);
+            expect(readerOfSource({ source: '[虎斑](a%20b%E4%BD%A0%2Fc)', },),).toBe('⟦a b你%2Fc⟧虎斑',);
           },
         },),
         it({
