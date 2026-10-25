@@ -174,6 +174,28 @@ await describe({
             expect(afterLiteralBlockEdits({ readable: '<?x?>', range: { start: 0, end: 5, }, },),).toEqual([],);
           },
         },),
+        it({
+          name: 'PUTS A BLANK LINE WITH THE MARKS OF THE CONTAINER AFTER A BLOCK IN A BLOCK QUOTE OR A LIST ITEM',
+          fn: async () => {
+            expect(afterLiteralBlockEdits({ readable: '> <?x?>\n> [r]: u\n', range: { start: 2, end: 7, }, inContainer: true, },),)
+              .toEqual([{ start: 7, end: 8, replacement: '\n>\n', },],);
+            expect(afterLiteralBlockEdits({ readable: '> > <?x?>\n> > [r]: u\n', range: { start: 4, end: 9, }, inContainer: true, },),)
+              .toEqual([{ start: 9, end: 10, replacement: '\n> >\n', },],);
+            expect(afterLiteralBlockEdits({ readable: '- <?x?>\n  [r]: u\n', range: { start: 2, end: 7, }, inContainer: true, },),)
+              .toEqual([{ start: 7, end: 8, replacement: '\n\n', },],);
+            expect(afterLiteralBlockEdits({ readable: '> <?x?>\n[r]: u\n', range: { start: 2, end: 7, }, inContainer: true, },),)
+              .toEqual([{ start: 7, end: 8, replacement: '\n\n', },],);
+          },
+        },),
+        it({
+          name: 'LEAVES A LINE OF ONLY MARKS AFTER A BLOCK IN A CONTAINER, which is a blank line of the container already',
+          fn: async () => {
+            expect(afterLiteralBlockEdits({ readable: '> <?x?>\n>\n> [r]: u\n', range: { start: 2, end: 7, }, inContainer: true, },),)
+              .toEqual([],);
+            expect(afterLiteralBlockEdits({ readable: '> <?x?>\n> \n> [r]: u\n', range: { start: 2, end: 7, }, inContainer: true, },),)
+              .toEqual([],);
+          },
+        },),
       ],
     },),
   ],

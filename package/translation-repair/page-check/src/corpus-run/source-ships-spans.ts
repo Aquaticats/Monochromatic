@@ -300,12 +300,11 @@ export function spansOf(
         node,
         range,
       },),);
-      if (isRootChild) {
-        edits.push(...afterLiteralBlockEdits({
-          readable,
-          range,
-        },),);
-      }
+      edits.push(...afterLiteralBlockEdits({
+        readable,
+        range,
+        inContainer: !isRootChild,
+      },),);
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
@@ -335,12 +334,11 @@ export function spansOf(
           node,
           range,
         },),);
-        if (isRootChild) {
-          edits.push(...afterLiteralBlockEdits({
-            readable,
-            range,
-          },),);
-        }
+        edits.push(...afterLiteralBlockEdits({
+          readable,
+          range,
+          inContainer: !isRootChild,
+        },),);
       }
       continue;
     }

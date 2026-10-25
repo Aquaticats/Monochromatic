@@ -452,6 +452,14 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'a `b\n[^1]: c {d}\n[^2]: e` {f}\n',
   ],
   [
+    'a definition line right after a list item holding a raw HTML block',
+    '* </details> [^1]: 注\n[b]: u{ "t"\n',
+  ],
+  [
+    'a definition line right after a block quote holding a raw HTML block',
+    '> <div>\n[b]: u{ "t"\n',
+  ],
+  [
     'a definition line right after indented code at the top',
     '猫\n\n    code {\n[b]: u{ "t"\n',
   ],
@@ -587,21 +595,13 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
 
 /**
  Texts whose definition line the plain reading takes for a definition and the strict grammar for the lazy line of a
- paragraph, which a raw HTML block or indented code above it in a block quote or a list item is to the strict grammar:
- the page parses and shows the characters of the line, which no reader of plain Markdown sees as text. At the top the
- encoder writes a blank line between the two (`source-ships-page-goes-on.unit.test.ts`). Each case has what the page shows.
+ paragraph: the page parses and shows the characters of the line, which no reader of plain Markdown sees as text. Where a
+ raw HTML block or indented code stands right above the line, the encoder writes a blank line between the two at the top
+ of a text and in a block quote or a list item (`source-ships-page-goes-on.unit.test.ts`,
+ `source-ships-container-blocks.unit.test.ts`), so the cases of that kind compare what a reader sees. Each case has what
+ the page shows.
  */
 const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
-  [
-    'a definition line right after a list item holding a raw HTML block',
-    '* </details> [^1]: 注\n[b]: u{ "t"\n',
-    '</details> [^1]: 注 [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after a block quote holding a raw HTML block',
-    '> <div>\n[b]: u{ "t"\n',
-    '<div> [b]: u{ "t"',
-  ],
   [
     'an opener of a comment that never closes, then a blank line and a definition line holding a brace',
     '<!-- open\n\n[a]: u{b "t"\n',

@@ -10,6 +10,11 @@ import type {
 // otherwise take for a lazy line.
 
 /**
+ Characters a line of a block quote or a list item opens with before its content.
+ */
+const CONTAINER_MARKS = ' \t>';
+
+/**
  What `findIndex` answers when no line is blank.
  */
 const NO_BLANK_LINE = -1;
@@ -37,6 +42,31 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
       return false;
   }
   return true;
+}
+
+/**
+ The marks and indentation a line opens with before its content.
+
+ @param line - line, without its line ending
+
+ @returns The leading run of spaces, tabs and greater-than signs, empty for a line that opens with anything else
+
+ @example
+ ```ts
+ const marks = containerMarksOf({ line: '> > [r]: u', },);
+ ```
+ */
+function containerMarksOf({ line, }: { readonly line: string; },): string {
+  /**
+   Index of the first character of the line that is no mark.
+   */
+  const reading = { at: 0, };
+  while ((reading.at < line.length) && CONTAINER_MARKS.includes(line.charAt(reading.at,),))
+    reading.at += 1;
+  return line.slice(
+    0,
+    reading.at,
+  );
 }
 
 /**
@@ -165,7 +195,10 @@ export function separatingEdits(
 
  @param range - where the block stands
 
- @returns Edit that doubles the line ending after the block, none when the text ends there or a blank line stands there
+ @param inContainer - whether the block stands in a block quote or a list item, whose marks on the next line the blank
+ line takes, so that it is a blank line of the container and not a line that ends it
+
+ @returns Edit that puts a blank line after the block, none when the text ends there or a blank line stands there
 
  @example
  ```ts
@@ -176,9 +209,11 @@ export function afterLiteralBlockEdits(
   {
     readable,
     range,
+    inContainer = false,
   }: {
     readonly readable: string;
     readonly range: TextRange;
+    readonly inContainer?: boolean;
   },
 ): readonly TextEdit[] {
   /**
@@ -201,13 +236,17 @@ export function afterLiteralBlockEdits(
   const [nextLine = '',] = readable
     .slice(range.end + ending.length,)
     .split('\n',);
-  if (isBlankLine({ line: nextLine, },))
+  /**
+   The marks and indentation the line opens with, which are the container's when the block stands in one.
+   */
+  const marks = inContainer ? containerMarksOf({ line: nextLine, },) : '';
+  if (isBlankLine({ line: nextLine.slice(marks.length,), },))
     return [];
   return [
     {
       start: range.end,
       end: range.end + ending.length,
-      replacement: `${ending}${ending}`,
+      replacement: `${ending}${marks.trimEnd()}${ending}`,
     },
   ];
 }
