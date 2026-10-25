@@ -3,6 +3,7 @@ import type {
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { footnoteInContainerSpans, } from './source-ships-container.ts';
+import { opensFootnoteBody, } from './source-ships-footnote-container.ts';
 import {
   footnoteBodyStart,
   footnoteStartInside,
@@ -65,13 +66,6 @@ export type FootnoteRead = InAFootnote | NotInAFootnote;
  */
 const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
-/**
- Types of the blocks in a container that open a footnote definition where they stand.
- */
-const OPENS_WHERE_IT_STANDS: ReadonlySet<string> = new Set([
-  'definition',
-  'paragraph',
-],);
 
 /**
  Reads a block as part of a footnote definition when it is one.
@@ -221,23 +215,17 @@ export function footnoteRead(
     };
   }
   /**
-   Whether the block's first line opens a footnote definition that the strict grammar reads.
+   Whether the block opens a footnote definition that is read as the body of a footnote: a paragraph at the top, a link
+   reference definition that the strict grammar reads as one, or a paragraph in a container that holds a line starting a
+   block of the footnote.
    */
-  const startsFootnote = opensFootnote({
+  const opensFootnoteHere = opensFootnoteBody({
     source,
     node,
     range,
+    state,
+    isRootChild,
   },);
-  /**
-   Whether the block is of a kind that opens one where it stands: a paragraph, or a link reference definition, or any
-   block at the top.
-   */
-  const isBlockOfFootnote = isRootChild || OPENS_WHERE_IT_STANDS.has(node.type,);
-  /**
-   Whether the block opens one: a paragraph at the top or in a container, or a link reference definition that the strict
-   grammar reads as one.
-   */
-  const opensFootnoteHere = startsFootnote && isBlockOfFootnote;
   if (!(opensFootnoteHere || continuesFootnote))
     return NOT_IN_A_FOOTNOTE;
   /**
@@ -274,7 +262,7 @@ export function footnoteRead(
           end: reach.end,
         }
         : range,
-      prefixLength: isRootChild ? 0 : state.prefixLength,
+      prefix: isRootChild ? '' : state.prefix,
     },),
   };
 }

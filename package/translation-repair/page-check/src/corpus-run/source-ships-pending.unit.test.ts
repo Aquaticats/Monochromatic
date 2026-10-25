@@ -6,6 +6,7 @@
  @module
  */
 
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   describe,
   expect,
@@ -32,7 +33,7 @@ const OPEN_ON_LINE_ONE = {
   open: true,
   endLine: 1,
   endsInLiteral: false,
-  prefixLength: 0,
+  prefix: '',
   opensRawHtml: false,
   opensFootnote: true,
 };
@@ -44,7 +45,7 @@ const NOTHING_READ = {
   open: false,
   endLine: 0,
   endsInLiteral: false,
-  prefixLength: 0,
+  prefix: '',
   opensRawHtml: false,
   opensFootnote: false,
 };
@@ -129,7 +130,60 @@ await describe({
               node: definition,
               range: rangeOf({ node: definition, },),
               continuesFootnote: false,
+              isRootChild: true,
             },),).toEqual(OPEN_ON_LINE_ONE,);
+          },
+        },),
+
+        it({
+          name: 'RECORDS WHAT A CONTAINER PUTS BEFORE THE DEFINITION AND WHETHER IT OPENS WITH RAW HTML, and keeps the footnote '
+            + 'open for a lazy line right after it',
+          fn: async () => {
+            const source = '> [^1]: <b>\n> abc\n';
+            const quote = nonNullishOrThrow(parseMarkdownMathBody({ body: source, },).children[0],);
+            if (!('children' in quote))
+              throw new Error('the text is no block quote',);
+            const [definition, lazy,] = quote.children;
+            if ((definition === undefined) || (lazy === undefined))
+              throw new Error('the quote holds no two blocks',);
+            /**
+             The state after the definition, and after the lazy line that goes on in its paragraph.
+             */
+            const opened = stateAfter({
+              before: NOTHING_READ,
+              source,
+              node: definition,
+              range: rangeOf({ node: definition, },),
+              continuesFootnote: false,
+              isRootChild: false,
+            },);
+            expect(opened,).toEqual({
+              open: true,
+              endLine: 1,
+              endsInLiteral: false,
+              prefix: '> ',
+              opensRawHtml: true,
+              opensFootnote: true,
+            },);
+            const goneOn = stateAfter({
+              before: opened,
+              source,
+              node: lazy,
+              range: rangeOf({ node: lazy, },),
+              continuesFootnote: false,
+              isRootChild: false,
+            },);
+            expect(goneOn.open,).toBe(true,);
+            expect(goneOn.prefix,).toBe('> ',);
+            expect(goneOn.opensFootnote,).toBe(false,);
+            expect(stateAfter({
+              before: opened,
+              source,
+              node: lazy,
+              range: rangeOf({ node: lazy, },),
+              continuesFootnote: false,
+              isRootChild: true,
+            },).open,).toBe(false,);
           },
         },),
 
@@ -147,11 +201,12 @@ await describe({
               node: paragraph,
               range: rangeOf({ node: paragraph, },),
               continuesFootnote: false,
+              isRootChild: true,
             },),).toEqual({
               open: false,
               endLine: 1,
               endsInLiteral: false,
-              prefixLength: 0,
+              prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
             },);
@@ -161,6 +216,7 @@ await describe({
               node: paragraph,
               range: rangeOf({ node: paragraph, },),
               continuesFootnote: true,
+              isRootChild: true,
             },).open,).toBe(true,);
             expect(stateAfter({
               before: OPEN_ON_LINE_ONE,
@@ -168,11 +224,12 @@ await describe({
               node: html,
               range: rangeOf({ node: html, },),
               continuesFootnote: false,
+              isRootChild: true,
             },),).toEqual({
               open: false,
               endLine: 3,
               endsInLiteral: true,
-              prefixLength: 0,
+              prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
             },);
@@ -333,7 +390,7 @@ await describe({
               open: false,
               endLine: 4,
               endsInLiteral: false,
-              prefixLength: 0,
+              prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
             },);

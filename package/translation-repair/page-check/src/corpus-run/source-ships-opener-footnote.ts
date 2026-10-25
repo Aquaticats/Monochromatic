@@ -4,7 +4,7 @@ import {
   NO_MARK,
   openingMark,
 } from './source-ships-open-flow.ts';
-import { containerCharactersAt, } from './source-ships-footnote-container.ts';
+import { containerPrefixOf, } from './source-ships-footnote-container.ts';
 import { footnoteOpensRawHtml, } from './source-ships-footnote-html.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import type { OpenerInCode, } from './source-ships-opener-text.ts';
@@ -121,13 +121,15 @@ function splitFlowsOf(
   },
 ): OpenerInCode {
   /**
-   How many characters its container puts before the footnote's label, which every later line of the footnote starts with
-   as many of.
+   What its container puts before the footnote's label, the marks of which every later line of the footnote carries.
    */
-  const prefixLength = range.start - (source.lastIndexOf(
-    '\n',
-    range.start - 1,
-  ) + 1);
+  const prefix = source.slice(
+    source.lastIndexOf(
+      '\n',
+      range.start - 1,
+    ) + 1,
+    range.start,
+  );
   /**
    Edits written.
    */
@@ -197,13 +199,20 @@ function splitFlowsOf(
     if (line.start === range.start)
       continue;
     /**
-     Where the indentation of the footnote starts on the line, after the marks and white space of its container.
+     What its container takes of the line.
      */
-    const indentAt = line.start + containerCharactersAt({
+    const container = containerPrefixOf({
       source,
       at: line.start,
-      most: prefixLength,
+      pattern: prefix,
     },);
+    // A line without the marks of a block quote is a lazy line of a paragraph, whatever it starts with.
+    if (!container.marked)
+      continue;
+    /**
+     Where the indentation of the footnote starts on the line, after the marks and white space of its container.
+     */
+    const indentAt = line.start + container.length;
     if (html.open) {
       // A line that holds nothing but the marks of its container is a blank line, which ends the block of raw HTML.
       /**

@@ -1,8 +1,5 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import {
-  endLineOf,
-  isLazyDefinition,
-} from './source-ships-footnote.ts';
+import { isLazyDefinition, } from './source-ships-footnote.ts';
 import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
 import {
   contentStretches,
@@ -24,6 +21,7 @@ import {
   footnoteStateOf,
   stateAfter,
   topLevelPending,
+  withEndLine,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
@@ -210,13 +208,10 @@ export function spansOf(
       text.push(range,);
       footnotes.set(
         parent,
-        {
-          ...footnote,
-          endLine: endLineOf({
-            node,
-            fallback: footnote.endLine,
-          },),
-        },
+        withEndLine({
+          state: footnote,
+          node,
+        },),
       );
       continue;
     }
@@ -263,6 +258,7 @@ export function spansOf(
         node,
         range,
         continuesFootnote,
+        isRootChild,
       },)
       : footnote;
     footnotes.set(

@@ -213,7 +213,7 @@ export function pageOnlyDefinitionWritten(
         fallback: endLine,
       },),
       endsInLiteral: false,
-      prefixLength: 0,
+      prefix: '',
       opensRawHtml: false,
       opensFootnote: false,
     },

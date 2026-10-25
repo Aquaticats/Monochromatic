@@ -7,6 +7,7 @@ import {
   endLineOf,
   opensFootnote,
 } from './source-ships-footnote.ts';
+import { goesOnAsLazyText, } from './source-ships-footnote-container.ts';
 import { footnoteOpensRawHtml, } from './source-ships-footnote-html.ts';
 import { endsInLiteral, } from './source-ships-literal-end.ts';
 import {
@@ -69,10 +70,10 @@ export type FootnoteState = {
   readonly endsInLiteral: boolean;
 
   /**
-   How many characters the container puts before the label of the footnote definition on its line, the marks of a block
-   quote and the indentation of a list item, which each later line of the footnote carries as many of; none at the top.
+   What the container puts before the label of the footnote definition on its line, the marks of a block quote and the
+   indentation of a list item, which each later line of the footnote carries the marks of; empty at the top.
    */
-  readonly prefixLength: number;
+  readonly prefix: string;
 
   /**
    Whether the block is the first line of a footnote definition that opens with a block of raw HTML, which holds the lines
@@ -94,7 +95,7 @@ const NO_BLOCK_READ: FootnoteState = {
   open: false,
   endLine: 0,
   endsInLiteral: false,
-  prefixLength: 0,
+  prefix: '',
   opensRawHtml: false,
   opensFootnote: false,
 };
@@ -126,6 +127,38 @@ export function footnoteStateOf(
 }
 
 /**
+ The state of a container once a block has been read in it that changes nothing but the line the footnote reaches to.
+
+ @param state - container's state before the block
+
+ @param node - block
+
+ @returns The state with the line the block ends on
+
+ @example
+ ```ts
+ const after = withEndLine({ state, node, },);
+ ```
+ */
+export function withEndLine(
+  {
+    state,
+    node,
+  }: {
+    readonly state: FootnoteState;
+    readonly node: TreeNode;
+  },
+): FootnoteState {
+  return {
+    ...state,
+    endLine: endLineOf({
+      node,
+      fallback: state.endLine,
+    },),
+  };
+}
+
+/**
  What a container's state is once a block has been read in it.
 
  @param before - container's state before the block
@@ -139,11 +172,14 @@ export function footnoteStateOf(
  @param continuesFootnote - whether the block is indented code under a footnote definition, which the definition's own
  blocks continue
 
+ @param isRootChild - whether the block stands at the top of the text; in a container a paragraph or a line of raw HTML
+ right after the definition itself goes on in the definition's paragraph and keeps the footnote open
+
  @returns State with the block as the one read last
 
  @example
  ```ts
- const after = stateAfter({ before, source, node, range, continuesFootnote: false, },);
+ const after = stateAfter({ before, source, node, range, continuesFootnote: false, isRootChild: true, },);
  ```
  */
 export function stateAfter(
@@ -153,14 +189,30 @@ export function stateAfter(
     node,
     range,
     continuesFootnote,
+    isRootChild,
   }: {
     readonly before: FootnoteState;
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
     readonly continuesFootnote: boolean;
+    readonly isRootChild: boolean;
   },
 ): FootnoteState {
+  /**
+   Whether the block goes on in the definition's paragraph as a lazy line.
+   */
+  const goesOnLazily = goesOnAsLazyText({
+    source,
+    node,
+    range,
+    state: before,
+    isRootChild,
+  },);
+  /**
+   Whether the block is part of the footnote the block read before it opened.
+   */
+  const stays = continuesFootnote || goesOnLazily;
   /**
    Whether the block opens a footnote definition.
    */
@@ -170,7 +222,7 @@ export function stateAfter(
     range,
   },);
   return {
-    open: continuesFootnote || opens,
+    open: stays || opens,
     endLine: endLineOf({
       node,
       fallback: before.endLine,
@@ -179,12 +231,15 @@ export function stateAfter(
       source,
       node,
     },),
-    prefixLength: opens
-      ? (range.start - (source.lastIndexOf(
-        '\n',
-        range.start - 1,
-      ) + 1))
-      : before.prefixLength,
+    prefix: opens
+      ? source.slice(
+        source.lastIndexOf(
+          '\n',
+          range.start - 1,
+        ) + 1,
+        range.start,
+      )
+      : before.prefix,
     opensRawHtml: opens && footnoteOpensRawHtml({
       source,
       range,
@@ -437,7 +492,7 @@ export function takeFootnote(
         fallback: state.endLine,
       },),
       endsInLiteral: false,
-      prefixLength: state.prefixLength,
+      prefix: state.prefix,
       opensRawHtml: false,
       opensFootnote: false,
     },

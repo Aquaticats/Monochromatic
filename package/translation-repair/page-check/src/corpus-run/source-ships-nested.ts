@@ -264,8 +264,8 @@ export function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },)
 
  @param range - where the body stands, from the start of its first line or the first character after the label
 
- @param prefixLength - how many characters of marks and white space the container the body stands in puts before its first
- line, which every later line carries as many of and gives up with the four columns the footnote takes; none at the top
+ @param prefix - what the container the body stands in puts before its first line, which every later line carries the marks of
+ and gives up with the four columns the footnote takes; empty at the top
 
  @returns Spans of the body at the offsets of the whole text
 
@@ -285,7 +285,7 @@ export function footnoteBodySpans(
     footnotes,
     pageFootnotes = footnotes,
     range,
-    prefixLength = 0,
+    prefix = '',
   }: {
     readonly source: string;
     readonly readable: string;
@@ -293,7 +293,7 @@ export function footnoteBodySpans(
     readonly footnotes: readonly TextRange[];
     readonly pageFootnotes?: readonly TextRange[];
     readonly range: TextRange;
-    readonly prefixLength?: number;
+    readonly prefix?: string;
   },
 ): SourceSpans {
   /**
@@ -331,7 +331,7 @@ export function footnoteBodySpans(
         start: range.start,
         end: bodyEnd,
       },
-      prefixLength,
+      prefix,
     },),
   },);
   if ((footnote === undefined) || (footnote.end > range.end))

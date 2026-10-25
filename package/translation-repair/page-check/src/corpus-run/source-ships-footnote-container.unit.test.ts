@@ -15,9 +15,11 @@ import {
 import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
-  containerCharactersAt,
+  containerPrefixOf,
   continuesAsParagraph,
   continuesTheFootnote,
+  goesOnAsLazyText,
+  holdsIndentedLine,
   rangeOf,
   withoutContainerAndIndentation,
 } from '../../dist/final/node/index.mjs';
@@ -29,7 +31,7 @@ const OPEN_IN_QUOTE = {
   open: true,
   endLine: 1,
   endsInLiteral: false,
-  prefixLength: 2,
+  prefix: '> ',
   opensRawHtml: false,
   opensFootnote: true,
 };
@@ -79,22 +81,51 @@ await describe({
   name: 'the blocks under a footnote definition in a container',
   children: [
     describe({
-      name: containerCharactersAt.name,
+      name: containerPrefixOf.name,
       children: [
         it({
-          name: 'COUNTS THE MARKS AND WHITE SPACE A LINE STARTS WITH, up to as many as the container puts before its content',
+          name: 'TAKES THE MARKS OF A BLOCK QUOTE AND THE WHITE SPACE THE PATTERN HAS, and says the line carries them',
           fn: async () => {
-            expect(containerCharactersAt({ source: '>     a', at: 0, most: 2, },),).toBe(2,);
-            expect(containerCharactersAt({ source: '>     a', at: 0, most: 9, },),).toBe(6,);
-            expect(containerCharactersAt({ source: '\t> a', at: 0, most: 4, },),).toBe(3,);
+            expect(containerPrefixOf({ source: '>     a', at: 0, pattern: '> ', },),).toEqual({ length: 2, marked: true, },);
+            expect(containerPrefixOf({ source: '>a', at: 0, pattern: '> ', },),).toEqual({ length: 1, marked: true, },);
+            expect(containerPrefixOf({ source: '> > a', at: 0, pattern: '> > ', },),).toEqual({ length: 4, marked: true, },);
+            expect(containerPrefixOf({ source: 'x\n  > a', at: 2, pattern: '- > ', },),).toEqual({ length: 4, marked: true, },);
           },
         },),
         it({
-          name: 'COUNTS NONE FOR A LINE THAT STARTS WITH NO MARK OR WHITE SPACE, or when the container puts none',
+          name: 'TAKES THE INDENTATION OF A LIST ITEM UP TO THE WIDTH OF ITS MARKER, and fewer spaces than that',
           fn: async () => {
-            expect(containerCharactersAt({ source: 'a  ', at: 0, most: 2, },),).toBe(0,);
-            expect(containerCharactersAt({ source: '>  a', at: 0, most: 0, },),).toBe(0,);
-            expect(containerCharactersAt({ source: 'x\n> a', at: 2, most: 2, },),).toBe(2,);
+            expect(containerPrefixOf({ source: '      a', at: 0, pattern: '- ', },),).toEqual({ length: 2, marked: true, },);
+            expect(containerPrefixOf({ source: ' a', at: 0, pattern: '1. ', },),).toEqual({ length: 1, marked: true, },);
+            expect(containerPrefixOf({ source: 'a', at: 0, pattern: '- ', },),).toEqual({ length: 0, marked: true, },);
+            expect(containerPrefixOf({ source: 'a', at: 0, pattern: '', },),).toEqual({ length: 0, marked: true, },);
+          },
+        },),
+        it({
+          name: 'SAYS A LINE WITHOUT A MARK OF THE BLOCK QUOTE IS NOT MARKED AND GIVES UP NOTHING, a lazy line',
+          fn: async () => {
+            expect(containerPrefixOf({ source: '    ```', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
+            expect(containerPrefixOf({ source: '> a', at: 0, pattern: '> > ', },),).toEqual({ length: 0, marked: false, },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: holdsIndentedLine.name,
+      children: [
+        it({
+          name: 'SAYS WHETHER A LINE AFTER THE FIRST CARRIES THE MARKS AND THE FOUR COLUMNS OF THE FOOTNOTE',
+          fn: async () => {
+            for (const [source, expected,] of [
+              ['> [^1]: x\n>     a\n', true,],
+              ['> [^1]: x\n>\t\ta\n', true,],
+              ['> [^1]: x\n>    a\n', false,],
+              ['> [^1]: x\n    a\n', false,],
+              ['> [^1]: x\n', false,],
+              ['> [^1]: x', false,],
+            ] as const) {
+              expect(holdsIndentedLine({ source, range: { start: 2, end: source.length, }, prefix: '> ', },),).toBe(expected,);
+            }
           },
         },),
       ],
@@ -115,7 +146,7 @@ await describe({
             const kept = withoutContainerAndIndentation({
               source,
               range: { start: 14, end: source.length - 1, },
-              prefixLength: 2,
+              prefix: '> ',
             },)
               .map(function characterAt(at,): string {
                 return source.charAt(at,);
@@ -134,7 +165,7 @@ await describe({
             const kept = withoutContainerAndIndentation({
               source,
               range: { start: 13, end: source.length - 1, },
-              prefixLength: 2,
+              prefix: '- ',
             },)
               .map(function characterAt(at,): string {
                 return source.charAt(at,);
@@ -153,7 +184,7 @@ await describe({
           fn: async () => {
             for (const source of ['> [^1]: x\n>     p\n', '> [^1]: x\n>\t\tp\n',]) {
               const { node, range, } = childOfQuote({ source, at: 1, },);
-              expect(continuesAsParagraph({ source, node, range, prefixLength: 2, },),).toBe(true,);
+              expect(continuesAsParagraph({ source, node, range, prefix: '> ', },),).toBe(true,);
             }
           },
         },),
@@ -162,12 +193,12 @@ await describe({
           fn: async () => {
             for (const source of ['> [^1]: x\n>    p\n', '> [^1]: x\n> p\n', '> [^1]: x\n>p\n',]) {
               const { node, range, } = childOfQuote({ source, at: 1, },);
-              expect(continuesAsParagraph({ source, node, range, prefixLength: 2, },),).toBe(false,);
+              expect(continuesAsParagraph({ source, node, range, prefix: '> ', },),).toBe(false,);
             }
             const source = '> [^1]: x\n>\n>     code\n';
             const { node, range, } = childOfQuote({ source, at: 1, },);
             expect(node.type,).toBe('code',);
-            expect(continuesAsParagraph({ source, node, range, prefixLength: 2, },),).toBe(false,);
+            expect(continuesAsParagraph({ source, node, range, prefix: '> ', },),).toBe(false,);
           },
         },),
         it({
@@ -179,7 +210,55 @@ await describe({
             const source = '> [^1]: x\n>   > p\n';
             const { node, range, } = childOfQuote({ source, at: 1, },);
             expect(node.type,).toBe('blockquote',);
-            expect(continuesAsParagraph({ source, node, range, prefixLength: 2, },),).toBe(false,);
+            expect(continuesAsParagraph({ source, node, range, prefix: '> ', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: goesOnAsLazyText.name,
+      children: [
+        it({
+          name: 'IS TRUE FOR A PARAGRAPH OR A LINE OF RAW HTML RIGHT AFTER THE DEFINITION ITSELF, in a container',
+          fn: async () => {
+            for (const source of ['> [^1]: x\n> abc\n', '> [^1]: x\n> <a href="x">\n',]) {
+              expect(goesOnAsLazyText({
+                source,
+                ...childOfQuote({ source, at: 1, },),
+                state: OPEN_IN_QUOTE,
+                isRootChild: false,
+              },),).toBe(true,);
+            }
+          },
+        },),
+        it({
+          name: 'IS FALSE AFTER A BLANK LINE, FOR A BLOCK OF ANOTHER KIND, FOR A BLOCK THAT OPENS A DEFINITION, AT THE TOP, '
+            + 'AND WHERE THE BLOCK BEFORE IS NOT THE DEFINITION',
+          fn: async () => {
+            for (const source of ['> [^1]: x\n>\n> abc\n', '> [^1]: x\n> # h\n', '> [^1]: x\n> [^2]: y z\n',]) {
+              expect(goesOnAsLazyText({
+                source,
+                ...childOfQuote({ source, at: 1, },),
+                state: OPEN_IN_QUOTE,
+                isRootChild: false,
+              },),).toBe(false,);
+            }
+            /**
+             A paragraph right after the definition, read at the top and after a block that opened no definition.
+             */
+            const lazy = '> [^1]: x\n> abc\n';
+            expect(goesOnAsLazyText({
+              source: lazy,
+              ...childOfQuote({ source: lazy, at: 1, },),
+              state: OPEN_IN_QUOTE,
+              isRootChild: true,
+            },),).toBe(false,);
+            expect(goesOnAsLazyText({
+              source: lazy,
+              ...childOfQuote({ source: lazy, at: 1, },),
+              state: { ...OPEN_IN_QUOTE, opensFootnote: false, },
+              isRootChild: false,
+            },),).toBe(false,);
           },
         },),
       ],
