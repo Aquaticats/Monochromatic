@@ -3,8 +3,8 @@ import type { ModelTransport, } from '@monochromatic-dev/translation-repair-prov
 import type { ProviderOff, } from './providers-off.ts';
 import type { RunClient, } from './run-client-contract.ts';
 import {
-  createRunClient as createRunClientOver,
-  runClientFrom as runClientFromOver,
+  createRunClientWithFloors,
+  runClientWithFloors,
 } from './run-config.ts';
 import { unmetBenchFloors, } from './run-seats-give-up-floors.ts';
 
@@ -19,7 +19,7 @@ import { unmetBenchFloors, } from './run-seats-give-up-floors.ts';
  Builds the client every run calls from every configured provider, counting every call, over the seat reader's bench
  floors.
 
- @param options - what {@link runClientFrom} of `run-config.ts` takes but the floors
+ @param options - what {@link runClientWithFloors} of `run-config.ts` takes but the floors
 
  @returns Ready client, routed across configured providers and counted per seat
 
@@ -45,7 +45,7 @@ export function runClientFrom(
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
   },
 ): RunClient {
-  return runClientFromOver({
+  return runClientWithFloors({
     ...options,
     unmetFloors: unmetBenchFloors,
   },);
@@ -74,7 +74,7 @@ export function createRunClient(
     readonly passLeftMs?: () => number;
   },
 ): RunClient {
-  return createRunClientOver({
+  return createRunClientWithFloors({
     ...options,
     unmetFloors: unmetBenchFloors,
   },);

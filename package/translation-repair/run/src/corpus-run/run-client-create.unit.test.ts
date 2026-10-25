@@ -1,5 +1,6 @@
 /**
- Tests which provider an entry's give-up of a refusing provider waits for, over the run client the passes build.
+ Tests the run client the packages export (`run-client-create.ts`): which provider an entry's give-up of a refusing
+ provider waits for, over the run client the passes build, with the seat reader's bench floors it hands the budgets.
 
  An entry gives a provider up when it refuses right after a cooldown the entry waited out. The give-up holds only while
  the providers left (not dry, not held, not given up) can still meet every bench floor the entry's stages need, the
@@ -44,6 +45,7 @@ import {
   type RunClient,
   runClientFrom,
 } from '../../dist/final/node/index.mjs';
+import { waitsIn, } from './run-seats-waits.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -363,25 +365,6 @@ function rigOn(
 }
 
 /**
- The readings that waited for a hold to end.
-
- @param lines - lines the seat reader wrote
-
- @returns The waiting lines
-
- @example
- ```ts
- expect(waitsIn({ lines, },).length,).toBe(1,);
- ```
- */
-function waitsIn({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
-  return lines.filter(function isWait(line,): boolean {
-    return line.startsWith('warn JUDGE SEATS phase=translate lane short of quorum',)
-      && line.includes('waiting ',);
-  },);
-}
-
-/**
  Runs the slices one after another, each right after the cooldown the one before waited out.
 
  @param rig - the rig to run them on
@@ -408,7 +391,7 @@ await describe({
       name: 'WAITS FOR SYNTHETIC EVERY TIME, AND THE ENTRY IS NOT ENDED, when the only provider beside it is DeepSeek, '
         + 'which serves one of the eight translators where the writing floor is two',
       fn: async ctx => {
-        await using scratch = await scratchDir({ prefix: 'run-seats-cooldown-floors-', },);
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
           alternative: 'deepseek',
@@ -440,7 +423,7 @@ await describe({
       name: 'WAITS FOR SYNTHETIC EVERY TIME when the only provider beside it is NeuralWatt, which meets the writing '
         + 'floors and not the judging quorums: a judging bench counts too',
       fn: async ctx => {
-        await using scratch = await scratchDir({ prefix: 'run-seats-cooldown-floors-', },);
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
           alternative: 'neuralwatt',
@@ -463,7 +446,7 @@ await describe({
       name: 'KEEPS THE GIVE-UP when Hyper reads wet beside Synthetic and meets every floor on its own: Synthetic is asked '
         + 'twice, and reads dry after the cooldown the entry gave it up on',
       fn: async ctx => {
-        await using scratch = await scratchDir({ prefix: 'run-seats-cooldown-floors-', },);
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
           alternative: 'hyper',

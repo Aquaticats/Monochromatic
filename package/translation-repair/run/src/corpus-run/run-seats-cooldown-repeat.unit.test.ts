@@ -16,7 +16,7 @@
  The budgets here are given no floor source, so any wet writing provider is an alternative: the cases pin the marks (the
  give-up, a stated return, a served call, a second entry) and not which providers can hold a give-up in force. That is
  the run client's, with the bench floors it hands the budgets, and its cases are in
- `run-seats-cooldown-floors.unit.test.ts`.
+ `run-client-create.unit.test.ts`.
 
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
@@ -39,6 +39,7 @@ import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provide
 import { unreadableQuotas, } from '@monochromatic-dev/translation-repair-provider/ts/unreadable-quotas.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { readPhaseSeats, } from '../../dist/final/node/index.mjs';
+import { waitsIn, } from './run-seats-waits.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -238,25 +239,6 @@ function rigOn(
       clock.restore();
     },
   };
-}
-
-/**
- The readings that waited for a hold to end.
-
- @param lines - lines the seat reader wrote
-
- @returns The waiting lines
-
- @example
- ```ts
- expect(waitsIn({ lines, },).length,).toBe(1,);
- ```
- */
-function waitsIn({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
-  return lines.filter(function isWait(line,): boolean {
-    return line.startsWith('warn JUDGE SEATS phase=translate lane short of quorum',)
-      && line.includes('waiting ',);
-  },);
 }
 
 await describe({

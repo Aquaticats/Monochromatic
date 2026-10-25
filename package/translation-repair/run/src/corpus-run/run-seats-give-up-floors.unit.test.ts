@@ -15,11 +15,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import {
-  type ProviderName,
-  type ProviderRecord,
-  providerRecord,
-} from '@monochromatic-dev/translation-repair-shared-contract';
+import { dryExcept, } from '@monochromatic-dev/translation-repair-provider/ts/dry-except.test-fixture.ts';
 import {
   BENCHES_ANY_PHASE_LEANS_ON,
   benchesOf,
@@ -45,26 +41,6 @@ const PHASES: readonly JudgeSeatPhase[] = [
   'consolidation',
   'page consistency',
 ];
-
-/**
- The view in which only the named providers can be asked.
-
- @param wet - providers that can be asked
-
- @returns Dryness per provider, dry for every provider not named
-
- @example
- ```ts
- const dry = dryExcept({ wet: ['hyper',], },);
- ```
- */
-function dryExcept({ wet, }: { readonly wet: readonly ProviderName[]; },): ProviderRecord<boolean> {
-  return providerRecord({
-    of: function isDry(provider,): boolean {
-      return !wet.includes(provider,);
-    },
-  },);
-}
 
 await describe({
   name: unmetBenchFloors.name,

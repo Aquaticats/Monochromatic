@@ -664,9 +664,10 @@ the entry,
 how each other provider reads and the floors that would stay unmet,
 and one info line says when it is back in force.
 The budgets take the floors as `unmetFloors`.
-`run-config.ts` takes them as a required parameter of `runClientFrom` and `createRunClient`,
+`run-config.ts` takes them as a required parameter of `runClientWithFloors` and `createRunClientWithFloors`,
 because the seat reader imports that file for the roster and the lint refuses a dependency cycle,
-and `run-client-create.ts` hands them over for the two functions the package exports.
+and `run-client-create.ts` hands them over in the two functions the package exports as `runClientFrom` and
+`createRunClient`.
 A caller that knows no roster of benches gets the round-2 floor,
 that some writing provider can be asked (`writingProviderFloor`,
 over `WritingReach`:
@@ -853,7 +854,9 @@ over the limit of 100.
 Neither commit was amended.
 
 The red cases of the widening (round 3):
-`cbd38bd7aa` adds `run/src/corpus-run/run-seats-cooldown-floors.unit.test.ts`.
+`cbd38bd7aa` adds `run/src/corpus-run/run-seats-cooldown-floors.unit.test.ts`,
+which the source scan of own tests later had renamed `run-client-create.unit.test.ts`,
+the own test of the module that hands the floors over.
 It builds the run client (`runClientFrom`) over a scripted transport on a fake clock,
 so the test is the same text before and after the fix and the red type-checks on the parent.
 Beside the refusing Synthetic it lets one provider read wet.
@@ -870,7 +873,8 @@ The cases of the round-1 and round-2 rig (`run-seats-cooldown-repeat.unit.test.t
 the rig builds the budgets with no floor source,
 so any wet writing provider is an alternative there and the cases pin the marks and not the floors.
 `844cf137f8` adds `run/src/corpus-run/run-client-writing-roster.unit.test.ts`:
-the writing roster that `runClientFrom` gives the router is the line of `run-config.ts` the mutant below drops.
+the writing roster that `runClientFrom` gives the router is the line of `run-config.ts` that the router-roster mutant
+of the round-3 list drops.
 
 The provider package gained cases for the floor source
 (`provider-budget-give-up-aside.unit.test.ts`,

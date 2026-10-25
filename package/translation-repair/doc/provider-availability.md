@@ -230,7 +230,7 @@ and not off a time window,
 is the operational meaning of "waited out" here:
 a window would have to outlast the transport's retry ladder,
 whose length no measurement fixes.
-While the providers left can meet every bench floor the entry's stages need (see below),
+While the providers left can meet every bench floor the entry's stages need,
 a given-up provider reads dry to the router and to the seat reader until the entry ends,
 its cooldowns count for no wait,
 and the reader seats the other providers' seats without waiting.
@@ -286,7 +286,7 @@ the judging benches and the readers among them.
 The budgets take that source as `unmetFloors` and the set-aside warn line names the floors that would stay unmet.
 `run-config.ts` takes it as a required parameter,
 because the seat reader imports that file for the roster and a dependency cycle is refused by the lint;
-`run-client-create.ts` hands it over for `createRunClient` and `runClientFrom`.
+`run-client-create.ts` hands it over in the `createRunClient` and `runClientFrom` the package exports.
 A caller that knows no roster of benches gets the first floor,
 that some writing provider can be asked (`writingProviderFloor`),
 with a wet provider that writes nothing (Xiaomi,

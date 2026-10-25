@@ -1083,7 +1083,7 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
 
  @example
  ```ts
- const client = runClientFrom({
+ const client = runClientWithFloors({
    env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'test', },
    transport,
    maxHoldMs: 1_800_000,
@@ -1091,7 +1091,7 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  },);
  ```
  */
-export function runClientFrom(
+export function runClientWithFloors(
   {
     env,
     transport,
@@ -1116,7 +1116,7 @@ export function runClientFrom(
    Logger pre-tagged with this function's name.
    */
   const rl = tagged({
-    tag: runClientFrom.name,
+    tag: runClientWithFloors.name,
     l,
   },);
 
@@ -1249,12 +1249,12 @@ export function runClientFrom(
 
 /**
  The run client a runner calls over: the process's environment and the live
- transport, handed to `runClientFrom`. The one place those two are named for
+ transport, handed to `runClientWithFloors`. The one place those two are named for
  every runner, so no library function or test reaches them by default.
 
  @param options - longest hold a stated wait may set, which is required: the runner's hard cap, or the probe bound
  where its command has none; the payload checkpoint, when the runner keeps one; and the bench floors an entry's give-up
- of a provider must leave met (`unmetFloors` of {@link runClientFrom})
+ of a provider must leave met (`unmetFloors` of {@link runClientWithFloors})
 
  @returns Ready client, routed across configured providers and counted per seat
 
@@ -1262,10 +1262,10 @@ export function runClientFrom(
 
  @example
  ```ts
- const client = createRunClient({ maxHoldMs: 25_200_000, unmetFloors: unmetBenchFloors, },);
+ const client = createRunClientWithFloors({ maxHoldMs: 25_200_000, unmetFloors: unmetBenchFloors, },);
  ```
  */
-export function createRunClient(
+export function createRunClientWithFloors(
   options: {
     readonly promptPayloadDir?: string;
     readonly maxHoldMs: number;
@@ -1273,7 +1273,7 @@ export function createRunClient(
     readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {
-  return runClientFrom({
+  return runClientWithFloors({
     ...options,
     env: process.env,
     transport: fetchTransport,

@@ -252,7 +252,7 @@ and a stated return counted as a cooldown.
 `provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves,
 `provider/src/provider-budget-give-up-aside.unit.test.ts` those of the set-aside,
 and `provider/src/provider-budget-cooldown-set-aside.unit.test.ts` the budgets and the router's wait over it.
-`run/src/corpus-run/run-seats-cooldown-floors.unit.test.ts` builds the run client itself (`runClientFrom`) over a
+`run/src/corpus-run/run-client-create.unit.test.ts` builds the run client itself (`runClientFrom`) over a
 scripted transport on a fake clock,
 and fails when the entry ends with `WritingBenchUnreachableError` beside a wet DeepSeek,
 or waits fewer cooldowns than it is refused beside a wet NeuralWatt;
