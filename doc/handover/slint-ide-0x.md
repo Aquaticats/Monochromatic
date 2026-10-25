@@ -4638,6 +4638,33 @@ measurement passes at the narrow first width end late: is the map permanently to
 extent, minimap, positions all off: a real defect) or does a later pass correct it; (2) three trials with no wheel log
 line (likely a 40-notch turn the shown tile holds, which logs nothing; to be shown with file:line). Their reports are
 verified, landed and the IDE reinstalled.
+Landed 2026-10-25 as `b951a5d005` (open-items tip `39e6a10ee3` merged with my handover commit; gates on the merged
+tree: `lint` 0, `test:native` 345 passed and 5 skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer`
+0): `View` and `Spot` (`src/native/language/pointer.rs`) carry the displayed text's `DocumentStamp`, and `Rest::follow`
+restarts a not-yet-asked rest when the stamp changes (a reload that keeps the line count, a file switch). Installed:
+sha256 `14366999135483ce…` from `b951a5d005`, prints 0.1.1. Verified on it (load 10 to 50, up to four sessions at
+once, recorder 10 to 24 fps): reload cases 10 of 10 trials each with exactly one request for the line under the pointer
+0.387 to 0.487 s after the write (`// note` line to `export const delta1`, blank line to `eps5`, a 1 px move as the
+positive control), popups stay at +2 s; a rest already asked then a reload sends nothing and the popup is dismissed with
+`reason="the displayed text changed"` (10 of 10: expected, the popup was for the old text); 5 s settled over no character
+0 hover log lines; file switch under a resting pointer 10 of 10 requests, 0.438 to 0.484 s, popups for
+`integrationFixtures` and `buildInTempDir` on the drawn lines (large boxes that start about 100 device px left of the
+pointer to fit the window); earlier guarantees unchanged (wheel 5, 11, 29, 301 notches 10 of 10 right at 0.532 to 0.574
+s, settled hover 10 of 10 at 0.351 to 0.368 s, moved onto an identifier 100 ms before a 300-notch wheel 10 of 10, rested
+then wheel 0 new requests); 12 popups viewed, each on the identifier under the pointer; far jumps 150, 300, 600: 0 blank
+and 0 partial code frames, tiles applied 1.00, five-press means as before, 88-click 844 frames 0 blank, 82 px gap in 117
+of 117 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; Ctrl+End and Ctrl+Home 0 blank frames. DRAG AFTER A
+WHEEL (open, being measured): two runs of 10 trials at load 22 to 39 and recorder 13 to 20 fps could classify only 5 of
+10 starts against the verifier's window (starts at rows 982 to 1034 between the held row 956 and the settled row 1034; the
+other end always matched the release line 1039); on the previous binary at load 2 to 3 it was 10 of 10. The diff of
+`96959a8b67..b951a5d005` touches only `src/native/language/*` (the pointer-moved handler gained one line,
+`text: surface::displayed(...)`), none of `ui/`, `wheel.rs`, `viewport.rs`, `tile.rs`, so the press path cannot have
+changed; the instrument is the problem (the app logs no event time and no pressed row). An agent (scratch
+`~/temp/agent/dragpress`, branch off `b951a5d005`) adds debug log lines at press, drag start and release (y, x, real and
+drawn offset, held, line and character), runs 30 trials per delay at 300 notches (delays 20 to 250 ms, 10 each at 150
+and 600) and checks the pressed line against the line mapped through the drawn offset of the last logged frame, with a
+positive control build that maps with the real offset; its report is verified, landed and the IDE reinstalled. The
+row-map agent (`~/temp/agent/rowmap`) is still running.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
