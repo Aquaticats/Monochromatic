@@ -462,7 +462,7 @@ so both are covered there without a list.
 
 ## Prices
 
-DeepSeek is priced at the rate of the hours the call spanned.
+DeepSeek is priced at the rate of the hours of its start and its completion.
 The card holds the peak rates:
 0.006 (cache hit),
 0.3 (cache miss) and 1.2 (output) USD per million tokens,

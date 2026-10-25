@@ -186,10 +186,12 @@ a wording round with no change of behaviour.
 
 The defect:
 the third round of B920 reworded every sentence that said a call crossing a window edge books peak,
-and left the phrase "at the rate of the hours the call spanned" in five places:
+and left the phrase "at the rate of the hours the call spanned" in six places:
 the region heading in `provider/src/direct-cost.ts`,
 the TSDoc and a comment in `provider/src/deepseek-client.ts`,
-the TSDoc of `spendFieldsOf` in `provider/src/direct-client.ts`
+the TSDoc of `spendFieldsOf` in `provider/src/direct-client.ts`,
+the first sentence of the Prices section of `doc/decision/translation-repair-direct-providers.md`
+(which the re-check did not list and the repair found)
 and the index line of this file in `audit-ledger.md`.
 The phrase says every hour of the call counts,
 so a reader would book a call from 00:30 UTC to 04:30 UTC on a weekday at peak,
