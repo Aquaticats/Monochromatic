@@ -282,9 +282,12 @@ Synthetic `wet`,
   so some of its 21 booked DeepSeek calls (22 streams) may have started inside the Friday windows and some outside;
   their start times were not examined for this record,
   and how much the figure over-reads is not computed.
-  Note of 2026-10-25 (UTC), added with the third round of the fix, which merges `main` into its branch:
+  Note of 2026-10-25 (UTC),
+  added with the third round of the fix,
+  which merges `main` into its branch:
   the rule as built books a call at half only when both its start and its reply's completion lie outside every window,
-  and at peak when either lies inside one, so "when it started outside" above is the first round's reading.
+  and at peak when either lies inside one,
+  so "when it started outside" in the ledger sentence of this bullet is the first round's reading.
   The entry is in `package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`.
 - Xiaomi `wet` throughout (`xiaomiUsdSpent` 0.0000 to 0.0975,
   booked 0.097514).

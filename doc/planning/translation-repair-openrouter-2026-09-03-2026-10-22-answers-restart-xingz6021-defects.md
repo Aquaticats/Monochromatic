@@ -692,10 +692,12 @@ the check explained the mechanism and did not call it a defect.
 The update of 2026-10-25 (UTC) under this heading describes the fix;
 the bullets filed on 2026-10-25 are kept as written.
 
-Note of 2026-10-25 (UTC), added with the third round of the fix, which merges `main` into its branch:
+Note of 2026-10-25 (UTC),
+added with the third round of the fix,
+which merges `main` into its branch:
 the entry B920 now stands in `package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`,
-not in the providers file named above,
-and the status lines above are history.
+not in the providers file named in the status lines of this heading,
+and those status lines are history.
 
 - The meter fell by 0.07 USD while 15 calls booked 0.147093 USD.
   The mechanism is in the run file under "The DeepSeek balance against the booked cost":
@@ -746,13 +748,19 @@ and it has not landed.
   has no owner ruling recorded in this record;
   the change in progress books each call at the rate of its own hour.
 
-Note of 2026-10-25 (UTC), added with the third round of the fix, which merges `main` into its branch:
-the rule as built differs from "The rule" and "Limits kept" above, which are kept as written.
-A call is booked at the card's peak rates when its request started, or its reply completed,
+Note of 2026-10-25 (UTC),
+added with the third round of the fix,
+which merges `main` into its branch:
+the rule as built differs from the bullets "The rule" and "Limits kept" of the update under this heading,
+which are kept as written.
+A call is booked at the card's peak rates when its request started,
+or its reply completed,
 inside a weekday peak window in UTC,
 and at half of them only when both instants lie outside every window;
 a call that crosses a window edge is no longer booked at its start only.
-Not bounded: a make-up working Saturday, and a call that spans a whole window with both instants outside it.
+Not bounded:
+a make-up working Saturday,
+and a call that spans a whole window with both instants outside it.
 The current rule is in `package/translation-repair/provider/src/direct-cost.ts`
 and in ledger B920 (`package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`).
 

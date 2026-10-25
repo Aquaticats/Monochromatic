@@ -103,7 +103,7 @@ The third round,
 after a second independent re-check found no major finding,
 two minor ones and six nits:
 the sentence "a call that crosses a window edge is booked at peak" was wider than the code,
-since a call starting at 00:30 and completing at 04:30 on a weekday crosses both edges of the first window,
+since a call starting at 00:30 UTC and completing at 04:30 UTC on a weekday crosses both edges of the first window,
 has both instants outside it,
 and books half,
 as the not-bounded sentences of the same files said.
