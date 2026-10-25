@@ -677,6 +677,10 @@ It touches `package/translation-repair` in two files only,
 so the Markdown scans of `source-scan` were run again on the merged state and the code gates were not.
 The first merge keeps the default message of git,
 which is a slip of mine and is not amended.
+A last move of `origin/main` (`57b682803ea063782fb0a27836891c4a7b13fd30`,
+one file,
+`doc/handover/slint-ide-0x.md`) is merged by `033222807d2f5fac58e9066dcae2f99157b8f32b`,
+and `test:unit` of `source-scan` passed on it again with 68 `[PASS]` lines.
 
 Each gate ran by itself from the worktree on the final code,
 one task per call:
