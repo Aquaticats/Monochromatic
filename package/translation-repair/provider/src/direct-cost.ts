@@ -12,10 +12,11 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // figure, priced here, is the `cost=` the SPEND line carries and the one the
 // run's own meter adds up.
 //
-// DEEPSEEK IS PRICED AT THE RATE OF THE HOURS THE CALL SPANNED: at the card's
-// peak rates when the request started, or the reply completed, inside a weekday
-// peak window (UTC), at half of them only when both instants lie outside every
-// window. The page (`https://api-docs.deepseek.com/quick_start/pricing`, read
+// DEEPSEEK IS PRICED AT THE RATE OF THE HOURS OF ITS START AND ITS COMPLETION:
+// at the card's peak rates when the request started, or the reply completed,
+// inside a weekday peak window (UTC), an instant that is not a time counting as
+// peak, and at half of them only when both instants lie outside every window,
+// even if the call spanned a whole window between them. The page (`https://api-docs.deepseek.com/quick_start/pricing`, read
 // 2026-10-25 by the lead and by the reviewer) says:
 // `Peak hours are 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through Friday, excluding Chinese public holidays`
 // `Off-peak rates are half of the peak rates.`

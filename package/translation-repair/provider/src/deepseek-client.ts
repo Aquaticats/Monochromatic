@@ -191,8 +191,10 @@ function jsonObjectFormat(): Readonly<Record<string, unknown>> {
 }
 
 /**
- Prices one finished DeepSeek call at the rate of the hours it spanned: peak when its request started, or its reply
- completed, inside a weekday peak window.
+ Prices one finished DeepSeek call at the rate of the hours of its start and its completion: peak when its request
+ started, or its reply completed, inside a weekday peak window (an instant that is not a time counts as peak), and at
+ half the peak rates only when both instants lie outside every window, even if the call spanned a whole window between
+ them.
 
  @param extracted - completion whose usage block DeepSeek filled in, or did not
 
@@ -227,7 +229,7 @@ function deepSeekSpendFields(
    */
   const split = deepSeekCacheSplitOf({ bodyText, },);
   /**
-   The call priced at the rates of the hours it spanned, or that nothing was reported.
+   The call priced at the rate of the hours of its start and its completion, or that nothing was reported.
    */
   const cost = deepSeekCostOf({
     card: DEEPSEEK_MODELS['deepseek-flash'],

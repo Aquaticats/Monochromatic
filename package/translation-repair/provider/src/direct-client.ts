@@ -115,9 +115,9 @@ export type DirectRoute = {
 
   /**
    The cost and cache fields the spend line carries for one finished call,
-   priced from the card, at the rate of the hours the call spanned where the
-   provider's rate depends on the hour (`startedAt` is the first attempt's start,
-   `completedAt` the successful attempt's completion).
+   priced from the card, at the rate of the hours of the call's start and its
+   completion where the provider's rate depends on the hour (`startedAt` is the
+   first attempt's start, `completedAt` the successful attempt's completion).
    */
   readonly spendFieldsOf: (
     args: {
