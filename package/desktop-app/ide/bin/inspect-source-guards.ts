@@ -2489,7 +2489,9 @@ const cases: Guard[] = [
     after: '    let _ = &language;',
     native: true,
     test: 'a_rest_that_was_asked_about_asks_once',
-    failure: 'the same rest asked again'
+    // Without the mark the request is made again at every tick and each one replaces the one before it,
+    // so no answer is ever shown.
+    failure: 'no hover appeared for the resting pointer'
   },
   {
     name: 'hover-spot-extent',

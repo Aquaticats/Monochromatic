@@ -202,10 +202,8 @@ impl Rest {
         if self.asked {
             return None;
         }
-        // `let Some(...) = ... else` binds the rest or leaves with nothing.
-        let Some((character, since)) = self.at else {
-            return None;
-        };
+        // `?` leaves with nothing when the pointer is outside the source.
+        let (character, since) = self.at?;
         // A pointer over no character in a view that stood still has nothing to ask about;
         //  one whose view moved under it may be over a character now.
         if character.is_none() && !self.shifted {

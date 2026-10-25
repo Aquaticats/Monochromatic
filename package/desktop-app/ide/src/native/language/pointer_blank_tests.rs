@@ -1,5 +1,8 @@
 //! A pointer that rests over no character while the view moves under it.
-//!  A hint row, a blank line, the gutter, and the space past a line's end are over no character,
+//!  A hint row,
+//!  a blank line,
+//!  the gutter,
+//!  and the space past a line's end are over no character,
 //!  and the toolkit sends no pointer event for text that moves under a still pointer,
 //!  so only the rest itself can notice that a character arrived under the pointer.
 //!  In a view that stands still such a pointer asks nothing and closes a popup.
@@ -79,12 +82,20 @@ fn a_rest_over_no_character_asks_after_a_far_jump() {
 ///  and marks nothing asked.
 #[test]
 fn a_rest_over_no_character_in_a_settled_view_asks_nothing() {
-    let (_fixture, reader, x) = resting_place(400);
+    // No hint rows arrive in this test, so nothing but the pointer's own move changes what stands under it.
+    let (_fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
     move_to(&reader.window, point(&reader, BLANK, x));
+    let binding = reader.binding.as_ref().expect("the language binding");
+    let arrived = binding.language.borrow().rest.at;
+    assert!(arrived.is_some(), "the move did not start a rest");
     idle(3 * REST.as_millis() as u64);
     assert_eq!(popup(&reader), "", "a pointer over no character asked");
-    let binding = reader.binding.as_ref().expect("the language binding");
     let language = binding.language.borrow();
+    // A rest that was resolved again would have taken a new moment.
+    assert_eq!(
+        language.rest.at, arrived,
+        "a settled rest over nothing was resolved again"
+    );
     assert!(
         !language.rest.asked,
         "a rest over no character was marked asked"
@@ -159,7 +170,8 @@ fn a_popup_closes_when_a_scroll_leaves_no_character_under_the_pointer() {
 }
 
 /// Hints that arrive after a jump put other text under a pointer that rests over no character:
-///  a blank line first, a line with text once the hint rows stand above it.
+///  a blank line first,
+///  a line with text once the hint rows stand above it.
 #[test]
 fn a_rest_over_no_character_asks_when_hints_arrive_under_it() {
     // The start's request is never answered, so the hints come with the request of the jump.
@@ -185,7 +197,7 @@ fn a_rest_over_no_character_asks_when_hints_arrive_under_it() {
             if current
                 .annotations
                 .hints(displayed(&current))
-                .is_some_and(|held| held.first_line > 0)
+                .is_some_and(|held| return held.first_line > 0)
             {
                 break;
             }

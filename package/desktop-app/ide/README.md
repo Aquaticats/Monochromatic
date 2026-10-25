@@ -1393,7 +1393,9 @@ A resting pointer is a pointer and a view that both stood still for 350 ms.
 The toolkit sends no pointer event for text that scrolls under a still pointer,
 so the request does not name the character found at the last move.
 The pointer's distance from the top of the view is kept (`Spot` in `src/native/language/pointer.rs`),
-a rest that was not asked for yet starts again whenever the drawn offset moves (`Rest::follow`),
+a rest that was not asked for yet starts again whenever the drawn offset moves
+or the height of the text changes,
+as it does when hints or messages arrive (`Rest::follow`),
 and when the rest is over,
 the character is found again from that distance and the offset that is drawn then
 (`rest` in `src/native/language/rest_step.rs`).
@@ -1401,6 +1403,20 @@ A request after a wheel turn,
 a jump,
 or rows arriving therefore names the row drawn under the pointer in the frame it is built for,
 or none when the pointer is over no character there.
+This holds for a rest that began over no character too
+(a hint row,
+the line numbers,
+a blank line,
+the space past a line's end):
+once the view has moved under it,
+the character under the pointer is found when the rest is over,
+and asked about when there is one.
+If there is none,
+nothing is asked,
+the rest is again one over no character,
+and the next move of the view starts it again;
+a view that stands still asks nothing for such a pointer
+and closes an open popup after the rest time.
 Before 2026-10-25 the request named the character under the pointer at its last move.
 On a generated 1,500-line file,
 a pointer that moved onto a word and then saw a wheel turn of 300 notches
@@ -1668,6 +1684,9 @@ Deliberate differences:
   so a hover after a wheel jump is asked for 0.54 to 0.83 s after the wheel,
   once the view has stood still for the rest time,
   and names the row drawn under the pointer then.
+  The same holds for a pointer that rests over no character:
+  editord asks nothing after a scroll for it,
+  and here a character that arrives under it is asked about.
 - Notes stay until dismissed instead of disappearing after 2 seconds,
   name a remedy,
   and are declared as a live region for assistive technologies.
