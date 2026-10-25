@@ -661,6 +661,16 @@ named for that subject and listed here.
   the leader clause that was false in two shapes the code does not narrow (B934),
   the scans of the two new sheet entries and the nits (B935),
   and the cache versions that moved (B936).
+  Round 8,
+  the answer to the seventh re-check,
+  is in the same file:
+  the word behind that carried one meaning (B937),
+  the position scan that passed a positional comment (B938),
+  the closing sentence of B935 that overstated what fired (B939),
+  the measuring-sheets case that read one sheet of five (B940),
+  the evidence of B933 that lived outside the repository (B941),
+  the sentence of round 7 about the merge (B942),
+  and the cache versions that moved (B943).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

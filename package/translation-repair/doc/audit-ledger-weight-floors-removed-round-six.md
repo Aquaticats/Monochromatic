@@ -232,6 +232,12 @@ which fire,
 and round 7 (B935) planted faults for the reader-protection,
 house-policy and apparatus-kinds scans.
 
+Corrected in round 8 (B939):
+of those three plants only the apparatus-kinds scan fires from a fault in the sentences.
+The reader-protection scan fires only when the scope phrase is lost elsewhere,
+and the house-policy wording scan cannot fire for these entries,
+so the known limit of this entry stays open for those two.
+
 ## B931: the nits, and the clause reader refuses negated outcomes (round 6)
 
 Status:

@@ -18,14 +18,26 @@ and the nits).
 Ids B920 and B921 belong to main's DeepSeek pricing entries,
 so this round continues at B933.
 
+Round 8 answers the seventh independent re-check
+(0 major findings,
+one minor finding,
+and five nits)
+in this same file,
+at the next free ids B937 to B943,
+under the heading "Round 8 at a glance".
+
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
 ## Round 7 at a glance
 
-`origin/main` stayed at `b6927f7ba9`,
-an ancestor of the branch,
-so no merge was made in this round.
+`origin/main` moved from `b6927f7ba9` to `96ed19a2b1` during this round
+(ten commits,
+all in `package/desktop-app/ide` and its docs,
+none in `package/translation-repair`),
+and the branch merged it in `938e84afb9` with no conflict.
+The first version of this sentence said `origin/main` stayed put and no merge was made;
+it was written before the merge and corrected in round 8 (B942).
 
 The rollback's level case,
 which a one-word edit to the checker sheet could fail,
@@ -82,23 +94,59 @@ and it would pin the rotation the case should exercise live.
 The editor stages pin their start for the reason that their fixtures seat known voices;
 the checker stage has no such need outside this case.
 
-Evidence is on scratch copies of the tree (`fix7/ma-*.log`),
-since there is no failing state to commit.
+The evidence was gathered on scratch copies of the tree,
+since there is no failing state to commit,
+and its figures are kept here so that the entry stands without the scratch files
+(round 8,
+B941).
+A copy holds the `src` of `adjudication` and `repair`,
+each `dist` re-exporting its `src`,
+the edit under test applied to the copy,
+and `node refine-recheck.unit.test.ts` is run from the copy's `repair/src`
+with the search path and home directory only and no key.
+Nothing in the worktree is written.
 On every copy the two cases about the bench the router left short fail,
-mutated or not,
-as in the fifth and sixth re-checks.
-- Control:
-  only those two cases fail,
+mutated or not
+(at lines 1328 and 1403 of the test file),
+as in the fifth and sixth re-checks;
+they pass in the worktree itself,
+and why they fail on a copy was not traced.
+Each run is read by its failure lines and by the count its suite reports.
+- Control,
+  no edit:
+  the suite `retainsResolvedIssues` reports 2 children failed,
+  the two bench cases,
   so the level case passes on the unedited sheet.
-- The one-word sheet edit:
-  only those two fail,
+- The one-word sheet edit,
+  `- worse: the revision introduced new damage around this issue`
+  to `- worse: the revision introduced fresh damage around this issue`
+  in `RESOLUTION_JUDGING_RULES` of `adjudication/src/resolution-wire.ts`:
+  2 children failed,
+  the same two,
   so the level case still passes.
-- The committed seat-keyed case with the same edit:
-  a third case fails,
-  which shows that the edit moves the rotation.
-- The rollback written as `worse >= 2`:
-  a third case fails,
-  which is the level case.
+- The committed seat-keyed case
+  (the test file as at `534ac1533e`)
+  with the same edit:
+  3 children failed,
+  the third being the seat-keyed case itself,
+  which expected `retained: true` and got `retained: false`,
+  so the edit moves the rotation and the control for the edit is positive.
+- The rollback written as `.tally.worse >= 2` in place of `.tally.regressed`
+  in `madeItWorse` of `repair/src/refine-recheck.ts`:
+  3 children failed,
+  the third being the level case,
+  which expected `retained: true` and got `retained: false`.
+
+The seventh re-check repeated this on copies of its own.
+It applied five other one-word edits to the same sheet
+and the level case passed under all five,
+a rollback written as `.tally.worse > 0` failed it,
+and the repository's rotation sweep
+(`source-scan/src/rotation-sweep/rotation-salt-hooks.test-fixture.ts`,
+salts 0 to 4,
+which cover the five seats)
+passed the case at every salt,
+where the seat-keyed case failed at two of them.
 
 Known limit.
 The case assumes a checker bench of five seats and a window of four.
@@ -212,6 +260,11 @@ No real judge has read the new sentences.
 The consolidation gate's challenges were not classified by shape,
 and the wording of B928 was true there only in the shapes that narrow.
 
+Corrected in round 8 (B937):
+the part naming the rounds that leave no candidate behind gave the word behind two meanings,
+since the run-off part counts a candidate that drew no ballot as behind.
+That part now says a round that leaves nothing to narrow asks no such question.
+
 ## B935: the scans of the two new entries, and the nits (round 7)
 
 Status:
@@ -246,8 +299,17 @@ to see whether each reads the two new entries
 
 The Canadian spelling and translators' notes scans were planted in round 6 and fire.
 B930's known limit,
-that no fault was planted,
-is closed by those two checks and these three.
+that no fault was planted in the sentences to see a scan fire,
+is closed for three scans:
+Canadian spelling,
+translators' notes,
+and apparatus kinds.
+It is not closed for the other two scans planted here.
+The reader-protection scope scan fires only when the scope phrase is lost elsewhere,
+so a fault in the sentences cannot fail it,
+and the house-policy wording scan cannot fire for these entries at all.
+The first version of this paragraph said the limit was closed by all five checks;
+it is corrected in place in round 8 (B939).
 
 The nits of the sixth re-check:
 - The commits `aba1f71544` and `642f42f156` stated as fact
@@ -292,4 +354,295 @@ page title (9) and consistency (9) versions stay:
 the rollback's case is a test,
 and none of the six renders a decline sentence.
 Whether a record stands at 34 or 41 is not known,
+and no slice-cache directory was searched.
+
+Both versions moved again in round 8 (B943),
+to 36 and 43.
+
+## Round 8 at a glance
+
+The seventh independent re-check of round 7 found no major finding,
+one minor finding and five nits,
+and round 8 fixes all of them.
+`origin/main` was still `96ed19a2b1` when the round started,
+an ancestor of the branch,
+so landing is a fast-forward and no merge was made in round 8.
+
+The phrase that gave the word behind two meanings is B937.
+The position scan that passed a positional comment is B938.
+The closing sentence of B935 that overstated what fired is B939.
+The measuring-sheets case that read one sheet of five is B940.
+The evidence of B933 that lived outside the repository is B941.
+The sentence of round 7 about the merge is B942.
+The cache versions that moved are B943.
+
+## B937: the word behind has one meaning in the challenge sentences (round 8)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `20eddc6451`,
+fix `3ef8596000`,
+cache versions `53e23a728c` (translate slice 36) and `6c81859c79` (consolidate 43).
+
+Nit 1 of the seventh re-check.
+The run-off part of both challenge sentences says a tie at the top,
+or a leader only one judge named,
+sends the panel to a run-off "with others left behind".
+In the code a candidate is left behind when the run-off does not offer it
+(`runoffFinalists` in `translate-stage/src/translate-runoff.ts`:
+the candidates to offer are the tied leaders,
+or the leader and its runner-up,
+and every other candidate of the slate is behind),
+which counts a candidate that drew no ballot.
+Two tied candidates and a third that drew nothing are narrowed to the two.
+The part B934 added for the rounds that ask no run-off said "a round that leaves no candidate behind"
+and listed a leader alone in drawing a ballot.
+In a slate wider than two a lone leader leaves other candidates that drew nothing,
+so under the meaning of the run-off part they are behind,
+and the one phrase carried two meanings.
+The behaviour told to the judge was right in every shape,
+since the parenthetical list names what the code does
+(the whole slate tied,
+every judge declining,
+a leader alone in drawing a ballot,
+and a slate of only two ask no run-off),
+and only the label of the list was wrong.
+
+The part now says a round that leaves nothing to narrow asks no such question,
+which is true in each of the four shapes:
+a run-off needs two candidates to offer,
+and in those shapes the candidates to offer are the whole slate or fewer than two.
+Behind now means one thing in the sheet,
+a candidate a narrowing would drop.
+
+The tests.
+The clause reader requires "nothing to narrow" (or "nothing left to narrow") in that part
+and refuses the word behind (and "left out") in it,
+so the word cannot slip back in as a second meaning.
+The six shapes of `translate-decline-sentence-shapes.unit.test.ts` were the red:
+that file already holds the lone leader in a slate of four,
+so no new shape was needed.
+Red `20eddc6451` on the unchanged sheet,
+node on single files:
+- adjudication `select-decline-consequence.unit.test.ts`:
+  3 cases plus the suite.
+- translate-stage `translate-decline-sentence-per-round.unit.test.ts`:
+  2 cases plus the suite.
+- translate-stage `translate-decline-sentence-shapes.unit.test.ts`:
+  6 cases plus the suite,
+  every one on the challenge sentence assertion.
+- consolidate `slate-decline-two-judges-name-it.unit.test.ts`:
+  2 cases plus the suite.
+
+The new refusal case in the adjudication file reads the old wording through the new reader
+and passes on both commits,
+since it tests the reader and not the sheet.
+All four files pass on `3ef8596000` after a build of adjudication.
+
+The first ask does not carry the phrase and is unchanged.
+
+Known limit.
+The reader reads clauses and a banned word;
+it does not read a meaning no clause names.
+No real judge has read the sentence.
+
+## B938: the position scan read the verb ties as the object of a comparison (round 8)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `fa21600a7e`,
+fix `ae3712c7b6`.
+
+Nit 2 of the seventh re-check.
+The comment of the rollback's level case in `repair/src/refine-recheck.unit.test.ts`
+pointed at an assertion by a positional word,
+and `position-references.unit.test.ts` passed it.
+
+Why it passed.
+It was not an exemption and not a file the scan skips:
+the file is among the 3925 texts the guard reads,
+and the scan found nothing in it.
+It was a gap in the word list.
+`COMPARED_OBJECTS` in `source-scan/src/position-references-vocabulary.test-fixture.ts`
+holds the words that,
+after a position,
+make it a comparison
+("a rate above one",
+"ranks the house rules above its own"),
+and it held "ties" for "preservation above ties" in `adjudication/src/select-candidate.unit.test.ts`.
+The sentence used "ties" as a verb,
+and the scan read the verb as the object of a comparison.
+The positive control:
+the scan finds the same positional phrase before any other verb,
+and the existing case finds the fixture sentence about a count in a doc.
+A probe over the texts the guard reads showed the gap
+(the sentence put in a doc was not found either)
+and,
+after the fix,
+showed no unexempted finding.
+
+The fix.
+"ties" leaves the list,
+the one comparison that used the noun is exempted with its reason,
+and the comment is reworded to name the asserted count of exchanges.
+The list keeps "total",
+which can be a verb too:
+no sentence of the texts reads it as one after a position,
+and the TSDoc of the list says so.
+Red `fa21600a7e` adds the case that scans the sentence and expects the phrase;
+it fails on the unchanged list with one case plus the suite and passes on `ae3712c7b6`.
+
+Known limit.
+The scan matches words and not grammar,
+so another word that is both a noun and a verb,
+added to the list later,
+can let a pointer through.
+
+## B939: the closing sentence of B935 overstated what the plants showed (round 8)
+
+Status:
+corrected on 2026-10-25 (UTC),
+in place in B935 and in a note in B930.
+
+Nit 3 of the seventh re-check.
+The last paragraph of B935 said the known limit of B930
+was "closed by those two checks and these three".
+Only the apparatus-kinds plant fires from a fault in the sentences.
+The reader-protection scope scan fires only when the scope phrase is lost elsewhere
+(from the house policy,
+the translate wire and the cited-reference rule),
+and the house-policy wording scan cannot fire for these entries by construction.
+The body of B935 said so;
+its closing paragraph did not.
+The paragraph now names the three scans that are closed
+(Canadian spelling,
+translators' notes,
+apparatus kinds)
+and the two that are not,
+and the sentence of B930 that listed the plants carries a note.
+
+The message of the docs commit `128ad40f71b091845004f2aef0455b0305af8797` says
+"faults planted for the reader-protection,
+house-policy and apparatus-kinds scans",
+which reads as three scans that fire.
+It cannot be amended,
+and no comment was posted.
+It is listed in the hand-back.
+
+## B940: the measuring-sheets case reads all five measuring sheets (round 8)
+
+Status:
+fixed on 2026-10-25 (UTC),
+test `1f98f40da2`,
+no code change and no red commit.
+
+Nit 4 of the seventh re-check.
+`artifact/src/house-policy-wording.unit.test.ts`,
+the case "TELLS THE MEASURING SHEETS reader protection covers
+attempts and a place that was the means",
+read the `resolution` sheet only,
+while `naturalness review`,
+`rendering audit`,
+`restoration judge` and `introduced defect`
+carry the same reader-protection sentence.
+Each of the five splices `MEASUREMENT_POLICY_BLOCK` in its own file
+(`archive/src/absolute-naturalness-review-wire.ts`,
+`rendering-audit/src/rendering-audit-prompt.ts`,
+`adjudication/src/resolution-wire.ts`,
+`repair/src/restoration-judge-wire.ts`,
+`adjudication/src/introduced-defect-wire.ts`),
+so a fault at one splice leaves the other four whole and the case saw only one of the five.
+
+The case now requires the sentence on each of the five,
+and requires that the sheets carrying the paragraph that holds it are exactly those five,
+so a sixth measuring sheet fails the case until it is listed.
+No red commit is possible:
+the sheets were right and the case read one.
+
+Evidence on scratch copies of `adjudication`,
+`repair`,
+`artifact`,
+`archive` and `rendering-audit`
+(the same scratch method as B941,
+with the case run from the copy's `artifact/src`):
+- The control with no plant passes.
+- A fault planted at each sheet's own splice
+  (the splice becomes the block with "where it happened when the place was the means,
+  " removed)
+  fails the case for each of the five,
+  and the failure names that sheet alone as lacking the sentence,
+  with the unlisted and missing lists empty.
+- The case as it stood before the commit,
+  run on the same five planted copies,
+  fails only for the `resolution` plant and passes for the other four,
+  which shows the gap.
+
+## B941: B933 stands without the scratch files (round 8)
+
+Status:
+done on 2026-10-25 (UTC),
+docs only.
+
+Nit 5 of the seventh re-check.
+B933 and the commit `3c756660ad` cited logs in the coordinator's scratch directory.
+The method,
+the edits,
+the commands in words and the figures of those logs are now in the text of B933,
+and the entry no longer cites a path outside the repository.
+The commit message cannot be amended;
+it says the logs are outside the repository,
+which stays true of the logs and no longer matters to the entry.
+
+## B942: the round 7 sentence about the merge was false at head (round 8)
+
+Status:
+corrected on 2026-10-25 (UTC),
+in place in "Round 7 at a glance".
+
+The minor finding of the seventh re-check.
+"Round 7 at a glance" said `origin/main` stayed at `b6927f7ba9`
+and no merge was made.
+The head of round 7,
+`938e84afb9`,
+is the merge of ten main commits (`96ed19a2b1`),
+all in `package/desktop-app/ide` and its docs,
+none in `package/translation-repair`,
+and the docs commit that held the sentence was written before the merge and not touched after it.
+The report of round 7 stated the merge correctly,
+so the two records disagreed.
+The sentence now states the merge.
+
+## B943: the cache versions of round 8 (round 8)
+
+Status:
+done on 2026-10-25 (UTC).
+
+Two versions moved,
+each in its own commit with its reason in the key's TSDoc,
+and each after a red commit that expects the new number:
+- translate slice 36,
+  red `acae13b423`,
+  fix `53e23a728c` (B937).
+- consolidate 43,
+  red `9734f75d38`,
+  fix `6c81859c79` (B937).
+
+The pinned keys moved with them:
+`5925d39143` (translate slice without a window)
+and `20703993fb` (consolidate).
+The sentences reach a stored decision only through `declineConsequenceFor`,
+whose callers are the translate lane and consolidation,
+as in B936.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `938e84afb9..HEAD` lists exactly those two commits,
+and the control over `534ac1533e..938e84afb9` lists the two of round 7 (`8f628973ad` and `8e331290a0`),
+so the query reads the declarations.
+The repair slice (49),
+refine (19),
+lane contest (18),
+pairing (3),
+page title (9) and consistency (9) versions stay,
+since none of the six renders a decline sentence,
+and the other four fixes of this round are tests,
+a scan vocabulary and a comment.
+Whether a record stands at 35 or 42 is not known,
 and no slice-cache directory was searched.
