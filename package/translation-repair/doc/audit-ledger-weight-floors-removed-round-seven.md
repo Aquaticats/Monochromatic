@@ -541,6 +541,20 @@ the first of the two is narrower since B951.
 and the two pointers of that shape in the texts are reworded;
 a verb the scan does not name still passes,
 and a quantifier before "of" still passes.
+Correction in place (2026-10-25,
+round 12):
+B952 replaces the list of verbs by the inverse reading.
+After a position,
+"that" compares only before a noun the scan knows (floor,
+speed,
+size,
+opening,
+calibration,
+percentile and "of"),
+and any other word after it,
+a verb in any form included,
+reads the position as a pointer.
+The one limit that remains is a quantifier before "of".
 
 ## B939: the closing sentence of B935 overstated what the plants showed (round 8)
 
@@ -851,7 +865,7 @@ on a bench the window does not cover,
 that means every judge asked,
 as it did before this branch for benches of five and over
 (corrected in round 10 from "benches of seven";
-the note closes this entry).
+the paragraph that starts "Correction of round 10" says why).
 
 Evidence:
 - Before:
@@ -870,7 +884,9 @@ Correction of round 10
 (re-check 9,
 nit 2).
 The sentence about the sheet said benches of seven.
-The window applied from a bench of five at `b6927f7ba9`,
+The window applied from a bench of five at `b6927f7ba9`
+(it arrived with `b71a553855`,
+which B948 names),
 where the deleted test named `THINNEST_WINDOWED_BENCH` as 5,
 and nothing in the docs ties production to seven.
 It reads benches of five and over.

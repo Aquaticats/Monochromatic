@@ -10,7 +10,7 @@ which lists every file of this record.
 
 ## Correction of eight groups blamed on the census's attribution
 
-NOTE (2026-10-25,
+Note (2026-10-25,
 pointer by position named):
 the CORRECTION paragraph of this section read
 "the eight paragraphs above that explain",

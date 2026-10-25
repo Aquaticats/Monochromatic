@@ -686,8 +686,10 @@ named for that subject and listed here.
   a floating quantifier and "that" as the object of a comparison (B949),
   the refiner left out of the window,
   the cache versions and the gates (B950),
-  and the scan that reads "that" before a bare verb,
-  with the items the review of round 10 left (B951).
+  the scan that reads "that" before a bare verb,
+  with the items the review of round 10 left (B951),
+  and the scan that reads "that" only before a noun it knows,
+  with the pins and nits of the re-check of round 11 (B952).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

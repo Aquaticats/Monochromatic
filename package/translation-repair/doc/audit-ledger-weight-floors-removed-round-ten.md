@@ -19,6 +19,9 @@ Round 11,
 the second round of the follow-up,
 is kept in this file at B951,
 since the file of rounds 7 to 9 is near the limit of a thousand lines.
+Round 12,
+the third round of the follow-up,
+is kept in this file at B952.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -30,7 +33,7 @@ and the ninth re-check (minor finding 1 and nits 2,
 4 and 5)
 left five items that no code defect forced.
 They are answered on a branch cut from the merge of main at `16c2c7ddb1` (`1362f15c40`).
-No re-check found a defect in the code of the earlier rounds.
+No re-check found a defect in the code of the rounds that the linked files record.
 
 The four-seat bench that a split settles by the seat the rotation leaves out is B948.
 The position scan that read a verb,
@@ -55,6 +58,20 @@ They are answered in B951,
 and the corrections in place are in B938,
 B944,
 B949 and the glance of round 9.
+
+## Round 12 at a glance
+
+The re-check of round 11 found no major finding,
+three minor findings and six nits.
+The ruling of 2026-10-25 on its measured counts replaces the list of verbs after "that" by the inverse reading,
+which is B952.
+The same entry pins the nouns and the opener after a quantifier,
+corrects the commit that B948 named for the window,
+and answers the nits.
+The corrections in place are in B938,
+B945,
+B948,
+B949 and B951.
 
 ## B948: a split four-seat bench is settled by the seat the window leaves out (round 10)
 
@@ -90,8 +107,18 @@ under the sweep's salts 0 to 9:
   otherwise the fallback repair goes on.
 
 The same already held for benches of five and over,
-where the window has applied since `b6927f7ba9`;
+where the window has applied since `b71a553855b05333cf985f3161409d9d98da2993`
+(2026-09-09,
+"ask quorum plus one seat per round"),
+which asked the whole bench on four seats and the window from five;
 it now holds for a bench of four.
+Correction in place (2026-10-25,
+round 12):
+this said "since `b6927f7ba9`",
+a docs commit of main at which the claim was verified,
+which reads as the commit that introduced the window.
+`git log -S THINNEST_WINDOWED_BENCH` lists `b71a553855` as the commit that added the constant,
+and the constant is 5 there.
 It breaks no ruling:
 two ballots decide,
 one judge alone never decides,
@@ -167,6 +194,10 @@ What it still does not read.
   round 11):
   B951 makes the scan find "that" before a verb it names and rewords both pointers;
   a verb it does not name still passes.
+  Correction in place (2026-10-25,
+  round 12):
+  B952 replaces that list by the inverse reading,
+  so "that" before any word that is not a noun the scan knows is found.
 - A quantifier followed by "of" compares:
   "below each of them" is left,
   and so is "the cases below all of which fail".
@@ -386,6 +417,11 @@ A quantifier followed by "of" passes,
 as B949 states
 ("below each of them" and "the cases below all of which fail").
 The TSDoc of `COMPARED_OBJECTS` and B938 say both.
+Correction in place (2026-10-25,
+round 12):
+B952 replaces the list of 29 verbs (`VERBS_AFTER_THAT`) by six nouns and "of" (`NOUNS_AFTER_THAT`),
+so a verb outside the list no longer passes;
+the quantifier before "of" is the one limit that remains.
 
 What it found.
 Over the 4115 texts the guard reads
@@ -449,3 +485,157 @@ Slips of this round:
 the fix commit `44e3b92e03` carries the title changes with the scan change,
 since both are in one file and interactive staging is not available here;
 its subject names the scan and the pointers and its body names the titles.
+
+## B952: after a position, "that" compares only before a noun the scan knows (round 12)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `f97d87462a0cc3f9f018b403932dfe6a97f5bcba`,
+fix `c943fed7c68ddf82ee1521f1fa5540231f8b7591`,
+pins `38288733722680f870da326b6f66e3ea59ee4ebe`,
+reflow `955736c03bb23382b769518826465e440a12d31c`.
+
+Minor finding 1 of the re-check of round 11 and the ruling on it.
+B951 named 29 verbs in one form,
+so a pointer with a singular subject,
+a verb in the past or a verb outside the list still passed ("the line below that writes it",
+"the paragraph above that explained",
+"the lines below that enumerate it",
+"the cases below that follow it",
+"the lines below that are indented").
+The re-check built the inverse reading in a scratch copy and measured it over the 4115 texts:
+with no noun list it adds 8 findings outside the guard's own files,
+all 8 comparisons and none a pointer,
+and the words that follow "that" in them are floor,
+speed,
+size,
+opening,
+calibration and percentile (6 findings),
+"and" and "is" (2 findings).
+With those six nouns and "of" for "that of" it catches all seven probe shapes.
+The extended verb list (87 words) would have caught 4 of the 7.
+The ruling of 2026-10-25 adopts the inverse reading,
+so the scan no longer depends on guessing a verb or its form.
+
+What the scan reads now.
+After a position,
+"that" compares only when a word of `NOUNS_AFTER_THAT` follows it,
+joined by spaces alone:
+floor,
+speed,
+size,
+opening,
+calibration,
+percentile,
+and "of" for "that of".
+Any other word,
+a verb in any form,
+a clause,
+a punctuation mark or the end of the phrase,
+reads the position as a pointer.
+`VERBS_AFTER_THAT` and `COMPARED_NOT_BEFORE_BARE_VERB` no longer exist,
+and "that" left `COMPARED_UNLESS_OBJECT_FOLLOWS` for `COMPARED_ONLY_BEFORE_KNOWN_NOUN`.
+The vocabulary doc of `COMPARED_OBJECTS`,
+the header of the test and the TSDoc of the reading state the rule.
+
+What it still does not read.
+A quantifier followed by "of" compares:
+"below each of them" is left,
+and so is "the cases below all of which fail".
+That limit remains,
+and it is the only one the vocabulary doc names for the words it reads with the word after them.
+The cost of the new reading is that a comparison such as "a rate above that floor"
+with a noun the list does not hold is found
+until the noun joins `NOUNS_AFTER_THAT`
+or the sentence is exempted with its reason;
+the texts held 8 such sentences in 4115,
+6 of them before a noun the list now holds and 2 that needed an exemption or a reword.
+
+The two comparisons it found.
+`page-check/src/corpus-run/archive-stub.ts` says that the pipeline translated the whole ORIGINAL "below that" and,
+since no slice covered the marker,
+published the stub over a finished translation;
+the words point into the archive page,
+a position in the page's own text,
+and the sentence is exempted with that reason (`position-references-exemptions.test-fixture.ts`);
+a reword would have put page-check in the gates for a comment.
+`audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md` said "a hold below that"
+for a hold shorter than a thousand milliseconds,
+which reads better without the position word and now says "a hold shorter than that".
+
+The pins of the re-check (minor finding 2).
+Each noun has a case of its own with its sentence written out in the test
+(a loop over the exported list would drop a noun along with the list),
+and one case pins the determiner or pronoun after a floating quantifier ("above all the others",
+"below all its peers").
+Mutants in scratch copies of the tree at `c943fed7c68ddf82ee1521f1fa5540231f8b7591` with the new test file:
+the unmutated copy passes;
+the seven noun drops each fail the case of that noun and the `opens` test removed fails the quantifier case;
+the noun list emptied fails 10 cases and the `that` group emptied fails 4.
+
+Minor finding 3 of the re-check.
+B948 said that the window had applied "since" `b6927f7ba9`,
+a docs commit of main at which the claim was verified.
+`git log -S THINNEST_WINDOWED_BENCH` lists `b71a553855b05333cf985f3161409d9d98da2993` (2026-09-09,
+"ask quorum plus one seat per round") as the commit that added the constant,
+and the constant is 5 there (`MIN_SELECTION_WEIGHT` 2,
+`SELF_VOTE_WEIGHT` 1/2,
+`FANOUT_SPARE` 1).
+B948 is corrected in place,
+and B945 names the commit.
+
+The nits of the re-check.
+The relative-position wordings (this file said "the earlier rounds",
+and B945 said that "the note closes this entry") name what they point at.
+The note of 2026-10-25 in `audit-ledger-test-suite-unrun-code-reverification-of-2026-10-05.md`
+opens with "Note" and not in capitals.
+The two TSDoc lines of 149 and 144 columns in `consistency-cache-version.ts`
+and `pairing-cache-version.ts` are rewrapped at 120
+with no word changed.
+
+Slips of round 11 that the re-check named and that stand,
+since a commit is not amended:
+- `44e3b92e03980859d5beca29a16e205a6388be9f` uses the scope `translation-repair-docs` in the third line of its body,
+  where every other docs line of the range uses `translation-repair`.
+- The bodies of `a5d22db40b0fef9dd0ce15585ae4ffa0697550df`
+  and `44e3b92e03980859d5beca29a16e205a6388be9f` hold single lines of 190 characters and more.
+- The body of `a5d22db40b` does not say that its red commit also added two lines to the case that passes at its parent.
+
+Findings of the scan,
+over the 4115 texts the guard reads,
+raw meaning no exemption applied.
+Head `e039edb013`:
+269 raw,
+none unexempted and none stale (189 in the guard's own files).
+With the scan changed and nothing exempted or reworded:
+283 raw (201 in the guard's own files) and 2 unexempted,
+the two unexempted being exactly the two comparisons.
+After the exemption and the reword:
+283 raw (202 in the guard's own files),
+none unexempted and none stale.
+Outside the guard's own files the raw findings are 80,
+then 82,
+then 81,
+and the keys added are the two comparisons (one of them reworded away afterwards).
+
+Cache versions.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' e039edb013..HEAD` lists nothing,
+and the control over `938e84afb9..b37685721e` lists `6c81859c79` and `53e23a728c`,
+so the query reads the declarations.
+Only a test file,
+scan fixtures,
+TSDoc lines and Markdown changed,
+so no number needed to move.
+
+Gates,
+keyless and one at a time.
+Source-scan:
+`lint:types`,
+`lint:oxlint` (0 warnings and 0 errors),
+`test:unit` (68 suites passed) and `source-scans` (53 passed) on the tree with this text;
+the package has no build task.
+Consistency and slice-reading,
+where the reflow changed a comment:
+`build`,
+`lint:types`,
+`lint:oxlint` (0 and 0) and `test:unit` (198 and 59 suites passed).
