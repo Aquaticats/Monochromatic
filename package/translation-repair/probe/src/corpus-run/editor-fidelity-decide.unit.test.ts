@@ -153,7 +153,7 @@ await describe({
             expect(rule,).toContain('is at most 0.05 when every arm repeats itself alike',);
             expect(rule,).toContain('the worst of 192 cells was 0.055 at 800 replicates, within the noise of 0.008',);
             expect(rule,).toContain('up to 0.107 when the default effort repeats itself far less than the others',);
-            expect(rule,).toContain('prints each arm\'s repeat agreement and warns when they differ by more than 15 points',);
+            expect(rule,).toContain('prints each arm\'s repeat agreement over the units every arm holds and warns when the default effort repeats itself more than 15 points less than another arm',);
             expect(rule.includes('at most 0.055',),).toBe(false,);
             expect(rule,).toContain('about 26 points when medium fixes half',);
             expect(rule,).toContain('over 176 units (two passes) 25, 21 and 14 points where a repeat always gives the arm\'s first answer again',);
