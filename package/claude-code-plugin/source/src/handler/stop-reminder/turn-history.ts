@@ -17,6 +17,14 @@ import {
 } from './continuation-depth.ts';
 
 /**
+ Characters from the end of the final message compared with the newest stop to recognise it.
+
+ The end is compared instead of the whole text because the message handed to the hook and the transcript text can
+ differ at the edges; an end of this length is specific to one message.
+ */
+const FINAL_MATCH_CHARS = 200;
+
+/**
  Prose of an assistant record that stopped without a tool call, or the empty string.
 
  @param record - parsed transcript record
@@ -117,9 +125,19 @@ function earlierStopTexts(
       newestFirst.push(prose,);
   }
   /**
+   End of the message being judged, enough to recognise it among the stops without needing identical whitespace.
+   */
+  const finalEnd = finalMessage
+    .trim()
+    .slice(-FINAL_MATCH_CHARS,);
+  /**
+   Newest stop met, or the empty string when the turn has none.
+   */
+  const newest = newestFirst[0] ?? '';
+  /**
    Whether the newest stop is the message being judged, which the history must not repeat.
    */
-  const startsWithFinal = newestFirst[0] === finalMessage.trim();
+  const startsWithFinal = (finalEnd !== '') && newest.endsWith(finalEnd,);
   return (startsWithFinal ? newestFirst.slice(1,) : newestFirst).toReversed();
 }
 

@@ -295,8 +295,9 @@ function situationRequestBody(message: string,): string {
  Builds the Decisions request body for a final message of a repeated stop, with the earlier stops of the turn.
 
  The earlier stops are context for the same single question; Luna still classifies the final message. On repeated
- stops this removed all three verified repeated false blocks and lowered the block score of six of seven repeated
- misses, so callers send history on repeated stops only (see `doc/troubleshooting/claude-code-opus-5-premature-turn-end.md`).
+ stops this removed all three verified repeated false blocks and lowered the block score of five of seven repeated
+ misses, so callers send history on repeated stops only. Measurements are in
+ `doc/troubleshooting/claude-code-opus-5-premature-turn-end.md`.
 
  @param message - final assistant message; the tail beyond {@link MAX_MESSAGE_CHARS} is sent
 

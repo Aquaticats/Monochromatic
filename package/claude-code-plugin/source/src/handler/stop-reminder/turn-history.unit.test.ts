@@ -70,6 +70,33 @@ await describe({
       },
     },),
     it({
+      name: 'drops the final message when it arrives as the end of a longer stop or with different edge whitespace',
+      fn: async () => {
+        /**
+         Long stop whose end is the message the hook was handed.
+         */
+        const long = `${'earlier part of the same message. '.repeat(40,)}The sweep finished and everything is landed.`;
+
+        expect(earlierStopTexts({
+          transcriptLines: [HUMAN, stop('first stop',), stop(long,),],
+          finalMessage: `  ${long.slice(-300,)}\n`,
+        },),).toEqual(['first stop',],);
+        expect(earlierStopTexts({
+          transcriptLines: [HUMAN, stop('first stop',), stop(`${long}\n\n`,),],
+          finalMessage: long,
+        },),).toEqual(['first stop',],);
+      },
+    },),
+    it({
+      name: 'keeps every stop when the final message is empty',
+      fn: async () => {
+        expect(earlierStopTexts({
+          transcriptLines: [HUMAN, stop('first stop',), stop('second stop',),],
+          finalMessage: '',
+        },),).toEqual(['first stop', 'second stop',],);
+      },
+    },),
+    it({
       name: 'keeps the newest stop when it is not the final message',
       fn: async () => {
         expect(earlierStopTexts({
