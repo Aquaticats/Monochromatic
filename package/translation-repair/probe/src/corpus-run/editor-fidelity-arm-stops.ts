@@ -178,8 +178,9 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 
  @param figures - the arm's figures
 
- @returns The line alone when unusable plus refused pass the warned share of the arm's units, or when any are unusable
- or refused and the log states no count of units (the line then names that count as unknown); nothing otherwise
+ @returns Warning lines that keep fix rates from being trusted when many units gave no edit: one line when unusable plus
+ refused exceed their warned share of units, or when any exist and this log states no count of units, which leaves that
+ share unjudged; none otherwise, so clean arms stay quiet
 
  @example
  ```ts
