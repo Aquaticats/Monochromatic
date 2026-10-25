@@ -2265,6 +2265,16 @@ that is verification, not a decision for the user.
   pass; the `CLI_GIT_*` environment variables found in `src/native` include no bypass. Unmeasured: other tools that
   run discarding forms in their own clones (Homebrew at `/home/linuxbrew/.linuxbrew` is on the user's login `PATH`;
   cargo git checkouts; pnpm git dependencies). The two failures are separate: CI has no wrapper installed.
+  USER DECISIONS 2026-10-25 on that regression: (1) keep the global `~/.local/bin/git` link while the fix is built
+  (mise plugin updates stay broken until then); (2) allowlist mise's data directory ONLY (`MISE_DATA_DIR`, else
+  `XDG_DATA_HOME/mise`, else `~/.local/share/mise`) next to uv's cache in `effective_target.rs`, with tests and a
+  README update, released as 0.2.10; other tool roots (Homebrew, `~/.cargo/git`, pnpm) are NOT added without a
+  measured failure. Dependency: the CI `cargo-publish` failure blocks publishing both 0.2.9 and 0.2.10, so it is on
+  the critical path; research first (reproduce `mise install rust` in podman with mise 2026.10.17 and 2026.10.19 in a
+  fresh container, `~/temp/agent/podman-ci-mise.ts`), then bring the CI choice (pin the mise version in
+  `.github/workflows/cargo-publish.yml` with a comment, versus other fixes) to the user with that evidence. Order after
+  CI is fixed: rerun the 0.2.9 publish, then land the allowlist change, gate, release 0.2.10, install, and verify
+  `mise plugins update` on the host.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and

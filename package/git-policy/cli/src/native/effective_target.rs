@@ -103,13 +103,63 @@ pub fn uv_cache_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -
 }
 
 /// What:
-///  The tool-cache directories exempt from worktree enforcement on this machine.
+///  Resolve mise's data directory the way mise does:
+///  `MISE_DATA_DIR`,
+///  then
+///       `XDG_DATA_HOME/mise`,
+///  then `HOME/.local/share/mise`;
+///  an empty value counts as unset.
+///       `Option<&Path>` is "a borrowed home directory or nothing";
+///       `Option<PathBuf>` is "an owned path or nothing".
+/// Why:
+///   mise keeps each tool plugin as a Git clone under `plugins/` there and updates it with a
+///       forced checkout, which the main-worktree rule would reject.
+///  The home directory is injected so
+///       tests never read the real one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function miseDataDir(environment: [string, string][], home?: string): string | undefined;
+/// ```
+pub fn mise_data_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -> Option<PathBuf> {
+    // `if let Some(x) = ... && cond` runs only when the variable is set and the second
+    // condition also holds, like `x !== undefined && x !== ""`.
+    if let Some(explicit) = environment_value(environment, "MISE_DATA_DIR")
+        && !explicit.is_empty()
+    {
+        // `Some(...)` is the "present" variant.
+        return Some(PathBuf::from(explicit));
+    }
+    if let Some(data_home) = environment_value(environment, "XDG_DATA_HOME")
+        && !data_home.is_empty()
+    {
+        // `.join` appends one path segment and returns an owned path.
+        return Some(PathBuf::from(data_home).join("mise"));
+    }
+    // What: `let Some(x) = ... else { return None; };` unwraps the home or exits.
+    // Why:  Without any hint and without a home directory there is no data directory to exempt.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (home === undefined) return undefined;
+    // ```
+    let Some(home_directory) = home else {
+        // `None` is the "absent" variant.
+        return None;
+    };
+    return Some(home_directory.join(".local").join("share").join("mise"));
+}
+
+/// What:
+///  The tool directories exempt from worktree enforcement on this machine.
 ///       `Vec<PathBuf>` is an owned list of owned paths.
 /// Why:
 ///   The set is a property of installed tooling,
 ///  not of any repository,
 ///  so it is
 ///       compiled in rather than configured.
+///  Each entry is a directory whose Git clones a tool
+///       creates and discards itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,6 +173,9 @@ pub fn default_allowed_worktree_dirs(
     let mut directories: Vec<PathBuf> = Vec::<PathBuf>::new();
     if let Some(uv) = uv_cache_dir(environment, home) {
         directories.push(uv);
+    }
+    if let Some(mise) = mise_data_dir(environment, home) {
+        directories.push(mise);
     }
     return directories;
 }
