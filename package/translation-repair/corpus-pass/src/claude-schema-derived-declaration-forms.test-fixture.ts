@@ -35,8 +35,8 @@ export const DERIVED_DECLARATION_CASES: readonly ShapeCase[] = [
     isListed: true,
   },),
   storingCase({
-    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM THE CALL OF A FUNCTION DECLARED INSIDE IT WHOSE DESTRUCTURED '
-      + 'PARAMETER TAKES ITS PARAMETER AS A DEFAULT, and the body reads nothing',
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM THE CALL OF A FUNCTION DECLARED INSIDE IT WHOSE '
+      + 'DESTRUCTURED PARAMETER TAKES ITS PARAMETER AS A DEFAULT, and the body reads nothing',
     lines: [
       '  function inner({ a = args, }: any = {},) {',
       '    return 1;',
@@ -57,8 +57,8 @@ export const DERIVED_DECLARATION_CASES: readonly ShapeCase[] = [
     isListed: false,
   },),
   storingCase({
-    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `Reflect.defineProperty` GIVES A VALUE MADE '
-      + 'FROM ITS PARAMETER, a call outside the list and a limit of the reading',
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `Reflect.defineProperty` GIVES A VALUE '
+      + 'MADE FROM ITS PARAMETER, a call outside the list and a limit of the reading',
     lines: [
       HOLDER,
       '  Reflect.defineProperty(holder, \'a\', { value: args, },);',
@@ -67,8 +67,8 @@ export const DERIVED_DECLARATION_CASES: readonly ShapeCase[] = [
     isListed: false,
   },),
   storingCase({
-    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CONSTANT THAT HOLDS Object.assign COPIES '
-      + 'ITS PARAMETER INTO, another name for a storing function and a limit of the reading',
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CONSTANT THAT HOLDS Object.assign '
+      + 'COPIES ITS PARAMETER INTO, another name for a storing function and a limit of the reading',
     lines: [
       HOLDER,
       '  const copy = Object.assign;',

@@ -170,8 +170,8 @@ function lineOf(
 }
 
 /**
- The places a file's shapes are at, each place once, in the order of the lines. A shape is kept once for each node, since
- two reports of one shape on a line are two places, and a name that stood for the first would hide the second.
+ The places a file's shapes are at, each place once, in the order of the lines. A shape is kept once for each node,
+ since two reports of one shape on a line are two places, and a name that stood for the first would hide the second.
 
  @param text - file's text
 

@@ -83,8 +83,8 @@ export function namesLoaderMember({ node, }: { readonly node: TreeNode; },): boo
 
  @param parents - each node's parent
 
- @returns Report text, empty for any other node and for a member that is the callee of a call, under the marks that leave
- it the same
+ @returns Report text, empty for any other node and for a member that is the callee of a call, under the marks that
+ leave it the same
 
  @example
  ```ts

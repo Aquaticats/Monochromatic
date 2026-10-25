@@ -95,8 +95,8 @@ export const TEXT_KEY_CASES: readonly ShapeCase[] = [
     ],
   },),
   textCase({
-    name: 'ACCEPTS A METHOD THAT RETURNS EVERY MEMBER OF A VALUE AND A PATTERN IN AN ASSIGNMENT THAT TAKES constructor, '
-      + 'limits of the search that the ledger states',
+    name: 'ACCEPTS A METHOD THAT RETURNS EVERY MEMBER OF A VALUE AND A PATTERN IN AN ASSIGNMENT THAT TAKES '
+      + 'constructor, limits of the search that the ledger states',
     lines: [
       'export const all = Object.getOwnPropertyDescriptors(() => 1,);',
       'let taken: unknown;',
