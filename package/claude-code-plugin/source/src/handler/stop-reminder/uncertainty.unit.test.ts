@@ -51,6 +51,30 @@ await describe({
           },
         },),
         it({
+          name: 'matches an admitted gap in an evidence-gathering step other than checking',
+          fn: async () => {
+            const admissions = [
+              ["It isn't blank-free. I didn't try to remove it.", "i didn't try",],
+              ["The lag is unknown because I didn't measure the capture-to-file delay.", "i didn't measure",],
+              ['I did not measure the loop that the savings come from.', 'i did not measure',],
+              ["I haven't measured the net effect on collisions.", "i haven't measured",],
+              ['I have not tried building it with Bazel.', 'i have not tried',],
+              ["I haven't looked into the logger error.", "i haven't looked",],
+              ['I did not look at the popup screenshots.', 'i did not look',],
+              ["I haven't reproduced it with two hooks running at once.", "i haven't reproduced",],
+              ['I did not rerun scoped mutation for those tests.', 'i did not rerun',],
+              ["I didn't re-run the failing guards.", "i didn't re-run",],
+              ["The pointer rested over no character, but I haven't shown that.", "i haven't shown",],
+              ['Test gap: no regression test can show the blank.', 'test gap',],
+              ['Not viewed: the 14 popups, only the log.', 'not viewed',],
+            ] as const;
+
+            for (const [text, phrase,] of admissions) {
+              expect(findUncertainty(text,),).toEqual({ phrase, },);
+            }
+          },
+        },),
+        it({
           name: 'matches an admitted gap written with a curly apostrophe',
           fn: async () => {
             expect(findUncertainty('I didn’t check whether the release can save that cache.',),)
@@ -65,9 +89,12 @@ await describe({
           },
         },),
         it({
-          name: 'leaves the bare adjectives untested and unverified alone',
+          name: 'leaves the bare adjectives untested, unverified, unexplained and unmeasured alone',
           fn: async () => {
             expect(findUncertainty('The merge is untested and the version job is unverified.',),).toBe(NO_MATCH,);
+            expect(findUncertainty('The file shows an unexplained abnormality and an unmeasured cost.',),)
+              .toBe(NO_MATCH,);
+            expect(findUncertainty("I didn't touch the tree and I tried the build, which passed.",),).toBe(NO_MATCH,);
           },
         },),
       ],

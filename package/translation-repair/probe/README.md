@@ -210,6 +210,9 @@ and each task sets it to its own name.
   `--candidates-alone` and `--context`;
   `--cap 0` is a metadata-only preflight.
   Spends quota.
+  It served as the judge effort bench for Haiku 5.5,
+  whose [outcome](doc/judge-effort-bench-outcome.md) is that every effort reached the ceiling,
+  so Haiku 5.5 keeps the card without an effort parameter.
 - `editor-fidelity-probe`:
   seats each card `--candidates` names alone as the editor of an inserted sentence or an altered number,
   and scores the patched text without a model.

@@ -32,6 +32,15 @@
  too; outside page text, which is exempt, the texts this guard reads hold
  none.
 
+ A COMPARED WORD THAT IS ALSO SOMETHING ELSE IS READ WITH THE WORD AFTER IT (re-check 8, nit A). A verb of the list
+ ("the lines below zero the counter", with baseline, threshold and total) compares unless a determiner, a quantifier or
+ a pronoun follows; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
+ only when a determiner, "of", "else", "other" or "others" follows; and "that" compares only before a noun it knows
+ (floor, speed, size, opening, calibration, percentile, and "of" for "that of"), so "the lines below that write it"
+ and every other verb or clause after "that" is a pointer (ledger B952). Thirteen words that no text needed left the
+ list (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan
+ still lets through, a quantifier before "of", is stated in the TSDoc of `COMPARED_OBJECTS` and in ledger B938.
+
  WHAT IS LEFT is a phrase inside double quotes, which quotes the words rather
  than using them, a position inside a Markdown code span, which quotes data,
  and the exemptions, each named with its reason: positions in a page's own
@@ -70,7 +79,43 @@ import {
 } from './prose-texts.test-fixture.ts';
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 
-
+/**
+ One sentence for each word that makes "that" after a position a comparison, written out in full here so that a word
+ dropped from the scan's own list fails exactly its case (a loop over the exported list would drop it too).
+ */
+const COMPARISONS_WITH_THAT: readonly {
+  readonly word: string;
+  readonly sentence: string;
+}[] = [
+  {
+    word: 'floor',
+    sentence: '// A roster below that floor declines.',
+  },
+  {
+    word: 'speed',
+    sentence: '// A cap below that speed naps.',
+  },
+  {
+    word: 'size',
+    sentence: '// A nap below that size is short.',
+  },
+  {
+    word: 'opening',
+    sentence: '// A gap above that opening purrs.',
+  },
+  {
+    word: 'calibration',
+    sentence: '// A rate above that calibration holds.',
+  },
+  {
+    word: 'percentile',
+    sentence: '// A nap below that percentile is short.',
+  },
+  {
+    word: 'of',
+    sentence: '// A cat above that of the dog naps.',
+  },
+];
 
 await describe({
   name: 'references by position',
@@ -183,6 +228,219 @@ await describe({
         },).map(function phraseOf({ phrase, },): string {
           return phrase;
         },),).toEqual(['count below',],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A "that" THAT OPENS A CLAUSE, in the two cache-version sentences that read as '
+        + 'a comparison and passed, and in a clause opened by another determiner or a pronoun',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// and the statement above that a run-off among the tied labels keeps its key holds for the',
+              '// run-off among places alone.',
+              '// The statement above that no slice-cache file had been written since 2026-09-28 holds no longer.',
+              '// The claim above that the bowl was full, and the note above that both cats napped.',
+              '// The claim above that it purred holds.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'statement above',
+          'statement above',
+          'claim above',
+          'note above',
+          'claim above',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A "that" AND A BARE VERB, in the two real pointers that passed ("the lines '
+        + 'below that write it", "the paragraphs above that explain") and one more verb of each kind',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// The lines below that write it name the bowl.',
+              '// The paragraphs above that explain the nap are short.',
+              '// The cases below that cover the whiskers pass.',
+              '// The notes above that say the cat purred hold.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'paragraphs above',
+          'cases below',
+          'notes above',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A "that" AND ANY WORD THAT IS NOT A KNOWN NOUN, in the singular and the past of '
+        + 'a verb and in a verb the scan never named (writes, explains, explained, says, enumerate, follow, are), '
+        + 'since "that" after a position compares only before a noun it knows (ledger B952)',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// The lines below that writes it name the bowl.',
+              '// The paragraph above that explains the nap is short.',
+              '// The paragraphs above that explained the nap are short.',
+              '// The statement above that says the cat purred holds.',
+              '// The lines below that enumerate the bowls are short.',
+              '// The cases below that follow it pass.',
+              '// The lines below that are indented name the bowl.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'paragraph above',
+          'paragraphs above',
+          'statement above',
+          'lines below',
+          'cases below',
+          'lines below',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A WORD THAT IS A VERB HERE, one for each of zero, baseline, threshold and total, '
+        + 'which the compared list holds, and of exact and half, which it no longer holds, since the verb read as '
+        + 'the object of a comparison and let "the lines below zero the counter" pass',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The lines below zero the counter.',
+              '// The assertions below exact a fixed count.',
+              '// The checks below baseline the run.',
+              '// The cases below threshold the score.',
+              '// The bowls below half the set.',
+              '// The counts below total the exchanges sent.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'assertions below',
+          'checks below',
+          'cases below',
+          'bowls below',
+          'counts below',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A QUANTIFIER THAT FLOATS AWAY FROM ITS NOUN, one for each of all and each, which '
+        + 'the compared list holds, and of both and some, which it no longer holds, since the quantifier read as '
+        + 'the object of a comparison',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The cases below all pass.',
+              '// The checks below both fail.',
+              '// The asserts below each count a whisker.',
+              '// The naps below some fail.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'cases below',
+          'checks below',
+          'asserts below',
+          'naps below',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A WORD THE COMPARED LIST NO LONGER HOLDS, the thirteen words that no text of the '
+        + 'package or the living docs needed (an, his, her, some, half, exact, both and four to ten)',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The rate above an hour, and the bowl below his chair, and the cat above her bowl.',
+              '// The naps above some. The cats below half. The bowls above exact weights. The mice below both.',
+              '// A rate above four and a rate below six, a count above seven and a count below eight.',
+              '// A tally above nine and a tally below ten.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'rate above',
+          'bowl below',
+          'cat above',
+          'naps above',
+          'cats below',
+          'bowls above',
+          'mice below',
+          'rate above',
+          'rate below',
+          'count above',
+          'count below',
+          'tally above',
+          'tally below',
+        ],);
+      },
+    },),
+    it({
+      name: 'LEAVES a position before a word that is a noun here: that floor, zero, baseline, total resolution, '
+        + 'a threshold, and a quantifier that names what is compared',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// A roster below that floor declines, and a cat above that of the dog naps.',
+              '// A count above zero, a nap below baseline for a day, a vote below threshold.',
+              '// A rate above total resolution, a cap below that speed, and a nap not below that size.',
+              '// It ranks above all else and above all others, below each of them, and above all, it naps.',
+            ].join('\n',),
+          },
+        },),).toEqual([],);
+      },
+    },),
+    ...COMPARISONS_WITH_THAT.map(function leavesThatBefore({ word, sentence, },) {
+      return it({
+        name: `LEAVES a position before "that ${word}", which compares (ledger B952)`,
+        fn: async () => {
+          expect(positionReferences({
+            file: {
+              path: 'src/cat.unit.test.ts',
+              text: sentence,
+            },
+          },),).toEqual([],);
+        },
+      },);
+    },),
+    it({
+      name: 'LEAVES a position before a quantifier that a determiner or a pronoun follows, since "all the others" '
+        + 'and "all its peers" name what is compared',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// A tabby ranks above all the others.',
+              '// A tabby ranks below all its peers.',
+            ].join('\n',),
+          },
+        },),).toEqual([],);
       },
     },),
     it({

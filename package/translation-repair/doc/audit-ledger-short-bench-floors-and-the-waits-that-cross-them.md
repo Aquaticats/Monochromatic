@@ -147,7 +147,7 @@ and let the reader wait them out on the real clock,
 in slices of 5 ms.
 The listing of `real-clock-bounds.unit.test.ts` cannot carry them:
 its scan reads holds of 1000 ms or more,
-and an entry for a hold below that is reported as a listed key the source no longer holds.
+and an entry for a hold shorter than that is reported as a listed key the source no longer holds.
 Both files now read the seats through `run-seats-fake-clock.test-fixture.ts`,
 which fakes `setTimeout` and `clearTimeout`,
 moves the clock past one hold and one poll,

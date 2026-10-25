@@ -128,6 +128,9 @@ mod hover_tests;
 /// Message sentences and hover text rendering without a window.
 #[cfg(test)]
 mod message_tests;
+/// A pointer that rests over no character while the view moves under it.
+#[cfg(test)]
+mod pointer_blank_tests;
 /// A resting pointer while the view scrolls under it.
 #[cfg(test)]
 mod pointer_scroll_tests;

@@ -56,6 +56,13 @@ type VerdictRecord = {
   readonly message: string;
   readonly permissionMode: string;
   readonly sessionCrons: number;
+
+  /**
+   Whether the hook had already blocked this turn, which makes the stop a repeated one.
+
+   Absent from records written before 2026-10-25.
+   */
+  readonly stopHookActive: boolean;
 };
 
 /**

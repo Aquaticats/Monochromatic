@@ -276,6 +276,17 @@ function verdictReply(situation: Situation, probability = 0.9,): Response {
  */
 const OPEN = [HUMAN, TOOL,] as const;
 
+/**
+ Transcript of a repeated stop: an earlier stop was blocked, the agent worked, and the final message is the newest record.
+ */
+const HISTORY = [
+  HUMAN,
+  JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'earlier stop words', },], }, },),
+  BLOCK,
+  TOOL,
+  JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Final words.', },], }, },),
+] as const;
+
 await describe({
   name: 'stop-reminder Luna situation check',
   children: [
@@ -730,6 +741,58 @@ await describe({
             },);
 
             expect((await h.run()).decision,).toBe('block',);
+          },
+        },),
+        it({
+          name: 'records whether the hook had already blocked this turn',
+          fn: async () => {
+            const repeated = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
+            const first = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
+
+            await repeated.run({ stop_hook_active: true, },);
+            await first.run({ stop_hook_active: false, },);
+
+            expect((await records(repeated.logPath,))[0]?.stopHookActive,).toBe(true,);
+            expect((await records(first.logPath,))[0]?.stopHookActive,).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'turn history',
+      children: [
+        it({
+          name: 'sends the earlier stops of the turn on a repeated stop',
+          fn: async () => {
+            const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
+
+            await h.run({ stop_hook_active: true, last_assistant_message: 'Final words.', },);
+
+            const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
+            expect(input,).toContain('[stop 1] earlier stop words',);
+            expect(input.endsWith('Final message:\nFinal words.',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'sends the final message alone on a first stop',
+          fn: async () => {
+            const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
+
+            await h.run({ stop_hook_active: false, last_assistant_message: 'Final words.', },);
+
+            const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
+            expect(input,).toBe('Final words.',);
+          },
+        },),
+        it({
+          name: 'sends the final message alone on a repeated stop that follows no earlier stop',
+          fn: async () => {
+            const h = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
+
+            await h.run({ stop_hook_active: true, last_assistant_message: 'Final words.', },);
+
+            const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
+            expect(input,).toBe('Final words.',);
           },
         },),
       ],
