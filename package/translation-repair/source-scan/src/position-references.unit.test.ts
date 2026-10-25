@@ -272,6 +272,39 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A POSITION BEFORE A WORD THE COMPARED LIST NO LONGER HOLDS, the thirteen words that no text of the '
+        + 'package or the living docs needed (an, his, her, some, half, exact, both and four to ten)',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The rate above an hour, and the bowl below his chair, and the cat above her bowl.',
+              '// The naps above some. The cats below half. The bowls above exact weights. The mice below both.',
+              '// A rate above four and a rate below six, a count above seven and a count below eight.',
+              '// A tally above nine and a tally below ten.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'rate above',
+          'bowl below',
+          'cat above',
+          'naps above',
+          'cats below',
+          'bowls above',
+          'mice below',
+          'rate above',
+          'rate below',
+          'count above',
+          'count below',
+          'tally above',
+          'tally below',
+        ],);
+      },
+    },),
+    it({
       name: 'LEAVES a position before a word that is a noun here: that floor, zero, baseline, total resolution, '
         + 'a threshold, and a quantifier that names what is compared',
       fn: async () => {
