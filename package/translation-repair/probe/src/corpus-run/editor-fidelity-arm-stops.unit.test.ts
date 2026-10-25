@@ -189,8 +189,8 @@ await describe({
     },),
 
     it({
-      name: 'WARNS OF NO UNITS FOR A LOG WITH NO EDITOR AND TRIALS LINES, as a dry run\'s output is: the arm completed '
-        + 'nothing, so there is no share of its units to warn of and no negative count of units to print',
+      name: 'SAYS NOTHING FOR A LOG WITH NO EDITOR AND TRIALS LINES, as a dry run\'s output is: the arm completed '
+        + 'nothing and nothing is unusable or refused, so there is no warning to write',
       fn: async () => {
         /**
          An arm with nothing unusable or refused, and the lines that count its units taken out of its log.
@@ -211,6 +211,37 @@ await describe({
         },),).toBe(true,);
         expect(dry.lines.length,).toBeLessThan(whole.lines.length,);
         expect(lineOf({ log: dry, check: 'unusable plus refused', },),).toBe('',);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE UNKNOWN COUNT OF UNITS WHEN THE LOG STATES NONE AND SOME TRIALS ARE UNUSABLE, in place of a '
+        + 'negative count of units',
+      fn: async () => {
+        /**
+         An arm with five trials unusable or refused over a pool of forty.
+         */
+        const whole = armWith({ stops: ['ok',], unusable: 2, refused: 3, seat: CLEAN_SEAT, },);
+        /**
+         The same arm with the count of units cut out of its pooled EDITOR line, which leaves the unusable and refused
+         counts in it.
+         */
+        const unknown: ArmLog = {
+          ...whole,
+          lines: whole.lines.map(function withoutCount(line,): string {
+            return line.includes(`] EDITOR ${LOW_CARD}: clean fix `,)
+              ? line.replace(' of ', ' from ',)
+              : line;
+          },),
+        };
+        // POSITIVE CONTROL: the whole log warns with its count of units, and the cut changed the log.
+        expect(lineOf({ log: whole, check: 'unusable plus refused', },),).toBe(
+          'WARN low: unusable plus refused is 5 of 40 units, over 10 percent',
+        );
+        expect(unknown.lines,).not.toStrictEqual(whole.lines,);
+        expect(lineOf({ log: unknown, check: 'unusable plus refused', },),).toBe(
+          'WARN low: unusable plus refused is 5 of an unknown number of units (the log states none)',
+        );
       },
     },),
 
