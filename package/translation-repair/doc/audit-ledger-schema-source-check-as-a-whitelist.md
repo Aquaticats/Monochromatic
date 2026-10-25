@@ -389,53 +389,23 @@ The argued six:
   changes the control.
 
 Follow-up of fix round 18
-(re-check 16 ran 15 mutants on `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26` and found six alive that an input can tell,
-two that mutate code no input can reach,
-and seven the cases killed):
+(re-check 16 ran 15 mutants on `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`:
+six alive that an input can tell,
+two that none can,
+and seven killed):
 
-- `a0ac36bf6ca9e0acec34ca85981d2f752c47c453` pins the six
-  (the names made from a parameter found until no more are,
-  a builder call with a second argument that reads no parameter,
-  an export read under two names,
-  a name imported under another and bound again by a constant,
-  a sender called through a namespace member and `call`,
-  and a name read before the function that binds it)
-  and the import-equals declaration of `vm`.
-  Each case passes on the code as it is,
-  and each is killed by the mutant that names it in the table of the round.
-- `86a6fa40b6cd1bffb3f71d914f25256eee201b23` removes the two that no input can tell.
-  The filter that left out a reader with no node did nothing,
-  because the step of a node that is not in the tree takes the value nowhere.
-  The test that a statement is an export before its variable declaration is read did nothing either:
-  a probe of the parser over the kinds of export and declaration listed in the commit body
-  found a variable declaration under `declaration` only for the declarations that export a variable.
-  The table of the round holds neither mutant.
-- `a1ecf74b681036e17a5444b724c5724e8b003ea7` removes four more guards that a mutant showed no input reaches:
-  the test for a type in the reading of code made from text,
-  the outer test for a call in the place of a read of the constructor,
-  the empty specifier test and the empty path test of the import-equals reading.
-  The parser gives no member,
-  import expression or call under a type node,
-  no `import a = require(x)` with a specifier that is no single string,
-  and an entity name always has a path of at least one name.
-- `7a2cecb0cebdf2920622b45bc8aa19e25717d9e9` and `d87291ce4045b28194d076f6457d435455f6966b` pin the survivors
-  of the first run of fix round 18's own table,
-  39 of 246,
-  of which those an input can tell got one
-  (callbacks,
-  a sender assigned by a for-in head,
-  the global object as a key,
-  reads of the key `constructor` that are no `Reflect.get`,
-  a namespace or an enum in the body of a namespace under the sender's name,
-  a type-only import-equals,
-  a forwarder called through the require form,
-  a constant exported with `export =`,
-  a class method that forwards,
-  and the default of an `export =` module).
-  The last of those mutants,
-  a fallback of any unexported name to the `export =`,
-  survived on `4d2b5d9cf8939edf8c322657b4c9c7e409d3a7aa`
-  and is killed on `d87291ce4045b28194d076f6457d435455f6966b`.
+- `a0ac36bf6ca9e0acec34ca85981d2f752c47c453` pins the six and the import-equals declaration of `vm`.
+  Each case passes on the code as it is and is killed by its mutant in the table of the round.
+- `86a6fa40b6cd1bffb3f71d914f25256eee201b23` removes the two that none can tell:
+  a filter of readers with no node (the step of a node outside the tree takes the value nowhere)
+  and a test that a statement is an export before its variable declaration is read
+  (the parser puts a variable declaration under `declaration` of an export declaration only).
+- `a1ecf74b681036e17a5444b724c5724e8b003ea7` removes four more guards that no input reaches.
+- `7a2cecb0cebdf2920622b45bc8aa19e25717d9e9` and `d87291ce4045b28194d076f6457d435455f6966b`
+  pin the survivors of the first run of the round's own table that an input can tell (39 of 246).
+  The last mutant,
+  a fallback of any unexported name to `export =`,
+  was alive on `4d2b5d9cf8939edf8c322657b4c9c7e409d3a7aa` and is killed on `d87291ce4045b28194d076f6457d435455f6966b`.
 
 Prevention rule:
 a mutant is equivalent when a probe that holds an input of every class the mutant can reach gives the same places,
@@ -622,89 +592,58 @@ and every fix makes the failing places of its red commit pass):
   and the sender's answer is not a schema.
 
 Follow-up of fix round 18
-(re-check 16 found inputs silent besides stated limits;
-the red commit comes before each fix):
+(red commit before each fix):
 
 - The forwarders are the fixpoint of the reading
   (red `2fbd1157198c54850eb53c184e7e2410b236ba33`,
   fix `f3d581b26e9c6dccaae864720f06a21bf6afe86f`).
-  A function that passes its parameter to a forwarder is a forwarder,
-  with no limit on the length of the chain.
-  Measured over the 1620 real sources,
-  there are 15 forwarders,
-  and the files that call them are 9:
-  `pass-consistency-bench-decide.ts`,
-  `pass-consistency-carry-choose.ts`,
-  `pass-consistency-bench.ts`,
-  `pass-consistency-carry.ts`,
-  `pass-consistency.ts`,
-  `pass-settlement.ts`,
-  `pass-entry.ts`,
-  `pass-entry-settle.ts`
-  and `corpus-pass.ts`.
-  and the check reports none of the 1620 sources.
-  The reason B867 gave for stopping at the next hop,
-  that the chain was not empty at hop six and a seventh hop was unmeasured,
-  did not bound the chain:
-  it ends,
-  at those 15 forwarders.
-  The listing adds files of the consistency pass that pass a schema's arguments on,
-  none of which writes a schema,
-  which is the over-listing that B867 predicted and the ruling accepts.
+  A function that passes its parameter to a forwarder is one,
+  with no limit on the chain.
+  Over the 1620 real sources there are 15 forwarders called from 9 files of the consistency pass,
+  and the check reports none of the 1620.
+  The reason B867 gave for stopping at the next hop did not bound the chain:
+  it ends at those 15.
+  The listing adds files that pass a schema's arguments on and write none,
+  the over-listing that was predicted and the ruling accepts.
 - A forwarder written as an arrow,
-  a function expression or a class method is reported where it is written,
-  as `forwarder-in-undeclared-function`,
-  because no declaration names it for a caller to be listed by
+  a function expression or a class method
+  is reported where it is written as `forwarder-in-undeclared-function`,
+  since no declaration names it for a caller to be listed by
   (red `eb67d3c766a6a82cc1801ae90fdf60dcb5651e66`,
   fix `781fab9e753ae3243a0cf8016da0a8a1a0f95cae`).
-- A namespace is a scope for the sender's name,
-  and an import-equals declaration binds its name
+- A namespace is a scope for the sender's name and an import-equals declaration binds its name
   (red `b88b918456de77a3e55d28f16b71a77bc41229ee`,
   fix `4d82f4d8f7518f43835db77d429014ea7e8d4481`).
-  The require form of import-equals binds the module as a whole,
+  The require form binds the module as a whole,
   so the walk across files follows a constant read through it
   (red `c62ec094f6c04a88f56825190ccb7d4100ead4cf`,
   fix `3cfa3997012f02de46cdb4874fef843ce3b8966f`).
-- That fix made a caller of a forwarder exported with `export = mk` stop being listed,
-  which the adversarial run of the round found (input RW26 of re-check 15):
-  the declaration had bound no name,
+- That fix stopped listing the caller of a forwarder exported with `export = mk`
+  (red `e33e81212ab259bbd9575966208d044e76036115`,
+  fix `9da0e1386f19031d1eb505e20f7bb0764ad49dcd`).
+  The declaration had bound no name,
   so the call read as a free name that matched by accident,
   and with the binding it read as a namespace.
-  The red commit is `e33e81212ab259bbd9575966208d044e76036115`
-  and the fix `9da0e1386f19031d1eb505e20f7bb0764ad49dcd`.
-  `export = name` is an export named `export=` of the module,
+  `export = name` is now an export named `export=` of the module,
   and a whole-module import of a module that has it binds its value.
   A second red commit,
   `230854fb77a64f42a43ec59d619de18d7d4ba08c`,
-  shows that the default import and the namespace import of such a module were still unlisted,
-  and a top-level `const Boolean = makeFilter()` was read as the global function;
-  `4d2b5d9cf8939edf8c322657b4c9c7e409d3a7aa` fixes both
-  (a default import falls back to the `export =`,
-  and a declaration at the top of the file binds the name).
-- A builder's value handed to `every`,
-  `filter`,
-  `find`,
-  `flatMap`,
-  `forEach`,
-  `map`,
-  `some` or `reduce` goes on into the parameters of the callback
+  showed the default import and the namespace import of such a module still unlisted,
+  and a top-level `const Boolean = makeFilter()` read as the global function;
+  `4d2b5d9cf8939edf8c322657b4c9c7e409d3a7aa` fixes both.
+- A builder's value handed to one of `every filter find flatMap forEach map some reduce`
+  goes on into the parameters of the callback
   (red `d4902d22ab2aa8c719de7a8bdee6fa772348eb9e`,
   fix `cdf4516f463ff966890f7b73016a4e92fa87bc83`).
-  A callback that is a function written there or a declared name is read,
-  `Boolean`,
-  `String` and `Number` that no scope binds keep nothing,
+  A written function or a declared name is read,
+  `Boolean` or `String` or `Number` that no scope binds keeps nothing,
   and any other callback is reported as code the search cannot read.
   Stated limit:
-  a method that takes a callback and is not one of the eight ends the walk silently,
-  as any method called on the value does
+  another method that takes a callback ends the walk silently
   (a sort callback and `findLast` stay silent).
-  A callback imported from another file is reported.
 - A name that holds the sender and is assigned again is no call of the sender
   (red `b76fce0c79e090d8773758138c8f3bfe5df18d30`,
-  fix `daafeec74b532c907b5c7a049c5cf7687c87e0eb`):
-  a `let` or `var` alias that another statement,
-  a pattern,
-  a loop head or another function assigns is not read as the sender.
+  fix `daafeec74b532c907b5c7a049c5cf7687c87e0eb`).
 
 Prevention rule:
 a walk that follows a value ends in a destination the check lists,
@@ -806,31 +745,24 @@ and the pins of this paragraph moved into a case that asks for the reports.
 Follow-up of fix round 18:
 
 - The global object written as a whole value is reported
-  (red `17196a93cdca9867dce76985550554e2cfdac94b`,
-  fix `7b29be99a4a0ef248c51e49f2ac61c6be380ca9f`):
-  held in a constant,
-  put in an array,
+  (red `17196a93cdca9867dce76985550554e2cfdac94b`
+  and fix `7b29be99a4a0ef248c51e49f2ac61c6be380ca9f`)
+  when it is held in a constant or an array,
   handed to a call,
   chosen by a conditional,
-  used as the key of a member,
+  used as a key,
   or written under `void`.
-  The object of a member,
-  the operand of `typeof`,
-  a type,
-  a key of an object,
-  and a parameter or a constant of the same name are not reported.
-- `node:vm` and `vm` in an import,
+  The object of a member and the operand of `typeof` are not reported.
+- `vm` and `node:vm` in an import,
   an export from,
   a `require`,
   an `import()` or an import-equals declaration,
-  and a member named `constructor` written with a dot or a string literal in brackets,
-  also through `?.`,
-  and `Reflect.get` with the string `constructor` as its key,
+  a member named `constructor` written with a dot or a string literal in brackets,
+  and `Reflect.get` with the string `constructor` as its key
   are reported as code made from text
-  (red `181bc5a6fac956d6d65d1dcc5f84224f3aa463b6`,
-  fix `13987f2e08130e382ba257a0a95de6a5259ddfda`).
-  The stated limits that remain,
-  measured silent:
+  (red `181bc5a6fac956d6d65d1dcc5f84224f3aa463b6`
+  and fix `13987f2e08130e382ba257a0a95de6a5259ddfda`).
+  The limits that remain are measured silent:
   a key that is no literal,
   a pattern that takes `constructor` out of a value,
   and a `Reflect.get` with a key that is no literal.
@@ -956,60 +888,36 @@ Follow-up of fix round 17:
 Follow-up of fix round 18:
 
 - The mutant table has 246 rows on `d87291ce4045b28194d076f6457d435455f6966b`:
-  the 142 of round 17,
-  the 7 of re-check 16 that still apply,
-  7 that pin the six of re-check 16 and the import-equals declaration of `vm`,
-  and 90 new ones for the code of this round.
-  235 were killed by a failing case,
-  1 was killed by not ending
-  (the row N-R3e,
-  a builder or wrapper also read as a forwarder:
-  the suite did not exit within 300 s and the driver stopped it),
-  and 10 survived.
-  The 10 are the six of B866 and four of this round,
-  each argued equivalent with a control that gives the same output on the head and on the mutant
-  and a mutant that changes the same control:
-  a node that is no function never forwards,
-  a spread callback has the same empty name either way,
-  a value used as the key of a computed member names no method,
-  and a non-name `export =` exports nothing.
-  The prefilter of loads changes only the number of entries of the index of loaders
-  (2 on the head and 7 on the mutant for its control),
-  as B866 states.
-  The runs were sequential,
-  one mutant at a time,
+  the 142 of round 17 and the 7 of re-check 16 that still apply,
+  7 that pin the others and the import-equals declaration of `vm`,
+  and 90 new ones.
+  235 were killed by a failing case.
+  1 was killed by not ending (N-R3e:
+  no exit within 300 s).
+  10 survived:
+  the six of B866 and four of this round.
+  Each is argued equivalent with a control that gives the same output on the head and on the mutant
+  and a mutant that changes the same control.
+  The four:
+  a node that is no function never forwards.
+  A spread callback has the same empty name either way.
+  A value used as the key of a computed member names no method.
+  A non-name `export =` exports nothing.
+  The runs were sequential
   in a user unit capped at 6 GiB of memory and 200% of the CPU.
-  A first run on `9da0e1386f19031d1eb505e20f7bb0764ad49dcd` of 246 rows left 39 alive
-  and 4 invalid
-  (two rows broke because a build ran in the tree they link,
-  one did not apply,
-  one did not end),
-  and the code changed after it,
-  so the 246 rows are the run on the final code head.
 - The schema suite took 5.27,
-  4.97
-  and 5.62 s on `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`,
+  4.97 and 5.62 s on `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`
   and 6.58,
-  14.46
-  and 6.78 s on `d87291ce4045b28194d076f6457d435455f6966b`,
-  three runs each,
-  alternating,
-  on a host with a load average of 27 on 28 threads.
-  The spread is 0.65 s on the base and 7.88 s on the head,
-  and the minimum rises by 1.61 s.
-  The cause is not measured.
-- A measure over the sources of the check:
-  1620 files read,
-  0 reports,
-  0 files loaded by `import()` or `require`.
-  The adversarial inputs of the earlier re-checks,
-  225 in all,
-  were silent on 45 at the base of the round and on 3 after it
+  14.46 and 6.78 s on `d87291ce4045b28194d076f6457d435455f6966b`
+  (three runs each and alternating at a load average of 27 on 28 threads).
+  The spread is 0.65 s on the base and 7.88 s on the head.
+  The minimum rises by 1.61 s and the cause is not measured.
+- The 1620 real sources gave 0 reports and 0 files loaded by `import()` or `require`.
+  Of 225 adversarial inputs 45 were silent at the base of the round and 3 after it
   (RC21,
-  RK37
-  and RK40,
-  inputs whose expectation re-check 16 judged wrong),
-  and none is worse.
+  RK37 and RK40,
+  whose expectation re-check 16 judged wrong).
+  None is worse.
 
 Records corrected:
 the body of `4527b378c1` says its header "is rewritten in the next commit",
@@ -1056,37 +964,23 @@ so the search can print.
 
 Records corrected in fix round 18:
 
-- `a3a9fe5a8275020d9eb37933247d294cd1f18940` says "a seventh hop was left unmeasured",
-  and that following the chain "would list most of the consistency pass".
-  The chain ends at 15 forwarders whose callers are 9 files,
-  and the over-listing it predicted is the ruling's cost.
-  It also says "the 1579 real sources",
-  which are 1620 on the head of fix round 18.
-  The schema suite passes on that commit,
-  and fails on its two cases on the commit before it,
-  as the red commit states.
-- `a642a09a9d45195eaa36ed37aa705ab2b084ea63` says the suite,
-  `lint:types` and `lint:oxlint` "give the same result as before".
-  The suite passes on it
-  (measured on a copy of the commit);
-  the two lint tasks were not run again.
-- `2fbd1157198c54850eb53c184e7e2410b236ba33` has the subject "any chain long",
-  which reads as a length,
-  and means a chain of any length.
+- `a3a9fe5a8275020d9eb37933247d294cd1f18940` says a seventh hop was left unmeasured
+  and that following the chain would list most of the consistency pass.
+  The chain ends at 15 forwarders called from 9 files,
+  and its "1579 real sources" are 1620 on the head of fix round 18.
+- `a642a09a9d45195eaa36ed37aa705ab2b084ea63` says the suite and both lint tasks give the same result as before.
+  The suite passes on it (measured on a copy of the commit);
+  the lint tasks were not run again.
 - `cdf4516f463ff966890f7b73016a4e92fa87bc83` says two expectations change and lists three changes:
-  two expectations,
-  and an input added to the accepting case.
+  two expectations and an input added to the accepting case.
 - `13987f2e08130e382ba257a0a95de6a5259ddfda` says the import-equals declaration of `vm` is reported,
   and no case held that until `a0ac36bf6ca9e0acec34ca85981d2f752c47c453`.
-- `a0ac36bf6ca9e0acec34ca85981d2f752c47c453` and `86a6fa40b6cd1bffb3f71d914f25256eee201b23` say `test:unit` of corpus-pass ran.
-  The schema suite was run directly,
-  with the unit test file under `node`,
-  and `test:unit` ran on the head of fix round 18 only.
-  "With the same cases as before" in the second holds because the commit changed no fixture;
-  the suite passes on its parent and on it.
+- `a0ac36bf6ca9e0acec34ca85981d2f752c47c453` and `86a6fa40b6cd1bffb3f71d914f25256eee201b23` say `test:unit` ran.
+  The schema suite was run directly with `node`,
+  and `test:unit` ran on the final head only.
 - `e33e81212ab259bbd9575966208d044e76036115` and `9da0e1386f19031d1eb505e20f7bb0764ad49dcd` name a review label
-  (RW26 and "re-check") that the repository does not hold;
-  the input is the one of the adversarial table of re-check 15 under that label.
+  that the repository does not hold:
+  the input is RW26 of the adversarial table of re-check 15.
 
 Cache versions in fix round 18:
 none moved.
