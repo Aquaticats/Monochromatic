@@ -2592,6 +2592,52 @@ const cases: Guard[] = [
     test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
     failure: 'a tick of a view that stood still started the rest again'
   },
+  {
+    name: 'pointer-log-line-from-zero',
+    file: 'src/native/pointer_log.rs',
+    before: '    return (line + 1, hit.saturating_sub(line_start));',
+    after: '    return (line, hit.saturating_sub(line_start));',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'the press record named the line counted from 0, not as the gutter counts it'
+  },
+  {
+    name: 'pointer-log-press-drawn-offset',
+    file: 'src/native/pointer_log.rs',
+    before: '        drawn_offset = point.window.get_drawn_offset(),',
+    after: '        drawn_offset = -point.window.get_scroll_y(),',
+    occurrence: 0,
+    native: true,
+    test: 'the_logged_line_is_the_line_the_logged_offset_and_point_name',
+    failure: 'the press record carried the real offset where the drawn offset belongs'
+  },
+  {
+    name: 'pointer-maps-through-real-offset',
+    file: 'ui/app.slint',
+    before: '        return (pointer-y - root.hold-shift) / 1px;',
+    after: '        return pointer-y / 1px;',
+    native: true,
+    test: 'the_logged_line_is_the_line_the_logged_offset_and_point_name',
+    failure: 'a press on a held view named the line of the real offset, not the line drawn under the pointer'
+  },
+  {
+    name: 'pointer-log-drag-start-never',
+    file: 'src/native/input.rs',
+    before: '        let first = !pressed.dragged;',
+    after: '        let first = false;',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'no move was written as the drag start'
+  },
+  {
+    name: 'pointer-log-release-silent',
+    file: 'src/native/pointer_log.rs',
+    before: '        "source pointer release"',
+    after: '        "source pointer released"',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'the release wrote no record of the line it went up on'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

@@ -11,8 +11,6 @@
 use super::{AppWindow, State};
 /// The unit a press chose.
 use ide_app::pointer_selection::Granularity;
-/// Reads of the toolkit's window.
-use slint::ComponentHandle;
 
 /// What:
 ///  The point a pointer handler received and what the handler found for it.

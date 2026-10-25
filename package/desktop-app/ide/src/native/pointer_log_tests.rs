@@ -210,6 +210,14 @@ fn the_logged_line_is_the_line_the_logged_offset_and_point_name() {
         release(window, point(window, 130));
     });
     let pressed = record(&lines, "source pointer press");
+    // No tile covers the far offset, so the view is held: the real and the drawn offset differ, and a mapping through
+    // the real offset would name another line than the one drawn there.
+    assert!(pressed.contains(" held=true"), "{pressed}");
+    assert_ne!(
+        field(pressed, "offset"),
+        field(pressed, "drawn_offset"),
+        "{pressed}"
+    );
     // The pointer stands 12 px into the row `130` of the text at the offset the window had, so its place in the
     // view is that distance from the top of the text area; the drawn offset moves the text under it.
     assert_eq!(
