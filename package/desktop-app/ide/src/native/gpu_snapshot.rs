@@ -117,6 +117,13 @@ impl WindowAdapter for GpuWindow {
         self.size.set(size.to_physical(1.0));
     }
 
+    /// A window that asks for a frame is drawn by the next frame the event loop gives it;
+    ///  the harness has no event loop,
+    ///  so the ask is recorded for `take_frame_wanted`.
+    fn request_redraw(&self) {
+        FRAME_WANTED.with(|wanted| wanted.set(true));
+    }
+
     /// The GPU renderer that draws and reads back this window.
     fn renderer(&self) -> &dyn slint::platform::Renderer {
         return &self.renderer;
@@ -274,6 +281,8 @@ fn install_once(limit: Option<u32>) -> String {
 }
 
 std::thread_local! {
+    /// Whether some window on this thread asked for a frame that nobody has taken the ask of since.
+    static FRAME_WANTED: Cell<bool> = const { Cell::new(false) };
     /// The leaked device once this thread installed the platform.
     static DEVICE: Cell<Option<&'static GpuDevice>> = const { Cell::new(None) };
     /// The adapter name once this thread installed the platform;
@@ -319,6 +328,24 @@ pub(super) fn install_uncapped_gpu_platform() -> String {
     return INSTALLED.with(|installed| {
         return installed.get_or_init(|| return install_once(None)).clone();
     });
+}
+
+/// What:
+///  Whether a window of this thread asked for a frame since the last call,
+///  and forget the ask.
+/// Why:
+///  A window draws a frame only when one was asked for,
+///  by a property change that the last frame had evaluated or by `request_redraw`;
+///  the harness has no event loop,
+///  and one `snapshot` call is a frame whether or not one was asked for,
+///  so a test that must know whether a frame would follow reads the ask itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeFrameWanted(): boolean { const wanted = frameWanted; frameWanted = false; return wanted; }
+/// ```
+pub(super) fn take_frame_wanted() -> bool {
+    return FRAME_WANTED.with(|wanted| return wanted.replace(false));
 }
 
 /// The pixels of a window as RGBA bytes (red,
