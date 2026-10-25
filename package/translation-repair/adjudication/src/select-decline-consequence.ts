@@ -64,20 +64,39 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
     + 'rather than falling back on anything';
 
 /**
- The part of a challenge's sentence about a tie that backs only some candidates, which both challenge sentences carry.
+ The part of a challenge's sentence about a tie or a leader that leaves some candidates behind, which both challenge
+ sentences carry.
 
- A partial tie does not end a challenge: `settleAbsentDecline` ships or keeps only when no run-off is left to narrow
+ Such a round does not end a challenge: `settleAbsentDecline` ships or keeps only when no run-off is left to narrow
  (`narrows` in `translate-stage/src/translate-runoff-tie.ts`), and otherwise raises, and `judgeSlateWithRetry` asks
  the same bench again over the finalists (`translate-stage/src/translate-retry.ts`) for as long as each round narrows.
  The finalists are the candidates tied at the top, or the leader and its runner-up where one judge alone named the
- leader (`runoffFinalists`). The sentence says "the panel", not "the same judges": a round asks a window of the bench
- that a hash of its sheet rotates (`stage/src/stage-fanout-window.ts`), and the challenge sheet differs from the first
- ask's, so the seats asked can differ (re-check 5, M-B and M-D).
+ leader (`runoffFinalists`), and only where that leaves some candidates behind: BOTH HALVES SAY SO (re-check 6, M-B),
+ since a leader alone in drawing a ballot and a leader beside its runner-up in a slate of two narrow nothing. The
+ sentence says "the panel", not "the same judges": a round asks a window of the bench that a hash of its sheet rotates
+ (`stage/src/stage-fanout-window.ts`), and the challenge sheet differs from the first ask's, so the seats asked can
+ differ (re-check 5, M-B and M-D).
  */
 const ASKS_AGAIN_OVER_THE_LEADERS: string = [
-  'when the round leaves only some candidates tied at the top, or a leader only one judge named, the panel is asked',
-  'again first, though a round may seat other members of it, over those candidates alone, or over that leader and its',
-  'runner-up, and again for as long as that narrows the question',
+  'when the round leaves some candidates tied at the top with others left behind, or a leader only one judge named',
+  'beside a runner-up with others left behind, the panel is asked again first, though a round may seat other members',
+  'of it, over those candidates alone, or over that leader and its runner-up, and again for as long as that narrows',
+  'the question',
+].join(' ',);
+
+/**
+ The part of a challenge's sentence about the rounds that leave no candidate behind, which both challenge sentences
+ carry beside the run-off part (re-check 6, M-B).
+
+ `runoffFinalists` returns the whole slate, and `settleAbsentDecline` does not narrow, for a round in which every
+ judge declined (`rejection`), for a leader alone in drawing a ballot (`fewer-than-two-backed`), and where the
+ candidates to offer are the whole slate (`every-candidate-backed`): the whole slate tied, or a slate of only two, whose
+ leader and runner-up are both candidates. Those are the shapes this part names, so that the run-off part is not read as
+ a promise in them. How often each occurred in the recorded XingZ6021 run is in the round seven ledger entries.
+ */
+const ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND: string = [
+  'a round that leaves no candidate behind (the whole slate tied, every judge declining, a leader alone in drawing a',
+  'ballot, or a slate of only two) asks no such question',
 ].join(' ',);
 
 /**
@@ -96,7 +115,8 @@ const ASKS_AGAIN_OVER_THE_LEADERS: string = [
  since neither ships or keeps as this one does: the first ask settles nothing, and the deferring challenge ships only a
  level tie and otherwise sends the passage back (re-check 4, F1; corrected in re-check 5). The sheet says it in order:
  declining does not by itself keep the wording, and a judge's own decline
- names no candidate; a partial tie sends the panel to a run-off; once none is left,
+ names no candidate; a tie or a leader that leaves candidates behind sends the panel to a run-off, and a round that
+ leaves none behind asks no such question (re-check 6, M-B); once none is left,
  the wording in place stays only when no candidate was
  named by two or more judges; and when one or more were, the preferred of
  those ships by a fixed order (re-check 2, finding F2; reworded in re-check 3,
@@ -114,6 +134,7 @@ const ASKS_AGAIN_OVER_THE_LEADERS: string = [
 export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
   'declining does not by itself keep the wording in place, and your own decline names no candidate:',
   `${ASKS_AGAIN_OVER_THE_LEADERS};`,
+  `${ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND};`,
   'when no such question is left and no candidate is named by two or more judges, the wording in place stays and the',
   'page reports it, with your reason recorded; when no such question is left and one or more candidates are named by',
   'two or more judges, the preferred of those ships, by a fixed order (the repair lane\'s text, then the translate',
@@ -124,9 +145,9 @@ export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
  What a decline does in the first ask of a pair over wording that cannot ship: nothing is settled, and the panel is
  asked again, though a round may seat other members of it. The ask raises its absence (`settleAbsentDecline` ships by
  preference only in a challenge) and `judgeSlateWithRetry` challenges the same bench, over only the candidates tied at
- the top where that leaves some behind, or the leader and its runner-up where one judge alone named the leader, and
- again for as long as that narrows the question. It names no ship and no stay, since neither is this round's to give
- (re-check 4, F1; re-check 5, M-B and M-D).
+ the top where that leaves some behind, or the leader and its runner-up where one judge alone named the leader and that
+ leaves some behind, and otherwise over the whole slate, and again for as long as that narrows the question. It names
+ no ship and no stay, since neither is this round's to give (re-check 4, F1; re-check 5, M-B and M-D; re-check 6, M-B).
 
  @example
  ```ts
@@ -137,12 +158,14 @@ export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
   'declining does not by itself keep the wording in place, and your own decline names no candidate:',
   'when the judges decline this round, it settles nothing, and the panel is asked again, though a round may seat other',
   'members of it, over only the candidates tied at the top where that leaves some behind, or over a leader only one',
-  'judge named and its runner-up, and again for as long as that narrows the question',
+  'judge named and its runner-up where that leaves some behind, and otherwise over the whole slate, and again for as',
+  'long as that narrows the question',
 ].join(' ',);
 
 /**
  What a decline does in a challenge whose caller defers to a later production (the translate lane's first call, whose
- follow-up round ships past a decline): a partial tie sends the panel to a run-off first; once none is left, a
+ follow-up round ships past a decline): a tie or a leader that leaves candidates behind sends the panel to a run-off
+ first, and a round that leaves none behind asks no such question (re-check 6, M-B); once none is left, a
  candidate ships only where every candidate drew equal weight and two or more judges named it (`breakRunoffTie`), the
  preferred of those by the fixed order; otherwise the round raises its absence and the lane produces again, shown the
  rejected renderings and the findings, and judges again. It names no stay, since the wording in place stays only in
@@ -156,6 +179,7 @@ export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
 export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
   'declining does not by itself keep the wording in place, and your own decline names no candidate:',
   `${ASKS_AGAIN_OVER_THE_LEADERS};`,
+  `${ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND};`,
   'when the judges decline this round and no such question is left, a candidate ships only where every candidate drew',
   'equal weight and two or more judges named it, the preferred of those by a fixed order (the repair lane\'s text,',
   'then the translate lane\'s, then the first on the slate) and not by your judgment;',
@@ -169,8 +193,9 @@ export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
  Over wording that cannot ship the sentence differs by round, since a decline does a different thing in each: the first
  ask of a pair settles nothing and the panel is asked again; the challenge of a caller that ships past a decline
  ships the preferred candidate two or more judges named, or keeps the wording; the challenge of a caller that defers
- ships only a level tie and otherwise sends the passage back for new proposals. A tie that backs only some candidates
- sends the panel to a run-off first in all three.
+ ships only a level tie and otherwise sends the passage back for new proposals. A tie or a leader that leaves some
+ candidates behind sends the panel to a run-off first in all three, and a round that leaves none behind is told it asks
+ no such question (the first ask: that it is asked again over the whole slate).
 
  @param incumbentKind - whether there is wording to keep
 
