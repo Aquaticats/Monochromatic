@@ -49,6 +49,10 @@ import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BINDING_KIND_CASES, BUILDER_MEMBER_CASES, } from './claude-schema-binding-kind-forms.test-fixture.ts';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
 import { blindSpotsOf, } from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  isPlaceOf,
+  NAMED_PLACES,
+} from './claude-schema-named-places.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
 import {
   BINDING_IN_FUNCTION_CASES,
@@ -946,12 +950,40 @@ await describe({
 
     it({
       name: 'FINDS NO SHAPE THE SEARCH LEAVES UNREAD IN THE FAMILY\'S SOURCE, so a file that sends an answer schema '
-        + 'cannot hide in one: each place that holds such a shape is named by file and line',
+        + 'cannot hide in one: each place that holds such a shape is named by file and line, unless the test names it',
       fn: async () => {
         expect(blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },)
+          .filter(function isUnnamed(spot,): boolean {
+            return !NAMED_PLACES.some(function namesSpot(place,): boolean {
+              return isPlaceOf({
+                spot,
+                place,
+              },);
+            },);
+          },)
           .map(function named({ file, line, shape, },): string {
             return `${file}:${String(line,)} ${shape}`;
           },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'REPORTS EVERY PLACE THE TEST NAMES IN THE FAMILY\'S SOURCE, so a name does not outlive the place it names',
+      fn: async () => {
+        /**
+         The places the check reports over the family's source.
+         */
+        const spots = blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },);
+        expect(NAMED_PLACES.filter(function isStale(place,): boolean {
+          return !spots.some(function isPlace(spot,): boolean {
+            return isPlaceOf({
+              spot,
+              place,
+            },);
+          },);
+        },).map(function fileOf({ file, },): string {
+          return file;
+        },),).toEqual([],);
       },
     },),
 

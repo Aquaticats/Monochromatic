@@ -19,8 +19,10 @@ import {
   namesBearingModule,
 } from './claude-schema-blind-loads.test-fixture.ts';
 import { constantReadersOf, } from './claude-schema-blind-constants.test-fixture.ts';
+import { baseContextOf, } from './claude-schema-blind-context.test-fixture.ts';
 import {
   forwardersIn,
+  knownIn,
   undeclaredForwardersIn,
   type UndeclaredForwarder,
 } from './claude-schema-blind-forwarders.test-fixture.ts';
@@ -75,6 +77,7 @@ type BlindShape =
     | 'code-the-search-cannot-read'
     | 'computed-load-path'
     | 'forwarder-in-undeclared-function'
+    | 'forwarder-outside-a-read-position'
     | 'format-in-undeclared-function'
     | 'load-in-unfollowed-form'
     | 'module-binding-outside-a-read-position'
@@ -221,74 +224,6 @@ function spotsOf(
 }
 
 /**
- What the names of a file are read against before the tree around them is known: the sources, the builders, the modules
- that carry one and the functions of the file that are known.
-
- @param family - modules of the sources
-
- @param file - path of the file
-
- @param known - builders and wrappers of the sources, by where each sits and by name
-
- @param bearing - paths of the modules that carry a builder
-
- @param carriers - keys of the objects that hold a builder as a member
-
- @param constants - where the other files read a constant a file exports
-
- @returns Context, with no parents and no references yet
-
- @example
- ```ts
- const base = baseContextOf({ family, file, known, bearing, carriers, constants, });
- ```
- */
-function baseContextOf(
-  {
-    family,
-    file,
-    known,
-    bearing,
-    carriers,
-    constants,
-  }: {
-    readonly family: Family;
-    readonly file: string;
-    readonly known: KnownFunctions;
-    readonly bearing: ReadonlySet<string>;
-    readonly carriers: ReadonlySet<string>;
-    readonly constants: ConstantReaders;
-  },
-): BlindContext {
-  /**
-   What the file declares, binds and refers to, and its syntax tree.
-   */
-  const facts = nonNullishOrThrow(family.get(file,),);
-  return {
-    family,
-    file,
-    facts,
-    builders: known,
-    bearing,
-    carriers,
-    recognized: new Set(facts.declared
-      .filter(function isKnown({ name, },): boolean {
-        return known.keys
-          .has(keyOf({
-            file,
-            name,
-          },),);
-      },)
-      .map(function fnOf({ fn, },): TreeNode {
-        return fn;
-      },),),
-    parents: new Map<TreeNode, TreeNode>(),
-    references: [],
-    constants,
-  };
-}
-
-/**
  The places in the sources that the schema search does not read.
 
  @param sources - files searched
@@ -361,6 +296,10 @@ export function blindSpotsOf(
     usages,
   },);
   /**
+   The forwarders, by where each sits and by name.
+   */
+  const knownForwarders = knownIn({ functions: forwarders, },);
+  /**
    The functions of that kind that no declaration names, by the file that writes each.
    */
   const undeclaredForwarders = Map.groupBy(
@@ -404,6 +343,7 @@ export function blindSpotsOf(
         family,
         file,
         known,
+        forwarding: knownForwarders,
         bearing,
         carriers,
         constants,
@@ -443,6 +383,7 @@ export function blindSpotsOf(
       family,
       file,
       known,
+      forwarding: knownForwarders,
       bearing,
       carriers,
       constants,

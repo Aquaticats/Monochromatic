@@ -1,6 +1,10 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { destinationsOf, } from './claude-schema-blind-flow.test-fixture.ts';
+import { callShapesAt, } from './claude-schema-blind-call-shapes.test-fixture.ts';
+import {
+  CALL_METHODS,
+  forwarderShapesAlong,
+} from './claude-schema-blind-forwarder-shapes.test-fixture.ts';
 import {
   bindsAsReadBy,
   type BlindContext,
@@ -17,7 +21,6 @@ import {
   NO_CHAIN,
   standingAfter,
 } from './claude-schema-blind-standing.test-fixture.ts';
-import { isNoNode, } from './claude-schema-tree.test-fixture.ts';
 
 //region Where a chain of names that stands for a builder or for a module that carries one sits
 // The second total of the check behind the schema search: every chain of names that stands for a builder, and every
@@ -25,82 +28,6 @@ import { isNoNode, } from './claude-schema-tree.test-fixture.ts';
 // by `claude-schema-blind-standing.test-fixture.ts`. A builder is read as the callee of a call, of `new` or of a tagged
 // template, or as the value of a constant that the search binds to it; a module is read as the object of a member, or
 // as the value of a constant or a pattern that the search binds to it. Any other place that holds one is reported.
-
-/**
- The members of a function that call it: `build.call(...)`, `build.apply(...)` and `build.bind(...)` are `build`.
- */
-const CALL_METHODS: ReadonlySet<string> = new Set([
-  'apply',
-  'bind',
-  'call',
-],);
-
-/**
- The shapes a call of a builder holds: its value goes out of a function that the search does not know as a builder, or
- to a place that no sender, wrapper or constant answers for.
-
- @param context - what the file's names are read against
-
- @param call - call, `new` or tagged template of a builder
-
- @returns Shapes, none where the value stays or goes to a wrapper, a sender or a constant that does the same
-
- @example
- ```ts
- const found = callShapesAt({ context, call, },);
- ```
- */
-function callShapesAt(
-  {
-    context,
-    call,
-  }: {
-    readonly context: BlindContext;
-    readonly call: TreeNode;
-  },
-): readonly FoundShape[] {
-  /**
-   The function the value is returned from, `NO_NODE` when it is not, and the other places the value goes.
-   */
-  const {
-    leaving,
-    leavingIn,
-    strays,
-    unreadable,
-  } = destinationsOf({
-    context,
-    call,
-  },);
-  return [
-    ...(isNoNode({ node: leaving, },)
-      ? []
-      : [
-        {
-          shape: 'builder-result-returned-outside-a-wrapper',
-          node: call,
-          position: `${leaving.type} returns it${(leavingIn === '') ? '' : ` in ${leavingIn}`}`,
-        } satisfies FoundShape,
-      ]),
-    ...((strays.length === 0)
-      ? []
-      : [
-        {
-          shape: 'builder-result-outside-a-destination',
-          node: call,
-          position: strays.join(', ',),
-        } satisfies FoundShape,
-      ]),
-    ...((unreadable.length === 0)
-      ? []
-      : [
-        {
-          shape: 'code-the-search-cannot-read',
-          node: call,
-          position: unreadable.join(', ',),
-        } satisfies FoundShape,
-      ]),
-  ];
-}
 
 /**
  The shape a builder holds where it stands, by the node that holds it.
@@ -357,6 +284,14 @@ function shapesAlong(
   },);
   if (standing === 'builder') {
     return builderShapesAlong({
+      context,
+      chain,
+      node,
+      count,
+    },);
+  }
+  if (standing === 'forwarder') {
+    return forwarderShapesAlong({
       context,
       chain,
       node,

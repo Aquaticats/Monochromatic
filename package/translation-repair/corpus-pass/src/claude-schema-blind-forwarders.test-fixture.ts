@@ -168,7 +168,7 @@ function forwardsFrom(
  const known = knownIn({ functions: builders, },);
  ```
  */
-function knownIn({ functions, }: { readonly functions: readonly FunctionAt[]; },): KnownFunctions {
+export function knownIn({ functions, }: { readonly functions: readonly FunctionAt[]; },): KnownFunctions {
   return {
     keys: new Set(functions.map(function keyOfFunction(declared,): string {
       return keyOf(declared,);

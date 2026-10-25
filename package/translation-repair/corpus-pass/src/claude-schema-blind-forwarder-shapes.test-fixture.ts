@@ -1,0 +1,179 @@
+import type { TreeNode, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
+
+import {
+  type BlindContext,
+  outermostValueOf,
+  positionOf,
+} from './claude-schema-blind-positions.test-fixture.ts';
+import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  type Chain,
+  COMPUTED_MEMBER,
+} from './claude-schema-blind-standing.test-fixture.ts';
+
+//region Where a forwarder sits
+// The part of the second total of the check behind the schema search (`claude-schema-blind-chains.test-fixture.ts`)
+// that reads a chain of names standing for a forwarder, a function that hands a sender a builder call made from its own
+// parameters. A forwarder is read as the callee of a call, of `new` or of a tagged template, as the whole value of an
+// export assignment, and through the members `call`, `apply` and `bind`; the members `name` and `length` hand out no
+// function. Any other place that holds one is reported, since the files that get the function there can call it where
+// the listing of callers does not look.
+
+/**
+ The members of a function that call it: `build.call(...)`, `build.apply(...)` and `build.bind(...)` are `build`.
+ */
+export const CALL_METHODS: ReadonlySet<string> = new Set([
+  'apply',
+  'bind',
+  'call',
+],);
+
+/**
+ The members of a function that read a string or a number off it and hand out no function: the logger tag of the repo is
+ `fn.name`.
+ */
+const NON_CALLING_MEMBERS: ReadonlySet<string> = new Set([
+  'length',
+  'name',
+],);
+
+/**
+ The shape a forwarder holds where it stands, by the node that holds it: a call of it is read, since the files that call
+ it are listed, and so is the whole value of an export assignment, which is read as the module. Any other place is
+ reported, since a file that gets the function there can call it unseen.
+
+ @param context - what the file's names are read against
+
+ @param node - chain that stands for the forwarder
+
+ @param isBound - whether the chain ends in `.bind`, so what the call of it gives is the forwarder again
+
+ @returns Shape, none where the forwarder is called
+
+ @example
+ ```ts
+ const found = forwarderShapesAt({ context, node, isBound: false, },);
+ ```
+ */
+function forwarderShapesAt(
+  {
+    context,
+    node,
+    isBound,
+  }: {
+    readonly context: BlindContext;
+    readonly node: TreeNode;
+    readonly isBound: boolean;
+  },
+): readonly FoundShape[] {
+  /**
+   The expression under the marks that leave it the same value.
+   */
+  const top = outermostValueOf({
+    node,
+    parents: context.parents,
+  },);
+  /**
+   The node that holds the forwarder.
+   */
+  const holder = context.parents
+    .get(top,);
+  if (holder === undefined)
+    return [];
+  /**
+   Whether the forwarder is the callee of a call, of `new` or of a tagged template, which the listing of callers reads.
+   */
+  const isCalled = (((holder.type === 'CallExpression') || (holder.type === 'NewExpression')) && (holder.callee === top))
+    || ((holder.type === 'TaggedTemplateExpression') && (holder.tag === top));
+  /**
+   Whether the call is a call of a bound function, whose value is the function again.
+   */
+  const isBoundCall = isBound && (holder.type === 'CallExpression');
+  if (isCalled && isBoundCall) {
+    return forwarderShapesAt({
+      context,
+      node: holder,
+      isBound: false,
+    },);
+  }
+  /**
+   Whether the forwarder is the whole value of an export assignment, which the listing of callers reads as the module
+   itself.
+   */
+  const isExported = holder.type === 'TSExportAssignment';
+  return (isCalled || isExported)
+    ? []
+    : [
+      {
+        shape: 'forwarder-outside-a-read-position',
+        node,
+        position: positionOf({
+          holder,
+          child: top,
+        },),
+      },
+    ];
+}
+
+/**
+ The shapes a chain holds once it stands for a forwarder after `count` members: the members left must be `call`, `apply`
+ or `bind`, and the place it sits in must be a call.
+
+ @param context - what the file's names are read against
+
+ @param chain - chain read
+
+ @param node - chain, as the node that starts it
+
+ @param count - members that lead to the forwarder
+
+ @returns Shape, none for a chain that is called
+
+ @example
+ ```ts
+ const found = forwarderShapesAlong({ context, chain, node, count: 1, },);
+ ```
+ */
+export function forwarderShapesAlong(
+  {
+    context,
+    chain,
+    node,
+    count,
+  }: {
+    readonly context: BlindContext;
+    readonly chain: Chain;
+    readonly node: TreeNode;
+    readonly count: number;
+  },
+): readonly FoundShape[] {
+  /**
+   The members after the forwarder.
+   */
+  const rest = chain.members
+    .slice(count,);
+  if (NON_CALLING_MEMBERS.has(rest.at(0,) ?? '',))
+    return [];
+  /**
+   The first member after the forwarder that is no call method, absent when there is none.
+   */
+  const stray = rest.find(function isStray(member,): boolean {
+    return !CALL_METHODS.has(member,);
+  },);
+  if (stray !== undefined) {
+    return [
+      {
+        shape: 'forwarder-outside-a-read-position',
+        node,
+        position: (stray === COMPUTED_MEMBER) ? 'member computed from a name' : `member ${stray} of a forwarder`,
+      },
+    ];
+  }
+  return forwarderShapesAt({
+    context,
+    node,
+    isBound: rest.at(-1,) === 'bind',
+  },);
+}
+
+//endregion Where a forwarder sits

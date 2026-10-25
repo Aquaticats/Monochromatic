@@ -59,9 +59,10 @@ export const NO_CHAIN: Chain = {
 };
 
 /**
- What a prefix of a chain stands for.
+ What a prefix of a chain stands for: a builder or wrapper, a forwarder, a module or object that carries a builder, or
+ none of them.
  */
-type Standing = 'builder' | 'carrier' | 'other';
+type Standing = 'builder' | 'carrier' | 'forwarder' | 'other';
 
 /**
  The chain of names an expression is written with, the members that cannot be read kept as `COMPUTED_MEMBER`.
@@ -186,6 +187,24 @@ export function standingAfter(
       .has(resolved.name,)) {
     return {
       standing: 'builder',
+      isFree: true,
+    };
+  }
+  if ((resolved.kind === 'function')
+    && context.forwarders
+      .keys
+      .has(keyOf(resolved,),)) {
+    return {
+      standing: 'forwarder',
+      isFree: false,
+    };
+  }
+  if ((resolved.kind === 'free')
+    && context.forwarders
+      .names
+      .has(resolved.name,)) {
+    return {
+      standing: 'forwarder',
       isFree: true,
     };
   }

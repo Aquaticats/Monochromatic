@@ -53,8 +53,8 @@ export type ConstantReaders = (
 ) => readonly ConstantReader[];
 
 /**
- What a file's names are read against: the modules of the sources, the file, the builders and the modules that carry
- one.
+ What a file's names are read against: the modules of the sources, the file, the builders, the forwarders and the
+ modules that carry a builder.
  */
 export type BlindContext = {
   /**
@@ -76,6 +76,11 @@ export type BlindContext = {
    The builders and wrappers of the sources.
    */
   readonly builders: KnownFunctions;
+
+  /**
+   The forwarders of the sources: the functions that hand a sender a builder call made from their own parameters.
+   */
+  readonly forwarders: KnownFunctions;
 
   /**
    Paths of the modules that carry a builder.
