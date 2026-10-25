@@ -131,6 +131,16 @@ export const SENDER_ALIAS_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS THE HEAD OF A FOR-IN LOOP',
+    lines: [
+      'let g: any = gatherThroughCache;',
+      'for (g in { key: 1, }) {',
+      '  void g;',
+      '}',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
     name: 'ACCEPTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS NEVER ASSIGNED AGAIN, with let, and a name of '
       + 'another alias that is assigned again',
     lines: [

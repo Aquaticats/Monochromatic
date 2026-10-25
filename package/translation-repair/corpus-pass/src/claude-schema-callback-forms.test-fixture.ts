@@ -126,7 +126,7 @@ function keepingLines({ method, }: { readonly method: string; },): readonly stri
  const shapeCase = reportingCase({ name: 'x', lines: [], position: CALL_ARGUMENT, },);
  ```
  */
-function reportingCase(
+export function reportingCase(
   {
     name,
     lines,
