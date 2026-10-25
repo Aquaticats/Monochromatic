@@ -119,8 +119,8 @@ export const IMPORT_CHAIN_CASES: readonly ShapeCase[] = [
     isReported: false,
   },),
   chainCase({
-    name: 'ACCEPTS THE LAST NAME OF A QUALIFIED NAME THAT IS ALSO THE NAME OF AN IMPORTED CONSTANT, since the last name '
-      + 'of a qualified name is a member and no read of a name',
+    name: 'ACCEPTS THE LAST NAME OF A QUALIFIED NAME THAT IS ALSO THE NAME OF AN IMPORTED CONSTANT, since the last '
+      + 'name of a qualified name is a member and no read of a name',
     lines: [
       'import { FORMAT, } from \'./chain-a.ts\';',
       'namespace Local { export const FORMAT = 1; }',

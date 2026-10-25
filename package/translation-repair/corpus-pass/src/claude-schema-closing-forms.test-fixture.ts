@@ -142,7 +142,8 @@ export const CLOSING_CASES: readonly ShapeCase[] = [
     },),],
   },),
   stageCase({
-    name: 'ACCEPTS AN EXPORT OF THE NAME OF THE GLOBAL OBJECT FROM ANOTHER MODULE, which names an export of that module',
+    name: 'ACCEPTS AN EXPORT OF THE NAME OF THE GLOBAL OBJECT FROM ANOTHER MODULE, which names an export of that '
+      + 'module',
     lines: ['export { globalThis as other } from \'node:process\';',],
     spots: [],
   },),
