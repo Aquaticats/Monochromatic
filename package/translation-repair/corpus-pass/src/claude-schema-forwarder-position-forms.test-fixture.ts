@@ -21,12 +21,12 @@ const STAGE = 'imaginary/src/pos-stage.ts';
 /**
  The path of the file that reads the forwarder in the form a case names.
  */
-const USER = 'imaginary/src/pos-user.ts';
+export const USER = 'imaginary/src/pos-user.ts';
 
 /**
  The arguments of a call of the forwarder as the user file writes them.
  */
-const POS_ARGUMENTS = '{ schemaName: \'pos\', verdicts: [], asksArchive: false, }';
+export const POS_ARGUMENTS = '{ schemaName: \'pos\', verdicts: [], asksArchive: false, }';
 
 /**
  The report for the forwarder `mk` read in a place that is no call, in the user file.
@@ -44,7 +44,7 @@ const POS_ARGUMENTS = '{ schemaName: \'pos\', verdicts: [], asksArchive: false, 
  const spot = positionSpotAt({ line: 2, position: 'Property.value', },);
  ```
  */
-function positionSpotAt(
+export function positionSpotAt(
   {
     line,
     position,
@@ -85,7 +85,7 @@ function positionSpotAt(
  const shapeCase = userCase({ name: 'x', lines: [], spots: [], isListed: true, },);
  ```
  */
-function userCase(
+export function userCase(
   {
     name,
     lines,
