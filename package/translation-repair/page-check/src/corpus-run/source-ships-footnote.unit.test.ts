@@ -22,6 +22,8 @@ import {
   continuesDefinition,
   footnoteBodyStart,
   footnoteStartInside,
+  hasFootnoteLabel,
+  isFootnoteLabel,
   isIndentedCode,
   isLazyDefinition,
   NO_FOOTNOTE_INSIDE,
@@ -84,9 +86,75 @@ const MARK_CASES: readonly (readonly [string, string, number, string])[] = [
   ['THE MARK AND ONE SPACE ONLY, the extra spaces being indentation', '>    a', 0, '   a',],
 ];
 
+/**
+ The most characters after the caret that the strict grammar reads in a label.
+ */
+const MOST_READ = 999;
+
+/**
+ Cases of a label as the strict grammar reads the label of a footnote definition (`micromark-extension-gfm-footnote@2.1.0`,
+ `lib/syntax.js:354-381`, `labelInside` and `labelEscape`): the label with its caret, and whether it is one.
+ */
+const LABEL_CASES: readonly (readonly [string, string, boolean])[] = [
+  ['A CARET AND ONE CHARACTER', '^1', true,],
+  ['A NAME OF LETTERS AND DIGITS', '^note2', true,],
+  ['NO CARET', 'note', false,],
+  ['A CARET AND NOTHING', '^', false,],
+  ['A SPACE IN THE NAME', '^a b', false,],
+  ['A TAB IN THE NAME', '^a\tb', false,],
+  ['A LINE FEED IN THE NAME', '^a\nb', false,],
+  ['A CARRIAGE RETURN IN THE NAME', '^a\rb', false,],
+  ['A NO-BREAK SPACE IN THE NAME, which is no white space to the strict grammar', '^a\u00A0b', true,],
+  ['AN OPENING BRACKET IN THE NAME', '^a[b', false,],
+  ['AN ESCAPED OPENING BRACKET IN THE NAME', String.raw`^a\[b`, true,],
+  ['AN ESCAPED BACKSLASH IN THE NAME', String.raw`^a\\b`, true,],
+  ['AN ESCAPED CLOSING BRACKET IN THE NAME', String.raw`^a\]b`, true,],
+  ['A BACKSLASH BEFORE AN ORDINARY CHARACTER', String.raw`^a\b`, true,],
+  ['A BACKSLASH LAST, which escapes the closing bracket', '^a\\', false,],
+  ['A BACKSLASH BEFORE A SPACE', String.raw`^a\ b`, false,],
+  ['A NAME OF 999 CHARACTERS, the most the strict grammar reads', `^${'a'.repeat(MOST_READ,)}`, true,],
+  ['A NAME OF 1000 CHARACTERS', `^${'a'.repeat(MOST_READ + 1,)}`, false,],
+  ['A NAME OF 999 CHARACTERS WITH AN ESCAPE, which counts two', `^${'a'.repeat(MOST_READ - 1,)}\\[`, false,],
+];
+
 await describe({
   name: 'source ships footnote',
   children: [
+    describe({
+      name: isFootnoteLabel.name,
+      children: LABEL_CASES.map(function labelCase([name, label, expected,],) {
+        return it({
+          name: `CALLS ${name} ${expected ? 'A' : 'NOT A'} FOOTNOTE LABEL`,
+          fn: async () => {
+            expect(isFootnoteLabel({ label, },),).toBe(expected,);
+          },
+        },);
+      },),
+    },),
+
+    describe({
+      name: hasFootnoteLabel.name,
+      children: [
+        it({
+          name: 'READS A LINK REFERENCE DEFINITION AS A FOOTNOTE DEFINITION BY ITS LABEL, an escaped bracket in it '
+            + 'included, and no other block',
+          fn: async () => {
+            /**
+             Whether the only block of a text is a definition with the label of a footnote.
+             */
+            function labelled({ source, }: { readonly source: string; },): boolean {
+              return hasFootnoteLabel({ node: onlyBlock({ source, },), },);
+            }
+            expect(labelled({ source: '[^1]: https://example.net/a', },),).toBe(true,);
+            expect(labelled({ source: String.raw`[^a\[b]: https://example.net/a`, },),).toBe(true,);
+            expect(labelled({ source: '[^a b]: https://example.net/a', },),).toBe(false,);
+            expect(labelled({ source: '[r]: https://example.net/a', },),).toBe(false,);
+            expect(labelled({ source: '[^1]: a b', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+
     describe({
       name: footnoteBodyStart.name,
       children: [
@@ -148,6 +216,26 @@ await describe({
             expect(opens({ source: '[r]: u', },),).toBe(false,);
             expect(opens({ source: '[^1] a', },),).toBe(false,);
             expect(opens({ source: '她说', },),).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'READS NO FOOTNOTE DEFINITION IN A PARAGRAPH WHOSE LABEL HOLDS A BRACKET OR IS LONGER THAN THE STRICT '
+            + 'GRAMMAR READS',
+          fn: async () => {
+            /**
+             Whether the only block of a text opens a footnote.
+             */
+            function opens({ source, }: { readonly source: string; },): boolean {
+              const node = onlyBlock({ source, },);
+              return opensFootnote({
+                source,
+                node,
+                range: rangeOf({ node, },),
+              },);
+            }
+            expect(opens({ source: `[^${'a'.repeat(MOST_READ + 1,)}]: {`, },),).toBe(false,);
+            expect(opens({ source: '[^a[b]]: {', },),).toBe(false,);
           },
         },),
       ],

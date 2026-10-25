@@ -193,6 +193,8 @@ export {
   endLineOf,
   footnoteBodyStart,
   footnoteStartInside,
+  hasFootnoteLabel,
+  isFootnoteLabel,
   isIndentedCode,
   isLazyDefinition,
   NO_FOOTNOTE_INSIDE,
