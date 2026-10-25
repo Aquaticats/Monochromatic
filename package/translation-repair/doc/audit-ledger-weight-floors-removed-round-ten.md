@@ -15,6 +15,10 @@ in the file of rounds 7 to 9:
 B938 (the known limit),
 B945 (benches of seven) and B947 (the sweep's result lines).
 This round continues at B948.
+Round 11,
+the second round of the follow-up,
+is kept in this file at B951,
+since the file of rounds 7 to 9 is near the limit of a thousand lines.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -38,6 +42,19 @@ the TSDoc reflow,
 the cache versions and the gates are B950.
 The corrections in place are in B938 (the known limit),
 B945 (benches of seven) and B947 (the sweep's result lines).
+
+## Round 11 at a glance
+
+The review of round 10 left five items that no code defect forced:
+the scan still passed "that" before a bare verb,
+B944's known limit was confirmed by the re-check and still stood as open,
+the glance of round 9 said that main did not move,
+two test titles still called words members of the compared list that had left it,
+and this record had no entry for the round.
+They are answered in B951,
+and the corrections in place are in B938,
+B944,
+B949 and the glance of round 9.
 
 ## B948: a split four-seat bench is settled by the seat the window leaves out (round 10)
 
@@ -146,6 +163,10 @@ What it still does not read.
   are pointers in the texts and the scan does not find them,
   since it cannot tell a verb from a noun.
   They were not reworded.
+  Correction in place (2026-10-25,
+  round 11):
+  B951 makes the scan find "that" before a verb it names and rewords both pointers;
+  a verb it does not name still passes.
 - A quantifier followed by "of" compares:
   "below each of them" is left,
   and so is "the cases below all of which fail".
@@ -307,3 +328,123 @@ typography and source-scan.
 59,
 43 and 68 suites in those packages with none failed.
 `source-scans` passed 53 on the tree with this text.
+
+## B951: the position scan reads "that" before a bare verb, and the items the review left are closed (round 11)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `a5d22db40b0fef9dd0ce15585ae4ffa0697550df`,
+fix `44e3b92e03980859d5beca29a16e205a6388be9f`;
+the corrections in place are in B938,
+B944,
+B949 and the glance of round 9.
+
+The scan.
+B949 left two pointers that the scan passed:
+"the lines below that write it" (`typography/src/semantic-wrap-binary.ts:247`)
+and "the paragraphs above that explain"
+(`audit-ledger-test-suite-unrun-code-reverification-of-2026-10-05.md:15`).
+"that" now reads as a pointer when a word of `VERBS_AFTER_THAT` follows it,
+joined by spaces alone.
+The list holds 29 verbs in the form a plural subject takes
+(write,
+explain,
+say,
+cover,
+name and the like),
+and it sits in `source-scan/src/position-references-vocabulary.test-fixture.ts`;
+the reading is in `position-references-compared.test-fixture.ts`.
+A list,
+because the scan cannot tell a verb from a noun.
+Words that are also nouns stay out when a text compares with them
+(count,
+use,
+run,
+set,
+test,
+call and return),
+and name,
+list,
+record,
+note,
+check and hold stay in because no text the guard reads compares with them.
+After a position and "that",
+the words that follow in the texts are floor,
+speed,
+size,
+percentile,
+calibration,
+opening,
+"is" and "and" for the comparisons,
+and "write" and "explain" for the pointers;
+none of the 29 verbs is among the comparisons.
+
+What it still does not read.
+A verb outside the list ("the lines below that enumerate it") passes.
+A quantifier followed by "of" passes,
+as B949 states
+("below each of them" and "the cases below all of which fail").
+The TSDoc of `COMPARED_OBJECTS` and B938 say both.
+
+What it found.
+Over the 4115 texts the guard reads
+(the 4114 of B949 and the file of round 10),
+the red commit has 263 raw findings.
+With the scan changed and nothing reworded there are 271 raw findings and 2 unexempted,
+the two pointers.
+With both reworded there are 269 raw,
+none unexempted and none stale.
+Outside the guard's own files the raw findings are 80 before and 80 after,
+the same keys.
+The 6 more raw findings are in the guard's own files,
+the new vocabulary text and the new case.
+The pointer in the typography file now reads "the log messages of this function that write it".
+The pointer in the ledger of 2026-10-05 now names the eight paragraphs by file,
+with a note dated 2026-10-25 in place;
+its claim is unchanged.
+
+The titles.
+The review named three titles that still called exact,
+half,
+both and some members of the compared list.
+Two did:
+the case of the verbs and the case of the floating quantifiers.
+Each now says which of its words the list holds and which it no longer holds.
+The titles of the thirteen words and of the clause opener read true and were not changed.
+
+The two corrections in place that no code needed.
+B944's known limit is closed by the result of the ninth re-check:
+the three files pass salts 0 to 9 at the parent of `1dee3ca797`,
+and fail exactly the sweep's salts at `1dee3ca797`.
+The glance of round 9 said that main did not move and no merge was made;
+main moved to `16c2c7ddb1` and the landing merged it in `1362f15c40`.
+
+Cache versions.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 765c036343..HEAD` lists nothing,
+and the control over `938e84afb9..b37685721e` lists `6c81859c79` and `53e23a728c`,
+so the query reads the declarations.
+Only a test file,
+the fixtures of a scan,
+a TSDoc line and Markdown changed,
+so no number needed to move.
+
+Gates,
+keyless and one at a time,
+on the tree of `44e3b92e03`.
+In source-scan,
+`lint:types` and `lint:oxlint` (0 warnings and 0 errors) passed,
+`test:unit` passed 68 suites,
+and `source-scans` passed 53;
+the package has no build task.
+In typography,
+`build`,
+`lint:types` and `lint:oxlint` (0 warnings and 0 errors) passed,
+and `test:unit` passed 43 suites.
+The first `test:unit` of source-scan failed the Markdown lint on the first draft of the note in the ledger of 2026-10-05
+(13 findings of `markdown/semantic-line-breaks`);
+the note was rewrapped before the commit.
+
+Slips of this round:
+the fix commit `44e3b92e03` carries the title changes with the scan change,
+since both are in one file and interactive staging is not available here;
+its subject names the scan and the pointers and its body names the titles.

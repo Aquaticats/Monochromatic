@@ -684,8 +684,10 @@ named for that subject and listed here.
   a split four-seat bench settled by the seat the rotation leaves out (B948),
   the position scan that read a verb,
   a floating quantifier and "that" as the object of a comparison (B949),
-  and the refiner left out of the window,
-  the cache versions and the gates (B950).
+  the refiner left out of the window,
+  the cache versions and the gates (B950),
+  and the scan that reads "that" before a bare verb,
+  with the items the review of round 10 left (B951).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

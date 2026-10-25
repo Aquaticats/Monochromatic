@@ -36,6 +36,9 @@ Round 10 answers the nits that the eighth and ninth re-checks left,
 in [its own file](audit-ledger-weight-floors-removed-round-ten.md),
 at the next free ids B948 to B950,
 since this file would pass the limit of a thousand lines.
+Round 11 answers the items that the review of round 10 left,
+in the same file of round 10,
+at B951.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -531,6 +534,13 @@ It still lets a listed word before a bare verb pass
 ("the lines below that write it"),
 and a quantifier before "of".
 B949 states both in full.
+Correction in place (2026-10-25,
+round 11):
+the first of the two is narrower since B951.
+"that" before a verb the scan names is found,
+and the two pointers of that shape in the texts are reworded;
+a verb the scan does not name still passes,
+and a quantifier before "of" still passes.
 
 ## B939: the closing sentence of B935 overstated what the plants showed (round 8)
 
@@ -696,6 +706,18 @@ All four are defects of the test and none of the code.
 `origin/main` did not move during the round (`6457f1f09c`),
 so no merge was made.
 
+Correction (2026-10-25,
+round 11):
+the statements that `origin/main` did not move and that no merge was made
+were true when the round ended and were stale when the branch landed.
+`origin/main` moved to `16c2c7ddb1336eaabfd44d633a37bc883b88fff7`,
+two handover commits (`51113b9f783ad56ba765c0fe90fcef6ca5d677c6` and that head),
+and the landing merged it in `1362f15c40c72d721e13a6beab11c12e334e03e7`,
+whose parents are `d76cb95cee1121b336b25a7a4b9cd21c5d690d7a` (the round) and `16c2c7ddb1`.
+Re-check 9 found the staleness before the landing,
+and its `git merge-tree` check of the two heads reported no conflict.
+The statements stand as the record of what was true then.
+
 The archive case that held back the fourth seat is B944.
 The chunk case that had the fourth judge name a candidate is B945.
 The two refine cases that read the refiner's self-vote are B946.
@@ -774,6 +796,30 @@ the attribution to `1dee3ca797` rests on its diff of `candidate-select-fanout.ts
 the log line,
 and the cause control,
 and the two-point check at `1dee3ca797` and its parent was not run.
+
+Closed by re-check 9 (2026-10-25),
+which ran the two-point check on single files with the sweep's hook,
+the three files of B944 to B946 for each of salts 0 to 9:
+at the parent of `1dee3ca797be87bd6f8c59e796cb9f3176ac7e59`,
+`976d973367833b7ea3f7d15e495618b8a340d9fe`,
+all 30 runs pass;
+at `1dee3ca797` they fail exactly the sweep's salts
+(archive 1,
+3,
+5,
+7 and 9;
+chunk 2 and 6;
+refine 1,
+3,
+5,
+7 and 9).
+The positive control at `b37685721e9ccf9d21b392d0ba3b578f6bd40e65` reproduced the sweep's failure values,
+and the mechanism control on `1dee3ca797` with only `selectionFanOut` planted to return `'whole-bench'`
+passed the archive and chunk files at their failing salts.
+So the attribution to `1dee3ca797` is confirmed,
+and the stated cause is true.
+The refine cases were rotation-dependent from the day `1dee3ca797` wrote their expectations,
+and are not a later regression.
 
 ## B945: the chunk decline case had a seat name the candidate that the window may leave out (round 9)
 
