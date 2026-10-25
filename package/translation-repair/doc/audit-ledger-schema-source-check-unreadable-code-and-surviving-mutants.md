@@ -182,7 +182,7 @@ Follow-up of fix round 20
   a loader that `process.getBuiltinModule` was assigned to and is called by another name
   (`const load = process.getBuiltinModule; load("node:vm")`,
   held by a case;
-  fix round 21 reports the read of the member where it is held and states other limits in B948),
+  fix round 21 reports the read of the member where it is held and states other limits in B953),
   a specifier that is a variable,
   a key of `constructor` that is no literal,
   a pattern that takes `constructor` out of a value,

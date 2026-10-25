@@ -1,6 +1,6 @@
 # Audit ledger: the check over the schema sources, the named place, the carriers, the callbacks and the loaders
 
-B948,
+B953,
 which continues B865 to B869 of
 [Audit ledger: the check over the schema sources as a whitelist](audit-ledger-schema-source-check-as-a-whitelist.md)
 and
@@ -10,7 +10,7 @@ both at the limit of a file.
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
-## B948: the named place held the name of a function and not the function, and six reads of the sources were silent
+## B953: the named place held the name of a function and not the function, and six reads of the sources were silent
 
 Status:
 fixed on 2026-10-25 (UTC),
@@ -465,6 +465,12 @@ and the two index files that both sides edit merged without a marker;
 the ids stay in order,
 B900 to B947 of `origin/main` after B864 to B869 and the other earlier ids,
 and the entries B832 and B899 that `origin/main` repeats are still repeated.
+`origin/main` has taken B948 to B952 since,
+for the weight floors removed in rounds 10 to 12,
+so this entry,
+which was numbered B948 until fix round 22,
+is B953.
+B954 and every higher id are reserved for other branches.
 On the merged head corpus-pass `build`,
 `lint:types` and `lint:oxlint` (0 warnings,
 0 errors) pass,

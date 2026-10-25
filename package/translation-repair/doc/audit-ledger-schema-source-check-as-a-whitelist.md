@@ -801,7 +801,7 @@ and the suite lacked the input):
   so an import under another local name and a member of a namespace give the same name,
   and the name of the place holds `settleEntry`
   (fix round 21 makes the name hold the module that declares the function as well,
-  B948).
+  B953).
   The name is compared in all four parts,
   and a place stands for one report:
   each report is matched with the first place still free that stands for it,
@@ -810,7 +810,7 @@ and the suite lacked the input):
   because two forwarders on one line were one report
   and the name could stand for the one that hid the other
   (fix round 21 keeps every shape once for each node,
-  B948).
+  B953).
   On the same real sources the variants now leave one report each:
   a second forwarder as another dependency,
   on the line of the first,
