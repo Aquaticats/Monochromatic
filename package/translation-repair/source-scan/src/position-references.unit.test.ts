@@ -172,6 +172,20 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A POSITION BEFORE A WORD THAT IS ALSO A VERB, since "ties" after a position read as the object '
+        + 'of a comparison and let "the asked count below ties the script" pass (re-check 7, nit 2)',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: '// and the asked count below ties the script to a window of four.',
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual(['count below',],);
+      },
+    },),
+    it({
       name: 'FINDS A POSITION AFTER A BACKTICK RUN NOTHING CLOSES, which Markdown prints as a plain backtick '
         + 'rather than opening a code span',
       fn: async () => {
