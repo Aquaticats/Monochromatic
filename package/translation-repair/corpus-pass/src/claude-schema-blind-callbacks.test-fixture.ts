@@ -115,7 +115,8 @@ export const NO_CALLBACK: Callback = {
 
  @param callback - callback argument
 
- @returns Function written there, or declared by the file under that name
+ @returns Function written there, or declared by the file under that name when no scope around the callback binds the
+ name again
 
  @example
  ```ts
@@ -145,7 +146,19 @@ function functionOf(
     .find(function isNamed(candidate,): boolean {
       return candidate.name === name;
     },);
-  return ((name === '') || (declared === undefined)) ? NO_NODE : declared.fn;
+  /**
+   Whether a scope around the callback binds the name again, which makes it another thing than the declared function.
+   */
+  const isBoundAgain = isBoundAround({
+    node: callback,
+    name,
+    parents: context.parents,
+  },);
+  /**
+   Whether the callback names a function of the file that no scope around it hides.
+   */
+  const isDeclaredName = (name !== '') && (declared !== undefined);
+  return (isDeclaredName && (!isBoundAgain)) ? declared.fn : NO_NODE;
 }
 
 /**
