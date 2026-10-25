@@ -99,7 +99,7 @@ type Placed = {
  const encoded = encodedSlicesOf({ composed, artifact, },);
  ```
  */
-export function encodedSlicesOf(
+function encodedSlicesOf(
   {
     composed,
     artifact,
@@ -358,7 +358,7 @@ function placesOf(
  const found = liveInEncodedSlices({ composed, encoded: [1, 3,], },);
  ```
  */
-export function liveInEncodedSlices(
+function liveInEncodedSlices(
   {
     composed,
     encoded,

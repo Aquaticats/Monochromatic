@@ -3,11 +3,11 @@
  grammar.
 
  A LONE CARRIAGE RETURN IS A LINE ENDING TO THE GRAMMAR AND TO THE PLAIN PARSE, and to nothing the encoder reads lines
- with: its readers split on the line feed. The corpus never brings one (`slice-reading/src/line-endings.ts` folds
- Windows endings at the read, and the corpus holds none of the old Mac kind), so these are the hardening cases for a
- text the corpus cannot reach: the encoder folds every lone carriage return to a line feed before it reads anything, so
- each text below is written as the same text with line feeds, and no page it makes holds an expression, an element or a
- module the original lacks, nor a second closing line after a flow the original closed.
+ with: its readers split on the line feed. The corpus reader folds Windows endings and leaves a lone carriage return
+ alone (`slice-reading/src/line-endings.ts`), so these are the hardening cases for a text the corpus does not bring
+ today: the encoder folds every lone carriage return to a line feed before it reads anything, so each text of the list
+ is written as the same text with line feeds, and no page it makes holds an expression, an element or a module the
+ original lacks, nor a second closing line after a flow the original closed.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -39,7 +39,7 @@ import {
 /**
  The byte order mark, written as an escape so no file holds the invisible character itself.
  */
-const BOM = '﻿';
+const BOM = '\uFEFF';
 
 /**
  Texts with line feeds whose lone carriage return form once leaked a live construct through the footnote separator, or

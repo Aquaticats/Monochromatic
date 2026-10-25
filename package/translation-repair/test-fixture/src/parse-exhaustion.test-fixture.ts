@@ -116,7 +116,7 @@ function raisesFromParse(): never {
 }
 
 /**
- The key the grammar looks its parse-end hook up under on the global object, a registry symbol so that this package
+ The key the grammar looks its parse-end hook up under on the `Symbol` function, a registry symbol so that this package
  needs no import of the grammar's package and every copy of the grammar's module finds the same hook.
  */
 const PARSE_END_HOOK_KEY = Symbol.for('@monochromatic-dev/translation-repair-document-structure/parse-end-hook',);
@@ -177,11 +177,11 @@ function parseEndHookSet(
    The hook that stood there before.
    */
   const before: unknown = Reflect.get(
-    globalThis,
+    Symbol,
     PARSE_END_HOOK_KEY,
   );
   Reflect.set(
-    globalThis,
+    Symbol,
     PARSE_END_HOOK_KEY,
     hook,
   );
@@ -189,12 +189,12 @@ function parseEndHookSet(
     [Symbol.dispose]: function putHookBack(): void {
       if (before === undefined)
         Reflect.deleteProperty(
-          globalThis,
+          Symbol,
           PARSE_END_HOOK_KEY,
         );
       else
         Reflect.set(
-          globalThis,
+          Symbol,
           PARSE_END_HOOK_KEY,
           before,
         );

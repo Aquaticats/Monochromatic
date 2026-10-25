@@ -25,7 +25,6 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import * as grammar from '../dist/final/node/index.mjs';
 import {
   parseMarkdownBody,
   parseMdxBody,
@@ -34,6 +33,64 @@ import {
   ENGINE_EXHAUSTION_MESSAGE,
   withExhaustionFromWalk,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/parse-exhaustion.test-fixture.ts';
+
+/**
+ The module namespace of the built grammar, which the call that goes through it is given.
+ */
+type GrammarNamespace = {
+  readonly parseMarkdownBody: (arguments_: { readonly body: string; },) => Root;
+  readonly parseMdxBody: (arguments_: { readonly body: string; },) => Root;
+};
+
+/**
+ Whether a loaded module holds the two grammar functions.
+
+ @param value - the namespace the loader gave
+
+ @returns Whether both are functions on it
+
+ @example
+ ```ts
+ const holds = isGrammarNamespace({ value: await importGrammar(), },);
+ ```
+ */
+function isGrammarNamespace(value: unknown,): value is GrammarNamespace {
+  return ((typeof value) === 'object')
+    && (value !== null)
+    && ('parseMarkdownBody' in value)
+    && ('parseMdxBody' in value)
+    && ((typeof value.parseMarkdownBody) === 'function')
+    && ((typeof value.parseMdxBody) === 'function');
+}
+
+/**
+ Where the built grammar stands, held in a constant so the dynamic import of `importGrammar` names no relative path: a
+ namespace import and a literal relative dynamic import are forms the scan of dead test declarations does not follow,
+ and the names this file takes from the namespace are the ones it imports by name from the same module.
+ */
+const GRAMMAR_PATH = '../dist/final/node/index.mjs';
+
+/**
+ Loads the module namespace of the built grammar, for the call that goes through it.
+
+ @returns The namespace
+
+ @throws {@link Error} when the module lacks either function
+
+ @example
+ ```ts
+ const grammar = await importGrammar();
+ ```
+ */
+async function importGrammar(): Promise<GrammarNamespace> {
+  /**
+   What the loader gave.
+   */
+  const loaded: unknown = await import(GRAMMAR_PATH);
+  if (!isGrammarNamespace(loaded,))
+    throw new Error('unreachable: the built grammar holds both parse functions',);
+  return loaded;
+}
 
 /**
  The key the grammar looks its hook up under, the registry symbol the fixture sets it under.
@@ -66,6 +123,7 @@ type Shape = {
     arguments_: {
       readonly name: 'parseMarkdownBody' | 'parseMdxBody';
       readonly body: string;
+      readonly grammar: GrammarNamespace;
     },
   ) => Root;
 };
@@ -115,7 +173,7 @@ const SHAPES: readonly Shape[] = [
   },
   {
     name: 'the module namespace',
-    call: function namespace({ name, body, },): Root {
+    call: function namespace({ name, body, grammar, },): Root {
       return grammar[name]({ body, },);
     },
   },
@@ -156,14 +214,14 @@ function hookSet(
   { hook, }: { readonly hook: (arguments_: { readonly root: Root; },) => void; },
 ): Disposable {
   Reflect.set(
-    globalThis,
+    Symbol,
     PARSE_END_HOOK_KEY,
     hook,
   );
   return {
     [Symbol.dispose]: function takeAway(): void {
       Reflect.deleteProperty(
-        globalThis,
+        Symbol,
         PARSE_END_HOOK_KEY,
       );
     },
@@ -198,6 +256,10 @@ await describe({
               + 'the call returns the tree and the caller\'s read of it raises the engine\'s exhaustion',
             fn: async () => {
               /**
+               The module namespace of the built grammar.
+               */
+              const grammar = await importGrammar();
+              /**
                The tree the call returned inside the walk, read after the call ended.
                */
               const root = withExhaustionFromWalk({
@@ -205,6 +267,7 @@ await describe({
                   return call({
                     name,
                     body: BODY,
+                    grammar,
                   },);
                 },
               },);
@@ -231,8 +294,8 @@ await describe({
         },),
 
         it({
-          name: 'CALLS A HOOK SET UNDER THE REGISTRY SYMBOL ONCE, WITH THE FINAL TREE, AT THE END OF EACH FUNCTION: the '
-            + 'tree it is given is the one the call returns, with its heading floors noted',
+          name: 'CALLS A HOOK SET UNDER THE REGISTRY SYMBOL ONCE, WITH THE FINAL TREE, AT THE END OF EACH FUNCTION: '
+            + 'the tree it is given is the one the call returns, with its heading floors noted',
           fn: async () => {
             /**
              The trees the hook was given.
@@ -263,7 +326,7 @@ await describe({
               },
             },);
             expect(Reflect.get(
-              globalThis,
+              Symbol,
               PARSE_END_HOOK_KEY,
             ),).toBe(undefined,);
             expect(parseMdxBody({ body: BODY, },).children.length > 0,).toBe(true,);

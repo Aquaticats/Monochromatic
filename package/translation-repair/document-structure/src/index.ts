@@ -135,6 +135,10 @@ export {
 export { noteHeadingFloors, } from './heading-floors.ts';
 export { moduleLineStartsOf, } from './module-line-starts.ts';
 export {
+  callParseEndHook,
+  PARSE_END_HOOK_KEY,
+} from './parse-end-hook.ts';
+export {
   MarkdownParseError,
   MdxParseError,
   parseMarkdownBody,

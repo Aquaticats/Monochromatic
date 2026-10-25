@@ -227,7 +227,9 @@ which lists every file of these commitments.
   and the readers of the encoder split lines on the line feed alone.
   A run written as literal text therefore has each such carriage return written as a line feed
   (`foldLoneCarriageReturns` in `page-check/src/corpus-run/source-ships-readable.ts`,
-  applied once where the encoder takes the text in, same length, so every offset stands),
+  applied once where the encoder takes the text in,
+  same length,
+  so every offset stands),
   and the checks that decide which runs are written so read the run folded in the same way.
   A Windows line ending stays as it is,
   and a run shipped as recorded keeps every ending it has.

@@ -78,8 +78,8 @@ import {
 // lines on the line feed, so a text of such endings was one line to them: a footnote's separator and the closing line
 // of a flow were missed, an expression leaked on the page and a closed flow was closed twice. Folding at the one entry
 // keeps the length, so every offset stands, and leaves Windows line endings as they are. The text a run that parses as
-// written ships is not encoded and keeps whatever endings it has; the corpus folds Windows endings at the read and holds
-// no lone carriage return (`slice-reading/src/line-endings.ts`).
+// written ships is not encoded and keeps whatever endings it has; the corpus reader folds Windows endings and leaves a
+// lone carriage return alone (`slice-reading/src/line-endings.ts`).
 //
 // WHAT IS NOT ENCODED, AND WHY. A source run that parses as written ships as written, `<Foo />` and a balanced
 // `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there
@@ -458,9 +458,10 @@ function escapesNext(
  ```
  */
 function escapedText({ text: recorded, }: { readonly text: string; },): string {
-  // THE ONE PLACE A LONE CARRIAGE RETURN IS READ: the readers below split lines on the line feed and the grammar
-  // reads a carriage return as a line ending, so a text of such endings was read as a single line, its footnote
-  // separator and the closing line of its flow were missed, and the page held an expression the original lacked.
+  // THE ONE PLACE A LONE CARRIAGE RETURN IS READ: the readers of this module split lines on the line feed and the
+  // grammar reads a carriage return as a line ending, so a text of such endings was read as a single line, its
+  // footnote separator and the closing line of its flow were missed, and the page held an expression the original
+  // lacked.
   /**
    The text with every lone carriage return written as a line feed, of the same length.
    */

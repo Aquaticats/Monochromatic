@@ -95,57 +95,6 @@ export function joinedLines(
 }
 
 /**
- Takes the white space off both ends of a text.
-
- @param text - text
-
- @returns Text without it
-
- @example
- ```ts
- const kept = trimmed({ text: ' a ', },); // 'a'
- ```
- */
-function trimmed({ text, }: { readonly text: string; },): string {
-  return text.trim();
-}
-
-/**
- What stands between two offsets of a text once the white space at both ends is left out.
-
- @param source - text
-
- @param from - first offset
-
- @param to - second offset
-
- @returns Text between them, trimmed
-
- @example
- ```ts
- const gap = gapBetween({ source: 'a  \n', from: 1, to: 4, },); // ''
- ```
- */
-function gapBetween(
-  {
-    source,
-    from,
-    to,
-  }: {
-    readonly source: string;
-    readonly from: number;
-    readonly to: number;
-  },
-): string {
-  return trimmed({
-    text: source.slice(
-      from,
-      to,
-    ),
-  },);
-}
-
-/**
  The edit that joins a code span to the line before it when the span starts with a fence mark indented four spaces or
  more: the plain reading takes the run of backticks for the opening of the span, so no backslash can be written into it,
  and the strict grammar takes it for a fence that cuts the paragraph.
@@ -192,11 +141,10 @@ function joinBeforeFenceMark(
   if (source.charAt(before.at,) !== '\n')
     return [];
   if (definitionEnds.some(function endsTheLineBefore(end,): boolean {
-    return (end <= before.at) && (gapBetween({
-      source,
-      from: end,
-      to: before.at,
-    }) === '');
+    return source.indexOf(
+      '\n',
+      end,
+    ) === before.at;
   },))
     return [];
   return [

@@ -22,17 +22,20 @@ and the failing lines of every red commit were kept as files apart from the comm
   the pair and text readers of the sampled check move into a fixture.
 - `19338352b89a6294a8096077fcd04c9679d38a5f`,
   red:
-  a text with lone carriage returns for line endings (68 failing leaf cases, 3 controls).
+  a text with lone carriage returns for line endings (68 failing leaf cases,
+  3 controls).
 - `c72dc715f9c51cff425551edf6e99b1350b808eb`,
   the fix.
 - `6fa76a85c0593b561dd02b370dd35ff050679f7f`,
   red:
-  the walk fixture called through an object property, the module namespace and `Function.prototype.call`
+  the walk fixture called through an object property,
+  the module namespace and `Function.prototype.call`
   (7 failing leaf cases).
 - `6dafae15297c41fbf9450bc2520a6d1ca15664f4`,
   red:
-  a definition holding a brace before an indented fence, a caret label with white space, and a tab fence beside lone
-  carriage returns (9 failing leaf cases).
+  a definition holding a brace before an indented fence,
+  a caret label with white space,
+  and a tab fence beside lone carriage returns (9 failing leaf cases).
 - `f99b48691280f178cb81120dfb6468786e216622`,
   the fix of those.
 - `13e53207b72e7dfc6f9bef886dd79770aed9d4d7`,
@@ -42,20 +45,25 @@ and the failing lines of every red commit were kept as files apart from the comm
   a code span across a footnote definition line in a block quote or a list item (4 failing leaf cases),
   and the pin of the limit on footnote labels with a brace.
 - `693c4b67ca341a55d26b6cffaf637e8a8b36cc21`,
-  the fix of those, and the source of a regression found by the full pass.
+  the fix of those,
+  and the source of a regression found by the full pass.
 - `d6cdc13b5114623d8a489b297db2c41128ffd43d`:
   articles in TSDoc and lines over 120 columns.
 - `e4871f05840ce82edef1eb2d4c6f6e1e64883cb1`,
   red:
-  the regression (2 failing leaf cases); its three cases asked for reader equality that no encoding gives for
-  a footnote in a container, which `83a717b45dca19419e4ce70e104cf1468682807a` corrects.
+  the regression (2 failing leaf cases);
+  its three cases asked for reader equality that no encoding gives for
+  a footnote in a container,
+  which `83a717b45dca19419e4ce70e104cf1468682807a` corrects.
 - `83a717b45dca19419e4ce70e104cf1468682807a`,
   red:
-  the same three texts, asked for no live construct (1 failing leaf case).
+  the same three texts,
+  asked for no live construct (1 failing leaf case).
 - `99adc6093c69dd5eff714ee25e3f208822340adc`,
   the fix.
 - `bed83bb5c3c8cd0ff8e7329f4b80e15b72a93040`:
-  the sampled check, the full task and the invariant for the last step.
+  the sampled check,
+  the full task and the invariant for the last step.
 
 ### A lone carriage return
 
@@ -86,7 +94,8 @@ so a text of mixed endings keeps its Windows ones.
 The commit message of `c72dc715f9c51cff425551edf6e99b1350b808eb` counts nine modules where the list has ten.
 
 The company check of the composition (`source-ships-company.ts`) reads the text of each run for an indented fence mark,
-a declared name and a flow left open, and it splits lines on the line feed too.
+a declared name and a flow left open,
+and it splits lines on the line feed too.
 It reads the run folded in the same way,
 and the page keeps the run as it was written.
 The first version of the check left a run with a tab fence mark and lone carriage returns as written,
@@ -117,7 +126,8 @@ A task,
 runs `source-live-full.expensive.unit.test.ts`,
 all 40000 pairs of each of the seeds 31415926 and 27182818 and all 32256 texts,
 and takes 318 s under a cap of three threads
-(one seed alone, 143 s and about 360 MB).
+(one seed alone,
+143 s and about 360 MB).
 
 The invariant for the last step read the nesting of the pair texts with a function that splits lines on the line feed
 and gave false alarms.
@@ -151,7 +161,7 @@ so a call through an object property,
 the module namespace or `Function.prototype.call` with an object hid the name and the grammar's own read raised.
 `parseMdxBody` and `parseMarkdownBody` now call a hook last
 (`document-structure/src/parse-end-hook.ts`),
-which stands on the global object under a registry symbol
+which stands on the `Symbol` function under a registry symbol
 and does nothing where no test sets it;
 the fixture sets it for the span of one call and raises once it has fired for a tree.
 The package of the fixture needs no import of the grammar's package,
@@ -160,8 +170,8 @@ The 14-site test of `translation-repair-artifact` passes with it.
 Other parse sites (`parse-markdown-math.ts`,
 `gfm-block-ranges.ts`,
 `module-line-starts.ts`)
-do not call the hook:
-none of them reads the tree it builds before it returns it.
+do not call the hook,
+so the fixture never arms a tree they build and answers every read of it.
 
 ### Limits named
 
@@ -206,10 +216,12 @@ with the sampled case and the unmutated tree as the control (it passes):
 
 `build`,
 `test:unit` (147 `[PASS]` lines and no `[FAIL]` for the page-check package,
-59 for document-structure,
+60 for document-structure,
 7 for test-fixture,
 121 for artifact),
-`lint:types` and `lint:oxlint` of the packages touched.
+`lint:types` and `lint:oxlint` of the packages touched,
+and `test:unit` (68) and `source-scans` (53) of `translation-repair-source-scan`,
+run in turn and on the code of the last fix.
 No cache version moved:
 `git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' bcff23b8ce..HEAD` names no commit,
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
