@@ -5,6 +5,7 @@ import {
   openingMark,
 } from './source-ships-open-flow.ts';
 import { containerCharactersAt, } from './source-ships-footnote-container.ts';
+import { footnoteOpensRawHtml, } from './source-ships-footnote-html.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import type { OpenerInCode, } from './source-ships-opener-text.ts';
 import type {
@@ -181,6 +182,14 @@ function splitFlowsOf(
     flow.mark = NO_MARK;
   }
 
+  /**
+   Whether the lines read are still the block of raw HTML that the definition opens with, if it does: they are text up to
+   the first blank line.
+   */
+  const html = { open: footnoteOpensRawHtml({
+    source,
+    range,
+  },), };
   for (const line of linesOfRange({
     source,
     range,
@@ -195,6 +204,18 @@ function splitFlowsOf(
       at: line.start,
       most: prefixLength,
     },);
+    if (html.open) {
+      // A line that holds nothing but the marks of its container is a blank line, which ends the block of raw HTML.
+      /**
+       What the line holds after the marks of its container.
+       */
+      const rest = source.slice(
+        indentAt,
+        line.end,
+      );
+      html.open = rest.trim() !== '';
+      continue;
+    }
     /**
      The indentation the footnote takes, when the line has it.
      */

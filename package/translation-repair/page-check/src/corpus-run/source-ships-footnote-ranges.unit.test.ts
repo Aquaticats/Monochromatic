@@ -93,7 +93,7 @@ await describe({
         },),).toEqual({
           edit: { start: 12, end: 13, replacement: String.raw`\^`, },
           label: { start: 13, end: 14, },
-          state: { open: false, endLine: 2, endsInLiteral: false, prefixLength: 0, },
+          state: { open: false, endLine: 2, endsInLiteral: false, prefixLength: 0, opensRawHtml: false, },
         },);
       },
     },),

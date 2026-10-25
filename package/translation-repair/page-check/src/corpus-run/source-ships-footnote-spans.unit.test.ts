@@ -32,6 +32,7 @@ const OPEN = {
   endLine: 1,
   endsInLiteral: false,
   prefixLength: 0,
+  opensRawHtml: false,
 };
 
 /**

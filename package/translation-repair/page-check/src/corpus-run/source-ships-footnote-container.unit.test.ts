@@ -30,6 +30,7 @@ const OPEN_IN_QUOTE = {
   endLine: 1,
   endsInLiteral: false,
   prefixLength: 2,
+  opensRawHtml: false,
 };
 
 /**
@@ -204,6 +205,38 @@ await describe({
             expect(continuesTheFootnote({
               source: paragraph,
               ...childOfQuote({ source: paragraph, at: 1, },),
+              state: OPEN_IN_QUOTE,
+              isRootChild: false,
+            },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'IS FALSE FOR A BLOCK RIGHT AFTER A DEFINITION THAT OPENS WITH RAW HTML, true after a blank line, in a container',
+          fn: async () => {
+            /**
+             The state after a definition that opens with a tag alone.
+             */
+            const html = { ...OPEN_IN_QUOTE, opensRawHtml: true, };
+            /**
+             A quote whose definition is followed right away by indented text, and the same after a blank line.
+             */
+            const right = '> [^1]: <b>\n>     p\n';
+            const after = '> [^1]: <b>\n>\n>     p\n';
+            expect(continuesTheFootnote({
+              source: right,
+              ...childOfQuote({ source: right, at: 1, },),
+              state: html,
+              isRootChild: false,
+            },),).toBe(false,);
+            expect(continuesTheFootnote({
+              source: after,
+              ...childOfQuote({ source: after, at: 1, },),
+              state: html,
+              isRootChild: false,
+            },),).toBe(true,);
+            expect(continuesTheFootnote({
+              source: right,
+              ...childOfQuote({ source: right, at: 1, },),
               state: OPEN_IN_QUOTE,
               isRootChild: false,
             },),).toBe(true,);

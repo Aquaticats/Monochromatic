@@ -214,6 +214,7 @@ export function pageOnlyDefinitionWritten(
       },),
       endsInLiteral: false,
       prefixLength: 0,
+      opensRawHtml: false,
     },
   };
 }

@@ -34,6 +34,7 @@ export {
   placedAfter,
 } from './corpus-run/source-reading-places.ts';
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
+export { footnoteOpensRawHtml, } from './corpus-run/source-ships-footnote-html.ts';
 export {
   containerCharactersAt,
   continuesAsParagraph,

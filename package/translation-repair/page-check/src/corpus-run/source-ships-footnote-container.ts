@@ -4,6 +4,7 @@ import {
   indentationOf,
   isIndentedCode,
   linesWithoutPrefix,
+  startLineOf,
   TAB_COLUMNS,
 } from './source-ships-footnote.ts';
 import type { FootnoteState, } from './source-ships-pending.ts';
@@ -231,6 +232,32 @@ export function continuesTheFootnote(
   },
 ): boolean {
   if (!state.open)
+    return false;
+  // THE LINES RIGHT AFTER A DEFINITION THAT OPENS WITH RAW HTML ARE THAT BLOCK'S, in a container: no blank line stands
+  // between it and the block, which a reader of the source takes for text. At the top the footnote's own range says so.
+  /**
+   The line the block read before ends on, and whether it opens a definition that starts with raw HTML.
+   */
+  const {
+    endLine,
+    opensRawHtml,
+  } = state;
+  /**
+   The line the block starts on.
+   */
+  const startLine = startLineOf({
+    node,
+    fallback: 0,
+  },);
+  /**
+   Whether the block starts on the line right after the definition, with no blank line between.
+   */
+  const rightAfter = startLine <= (endLine + 1);
+  /**
+   Whether the block is a line of the raw HTML block the definition opens with.
+   */
+  const inRawHtml = opensRawHtml && rightAfter;
+  if ((!isRootChild) && inRawHtml)
     return false;
   if (isIndentedCode({
     source,

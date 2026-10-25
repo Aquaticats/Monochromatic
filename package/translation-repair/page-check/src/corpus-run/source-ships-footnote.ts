@@ -280,6 +280,35 @@ export function continuesDefinition(
 }
 
 /**
+ The line a node starts on.
+
+ @param node - node of the parse
+
+ @param fallback - line to give for a node that carries no position
+
+ @returns One-based line
+
+ @example
+ ```ts
+ const line = startLineOf({ node, fallback: 0, },);
+ ```
+ */
+export function startLineOf(
+  {
+    node,
+    fallback,
+  }: {
+    readonly node: TreeNode;
+    readonly fallback: number;
+  },
+): number {
+  return node.position
+    ?.start
+    .line
+    ?? fallback;
+}
+
+/**
  The line a node ends on.
 
  @param node - node of the parse

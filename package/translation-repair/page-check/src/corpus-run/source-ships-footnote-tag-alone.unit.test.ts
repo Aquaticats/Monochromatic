@@ -40,8 +40,8 @@ const CASES: readonly (readonly [string, string])[] = [
     '- [^1]: <b>\n      ```\n      <i>\n      {b}\n  ```\n  [r]: u{b}\n',
   ],
   [
-    'A DISPLAY MATH RIGHT AFTER A FOOTNOTE THAT OPENS WITH A TAG ALONE IN A BLOCK QUOTE',
-    '> [^1]: <b>\n>     $$\n>     {a}\n>     $$\n',
+    'A DISPLAY MATH AFTER A BLANK LINE AFTER A FOOTNOTE THAT OPENS WITH A TAG ALONE IN A BLOCK QUOTE',
+    '> [^1]: <b>\n>\n>     $$\n>     {a}\n>     $$\n',
   ],
   [
     'A FENCE AFTER A BLANK LINE AFTER A FOOTNOTE THAT OPENS WITH A TAG ALONE IN A BLOCK QUOTE',

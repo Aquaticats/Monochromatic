@@ -7,6 +7,7 @@ import {
   endLineOf,
   opensFootnote,
 } from './source-ships-footnote.ts';
+import { footnoteOpensRawHtml, } from './source-ships-footnote-html.ts';
 import { endsInLiteral, } from './source-ships-literal-end.ts';
 import {
   rangeOf,
@@ -72,6 +73,12 @@ export type FootnoteState = {
    quote and the indentation of a list item, which each later line of the footnote carries as many of; none at the top.
    */
   readonly prefixLength: number;
+
+  /**
+   Whether the block is the first line of a footnote definition that opens with a block of raw HTML, which holds the lines
+   right after it up to the next blank line.
+   */
+  readonly opensRawHtml: boolean;
 };
 
 /**
@@ -82,6 +89,7 @@ const NO_BLOCK_READ: FootnoteState = {
   endLine: 0,
   endsInLiteral: false,
   prefixLength: 0,
+  opensRawHtml: false,
 };
 
 /**
@@ -146,12 +154,16 @@ export function stateAfter(
     readonly continuesFootnote: boolean;
   },
 ): FootnoteState {
+  /**
+   Whether the block opens a footnote definition.
+   */
+  const opens = opensFootnote({
+    source,
+    node,
+    range,
+  },);
   return {
-    open: continuesFootnote || opensFootnote({
-      source,
-      node,
-      range,
-    },),
+    open: continuesFootnote || opens,
     endLine: endLineOf({
       node,
       fallback: before.endLine,
@@ -160,16 +172,16 @@ export function stateAfter(
       source,
       node,
     },),
-    prefixLength: opensFootnote({
-      source,
-      node,
-      range,
-    },)
+    prefixLength: opens
       ? (range.start - (source.lastIndexOf(
         '\n',
         range.start - 1,
       ) + 1))
       : before.prefixLength,
+    opensRawHtml: opens && footnoteOpensRawHtml({
+      source,
+      range,
+    },),
   };
 }
 
@@ -418,6 +430,7 @@ export function takeFootnote(
       },),
       endsInLiteral: false,
       prefixLength: state.prefixLength,
+      opensRawHtml: false,
     },
   };
 }

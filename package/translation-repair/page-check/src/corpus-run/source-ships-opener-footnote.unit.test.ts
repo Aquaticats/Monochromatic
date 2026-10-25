@@ -143,6 +143,19 @@ await describe({
       },
     },),
     it({
+      name: 'LEAVES THE LINES RIGHT AFTER A DEFINITION THAT OPENS WITH A TAG ALONE, which are raw HTML up to a blank line',
+      fn: async () => {
+        /**
+         A definition that opens with a tag alone, a fence with an opener right after it, and the same after a blank line.
+         */
+        const right = '[^1]: <b>\n    ```\n    <!-- never\n    ```\n';
+        const after = '[^1]: <b>\n\n    ```\n    <!-- never\n    ```\n';
+        expect(splitOf({ source: right, },),).toEqual({ edits: [], handled: [], },);
+        expect(splitOf({ source: after, },).handled,).toEqual([after.indexOf('<!--',),],);
+        expect(splitOf({ source: '[^1]: <b> x\n    ```\n    <!-- never\n    ```\n', },).handled.length,).toBe(1,);
+      },
+    },),
+    it({
       name: 'LEAVES A TEXT ALONE THAT HOLDS NO OPENER, no footnote, or a fence that stands at the top',
       fn: async () => {
         /**
