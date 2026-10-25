@@ -123,8 +123,8 @@ which hold 12,
   about three standard deviations over 0.05.
   The false alarm rate of the warning is about 0.054 in that cell,
   and below 0.05 in the three other cells re-check 7 took beside it,
-  at 176 units: 0.0296 (fix rate 0.9, correlation 0),
-  0.0430 (fix rate 0.7, correlation 1) and 0.0379 (chance 0.5, correlation 1).
+  at 176 units: 0.0296 (fix rate 0.9, agreement 0, correlation 0),
+  0.0430 (fix rate 0.7, agreement 0, correlation 1) and 0.0379 (fix rate 0.9, agreement 0.5, correlation 1).
   The frozen `RULE` line says the chance is held at or under 0.05 counting the trials of an arm as independent draws,
   which is a statement about independent draws, and the trials of this cell are not.
 - The default effort repeating itself less than high and low,

@@ -521,8 +521,8 @@ measured in round 10 by one simulation run of the committed fixture
   0.0537 with the 4000 of this run pooled (about three standard deviations over 0.05),
   so the false alarm rate of the warning is about 0.054 in that one cell,
   where the trials of an entry read as alike as the model allows and are not independent draws.
-  The three cells re-check 7 took beside it read 0.0296 (fix rate 0.9, correlation 0),
-  0.0430 (fix rate 0.7, correlation 1) and 0.0379 (chance 0.5, correlation 1) at 176 units.
+  The three cells re-check 7 took beside it read 0.0296 (fix rate 0.9, agreement 0, correlation 0),
+  0.0430 (fix rate 0.7, agreement 0, correlation 1) and 0.0379 (fix rate 0.9, agreement 0.5, correlation 1) at 176 units.
   When the default effort repeats itself 15 points less than arms that always repeat,
   it fired on 0.019 to 0.041 at 100 units,
   0.984 to 0.996 at 176 and 0.992 to 0.996 at 264;
