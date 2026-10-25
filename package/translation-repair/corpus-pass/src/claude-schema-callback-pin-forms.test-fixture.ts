@@ -243,6 +243,16 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     ],
     position: CALL_ARGUMENT,
   },),
+  acceptingCase({
+    name: 'ACCEPTS A BUILDER\'S RESULT USED AS THE KEY OF A COMPUTED MEMBER THAT IS CALLED WITH A FUNCTION, since the '
+      + 'key names a method and holds no value the function can read',
+    lines: [
+      'declare const holder: any;',
+      'export function mk() {',
+      `  holder[contestResponseFormat(${ARGUMENTS},)](() => 1,);`,
+      '}',
+    ],
+  },),
 ];
 
 //endregion Callbacks the pin cases of the check hold apart from a change to one line of it

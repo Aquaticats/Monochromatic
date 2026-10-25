@@ -18,7 +18,7 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 /**
  The arguments of a call of the function a case declares, as the file that calls it writes them.
  */
-const DERIVED_ARGUMENTS = '{ schemaName: \'derived\', verdicts: [], asksArchive: false, }';
+export const DERIVED_ARGUMENTS = '{ schemaName: \'derived\', verdicts: [], asksArchive: false, }';
 
 /**
  A case whose stage file declares a function and whose caller file calls it.
@@ -40,7 +40,7 @@ const DERIVED_ARGUMENTS = '{ schemaName: \'derived\', verdicts: [], asksArchive:
  const shapeCase = derivedCase({ name: 'x', signature: 'mk(a: any,)', body: [], call: 'mk(1,)', isListed: true, },);
  ```
  */
-function derivedCase(
+export function derivedCase(
   {
     name,
     signature,
@@ -100,7 +100,7 @@ function derivedCase(
  const line = sendsFrom({ argument: 'a', },);
  ```
  */
-function sendsFrom({ argument, }: { readonly argument: string; },): string {
+export function sendsFrom({ argument, }: { readonly argument: string; },): string {
   return `  return await gatherThroughCache({ responseFormat: (contestResponseFormat as any)(${argument},), },);`;
 }
 
