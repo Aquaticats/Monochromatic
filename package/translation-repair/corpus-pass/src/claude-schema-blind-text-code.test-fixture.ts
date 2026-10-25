@@ -97,13 +97,13 @@ function moduleNamedBy({ node, }: { readonly node: TreeNode; },): string {
   }
   if (node.type === 'TSImportEqualsDeclaration') {
     /**
-     The reference to the module the declaration names, or what else it names.
+     The reference to the module the declaration names, or the name of another declaration, which has no expression.
      */
     const reference = nodeAt({
       node,
       field: 'moduleReference',
     },);
-    return ((node.importKind === 'type') || (reference.type !== 'TSExternalModuleReference'))
+    return (node.importKind === 'type')
       ? ''
       : stringValueOf({ node: reference.expression, },);
   }
@@ -269,10 +269,10 @@ function takesLoader({ node, }: { readonly node: TreeNode; },): boolean {
     field: 'properties',
   },)
     .some(function isLoaderKey(property,): boolean {
-      return (property.type === 'Property') && (keyNameOf({ key: nodeAt({
+      return keyNameOf({ key: nodeAt({
         node: property,
         field: 'key',
-      },), },) === 'getBuiltinModule');
+      },), },) === 'getBuiltinModule';
     },);
 }
 
