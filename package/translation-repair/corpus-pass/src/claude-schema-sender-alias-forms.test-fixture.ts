@@ -141,6 +141,60 @@ export const SENDER_ALIAS_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER A TYPE ASSERTION',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      '(g as any) = other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER A NON-NULL ASSERTION',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      '(g!) = other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER A SATISFIES MARK',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      '(g satisfies any) = other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER AN ANGLE BRACKET ASSERTION',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      '(<any>g) = other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER A LOGICAL ASSIGNMENT',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      'g ||= other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER A NULLISH ASSIGNMENT',
+    lines: [
+      'const other = (o: object,) => o;',
+      'let g: any = gatherThroughCache;',
+      'g ??= other;',
+    ],
+    isReported: true,
+  },),
+  aliasCase({
     name: 'ACCEPTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS NEVER ASSIGNED AGAIN, with let, and a name of '
       + 'another alias that is assigned again',
     lines: [
