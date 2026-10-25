@@ -156,8 +156,14 @@ pub(super) fn note_event(state: &Rc<RefCell<State>>, event: &WindowEvent) {
 ///  as the toolkit's scroll does)
 /// until the scroll reports that it took the turn.
 pub(super) fn note_turn(state: &Rc<RefCell<State>>, distance: f32) {
-    if let Ok(mut current) = state.try_borrow_mut() {
-        current.wheel.pending = Some((distance, Instant::now()));
+    match state.try_borrow_mut() {
+        Ok(mut current) => current.wheel.pending = Some((distance, Instant::now())),
+        // The turn is then never matched with the scroll's report, so no tile is asked for its end.
+        Err(error) => tracing::debug!(
+            %error,
+            distance,
+            "a wheel turn was not noted because the window state was in use"
+        ),
     }
 }
 
@@ -179,10 +185,18 @@ pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
     // event), so the note is taken, not read: the second report finds nothing and changes nothing.
     let pending = current.wheel.pending.take();
     drop(current);
-    if let Some((distance, at)) = pending
-        && at.elapsed() < TURN_WINDOW
-    {
-        turn(window, state, distance);
+    if let Some((distance, at)) = pending {
+        let age = at.elapsed();
+        if age < TURN_WINDOW {
+            turn(window, state, distance);
+        } else {
+            // The turn is then not an ease the window follows, so no tile is asked for its end.
+            tracing::debug!(
+                distance,
+                age_ms = age.as_millis() as u64,
+                "a noted wheel turn was too old to belong to the scroll's report"
+            );
+        }
     }
 }
 

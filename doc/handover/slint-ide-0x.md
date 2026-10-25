@@ -4600,7 +4600,136 @@ stores `None` (`Rest::moved`, `:106-120`), `rest()` returns before the `resolved
 not a regression (the same before the fix): a pointer that rests over no character when the view moves under it never
 asks, even when an identifier arrives under it; only a pointer move restarts the rest. Not fixed, nobody asked; the
 fix would resolve a rest over `None` again at due time when the view has moved, and keep `idle` for the popup.
+(Done later on 2026-10-25 on branch worktree-agent-a9743aae63279d55b: see the section "A pointer that rests over no
+character asks when the view puts a character under it".)
 Popup screenshots were not viewed for all 14 requests (log only).
+Started 2026-10-25 on the owner's question "what is going on, you named what's left so why are you not working?": an
+agent (scratch `~/temp/agent/hover2`) fixes the limitation (a rest over no character restarts and resolves at due time
+when the view moved under it, `idle` kept for the popup dismissal of a settled pointer) behind failing tests, measures it
+against `main`, and views the screenshots of 12 popups (after a far jump and settled) to check each is attached to the
+identifier under the pointer; its report is verified, landed and the IDE reinstalled. The recorder rate (15 to 25 fps
+against 60 requested) is a property of this loaded host and is not something to fix.
+Landed 2026-10-25 as `96959a8b67` (the agent's tip `23d3dcec4a` merged with two docs-only commits of other sessions;
+the IDE sources equal what the gates ran on): gates on the merged tree `lint` 0, `test:native` 342 passed and 5
+skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0; 11 tests in
+`src/native/language/pointer_blank_tests.rs`, 24 `hover-*` guard cases removed and restored. Reproduction on the
+installed `dd16d49c0d586fb1…` (10 trials per cell, past the end of a line at 5, 11, 29 and 301 notches, on a hint row at
+5 and 301, hints arriving under the pointer): main 0 of 10 everywhere, fix 10 of 10 right, requests 0.533 to 0.574 s
+after the wheel (0.783 to 0.818 s with hints). Fix: `Rest::due` returns a rest over no character only after the view
+moved under it; `follow` watches the text height as well as the drawn offset (hints above the pointer move text
+without moving the offset); `rest` resolves against the drawn rows and offset when the request is built, a character
+calls `asked_about`, no character calls `found_nothing` (the next view move starts the rest again); `idle` unchanged;
+a settled pointer over nothing asks nothing and logs nothing. Defect of the first version found only by viewing the
+popup screenshots: the answer came right but the popup closed 20 ms later because the rest still recorded "no
+character" and `idle` closed the popup of its own answer; counts and tests had missed it; `asked_about` fixes it and
+the tests compare the popup after twice the rest time. The agent viewed 12 far-jump popups, 2 of 6 settled ones and 1
+hints popup: each for the identifier under the pointer, below its row at the pointer's column, on screen; the hints
+popup overlaps the left 10 px of the minimap. Open from the agent: one fresh-session trial under load had no
+character under the pointer after a 301-notch first scroll (its log shows a finished tile left for a scroll step that
+never came; not reproduced in 3 more trials, unexplained); rows drawn late without a move of the offset or a change of
+the text height still do not restart a rest; the height signal has a unit test only.
+Queued 2026-10-25 and started at once (QWD): the open-items agent (branch `worktree-agent-ac50f93d8163f1cf4`, tip
+`39e6a10ee3`, gates on its own tree green) found item A is no stuck view and item B one real case (a reload that keeps
+the line count) fixed behind failing tests; I merged and gated it (`land-open`), then build, install and verify the
+installed binary. Two things it left unexplained are with a second agent (scratch `~/temp/agent/rowmap`, branch off
+`654f87b6b2`): (1) a row map 72 px (3 rows) taller than the text (36096 against 36024) in 9 of 160 trials under the
+one-core limit, 4 of 53 input-free sessions under it and 1 of 1,160 unlimited, three lines keeping two rows after
+measurement passes at the narrow first width end late: is the map permanently too tall in such a session (scroll
+extent, minimap, positions all off: a real defect) or does a later pass correct it; (2) three trials with no wheel log
+line (likely a 40-notch turn the shown tile holds, which logs nothing; to be shown with file:line). Their reports are
+verified, landed and the IDE reinstalled.
+Landed 2026-10-25 as `b951a5d005` (open-items tip `39e6a10ee3` merged with my handover commit; gates on the merged
+tree: `lint` 0, `test:native` 345 passed and 5 skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer`
+0): `View` and `Spot` (`src/native/language/pointer.rs`) carry the displayed text's `DocumentStamp`, and `Rest::follow`
+restarts a not-yet-asked rest when the stamp changes (a reload that keeps the line count, a file switch). Installed:
+sha256 `14366999135483ce…` from `b951a5d005`, prints 0.1.1. Verified on it (load 10 to 50, up to four sessions at
+once, recorder 10 to 24 fps): reload cases 10 of 10 trials each with exactly one request for the line under the pointer
+0.387 to 0.487 s after the write (`// note` line to `export const delta1`, blank line to `eps5`, a 1 px move as the
+positive control), popups stay at +2 s; a rest already asked then a reload sends nothing and the popup is dismissed with
+`reason="the displayed text changed"` (10 of 10: expected, the popup was for the old text); 5 s settled over no character
+0 hover log lines; file switch under a resting pointer 10 of 10 requests, 0.438 to 0.484 s, popups for
+`integrationFixtures` and `buildInTempDir` on the drawn lines (large boxes that start about 100 device px left of the
+pointer to fit the window); earlier guarantees unchanged (wheel 5, 11, 29, 301 notches 10 of 10 right at 0.532 to 0.574
+s, settled hover 10 of 10 at 0.351 to 0.368 s, moved onto an identifier 100 ms before a 300-notch wheel 10 of 10, rested
+then wheel 0 new requests); 12 popups viewed, each on the identifier under the pointer; far jumps 150, 300, 600: 0 blank
+and 0 partial code frames, tiles applied 1.00, five-press means as before, 88-click 844 frames 0 blank, 82 px gap in 117
+of 117 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; Ctrl+End and Ctrl+Home 0 blank frames. DRAG AFTER A
+WHEEL (open, being measured): two runs of 10 trials at load 22 to 39 and recorder 13 to 20 fps could classify only 5 of
+10 starts against the verifier's window (starts at rows 982 to 1034 between the held row 956 and the settled row 1034; the
+other end always matched the release line 1039); on the previous binary at load 2 to 3 it was 10 of 10. The diff of
+`96959a8b67..b951a5d005` touches only `src/native/language/*` (the pointer-moved handler gained one line,
+`text: surface::displayed(...)`), none of `ui/`, `wheel.rs`, `viewport.rs`, `tile.rs`, so the press path cannot have
+changed; the instrument is the problem (the app logs no event time and no pressed row). An agent (scratch
+`~/temp/agent/dragpress`, branch off `b951a5d005`) adds debug log lines at press, drag start and release (y, x, real and
+drawn offset, held, line and character), runs 30 trials per delay at 300 notches (delays 20 to 250 ms, 10 each at 150
+and 600) and checks the pressed line against the line mapped through the drawn offset of the last logged frame, with a
+positive control build that maps with the real offset; its report is verified, landed and the IDE reinstalled. The
+row-map agent (`~/temp/agent/rowmap`) reported 2026-10-25 (branch `worktree-agent-a02a1c558c302127c`, tip
+`a2d8758424`, gates on its merged tree green: `test:native` 346 passed, `test` 811, `test:bin` 71): the taller row map
+is a real defect with a cause, not a harness effect: at the 173 px first layout a measurement chunk applied at the
+narrow width leaves 2 rows for every wrapping line, `measure_requested` (`src/native/render/measure.rs`) measured the
+displayed tile in 3 fixed rounds, the stale region retreated 100, 136, 150 lines while the tile grew to 155, and the
+final `spending.measure(...)` result was thrown away, so lines 150 to 152 (0-based) kept 2 rows; `apply_pass`
+(`src/native/tile/pass.rs`) skips the displayed tile's lines so nothing corrects them; with no input the map stays 72
+px too tall for the session (a resize or Ctrl+Home corrects it), the picture and gutter stay consistent with the map,
+pixel positions land 3 rows off the text model (wheel distances, minimap, scroll restore, pointer placement). The earlier
+guess "passes that end late" was wrong. Fix: `measure_requested` repeats its rounds until no height changes (bound 64,
+warn record at the bound) and absorbs the last measurement, plus a debug record in `apply_pass` when a displayed line
+disagrees. Measured one-core sessions, input-free, 160 per arm: main 12 and a second copy 7 too tall, fix 0 (Fisher
+p 0.0004); native test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` failed before with
+`[(50,2,1),(51,2,1),(52,2,1),(53,2,1)]`, guard `measure-rounds-capped` removed fails and restored passes; positive
+control 10 of 30 sessions 240 px too tall before, 0 of 30 after. Item 2 (three trials with no wheel line): not a logging
+gap; the wheel path writes `the windowing system turned the wheel` (`wheel.rs:150`) for every wheel event and `a wheel
+turn began an ease` (`wheel.rs:239`); 13 of 210 early-wheel sessions (40 and 301 notches, 300 ms after the server was
+ready, one-core limit) had no wheel line and a gutter at the top of the file in all 13, so the IDE never received the
+event; two debug records were added for silent drops in the wheel path (`note_turn` when busy, `flicked` when the note
+is older than 50 ms), no behavior change. Merged and gated in `land-row`, then pushed, built, installed and verified.
+Left unexplained by that agent and queued here (QWD), started at once with a third agent (scratch
+`~/temp/agent/early`): (a) where a wheel that arrives early after launch is dropped (compositor, toolkit or the
+IDE's input surface: the pointer outside the small first surface is the hypothesis; the real user case is a wheel
+within the first second); (b) a `bwrap: Can't bind mount ... mise/tmp` information row shown in the IDE in some sessions
+(2, 1 and 4 of 160 per arm, row heights 90 to 154 px taller): a product-visible message, probably a race on a shared
+cache directory between concurrent sessions or between two IDE processes on one project; (c) the one taller map in 1,160
+unlimited sessions (logs gone; the same mechanism may explain it).
+Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
+installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
++2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
+Ctrl+End and Ctrl+Home).
+Result on the installed `0730fa64bdf211e7…` (up to three sessions at once, load 5 to 12; regression runs alone or in
+pairs, load 1.5 to 4.8; clocks aligned through the app log's absolute times, screenshots 0.01 to 0.06 s from the log
+line): rest over no character, 10 trials per cell, 80 trials in all with 0 requests, 0 `resolved=` lines and 0 popup
+lines before the wheel: a request after the wheel for the drawn line in 10 of 10 in every cell (past a `//` line at 5,
+11, 29 and 301 notches, on a hint row at 5 and 301, hints arriving under the pointer), 0 wrong lines, 0.527 to 0.573 s
+after the wheel (0.785 to 0.818 s with hints); the popup was still open at +2.0 s with the same pixel count as at
++50 ms in all 70 trials that showed one, no dismissal logged. Settled controls: a pointer resting 5 s over no character
+in a settled view 0 log lines of any kind in 10 of 10; a popup open over a character closes when the pointer rests over
+none (10 of 10, `reason="the pointer rests over no character"` 1.85 to 2.42 s after the first move; the first trial
+logged 6.08 s from a clock mark taken after a slow screenshot, the popup was closed in the screenshot at +0.6 s in all
+10); settled hover 10 of 10 at 0.353 to 0.368 s for the drawn line; pointer moved onto an identifier 100 ms before a
+300-notch wheel 10 of 10 right at 0.537 to 0.573 s; pointer rested 1.2 s on an identifier then the wheel 0 new
+requests in 10 of 10 (only the dismissal `reason="the view scrolled"` 9 to 25 ms after the wheel). 12 popups viewed
+plus the hints popup: each for the identifier under the pointer, below its line block with the left edge at the
+pointer column, none at a stale place. Regression smoke: far jumps 10 each at 150, 300 and 600 notches 0 blank and 0
+partial code frames (partial counted as fewer than 60 percent of the settled frame's inked 16-row bands; counting overlap
+with the settled frame's bands gave 22, 17 and 7 on this sparse file because mid-ease frames show other lines, none of
+those viewed), tiles applied 1.00 per jump, held frames 1.2, 2.0, 2.0 per jump; five-press means 0.510708, 0.509617,
+0.510708, 0.510073, 0.509618 in 3 runs, none blank; 88-click recording 875 frames at 24.5 fps 0 blank code and minimap
+frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; drag after a 300-notch wheel
+10 of 10 starts on a drawn row and ends on the row drawn at release; Ctrl+End and Ctrl+Home 0 blank code frames in 4
+recordings. A comment word under the pointer gives a correct request and `hover=false` (no popup), as the server
+answers nothing for comments. `~/temp/agent/final5` and its projects are removed.
+Two open items from the hover agent (A:
+a fresh-session trial with no character under the pointer after a 301-notch first scroll;
+B:
+rows drawn late under a rest over no character) were worked on 2026-10-25 on the branch `worktree-agent-ac50f93d8163f1cf4`;
+the results are in the last block of this file ("The two open items of the hover fixes"):
+A is explained (no stuck view in 1,000 trials;
+the symptom is a row map 3 rows taller than the model,
+reproduced under a one-core limit),
+B had one real case (a reload that keeps the line count),
+fixed with the stamp of the displayed text.
+The reports are verified,
+landed and the IDE reinstalled.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
@@ -4882,6 +5011,206 @@ drawn under the pointer (a constant position for a resting pointer).
   The harness (nested compositor,
   OCR of the gutter,
   four builds alternating) was kept only in the session scratch and removed.
+
+## A pointer that rests over no character asks when the view puts a character under it, 2026-10-25 (branch worktree-agent-a9743aae63279d55b)
+
+The limitation noted in the block above is fixed on the branch (not merged or installed).
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A hover request after a far wheel jump",
+subsection "A pointer that rests over no character".
+
+- Cause:
+  `Rest::due` admitted only a rest that began over a character,
+  so a rest that began over a hint row,
+  the line numbers,
+  a blank line,
+  or the space past a line's end never asked,
+  whatever arrived under the pointer.
+- Fix:
+  `Rest::due` returns the place of a rest over no character after the view moved under it
+  (`shifted`),
+  `Rest::follow` watches the height of the text as well as the drawn offset,
+  `rest` resolves against the drawn rows when the request is built and calls `Rest::found_nothing`
+  (nothing asked)
+  or `Rest::asked_about`
+  (asked,
+  and the rest is now over that character).
+  `Rest::idle` is unchanged.
+- Second defect found by the popup screenshots the owner asked for:
+  the first version of the fix asked right but `Rest::idle` closed the popup 20 ms after it was shown,
+  because the rest still recorded no character;
+  the counts of the trials and the native tests did not see it.
+  `asked_about` fixes it and the tests wait twice the rest time and compare the popup.
+  Lesson:
+  a test that waits for the popup to appear does not show that it stays.
+- Measured on release builds,
+  10 trials per cell,
+  main = the installed build (code of `origin/main`),
+  fix and a second copy of it for the spread,
+  three sessions at the same time,
+  load average 3.8 to 4.3:
+  a pointer over no character past the end of a line (5,
+  11,
+  29,
+  301 notches),
+  on the hint row (5 and 301),
+  and under arriving hints:
+  main 0 of 10 requests in every cell,
+  fix 10 of 10 right in every cell,
+  fix2 10 of 10;
+  0.533 to 0.574 s after the wheel (0.783 to 0.818 s with hints);
+  the earlier cases unchanged:
+  moved onto an identifier 100 ms before a 300-notch wheel 10 of 10 right in all three,
+  rested 1.2 s then a wheel 0 requests in all three,
+  settled hover 10 of 10 at 0.350 to 0.370 s;
+  0 wrong lines,
+  no request before the wheel,
+  one `resolved=` line after the wheel in every fix trial.
+- Popups viewed (screenshots of the frame after `language popup shown`):
+  12 far-jump requests and 6 settled hovers,
+  every popup is for the identifier under the pointer,
+  below its row at the pointer's column,
+  on screen;
+  the popup of the hints trial overlaps the left 10 px of the minimap.
+- Tests:
+  `src/native/language/pointer_blank_tests.rs` (11 tests),
+  24 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+- Open:
+  one fresh-session trial under load had no character under the pointer after a 301-notch first scroll,
+  settled as well (a finished tile left for a scroll step that never came);
+  not reproduced in 3 more;
+  rows that are drawn late without a move of the offset or a change of the height are not a signal to start a rest again.
+  The harness (headless nested compositor driver,
+  generated 1,500-line `long.ts`,
+  settled probe,
+  summarizer) was kept only in the session scratch and removed.
+
+## The two open items of the hover fixes, 2026-10-25 (branch worktree-agent-ac50f93d8163f1cf4)
+
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A hover request after a far wheel jump",
+subsections "The first far scroll of a fresh session with no character under the pointer" and "Late rows under a rest over no character".
+
+- Item A,
+  no stuck view and no change of the wheel path:
+  1,000 trials of the build of `origin/main` (installed `0730fa64bdf211e7`) with a wheel of 5,
+  40,
+  150,
+  300,
+  301 and 600 notches as the first input of a fresh session,
+  0.5,
+  1,
+  2 and 4 s after the first drawn frame,
+  server ready or 3 s late,
+  three sessions at a time,
+  the load as it was:
+  0 wrong or blank views,
+  one tile applied per far jump.
+  The log line `leaving a finished tile for the next scroll step` is written by every poll within 20 ms of a step (27 to 30 of 30 normal trials),
+  so it is no evidence of a stranded tile.
+  The symptom (first rest `resolved=None`,
+  settled probe none,
+  exact gutter) is reproduced with the hosted app limited to one core (compositor `--isolate --app-cpu-quota 100`):
+  5 of 160 trials had a row map 72 px (3 rows) taller than the text (36096 against 36024),
+  so the pointer stood on a `// note` line;
+  the view was consistent with its map.
+  Positive controls:
+  a build that takes no tile 10 of 10 wrong;
+  a mispredicted end without the 400 ms backstop 10 of 10 wrong,
+  with the backstop 0 of 10.
+- Open from item A:
+  the taller row map (3 lines keep two rows after measurement passes at the narrow first width end late;
+  4 of 53 sessions without input under the one-core limit,
+  1 of 1,160 trials without a limit;
+  the lines were not found);
+  three trials with no wheel line in a log at load 28 to 35 (not reproduced in 40 more).
+- Item B,
+  one real case,
+  fixed:
+  an external change that keeps the line count (the offset and the height of the text stay the same) put an identifier under a pointer that rested over no character,
+  and nothing asked.
+  `View` and `Spot` carry the stamp of the displayed text;
+  `Rest::follow` starts a not yet asked rest again when it changes.
+  Measured,
+  10 trials per case:
+  `origin/main` 0 of 10 requests (past the end of a line and blank line),
+  fix 10 of 10 with exactly one request at a character of the new line,
+  second copy of the fix 10 of 10,
+  positive control (1 px move) 10 of 10 in `origin/main`;
+  an asked rest stays asked (0 requests in all).
+  The popups were viewed.
+  Other named cases (late tile after a hold,
+  hint replaced by a hint of the same height,
+  diagnostic message,
+  resize) are covered by the offset or the height,
+  or have no character to ask about.
+- Tests:
+  `a_replaced_text_restarts_a_rest_that_was_not_asked_for`,
+  `a_rest_over_no_character_asks_when_a_reload_puts_a_character_under_it`,
+  `a_rest_that_was_asked_about_is_not_asked_again_by_a_reload` in `src/native/language/pointer_blank_tests.rs`;
+  4 new guard cases (`hover-text-change-ignored`,
+  `-unit`,
+  `hover-spot-text`,
+  `hover-tick-text`),
+  two older ones follow the changed line.
+- The harness (headless nested compositor driver,
+  generated `long.ts`,
+  OCR of the gutter,
+  CPU-limited sessions) was kept only in the session scratch and removed.
+
+## The taller row map and the missing wheel log lines, 2026-10-25 (branch worktree-agent-a02a1c558c302127c)
+
+Both unexplained items of the open-items agent are explained;
+the full account with counts is the section "A row map taller than the text" of
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`.
+
+- The taller row map:
+  the window thread measured the lines of a new width's tile in three rounds and discarded the last measurement,
+  so lines 150 to 152 of the 1,500-line file kept the two rows a pass chunk at the narrow first width (173 px) had left in the table,
+  and `apply_pass` never applies the lines of the displayed tile.
+  Reproduced (input-free sessions,
+  one-core limit):
+  `origin/main` 12 of 160,
+  a second copy 7 of 160,
+  the fix 0 of 160.
+  It does not correct itself without input;
+  a resize or a tile that covers the lines does.
+- Fix:
+  `measure_requested` (`src/native/render/measure.rs`) repeats its rounds until no height changes (at most 64) and absorbs the last measurement.
+  Test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`;
+  before the fix 4 stale lines),
+  guard case `measure-rounds-capped`.
+  A debug record names rows of the displayed tile that differ from the pass.
+- Missing wheel lines:
+  the wheel records are written for every turn,
+  covered by the tile or not;
+  the 13 of 210 sessions without a line never received the event
+  (all 13 gutters showed the top of the file,
+  all 197 sessions with the line were scrolled;
+  the time of the toolkit's report of the real window size does not separate the groups,
+  and the likely cause is a wheel sent while only the small first surface existed under the pointer,
+  which is a hypothesis).
+  Two silent branches of the wheel path now write a debug record.
+- Not explained:
+  where such a wheel is dropped (compositor or toolkit);
+  the taller map in the one session of 1,160 without a limit (logs gone).
+- The 4 to 8 percent of sessions with a message block (`bwrap: Can't bind mount ...`) are a separate incident of the harness:
+  three concurrent sessions shared one cache directory and one project hash,
+  and the error is a missing source directory,
+  which points to a race;
+  two IDE processes on the same project could meet it too.
+  It was not investigated.
+- The earlier wheel and hover guarantees were not measured again on a real binary
+  (far jump blank frames,
+  the 88-click recording,
+  the 82 px gap);
+  `measure_requested` is not on the worker tile path of a wheel jump
+  (`wheel::turn` sets `scroll_wanted` and the tile lands through `tile::apply`),
+  and the native tests that cover hover rows,
+  drag starts and wrapping passed (346 of 346).
+- The harness was kept only in the session scratch (`~/temp/agent/rowmap`) and is removed with its throwaway builds.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

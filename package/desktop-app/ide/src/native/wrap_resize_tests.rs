@@ -119,7 +119,7 @@ fn spent(reader: &Reader) -> Spent {
 /// Report the window width that leaves a text area `text_width` wide (the minimap takes its own share) to the toolkit
 ///  and run the change handlers once:
 /// the render the new width causes.
-fn change_width(reader: &Reader, text_width: f32, height: f32) {
+pub(super) fn change_width(reader: &Reader, text_width: f32, height: f32) {
     reader.window.window().dispatch_event(WindowEvent::Resized {
         size: LogicalSize::new(TEXT_LEFT + text_width + minimap_beside(text_width), height),
     });
@@ -127,7 +127,7 @@ fn change_width(reader: &Reader, text_width: f32, height: f32) {
 }
 
 /// Hold the worker's measurement still until the returned sender is dropped.
-fn hold_the_pass() -> std::sync::mpsc::Sender<()> {
+pub(super) fn hold_the_pass() -> std::sync::mpsc::Sender<()> {
     let (release, gate) = std::sync::mpsc::channel();
     *PASS_GATE.lock().expect("pass gate") = Some(gate);
     return release;

@@ -195,6 +195,8 @@ fn bind_pointer(owner: &AppWindow, source: &Rc<RefCell<State>>, language: &Rc<Re
             below_top: y - offset,
             x,
             offset,
+            extent: window.get_content_extent(),
+            text: surface::displayed(&move_state.borrow()),
         };
         if let Some(mut current) = held(&move_language) {
             current.rest.moved(character, spot);

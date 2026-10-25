@@ -138,10 +138,24 @@ pub(super) fn apply_pass(window: &AppWindow, state: &Rc<RefCell<State>>, output:
     let held = current.shown.first..current.shown.first + current.shown.count;
     let count = output.lines.len();
     let mut unheld = Vec::new();
+    // The lines of the displayed tile are never applied; one whose rows in the table differ from what the pass
+    // measured is a height the map has wrong, so it is named in the log.
+    let mut held_differs = Vec::new();
     for (line, rows) in output.lines {
         if !held.contains(&line) {
             unheld.push((line, rows));
+        } else if current.wrap_rows.rows(line) != rows && held_differs.len() < 8 {
+            held_differs.push((line, current.wrap_rows.rows(line), rows));
         }
+    }
+    if !held_differs.is_empty() {
+        tracing::debug!(
+            ?held,
+            ?held_differs,
+            shown_width = current.shown.width,
+            width = current.width,
+            "the measurement found rows in the displayed tile that differ from the map (line, map rows, measured rows)"
+        );
     }
     let changed = rows::absorb(&mut current, unheld);
     #[cfg(debug_assertions)]

@@ -31,6 +31,8 @@ to reduce false positives from code,
  trailing question) run only when `stop_hook_active` is false,
  so a forced continuation is never re-blocked
 for wording Claude was already told about.
+The one exception is the "choice left in prose" detector (see "Detected patterns"),
+which also runs inside a chain but not twice for the same phrase in one turn.
 
 ## Forced continuation
 
@@ -111,6 +113,14 @@ The hook finds the notification in the transcript's queue records, and only when
 
 A label is acted on at probability 0.60 or higher (interim; revisit from the verdict log).
 The message is sent in full, the end kept when it exceeds 16000 characters, with no thinking blocks.
+On a repeated stop (the hook already blocked this turn, so `stop_hook_active` is true) the request also carries the
+assistant text of the turn's earlier stops, each cut to its last 1500 characters and all of them to the last 8000,
+as context for the same question.
+A first stop sends the final message alone.
+Measured on repeated stops, history removed all three verified repeated false blocks and also lowered the block score
+of five of seven repeated misses (two were unchanged); see the troubleshooting document below.
+Each verdict record in the log carries `stopHookActive`, so repeated stops can be told apart from first stops
+(records before 2026-10-25 lack it).
 One request, 5 second deadline, no retry.
 Any failure falls back to the state-only behavior and adds a `Stop says:` notice.
 
@@ -221,10 +231,27 @@ and resuming a session cannot lose the count.
    I haven't read,
    I haven't confirmed,
    I haven't run,
+   I haven't measured,
+   I haven't tried,
+   I haven't looked,
+   I haven't reproduced,
+   I haven't rerun (or re-run),
+   I haven't shown,
    not verified,
    not checked,
-   not tested
-   (each also in the "did not" and "have not" forms)
+   not tested,
+   not viewed,
+   test gap
+   (each "I haven't" entry also in the "did not", "didn't" and "have not" forms)
+- **Choice left in prose**:
+   say so if,
+   say if you,
+   tell me if you,
+   if you'd rather,
+   if you would rather
+   (the reason tells the agent to use `AskUserQuestion`;
+   unlike the other wording detectors, this one also runs inside a blocked chain,
+   once per phrase per turn, so a block can be answered and the stop then goes through)
 
 ## Installation
 

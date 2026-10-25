@@ -1152,6 +1152,234 @@ Not built.
 A Luna uncertainty label would need its own corpus calibration (see #1772) and a decision on whether it replaces or
 adds to the phrase list.
 
+### More admitted-gap wording, and a stop the phrases cannot reach, 2026-10-25
+
+The owner pasted a Slint IDE report (session `55e550ef`, 24 Oct 23:11 local) that ended with "Still open" items:
+"I didn't try to remove it, and I didn't measure the capture-to-file lag", "Unexplained: why a slice list set inside a
+frame isn't shown", "Test gap: there is no regression test".
+The owner's reply was "Unexplained? Test gap? Just do it."
+The verdict log has the stop: Luna read it and gave `work_closed` 0.48, below the 0.60 cutoff, and the phrase list had
+no entry for "measure" or "try", so nothing blocked.
+The owner also said a second miss happened in the same session around 10:00 the next morning.
+
+What I found for that second one, by reading the transcript and the verdict log (timestamps in the log are UTC, four
+hours ahead of local time):
+
+- The 10:29:37 message ("I suspect the pointer rested over no character ... I haven't shown that") was blocked on
+  `"i suspect"` (transcript records 64655 to 64657), so that stop worked.
+- The next two stops, 10:30:44 and 10:31:04, came inside that blocked chain.
+  `stopRemindersDecision` turns the phrase detectors off while `stop_hook_active` is true, and Claude Code never
+  clears it for the rest of the turn, so they ran no phrase check at all.
+  Luna was still asked: `work_closed` for the first, `waits_on_user` at 0.59 for the second, 0.01 under the cutoff.
+- The 10:31 message listed "Popup screenshots: I checked the 14 hover popups from the log only" and "Hover
+  limitation ... I left it unfixed".
+  No phrase would catch "from the log only", so extending the list cannot cover it.
+- I did not confirm that the owner meant the 10:31 message. It is the only 10 o'clock stop whose check was off.
+
+Changes: first-person gaps for `measure`, `try`, `look`, `reproduce`, `rerun` and `re-run` (each in the "didn't",
+"did not", "haven't" and "have not" forms), `I haven't shown`, `test gap` and `not viewed`.
+Measured on 1,200 stops under 200 MB, against the list as it stood: 169 already flagged; the candidates would flag 67
+more if every candidate were added, 39 of those from `still open`, which I left out.
+Of the kept phrases about 15 stops are newly flagged, and every snippet I read was the agent's own gap ("I haven't
+measured the net effect on collisions", "I haven't looked into it", "I did not rerun scoped mutation").
+The bare adjectives `unexplained` and `unmeasured` were left out for the reason `untested` was: the snippets
+mostly describe a thing ("an unexplained abnormality"), not the agent's own gap.
+The built hook blocks the 23:11 report on `"i didn't measure"`, and passes "I tried the build and it passed".
+
+The chain gate is not the lever for the 10:31 stop, and the paragraph that called it an owner decision is withdrawn.
+Luna was asked inside the chain and scored `waits_on_user` at 0.59.
+A block on that label routes the agent to `AskUserQuestion`, and the owner's reply to that stop was to do it
+themselves.
+Phrases cannot reach "from the log only" either.
+
+### Purpose measured against the owner's nudges, 2026-10-25
+
+The purpose is written down, so the question of what the hook is for was not open.
+`package/claude-code-plugin/stop-reminder/README.md` says the hook "can optionally refuse a stop whenever pushing
+could plausibly help", and the measurement section of this document counts a restart nudge: a human-typed message that
+asks the agent to resume.
+I read that as: the owner should not have to type the nudge ("Continue.", "You didn't check, so check.", "Just do
+it.").
+The owner asked for research before deciding Luna's input and block rule, so I measured against that signal.
+
+Method.
+Each of the 956 Luna verdicts in the log (9 sessions, 2026-10-18 to 2026-10-25) was matched to its stop in the
+transcript, and the next record was classified.
+All 956 matched.
+The agent carried on by itself after 764 releases, a human replied after 119, a hook block followed 67 (42 Luna blocks
+and 25 releases that a phrase blocked), and the transcript ended after 6.
+The 88 verdicts before 2026-10-19 17:00 UTC have no `leaves_open_work` score and are a separate stratum.
+Luna labelled the 119 human replies in two passes.
+The first pass (four classes) called 61 of them nudges, which was too coarse: it included new instructions and
+corrections.
+The second pass (five classes) called 30 "the agent should have done it".
+I read those 30 and kept 14 with plain nudge wording as the strict set; the rest were new instructions or
+corrections.
+The strict set was chosen by me after seeing the replies, and Luna's labels are a model's reading, not a human label.
+
+Nudge rate by the reason a stop was released (strict set):
+
+- Released because a task was running: 6 of 623 (1.0%).
+- Released under the cutoff with top label `work_closed`: 3 of 66 (4.5%).
+- Released under the cutoff with top label `waits_on_user`: 3 of 44 (6.8%).
+- Released as `work_closed` at or above the cutoff: 1 of 44 (2.3%).
+- Released under the cutoff with top label `waits_on_background_work`: 1 of 85 (1.2%).
+- Under the cutoff with `announces_own_next_step`, `pauses_for_handoff` or `leaves_open_work`, and deliberate
+  pauses: 0 of 27.
+
+No release reason has a rate high enough to block on.
+Blocking both under-cutoff strata above would add 110 blocks to catch 6 nudges, and 86 of those 110 stops resumed
+without a nudge.
+
+Experiment on the 14 strict-set stops against 30 controls (stops released because a task was running, after which the
+agent carried on; every tenth of 567, in time order).
+The same input gave the same output twice, so run-to-run spread is zero and the differences below are real for this
+sample.
+
+- Final message only (today's input), rerun on the full message text: mean `leaves_open_work` plus
+  `announces_own_next_step` is 0.15 on the nudged stops and 0.07 on the controls; one nudged stop and no control
+  reaches 0.4; AUC 0.64.
+  The first run fed Luna the last 600 characters the verdict log keeps, which cut the message of 16 of the 84 rows used
+  across these studies, and gave 0.14 and 0.08 with nothing at 0.4.
+- With the assistant text of every earlier stop in the turn: 0.09 and 0.06; at 0.4 it catches 1 nudged stop and 2
+  controls.
+- With the standing instructions (`PX1`, `PXQ`, `QF1`, `ASK`) as a preamble: 0.20 and 0.15; at 0.4 it catches 2
+  nudged stops and 3 controls.
+- A direct question ("could the agent continue, or is it rightly stopped?"): AUC 0.47 on the final message and 0.26
+  with turn history, where 0.5 is chance.
+  History made the controls look more like open work, since their turns are long.
+
+No variant separated the nudged stops from the controls, though the full-message run is a weak separation (AUC 0.64)
+where the first run showed none.
+The turn-history, standing-instruction and direct-question variants were not rerun on full messages, so their figures
+describe a truncated input for the long messages.
+The nudged stops read like the stops that resumed on their own, and the information that differs (whether the
+running task will actually resume the agent) is not in the text.
+Limits: 14 nudged stops is small; the controls cover one release reason only; the 764 count would be inflated if some
+human messages lack `origin.kind: human`, and I found none in three samples per session but did not check every
+record; the turn history was capped at 1,500 characters per stop and 8,000 in all.
+
+The phrase list, as it stands after `410c4eeb39`, flags 4 of the 14 nudged stops on their full text
+(`i haven't checked`, `i didn't measure`, `should be`, `i didn't check`) and 0 of the 30 controls.
+On the 600-character tails the log keeps it flagged 3 of 14, so the fourth is a hit the tail cut off.
+Across the whole log it flags 31 stops (full text for the 76 recovered, the tail for the rest): 15 already blocked, 10
+followed by a human reply, 6 where the agent carried on.
+It is the only instrument tested here with no hits on the controls.
+
+Decision state when this section was written: Luna's input and the 0.60 cutoff were unchanged.
+Nothing measured supported sending turn history, adding the standing instructions, or lowering the cutoff.
+Turn history for repeated stops was adopted later the same day; see the sections below.
+
+### A choice left with the user in prose, 2026-10-25
+
+The owner reported that a stop in this session should have been blocked and the agent nudged to ask.
+The stop was a report whose last paragraph said "Veto this if you want turn history tried anyway", after the owner had
+said the Luna input and block-rule decisions were theirs and not yet decided.
+The verdict log for that stop: Luna `leaves_open_work` 0.30, `waits_on_user` 0.16, released under the cutoff; the
+phrase check then blocked it on `i haven't checked`, so the reminder said to search for evidence, not to ask.
+The trailing-question detector needs a literal `?` and found none.
+The 10:31 stop in the Slint session ("Say so if you want it") is the same shape and was inside a blocked chain.
+Luna with the assistant text of every earlier stop in the turn, on the full text of both messages and through the
+shipped code, did not catch either: the one-line reply stayed at `work_closed` 0.94 (0.97 with history), and the long report
+moved from `work_closed` 0.29 to 0.51 and from a block mass of 0.65 to 0.41.
+So turn history is not the fix here; it lowered the report's score.
+An earlier version of this paragraph said history left both scores unchanged; that was measured on the 600-character
+tail of the report and is retracted.
+
+Measured on 1,222 past stops, not already flagged: `your call` 14, bare `if you want it` 11, `if you'd rather` 9,
+`tell me if` 9, `veto` 8, `say if you` 5, `if you want that` 3, `if you would rather` 3, `say so if` 2,
+`if you want me to` 2, `up to you` 2.
+Reading the snippets, `say so if`, `say if you`, `tell me if you` and `if you'd rather` are offers that wait for an
+answer ("Say so if you want it posted", "Tell me if you want me to unmount it").
+`your call`, `up to you` and a bare `if you want it` often explain who decides ("whether $33.90 for an emailed copy
+beats a second trip is your call"), and `tell me if` alone also matched "the Monitor will tell me if CPU crosses a
+limit".
+
+The owner chose the narrow set (`say so if`, `say if you`, `tell me if you`, `if you'd rather`; I added the
+`if you would rather` spelling), over adding `veto` or everything measured.
+The owner also chose to run this check inside a blocked chain, which the other wording checks do not do.
+To keep a block answerable, it fires once per phrase per turn: the transcript since the last human turn is scanned for
+this hook's own feedback record carrying the same phrase, and the stop goes through when one exists.
+A record that only quotes the reminder (a tool result, an assistant message) does not count.
+The reason reuses the trailing-question wording and names `AskUserQuestion`; when a trailing question also matches,
+only its reminder is issued.
+Code: `parked-decision.ts`; the transcript is now read when `stop_hook_active` is true even with forced continuation
+off, because the once-per-phrase scan needs it.
+
+Built bundle check: the real 10:31 message inside a chain with a fresh turn blocks on `say so if`;
+the same message passes when the transcript already holds the reminder for that phrase;
+a different phrase still blocks;
+"The monitor will tell me if CPU crosses the limit" and "Whether to ship is your call" pass.
+Not measured: the false-positive rate of the narrow set against a human reading, beyond the snippets above.
+
+Owner decisions in the same exchange: Luna's block rule stays at the top label at 0.60.
+On Luna input, the owner asked for better samples of a repeated false positive and a repeated false negative before
+deciding whether Luna should receive the earlier stops of the turn.
+
+### Luna with the earlier stops of the turn, on repeated stops, 2026-10-25
+
+Samples came from the verdict log: 142 turns, of which 41 had a hook block followed by later stops (227 stops).
+I read the 83 of those stops that Luna blocked again, scored 0.2 or higher for open work, or that a human replied to.
+
+Labelled repeats, with how each label was made:
+
+- Repeated false blocks, 3: stops 17 and 26 of turn `969554a8#50` and stop 31 of `969554a8#49`.
+  The log shows running shell tasks at each (7, 7 and 1), Luna labelled them `waits_on_user`, and the table blocked.
+  A fourth I had read as a false block (`83e3a58d#167`, stop 15) had no running task, and I did not verify it, so it is
+  not in the sample.
+- Repeated misses, 7: released stops after a first block in the same turn that the owner's next message answered with a
+  nudge, including the 23:11 and 10:31 stops of 2026-10-24 and 2026-10-25.
+- Controls, 30: stops after a first block that were released and after which the agent carried on.
+
+Correction: the verdict log keeps only the last 600 characters of a message, and the first run of this study fed Luna
+that tail.
+That cut the long reports, including the 23:11 and 10:31 stops, so the first figures (0.38 to 0.14 on the misses, and a
+"drift across days" finding) described a truncated input.
+The figures below are a rerun on the full message text, recovered from the transcripts, through the shipped
+`earlierStopTexts` and `situationRequestBodyWithHistory`.
+
+Luna was asked the usual six-label question with the final message alone, and again with the assistant text of every
+earlier stop of the turn (1,500 characters per stop, 8,000 in all).
+Block mass is the summed probability of `announces_own_next_step`, `leaves_open_work` and `waits_on_user`.
+
+- Repeated false blocks: 0.72 alone, 0.07 with history; all three fall.
+  Two move to `waits_on_background_work` at 1.00, the right label with tasks running; one moves to `work_closed`.
+- Repeated misses: 0.41 alone, 0.25 with history; five of seven fall, two are unchanged, none rises.
+  The 10:31 stop goes from 0.80 to 0.58; the 23:11 report is unchanged (0.42 alone, 0.46 with history).
+- Controls (stops after a first block that were released, after which the agent carried on): 0.14 alone, 0.13 with
+  history; ten fall, five rise, fifteen are unchanged.
+
+So history removes the repeated false blocks and lowers the block score on five of seven repeated misses, without
+moving the 23:11 report.
+For the failure the owner reported, a miss late in a chain, it is not a fix and mostly moves the score the wrong way.
+Neither group is large enough for a rate: three and seven stops.
+
+A logged score reproduces when the full message is sent.
+The 10:31 stop was logged at `waits_on_user` 0.59 and scores 0.59 now; the 23:11 stop was logged at `leaves_open_work`
+0.40 and `work_closed` 0.48 and scores the same.
+Across the 84 rows the largest difference between a logged label and a rerun averages 0.008 on messages the log kept
+whole and 0.026 on those it cut, with a maximum of 0.26 on one short message.
+An earlier version of this section said scores drift across days; that came from the truncated input and is retracted.
+The verdict log keeps the final message tail and the probabilities but not the text Luna was sent, so any analysis of a
+long message must recover the full text from the transcript.
+Until 2026-10-25 it also lacked `stop_hook_active`, so a repeated stop could not be told apart from a first stop
+without rebuilding the turn from the transcript.
+
+Owner decisions: send the earlier stops to Luna on repeated stops only, and log `stop_hook_active` in every verdict
+record.
+Built as `turn-history.ts` (the earlier stops, read from the transcript since the last human turn, without the final
+message) and `situationRequestBodyWithHistory` (the request).
+A first stop sends the final message alone, so the measured lenient shift applies only to repeated stops.
+There it removed the repeated false blocks and also lowered the block score on five of seven repeated misses, which the
+phrase checks and the parked-decision check remain the catch for.
+A replay of the labelled stops through the shipped code found that the exclusion of the final message compared whole
+texts, which fails when the hook is handed a message that differs at the edges from the transcript text; it now compares
+the last 200 characters.
+Checked on the built bundle with the real gateway: a repeated stop and a first stop both returned a verdict, and
+the records carry `stopHookActive` true and false.
+The request body itself is checked in the unit tests with a stubbed `fetch`, not on the wire.
+Not yet known: whether the repeated-stop history changes outcomes in live use; the new field makes that measurable.
+
 ### Not yet known
 
 - Agreement between Luna's label and a human label.

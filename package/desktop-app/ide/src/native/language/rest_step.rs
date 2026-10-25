@@ -41,9 +41,13 @@ pub(super) fn rest(
     language: &mut Language,
     displayed: DocumentStamp,
 ) {
-    // A view that moved since the last tick (a wheel ease, a jump, rows arriving) puts other text under the pointer,
-    //  so a rest that was not asked for yet starts again.
-    language.rest.follow(window.get_drawn_offset());
+    // A view that moved since the last tick (a wheel ease, a jump, rows arriving) or a text that was replaced (a
+    //  reload, another file) puts other text under the pointer, so a rest that was not asked for yet starts again.
+    language.rest.follow(pointer::View {
+        offset: window.get_drawn_offset(),
+        extent: window.get_content_extent(),
+        text: displayed,
+    });
     let blocked = window.get_search_open()
         || matches!(
             language.shown,
@@ -63,7 +67,6 @@ pub(super) fn rest(
     let Some(spot) = language.rest.due() else {
         return;
     };
-    language.rest.asked = true;
     // The character is resolved now,
     //  against the rows and the offset that are drawn,
     //  not where the pointer last moved.
@@ -76,8 +79,13 @@ pub(super) fn rest(
         "the resting pointer was resolved against the displayed view"
     );
     let Some(character) = resolved else {
+        // Nothing is asked and nothing is marked asked:
+        //  the rest is now one over no character,
+        //  which a later move of the view starts again.
+        language.rest.found_nothing();
         return;
     };
+    language.rest.asked_about(character);
     // A character outside the displayed text cannot be asked about.
     if character > source.borrow().document.text().len_chars() {
         return;

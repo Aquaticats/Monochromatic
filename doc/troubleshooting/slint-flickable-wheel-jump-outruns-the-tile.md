@@ -724,6 +724,721 @@ alternating with `main` and before the hold and with a second copy of the fixed 
   and lines 608 to 616,
   did not come back).
 
+### A pointer that rests over no character
+
+A verifier on the installed build (`dd16d49c0d586fb1`,
+code of `495bf2f39e`)
+saw 9 hover trials with no request and no log line
+after a 300-notch jump,
+and 2 settled hovers at one row that sent nothing.
+The code explains them (read on 2026-10-25),
+and the measurements below reproduce them.
+
+#### Cause of the silence
+
+`Rest::due` in `src/native/language/pointer.rs` admitted only a rest whose character at the pointer's move was `Some`.
+A move onto a hint row,
+the line numbers,
+a blank line,
+or the space past a line's end stores `None` (`Rest::moved`),
+so `due` never returned a place for it:
+`rest` in `src/native/language/rest_step.rs` returned before the `resolved=` log line,
+and `Rest::idle` only closed a popup.
+`Rest::follow` already started such a rest again when the view moved,
+so the moved view changed nothing:
+a pointer that rested over no character never asked,
+even when an identifier arrived under it by a wheel turn,
+a jump,
+or hints and messages arriving.
+Only a pointer move started the rest again.
+It is the same code as before the earlier fix,
+so it is old,
+not a regression of the hold.
+
+#### A second defect of the first version of the fix
+
+The first version of this fix made `due` return the place of a rest over no character whose view had moved,
+and the requests were right in every trial.
+Screenshots of the popups showed none:
+the log has `language popup shown` followed 20 ms later by
+`language surface dismissed reason="the pointer rests over no character"` in all of 12 far-jump trials.
+The rest still recorded `None` as its character after the request was made,
+so `Rest::idle` (a rest over no character for the rest time) closed the popup of the answer as soon as it was shown.
+The native tests had waited only for the popup to appear,
+and the counts of the trials only counted requests.
+`Rest::asked_about` now records the character the request was made for,
+and the tests wait the rest time twice more and compare the popup text.
+
+#### Fix
+
+- `Rest::due` returns the place of a rest over no character only after the view moved under it
+  (`shifted`,
+  set by `follow` when it starts a rest again,
+  cleared by a pointer move to another character and by `found_nothing`),
+  so a pointer over no character in a view that stands still asks nothing and logs nothing.
+- `Rest::follow` compares the drawn offset and the height of the whole text (`View`),
+  because hints or messages arriving between the top of the view and the pointer put other text under it
+  without changing the offset.
+- `rest` resolves the character against the rows and offset that are drawn when the request is built,
+  as before.
+  A character:
+  `Rest::asked_about` marks the rest asked and over that character.
+  None:
+  nothing is asked and nothing is marked asked,
+  `Rest::found_nothing` makes the rest one over no character in a settled view,
+  and the next move of the view starts it again.
+- `Rest::idle` is unchanged,
+  so a popup that is open over a character still closes when the pointer rests over no character in a view that stands still.
+- The 350 ms rest of a settled pointer and the 0.53 to 0.57 s after a jump are unchanged.
+
+#### Native tests and guards
+
+Tests are in `src/native/language/pointer_blank_tests.rs`.
+A rest over no character:
+asks after a near scroll,
+after a far jump (held at the tile's edge when the rest starts),
+and after hints arrive under it,
+and the popup stays open for twice the rest time;
+asks nothing in a view that stands still (the record of the rest is the same after three rest times);
+asks after the next scroll when the first scroll found no character;
+and a popup that is open over a character still closes when a scroll leaves no character under the pointer.
+Unit tests cover `due`,
+`idle`,
+`found_nothing`,
+`asked_about`,
+the offset,
+and the height.
+The guard cases `hover-*` of `bin/inspect-source-guards.ts` remove each changed line in a disposable copy;
+on the final tree all 24 `hover-*` guards failed the named test with the line removed
+and passed again with it restored
+(`mise run //package/desktop-app/ide:inspect:source-guards <cache> '' <names>`,
+24 of 255 guards).
+Two lines have a unit test only:
+the height of the text in `follow` (`a_growing_text_restarts_a_rest_that_was_not_asked_for`),
+and the height read from the window in `rest` and `on_pointer_moved` has a native test that shows only the constant side
+(`a_view_that_stands_still_keeps_the_moment_the_pointer_arrived`).
+
+#### Measurements
+
+Binaries:
+main is the installed `dd16d49c0d586fb1` (built from `495bf2f39e`;
+`git diff 495bf2f39e cff94d8247 -- package/desktop-app/ide/src package/desktop-app/ide/ui` is empty,
+so it is the code of `origin/main`),
+the fix is a release build of the branch (`fix`),
+and a second copy of the fix binary (`fix2`) gives the spread.
+The three ran as three hosted sessions at the same time,
+10 trials in every cell,
+one headless nested compositor each on the hardware GPU,
+the host's load as it was (1-minute load average 3.8 to 4.3 during the runs).
+The window is 1100 by 800.
+The text is a generated 1,500-line `long.ts` of exports with literal values
+(no hint and no message,
+so every line is one 24 px row,
+except a hint row above line 2),
+in a period of five lines:
+three with an identifier at the pointer's column,
+a `//` line,
+and a blank line.
+A notch moves the text 60 px (measured).
+The pointer is at x = 480 and rests 1.2 s before the wheel.
+A trial is right when the line of the request is the line of the settled probe
+(the pointer leaves the source and comes back to the same point after the view settled,
+and the request of that settled hover names the line),
+and the geometry above predicts the same line in every trial
+(`line != model` and `probe != model` are 0 everywhere).
+Notch counts are odd so that the pointer is over text at the end
+(an even count lands on the same kind of line it started on):
+301 for the far jump.
+Every cell had an identifier under the pointer at the end in all 10 trials of every arm.
+
+- Past the end of a `//` line,
+  5,
+  11,
+  29 and 301 notches:
+  main 0 of 10 requests in each,
+  fix 10 of 10 right in each (0.534 to 0.560 s after the wheel;
+  0.543 to 0.559 s at 301),
+  fix2 10 of 10 in each.
+- On the hint row above line 2,
+  5 and 301 notches:
+  main 0 of 10 in each,
+  fix 10 of 10 right (0.533 to 0.573 s),
+  fix2 10 of 10.
+- Hints arriving under the pointer (`build.unit.test.ts`,
+  the pointer past the end of line 97,
+  45 notches,
+  a fresh session for each trial because answered hints stay):
+  main 0 of 10,
+  fix 10 of 10 right,
+  fix2 10 of 10,
+  0.783 to 0.818 s after the wheel,
+  the line named is the line 96 of the screen (the parameter `dir`) in all 20.
+- The pointer moved onto an identifier 100 ms before a 300-notch wheel:
+  main 10 of 10 right,
+  fix 10 of 10 right,
+  fix2 10 of 10 (0.545 to 0.573 s in all three).
+- The pointer rested 1.2 s on an identifier (asked,
+  popup shown)
+  and then the wheel turned at the same point:
+  0 requests after the wheel in all three arms
+  (a rest that was asked stays asked),
+  as in editord.
+- A settled hover onto an identifier:
+  10 of 10 in all three arms,
+  0.350 to 0.370 s after the move.
+- No request before the wheel and no `resolved=` line before it in any trial of a rest over no character;
+  exactly one `resolved=` line after the wheel in every trial of the fix and none in main,
+  and no trial of any arm had a second request.
+
+Before the wheel the rest over no character logs nothing,
+so the settled pointer has no log noise.
+
+The hold of a first version of this change was also measured with screenshots at 150 ms after `language popup shown`:
+see the lines above about the second defect.
+After the fix,
+12 far-jump requests (4 each past the end of a line,
+on the hint row,
+and moved onto an identifier;
+301 and 300 notches) and 6 settled hovers were looked at in screenshots of the frame after the popup was shown:
+the popup heading (`const value0758: 758`,
+`const value0753: 753`,
+`const value0752: 752`,
+`const value0002: 2`) is the identifier of the row under the pointer in every one,
+the popup stands below that row at the pointer's column (3 px left of it),
+on screen,
+and none is for another identifier or at a stale place.
+The popup of the hints trial,
+`(parameter) dir: any`,
+stands below the wrapped row of line 96 and its right edge overlaps the left 10 px of the minimap.
+
+#### Not covered
+
+- Hints that arrive after the rest was resolved to no character start it again through the height of the text
+  (`a_growing_text_restarts_a_rest_that_was_not_asked_for`);
+  in the trials of the real server the hints arrived before the rest was due (0.44 s after the wheel),
+  so the height alone was not shown necessary there.
+- The two items that this section left open at the time
+  (a fresh session with no character under the pointer after a first far scroll,
+  and rows that are drawn late under a rest over no character)
+  are answered in the two subsections that follow.
+
+#### The first far scroll of a fresh session with no character under the pointer
+
+The open item:
+one trial of a fresh session under the load of a release build that had just finished
+(a 301-notch wheel as the first scroll) had `resolved=None`,
+its settled probe found no character either,
+and the log showed `leaving a finished tile for the next scroll step`.
+It was feared that the view stayed at a stale place or that the tile of the end of the ease was never applied.
+Answer of 2026-10-25 (branch `worktree-agent-ac50f93d8163f1cf4`):
+no stuck view was found in 1,000 trials of the build of `origin/main`
+(the installed `0730fa64bdf211e7`,
+identical bytes to a release build of the commit `654f87b6b2`),
+and the symptom was reproduced without any stuck view.
+
+What the log line means:
+`poll_unless_step_due` in `src/native/tile/wait.rs` writes `leaving a finished tile for the next scroll step`
+whenever the repeated poll of the worker runs within 20 ms of a scroll step,
+before it asks the worker whether anything has finished.
+It was in 27 to 30 of 30 trials of every normal cell,
+so it says nothing about a stranded tile.
+
+The harness (scripts in the session scratch,
+removed afterwards) started a new IDE process for every trial
+in a headless nested compositor 0.6.1 on the hardware GPU
+(`--gpu /dev/dri/renderD128`,
+the window drawn on `AMD Radeon RX 7600 (RADV NAVI33)` as the log of every session says),
+1080 by 1880 logical px at scale 2.
+The project was a disposable copy with the generated 1,500-line `long.ts` in the five-line period
+(three `export const alphaK/betaK/gammaK` lines,
+`// note K`,
+a blank line)
+and the project's own TypeScript 7.1.0-beta server (`tsc --lsp --stdio`).
+Three sessions ran at the same time,
+and the host's load was as it was
+(1-minute load average 3 to 36,
+recorded for every trial;
+other sessions' jobs and the checkout of this session's worktree raised it).
+The first wheel was the first input of the session:
+`wheel 462 Y 0 N`,
+with a Y that puts a `beta` line under the pointer at the end of the ease.
+A trial records:
+
+- The gutter numbers of a screenshot 3 s after the wheel (tesseract on the cropped gutter),
+  and the first line the model of the notch count predicts (`ceil(60 N / 24) + 1`,
+  clamped to the end of the text).
+  A view with fewer than 20 numbers read counts as blank.
+- The log lines of the wheel:
+  `turned the wheel`,
+  `began an ease`,
+  `held=true` frames,
+  `applied a finished tile`,
+  `discarded stale source tile`,
+  `a followed wheel ease ended without a step`,
+  and `resolved=`.
+- A settled probe:
+  the pointer leaves for the sidebar and comes back to the same point,
+  and the request of that hover names a character or none.
+
+The wheel was sent 0.5,
+1,
+2,
+or 4 s after the first drawn frame
+(the first frame is drawn 0.5 to 0.7 s after the start,
+and up to 3.6 s on the loaded host),
+with the server ready (`ready`)
+or not ready for the first 3 s (`late`:
+a wrapper of `bin/tsc` that waits 3 s before it starts the server).
+The cells and their counts:
+
+- 301 notches,
+  8 cells (4 delays by 2 server states) of 30 trials:
+  240 trials,
+  0 wrong views,
+  0 blank views,
+  one tile applied for every jump (1.00 on average),
+  0 tiles discarded.
+- 5,
+  40,
+  150,
+  300,
+  and 600 notches,
+  40 cells of 10 trials:
+  400 trials,
+  0 wrong views,
+  0 blank views.
+  One tile of the end is applied per jump at 40 notches and more,
+  and none is asked for at 5 notches.
+- 301,
+  150,
+  600,
+  and 40 notches at 0.5 and 2 s,
+  both server states,
+  10 trials per cell,
+  the build of `origin/main` (`head`),
+  the fix of item B (`fix`),
+  and a second copy of the fix for the spread (`fix2`) at the same time:
+  160 trials per binary,
+  0 wrong views in all 480.
+  The request of the first rest after the wheel named a character in every one
+  (`resolved=Some`,
+  530 to 620 ms after the wheel,
+  median 556 ms in every binary),
+  and the settled probe found a character in 157,
+  155,
+  and 158 trials.
+  The rest (3,
+  5,
+  and 2 trials) had no `resolved=` line within 1.2 s of the probe's move,
+  in pairs at the same moment in several binaries,
+  with the 1-minute load average 17 to 30 at that moment:
+  a stall of the host,
+  and the spread of one binary is as large as the difference between binaries.
+- The same cells as the last item with the hosted app limited to one core
+  (`--isolate --app-cpu-quota 100` of the compositor,
+  which puts the app in a transient systemd scope;
+  limiting the app is not a synthetic load of the host),
+  160 trials of the build of `origin/main`:
+  0 stuck views,
+  0 blank views,
+  tiles applied 1.00 per jump,
+  and 5 trials whose view was 3 lines off the model.
+  Those 5 are the symptom of the open item:
+  the first rest resolved `None`,
+  the settled probe found no character,
+  and the gutter was exact for the row map the window held.
+
+The explanation of the symptom:
+in those 5 trials the row map ended 72 px taller than the text
+(`height=36096.0` in the last `row map rebuilt` line against `36024.0` for 1,501 lines of one row),
+so every line stood 3 rows lower in the map than in the model,
+and the pointer that the model put on a `beta` line was over a `// note` line or a blank line.
+(4 more trials of that run had the taller map and a view on the model,
+because the 3 extra rows lay below the rows the view showed.)
+The picture and the gutter are consistent with each other
+(a screenshot of such a view shows lines 373 to 449 in order with the gutter numbers right),
+the tile was applied once,
+and the log has no discarded tile.
+The earlier fixture's geometry had to assume rows above the view in the same way (a hint row above line 2),
+and the one trial under the load of a finished build was most likely a session whose map was taller than the geometry assumed.
+That is not proved for that trial,
+whose log is gone;
+the same symptom with the same log lines is reproduced here.
+
+What was open and not explained at that time is explained in the section "A row map taller than the text"
+(the taller map and,
+in its subsection "Missing wheel log lines",
+the missing `turned the wheel` lines).
+The counts of the first account stand:
+the taller row map was 9 of 160 trials under the one-core limit,
+4 of 53 sessions started with no input at all under the limit,
+and 1 of 1,160 trials without a limit;
+three trials of the cell of 40 notches at 2 s with the server ready had no `turned the wheel` line at a 1-minute load average of 28 to 35.
+
+Positive controls (301 notches,
+1 s,
+10 trials each,
+the same harness):
+
+- A build in which `tile::accepts` takes no tile
+  (the view stays held at the first tile's edge):
+  10 of 10 wrong views,
+  10 of 10 probes without a character,
+  2,570 tiles discarded.
+- A build in which the end of the ease is predicted 6,000 px past the real end
+  and the 400 ms backstop (`arm_release`) does nothing:
+  10 of 10 wrong views
+  (the tile of the predicted end is applied,
+  the view stops elsewhere,
+  and nothing asks for the tile of the real end).
+- The same prediction with the backstop intact:
+  0 of 10 wrong,
+  the backstop (`a followed wheel ease ended without a step`) fired in 10 of 10
+  and 2.00 tiles were applied per jump.
+
+So the harness sees a stuck view,
+and the backstop is what keeps a mispredicted end from sticking.
+
+#### Late rows under a rest over no character
+
+The open item:
+rows that are drawn late without a move of the drawn offset or a change of the height of the text
+do not start a rest again (`Rest::follow` watched those two numbers).
+Decision from the code and a measurement:
+one real case exists and is fixed;
+the others that were named are covered or cannot happen.
+
+The real case is an external change of the displayed file that keeps the number of lines
+(a formatter,
+a checkout,
+an editor elsewhere).
+It changes the characters under a pointer that does not move,
+and the offset and the height of the text stay the same,
+because every line is one row.
+A pointer that rested over a `// note` line past its end,
+or over a blank line,
+had a rest over no character that asked nothing and logged nothing,
+so an identifier that stood under it after the reload was never asked about
+until the pointer moved by a pixel.
+Measured on release builds,
+10 trials per case,
+a fresh session each,
+the pointer resting 1.2 s over no character,
+then `long.ts` rewritten on disk
+(line 4 `// note 1` to `export const delta1 = 1;`,
+or the blank line 5 to `export const eps5 = 5;`),
+no pointer move,
+2 s of waiting for requests:
+
+- Past the end of line 4:
+  `origin/main` 0 of 10 requests,
+  the fix 10 of 10 with exactly one request
+  (character 89,
+  inside the new line 4,
+  popup shown 10 of 10),
+  a second copy of the fix 10 of 10.
+- Blank line 5:
+  `origin/main` 0 of 10,
+  the fix 10 of 10 with exactly one request (character 99 inside the new line 5,
+  popup shown 10 of 10),
+  second copy 10 of 10.
+- Positive control (`origin/main`):
+  a pointer move of 1 px after the reload sends the request in 10 of 10.
+- A rest that was asked about (the pointer on `alpha1`,
+  popup shown),
+  then the file reloaded:
+  0 new requests in all three binaries
+  (a rest that was asked stays asked,
+  as after a scroll).
+- Screenshots of the frame after `language popup shown`
+  (`const delta1: 1` below line 4 and `const eps5: 5` below line 5,
+  at the pointer's column,
+  on screen)
+  were looked at for both cases.
+
+The fix:
+`View` and `Spot` in `src/native/language/pointer.rs` carry the stamp of the displayed text
+(`DocumentStamp`:
+file generation and content revision,
+`surface::displayed`),
+`Rest::follow` starts a rest again that was not asked for when the stamp changed,
+and `rest` in `src/native/language/rest_step.rs` and `on_pointer_moved` in `src/native/language/actions.rs` read it the same way.
+The stamp is the cheapest signal that changes when the characters change:
+one pair of integers compared per tick,
+no recomputation,
+and it also covers a file switch.
+
+Tests are in `src/native/language/pointer_blank_tests.rs`:
+`a_replaced_text_restarts_a_rest_that_was_not_asked_for` (unit),
+`a_rest_over_no_character_asks_when_a_reload_puts_a_character_under_it` (native,
+the popup stays open for twice the rest time),
+and `a_rest_that_was_asked_about_is_not_asked_again_by_a_reload` (native).
+With `|| text_changed` removed from `follow` the first two fail and the third passes
+(it guards the unchanged behavior).
+The guard cases `hover-text-change-ignored`,
+`hover-text-change-ignored-unit`,
+`hover-spot-text`,
+and `hover-tick-text` of `bin/inspect-source-guards.ts` remove each changed line;
+the two older guards on the same condition (`hover-view-moving-restarts` and its unit twin) follow the changed line.
+
+The other cases that were named:
+
+- A tile that lands after a hold:
+  the view is drawn at the edge of the displayed tile's raster until the tile of the end lands,
+  and the character is found in the drawn rows and the drawn offset when the request is built.
+  The drawn offset moves when the hold ends,
+  which starts the rest again;
+  a tile that lands without moving the drawn offset holds the same lines at the same places,
+  so the same characters stand under the pointer.
+- A hint answer that replaces a hint row by another text of the same height:
+  a hint row is a virtual row (`in_block`) with no source character,
+  so `character_at` answers none before and after.
+  A hint that appears or goes changes the height of the text,
+  which `Rest::follow` already watches.
+- A diagnostic message that appears:
+  it adds virtual rows below its line,
+  so the height of the text changes.
+- A resize or a change of scale:
+  a wrapped line changes the height,
+  and a line that does not wrap puts the same characters at the same places.
+- A blank placeholder before a first tile:
+  no case with a pointer in the window was found in the fresh-session trials above
+  (the first frame already shows the first tile of the file).
+
+Measured again on the fix against `origin/main`:
+the 160-trial grid of the last section shows the same counts for the far jumps in each binary
+(0 wrong views,
+one tile per jump),
+and the first rest after the wheel is unchanged
+(`resolved=Some` in 160 of 160 for each of the three binaries).
+
+## A row map taller than the text
+
+Measured on 2026-10-25 on the build of `origin/main` (installed binary `0730fa64bdf211e7`) and on a build with the fix,
+in the nested compositor (`--headless`,
+1080x1880 logical px,
+scale 2,
+the hardware GPU through Vulkan RADV),
+three sessions at a time,
+the 1-minute load average 20 to 31,
+the hosted app limited to one core (`--isolate --app-cpu-quota 100`),
+a generated `long.ts` of 1,500 lines
+(three `export const` lines,
+a `// note K` line and a blank line in each period of five;
+the text has 1,501 lines,
+so the model height is 36,024 px),
+and the project's TypeScript 7.1.0-beta server.
+The harness (a driver that starts a fresh IDE process for each trial,
+waits 5 s without any input,
+and reads the last `row map rebuilt` record of the log) was kept only in the session scratch and removed.
+
+### Reproduction
+
+- Sessions with no input,
+  one-core limit,
+  the `height=` of the last `row map rebuilt` record against 36,024:
+  `origin/main` 12 of 160 too tall by exactly 72 px,
+  a second copy of the same binary 7 of 160
+  (the spread of one binary),
+  the fix 0 of 160
+  (Fisher exact test,
+  one-sided,
+  the fix against the 320 sessions of both copies of `origin/main`:
+  p = 0.0004).
+  Two earlier groups of the first build:
+  5 of 60 and 3 of 30.
+- Sessions with a taller map by another amount (36,114 to 36,178) held a block of virtual rows:
+  an information message of the language support
+  (`bwrap: Can't bind mount ... on /tmp`:
+  the source directory `.../language/proj-<hash>/mise/tmp` of the bind mount did not exist).
+  They occur in every binary (2,
+  1 and 4 of 160) and are not a row defect.
+  Three sessions at a time share the harness's cache directory and the project hash,
+  which points to a race between sessions on one project
+  (a separate incident,
+  not investigated);
+  two IDE processes on one project could meet it too.
+
+### The lines and the cause
+
+A build with a probe (the `row map rebuilt` record listing the first lines that hold more than one row,
+and a record of the lines of the displayed tile that the pass measured differently from the table)
+showed in both sessions that were read with it the same three lines,
+150,
+151 and 152 (numbering from 0),
+each with two rows in the map and one row at the real width:
+
+1. The window starts with a narrow layout (a view of 173 px,
+   18 lines in the tile) and gets its real size (646 px by 1,848 px) some 0.1 to 1 s later.
+   Under a one-core limit the worker's first pass over the whole text,
+   at the narrow width,
+   can be taken by the 20 ms poll before the real size arrives
+   (`applied a measurement count=256 changed=true`),
+   so the table of measured rows holds two rows for every line that wraps at 171 px.
+   With CPU to spare the real size comes first and the narrow output is dropped as `another text or width`.
+2. The real width asks for a tile of 99 lines,
+   taken from that table.
+   `measure_requested` (`src/native/render/measure.rs`) measured the lines of the tile asked for at the real width in three rounds,
+   and after each round the map followed the corrected heights,
+   so the tile asked for reached further down the text:
+   the stale region of the table retreated from line 100 to 136 to 150 while the tile grew to 155 lines.
+   After the third round the lines the last tile asked for (here 150 to 154) were measured only for their cost:
+   the answer of `spending.measure(...)` was discarded,
+   so lines 150 to 152 kept two rows
+   (lines 153 and 154,
+   the note and the blank line,
+   never wrap).
+3. The window thread builds the tile of 155 lines,
+   which is painted with one row for each line,
+   and the map disagrees with it below line 150.
+   `apply_pass` (`src/native/tile/pass.rs`) never applies the lines of the displayed tile,
+   so the pass that finishes some milliseconds later does not correct them either
+   (the probe:
+   `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
+   then `done=true`).
+   The map ends 3 rows taller than the text.
+
+The earlier account,
+that measurement passes at the narrow width "end late",
+was wrong:
+the pass at the narrow width is finished or dropped,
+and what stays are heights it left in the table that the window thread's rounds did not reach.
+
+### When it corrects itself
+
+Not in a session with no input.
+Observed on a build of `origin/main` made to leave stale rows (the positive control below,
+600 lines with two rows,
+a map 240 px too tall),
+12 sessions:
+
+- A window resize (`resize 1000 1880`,
+  then back) made the map exact in 6 of 6,
+  because the new width measures the lines near the view again.
+- Ctrl+End left it 240 px too tall in 6 of 6,
+  because the tile of the end does not cover the stale lines.
+  Ctrl+Home then made it exact in 6 of 6,
+  because the tile of the first lines covers them.
+- A tile built on the worker that covers the lines corrects them too (`tile::apply` takes the heights the tile measured),
+  so stepping down by rows repairs the map when the view arrives
+  (the earlier agent's step-by-step session was exact for 1,351 lines).
+
+Until then the scroll extent is 72 px taller than the text,
+every line after line 152 stands 3 rows lower in the map than in the text,
+so a distance in pixels (a wheel jump,
+a minimap click,
+a restored scroll offset) lands 3 rows away from where the text model puts it,
+and a pointer placed from the model is over another row.
+The picture and the gutter agree with the map:
+after Ctrl+End a session with the taller map shows the last row at the bottom with the same gutter numbers
+(1,425 at the top and 1,501 at the bottom) as a session with the exact map,
+so nothing is drawn blank and a screenshot of one view does not show it.
+
+### Fix
+
+`measure_requested` repeats its rounds until one changes no height
+(at most 64,
+`ROUNDS`,
+with a warn record if the bound is reached),
+and the measurement of the last tile asked for is taken into the table too.
+The invariant is that every line of the tile built next has in the table the rows the shaper measured for it.
+`apply_pass` writes a debug record
+(`the measurement found rows in the displayed tile that differ from the map`)
+when a line of the displayed tile differs from what the pass measured,
+so this class of fault is visible in the log.
+
+- Native test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`):
+  the pass is held still,
+  a pass chunk of the narrow width is simulated by 2 rows for the lines 0 to 599,
+  a new width is taken by the window thread,
+  and every line of the displayed tile must have the rows a fresh shaper measures for it.
+  Before the fix:
+  4 lines of the tile kept a stale height (`[(50, 2, 1), (51, 2, 1), (52, 2, 1), (53, 2, 1)]`).
+  After:
+  it passes.
+- Guard case `measure-rounds-capped` of `bin/inspect-source-guards.ts` (3 rounds and no absorb of the last measurement).
+
+### Measurements of the fix
+
+- 160 sessions with no input under the one-core limit for each of three binaries,
+  alternating (`origin/main`,
+  the fix,
+  a second copy of `origin/main`):
+  too tall by 72 px in 12,
+  0 and 7 of 160.
+  The record of a pass finding rows of the displayed tile that differ from the map:
+  0 of 160 in the fix.
+- Positive control for the harness and the fix:
+  a throwaway build (both logics) that applies 2 rows to the lines 0 to 599 when the pass at the narrow width is posted,
+  the stand-in for a pass chunk applied before the real size.
+  The old logic gave 10 of 30 sessions with a map 240 px too tall (and 2 with the message block),
+  the fixed logic 0 of 30.
+  A first stalled build (one round,
+  no absorb of the last measurement) gave 1 of 60,
+  no more than the spread of the old logic,
+  so it was no control.
+- 90 sessions with Ctrl+End after the wait,
+  alternating the old build and the fix:
+  3 sessions with a map 72 px too tall in the old build and none in the fix,
+  and the same last rows on the screen in all.
+
+### Missing wheel log lines
+
+The wheel path writes two records per turn,
+both at debug level:
+
+- `the windowing system turned the wheel` (`src/native/wheel.rs`,
+  `note_event`),
+  once for each winit wheel event with a line delta,
+  before the toolkit sees it and whatever the displayed tile holds.
+- `a wheel turn began an ease` (`turn`),
+  once for each turn the toolkit's scroll reports within 50 ms of the event,
+  with `covered=true` when the displayed tile holds the end.
+
+A turn the displayed tile holds therefore logs both records,
+and nothing in the code skips them.
+Two branches dropped a turn without a record
+(`note_turn` when the window state was in use,
+`flicked` when the note was older than 50 ms);
+they write a debug record now.
+`src/logging.rs` does not write straight to the file:
+`src/logging/background.rs` queues records for a writer thread
+and drops records,
+with a warning that carries the count,
+only when 8 MiB wait in the queue;
+no such warning stood in any log read here.
+
+Measured:
+40 and 301 notches turned 300 ms after the server was ready,
+2 s of waiting,
+one-core limit,
+210 sessions.
+The 197 sessions with a `turned the wheel` line all show a scrolled gutter,
+and the 13 sessions without one all show the top of the file
+(the gutter pixels equal those of a session that never scrolled).
+What separates the sessions is the gutter and nothing else that was measured:
+the time of the toolkit's report of the real view size (`viewport_width=646`) after the server was ready overlaps
+(0.12 to 1.0 s in the 9 silent sessions of the cell of 40 notches,
+negative to 0.19 s in the 4 of the cell of 301,
+negative to 0.3 s in the sessions that took the wheel),
+so it is not the discriminator.
+The likely mechanism is a hypothesis the IDE log cannot show:
+the first surface is small (a view of 173 px by 288 px),
+the pointer of the wheel command stands at 540 px by 900 px,
+and the layout report is not the commit of the fullscreen surface,
+so the pointer was over no surface of the IDE and the event reached nobody.
+The IDE never received an event,
+so the log is right to be silent,
+and it has no record to write for an event it never receives.
+
+### Not explained
+
+- Where such a wheel is dropped (the compositor or the toolkit's first surface),
+  and why the report of the real size does not tell.
+- Whether the pass at the narrow width is taken before the real size only under a one-core limit:
+  the same symptom was seen once in 1,160 trials without a limit,
+  whose logs are gone.
+
 ## Workarounds before the fix
 
 The reader could avoid the blank by moving the view with a placement (Ctrl+End,
