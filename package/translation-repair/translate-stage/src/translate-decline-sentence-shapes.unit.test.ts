@@ -174,21 +174,19 @@ const SHAPE_CASES: readonly ShapeCase[] = [
 ];
 
 /**
- The case that reads one shape in one kind of caller: the candidates each round was put to, and the sentence of the
- first ask and of the challenge against the clause of the shape.
+ Reads one shape of declined round for one kind of caller: the candidates each round was put to, and the sentences of
+ the first ask and of the challenge against the clause of the shape.
 
  @param shapeCase - the shape and the judging that comes to it
 
  @param shipPastDecline - whether the caller ships past a decline in its challenge
 
- @returns The test case
-
  @example
  ```ts
- const children = [shapeIt({ shapeCase: SHAPE_CASES[0], shipPastDecline: true, },),];
+ await readsShapeFor({ shapeCase: SHAPE_CASES[0], shipPastDecline: true, },);
  ```
  */
-function shapeIt(
+async function readsShapeFor(
   {
     shapeCase,
     shipPastDecline,
@@ -196,68 +194,127 @@ function shapeIt(
     readonly shapeCase: ShapeCase;
     readonly shipPastDecline: boolean;
   },
-) {
+): Promise<void> {
   const { shape, } = shapeCase;
-  return it({
-    name: `SAYS WHAT A ROUND THAT CAME TO ${shape.toUpperCase()} DID: the challenge is put to `
-      + `${String(shapeCase.challengeIsOver,)} of ${String(shapeCase.width,)} candidates, and the sentences of the `
-      + `first ask and of the challenge ${shipPastDecline ? 'that ships past a decline' : 'that defers'} say so`,
-    fn: async () => {
-      /**
-       Every sheet the judging sent.
-       */
-      const sheets: string[] = [];
-      await judgedOver({
-        sheets,
-        candidates: slateOf({
-          width: shapeCase.width,
-          secondIsJudgesOwn: shapeCase.secondIsJudgesOwn,
-        },),
-        plan: shapeCase.plan,
-        shipPastDecline,
-      },);
-      expect([
-        0,
-        1,
-      ].map(function candidatesAskedIn(round,): number {
-        return candidatesIn({
-          sheet: sheetOfRound({
-            sheets,
-            round,
-          },),
-        },).length;
-      },),).toEqual([
-        shapeCase.width,
-        shapeCase.challengeIsOver,
-      ],);
-      expect(failuresOf({
-        sheets,
-        mode: 'asked-again',
-        round: 0,
-        shape,
-      },),).toEqual([],);
-      expect(failuresOf({
-        sheets,
-        mode: shipPastDecline ? 'ships' : 'defers',
-        round: 1,
-        shape,
-      },),).toEqual([],);
-    },
+  /**
+   Every sheet the judging sent.
+   */
+  const sheets: string[] = [];
+  await judgedOver({
+    sheets,
+    candidates: slateOf({
+      width: shapeCase.width,
+      secondIsJudgesOwn: shapeCase.secondIsJudgesOwn,
+    },),
+    plan: shapeCase.plan,
+    shipPastDecline,
   },);
+  expect([
+    0,
+    1,
+  ].map(function candidatesAskedIn(round,): number {
+    return candidatesIn({
+      sheet: sheetOfRound({
+        sheets,
+        round,
+      },),
+    },).length;
+  },),).toEqual([
+    shapeCase.width,
+    shapeCase.challengeIsOver,
+  ],);
+  expect(failuresOf({
+    sheets,
+    mode: 'asked-again',
+    round: 0,
+    shape,
+  },),).toEqual([],);
+  expect(failuresOf({
+    sheets,
+    mode: shipPastDecline ? 'ships' : 'defers',
+    round: 1,
+    shape,
+  },),).toEqual([],);
+}
+
+/**
+ Reads one shape of declined round for a caller that ships past a decline and for one that defers.
+
+ @param shape - what the first ask comes to
+
+ @example
+ ```ts
+ await readsShape({ shape: 'slate-of-two', },);
+ ```
+ */
+async function readsShape({ shape, }: { readonly shape: RunoffShape; },): Promise<void> {
+  /**
+   The shape and the judging that comes to it.
+   */
+  const shapeCase = nonNullishOrThrow(SHAPE_CASES.find(function named(candidate,): boolean {
+    return candidate.shape === shape;
+  },),);
+  await Promise.all([
+    readsShapeFor({
+      shapeCase,
+      shipPastDecline: true,
+    },),
+    readsShapeFor({
+      shapeCase,
+      shipPastDecline: false,
+    },),
+  ],);
 }
 
 await describe({
   name: judgeSlateWithRetry.name,
-  children: SHAPE_CASES.flatMap(function bothCallers(shapeCase,) {
-    return [
-      shapeIt({
-        shapeCase,
-        shipPastDecline: true,
-      },),
-      shapeIt({
-        shapeCase,
-        shipPastDecline: false,
-      },),
-    ];
-  },),
+  children: [
+    it({
+      name: 'SAYS WHAT A TIE AT THE TOP THAT LEAVES SOME CANDIDATES BEHIND DID: the challenge is put to 2 of 4 '
+        + 'candidates, and the sentences of the first ask and of both kinds of challenge say it narrows',
+      fn: async () => {
+        await readsShape({ shape: 'tied-at-top', },);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHAT A LEADER ONE JUDGE NAMED BESIDE A RUNNER-UP WITH SOME CANDIDATES BEHIND DID: the challenge is '
+        + 'put to 2 of 4 candidates, and the sentences of the first ask and of both kinds of challenge say it narrows',
+      fn: async () => {
+        await readsShape({ shape: 'leader-and-runner-up', },);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHAT A WHOLE SLATE TIED DID: the challenge is put to 2 of 2 candidates, and the sentences of the '
+        + 'first ask and of both kinds of challenge say it narrows nothing',
+      fn: async () => {
+        await readsShape({ shape: 'whole-slate-tied', },);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHAT A ROUND IN WHICH EVERY JUDGE DECLINED DID: the challenge is put to 4 of 4 candidates, and the '
+        + 'sentences of the first ask and of both kinds of challenge say it narrows nothing',
+      fn: async () => {
+        await readsShape({ shape: 'every-judge-declined', },);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHAT A LEADER ALONE IN DRAWING A BALLOT DID: the challenge is put to 4 of 4 candidates, and the '
+        + 'sentences of the first ask and of both kinds of challenge say it narrows nothing (re-check 6, M-B)',
+      fn: async () => {
+        await readsShape({ shape: 'leader-alone', },);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHAT A LEADER BESIDE ITS RUNNER-UP IN A SLATE OF TWO DID: the challenge is put to 2 of 2 candidates, '
+        + 'and the sentences of the first ask and of both kinds of challenge say it narrows nothing (re-check 6, M-B)',
+      fn: async () => {
+        await readsShape({ shape: 'slate-of-two', },);
+      },
+    },),
+  ],
 },);

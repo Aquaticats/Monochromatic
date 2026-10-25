@@ -112,12 +112,12 @@ export const NAPPING = 'A cat naps on the sill, its tail hanging near the heater
 /**
  The repair lane's rendering.
  */
-export const CURLED = 'The cat curls up on the ledge, tail tucked by the warmth.';
+const CURLED ='The cat curls up on the ledge, tail tucked by the warmth.';
 
 /**
  The translate lane's rendering.
  */
-export const YAWNING = 'The cat yawns on the sill, tail resting against the pipe.';
+const YAWNING ='The cat yawns on the sill, tail resting against the pipe.';
 
 /**
  A fresh rendering written by a model.
@@ -430,7 +430,7 @@ export async function judgedOver(
  const sentence = sentenceOf({ sheet, },);
  ```
  */
-export function sentenceOf({ sheet, }: { readonly sheet: string; },): string {
+function sentenceOf({ sheet, }: { readonly sheet: string; },): string {
   /**
    Where the sentence opens.
    */
