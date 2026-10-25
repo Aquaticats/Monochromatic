@@ -5,15 +5,12 @@ import {
   composeSourcePage,
   type ComposedPage,
   encodeAsLiteralMdx,
-  holdsOpenComment,
+  type GrammarReader,
   type PageGrammarReading,
   readPageGrammar,
-  runsUnfitForCompany,
-  runTextOf,
-  sourceRunsOf,
   type WouldShipSource,
-  wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
+import { encodedSlicesOf, } from './source-live-pairs-encoded.test-fixture.ts';
 import {
   liveConstructsOf,
   liveConstructsOfCarried,
@@ -86,94 +83,12 @@ type Placed = {
 };
 
 /**
- Names the slices of a composed page that were written as literal text and are still on it.
-
- @param composed - composition
-
- @param artifact - artifact it was composed from
-
- @returns Slice indices, none for a page with every original as recorded
-
- @example
- ```ts
- const encoded = encodedSlicesOf({ composed, artifact, },);
- ```
- */
-function encodedSlicesOf(
-  {
-    composed,
-    artifact,
-  }: {
-    readonly composed: ComposedPage;
-    readonly artifact: WouldShipSource;
-  },
-): readonly number[] {
-  if (composed.step === 'as-written')
-    return [];
-  if (composed.step !== 'dropped')
-    return composed.slices;
-
-  /**
-   What each slice ships.
-   */
-  const readings = wouldShipTextPerSlice({ artifact, },);
-  /**
-   The runs of the slices that ship their original.
-   */
-  const runs = sourceRunsOf({ slices: readings, },);
-  /**
-   Runs the first step writes as literal text, those that cannot stand beside another, hold a comment nothing closes or
-   do not parse alone.
-   */
-  const unfit = runsUnfitForCompany({
-    runs,
-    slices: readings,
-  },);
-  /**
-   Slices of the runs the first step writes as literal text.
-   */
-  const failing = runs
-    .filter(function failsAlone(run,): boolean {
-      /**
-       What the page grammar says of the run alone.
-       */
-      const alone = readPageGrammar({
-        pageText: runTextOf({
-          run,
-          slices: readings,
-        },),
-      },);
-      /**
-       Whether the run holds a comment nothing closes.
-       */
-      const opensComment = holdsOpenComment({
-        run,
-        slices: readings,
-      },);
-      /**
-       Whether the grammar refuses the run alone.
-       */
-      const refused = alone.kind === 'refused';
-      /**
-       Whether the run cannot stand beside another as it is written.
-       */
-      const unfitForCompany = unfit.includes(run,);
-      return unfitForCompany
-        || opensComment
-        || refused;
-    },)
-    .flat();
-  return failing.filter(function stillOnPage(slice,): boolean {
-    return !composed
-      .slices
-      .includes(slice,);
-  },);
-}
-
-/**
  Composes the page of a pair of runs, with a paragraph the archive covers before them and one between.
 
  @param pair - two runs and the English between them
+
+ @param readGrammar - what the grammar says of a text, the strict MDX grammar by default; a case hands one in to force
+ a refusal the real grammar never gives
 
  @returns Composition, the artifact it was composed from, and what the grammar refused of the pages the
  composition tried, as it worded each refusal
@@ -184,7 +99,13 @@ function encodedSlicesOf(
  ```
  */
 export function composePair(
-  { pair, }: { readonly pair: RunPair; },
+  {
+    pair,
+    readGrammar = readPageGrammar,
+  }: {
+    readonly pair: RunPair;
+    readonly readGrammar?: GrammarReader;
+  },
 ): {
   readonly composed: ComposedPage;
   readonly artifact: WouldShipSource;
@@ -233,7 +154,7 @@ export function composePair(
         /**
          What the page grammar says of the text.
          */
-        const reading = readPageGrammar({ pageText, },);
+        const reading = readGrammar({ pageText, },);
         if (reading.kind === 'refused')
           refusals.push(reading.refusal,);
         return reading;
@@ -420,6 +341,8 @@ function liveInEncodedSlices(
 
  @param pair - pair, with the index of its draw when it has one
 
+ @param readGrammar - what the grammar says of a text, the strict MDX grammar by default
+
  @returns How many slices were written as literal text, what was found in them or in the dropping, and the step the
  composition took
 
@@ -429,7 +352,13 @@ function liveInEncodedSlices(
  ```
  */
 export function readPair(
-  { pair, }: { readonly pair: RunPair & { readonly at?: number; }; },
+  {
+    pair,
+    readGrammar = readPageGrammar,
+  }: {
+    readonly pair: RunPair & { readonly at?: number; };
+    readonly readGrammar?: GrammarReader;
+  },
 ): {
   readonly encoded: number;
   readonly finding: Finding;
@@ -442,7 +371,10 @@ export function readPair(
     composed,
     artifact,
     refusals,
-  } = composePair({ pair, },);
+  } = composePair({
+    pair,
+    readGrammar,
+  },);
   /**
    Slices written as literal text that the page still holds.
    */
