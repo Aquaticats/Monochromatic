@@ -14,6 +14,11 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 const READS_CONSTRUCTOR = 'constructor of a function builds code from text the search cannot read';
 
 /**
+ What a report says of a place that makes a function from text.
+ */
+const BUILDS_FUNCTION = 'Function builds code from text the search cannot read';
+
+/**
  Cases of the constructor of a function read by a method written another way.
  */
 export const TEXT_KEY_CASES: readonly ShapeCase[] = [
@@ -73,6 +78,21 @@ export const TEXT_KEY_CASES: readonly ShapeCase[] = [
       'export const third = Reflect[\'get\'](() => 1, \'name\',);',
     ],
     expected: [],
+  },),
+  textCase({
+    name: 'REPORTS EACH OF TWO PLACES THAT START AT THE SAME OFFSET, the name Function and the constructor read off '
+      + 'its prototype, since a report is kept once for each node and not for each offset',
+    lines: ['export const both = Function.prototype.constructor;',],
+    expected: [
+      {
+        line: 1,
+        position: BUILDS_FUNCTION,
+      },
+      {
+        line: 1,
+        position: READS_CONSTRUCTOR,
+      },
+    ],
   },),
   textCase({
     name: 'ACCEPTS A METHOD THAT RETURNS EVERY MEMBER OF A VALUE AND A PATTERN IN AN ASSIGNMENT THAT TAKES constructor, '
