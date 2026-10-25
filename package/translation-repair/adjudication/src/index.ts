@@ -172,6 +172,8 @@ export {
   declineConsequenceFor,
   KEEPS_TRUSTED_TEXT,
   LEAVES_PASSAGE_UNTRANSLATED,
+  SETTLES_NOTHING_AND_ASKS_AGAIN,
+  SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
   SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from './select-decline-consequence.ts';
 export { declaredSubjectNames, } from './subject-names.ts';

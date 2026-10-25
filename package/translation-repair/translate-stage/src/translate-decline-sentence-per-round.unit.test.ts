@@ -16,6 +16,7 @@
  */
 
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   describe,
   expect,
@@ -230,9 +231,7 @@ async function judgedDeclining(
  const sentence = sentenceOf({ sheet, },);
  ```
  */
-function sentenceOf({ sheet, }: { readonly sheet: string | undefined; },): string {
-  if (sheet === undefined)
-    throw new Error('the judging sent fewer sheets than the case reads',);
+function sentenceOf({ sheet, }: { readonly sheet: string; },): string {
   /**
    Where the sentence opens.
    */
@@ -275,7 +274,8 @@ function failuresOf(
   },
 ): readonly string[] {
   return unmetClausesOf({
-    text: sentenceOf({ sheet: sheets[round * JUDGES.length], },),
+    // The judging sends the same sheet to every seat of a round, so the first of the round stands for it.
+    text: sentenceOf({ sheet: nonNullishOrThrow(sheets[round * JUDGES.length],), },),
     mode,
   },);
 }

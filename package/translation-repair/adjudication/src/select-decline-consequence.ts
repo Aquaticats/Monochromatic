@@ -1,4 +1,7 @@
-import type { IncumbentKind, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
+import type {
+  IncumbentKind,
+  TranslateJudgeResponsibility,
+} from '@monochromatic-dev/translation-repair-translate-floor/ts';
 
 //region Selection decline consequence
 // What a judge is told a decline does. The shared sheet says the caller keeps
@@ -61,14 +64,18 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
     + 'rather than falling back on anything';
 
 /**
- What a decline costs where the passage HAS wording that cannot ship: a
+ What a decline costs in the challenge, whose caller ships past a decline,
+ where the passage HAS wording that cannot ship: a
  standing the deterministic rule refused, or an archive rendering the floor
- refused or the adjudicators disputed. A slate declined in every round ships a
+ refused or the adjudicators disputed. A slate declined in the challenge ships a
  candidate only when two or more judges named it (owner, 2026-09-27,
  "Preference + polish", narrowed on 2026-10-25 by "Two judges must name it"),
  and otherwise the archive's wording stays and the page reports it, so a judge
  told the passage stays untranslated, or that trusted text is kept, would be
- told something false about what declining does. The sheet says it in order:
+ told something false about what declining does. The first ask of the pair and
+ the challenge of a caller that defers are told their own sentences
+ ({@link SETTLES_NOTHING_AND_ASKS_AGAIN}, {@link SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN}),
+ since a decline ships nothing and keeps nothing there (re-check 4, F1). The sheet says it in order:
  declining does not by itself keep the wording, and a judge's own decline
  names no candidate; the wording in place stays only when no candidate was
  named by two or more judges; and when one or more were, the preferred of
@@ -93,32 +100,86 @@ export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
 ].join(' ',);
 
 /**
- What a translate slate's judges are told a decline does.
+ What a decline does in the first ask of a pair over wording that cannot ship: nothing is settled, and the same judges
+ are asked again. The ask raises its absence (`settleAbsentDecline` ships by preference only in a challenge) and
+ `judgeSlateWithRetry` challenges the same panel, over only the candidates a tie backed where a tie narrows the
+ question. It names no ship and no stay, since neither is this round's to give (re-check 4, F1).
+
+ @example
+ ```ts
+ const consequence = SETTLES_NOTHING_AND_ASKS_AGAIN;
+ ```
+ */
+export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
+  'declining does not by itself keep the wording in place, and your own decline names no candidate:',
+  'when the judges decline this round, it settles nothing, and the same judges are asked again, over only the',
+  'candidates a tie backed where a tie narrows the question',
+].join(' ',);
+
+/**
+ What a decline does in a challenge whose caller defers to a later production (the translate lane's first call, whose
+ follow-up round ships past a decline): a candidate ships only where every candidate drew equal weight and two or more
+ judges named it (`breakRunoffTie`), the preferred of those by the fixed order; otherwise the round raises its absence
+ and the lane produces again, shown the rejected renderings and the findings, and judges again. It names no stay, since the wording in place
+ stays only in the round that ships past a decline (re-check 4, F1).
+
+ @example
+ ```ts
+ const consequence = SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN;
+ ```
+ */
+export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
+  'declining does not by itself keep the wording in place, and your own decline names no candidate:',
+  'when the judges decline this round, a candidate ships only where every candidate drew equal weight and two or more',
+  'judges named it, the preferred of those by a fixed order (the repair lane\'s text, then the translate lane\'s, then',
+  'the first on the slate) and not by your judgment; otherwise this round settles nothing, and the passage goes back',
+  'for new proposals written against the rejected renderings and is judged again',
+].join(' ',);
+
+/**
+ What a translate slate's judges are told a decline does, by the round they sit in.
+
+ Over wording that cannot ship the sentence differs by round, since a decline does a different thing in each: the first
+ ask of a pair settles nothing and the same judges are asked again; the challenge of a caller that ships past a decline
+ ships the preferred candidate two or more judges named, or keeps the wording; the challenge of a caller that defers
+ ships only a level tie and otherwise sends the passage back for new proposals.
 
  @param incumbentKind - whether there is wording to keep
 
  @param withheldStanding - whether absent wording exists and cannot ship
  rather than never having existed
 
+ @param responsibility - whether this ask is the first of a pair or the challenge of a decline
+
+ @param shipPastDecline - whether the caller ships past a decline in its challenge; read only for a challenge
+
  @returns The consequence the sheet states
 
  @example
  ```ts
- const consequence = declineConsequenceFor({ incumbentKind: 'absent', withheldStanding: true, },);
+ const consequence = declineConsequenceFor({ incumbentKind: 'absent', withheldStanding: true, responsibility: 'decline-challenge', shipPastDecline: true, },);
  ```
  */
 export function declineConsequenceFor(
   {
     incumbentKind,
     withheldStanding,
+    responsibility,
+    shipPastDecline,
   }: {
     readonly incumbentKind: IncumbentKind;
     readonly withheldStanding: boolean;
+    readonly responsibility: TranslateJudgeResponsibility;
+    readonly shipPastDecline: boolean;
   },
 ): string {
   if (incumbentKind === 'present')
     return KEEPS_TRUSTED_TEXT;
-  return withheldStanding ? SHIPS_WHAT_TWO_JUDGES_NAMED : LEAVES_PASSAGE_UNTRANSLATED;
+  if (!withheldStanding)
+    return LEAVES_PASSAGE_UNTRANSLATED;
+  if (responsibility === 'initial-selection')
+    return SETTLES_NOTHING_AND_ASKS_AGAIN;
+  return shipPastDecline ? SHIPS_WHAT_TWO_JUDGES_NAMED : SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN;
 }
 
 //endregion Selection decline consequence

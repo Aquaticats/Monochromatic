@@ -423,12 +423,18 @@ export async function judgeTranslateSlate(
     // keeps text it already trusts; at an anchor there is no such text, so that
     // sentence asks for caution by promising a fallback that does not exist and
     // buys a missing passage with it.
-    // Wording that exists and cannot ship is neither: a declined challenge
-    // round ships a candidate two judges named there, and otherwise the
-    // archive wording stays (owner, 2026-09-27 and 2026-10-25).
+    // Wording that exists and cannot ship is neither, and what a decline does
+    // there depends on the round (re-check 4, F1): the first ask of a pair
+    // settles nothing and asks the same judges again; a challenge that ships
+    // past a decline ships a candidate two judges named and otherwise keeps
+    // the archive wording (owner, 2026-09-27 and 2026-10-25); a challenge that
+    // does not ship past one ships only a level tie and otherwise raises the
+    // absence its caller answers with a follow-up round.
     declineConsequence: declineConsequenceFor({
       incumbentKind,
       withheldStanding,
+      responsibility,
+      shipPastDecline,
     },),
     task,
     criteria: translatedSlateCriteria({

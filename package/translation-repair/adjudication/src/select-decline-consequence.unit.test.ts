@@ -7,7 +7,13 @@
  contradicts itself. The sentence says what happens in order: declining does not by itself keep the wording, a judge's
  own decline names no candidate, a candidate two or more judges named ships, and the archive's wording stays only when
  none was named twice (re-check 3, M3). The cases read the clauses by their meaning, through
- `decline-consequence-clauses.test-fixture.ts`, so a rewording that keeps every clause passes and a lost clause fails.
+ `decline-consequence-clauses.test-fixture.ts`, so a rewording that keeps every clause passes and a lost clause, a
+ swapped outcome, a decline said to keep the wording and a reversed lane order fail (re-check 4, F2).
+
+ THAT SENTENCE IS TOLD IN ONE ROUND OF THREE (re-check 4, F1): the challenge of a caller that ships past a decline. The
+ first ask of a pair settles nothing and asks the same judges again, and the challenge of a caller that defers ships
+ only a level tie and sends the passage back for new proposals, so each is told its own sentence and the function
+ takes the round.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -24,6 +30,8 @@ import {
   declineConsequenceFor,
   KEEPS_TRUSTED_TEXT,
   LEAVES_PASSAGE_UNTRANSLATED,
+  SETTLES_NOTHING_AND_ASKS_AGAIN,
+  SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
   SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '../dist/final/node/index.mjs';
 import {
@@ -182,6 +190,37 @@ await describe({
         expect(unmetClausesOf({ text: sentence, mode: 'ships', },),).toEqual([],);
         expect(unmetClausesOf({ text: sentence, mode: 'asked-again', },).length,).toBeGreaterThan(0,);
         expect(unmetClausesOf({ text: sentence, mode: 'defers', },).length,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
+      name: 'GIVES EACH ROUND OF A PAIR ITS OWN CONSTANT over withheld wording, and the first ask the same one '
+        + 'whether or not its caller ships past a decline later',
+      fn: async () => {
+        expect([
+          declineConsequenceFor({
+            incumbentKind: 'absent',
+            withheldStanding: true,
+            responsibility: 'initial-selection',
+            shipPastDecline: true,
+          },),
+          declineConsequenceFor({
+            incumbentKind: 'absent',
+            withheldStanding: true,
+            responsibility: 'initial-selection',
+            shipPastDecline: false,
+          },),
+          declineConsequenceFor({
+            incumbentKind: 'absent',
+            withheldStanding: true,
+            responsibility: 'decline-challenge',
+            shipPastDecline: false,
+          },),
+        ],).toEqual([
+          SETTLES_NOTHING_AND_ASKS_AGAIN,
+          SETTLES_NOTHING_AND_ASKS_AGAIN,
+          SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
+        ],);
       },
     },),
 
