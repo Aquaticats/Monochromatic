@@ -164,7 +164,7 @@ await describe({
       },
     },),
     it({
-      name: 'LOGS AND REPORTS NOTHING FOR A RUN IT CANNOT COMPARE, a text nested past what the reading admits',
+      name: 'LOGS A RUN IT CANNOT COMPARE AND REPORTS IT IN A DEFECT OF ITS OWN, a text nested past what the reading admits',
       fn: async () => {
         /**
          A run nested past the bound of the plain reading, which the page cannot carry as text either.
@@ -179,7 +179,11 @@ await describe({
           ],
           encoded: [1,],
         },);
-        expect(defects,).toEqual([],);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-not-compared',],);
+        expect(defects[0]?.message,).toContain('slices [1]',);
+        expect(defects[0]?.message,).not.toContain('她说',);
         expect(lines.map(function levelOf(line,): string {
           return line.split(' ', 1,)[0] ?? '';
         },),).toEqual(['warn',],);
