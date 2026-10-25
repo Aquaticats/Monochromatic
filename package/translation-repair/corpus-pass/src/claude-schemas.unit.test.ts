@@ -105,6 +105,7 @@ import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts'
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
 import { MUTANT_PIN_CASES, } from './claude-schema-mutant-pin-forms.test-fixture.ts';
 import { SENDER_ALIAS_CASES, } from './claude-schema-sender-alias-forms.test-fixture.ts';
+import { IMPORT_CHAIN_CASES, } from './claude-schema-import-chain-forms.test-fixture.ts';
 import { FORWARDER_VALUE_CASES, } from './claude-schema-forwarder-value-forms.test-fixture.ts';
 import { DERIVED_NAME_CASES, } from './claude-schema-derived-forms.test-fixture.ts';
 import { CALLBACK_SCOPE_CASES, } from './claude-schema-callback-scope-forms.test-fixture.ts';
@@ -850,6 +851,7 @@ await describe({
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
       ...SENDER_ALIAS_CASES,
+      ...IMPORT_CHAIN_CASES,
       ...FORWARDER_VALUE_CASES,
       ...DERIVED_NAME_CASES,
       ...CALLBACK_SCOPE_CASES,
@@ -925,6 +927,7 @@ await describe({
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
       ...SENDER_ALIAS_CASES,
+      ...IMPORT_CHAIN_CASES,
       ...FORWARDER_VALUE_CASES,
       ...DERIVED_NAME_CASES,
       ...CALLBACK_SCOPE_CASES,
