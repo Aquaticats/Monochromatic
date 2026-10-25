@@ -46,7 +46,7 @@ const TREE: Tree = {
 
  @param value - what to put under the key
 
- @returns A disposable that removes it
+ @returns Disposable that removes it
 
  @example
  ```ts

@@ -50,6 +50,16 @@ function isParseEndHook(value: unknown,): value is ParseEndHook {
 /**
  Calls the hook for a tree the grammar is about to return, when a test has set one.
 
+ THE PARSES THAT CALL IT are `parseMdxBody` and `parseMarkdownBody` (`parse-mdx.ts`), the two that read the tree they
+ have built (they count the dropped characters and note the setext heading floors) before they return it, each calling
+ the hook last. THE PARSES THAT DO NOT are `parseMarkdownMathBody` (`parse-markdown-math.ts`), which returns its tree
+ with no read of its own, `rangesOfType` (`gfm-block-ranges.ts`), which walks its tree with a work stack of its own and
+ keeps offsets alone, and `moduleLineStartsOf` (`module-line-starts.ts`), which keeps no tree, a plugin noting line
+ starts while the parse runs. None has a read of its own for the hook to separate from the caller's reads, so the
+ stand-in tree of `withExhaustionFromWalk` (`parse-exhaustion.test-fixture.ts` of the test fixture package) is never
+ armed at them and raises nothing there. A case that needs one of those parses to exhaust the stack uses
+ `withExhaustionFromParse` of the same fixture, which makes the parser itself raise.
+
  @internal
 
  @param root - tree, final once the grammar has made its own reads of it

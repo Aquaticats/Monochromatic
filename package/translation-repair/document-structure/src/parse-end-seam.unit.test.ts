@@ -45,7 +45,7 @@ type GrammarNamespace = {
 /**
  Whether a loaded module holds the two grammar functions.
 
- @param value - the namespace the loader gave
+ @param value - namespace the loader gave
 
  @returns Whether both are functions on it
 
@@ -73,7 +73,7 @@ const GRAMMAR_PATH = '../dist/final/node/index.mjs';
 /**
  Loads the module namespace of the built grammar, for the call that goes through it.
 
- @returns The namespace
+ @returns Namespace
 
  @throws {@link Error} when the module lacks either function
 
