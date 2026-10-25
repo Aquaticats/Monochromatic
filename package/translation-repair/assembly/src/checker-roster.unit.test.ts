@@ -197,19 +197,9 @@ await describe({
           name: 'NAMES the floor of two in the refusal, so a reader of a refused roster is told the number that '
             + 'holds now',
           fn: async () => {
-            /**
-             What the refusal says about a roster of one.
-             */
-            const message = (() => {
-              try {
-                assertCheckerQuorumReachable({ checkerModelIds: [SEAT_SYNTHETIC_VISION_NO_OPENROUTER,], },);
-                return '';
-              }
-              catch (error) {
-                return (error instanceof Error) ? error.message : '';
-              }
-            })();
-            expect(message.includes('against a floor of 2',),).toBe(true,);
+            expect(function refusesARosterOfOne() {
+              assertCheckerQuorumReachable({ checkerModelIds: [SEAT_SYNTHETIC_VISION_NO_OPENROUTER,], },);
+            },).toThrow('against a floor of 2',);
           },
         },),
 
