@@ -126,6 +126,12 @@ impl Inner {
         if reusable {
             return true;
         }
+        tracing::debug!(
+            width,
+            before = ?self.minimap.iter().map(|kept| return kept.target.height).collect::<Vec<_>>(),
+            after = ?heights,
+            "replaced the textures of the minimap picture"
+        );
         self.minimap.clear();
         for height in heights {
             let texture = device.create_texture(&wgpu::TextureDescriptor {

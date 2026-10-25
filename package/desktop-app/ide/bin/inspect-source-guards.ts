@@ -2062,6 +2062,45 @@ const cases: Guard[] = [
     test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
     failure: 'the window still holds the slices of the tile before the press'
   },
+  // The very first tile of a window is handed over before the window's device is held, so its textures and slices are
+  // made inside the first frame; that frame does not show a slice list it was given, so the notifier gives the window
+  // the slices and asks for the next frame.
+  {
+    name: 'first-tile-slices-applied',
+    file: 'src/native/gpu_tile.rs',
+    before: '            outcome.apply(&active);',
+    after: '            let _ = (&outcome, &active);',
+    native: true,
+    test: 'the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next',
+    failure: 'the first frame did not give the window the slices of the tile it drew'
+  },
+  {
+    name: 'first-tile-frame-asked',
+    file: 'src/native/gpu_tile.rs',
+    before: '                active.window().request_redraw();',
+    after: '                let _ = &active;',
+    native: true,
+    test: 'the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next',
+    failure: 'asked for no frame to show them'
+  },
+  {
+    name: 'first-tile-frame-asked-control',
+    file: 'src/native/gpu_tile.rs',
+    before: '                active.window().request_redraw();',
+    after: '                let _ = &active;',
+    native: true,
+    test: 'a_frame_that_makes_no_slices_in_it_asks_for_no_frame',
+    failure: 'the first frame asked for no frame, so the test cannot tell'
+  },
+  {
+    name: 'first-tile-replaced-noted',
+    file: 'src/native/gpu_tile.rs',
+    before: '            let replaced = outcome.tile.is_some();',
+    after: '            let replaced = false;',
+    native: true,
+    test: 'the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next',
+    failure: 'asked for no frame to show them'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env
