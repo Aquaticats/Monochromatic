@@ -6,7 +6,10 @@ that landed the owner's answers of 2026-10-22 (UTC):
 `CuspariaKLSY23`
 and `XingZ6018`,
 and of the two passes of `XingZ60` that ran on the build after it,
-`XingZ6019` and `XingZ6020`.
+`XingZ6019` and `XingZ6020`,
+and of `XingZ6021`,
+which ran on the build after those (2026-10-24 and 2026-10-25,
+UTC).
 The passes of the build before it (`2a336603bf`) are in
 [the Gemma-lift restart overview](translation-repair-openrouter-2026-09-03-2026-10-21-gemma-lift-restart.md).
 The standing account of the readiness signal is [the readiness signal](translation-repair-readiness-signal.md).
@@ -87,6 +90,43 @@ so that no file passes the repository's limit of 1,000 lines:
   [the XingZ6019 record](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6019.md).
   `XingZ6019` ended with no page after 19.2 min on a short writing bench;
   `XingZ6020` was running when the record was filed.
+  The read of `XingZ6021` quotes the lead's figures for it
+  (10 h 33 min over two attempts,
+  its tail slices unfilled),
+  and that read of `XingZ6020` is not filed in this record.
+- `XingZ6021` (entry `XingZ60`):
+  launched at 22:49 UTC on 2026-10-24 on the build `bcff23b8ce`,
+  described in "The build of XingZ6021".
+  [The run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md)
+  (log,
+  timeline,
+  providers and models,
+  the Synthetic credit,
+  the NeuralWatt day,
+  the DeepSeek balance),
+  [the stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md)
+  (the seven checks of the build's fixes,
+  what the run could not test,
+  the page that shipped against the source and the archive,
+  and a note on footnote lines in quotes and list items),
+  [the evidence](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-evidence.md)
+  (refusals,
+  errors,
+  lost voices,
+  short-bench rounds,
+  the log lines behind the figures)
+  and [the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-defects.md)
+  (the Shinonome section in full,
+  N2 to N10 with the second reader's verdicts,
+  the owner's rulings of 2026-10-25,
+  the corrections and the points no log settles).
+  It SETTLED on its first attempt after 2 h 5 min 45 s with all 118 slices filled and no hold,
+  and the page that shipped carries archive text that the source does not contain
+  (the Shinonome section),
+  published without a `DEFECTS` line.
+  A second reader checked the read against the log,
+  the corpus and the source,
+  and the check's reading is the one filed.
 
 ## The build
 
@@ -139,3 +179,45 @@ so that no file passes the repository's limit of 1,000 lines:
   `XingZ6020` was relaunched at 19:32:29 UTC,
   after the restart,
   and what NeuralWatt held during it is not recorded here.
+
+## The build of XingZ6021
+
+- `XingZ6021` ran on the frozen build `bcff23b8ce`
+  (tip `bcff23b8ce4179b56b7ab4029ce35c2dd06cfd47`,
+  pipeline `sha256-tree-v1:899b55a69b741024df2ddd2039e9362b2adb79e83447d41c680778cfdc967862`,
+  corpus pin `a41fc607ea`),
+  first log line at 22:49:32 UTC on 2026-10-24.
+  The build of `XingZ6019` and `XingZ6020` was `1d46232457`.
+- It carries the fixes for the defects that the lead's read of `XingZ6020` found.
+  The read of `XingZ6021` checked seven:
+  the source text under a note when a slice has no archive and no backed wording (owner ruling of 2026-10-23),
+  D1 (the wait that cannot help),
+  D2 (tail slices tried twice to no gain),
+  D3 (stages that ran in full on one voice,
+  fixed in part by ledger B835),
+  D4 (a rollback with no log line,
+  the silent rollback of `XingZ6020`,
+  ledger B829),
+  E2 (the NeuralWatt hold and the NeuralWatt day,
+  whose known return is ledger B826)
+  and S1 (the Synthetic weekly credit read throughout).
+  Of them S1 worked on the whole run,
+  D2 and D4 did not recur,
+  D3 is fixed for the lane contest and only in part for the consolidation,
+  D1 was exercised only on its branch with no hold,
+  and the source-text note and E2 were not exercised.
+  The checks are in
+  [the stages of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md).
+- The run drew on NeuralWatt,
+  Synthetic,
+  Xiaomi,
+  DeepSeek and the owner's Claude key;
+  Hyper,
+  OpenRouter and Bedrock were out from the first line.
+  Synthetic's weekly credit ran dry 72.4 min in,
+  and the benches that name Kimi and Qwen reached one or two voices from then on.
+- The floors that left the Shinonome section as the archive's text are the subject of the owner's rulings of
+  2026-10-25 and of a change in progress,
+  with no commit yet;
+  see N1 in
+  [the defects of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-defects.md).

@@ -445,7 +445,45 @@ this section is the readiness reading of it.
   so the floor stopped the entry instead of waiting (ledger B826,
   open,
   the fix in progress).
-  `XingZ6020` was relaunched at 19:32:29 UTC on the same build and is running.
+  `XingZ6020` was relaunched at 19:32:29 UTC on the same build.
+  The `XingZ6021` read quotes the lead's figures for it
+  (10 h 33 min over two attempts,
+  the tail slices unfilled);
+  that read of `XingZ6020` is not filed.
+- `XingZ6021` ran on 2026-10-24 and 2026-10-25 on the build `bcff23b8ce`,
+  which carries the fixes for the defects found in `XingZ6020`,
+  and SETTLED on its first attempt in 2 h 5 min 45 s
+  ([the run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md)).
+  All 118 slices were filled,
+  tail included,
+  with no hold,
+  no HTTP error status and 0.4 min of idle wall clock.
+  It does not move the answer toward yes.
+  The page shipped clean,
+  with no `DEFECTS` line,
+  while its Shinonome section (slices 67 to 70) is the archive's text:
+  an invented *Metal Gear Solid 2* quotation and two paragraphs that the source lacks,
+  after the run's own critics had flagged it
+  ([the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-defects.md),
+  N1).
+  The cause is a chain of absolute floors
+  (tally weight 3,
+  3 non-translation votes,
+  a slate of 2 ballots)
+  that a bench of two cannot meet,
+  reached when Synthetic's credit ran dry 72.4 min in;
+  the archive stayed by omission and not by a recorded decision,
+  and no publish check measures whether the wording follows the source.
+  The owner ruled on those floors on 2026-10-25
+  and the change is in progress,
+  with no commit yet;
+  readiness is not claimed on this run,
+  and the check that the change worked is a rerun of the `XingZ60` page whose Shinonome section no longer ships the
+  archive's text.
+  Two of the seven fixes of the build were not exercised:
+  the source text under a note,
+  and the NeuralWatt hold
+  ([the stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md)).
 - The entries never run on a recent build are the rest of the 92-entry corpus.
   The owner's rule stands:
   "We never ever need a all 92 entries launch";
