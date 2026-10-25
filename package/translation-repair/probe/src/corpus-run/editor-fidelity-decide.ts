@@ -121,8 +121,9 @@ export function decisionRuleText(): string {
     + `${String(FALSE_PICK_BOUND_ALIKE,)} when every arm repeats itself alike (the worst of 192 cells was 0.055 at 800 `
     + 'replicates, within the noise of 0.008, and the four cells over 0.05 were at most 0.035 at 4000), and up to '
     + `${String(FALSE_PICK_UNEQUAL_REACHED,)} when the default effort repeats itself far less than the others (a true fix `
-    + 'rate of 0.9, three passes); the read step prints each arm\'s repeat agreement and warns when they differ by more '
-    + `than ${String(REPEAT_WARNED_ABOVE_POINTS,)} points; over the 88 trials `
+    + 'rate of 0.9, three passes); the read step prints each arm\'s repeat agreement over the units every arm holds and '
+    + 'warns when the default effort repeats itself more than '
+    + `${String(REPEAT_WARNED_ABOVE_POINTS,)} points less than another arm; over the 88 trials `
     + 'walked once the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half, 20 points '
     + 'when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, and over 176 units (two passes) '
     + '25, 21 and 14 points where a repeat always gives the arm\'s first answer again, 21, 17 and 12 points where it does '

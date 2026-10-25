@@ -54,6 +54,11 @@ export type SharedBench = {
   readonly trials: readonly SharedTrial[];
 
   /**
+   The unit of each shared trial, in the same order, as `unitOf` names it: the trial's handle and its pass.
+   */
+  readonly units: readonly string[];
+
+  /**
    Entries the shared trials come from.
    */
   readonly entries: number;
@@ -103,6 +108,11 @@ type Classified =
      The trial with each arm's outcome.
      */
     readonly trial: SharedTrial;
+
+    /**
+     The unit the trial is, its handle and its pass.
+     */
+    readonly unit: string;
   }
     | {
     /**
@@ -147,7 +157,7 @@ export function fixedBy({ row, }: { readonly row: RowStops; },): boolean {
  const unit = unitOf({ row, },);
  ```
  */
-function unitOf({ row, }: { readonly row: RowStops; },): string {
+export function unitOf({ row, }: { readonly row: RowStops; },): string {
   return `${row.trial}|${String(row.pass,)}`;
 }
 
@@ -314,6 +324,7 @@ export function sharedBenchOf(
       return { outcome: 'thrown', };
     return {
       outcome: 'shared',
+      unit,
       trial: {
         entryId: row.entry,
         kind: row.kind,
@@ -333,6 +344,9 @@ export function sharedBenchOf(
   },);
   return {
     trials,
+    units: classified.flatMap(function unitOfShared(each,): readonly string[] {
+      return (each.outcome === 'shared') ? [each.unit,] : [];
+    },),
     entries: new Set(trials.map(function entryOf({ entryId, },): string {
       return entryId;
     },),).size,

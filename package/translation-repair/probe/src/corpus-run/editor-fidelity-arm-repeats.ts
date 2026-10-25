@@ -3,10 +3,16 @@ import {
   countWithNoun,
 } from './editor-fidelity-arm-facts.ts';
 import {
+  type ArmFigures,
   armFiguresOf,
   type RowStops,
 } from './editor-fidelity-arm-figures.ts';
-import { fixedBy, } from './editor-fidelity-arm-shared.ts';
+import {
+  effortOf,
+  fixedBy,
+  sharedBenchOf,
+  unitOf,
+} from './editor-fidelity-arm-shared.ts';
 import {
   FALSE_PICK_BOUND_ALIKE,
   FALSE_PICK_UNEQUAL_REACHED,
@@ -15,14 +21,18 @@ import {
 import { ALPHA, } from './editor-fidelity-paired.ts';
 
 //region Editor fidelity arm repeats
-// THE REPEAT AGREEMENT OF EACH ARM, which the paired test's false-pick bound depends on. A trial asked in more than one pass
-// agrees with itself when it read the same way in every pass, a clean fix in each or in none (an ask that ended at the
+// THE REPEAT AGREEMENT OF EACH ARM, which the paired test's false-pick bound depends on. A trial asked in more than one
+// pass agrees with itself when it read the same way in every pass, a clean fix in each or in none (an ask that ended at the
 // output-token cap is not a clean fix, as in the paired test). The share of such trials that agree is an arm's repeat
 // agreement. The exact test holds its bound when the arms repeat themselves alike; when the default effort repeats itself
-// far less than the others the simulation reached a higher chance, so the repeat lines also warn when the arms' agreements
-// differ by more than the stated amount. The figures are read off each arm's own rows, a row in which an ask threw being
-// left out as the shared trials leave it out, so the lines are printed for one arm read alone, which the runbook does
-// before the other arms exist.
+// far less than the others the simulation reached a higher chance, and in no other direction, so the repeat lines also warn
+// when the default effort's agreement is under another arm's by more than the stated amount.
+//
+// THE FIGURES ARE READ OVER THE UNITS EVERY ARM HOLDS when several logs are read (the units the paired test reads, a row in
+// which an ask of any arm threw being left out of every arm), so that an arm the spend guard stopped early is compared with
+// the others over the same trials and the same passes. One log read alone, which the runbook does before the other arms
+// exist, and logs that form no bench (no unit shared by a high, a medium and a low arm; the bench checks refuse them) are
+// read over each arm's own rows, a row in which an ask threw being left out as the shared units leave it out.
 
 /**
  One arm's repeat agreement.
@@ -32,6 +42,11 @@ type RepeatFigure = {
    The arm's name.
    */
   readonly arm: string;
+
+  /**
+   The effort the arm's card runs at, `(none)` when its log names no card.
+   */
+  readonly effort: string;
 
   /**
    Trials the arm was asked in more than one pass.
@@ -68,30 +83,44 @@ function passesAgree({ passes, }: { readonly passes: readonly boolean[]; },): bo
 
  @param arm - the arm's name
 
+ @param effort - the effort its card runs at
+
  @param rows - the arm's rows
+
+ @param held - the units to read, each as `unitOf` names it; every row when omitted
 
  @returns The trials asked again and how many of them agreed with themselves
 
  @example
  ```ts
- const figure = repeatFigureOf({ arm: 'high', rows, },);
+ const figure = repeatFigureOf({ arm: 'high', effort: 'high', rows, },);
  ```
  */
 function repeatFigureOf(
   {
     arm,
+    effort,
     rows,
+    held,
   }: {
     readonly arm: string;
+    readonly effort: string;
     readonly rows: readonly RowStops[];
+    readonly held?: ReadonlySet<string>;
   },
 ): RepeatFigure {
   /**
-   The rows in which no ask threw.
+   The rows in which no ask threw and that are in a held unit.
    */
-  const usable = rows.filter(function noThrow({ stops, },): boolean {
-    return !stops.includes('threw',);
-  },);
+  const usable = rows
+    .filter(function inHeldUnit(row,): boolean {
+      if (held === undefined)
+        return true;
+      return held.has(unitOf({ row, },),);
+    },)
+    .filter(function noThrow({ stops, },): boolean {
+      return !stops.includes('threw',);
+    },);
   /**
    The rows of each trial, in the order of its passes.
    */
@@ -121,6 +150,7 @@ function repeatFigureOf(
   },);
   return {
     arm,
+    effort,
     repeated: again.length,
     agreed: alike.length,
   };
@@ -136,10 +166,10 @@ function repeatFigureOf(
  @example
  ```ts
  // yields 0.5
- const share = shareOf({ figure: { arm: 'medium', repeated: 44, agreed: 22, }, },);
+ const share = shareOf({ figure: { arm: 'medium', effort: 'medium', repeated: 44, agreed: 22, }, },);
  ```
  */
-function shareOf({ figure, }: { readonly figure: RepeatFigure; },): number {
+function shareOf({ figure, }: { readonly figure: RepeatFigure; }): number {
   return figure.agreed / figure.repeated;
 }
 
@@ -153,10 +183,10 @@ function shareOf({ figure, }: { readonly figure: RepeatFigure; },): number {
  @example
  ```ts
  // yields 91
- const percent = percentOf({ figure: { arm: 'medium', repeated: 44, agreed: 40, }, },);
+ const percent = percentOf({ figure: { arm: 'medium', effort: 'medium', repeated: 44, agreed: 40, }, },);
  ```
  */
-function percentOf({ figure, }: { readonly figure: RepeatFigure; },): number {
+function percentOf({ figure, }: { readonly figure: RepeatFigure; }): number {
   return Math.round(100 * shareOf({ figure, },),);
 }
 
@@ -172,7 +202,7 @@ function percentOf({ figure, }: { readonly figure: RepeatFigure; },): number {
  const line = repeatLine({ figure, },);
  ```
  */
-function repeatLine({ figure, }: { readonly figure: RepeatFigure; },): string {
+function repeatLine({ figure, }: { readonly figure: RepeatFigure; }): string {
   if (figure.repeated === 0)
     return `REPEAT ${figure.arm}: no trial was asked in more than one pass`;
   return `REPEAT ${figure.arm}: ${String(figure.agreed,)} of ${
@@ -187,32 +217,8 @@ function repeatLine({ figure, }: { readonly figure: RepeatFigure; },): string {
 }
 
 /**
- Joins words as a list that ends in `and`.
-
- @param words - the words, at least two
-
- @returns The list
-
- @example
- ```ts
- // yields 'a, b and c'
- const list = andList({ words: ['a', 'b', 'c',], },);
- ```
- */
-function andList({ words, }: { readonly words: readonly string[]; },): string {
-  /**
-   All the words but the last.
-   */
-  const leading = words.slice(
-    0,
-    -1,
-  );
-  return `${leading.join(', ',)} and ${words.at(-1,) ?? ''}`;
-}
-
-/**
- Whether two arms' shares differ by more than the number of points the read step warns over, compared exactly by
- cross-multiplying the counts so that a difference of exactly that number is not warned of.
+ Whether one arm's share is under another's by more than the number of points the read step warns over, compared exactly
+ by cross-multiplying the counts so that a difference of exactly that number is not warned of.
 
  @param low - the arm with the lower share
 
@@ -222,7 +228,7 @@ function andList({ words, }: { readonly words: readonly string[]; },): string {
 
  @example
  ```ts
- const over = differsOver({ low: lowestFigure, high: highestFigure, },);
+ const over = differsOver({ low: defaultFigure, high: otherFigure, },);
  ```
  */
 function differsOver(
@@ -246,57 +252,103 @@ function differsOver(
 }
 
 /**
- Says that the arms' repeat agreements differ by more than the number of points the read step warns over.
+ Says that the default effort repeats itself less than another arm does, by more than the number of points the read step
+ warns over.
 
- @param measured - the arms that have trials asked again, in the order they ran, at least two
+ @param low - the default effort's figure
 
- @param lowest - the one with the lowest share
-
- @param highest - the one with the highest share
+ @param high - the figure of the arm it is under
 
  @returns The line, without a newline
 
  @example
  ```ts
- const line = warningLine({ measured, lowest, highest, },);
+ const line = warningLine({ low: defaultFigure, high: otherFigure, },);
  ```
  */
 function warningLine(
   {
-    measured,
-    lowest,
-    highest,
+    low,
+    high,
   }: {
-    readonly measured: readonly RepeatFigure[];
-    readonly lowest: RepeatFigure;
-    readonly highest: RepeatFigure;
+    readonly low: RepeatFigure;
+    readonly high: RepeatFigure;
   },
 ): string {
   /**
-   The widest difference between two arms, in points.
+   The difference between the two arms, in points.
    */
-  const points = Math.round(100 * (shareOf({ figure: highest, },) - shareOf({ figure: lowest, },)),);
-  /**
-   Each arm with its percent, in the order they ran.
-   */
-  const words = measured.map(function wordOf(figure,): string {
-    return `${figure.arm} ${String(percentOf({ figure, },),)} percent`;
-  },);
-  return `WARN repeat agreement: ${andList({ words, },)} differ by ${String(points,)} points, over ${
-    String(REPEAT_WARNED_ABOVE_POINTS,)
-  }; the bound of ${String(FALSE_PICK_BOUND_ALIKE,)} on choosing `
+  const points = Math.round(100 * (shareOf({ figure: high, },) - shareOf({ figure: low, },)),);
+  return `WARN repeat agreement: ${low.arm} gave the same reading in every pass on ${
+    String(percentOf({ figure: low, },),)
+  } percent of the trials it was asked again, ${String(points,)} points under ${high.arm} at ${
+    String(percentOf({ figure: high, },),)
+  } percent, over ${String(REPEAT_WARNED_ABOVE_POINTS,)}; the bound of ${
+    String(FALSE_PICK_BOUND_ALIKE,)
+  } on choosing `
     + 'another effort when none is better holds when the arms repeat themselves alike, and the simulation reached '
-    + `${String(FALSE_PICK_UNEQUAL_REACHED,)} when the default effort repeats itself far less than the others, so a `
-    + `verdict of high or low is less sure than the ${String(ALPHA,)} level says`;
+    + `${String(FALSE_PICK_UNEQUAL_REACHED,)} at a true fix rate of 0.9 when the default effort repeats itself far less `
+    + `than the others, so a verdict of high or low is less sure than the ${String(ALPHA,)} level says`;
 }
 
 /**
- The lines the read step prints for the repeat agreement of the arms: one for each arm, and a warning when the arms that
- have one differ by more than the stated number of points.
+ The warning for one arm of the default effort, when another arm repeats itself more by more than the stated amount.
+
+ @param figure - the default effort's figure, with at least one repeated trial
+
+ @param others - the figures of the other arms that have trials asked again, in the order they ran
+
+ @returns The warning, none when no other arm is over the default effort by more than the stated amount
+
+ @example
+ ```ts
+ const warnings = warningsFor({ figure, others, },);
+ ```
+ */
+function warningsFor(
+  {
+    figure,
+    others,
+  }: {
+    readonly figure: RepeatFigure;
+    readonly others: readonly RepeatFigure[];
+  },
+): readonly string[] {
+  /**
+   The other arms, the highest share first, the arm that ran first among equals.
+   */
+  const highestFirst = others.toSorted(function byShare(
+    a,
+    b,
+  ): number {
+    return shareOf({ figure: b, },) - shareOf({ figure: a, },);
+  },);
+  /**
+   The other arm with the highest share, when there is one.
+   */
+  const [highest,] = highestFirst;
+  if (highest === undefined)
+    return [];
+  if (!differsOver({
+    low: figure,
+    high: highest,
+  },))
+    return [];
+  return [
+    warningLine({
+      low: figure,
+      high: highest,
+    },),
+  ];
+}
+
+/**
+ The lines the read step prints for the repeat agreement of the arms: one for each arm, and a warning for each arm of the
+ default effort that repeats itself less than another arm by more than the stated number of points.
 
  @param arms - the arms in the order they ran, one or more
 
- @returns The REPEAT line of each arm, then the WARN line when the arms differ
+ @returns The REPEAT line of each arm, then the WARN line of each arm of the default effort that is under another
 
  @example
  ```ts
@@ -306,16 +358,40 @@ function warningLine(
  */
 export function repeatLinesOf({ arms, }: { readonly arms: readonly ArmLog[]; },): readonly string[] {
   /**
+   Each arm with the figures its log states.
+   */
+  const withFigures = arms.map(function figuresOf(log,): {
+    readonly arm: string;
+    readonly figures: ArmFigures;
+  } {
+    return {
+      arm: log.arm,
+      figures: armFiguresOf({ log, },),
+    };
+  },);
+  /**
+   The units every arm holds, none when one log is read alone or the logs form no bench.
+   */
+  const sharedUnits = (arms.length > 1)
+    ? sharedBenchOf({ arms: withFigures, },)
+      .units
+    : [];
+  /**
+   The units the figures are read over, every row when there are none shared.
+   */
+  const held = (sharedUnits.length === 0) ? undefined : new Set(sharedUnits,);
+  /**
    Each arm's figure.
    */
-  const figures = arms.map(function figureOf(log,): RepeatFigure {
-    /**
-     The arm's rows.
-     */
-    const { rows, } = armFiguresOf({ log, },);
+  const figures = withFigures.map(function figureOf({
+    arm,
+    figures: read,
+  },): RepeatFigure {
     return repeatFigureOf({
-      arm: log.arm,
-      rows,
+      arm,
+      effort: effortOf({ card: read.card, },),
+      rows: read.rows,
+      ...((held === undefined) ? {} : { held, }),
     },);
   },);
   /**
@@ -325,46 +401,29 @@ export function repeatLinesOf({ arms, }: { readonly arms: readonly ArmLog[]; },)
     return repeated > 0;
   },);
   /**
-   The same arms, lowest share first.
-   */
-  const lowestFirst = measured.toSorted(function byShare(
-    a,
-    b,
-  ): number {
-    return shareOf({ figure: a, },) - shareOf({ figure: b, },);
-  },);
-  /**
-   The arm with the lowest share, when any arm has trials asked again.
-   */
-  const [lowest,] = lowestFirst;
-  /**
-   The arm with the highest share, when any arm has trials asked again.
-   */
-  const highest = lowestFirst.at(-1,);
-  /**
    The arms' lines.
    */
   const lines = figures.map(function lineOf(figure,): string {
     return repeatLine({ figure, },);
   },);
-  if (measured.length < 2)
-    return lines;
-  if (lowest === undefined)
-    return lines;
-  if (highest === undefined)
-    return lines;
-  if (!differsOver({
-    low: lowest,
-    high: highest,
-  },))
-    return lines;
+  /**
+   A warning for each arm of the default effort that is under another arm.
+   */
+  const warnings = measured
+    .filter(function isDefault({ effort, },): boolean {
+      return effort === 'medium';
+    },)
+    .flatMap(function warningOf(figure,): readonly string[] {
+      return warningsFor({
+        figure,
+        others: measured.filter(function isOther(other,): boolean {
+          return other !== figure;
+        },),
+      },);
+    },);
   return [
     ...lines,
-    warningLine({
-      measured,
-      lowest,
-      highest,
-    },),
+    ...warnings,
   ];
 }
 
