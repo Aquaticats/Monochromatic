@@ -98,7 +98,7 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '7f54c3ddd8d7454881435887b308635e6f1f72c3143ef5c95c1c2feb2cf52c58';
+const LEGACY_WINDOWLESS_KEY = '5aaea1689b55e09b2c06c6859b4b706b1ab209108301610604fa6aed2e4075b0';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -131,13 +131,14 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 29: the owner\'s rulings of 2026-10-25 removed every weight floor (28) and a declined round '
-        + 'ships a candidate only when two judges named it, so a stored slice may hold a candidate shipped by the fixed '
+      name: 'IS AT VERSION 30: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+        + 'ships a candidate only when two judges named it (29), and a tie across every candidate ships by the fixed '
+        + 'preference only among candidates two judges named, so a stored slice may hold a candidate shipped by the '
         + 'preference the same texts now keep the wording in place for, and the key hashes the version, the shape of '
         + 'the run and the texts, not the rule that reads the ballots, so only this number retires a record written '
         + 'under the preference before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(29,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(30,);
       },
     },),
     it({

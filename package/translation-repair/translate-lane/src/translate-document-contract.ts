@@ -471,8 +471,18 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  moves for the same rule, the repair slice (47) and refine (17) versions stay (neither stores a slate shipped by
  preference), and the page title (7) and consistency (9) versions move for the two-voice rule at their own stages.
  No record has been written at 29, which this change sets first.
+
+ Version 30 covers the lead's ruling of 2026-10-25, settled by "Two judges must name it": a challenge round tied across
+ every offered candidate (class 174, `breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`) ships by the
+ fixed preference only among the tied candidates two or more judges named, and where none drew two ballots the wording
+ in place stays, or the absence is raised where there is none. A stored slice may hold a candidate shipped by that
+ preference where the same texts now keep the wording in place. The key hashes the version, the shape of the run and
+ the texts, not the rule that reads the ballots, so a record written before would be served after. Whether a record
+ stands at 29 is not known (the number was set a few commits before and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (37) moves for the same rule and
+ for the flawed-majority gate answer; the repair slice (47) and refine (17) versions stay.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 29;
+export const TRANSLATE_SLICE_CACHE_VERSION = 30;
 
 /**
  Models the translate lane seats.
