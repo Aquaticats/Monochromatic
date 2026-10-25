@@ -12,7 +12,9 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // `vm` or `contextify` is reported by its text, and a call with another string is accepted. Any other read of the
 // function (a member of it like `call`, `apply` and `bind`, an operand of a comma, an arm of a conditional, a value
 // kept by a constant) can call it with a name the search cannot read, so it is reported where it sits. What stays
-// unread, and is pinned silent here: a pattern that takes `binding` out of `process`.
+// unread, and is pinned silent here: a pattern that takes `binding` out of `process`, and `process` under another name
+// (a constant, a default or namespace import of `node:process`), a name imported from `node:process`, and
+// `internalBinding` read by `call`.
 
 /**
  What a report says of `process.binding` read where it is no direct call.
@@ -50,7 +52,7 @@ type Expected = {
  const shapeCase = textCase({ name: 'x', lines: ['export const a = 1;',], expected: [], },);
  ```
  */
-function textCase(
+export function textCase(
   {
     name,
     lines,
@@ -191,6 +193,23 @@ export const TEXT_CALL_CASES: readonly ShapeCase[] = [
     lines: [
       'declare const options: { readonly binding: unknown; readonly getBuiltinModule: unknown; };',
       'export const kept = [options.binding, options.getBuiltinModule,];',
+    ],
+    expected: [],
+  },),
+  textCase({
+    name: 'ACCEPTS THE LOADER REACHED THROUGH ANOTHER NAME FOR process OR A NAME IMPORTED FROM node:process, and '
+      + 'internalBinding READ BY call, limits of the search that the ledger states',
+    lines: [
+      'const alias = process;',
+      'export const first = alias.getBuiltinModule(\'vm\',);',
+      'import renamed from \'node:process\';',
+      'export const second = renamed.getBuiltinModule(\'vm\',);',
+      'import * as everything from \'node:process\';',
+      'export const third = everything.getBuiltinModule(\'vm\',);',
+      'import { getBuiltinModule as named, } from \'node:process\';',
+      'export const fourth = named(\'vm\',);',
+      'declare const internalBinding: (name: string,) => unknown;',
+      'export const fifth = internalBinding.call(null, \'contextify\',);',
     ],
     expected: [],
   },),

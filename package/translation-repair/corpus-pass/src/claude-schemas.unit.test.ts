@@ -100,6 +100,7 @@ import { CALLBACK_PIN_CASES, } from './claude-schema-callback-pin-forms.test-fix
 import { SCOPE_PIN_CASES, } from './claude-schema-scope-pin-forms.test-fixture.ts';
 import { TEXT_PIN_CASES, } from './claude-schema-text-pin-forms.test-fixture.ts';
 import { TEXT_CALL_CASES, } from './claude-schema-text-call-forms.test-fixture.ts';
+import { TEXT_KEY_CASES, } from './claude-schema-text-key-forms.test-fixture.ts';
 import { UNREAD_CALLBACK_CASES, } from './claude-schema-callback-unread-forms.test-fixture.ts';
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
@@ -859,6 +860,7 @@ await describe({
       ...SCOPE_PIN_CASES,
       ...TEXT_PIN_CASES,
       ...TEXT_CALL_CASES,
+      ...TEXT_KEY_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
@@ -947,6 +949,7 @@ await describe({
       ...SCOPE_PIN_CASES,
       ...TEXT_PIN_CASES,
       ...TEXT_CALL_CASES,
+      ...TEXT_KEY_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
