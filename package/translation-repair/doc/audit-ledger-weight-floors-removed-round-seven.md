@@ -523,7 +523,14 @@ the quantifiers all,
 both,
 each and some floated away from their noun and read as objects,
 and "that" opening a clause read as an object.
-B949 states what the scan reads since round 10 and what it still does not.
+The scan now reads a listed word with the word after it:
+a verb or a clause opener compares unless a determiner,
+a quantifier or a pronoun follows,
+and a floating quantifier compares only when a word that names what is compared follows.
+It still lets a listed word before a bare verb pass
+("the lines below that write it"),
+and a quantifier before "of".
+B949 states both in full.
 
 ## B939: the closing sentence of B935 overstated what the plants showed (round 8)
 

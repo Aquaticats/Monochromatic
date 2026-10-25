@@ -149,10 +149,10 @@ What it still does not read.
 - A quantifier followed by "of" compares:
   "below each of them" is left,
   and so is "the cases below all of which fail".
-- Half is a verb in the scan's list only by rule:
-  "votes below half the bowl" now reads as a pointer,
+- Half left the list with the thirteen words:
+  "votes below half the bowl" reads as a pointer,
   and the one comparison of that shape in the texts is exempted with its reason.
-  Dropping half from the verb group is the owner's call.
+  Putting half back is the owner's call.
 - Any other word that is both a noun and a verb,
   added to the list later,
   lets a pointer through unless it joins a group.
