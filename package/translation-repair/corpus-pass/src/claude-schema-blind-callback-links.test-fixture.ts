@@ -20,7 +20,8 @@ import {
 // same (`claude-schema-blind-stores.test-fixture.ts`). The call is read widely, as the call of a function that is not
 // known is read everywhere else: the callee and every argument that is no function count, whatever the method is. A
 // function that is declared apart and handed over by its name (`args.forEach(put)`) is not read: its parameters are
-// bound where it is declared, and what is handed to it is a flow between two functions.
+// bound where it is declared, and what is handed to it is a flow between two functions. A function written as the
+// callee (`((value) => { holder.a = value; })(args)`) takes the value of each argument of its call.
 
 /**
  The kinds of node that are a function written as a value.
@@ -79,6 +80,47 @@ function parameterNamesOf({ node, }: { readonly node: TreeNode; },): readonly st
 }
 
 /**
+ The links a call makes for the function written as its callee: its parameters take the value of each argument.
+
+ @param node - call or `new` expression
+
+ @returns One link for each argument when the callee is an arrow function or a function expression, whatever type marks
+ and parentheses it is written under, none for any other callee
+
+ @example
+ ```ts
+ const links = calledFunctionLinksOf({ node, },);
+ ```
+ */
+function calledFunctionLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
+  /**
+   The callee without the type marks and parentheses around it.
+   */
+  const { inner: callee, } = unwrapped({ node: nodeAt({
+    node,
+    field: 'callee',
+  },), },);
+  if ((!isTreeNode(callee,)) || (!isFunctionValue({ node: callee, },)))
+    return [];
+  /**
+   The names the parameters of the called function bind.
+   */
+  const bound = parameterNamesOf({ node: callee, },);
+  return (bound.length === 0)
+    ? []
+    : nodesAt({
+      node,
+      field: 'arguments',
+    },)
+      .map(function linkOfArgument(read,): Link {
+        return {
+          read,
+          bound,
+        };
+      },);
+}
+
+/**
  The links a call makes for the functions written as its arguments: their parameters take the value of the callee and
  of each argument that is no function written in place.
 
@@ -89,10 +131,10 @@ function parameterNamesOf({ node, }: { readonly node: TreeNode; },): readonly st
 
  @example
  ```ts
- const links = callbackLinksOf({ node, },);
+ const links = argumentLinksOf({ node, },);
  ```
  */
-export function callbackLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
+function argumentLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
   if ((node.type !== 'CallExpression') && (node.type !== 'NewExpression'))
     return [];
   /**
@@ -131,6 +173,29 @@ export function callbackLinksOf({ node, }: { readonly node: TreeNode; },): reado
       bound,
     };
   },);
+}
+
+/**
+ The links a call makes for the functions written in it: the functions written as its arguments take the value of the
+ callee and of each argument that is no function written in place, and a function written as the callee takes the value
+ of each argument.
+
+ @param node - node read
+
+ @returns The links of the arguments, then the links of the callee, none for a node that is no call or `new`
+
+ @example
+ ```ts
+ const links = callbackLinksOf({ node, },);
+ ```
+ */
+export function callbackLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
+  return [
+    ...argumentLinksOf({ node, },),
+    ...(((node.type === 'CallExpression') || (node.type === 'NewExpression'))
+      ? calledFunctionLinksOf({ node, },)
+      : []),
+  ];
 }
 
 //endregion Names a function written as an argument binds from what its call reads
