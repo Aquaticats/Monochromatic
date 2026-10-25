@@ -288,6 +288,46 @@ await describe({
       },
     },),
     it({
+      name: 'HANDS THE CLOCK IT WAS GIVEN TO THE SETTLEMENT, so the lines the settlement prints for an attempt read the '
+        + 'same clock as the lines the queue prints for it, and a test that fixes the one fixes the other (ledger B960)',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         The instant each settlement read off the clock it was handed.
+         */
+        const read: string[] = [];
+
+        await runPassQueue({
+          pending: [pairOf({ id: 'tabby', },),],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: 1_000,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
+          settle: async function settle({ wallClock, },) {
+            read.push(wallClock()
+              .toISOString(),);
+            return { kind: 'settled', };
+          },
+        },);
+
+        expect(read,).toEqual(['2026-10-22T08:10:11.123Z',],);
+      },
+    },),
+    it({
       name: 'STOPS AT THE SOFT BUDGET before the next entry starts, and says how long the run had gone',
       fn: async (ctx) => {
         resetRunSpend();
