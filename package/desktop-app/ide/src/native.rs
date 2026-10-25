@@ -196,6 +196,9 @@ mod minimap_reflection_tests;
 ///  equal one render of the picture.
 #[cfg(test)]
 mod minimap_seam_tests;
+/// A minimap picture of another shape reaches the window before the frame that draws it.
+#[cfg(test)]
+mod minimap_slice_frame_tests;
 /// The minimap's geometry,
 /// picture,
 /// and pointer paths.

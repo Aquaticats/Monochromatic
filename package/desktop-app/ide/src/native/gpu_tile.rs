@@ -158,8 +158,16 @@ impl GpuTile {
     /// whose first row is the row `top` of the whole picture,
     /// the one to draw at the next frame;
     /// a picture not drawn yet is replaced.
-    pub(super) fn submit_minimap(&self, chunks: Vec<TileScene>, top: u32) {
-        self.inner.borrow_mut().pending_minimap = Some((chunks, top));
+    /// A picture whose textures differ in size from the last one's gets its new textures,
+    /// and the window its new slices,
+    /// here and not in the frame,
+    /// because the window does not show a slice list it was given inside the frame that draws the picture.
+    pub(super) fn submit_minimap(&self, window: &AppWindow, chunks: Vec<TileScene>, top: u32) {
+        let mut inner = self.inner.borrow_mut();
+        let outcome = inner.prepare_minimap(&chunks, top);
+        inner.pending_minimap = Some((chunks, top));
+        drop(inner);
+        outcome.apply(window);
     }
 
     /// Whether a picture of the minimap waits for a frame to draw it.

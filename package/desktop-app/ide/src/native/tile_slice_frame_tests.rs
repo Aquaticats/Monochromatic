@@ -152,7 +152,7 @@ fn a_tile_of_another_size_gives_the_window_its_slices_before_any_frame() {
 }
 
 /// Width of the textures of the stacks the first-tile tests hand over.
-const STACK_WIDTH: u32 = 64;
+pub(super) const STACK_WIDTH: u32 = 64;
 
 /// What:
 ///  A tile of `heights.len()` textures `STACK_WIDTH` wide and `heights` tall,
@@ -194,7 +194,7 @@ fn stack(heights: &[u32]) -> TileStack {
 /// ```ts
 /// function unframedWindow(): [AppWindow, GpuTile];
 /// ```
-fn unframed() -> (AppWindow, GpuTile) {
+pub(super) fn unframed() -> (AppWindow, GpuTile) {
     install_gpu_platform();
     let window = AppWindow::new().expect("window of the application's markup");
     let gpu = GpuTile::default();

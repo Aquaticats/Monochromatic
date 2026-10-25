@@ -2101,6 +2101,64 @@ const cases: Guard[] = [
     test: 'the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next',
     failure: 'asked for no frame to show them'
   },
+  // The minimap's picture gets its textures and slices when it is handed over, for the same reason: the list of a new file
+  // is a new one, and the frame that sets a new list does not show it.
+  {
+    name: 'minimap-slices-prepared',
+    file: 'src/native/gpu_tile/slice.rs',
+    before: '        if self.stack_fits(shape.width, &shape.sizes) {',
+    after: '        if true {',
+    native: true,
+    test: 'the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds no slices of the first picture after its hand-over'
+  },
+  {
+    name: 'minimap-slices-prepared-shape',
+    file: 'src/native/gpu_tile/slice.rs',
+    before: '        if self.stack_fits(shape.width, &shape.sizes) {',
+    after: '        if true {',
+    native: true,
+    test: 'a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier picture after the hand-over'
+  },
+  {
+    name: 'minimap-slices-same-shape',
+    file: 'src/native/gpu_tile/slice.rs',
+    before: '        if self.stack_fits(shape.width, &shape.sizes) {',
+    after: '        if false {',
+    native: true,
+    test: 'a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame',
+    failure: 'a picture of the same shape replaced the slices of the window outside a frame'
+  },
+  {
+    name: 'minimap-slices-made',
+    file: 'src/native/gpu_tile/slice.rs',
+    before: '        if self.stack_textures(&device, (shape.width, &shape.sizes), &mut outcome) {',
+    after: '        if false {',
+    native: true,
+    test: 'the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds no slices of the first picture after its hand-over'
+  },
+  {
+    name: 'minimap-slices-applied',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    occurrence: 1,
+    native: true,
+    test: 'the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds no slices of the first picture after its hand-over'
+  },
+  {
+    name: 'minimap-slices-applied-shape',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    occurrence: 1,
+    native: true,
+    test: 'a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier picture after the hand-over'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

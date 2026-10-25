@@ -138,7 +138,7 @@ pub(in crate::native) fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, r
         // The markup draws the picture at exactly this many physical pixels, so no pixel of it is resampled, and
         // starts it at the row of the whole picture the worker built it from; the GPU sets these with the images
         // of its textures, which are as many as the device's texture limit asks for.
-        gpu.submit_minimap(reply.chunks, reply.top);
+        gpu.submit_minimap(window, reply.chunks, reply.top);
         ask_for_a_frame_unless_one_comes(window, state);
     }
     tracing::debug!(
