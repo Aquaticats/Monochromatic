@@ -86,6 +86,7 @@ import { UNREAD_CALLBACK_CASES, } from './claude-schema-callback-unread-forms.te
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
+import { EXPORT_ASSIGNMENT_CASES, } from './claude-schema-export-assignment-forms.test-fixture.ts';
 import { IMPORT_EQUALS_CASES, } from './claude-schema-import-equals-forms.test-fixture.ts';
 import { FORWARDER_CHAIN_CASES, } from './claude-schema-forwarder-chain-forms.test-fixture.ts';
 import {
@@ -823,6 +824,7 @@ await describe({
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
+      ...EXPORT_ASSIGNMENT_CASES,
       ...IMPORT_EQUALS_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
@@ -890,6 +892,7 @@ await describe({
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
+      ...EXPORT_ASSIGNMENT_CASES,
       ...IMPORT_EQUALS_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
