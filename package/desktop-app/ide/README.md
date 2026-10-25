@@ -1393,9 +1393,12 @@ A resting pointer is a pointer and a view that both stood still for 350 ms.
 The toolkit sends no pointer event for text that scrolls under a still pointer,
 so the request does not name the character found at the last move.
 The pointer's distance from the top of the view is kept (`Spot` in `src/native/language/pointer.rs`),
-a rest that was not asked for yet starts again whenever the drawn offset moves
-or the height of the text changes,
-as it does when hints or messages arrive (`Rest::follow`),
+a rest that was not asked for yet starts again whenever the drawn offset moves,
+the height of the text changes,
+as it does when hints or messages arrive,
+or the displayed text is replaced (a reload of the file or another file,
+the stamp of the displayed text,
+which changes the characters under the pointer with the same offset and height) (`Rest::follow`),
 and when the rest is over,
 the character is found again from that distance and the offset that is drawn then
 (`rest` in `src/native/language/rest_step.rs`).
@@ -1417,6 +1420,8 @@ the rest is again one over no character,
 and the next move of the view starts it again;
 a view that stands still asks nothing for such a pointer
 and closes an open popup after the rest time.
+A rest that was asked about stays asked through a scroll or a reload,
+as in editord.
 Before 2026-10-25 the request named the character under the pointer at its last move.
 On a generated 1,500-line file,
 a pointer that moved onto a word and then saw a wheel turn of 300 notches
@@ -2235,6 +2240,27 @@ Two changes since 2026-10-25 remove the blank.
   a placement releases the follow,
   and rows that arrive during the ease ask for the tile of the same end again under the new map (`wheel::refit`).
 
+The wheel path writes at debug level
+`the windowing system turned the wheel` for every wheel event with a line delta that reaches the window
+(`wheel::note_event`,
+before the toolkit sees it,
+whatever the displayed tile holds)
+and `a wheel turn began an ease` for every turn the scroll reports within 50 ms of it (`wheel::turn`,
+`covered=true` when the displayed tile holds the end).
+A turn the window state could not note,
+and a note older than 50 ms,
+write a record of their own.
+A session whose log has no such line received no wheel event:
+13 of 210 sessions (one-core limit,
+the wheel sent 300 ms after the language server was ready) have none,
+and all 13 show the top of the file,
+while all 197 with the line show a scrolled gutter.
+The time of the toolkit's report of the real window size does not tell the two groups apart;
+the likely cause,
+which the log cannot show,
+is a wheel sent while the first,
+small surface was the only one the pointer could be over.
+
 Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
 the hardware GPU,
 a 1,500-line TypeScript file with TypeScript 7.1.0-beta as the server,
@@ -2414,6 +2440,34 @@ Anything else that moved is handled by `ShapedView::rebase`.
 A tile built on the window thread (an edit,
 a selection,
 a jump) measures its lines first in the same way.
+
+The window thread measures a tile's lines in rounds (`measure_requested`,
+`src/native/render/measure.rs`):
+each round measures the lines the tile asks for,
+the map follows what it found,
+and the tile asked for next can reach further down the text,
+because lines that were corrected are shorter.
+The rounds go on until one changes no height (at most `ROUNDS`,
+and the warn-level record `the heights of the tile were still changing` if the bound is ever reached),
+so that every line of the tile built next has the height the map holds for it.
+Until 2026-10-25 there were three rounds,
+and the lines the last round asked for were only paid for,
+never taken into the table.
+The table holds heights from the narrow first width of a window (about 173 px,
+before the window has its real size) wherever a pass chunk was applied before the real width arrived,
+and that stands inside the tile of the real width too:
+in 19 of 320 sessions with no input under a one-core limit the row map was 72 px (3 rows) taller than the text;
+in the two sessions read with a probe the lines were 150 to 152
+(the three `export const` lines of one period of the generated file) of a tile of 155 lines,
+which kept two rows.
+The pass never sends the lines of the displayed tile again,
+so the row map stayed 72 px taller than the text until a tile that covered those lines was built.
+`apply_pass` logs a line of the displayed tile whose rows differ from what the pass measured
+(`the measurement found rows in the displayed tile that differ from the map`).
+`a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`)
+and the guard case `measure-rounds-capped` hold the rule;
+the account is in `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A row map taller than the text".
 
 A new wrap width,
 from a window or sidebar resize,
