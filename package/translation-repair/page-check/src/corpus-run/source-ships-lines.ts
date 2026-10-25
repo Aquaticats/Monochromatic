@@ -21,10 +21,11 @@ import {
 // A FOOTNOTE START ONLY THE PAGE READS is the same case. The strict grammar disables indented code, so a line
 // `[^label]:` indented four columns or more after a paragraph starts a footnote definition there, where CommonMark and
 // GFM read a lazy line of the paragraph. The span the original pairs across that line (a code span, inline math, emphasis,
-// strong emphasis, the text of a link or the alternative text of an image, the title of a link, a hard break written with a
-// backslash) is cut on the page, so the line is joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span
-// holds. A footnote start on the line after a row of a table is no start of this kind (`source-ships-footnote-ranges.ts`,
-// `startsOffTables`): a reader of the source takes that line for a block of its own, and joining it writes it into the row.
+// strong emphasis, strikethrough, the text of a link or the alternative text of an image, the title of a link, a hard
+// break written with a backslash) is cut on the page, so the line is joined to the one before it and the footnote does
+// not start; `footnoteStartsInSpans` says which starts a span holds. A footnote start on the line after a row of a table
+// is no start of this kind (`source-ships-footnote-ranges.ts`, `startsOffTables`): a reader of the source takes that line
+// for a block of its own, and joining it writes it into the row.
 
 /**
  Node types whose characters are code or math, which no backslash may be written into.
@@ -36,10 +37,11 @@ const SPAN_TYPES: ReadonlySet<string> = new Set([
 
 /**
  Node types whose lines are joined at a footnote start only the page reads and nowhere else: emphasis, strong emphasis,
- and the references, whose text a backslash can be written into, so a brace or a less-than sign that starts a line in
- them is escaped as text and needs no join.
+ strikethrough, and the references, whose text a backslash can be written into, so a brace or a less-than sign that
+ starts a line in them is escaped as text and needs no join.
  */
 const FOOTNOTE_ONLY_TYPES: ReadonlySet<string> = new Set([
+  'delete',
   'emphasis',
   'strong',
   'linkReference',
@@ -236,8 +238,8 @@ function joinBeforeFenceMark(
 /**
  Edits that join the lines of a node whose characters the plain reading keeps whole and the strict grammar cuts: a code
  span, inline math, and the destination and title of a link, an image or a definition, at a brace, a less-than sign, an
- indented fence mark or a footnote start only the page reads; and emphasis, strong emphasis, the text of a link or an
- image and a reference, and a hard break written with a backslash, at a footnote start only the page reads.
+ indented fence mark or a footnote start only the page reads; and emphasis, strong emphasis, strikethrough, the text of a
+ link or an image and a reference, and a hard break written with a backslash, at a footnote start only the page reads.
 
  @param source - text
 
@@ -375,8 +377,8 @@ export function lineJoinsOf(
 
  @param node - node of the parse
 
- @returns Whole code span, inline math, emphasis, strong emphasis, link, image or reference; a hard break written with a
- backslash, through the first character of the next line; none for a node of another kind
+ @returns Whole code span, inline math, emphasis, strong emphasis, strikethrough, link, image or reference; a hard break
+ written with a backslash, through the first character of the next line; none for a node of another kind
 
  @example
  ```ts
@@ -426,8 +428,9 @@ function joinableStretchesOf(
 }
 
 /**
- Says which of the footnote starts only the page reads stand inside a code span, inline math, emphasis, strong emphasis, a
- link, an image or a reference of a block, where the line is joined to the one before it and the footnote does not start.
+ Says which of the footnote starts only the page reads stand inside a code span, inline math, emphasis, strong emphasis,
+ strikethrough, a link, an image or a reference of a block, where the line is joined to the one before it and the
+ footnote does not start.
 
  @param source - text
 
