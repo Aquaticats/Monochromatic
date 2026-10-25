@@ -169,7 +169,10 @@ a namespace of a module that carries no builder
 and a member of a declared function gave the same places with and without the mutant,
 and a path that reaches a builder through a bound name makes that name a carrier.
 The claim about G-C07a is wrong,
-and B866 below holds the correction:
+and the entry titled "B866:
+the mutant G-C07a was called equivalent by an argument,
+and it is not"
+holds the correction:
 the survivors this entry could call equivalent are five.
 The first run left 34 alive:
 the cases that the survivors called for are `7bb024afce`,
@@ -266,8 +269,119 @@ which removes the `isFree &&` guard of the chain walk):
   S14h,
   G-F15
   and G-X03.
-  `fix16/ledger-notes.md` holds the bodies of `dfa39ec392` and `edf6323eb3`,
-  neither of which is amended.
+  The bodies of `dfa39ec39274531438ffcb7fabc74b8c520a33b0` and `edf6323eb3f9be2c197c33cfde140a2e527a7189`
+  are not amended,
+  and `git show --no-patch --format=%B` prints them.
+  The first says the mutant
+  "walks on from a name that stands for neither a builder nor a carrier and is bound,
+  which can reach no builder".
+  The second says a probe fixture of
+  "a nested object path,
+  a static class member,
+  a namespace of a module that carries no builder
+  and a member of a declared function"
+  gives "byte for byte the same places with and without the mutant".
+  What both leave out is the input that mattered:
+  a member of a namespace whose module is outside the sources,
+  stored in an object,
+  handed to a call
+  or held in an array.
+
+Follow-up of fix round 17
+(the prevention rule of this entry was applied to every mutant that stayed alive):
+the table of the round has 142 rows.
+They are the 63 of round 16
+(five re-anchored,
+because the code they mutate moved:
+D05 into `claude-schema-blind-reads.test-fixture.ts`
+and S01 to S04 into the shared part of the sender check),
+the 13 of re-check 15
+(X1 to X11,
+X3b
+and X12;
+six re-anchored:
+X2,
+X3,
+X3b,
+X4,
+X7
+and X11)
+and 66 for the branches the round added.
+No row failed to apply,
+and none failed without naming a case.
+The first full run,
+on `a3a9fe5a8275020d9eb37933247d294cd1f18940`,
+held 144 rows and left 23 alive.
+Their dispositions:
+
+- 14 got cases that pass against that code and fail under the mutant
+  (`c0ab8ffe573abbbb7a21be8d6f667758b51ce0d2`);
+  among them are
+  a name bound by a `switch` case,
+  a class expression and a parameter property;
+  a `var` of a nested function and a `let` of a block,
+  which do not bind the sender's name;
+  an object given to `.bind` in the `this` slot;
+  a template literal in the tag position of a tagged template;
+  two modules that export everything of each other;
+  an `export *` that carries no default;
+  a member of a namespace computed from a name;
+  a name a function binds again;
+  a value that leaves by a function of another file;
+  and a function that builds from its parameter and calls no sender.
+- Two were conditions the syntax tree implies,
+  and `a642a09a9d45195eaa36ed37aa705ab2b084ea63` drops them.
+- One lets a builder or a wrapper be a forwarder as well.
+  The file listing does not show it,
+  because the callers of a wrapper are listed already,
+  so `1d3bd37002b264b9b272afc76f17f1a78dd27aef` adds a case and a test over the list of forwarders.
+- Six are argued equivalent with a control,
+  and the final run,
+  on `1d3bd37002b264b9b272afc76f17f1a78dd27aef`,
+  left exactly these six alive out of 142.
+
+The argued six:
+
+- X3 and X3b remove the test for a computed member of the callee.
+  A callee that computes a member from a name resolves to no function,
+  so the test is redundant,
+  as re-check 15 found.
+  The controls are `(gatherThroughCache as any)[k](...)` and a namespace import called as `g[k](...)`:
+  head and mutant give the same report for each.
+  The first positive controls I chose,
+  a callee that is no chain of names and a mutant that accepts any parameter,
+  gave the same output on head and mutant too,
+  which showed they could not differ,
+  and I replaced them.
+  The mutant that drops the test and also drops the computed member from the path changes the first control,
+  and the mutant that reads the computed member as the sender's name changes the second.
+  The test stays in the code.
+- X11 removes the test that a key is not empty.
+  A key that is no name gives an empty string,
+  and no sender's parameter is empty.
+  The control is a sender called with `{ 0: ... }`,
+  `{ '': ... }` and `{ responseFormat: ... }`:
+  head and mutant give the same two reports.
+  The positive control drops the test and makes every parameter match,
+  and then the numeric key is accepted.
+- The prefilter of the nodes that load a module changes only how many entries the index of loaders holds
+  (2 on the head and 7 on the mutant for the control,
+  the duplicates of an `await` around a load),
+  and the found files and the reports are identical.
+  The 1579 real sources hold no load of a file of the family.
+  The positive control,
+  which stops following loads,
+  removes both reports.
+- The memo of the context of a file changes only time:
+  the control gives the same files and reports,
+  and three alternating runs took 4.57 to 4.68 s on the head and 4.60 to 4.73 s on the mutant,
+  inside the spread of 0.11 and 0.13 s.
+  The memo could go.
+- The prefilter of the files that refer to a sender changes only time:
+  the control and the list of the three forwarders over the real sources are identical,
+  and the positive control,
+  which drops the callers from the listing,
+  changes the control.
 
 Prevention rule:
 a mutant is equivalent when a probe that holds an input of every class the mutant can reach gives the same places,
@@ -306,7 +420,14 @@ so this was a place they do not look.
 The fix
 (the red commit is `2f09e42d70e6f3ceca2b8e500c6663412db07e48`,
 five cases failing,
-named in `red1-failing.txt` of the round;
+which the body of that commit names:
+a result handed to a call that is no sender,
+a result handed to `new`,
+the sender the family names,
+a result stored in a member,
+a field,
+`this` or a computed member,
+and a result held by a constant whose reference hands it on;
 the check is `39535a82bf9c84960388bfd426e47a80b3a7f679`;
 a top-level constant and the windowed rounds are `c2e4b9217dfa36ca243deb882219a255105a2ab3`
 and `bd53c8d8fe3e9ea62cc7362d124c7263f1caa280`):
@@ -342,9 +463,103 @@ and `bd53c8d8fe3e9ea62cc7362d124c7263f1caa280`):
 - The walk follows a top-level constant,
   with the program as its scope,
   where it had stopped.
-- The 26 inputs of re-check 14 that were silent are all reported
-  (the list is in `fix16/adversarial.txt`);
-  the 1579 real sources report none.
+- The 26 inputs of re-check 14 that were silent are all reported:
+  a specifier outside the sources
+  (M09,
+  N13),
+  `eval`,
+  `createRequire`,
+  `module.require`
+  and an aliased `require`
+  (N01 to N04),
+  a builder's result handed to a call,
+  stored in a member or a field,
+  pushed,
+  boxed in a `Map`,
+  parsed back from JSON
+  or put in a template
+  (M29 to M36,
+  M40,
+  N18 to N20,
+  P16
+  and Z1 to Z3),
+  and a member of a namespace of an outside module stored,
+  handed to a call
+  or held
+  (O01 to O04).
+  The 1579 real sources report none.
+
+Follow-up of fix round 17
+(re-check 15 found 20 inputs that stayed silent besides three stated limits;
+the red commit comes before each fix,
+and every fix makes the failing places of its red commit pass):
+
+- A builder's result in a substitution of a tagged template is reported
+  (red `e5ed26e767b0b82c5f76100c75db90c9fe940bad`,
+  fix `47f78cd3ab3c21f849d728fd83435bfceca98023`;
+  inputs B02,
+  E22,
+  E23,
+  H10,
+  A37 and C15).
+- A call is no call of a sender when a scope around it binds the sender's name
+  (red `6fc75948cd92f6c0cc6d443b7db64c127eb9efbd`,
+  fix `8c1eaa05e8c5200f8bfeb43d6a3cb5b5184f7956`;
+  inputs A17 to A20:
+  a parameter,
+  a local function,
+  a nested function and a catch binding).
+- A builder's result is accepted only at the argument its sender reads
+  (red `494f5e59f6e064371fd2bfcd41d49cff96d0029c`,
+  fix `270602318f0a3e2e41d9fa5a291da090d2a61e8a`;
+  inputs A09 and H01:
+  the second argument,
+  and the `this` slot of `.call`),
+  with `A10` and `A12` as controls that stay accepted.
+- A constant a file exports is followed into the files that read it
+  (red `8be03d18d8b3913913037b6bfaed219835277ac0` and `ae150f8c6e23e9076b40c9bbdfbf34cf4d294311`,
+  nine places in all;
+  fix `0d917b63617491de2409d3edaa8b851b18856e24`).
+  The senders are three now:
+  `assertSchemasSendable` of `pass-schema-check.ts` joined the two of round 16,
+  because the real shape of `CONSOLIDATE_GATE_RESPONSE_FORMAT` ends in the call that checks the list of producers.
+  The walk follows names an import gives,
+  a re-export by name and by star,
+  the member of a namespace import and `import()` or `require` of the file.
+  A namespace read as a whole,
+  a namespace export and a load of the file are reported at once,
+  and a cycle of stars ends through a set of the pairs of a file and an export that were followed.
+- A function that hands a sender a builder call made from its own parameters,
+  a forwarder,
+  gets its callers listed
+  (red `9b4b423db2c33a73d04571dd55b5c593d73a02ec`,
+  fix `a3a9fe5a8275020d9eb37933247d294cd1f18940`).
+  The ruling is the lead's and is open to the owner's veto.
+  The reading is wide:
+  a name made from a parameter through the function's constants counts,
+  and the sender call and the builder call need not be linked.
+  Measured over the 1579 real sources,
+  there are three forwarders:
+  `askConsistencyBench`,
+  `askCarryChoice`
+  and `askRunOff`,
+  and their callers are `pass-consistency-bench-decide.ts` and `pass-consistency-carry-choose.ts`.
+  The narrow reading,
+  which asks for a parameter by its own name in the builder call,
+  finds `askRunOff` only and lists `pass-consistency-bench-decide.ts` alone;
+  the wide reading adds `pass-consistency-carry-choose.ts` and no other file.
+  The wide reading is the one that lists,
+  and the cost is the over-listing of a function that sends one schema
+  and builds another.
+  The next hop is not followed.
+  The measure of the chain of callers that pass their own parameters on found two functions at each of hops two to six,
+  and the chain was not empty at hop six,
+  so following it would list most of the consistency pass without naming a file that writes a schema.
+  That is a limit of the change.
+- The inputs E01 and E02 are listed,
+  not reported:
+  the caller that supplies the arguments joins the list of files,
+  and the sender's answer is not a schema.
 
 Prevention rule:
 a walk that follows a value ends in a destination the check lists,
@@ -405,6 +620,36 @@ and `8120c64c84581b9ea92f878ac60dc499a7e000c3`):
   `rg --word-regexp 'Function|eval|createRequire'` over the non-test sources of the family finds five hits,
   all prose,
   none code.
+
+Follow-up of fix round 17:
+a member of `globalThis`,
+`window`,
+`self` or `global` whose key is not a string literal is reported as
+`code-the-search-cannot-read` where it is written
+(red `c1e9a491f86eb70099c5967af54c7ad9a3ead4ba`,
+fix `ebfb8c0c59204b0930d861bd9746650971f19930`;
+input F06,
+a key joined from two strings).
+A name in brackets is the value of a variable,
+so the earlier read of such a key as the name it is written with had let `globalThis[key]` through.
+A specifier of a package of the family resolves only to a file of the sources:
+the package,
+its `/ts` subpath and `/ts/<file>`
+(red `796bddda272f8ea2cbdad6fe930132a3e93c2576`,
+fix `dd57a75de1a0006d9b5d9eadcd08ddf3d4afff9a`;
+inputs G08 and G09,
+a subpath that does not exist and a path outside the exports map).
+The red commit's second file expected silence for two specifiers the imaginary sources could not resolve,
+and the fix corrected the file by giving it a `provider/src/index.ts`;
+the four failing places of the red commit are unchanged by that.
+The stated limits stay,
+pinned silent by a case:
+the constructor of a function,
+the constructor of the prototype of an async function,
+and `node:vm`
+(inputs F11,
+F14 and F12).
+They cannot be told from any other member by a read of the text.
 
 Prevention rule:
 a whitelist that anchors at the module-load boundary also lists the ways to build a loader,
@@ -476,6 +721,54 @@ The fix:
   and the new totals,
   and no run held one of them apart from the rest.
 
+Follow-up of fix round 17:
+
+- The recheck of `b7d048af7b6f947e141982aa54390a7ec4a19359`.
+  Its body argued that an object that is itself the callee of a call cannot be reached,
+  because the call is no call of a sender.
+  The place is reachable:
+  the check reports the object as the value the function returns
+  (`builder-result-returned-outside-a-wrapper`,
+  "FunctionDeclaration returns it").
+  The removed condition changes nothing,
+  because the check of the callee rejects a callee that is no chain of names,
+  and `2d02c768a937f7f1aa93781881dfae8889ef1415` holds the case.
+  The same commit pins the function a report names when the value leaves by more than one:
+  the first in the order of the source,
+  so a function declaration before an arrow is named by the function and an arrow before it by the arrow.
+- The mutant table has 142 rows on `1d3bd37002b264b9b272afc76f17f1a78dd27aef`:
+  the 63 of round 16,
+  the 13 of re-check 15
+  and 66 new ones for the branches this round added.
+  The run on `a642a09a9d45195eaa36ed37aa705ab2b084ea63` had left seven alive,
+  the six of B866 and one that `1d3bd37002b264b9b272afc76f17f1a78dd27aef` kills,
+  and the run on the final head left the six.
+  Each of the six has controls in B866.
+  The runs were sequential,
+  one mutant at a time,
+  in a user unit capped at 6 GiB of memory and 200% of the CPU.
+- The schema suite took 3.77 to 4.13 s on `b3eda4996e706fcc81fc131e24240beb858527e6`,
+  the base of the round,
+  and 4.39 to 4.80 s on the head,
+  three alternating runs each.
+  A second set rotated four revisions three times:
+  the revision before the cross-file constants,
+  `2d02c768a937f7f1aa93781881dfae8889ef1415`,
+  took 3.79 to 4.02 s;
+  the constants fix,
+  `0d917b63617491de2409d3edaa8b851b18856e24`,
+  took 4.16 to 8.14 s;
+  the forwarders fix,
+  `a3a9fe5a8275020d9eb37933247d294cd1f18940`,
+  took 4.16 to 5.79 s;
+  and the head took 4.31 to 4.46 s.
+  The spreads of 3.98 and 1.63 s are other sessions on the host,
+  and 8.14 s is an outlier.
+  The minimum rises by 0.37 s at the constants fix and by 0.15 s after it,
+  so most of the 0.5 to 0.6 s the head costs came with the walk across files,
+  and the cases the round added are part of that cost.
+  The cause was not held apart from the cases.
+
 Records corrected:
 the body of `4527b378c1` says its header "is rewritten in the next commit",
 and the header was rewritten in `35cea3a28b`,
@@ -484,8 +777,19 @@ the adversarial table of round 15 labels its row B19 "mjs path import (non-ts sp
 and the input is `import('node:fs')`,
 which reaches no builder,
 but not for the reason its name gives.
-`fix16/ledger-notes.md` holds both,
-and B864's sentence "2.0 s with them" is "2.0 s without them".
+The commit is `4527b378c16de148a3c77968b405e6ca7edf8441`,
+whose body ends
+"The header of claude-schema-sources.test-fixture.ts still describes round 14's check
+and is rewritten in the next commit",
+and `git log` over that file shows the rewrite in `35cea3a28b`.
+The row B19 reaches no builder because `node:fs` is a built-in module,
+not because a non-ts specifier is not followed:
+no scenario of round 15 exercised a non-ts specifier,
+and the cases M09 and N13 of round 16
+(the aliases `#lane/contest` and `#lane/wire`)
+are the first that do.
+B864's sentence "2.0 s with them" is "2.0 s without them"
+in `audit-ledger-guard-demonstration-survivors-and-their-pins.md`.
 
 Cache versions:
 none moved.
@@ -498,6 +802,14 @@ git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' edf6323eb3..HEAD -- packa
 ```
 
 The same search over `c265e8df95~1..c265e8df95` prints one line,
+so the search can print.
+
+Cache versions in fix round 17:
+none moved.
+The search over `b3eda4996e..HEAD` for `package/translation-repair` prints nothing,
+although the range spans the merge of `origin/main` with the commits of the `ide` package,
+and the same search without the path prints nothing either.
+The same search over `c265e8df95~1..c265e8df95` prints the commit that moved `SLICE_CACHE_VERSION` from 43 to 44,
 so the search can print.
 
 Recurrence:
