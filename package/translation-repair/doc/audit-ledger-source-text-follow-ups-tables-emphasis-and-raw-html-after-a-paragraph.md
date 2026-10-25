@@ -1,6 +1,6 @@
-# Audit ledger: the source text under a note, the sixth round, tables, emphasis and raw HTML after a paragraph
+# Audit ledger: the source text under a note, tables, emphasis and raw HTML after a paragraph
 
-The sixth round of the follow-ups of B832 (the original of an untranslated passage written as literal text):
+The follow-ups of B832 (the original of an untranslated passage written as literal text) that answer the third re-check:
 the fixes of the third re-check,
 the footnote start indented four columns after a table row,
 in emphasis and link text and after a backslash hard break,
@@ -13,19 +13,24 @@ the real-corpus counts and the full task of the final code.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
-The rounds before it are in
-[the file of the fifth round](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md),
+The block comparison and the openers in code are in
+[their own file](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md),
 whose passage on the red of three measurements is corrected there,
-and [the file of the fourth round](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md).
+and the reading comparison and the real corpus are in
+[theirs](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md).
+The answer to the fourth re-check,
+which closes the residual classes this file lists,
+is in
+[the file on the plain reading with tables and the containers][plain-file].
 
-## B832 follow-ups, the sixth round
+## B832 follow-ups, tables, emphasis and raw HTML after a paragraph
 
 ### The re-check and the owner's rulings
 
 The third re-check of this work found no major finding,
 five minor ones (N1 to N5),
 three findings left partly fixed (F1,
- F7 and F8 of the fifth round),
+ F7 and F8 of the block comparison work),
 and five nits and observations (N6 to N10).
 Two rulings of the owner stand:
 a run always ships (2026-09-27),
@@ -67,8 +72,12 @@ What each finding came to:
   red first,
   with a hard break written with a backslash,
   which the re-check named without listing it among the four.
-  A line ending and the indentation after it are white space in all of them on any render,
-  so the encoder joins the lines at a footnote start only,
+  The line ending and the indentation that follow are white space on any render in all of them but the hard break:
+  a hard break written with a backslash renders as a line break,
+  and the join is made for it because the page shows the backslash where the footnote cuts the paragraph
+  and the account the comparison makes of a page folds a break to white space,
+  so a join reads the same in the account and shows one line where the source shows two.
+  The encoder joins the lines at a footnote start only,
   and a brace,
   a less-than sign or a fence mark that starts a line there stays escaped as text.
   The references (`linkReference`,
@@ -103,10 +112,14 @@ What each finding came to:
   a page that parses and cannot be compared exists,
   and is pinned at both levels.
   The branch stays.
+  The link target is decoded as far as it reads in the answer to the fourth re-check,
+  which removes the page this passage names,
+  and the
+  branch is tested through the composition by a comparison handed to it (see the file named in the introduction).
 - F8 and the nits:
   the article openings of `source-reading-blocks.ts` are gone,
   as are two written in this round;
-  the count of failing cases of three reds in the file of the fifth round is corrected there (N7);
+  the count of failing cases of three reds in the file of the block comparison work is corrected there (N7);
   the sentence of the README and of the design commitments that offered the answer `same` for the block path says it
   is never `same` there (N8).
 - N9,
@@ -122,19 +135,33 @@ What each finding came to:
 
 Every red fails on its parent for the stated reason,
 none is a load error,
-and the failing lines of each are in `dx1f4/red-*-failing-lines.txt` of the run directory,
-outside the repository:
+and the failing case names and reasons of each are set out in its entry:
 
 - `aefbe09ec897dba5b15c7f5a34bfc8efffd932e0` (N1):
   6 of 6 cases.
   Four fail with the page missing the closing pipe of the row
   (the page shows the row without its closing pipe),
   two with an `MdxParseError` from the strict grammar.
+  The cases are a row with a backtick that nothing closes followed by a footnote line with a brace or a tag,
+  a row opened by a dollar sign,
+  and a row inside a block quote and a list item;
+  the assertion reads that the page shows the row without its closing pipe,
+  and the two parse errors are `mdast-util-mdx-jsx/end-tag-mismatch` at line 5.
   All six read the same on the code of `ea368918c3`,
   the parent of the join,
   so the regression is the join's.
 - `a18a68334ef53cd2cb46d9cdef25a2f10e5bb161` (N2):
-  12 of 14 cases fail with the page showing the mark that opened the construct.
+  12 of 14 cases fail with the page showing the mark that opened the construct
+  (the cases are emphasis with an asterisk and with an underscore,
+  strong emphasis,
+  the text of a link,
+  of a link with a title and of a reference,
+  and the alternative text of an image and of an image reference,
+  each cut by a footnote start;
+  each asserts that the page shows `*`,
+  `_`,
+  `**`,
+  `[` or `![` where the source shows the text alone).
   The control indented three spaces,
   which both readings cut,
   and the case of emphasis holding a code span,
@@ -142,25 +169,38 @@ outside the repository:
   pass.
 - `5f7fd2fe1109b3ec5dd262af0e39faeae28a8467` (N2,
   the backslash hard break):
-  5 of 7 cases fail with the page showing the backslash;
+  5 of 7 cases fail with the page showing the backslash
+  (the assertion reads that the page shows `a\` where the source shows `a`);
   the control indented three spaces and the control with a break of two spaces pass.
 - `e49bcea1922994faca3aea40885e564ebe7f9766` (N3,
   the opener that cuts a paragraph):
-  5 of 8 cases fail with the page showing a code span or math the source lacks;
+  5 of 8 cases fail with the page showing a code span or math the source lacks
+  (the assertion reads that the page shows the opener as the character reference `&lt;!--` after text without the
+  backtick,
+  where the source shows the opener inside the code span);
   the controls (no backtick,
   an opener after other text on its line,
   an opener after a blank line) pass.
 - `aed90bd742678da24a7f861f12510f82e70685b5` (N3,
   the opener in a footnote's fence):
-  7 of 8 cases fail with the character reference shown inside the code;
+  7 of 8 cases fail with the character reference shown inside the code
+  (the assertion reads that the page shows `&lt;!-- never` where the source shows `<!-- never`;
+  one case has two openers);
   the control with the opener in a paragraph after a closed fence passes.
 - `501f49f5c0fa027ff8a48a94dd850ef6aaea0609` (N10):
   1 case,
-  `expected 'undecided' to equal 'differs'`,
+  `expected 'undecided' to equal 'differs'` (the suite named "reads a text that opens with a byte order mark as the
+  page holds it" reports the failure with it),
   on the code of `75faaefa33`,
   whose `source-reading-difference.ts` is the parent's.
 - `4103fc14f60eb817fb01a270f87ed1e5718f8d98` (the block of raw HTML that cuts a paragraph):
-  11 of 15 cases;
+  11 of 15 cases,
+  each asserting that the page shows the tag as escaped text and the code span or math as plain text
+  where the source shows the code span or math cut at the block
+  (the elements are a `div`,
+  a `pre`,
+  a `script` and a processing instruction,
+  after a paragraph with a backtick or a dollar sign);
   the four controls (no backtick,
   a blank line before the block,
   an inline element,
@@ -240,7 +280,7 @@ No survivor changes what the page shows.
 
 ### The search on the final code
 
-The search of the fifth round,
+The search of the block comparison work,
 132260 texts (every run of both seeds' 40000 pairs,
 the footnote product texts and the shape grid),
 ran in a unit capped at 8G and 800 percent of CPU on the final code:
@@ -260,7 +300,7 @@ ran in a unit capped at 8G and 800 percent of CPU on the final code:
 - Row for row,
   text,
   class and undecided count,
-  equal to the search of the fifth round;
+  equal to the search of the block comparison work;
   0 texts that read the same before are reported now.
 
 By answer,
@@ -275,7 +315,7 @@ with the false positives:
   so 0 are reported for a page that reads the same.
   8678 hold a block that differs when asked alone;
   160 hold none,
-  and are the same texts as in the fifth round,
+  and are the same texts as in the block comparison work,
   whose hand reading stands,
   and which this round did not re-read.
 - undecided:
@@ -336,7 +376,7 @@ in a capped unit:
 61 blocks ship as literal text and all 61 read the same.
 7299 ship as recorded and are not compared;
 1 of them would read differently encoded (the front matter,
-which the fourth and fifth rounds name).
+which the reading comparison and block comparison work name).
 No file holds a comment that never closes,
 an image whose alternative text is an angle autolink,
 a footnote that opens with a tag alone,
@@ -395,7 +435,8 @@ the composition ships the step `encoded-failing-runs` with the one defect `sourc
 (`9a6c03da360a1deef3fa0a37e19662429ba94708`,
 at the level of `differenceDefectsOf` and of the composition).
 The branch is therefore kept.
-The commit message of the fifth round and its ledger named such a page while the one test drove a page that does not
+The commit message of the block comparison work and its ledger named such a page
+while the one test drove a page that does not
 parse (300 nested quotes);
 this round supplies the page.
 The targets are dropped before any comparison (`withoutLinkTargets`),
@@ -433,14 +474,20 @@ which grows with the square of the blocks and a small constant.
 223000 random configurations of blocks,
 ranges and page blocks (words from a vocabulary of three,
 so words repeat) answer identically on the old and the new code.
+The placing reads the places of a block off an index of the page in the answer to the fourth re-check,
+with its curve
+(see [the file on the plain reading with tables and the containers][plain-file]).
 
 ### The residual classes
 
 What reads differently from its source after this round,
-reported by the comparison and not fixed:
+reported by the comparison and not fixed.
+The classes that [the file on the plain reading with tables and the containers][plain-file] closes are marked in place:
 
 - An image whose alternative text is an angle autolink (known,
   `audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md`).
+  Still open after the answer to the fourth re-check,
+  and the largest class that remains (1295 of 1748 texts of the search that differ).
 - The brace and tag joins inside a table row,
   and any other construct the plain reading pairs across rows
   (a row holding a backtick that nothing closes,
@@ -451,22 +498,37 @@ reported by the comparison and not fixed:
   tables included,
   which is a change to `parse-markdown-math.ts` that every consumer of the plain parse would feel.
   A block of raw HTML line after a table row with a backtick in the row is the same cause.
+  Closed:
+  `parseMarkdownMathBody` reads tables and strikethrough (`c83d0876d3b296b10d84616a0e63ce7e49dfc484`).
 - Strikethrough cut by a footnote start indented four columns (`~~x` then `    [^1]: y~~`):
   the plain reading has no GFM,
   so it holds no strikethrough node to join,
   and the page shows the tildes the source reads as struck text.
   Found by probing the siblings of emphasis at the end of the round and not measured in the search;
   no file of the pinned corpus holds an indented footnote start.
+  Closed (`c842438bbe262570a4d72c48c84f205e7ae5652e`).
 - A footnote start indented four columns right after a link reference definition (`[r]: u` then `    [^1]: y`):
   the source reads indented code,
   the page a footnote.
   88 of the 30000 widened texts.
   No file of the pinned corpus holds an indented footnote start.
+  Closed (`07b8e58061a1a5511c880b73176be3f6e6fc5934`).
 - A comment that never closes in a code span that only the reading of a footnote in a block quote pairs (4 texts of the
   search,
-  from the fifth round),
-  and one in a block quote or a list item at the start of a line,
-  which is text to both readers.
+  from the block comparison work),
+  and one in a block quote or a list item at the start of a line.
+  The second was said here to be text to both readers.
+  That was wrong:
+  a line that starts so is the start of a block of raw HTML to a reader of the source,
+  which cuts the paragraph it
+  follows and ends it,
+  so a code span,
+  a list marker or a heading mark that follows it reads differently on the page.
+  Closed for every opener of the kind,
+  and for the fence,
+  the display math and the openers under a footnote in a
+  container (`6d041dc1b1eb8ee49d3611cfc4d14541bcd36451`,
+  `5fe683e2f2335374a8dcb5c61e531291d8351fa9` and the fixes that follow it).
 - The container footnotes the two-readings ruling decides (278 of the 30000 widened texts,
   1119 of the search),
   each shipping `source-reading-undecided`.
@@ -519,3 +581,5 @@ the control over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 The round changes `page-check` only,
 which no key module of the cached stages imports.
 No version is bumped.
+
+[plain-file]: audit-ledger-source-text-follow-ups-the-plain-reading-with-tables-and-the-containers.md

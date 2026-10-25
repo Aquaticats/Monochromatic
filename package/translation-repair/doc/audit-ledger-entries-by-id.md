@@ -430,7 +430,8 @@ which lists every file of this record.
 - [B832 follow-ups, the ninth round](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md)
 - [B832 follow-ups, the reading comparison](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md)
 - [B832 follow-ups, the block comparison](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md)
-- [B832 follow-ups, the sixth round](audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md)
+- [B832 follow-ups, tables, emphasis and raw HTML after a paragraph][b832-tables-ledger]
+- [B832 follow-ups, the plain reading with tables and the containers][b832-plain-ledger]
 - [B833 to B835, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [B836, NeuralWatt replies cut at the default effort and the energy estimate][b836-neuralwatt-ledger]
 - [B837 to B840, short bench floors and the waits that cross them][b837-floors-ledger]
@@ -714,3 +715,5 @@ which lists every file of this record.
 [l36]: audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md
 [l37]: audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md
 [l38]: audit-ledger-found-while-fixing-page-names-headings-and-math.md
+[b832-tables-ledger]: audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md
+[b832-plain-ledger]: audit-ledger-source-text-follow-ups-the-plain-reading-with-tables-and-the-containers.md

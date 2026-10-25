@@ -273,8 +273,12 @@ which lists every file of these commitments.
   `source-reads-differently` for a block that shows other text than the source,
   `source-reading-undecided` for a block the comparison cannot decide,
   and `source-reading-not-compared` for a run the comparison could not be made for,
-  a page that parses and cannot be read against its source,
-  such as one holding a link target that is no text in UTF-8.
+  a page that parses and cannot be read against its source.
+  A link target is decoded as far as it reads,
+  a percent escape that is no text in UTF-8 included,
+  so no known text raises the comparison;
+  the defect is kept,
+  and the composition takes the comparison as an argument so that a failing one is tested through it.
   The composition reports them,
   not a publish check that throws:
   a run always ships,

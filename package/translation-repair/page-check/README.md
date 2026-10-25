@@ -66,7 +66,7 @@ The groups that follow name the main ones.
   then every run,
   then ship the page without the runs no writing makes parse (without every run where that does not help)
   and report `page-source-unparseable` naming the slices.
-  The literal text is read off a CommonMark parse of the run with the site's math
+  The literal text is read off a CommonMark parse of the run with the site's math and GFM tables and strikethrough
   (`parseMarkdownMathBody` of `translation-repair-document-structure`),
   so a fence in a list item,
   a code span across lines,
@@ -105,6 +105,14 @@ The groups that follow name the main ones.
   `corpus-run/source-ships-footnote.ts`,
   `corpus-run/source-ships-module-line.ts`
   and `corpus-run/source-ships-ranges.ts` hold the helpers of the reading and are exported for their own tests.
+  `corpus-run/source-ships-footnote-container.ts` reads the blocks under a footnote definition in a block quote or a
+  list item
+  (the marks of the container given up by the lines that carry them,
+  a lazy line without the mark of a block quote kept as it stands),
+  `corpus-run/source-ships-footnote-html.ts` tells a definition that opens with a block of raw HTML,
+  which holds the lines up to the next blank line,
+  and `corpus-run/source-ships-open-block.ts` tells the openers that start a block of raw HTML to a reader of the
+  source.
   `corpus-run/source-ships-opener-in-code.ts` takes a comment that never closes out of the fence,
   display math,
   code span or inline math it is opened in,
@@ -139,8 +147,10 @@ The groups that follow name the main ones.
   `source-reads-differently` for a block that shows other text than the source,
   `source-reading-undecided` for a block the comparison cannot decide,
   and `source-reading-not-compared` for a run the comparison could not be made for
-  (a page that parses and cannot be read against its source,
-  such as one holding a link target that is no text in UTF-8).
+  (a page that parses and cannot be read against its source;
+  a link target is decoded as far as it reads,
+  so one that is no text in UTF-8 does not raise the comparison,
+  and the composition takes the comparison as an argument so that a failing one is tested through it).
   Names:
   `readingDifferenceOf`,
   `differenceDefectsOf`,
@@ -148,10 +158,15 @@ The groups that follow name the main ones.
   `blocksOfPage`,
   `blocksOfSource`,
   `readerOfPage`,
-  `readerOfSource`.
+  `readerOfSource`,
+  `decodedTarget`,
+  `placedAfter`.
   Declared in `corpus-run/source-reading-difference.ts`,
   `corpus-run/source-ships-differences.ts`,
-  `corpus-run/source-reading-blocks.ts`
+  `corpus-run/source-reading-blocks.ts`,
+  `corpus-run/source-reading-places.ts` (where the words of the blocks no range reaches stand in the page,
+  read off an index of the page),
+  `corpus-run/source-reading-target.ts`
   and `corpus-run/source-reading-account.ts`.
 - Shippable replacements:
   turn a settled entry's per-slice readings into the replacements that assemble its page.
