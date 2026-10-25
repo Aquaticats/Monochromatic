@@ -1387,7 +1387,7 @@ and when the pointer rests over no character,
 such as past the end of a line,
 on a blank line,
 or over the line numbers.
-Resting over no character asks the server nothing.
+Resting over no character in a view that stands still asks the server nothing.
 
 A resting pointer is a pointer and a view that both stood still for 350 ms.
 The toolkit sends no pointer event for text that scrolls under a still pointer,
@@ -1685,8 +1685,9 @@ Deliberate differences:
   once the view has stood still for the rest time,
   and names the row drawn under the pointer then.
   The same holds for a pointer that rests over no character:
-  editord asks nothing after a scroll for it,
-  and here a character that arrives under it is asked about.
+  editord's debounce is scheduled only by a mouse move (`doHover` in `lsp-hover.ts`),
+  so once it has fired over no text a scroll asks nothing,
+  and here a character that arrives under the pointer is asked about.
 - Notes stay until dismissed instead of disappearing after 2 seconds,
   name a remedy,
   and are declared as a live region for assistive technologies.
