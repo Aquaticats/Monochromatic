@@ -17,7 +17,7 @@ import type { RunPair, } from './source-live-sample.test-fixture.ts';
 const BRACKETS_PAST_BOUND = 300;
 
 /**
- The pairs, each named by its shape, in the order the two seeds' passes listed them. The comment above each says which
+ The pairs, each named by its shape, in the order the two seeds' passes listed them. A comment on each says which
  draw of which seed it is, so the full pass can be run again to see it.
  */
 export const FULL_PASS_PAIRS: readonly (readonly [

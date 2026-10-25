@@ -4,8 +4,8 @@
 
  The strict grammar disables indented code, so the blocks indented four columns under a footnote definition are blocks of
  the footnote there, and a fence or display math among them is code or math, which the page shows as the source does.
- The plain reading has no footnotes and takes those lines for indented code, or for the lazy lines of the paragraph above
- them, so the encoder reads them as the footnote's blocks. In a block quote or a list item the lines carry the marks and
+ The plain reading has no footnotes and takes those lines for indented code, or for the lazy lines of the paragraph
+ they follow, so the encoder reads them as the footnote's blocks. In a block quote or a list item the lines carry the marks and
  the hanging indent of the container before the four columns, and the encoder once wrote the marks of such a fence with
  a backslash, so that the page showed them, and found no opener that stood in one.
 

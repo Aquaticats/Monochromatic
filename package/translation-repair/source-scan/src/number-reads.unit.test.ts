@@ -195,6 +195,10 @@ const HELD_READS: Readonly<Record<string, {
     calls: 1,
     why: 'reads a run its own scan bounded to ASCII digits, then refuses a run longer than a day takes',
   },
+  'page-check/corpus-run/source-reading-target.ts#escapedByteAt: Number.parseInt': {
+    calls: 1,
+    why: 'reads the two characters after a percent sign once each is found in the table of hexadecimal digits, in radix 16',
+  },
   'run/corpus-run/cap-census-read.ts#<module>: Date.parse': {
     calls: 1,
     why: 'reads a literal with its zone written, so it names the same instant on every machine',

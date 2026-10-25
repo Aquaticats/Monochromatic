@@ -1585,7 +1585,23 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
+  'page-check/corpus-run/source-ships-lines.ts#contentStretches': {
+    tests: 1,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-links.ts#destinationCharacter': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-open-block.ts#isBlank': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-footnote.ts#splitFlowsOf': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-in-code.ts#codeBefore': {
     tests: 1,
     why: SCANNER,
   },

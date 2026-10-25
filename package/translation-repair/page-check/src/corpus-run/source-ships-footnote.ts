@@ -547,10 +547,10 @@ export function linesWithoutPrefix(
 
  @example
  ```ts
- const count = indentationOf({ source: '  a', line: { start: 0, end: 3, }, },);
+ const count = footnoteIndentOf({ source: '  a', line: { start: 0, end: 3, }, },);
  ```
  */
-export function indentationOf(
+export function footnoteIndentOf(
   {
     source,
     line,
@@ -633,42 +633,6 @@ function quoteMarksOf(
     scan.columns = 0;
   }
   return scan.marked - line.start;
-}
-
-/**
- The indices of the characters of an indented block that remain once each line gives up its indentation of up to four
- spaces or one tab, which is how a footnote definition reads the blocks indented under it.
-
- @param source - text
-
- @param range - where the block stands, from the start of its first line
-
- @returns Indices in text order
-
- @example
- ```ts
- const kept = withoutIndentation({ source, range, },);
- ```
- */
-export function withoutIndentation(
-  {
-    source,
-    range,
-  }: {
-    readonly source: string;
-    readonly range: TextRange;
-  },
-): readonly number[] {
-  return linesWithoutPrefix({
-    source,
-    range,
-    prefixLength: function indentation(line,): number {
-      return indentationOf({
-        source,
-        line,
-      },);
-    },
-  },);
 }
 
 /**

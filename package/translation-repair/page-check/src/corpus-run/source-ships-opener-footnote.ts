@@ -4,7 +4,7 @@ import {
   NO_MARK,
   openingMark,
 } from './source-ships-open-flow.ts';
-import { containerPrefixOf, } from './source-ships-footnote-container.ts';
+import { footnoteContainerPrefixOf, } from './source-ships-footnote-container.ts';
 import { footnoteOpensRawHtml, } from './source-ships-footnote-html.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import type { OpenerInCode, } from './source-ships-opener-text.ts';
@@ -18,7 +18,7 @@ import type {
 // disables indented code, so a fence or a display math indented four columns under a footnote definition is one of the
 // footnote there, wherever the footnote stands: at the top, in a block quote or in a list item, with a blank line between
 // the definition and the block or none. The plain reading takes those lines for indented code, or for the lazy lines of
-// the paragraph above, which `source-ships-opener-in-code.ts` does not look into. The lines that hold an opener are
+// the paragraph before the footnote, which `source-ships-opener-in-code.ts` does not look into. The lines that hold an opener are
 // taken out of the block as they are for a fence at the top: the block is closed before the line, the line is written as
 // a paragraph of the footnote, and the block is opened again with the same mark, each line carrying the marks and the
 // indentation of its container and the four columns the footnote takes. The lines are read from the footnote's range,
@@ -201,7 +201,7 @@ function splitFlowsOf(
     /**
      What its container takes of the line.
      */
-    const container = containerPrefixOf({
+    const container = footnoteContainerPrefixOf({
       source,
       at: line.start,
       pattern: prefix,

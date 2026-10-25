@@ -15,7 +15,7 @@ import {
 import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
-  containerPrefixOf,
+  footnoteContainerPrefixOf,
   continuesAsParagraph,
   continuesTheFootnote,
   goesOnAsLazyText,
@@ -83,33 +83,33 @@ await describe({
   name: 'the blocks under a footnote definition in a container',
   children: [
     describe({
-      name: containerPrefixOf.name,
+      name: footnoteContainerPrefixOf.name,
       children: [
         it({
           name: 'TAKES THE MARKS OF A BLOCK QUOTE AND THE WHITE SPACE THE PATTERN HAS, and says the line carries them',
           fn: async () => {
-            expect(containerPrefixOf({ source: '>     a', at: 0, pattern: '> ', },),).toEqual({ length: 2, marked: true, },);
-            expect(containerPrefixOf({ source: '>a', at: 0, pattern: '> ', },),).toEqual({ length: 1, marked: true, },);
-            expect(containerPrefixOf({ source: '> > a', at: 0, pattern: '> > ', },),).toEqual({ length: 4, marked: true, },);
-            expect(containerPrefixOf({ source: 'x\n  > a', at: 2, pattern: '- > ', },),).toEqual({ length: 4, marked: true, },);
-            expect(containerPrefixOf({ source: '   > a', at: 0, pattern: '> ', },),).toEqual({ length: 5, marked: true, },);
-            expect(containerPrefixOf({ source: '    > a', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
+            expect(footnoteContainerPrefixOf({ source: '>     a', at: 0, pattern: '> ', },),).toEqual({ length: 2, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: '>a', at: 0, pattern: '> ', },),).toEqual({ length: 1, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: '> > a', at: 0, pattern: '> > ', },),).toEqual({ length: 4, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: 'x\n  > a', at: 2, pattern: '- > ', },),).toEqual({ length: 4, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: '   > a', at: 0, pattern: '> ', },),).toEqual({ length: 5, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: '    > a', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
           },
         },),
         it({
           name: 'TAKES THE INDENTATION OF A LIST ITEM UP TO THE WIDTH OF ITS MARKER, and fewer spaces than that',
           fn: async () => {
-            expect(containerPrefixOf({ source: '      a', at: 0, pattern: '- ', },),).toEqual({ length: 2, marked: true, },);
-            expect(containerPrefixOf({ source: ' a', at: 0, pattern: '1. ', },),).toEqual({ length: 1, marked: true, },);
-            expect(containerPrefixOf({ source: 'a', at: 0, pattern: '- ', },),).toEqual({ length: 0, marked: true, },);
-            expect(containerPrefixOf({ source: 'a', at: 0, pattern: '', },),).toEqual({ length: 0, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: '      a', at: 0, pattern: '- ', },),).toEqual({ length: 2, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: ' a', at: 0, pattern: '1. ', },),).toEqual({ length: 1, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: 'a', at: 0, pattern: '- ', },),).toEqual({ length: 0, marked: true, },);
+            expect(footnoteContainerPrefixOf({ source: 'a', at: 0, pattern: '', },),).toEqual({ length: 0, marked: true, },);
           },
         },),
         it({
           name: 'SAYS A LINE WITHOUT A MARK OF THE BLOCK QUOTE IS NOT MARKED AND GIVES UP NOTHING, a lazy line',
           fn: async () => {
-            expect(containerPrefixOf({ source: '    ```', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
-            expect(containerPrefixOf({ source: '> a', at: 0, pattern: '> > ', },),).toEqual({ length: 0, marked: false, },);
+            expect(footnoteContainerPrefixOf({ source: '    ```', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
+            expect(footnoteContainerPrefixOf({ source: '> a', at: 0, pattern: '> > ', },),).toEqual({ length: 0, marked: false, },);
           },
         },),
       ],

@@ -11,7 +11,6 @@ import {
   footnoteBodyStart,
   footnoteStartInside,
   NO_FOOTNOTE_INSIDE,
-  opensFootnote,
 } from './source-ships-footnote.ts';
 import {
   footnoteBodySpans,

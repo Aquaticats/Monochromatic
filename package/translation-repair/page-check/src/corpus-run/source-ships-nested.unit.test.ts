@@ -21,7 +21,7 @@ import {
   footnoteInParagraphSpans,
   nestedSpans,
   spansOf,
-  withoutIndentation,
+  withoutContainerAndIndentation,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -43,7 +43,8 @@ await describe({
             expect(nestedSpans({
               source: SOURCE,
               readable: SOURCE,
-              indices: withoutIndentation({
+              indices: withoutContainerAndIndentation({
+                prefix: '',
                 source: SOURCE,
                 range: {
                   start: 9,
@@ -86,7 +87,8 @@ await describe({
             expect(nestedSpans({
               source,
               readable: source,
-              indices: withoutIndentation({
+              indices: withoutContainerAndIndentation({
+                prefix: '',
                 source,
                 range: {
                   start: 9,

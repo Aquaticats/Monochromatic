@@ -20,6 +20,10 @@ import {
   matchesAt,
   placedAfter,
 } from '../../dist/final/node/index.mjs';
+import {
+  integerBelow,
+  randomOf,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/seeded-draws.test-fixture.ts';
 
 /**
  A run of blocks of the source, as the placing is given it.
@@ -184,26 +188,9 @@ function cheapestByEnumeration(
  */
 function configurationFrom({ seed, }: { readonly seed: number; },): { readonly page: readonly string[]; readonly runs: readonly Run[]; } {
   /**
-   State of the generator.
+   The generator.
    */
-  const state = { value: seed, };
-
-  /**
-   Next number below a bound.
-
-   @param bound - exclusive upper bound
-
-   @returns Number from zero to one less than the bound
-
-   @example
-   ```ts
-   const at = below({ bound: 5, });
-   ```
-   */
-  function below({ bound, }: { readonly bound: number; },): number {
-    state.value = ((state.value * 1_664_525) + 1_013_904_223) >>> 0;
-    return (state.value >>> 8) % bound;
-  }
+  const rand = randomOf({ seed, },);
 
   /**
    Words drawn from a vocabulary of two or three.
@@ -219,7 +206,7 @@ function configurationFrom({ seed, }: { readonly seed: number; },): { readonly p
    */
   function wordsOf({ count, }: { readonly count: number; },): readonly string[] {
     return Array.from({ length: count, }, function word(): string {
-      return ['a', 'b', 'c',][below({ bound: 3, },)] ?? 'a';
+      return ['a', 'b', 'c',][integerBelow({ rand, bound: 3, },)] ?? 'a';
     },);
   }
 
@@ -227,13 +214,13 @@ function configurationFrom({ seed, }: { readonly seed: number; },): { readonly p
    The runs, alternating at random between reached and unreached.
    */
   const runs: Run[] = [];
-  for (let at = 0, reached = below({ bound: 2, },) === 0; at < (1 + below({ bound: 5, },)); at += 1, reached = !reached) {
+  for (let at = 0, reached = integerBelow({ rand, bound: 2, },) === 0; at < (1 + integerBelow({ rand, bound: 5, },)); at += 1, reached = !reached) {
     runs.push(reached
-      ? { reached, words: wordsOf({ count: below({ bound: 4, },), },), blocks: 1 + below({ bound: 3, },), }
-      : { reached, words: wordsOf({ count: 1 + below({ bound: 3, },), },), blocks: 0, },);
+      ? { reached, words: wordsOf({ count: integerBelow({ rand, bound: 4, },), },), blocks: 1 + integerBelow({ rand, bound: 3, },), }
+      : { reached, words: wordsOf({ count: 1 + integerBelow({ rand, bound: 3, },), },), blocks: 0, },);
   }
   return {
-    page: wordsOf({ count: below({ bound: 9, },), },),
+    page: wordsOf({ count: integerBelow({ rand, bound: 9, },), },),
     runs,
   };
 }

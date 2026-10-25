@@ -88,4 +88,30 @@ export function pickFrom<Option,>(
   return picked;
 }
 
+/**
+ Draws a whole number from zero up to a bound, which the generator states as a fraction of one.
+
+ @param rand - the generator
+
+ @param bound - exclusive upper bound
+
+ @returns A whole number from zero to one less than the bound
+
+ @example
+ ```ts
+ const at = integerBelow({ rand, bound: 5, },);
+ ```
+ */
+export function integerBelow(
+  {
+    rand,
+    bound,
+  }: {
+    readonly rand: () => number;
+    readonly bound: number;
+  },
+): number {
+  return Math.floor(rand() * bound,);
+}
+
 //endregion Seeded draws

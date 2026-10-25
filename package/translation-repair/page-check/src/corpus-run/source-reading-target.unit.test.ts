@@ -116,7 +116,7 @@ await describe({
       name: 'KEEPS THE ESCAPES OF THE CHARACTERS THAT DELIMIT AN ADDRESS, and a byte order mark',
       fn: async () => {
         expect(decodedTarget({ target: 'a%2Fb%23c%3Bd%3fe', },),).toBe('a%2Fb%23c%3Bd%3fe',);
-        expect(decodedTarget({ target: '%EF%BB%BFa', },),).toBe('﻿a',);
+        expect(decodedTarget({ target: '%EF%BB%BFa', },),).toBe('\uFEFFa',);
       },
     },),
     it({

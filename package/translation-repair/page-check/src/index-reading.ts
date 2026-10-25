@@ -36,7 +36,7 @@ export {
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
 export { footnoteOpensRawHtml, } from './corpus-run/source-ships-footnote-html.ts';
 export {
-  containerPrefixOf,
+  footnoteContainerPrefixOf,
   continuesAsParagraph,
   continuesTheFootnote,
   goesOnAsLazyText,

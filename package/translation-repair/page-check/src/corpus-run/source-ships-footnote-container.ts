@@ -1,7 +1,7 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   FOOTNOTE_INDENT,
-  indentationOf,
+  footnoteIndentOf,
   isIndentedCode,
   opensFootnote,
   linesWithoutPrefix,
@@ -15,7 +15,7 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // THE BLOCKS UNDER A FOOTNOTE DEFINITION IN A CONTAINER. The strict grammar disables indented code, so a block indented four
 // columns beyond the marks of a block quote or the indentation of a list item, under a footnote definition there, is a block of
 // the footnote, as at the top (`source-ships-footnote.ts`). The plain reading takes it for indented code, or for a lazy line of
-// the paragraph above, and each line of it carries the marks of the container before the four columns the footnote takes.
+// the paragraph before the footnote, and each line of it carries the marks of the container before the four columns the footnote takes.
 
 /**
  What a container puts before a line, and whether the line carries it.
@@ -62,10 +62,10 @@ const UNMARKED: ContainerPrefix = {
 
  @example
  ```ts
- const prefix = containerPrefixOf({ source: '>     a', at: 0, pattern: '> ', },); // { length: 2, marked: true }
+ const prefix = footnoteContainerPrefixOf({ source: '>     a', at: 0, pattern: '> ', },); // { length: 2, marked: true }
  ```
  */
-export function containerPrefixOf(
+export function footnoteContainerPrefixOf(
   {
     source,
     at,
@@ -139,7 +139,7 @@ export function withoutContainerAndIndentation(
     prefixLength: function containerAndIndentation(line,): number {
       if (line.start === range.start) {
         // The first line starts after the marks of its container.
-        return indentationOf({
+        return footnoteIndentOf({
           source,
           line,
         },);
@@ -147,14 +147,14 @@ export function withoutContainerAndIndentation(
       /**
        What the container takes of the line.
        */
-      const container = containerPrefixOf({
+      const container = footnoteContainerPrefixOf({
         source,
         at: line.start,
         pattern: prefix,
       },);
       if (!container.marked)
         return 0;
-      return container.length + indentationOf({
+      return container.length + footnoteIndentOf({
         source,
         line: {
           start: line.start + container.length,
@@ -210,7 +210,7 @@ export function continuesAsParagraph(
   /**
    What the container takes of the paragraph's line.
    */
-  const container = containerPrefixOf({
+  const container = footnoteContainerPrefixOf({
     source,
     at: lineStart,
     pattern: prefix,
@@ -331,7 +331,7 @@ export function isLazyText(
   /**
    What the container takes of the paragraph's first line.
    */
-  const container = containerPrefixOf({
+  const container = footnoteContainerPrefixOf({
     source,
     at: source.lastIndexOf(
       '\n',

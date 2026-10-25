@@ -29,7 +29,7 @@ import {
   NO_FOOTNOTE_INSIDE,
   opensFootnote,
   rangeOf,
-  withoutIndentation,
+  withoutContainerAndIndentation,
   withoutQuoteMarks,
 } from '../../dist/final/node/index.mjs';
 
@@ -451,7 +451,7 @@ await describe({
     },),
 
     describe({
-      name: withoutIndentation.name,
+      name: withoutContainerAndIndentation.name,
       children: [
         it({
           name: 'KEEPS EACH LINE FROM BEHIND ITS INDENTATION OF UP TO FOUR SPACES OR ONE TAB, line endings included',
@@ -464,7 +464,8 @@ await describe({
              @returns Kept characters joined
              */
             function kept({ source, }: { readonly source: string; },): string {
-              return withoutIndentation({
+              return withoutContainerAndIndentation({
+                prefix: '',
                 source,
                 range: {
                   start: 0,

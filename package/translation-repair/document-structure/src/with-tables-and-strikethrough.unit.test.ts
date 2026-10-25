@@ -24,6 +24,10 @@ import {
   parseMarkdownMathBody,
   withTablesAndStrikethrough,
 } from '../dist/final/node/index.mjs';
+import {
+  integerBelow,
+  randomOf,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/seeded-draws.test-fixture.ts';
 
 /**
  Pieces a text is built from where the differentials need no pipe and no tilde, and the parts of GFM the plugin leaves off.
@@ -107,34 +111,17 @@ function textsOf(
   },
 ): readonly string[] {
   /**
-   State of the generator.
+   The generator.
    */
-  const state = { value: seed, };
-
-  /**
-   Next number below a bound.
-
-   @param bound - exclusive upper bound
-
-   @returns Number from zero to one less than the bound
-
-   @example
-   ```ts
-   const at = below({ bound: 5, });
-   ```
-   */
-  function below({ bound, }: { readonly bound: number; },): number {
-    state.value = ((state.value * 1_664_525) + 1_013_904_223) >>> 0;
-    return (state.value >>> 8) % bound;
-  }
+  const rand = randomOf({ seed, },);
 
   return Array.from(
     { length: count, },
     function built(): string {
       return Array.from(
-        { length: 1 + below({ bound: 9, }), },
+        { length: 1 + integerBelow({ rand, bound: 9, }), },
         function piece(): string {
-          return pieces[below({ bound: pieces.length, })] ?? '';
+          return pieces[integerBelow({ rand, bound: pieces.length, })] ?? '';
         },
       )
         .join('',);

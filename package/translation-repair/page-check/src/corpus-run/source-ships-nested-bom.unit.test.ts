@@ -20,27 +20,27 @@ import { readerEqualityCases, } from './source-reader-equality.test-fixture.ts';
 const CASES: readonly (readonly [string, string])[] = [
   [
     'A FENCE THAT OPENS WITH A BYTE ORDER MARK UNDER A FOOTNOTE DEFINITION IN A BLOCK QUOTE, AFTER A BLANK LINE',
-    '> [^1]: x\n>\n>     ﻿```\n>     {b}\n',
+    '> [^1]: x\n>\n>     \uFEFF```\n>     {b}\n',
   ],
   [
     'A FENCE THAT OPENS WITH A BYTE ORDER MARK UNDER A FOOTNOTE DEFINITION IN A LIST ITEM, AFTER A BLANK LINE',
-    '- [^1]: x\n\n      ﻿```\n      {b}\n',
+    '- [^1]: x\n\n      \uFEFF```\n      {b}\n',
   ],
   [
     'A FENCE THAT OPENS WITH A BYTE ORDER MARK UNDER A FOOTNOTE DEFINITION IN A BLOCK QUOTE IN A BLOCK QUOTE',
-    '> > [^1]: x\n> >\n> >     ﻿```\n> >     {b}\n',
+    '> > [^1]: x\n> >\n> >     \uFEFF```\n> >     {b}\n',
   ],
   [
     'A CODE SPAN THAT OPENS WITH A BYTE ORDER MARK UNDER A FOOTNOTE DEFINITION IN A BLOCK QUOTE, AFTER A BLANK LINE',
-    '> [^1]: x\n>\n>     ﻿`y {b}` z\n',
+    '> [^1]: x\n>\n>     \uFEFF`y {b}` z\n',
   ],
   [
     'A FENCE THAT OPENS WITH A BYTE ORDER MARK UNDER A FOOTNOTE DEFINITION AT THE TOP, AFTER A BLANK LINE',
-    '[^1]: x\n\n    ﻿```\n    {b}\n',
+    '[^1]: x\n\n    \uFEFF```\n    {b}\n',
   ],
   [
     'A FOOTNOTE DEFINITION IN A BLOCK QUOTE WHOSE BODY OPENS WITH A BYTE ORDER MARK',
-    '> [^1]: ﻿a {b}\n',
+    '> [^1]: \uFEFFa {b}\n',
   ],
 ];
 
