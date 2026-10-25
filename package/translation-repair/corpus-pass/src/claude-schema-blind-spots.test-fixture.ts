@@ -105,6 +105,11 @@ export type BlindSpot = {
    Where the place sits: the kind of the node that holds it and the field, or what is wrong with it.
    */
   readonly position: string;
+
+  /**
+   The name of the function the place holds, for a shape that holds one.
+   */
+  readonly held?: string;
 };
 
 /**
@@ -125,6 +130,11 @@ export type FoundShape = {
    Where the place sits.
    */
   readonly position: string;
+
+  /**
+   The name of the function the place holds, for a shape that holds one.
+   */
+  readonly held?: string;
 };
 
 /**

@@ -50,8 +50,9 @@ import { BINDING_KIND_CASES, BUILDER_MEMBER_CASES, } from './claude-schema-bindi
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
 import { blindSpotsOf, } from './claude-schema-blind-spots.test-fixture.ts';
 import {
-  isPlaceOf,
   NAMED_PLACES,
+  placesWithoutSpot,
+  spotsNotNamed,
 } from './claude-schema-named-places.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
 import {
@@ -973,15 +974,10 @@ await describe({
       name: 'FINDS NO SHAPE THE SEARCH LEAVES UNREAD IN THE FAMILY\'S SOURCE, so a file that sends an answer schema '
         + 'cannot hide in one: each place that holds such a shape is named by file and line, unless the test names it',
       fn: async () => {
-        expect(blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },)
-          .filter(function isUnnamed(spot,): boolean {
-            return !NAMED_PLACES.some(function namesSpot(place,): boolean {
-              return isPlaceOf({
-                spot,
-                place,
-              },);
-            },);
-          },)
+        expect(spotsNotNamed({
+          spots: blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },),
+          places: NAMED_PLACES,
+        },)
           .map(function named({ file, line, shape, },): string {
             return `${file}:${String(line,)} ${shape}`;
           },),).toEqual([],);
@@ -995,13 +991,9 @@ await describe({
          The places the check reports over the family's source.
          */
         const spots = blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },);
-        expect(NAMED_PLACES.filter(function isStale(place,): boolean {
-          return !spots.some(function isPlace(spot,): boolean {
-            return isPlaceOf({
-              spot,
-              place,
-            },);
-          },);
+        expect(placesWithoutSpot({
+          spots,
+          places: NAMED_PLACES,
         },).map(function fileOf({ file, },): string {
           return file;
         },),).toEqual([],);

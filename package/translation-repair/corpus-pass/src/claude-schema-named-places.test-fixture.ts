@@ -26,6 +26,11 @@ type NamedPlace = {
   readonly position: string;
 
   /**
+   The name of the function a report of the place holds, where the shape holds one.
+   */
+  readonly held?: string;
+
+  /**
    Why the place is not a way for a schema to reach a send unlisted.
    */
   readonly reason: string;
@@ -60,7 +65,7 @@ export const NAMED_PLACES: readonly NamedPlace[] = [
  const isNamed = NAMED_PLACES.some(function names(place,): boolean { return isPlaceOf({ spot, place, },); },);
  ```
  */
-export function isPlaceOf(
+function isPlaceOf(
   {
     spot,
     place,
@@ -74,6 +79,72 @@ export function isPlaceOf(
    */
   const isSameShape = (spot.shape === place.shape) && (spot.position === place.position);
   return (spot.file === place.file) && isSameShape;
+}
+
+/**
+ The reports that no named place stands for.
+
+ @param spots - reports of the check
+
+ @param places - named places
+
+ @returns The reports left, in order
+
+ @example
+ ```ts
+ const unnamed = spotsNotNamed({ spots, places: NAMED_PLACES, },);
+ ```
+ */
+export function spotsNotNamed(
+  {
+    spots,
+    places,
+  }: {
+    readonly spots: readonly BlindSpot[];
+    readonly places: readonly NamedPlace[];
+  },
+): readonly BlindSpot[] {
+  return spots.filter(function isUnnamed(spot,): boolean {
+    return !places.some(function namesSpot(place,): boolean {
+      return isPlaceOf({
+        spot,
+        place,
+      },);
+    },);
+  },);
+}
+
+/**
+ The named places that no report stands behind.
+
+ @param spots - reports of the check
+
+ @param places - named places
+
+ @returns The places left, in order
+
+ @example
+ ```ts
+ const stale = placesWithoutSpot({ spots, places: NAMED_PLACES, },);
+ ```
+ */
+export function placesWithoutSpot(
+  {
+    spots,
+    places,
+  }: {
+    readonly spots: readonly BlindSpot[];
+    readonly places: readonly NamedPlace[];
+  },
+): readonly NamedPlace[] {
+  return places.filter(function isStale(place,): boolean {
+    return !spots.some(function isPlace(spot,): boolean {
+      return isPlaceOf({
+        spot,
+        place,
+      },);
+    },);
+  },);
 }
 
 //endregion Places in the family's source that the check reports and the test names
