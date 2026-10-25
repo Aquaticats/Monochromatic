@@ -15,6 +15,12 @@ import type {
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
+import {
+  noteRunSpend,
+  resetRunSpend,
+  runSpendUsd,
+} from '@monochromatic-dev/translation-repair-shared-contract';
+import { infoLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import { MalformedCompletionError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
   CUT_SHORT_RECOVERY_NUDGE,
@@ -452,6 +458,53 @@ await describe({
         expect(providerCalls,).toBe(1,);
         expect(await second.chatText({ ...REQUEST, reuseScope: 'pass 2', },),).toEqual({ text: 'payload 2', },);
         expect(providerCalls,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'BOOKS NOTHING ON THE RUN METER FOR A REUSE, from memory or from the durable store: the meter holds the one '
+        + 'priced call, and the log holds one PROMPT-REUSE line for each reuse and no SPEND line beyond the call\'s own, '
+        + 'so the meter of a corpus run does not over-read where a prompt is asked twice',
+      fn: async () => {
+        await using dir = await scratchDir({ prefix: 'prompt-reuse-meter-', },);
+        resetRunSpend();
+        /** Provider calls crossing the wrappers. */
+        let providerCalls = 0;
+        const inner: ModelClient = {
+          chatText: async () => {
+            providerCalls += 1;
+            // A PRICED CALL IS WHAT PUTS A LINE ON THE METER, as the provider clients do.
+            noteRunSpend({ provider: 'anthropic', costUsd: 0.1, },);
+            return { text: 'payload', usage: { prompt_tokens: 10, completion_tokens: 20, }, };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson unused by text fixture',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const first = promptUniqueClient({ inner, store: promptPayloadStore({ dir: dir.path, },), },);
+        const second = promptUniqueClient({ inner, store: promptPayloadStore({ dir: dir.path, },), },);
+        const lines = await infoLinesDuring({
+          run: async () => {
+            await first.chatText(REQUEST,);
+            await first.chatText(REQUEST,);
+            await second.chatText(REQUEST,);
+          },
+        },);
+        expect(providerCalls,).toBe(1,);
+        expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(0.1, 10,);
+        expect(lines.logged.filter(function isReuse(line,): boolean {
+          return line.includes('PROMPT-REUSE source=memory',) || line.includes('PROMPT-REUSE source=disk',);
+        },).length,).toBe(2,);
+        expect(lines.logged.filter(function isSpend(line,): boolean {
+          return line.includes('SPEND provider=',);
+        },),).toStrictEqual([],);
+        // POSITIVE CONTROL: a prompt asked under another scope is a priced call, and the same meter moves for it.
+        await first.chatText({ ...REQUEST, reuseScope: 'pass 2', },);
+        expect(providerCalls,).toBe(2,);
+        expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(0.2, 10,);
       },
     },),
 
