@@ -248,6 +248,44 @@ Run the tests with `mise run //package/translation-repair/page-check:test:unit`,
 or build and test together with `mise run //package/translation-repair/page-check:buildAndTest`.
 Pass test file paths to run only those files.
 
+### The full pass of the live-construct check
+
+`mise run //package/translation-repair/page-check:test:live-full` is not part of `test:unit`.
+It composes the page of every pair of runs of both step-search seeds (80000 pairs)
+and writes every generated footnote text,
+and fails when a page holds a live construct in text written as literal text
+or ships without the original of a run for any reason but that run's nesting past the bound.
+The sampled case of `test:unit`
+(`src/corpus-run/source-live-sample.unit.test.ts`)
+reads one in four of each seed,
+which catches a class of nine pairs with chance 0.92 and a smaller class less often.
+
+It must be run before landing any change under
+`src/corpus-run/source-ships-*`,
+`src/corpus-run/page-grammar.ts`,
+`src/corpus-run/source-live-*`,
+`src/corpus-run/source-shipped*`,
+`../document-structure/src`
+or `../markup/src/footnote-label.ts`,
+and before a launch whose build differs from the last green full run in those paths.
+The difference is `git diff --stat <head> HEAD -- <paths>`,
+where `<head>` is the commit the last green full run was made on:
+an empty difference means the last run still stands.
+
+It took 293 to 402 seconds across the runs made so far,
+under a host load average above thirty,
+and peaked at 535 to 559 MB of memory.
+Run it as its own capped unit,
+for example `systemd-run --user --unit=live-full --collect --property=MemoryMax=4G --property=CPUQuota=300%`.
+
+It guards two things: no live construct, and no unforced drop.
+It does not see a change that only escapes more than needed (the output stays safe and differs),
+such as a tab no longer ending a footnote label or a carriage return left before a joined line.
+Unit cases pin those:
+the label rules in `src/corpus-run/source-ships-encoding.unit.test.ts`
+and `../markup/src/footnote-label.unit.test.ts`,
+and the join in `src/corpus-run/source-ships-lines.unit.test.ts`.
+
 Its `./ts/*` export also serves test fixtures that sibling tests import,
 for example `corpus-run/published-run.test-fixture.ts`.
 

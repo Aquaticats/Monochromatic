@@ -3,17 +3,25 @@
  the step searches, which the sampled case (`source-live-sample.unit.test.ts`) reads one in four of.
 
  NOT PART OF `test:unit`: the file name carries `.expensive.`, which the task leaves out unless asked for it. Run it
- with `mise run //package/translation-repair/page-check:test:live-full`. It reads 80000 pairs and 32256 footnote texts
- in one process: 293 s to 318 s measured under a cap of three threads, where one seed alone took 143 s and about 360
- MB. It is the check that holds what a sample of the generated sets can miss: a class of a few pairs among the 80000,
- such as the one pair of the seed 31415926 that a code span across a footnote line in a block quote once took to the
- last step of the composition, or the three pairs of each seed that a footnote that is a block of its own, then a
- definition line, once took there.
+ with `mise run //package/translation-repair/page-check:test:live-full`; the README of the package says when it must
+ be run. It reads 80000 pairs and 32256 footnote texts in one process: 293 s to 402 s across the runs made so far,
+ under a host load average above thirty, and a peak of 535 MB to 559 MB of memory. It is the check that holds what
+ a sample of the generated sets can miss: a class of a few pairs among the 80000, such as the one pair of the seed
+ 31415926 that a code span across a footnote line in a block quote once took to the last step of the composition, or
+ the three pairs of each seed that a footnote that is a block of its own, then a definition line, once took there.
+
+ WHAT IT GUARDS: no live construct in text written as literal text, and no drop that the grammar does not force (a run
+ refused for its depth). WHAT IT DOES NOT SEE: a change that only escapes more than needed, which leaves the page
+ parsing and free of live constructs while the text written differs (a tab no longer ending a footnote label, so a tag
+ after it is written with backslashes; a join that starts at the line feed after a carriage return and keeps a stray
+ one). Both are fail-safe, so a live-construct check cannot fail on them, and unit cases pin them instead
+ (`source-ships-encoding.unit.test.ts`, `source-ships-lines.unit.test.ts`, `footnote-label.unit.test.ts` of the
+ markup package).
 
  EVERY PAIR AND EVERY TEXT IS READ THE WAY THE SAMPLED CASE READS ONE (`source-live-pairs.test-fixture.ts`): the page is
  composed, the text written as literal text is found on it, and no expression, JSX element or ES module may stand in
- it; a page that ships without the original of a run is reported unless the grammar refused a page of the composition
- for its depth.
+ it; a page that ships without the original of a run is reported unless the grammar refuses that run, written as
+ literal text, for its depth.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -65,7 +73,7 @@ await describe({
   children: [
     ...PAIR_SEEDS.map(function pairsOf(seed,) {
       return it({
-        name: `SHIPS NO LIVE CONSTRUCT AND DROPS NO ORIGINAL BUT FOR A NESTING PAST THE BOUND, OVER ALL ${
+        name: `SHIPS NO LIVE CONSTRUCT AND DROPS NO ORIGINAL BUT OF A RUN NESTING PAST THE BOUND, OVER ALL ${
           String(PAIR_TOTAL,)
         } PAIRS OF THE SEED ${String(seed,)}`,
         fn: async () => {
