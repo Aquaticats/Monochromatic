@@ -1,0 +1,44 @@
+name: task-cli setup
+description: >
+  Mise-free CI bootstrap: installs the exact Node and pnpm versions the
+  repository's `mise.lock` records and exposes `task-run`, the node-native
+  task CLI that replaces `mise run` in every workflow.
+
+inputs:
+  node-version:
+    description: Node version to install; keep in sync with `mise.lock`'s `tools.node` entry.
+    required: true
+  pnpm-version:
+    description: pnpm version to install; keep in sync with `mise.lock`'s `tools.pnpm` entry.
+    required: false
+    default: ''
+  install-dependencies:
+    description: Run `pnpm install --frozen-lockfile` after setup.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Set up pnpm
+      if: inputs.pnpm-version != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        corepack enable
+        corepack prepare "pnpm@${{ inputs.pnpm-version }}" --activate
+        pnpm --version
+    - name: Expose task-run
+      shell: bash
+      run: |
+        set -euo pipefail
+        chmod +x "$GITHUB_WORKSPACE/package/dev-script/task-cli/src/run.ts"
+        ln -sf "$GITHUB_WORKSPACE/package/dev-script/task-cli/src/run.ts" /usr/local/bin/task-run
+    - name: Install dependencies
+      if: inputs.install-dependencies == 'true' && inputs.pnpm-version != ''
+      shell: bash
+      run: pnpm install --frozen-lockfile
