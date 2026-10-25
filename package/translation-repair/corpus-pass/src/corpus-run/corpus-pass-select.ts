@@ -3,6 +3,7 @@ import {
   listCorpusPeople,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import type { AttemptMap, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   askedAmong,
   type CommandLineOf,
@@ -38,6 +39,8 @@ import {
 
  @param sliceCacheDir - root of the per-entry slice caches, where cached progress is found
 
+ @param wallClock - clock the time of each page-absent line is read on; the wall clock unless a test fixes it
+
  @returns Pairs to run, in run order, and the complete pairs the walk
  found, which the pass's closing line counts its artifacts and declines
  over; under `--only` the walk read the named entries alone, and says so
@@ -56,12 +59,14 @@ export async function selectPendingEntries(
     done,
     attempts,
     sliceCacheDir,
+    wallClock = wallClockNow,
   }: {
     readonly line: CommandLineOf<'corpus-pass'>;
     readonly pin: CorpusPin;
     readonly done: ReadonlySet<string>;
     readonly attempts: AttemptMap;
     readonly sliceCacheDir: string;
+    readonly wallClock?: () => Date;
   },
 ): Promise<{
   readonly pending: readonly CorpusPair[];
@@ -107,7 +112,10 @@ export async function selectPendingEntries(
     pin,
   },);
   for (const gap of incomplete)
-    console.log(passIncompleteLine({ gap, },),);
+    console.log(passIncompleteLine({
+      gap,
+      wallClock,
+    },),);
 
   /**
    Ids with cached slices from an earlier aborted run. These resume first so

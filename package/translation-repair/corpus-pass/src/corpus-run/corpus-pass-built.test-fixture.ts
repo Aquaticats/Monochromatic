@@ -1,5 +1,6 @@
 import { join, } from 'node:path';
 
+import { isIsoStampText, } from '@monochromatic-dev/translation-repair-markup';
 import {
   PROVIDERS_LEFT_OFF,
   readHeadSha,
@@ -86,9 +87,70 @@ export const ENTRIES_WITH_A_GAP: readonly CorpusCloneEntry[] = [
 ];
 
 /**
- A clock time field of a pass line, with the space before it: `at=` and the instant in the spelling the logger writes.
+ The key of a clock time field of a pass line, with the space before it.
  */
-const CLOCK_TIME_FIELD = / at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/gu;
+const CLOCK_TIME_KEY = ' at=';
+
+/**
+ Characters of an instant in the spelling the logger writes, `2026-10-22T08:10:11.123Z`.
+ */
+const INSTANT_LENGTH = 24;
+
+/**
+ Splits what the pass printed into the clock time fields it carried and the text around them, in one pass over the
+ text, a field being the key followed by an instant in the logger's spelling.
+
+ @param text - what the pass printed
+
+ @returns The text without the ` at=<instant>` fields, and the instants in the order they were printed
+
+ @example
+ ```ts
+ const { rest, times, } = splitClockTimes({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+function splitClockTimes({ text, }: { readonly text: string; },): {
+  readonly rest: string;
+  readonly times: readonly string[];
+} {
+  /**
+   Parts of the text between the keys, the first being the part before the first key.
+   */
+  const [
+    head = '',
+    ...tails
+  ] = text.split(CLOCK_TIME_KEY,);
+
+  /**
+   Text kept, in order, from the part before the first key on.
+   */
+  const kept: string[] = [head,];
+
+  /**
+   Instants found, in order.
+   */
+  const times: string[] = [];
+  for (const tail of tails) {
+    /**
+     What follows the key, as far as an instant is long.
+     */
+    const instant = tail.slice(
+      0,
+      INSTANT_LENGTH,
+    );
+    if (isIsoStampText({ text: instant, },)) {
+      times.push(instant,);
+      kept.push(tail.slice(INSTANT_LENGTH,),);
+    }
+    else {
+      kept.push(`${CLOCK_TIME_KEY}${tail}`,);
+    }
+  }
+  return {
+    rest: kept.join('',),
+    times,
+  };
+}
 
 /**
  The clock times the pass lines in a text carry, in the order they are printed.
@@ -103,9 +165,11 @@ const CLOCK_TIME_FIELD = / at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/gu;
  ```
  */
 export function clockTimesIn({ text, }: { readonly text: string; },): readonly string[] {
-  return [...text.matchAll(CLOCK_TIME_FIELD,),].map(function timeOf(found,): string {
-    return found[0].slice(' at='.length,);
-  },);
+  /**
+   The instants the text carries.
+   */
+  const { times, } = splitClockTimes({ text, },);
+  return times;
 }
 
 /**
@@ -122,10 +186,11 @@ export function clockTimesIn({ text, }: { readonly text: string; },): readonly s
  ```
  */
 export function withoutClockTimes({ text, }: { readonly text: string; },): string {
-  return text.replaceAll(
-    CLOCK_TIME_FIELD,
-    '',
-  );
+  /**
+   The text around the fields.
+   */
+  const { rest, } = splitClockTimes({ text, },);
+  return rest;
 }
 
 /**

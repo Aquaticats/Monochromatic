@@ -1,3 +1,4 @@
+import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../claude-schema-producers.ts';
 import {
@@ -89,6 +90,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     hardCapMs,
     spendCeilingUsd,
     now,
+    wallClock: passClock = wallClockNow,
   } = input;
 
   /**
@@ -177,6 +179,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     done,
     attempts,
     sliceCacheDir,
+    wallClock: passClock,
   },);
 
   console.log(passStartLine({
@@ -191,6 +194,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
       perCallMs: RUN_PER_CALL_TIMEOUT_MS,
       claudeCallMs: RUN_CALL_CONFIG.claudeCallTimeoutMs,
     },
+    wallClock: passClock,
   },),);
 
   for (const launchLine of passLaunchLines({
@@ -309,6 +313,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     spendCeilingUsd,
     start,
     now,
+    wallClock: passClock,
     settle: function settleOne(
       {
         entry,
@@ -370,6 +375,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     settledIds,
     declinedIds,
     elapsedMs: now() - start,
+    wallClock: passClock,
   },),);
 }
 
