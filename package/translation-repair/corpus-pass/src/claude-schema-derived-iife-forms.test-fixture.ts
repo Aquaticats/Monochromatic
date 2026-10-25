@@ -97,6 +97,16 @@ export const DERIVED_IIFE_CASES: readonly ShapeCase[] = [
     isListed: true,
   },),
   storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A FUNCTION CALLED AT ONCE BY `new` STORES THE '
+      + 'ARGUMENT IN',
+    lines: [
+      HOLDER,
+      '  new (function (value: any,) { holder.a = value; } as any)(args,);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
     name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A FUNCTION CALLED AT ONCE IN A FUNCTION CALLED AT '
       + 'ONCE STORES THE ARGUMENT IN',
     lines: [
