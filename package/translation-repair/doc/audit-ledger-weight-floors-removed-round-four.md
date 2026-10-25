@@ -160,16 +160,27 @@ none of them runs the resolution checkers
 `IssueCheckerReading`,
 `checkerReadings` and `tallyResolutionChecks` lists).
 
+The artifact generation stays.
+It is `ARTIFACT_SCHEMA_VERSION_V21` (`artifactSchemaVersion` in `artifact/src/corpus-run/artifact-two-lane-build.ts`).
+The stored readings keep their keys and shape, and only the value of one boolean can differ,
+and no reader of the published artifact recounts the checker tally or reads the flag
+(the gates on generation in `artifact-two-lane-contract.ts` guard rules that a reader re-derives,
+as the last-seat grace of generation 20 was).
+`shared-contract/src/panel-reading.ts` names the reading type only in a comment.
+
 The replay of `XingZ6021`:
 the artifact holds 99 checker readings
 (89 of the checker round and 10 of the recheck round)
 in the chunks of the repair lane.
+The replay rebuilds the ballots and the authorship of each reading from the record
+and calls the real `tallyResolutionChecks` of this worktree.
+The harness reproduces the recorded tally on 99 of 99 readings,
+and the recorded flag equals the old expression (`worse > fixed + notFixed`) on 99 of 99.
 None holds a `worse` ballot,
 so the flag is false under both definitions on every one and no reading moves.
-The old definition applied to the recorded weights gives the recorded flag on 99 of 99 readings.
 Because a null is only as good as a probe that can show a move,
-the same script runs four hand-built readings that must move:
-a lone `worse` and one `worse` against a self-vote `fixed` go from regressed to not regressed,
+the same script runs four hand-built cases through the real function:
+a lone `worse` and one `worse` against a self-vote `fixed` give not regressed where the old expression gave regressed,
 two `worse` against one `fixed` stay regressed,
 and two `worse` against two `fixed` stay not regressed.
 The losing candidates of a selection are not in the artifact,
