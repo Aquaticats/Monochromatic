@@ -371,6 +371,7 @@ export {
   DEFAULT_MAX_DEPTH,
   FEEDBACK_PREFIX,
   isForcedContinuationRecord,
+  isHumanTurnRecord,
   MAX_DEPTH_ENV,
   maxContinuationDepth,
   parseRecord,

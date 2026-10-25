@@ -31,6 +31,8 @@ to reduce false positives from code,
  trailing question) run only when `stop_hook_active` is false,
  so a forced continuation is never re-blocked
 for wording Claude was already told about.
+The one exception is the "choice left in prose" detector (see "Detected patterns"),
+which also runs inside a chain but not twice for the same phrase in one turn.
 
 ## Forced continuation
 
@@ -233,6 +235,15 @@ and resuming a session cannot lose the count.
    not viewed,
    test gap
    (each "I haven't" entry also in the "did not", "didn't" and "have not" forms)
+- **Choice left in prose**:
+   say so if,
+   say if you,
+   tell me if you,
+   if you'd rather,
+   if you would rather
+   (the reason tells the agent to use `AskUserQuestion`;
+   unlike the other wording detectors, this one also runs inside a blocked chain,
+   once per phrase per turn, so a block can be answered and the stop then goes through)
 
 ## Installation
 

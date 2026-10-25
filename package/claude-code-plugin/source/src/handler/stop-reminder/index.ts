@@ -29,6 +29,11 @@ import {
   LUNA_SWITCH_ENV,
   lunaEnabled,
 } from './luna-situation.ts';
+import {
+  alreadyRaised,
+  findParkedDecision,
+  parkedDecisionReminder,
+} from './parked-decision.ts';
 import { hasQueuedTaskNotification, } from './queued-notification.ts';
 import {
   type SituationAction,
@@ -115,11 +120,13 @@ function stopRemindersDecision(
     forcedContinuationAllowed,
     situation,
     notice,
+    transcriptLines = [],
   }: {
     readonly event: ReadonlyDeep<StopInput>;
     readonly forcedContinuationAllowed: boolean;
     readonly situation?: SituationAction;
     readonly notice?: string;
+    readonly transcriptLines?: readonly string[];
   },
 ): StopRemindersOutput {
   /**
@@ -155,7 +162,24 @@ function stopRemindersDecision(
     : NO_MATCH;
 
   /**
-   Reminder lines accumulated across the three detectors; joined into the final block reason.
+   Phrase that leaves a choice with the user in prose, or `NO_MATCH`.
+
+   Runs inside a blocked chain too, where the other wording detectors are off, but only
+   for a phrase the agent has not been told about in this turn, so a block can be answered.
+   */
+  const parked = findParkedDecision(prose,);
+  /**
+   Whether the parked-decision reminder applies to this stop.
+   */
+  const parkedApplies = (parked !== NO_MATCH)
+    && (responseQualityApplies
+      || (!alreadyRaised({
+        phrase: parked.phrase,
+        transcriptLines,
+      },)));
+
+  /**
+   Reminder lines accumulated across the detectors; joined into the final block reason.
    */
   const reasons: string[] = [];
 
@@ -188,6 +212,11 @@ function stopRemindersDecision(
       'The AskUserQuestion tool ensures the user sees and can respond to your question directly.',
       'Rephrase your question as an AskUserQuestion tool call and continue.',
     );
+  }
+
+  // A trailing question already routes the agent to the question tool, so a second reminder would repeat it.
+  if (parkedApplies && (question === NO_MATCH)) {
+    reasons.push(...parkedDecisionReminder(parked.phrase,),);
   }
 
   // A trailing question takes precedence over forced continuation: instructing the
@@ -309,7 +338,7 @@ function createStopRemindersHandler(
      Claude Code does not reliably end a blocked chain, so the depth bound is the
      only termination guarantee; see `continuation-depth.ts` for the measurement.
      */
-    const transcript = enabled
+    const transcript = (enabled || event.stop_hook_active)
       ? await readTranscriptTail(event.transcript_path,)
       : {
         lines: [],
@@ -387,6 +416,7 @@ function createStopRemindersHandler(
       return stopRemindersDecision({
         event,
         forcedContinuationAllowed: stateBased,
+        transcriptLines: transcript.lines,
       },);
     }
 
@@ -441,6 +471,7 @@ function createStopRemindersHandler(
       return stopRemindersDecision({
         event,
         forcedContinuationAllowed: false,
+        transcriptLines: transcript.lines,
       },);
     }
 
@@ -484,6 +515,7 @@ function createStopRemindersHandler(
         event,
         forcedContinuationAllowed: false,
         situation: action,
+        transcriptLines: transcript.lines,
       },);
     }
     catch (error) {
@@ -500,6 +532,7 @@ function createStopRemindersHandler(
       return stopRemindersDecision({
         event,
         forcedContinuationAllowed: stateBased,
+        transcriptLines: transcript.lines,
         notice: `stop-reminders: the Luna check was unavailable (${String(error,)}), `
           + 'so this stop used the state-based rules.',
       },);

@@ -1262,6 +1262,49 @@ Decision state: Luna's input and the 0.60 cutoff are unchanged.
 Nothing measured supports sending turn history, adding the standing instructions, or lowering the cutoff.
 Turn history stays untried as a way to catch a repeated stop, which this sample cannot show.
 
+### A choice left with the user in prose, 2026-10-25
+
+The owner reported that a stop in this session should have been blocked and the agent nudged to ask.
+The stop was a report whose last paragraph said "Veto this if you want turn history tried anyway", after the owner had
+said the Luna input and block-rule decisions were theirs and not yet decided.
+The verdict log for that stop: Luna `leaves_open_work` 0.30, `waits_on_user` 0.16, released under the cutoff; the
+phrase check then blocked it on `i haven't checked`, so the reminder said to search for evidence, not to ask.
+The trailing-question detector needs a literal `?` and found none.
+The 10:31 stop in the Slint session ("Say so if you want it") is the same shape and was inside a blocked chain.
+Luna with the assistant text of every earlier stop in the turn left both scores unchanged (0.97 `work_closed` on the
+one-line reply that followed, 0.05 `waits_on_user` on the report), so turn history is not the fix here.
+
+Measured on 1,222 past stops, not already flagged: `your call` 14, bare `if you want it` 11, `if you'd rather` 9,
+`tell me if` 9, `veto` 8, `say if you` 5, `if you want that` 3, `if you would rather` 3, `say so if` 2,
+`if you want me to` 2, `up to you` 2.
+Reading the snippets, `say so if`, `say if you`, `tell me if you` and `if you'd rather` are offers that wait for an
+answer ("Say so if you want it posted", "Tell me if you want me to unmount it").
+`your call`, `up to you` and a bare `if you want it` often explain who decides ("whether $33.90 for an emailed copy
+beats a second trip is your call"), and `tell me if` alone also matched "the Monitor will tell me if CPU crosses a
+limit".
+
+The owner chose the narrow set (`say so if`, `say if you`, `tell me if you`, `if you'd rather`; I added the
+`if you would rather` spelling), over adding `veto` or everything measured.
+The owner also chose to run this check inside a blocked chain, which the other wording checks do not do.
+To keep a block answerable, it fires once per phrase per turn: the transcript since the last human turn is scanned for
+this hook's own feedback record carrying the same phrase, and the stop goes through when one exists.
+A record that only quotes the reminder (a tool result, an assistant message) does not count.
+The reason reuses the trailing-question wording and names `AskUserQuestion`; when a trailing question also matches,
+only its reminder is issued.
+Code: `parked-decision.ts`; the transcript is now read when `stop_hook_active` is true even with forced continuation
+off, because the once-per-phrase scan needs it.
+
+Built bundle check: the real 10:31 message inside a chain with a fresh turn blocks on `say so if`;
+the same message passes when the transcript already holds the reminder for that phrase;
+a different phrase still blocks;
+"The monitor will tell me if CPU crosses the limit" and "Whether to ship is your call" pass.
+Not measured: the false-positive rate of the narrow set against a human reading, beyond the snippets above.
+
+Owner decisions in the same exchange: Luna's block rule stays at the top label at 0.60.
+On Luna input, the owner asked for better samples of a repeated false positive and a repeated false negative before
+deciding whether Luna should receive the earlier stops of the turn.
+That research is not done.
+
 ### Not yet known
 
 - Agreement between Luna's label and a human label.
