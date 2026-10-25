@@ -225,7 +225,8 @@ and its list of third-round commits names `764ddcc51b`.
 
 Nothing in behaviour changed:
 no test was added or removed and no cache version moved.
-The commits are `2266bb9b8a` (the heading, the two client TSDocs and the index line),
+The commits are `2266bb9b8a`
+(the heading and the client TSDocs, with the index line),
 `b1eea0a93d` (the card TSDoc),
 `f69dd3191c` (the suite name)
 and `1ec534cbcd` (the defects note),
