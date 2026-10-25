@@ -77,11 +77,13 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 34: the reader of a model\'s reply takes a value that differs from a listed enum or const '
-        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
-        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      name: 'IS AT VERSION 35: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+        + 'judge ships nothing past an undecided verdict, so a stored settlement may hold a consolidation the same '
+        + 'texts now keep out, and the key hashes the version, the shape of the run and the texts, not the rule that '
+        + 'reads the ballots, so only this number retires a record written under the floors before (34 was the reader '
+        + 'taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(34,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(35,);
       },
     },),
     it({
@@ -441,8 +443,10 @@ await describe({
         // Version 34 (2026-10-23) reads a reply value that differs from a listed
         // enum or const value only in capitalization as the listed value, which
         // moved this literal.
+        // Version 35 (2026-10-25) removes every weight floor and ships nothing
+        // past a gate that heard one judge, which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '6a36b56a69f8c798de956690d4e43fa32cb443dff77f8bad9922e57de394b1d1',
+          '66038b2d22b76a7e86aad1f7b6ef40a12c6636dec5ef17bbce1d3943b695a65c',
         );
       },
     },),

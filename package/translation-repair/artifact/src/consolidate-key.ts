@@ -522,8 +522,22 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  the fold, so the change cannot ride inside it and the number moves. A build whose pipeline digest differs discards
  the namespace before it reads it (`openNamespacedCache`), and the number is the belt beside that brace. The account
  of every cache is in the header of `provider/src/enum-case-fold.ts`.
+
+ Version 35 covers the owner's rulings of 2026-10-25 that removed every weight floor ("floor of 3 - don't set a floor.",
+ "Two ballots decide (Recommended)" and "Every weight floor"), and the rule that one judge alone never decides at the
+ gate: the slate judges name a winner two ballots named whatever their weight (`translate-stage/src/candidate-select.ts`;
+ `consolidate/src/consolidate-settle-judge.ts` no longer passes the flag that let a condemned fallback lose under the
+ minimum), and a gate that heard fewer than two usable ballots no longer ships the slate's choice past an undecided
+ verdict over an ineligible or majority-flawed standing (`consolidate/src/consolidate-ineligible-standing.ts`; XingZ6021
+ slices 13, 14, 33, 44 and 84 shipped a consolidation on a gate with one usable ballot). A stored settlement may hold
+ `consolidated` where the same texts now keep the standing or the archive. The key hashes the version, the shape of the
+ run and the texts, not the rule that reads the ballots, so a record written before would be served after. The previous
+ number was set in `2aceac0487`; no slice-cache directory was searched for a record written by code that holds it, so
+ records may stand at 34 and the change cannot ride inside it, and the number moves. The repair slice (47), refine (17)
+ and translate (28) versions move for the same selection rule. No record has been written at 35, which this change
+ sets first.
  */
-export const CONSOLIDATE_CACHE_VERSION = 34;
+export const CONSOLIDATE_CACHE_VERSION = 35;
 
 /**
  What a line-structured slice appends to its key material.
