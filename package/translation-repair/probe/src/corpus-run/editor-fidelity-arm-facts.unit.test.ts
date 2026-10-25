@@ -106,7 +106,7 @@ await describe({
             arm: 'high',
             lines: [
               `${prefix}planned: 80 of 88 trials`,
-              `${prefix}CAPPED at trial 42 of 80: 41 trials completed; the guard said so`,
+              `${prefix}CAPPED at unit 42 of 80: 41 units completed; the guard said so`,
               `${prefix}TRIALS completed 41 of 80`,
             ],
             exit: { recorded: false, },

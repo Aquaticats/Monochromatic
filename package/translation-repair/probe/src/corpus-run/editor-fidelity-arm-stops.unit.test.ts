@@ -126,20 +126,20 @@ await describe({
         expect(lineOf({
           log: armWith({ stops: ['ok', 'refused+ok', 'unparseable+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
           check: 'trials at the output cap or thrown',
-        },),).toBe('PASS low: trials at the output cap or thrown: 3 trials, none at the cap, none threw',);
+        },),).toBe('PASS low: trials at the output cap or thrown: 3 units, none at the cap, none threw',);
         expect(lineOf({
           log: armWith({ stops: ['ok', 'output-cap', 'ok', 'output-cap+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
           check: 'trials at the output cap or thrown',
         },),).toBe(
-          'PASS low: trials at the output cap or thrown: 2 trials ended at the output-token cap (rows 2, 4) and score '
+          'PASS low: trials at the output cap or thrown: 2 units ended at the output-token cap (rows 2, 4) and score '
             + 'as unusable for this arm',
         );
         expect(lineOf({
           log: armWith({ stops: ['ok', 'threw+ok', 'output-cap',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
           check: 'trials at the output cap or thrown',
         },),).toBe(
-          'PASS low: trials at the output cap or thrown: 1 trial ended at the output-token cap (row 3) and scores as '
-            + 'unusable for this arm; 1 trial had an ask that threw (row 2) and is left out of every arm',
+          'PASS low: trials at the output cap or thrown: 1 unit ended at the output-token cap (row 3) and scores as '
+            + 'unusable for this arm; 1 unit had an ask that threw (row 2) and is left out of every arm',
         );
       },
     },),

@@ -77,11 +77,11 @@ await describe({
           `${PREFIX}planned: 3 of 88 trials`,
           `${PREFIX}row 1 of 3: card on x: ok`,
           `${PREFIX}row 2 of 3: card on y: ok`,
-          `${PREFIX}CAPPED at trial 3 of 3: 2 trials completed; the guard refused`,
+          `${PREFIX}CAPPED at unit 3 of 3: 2 units completed; the guard refused`,
           `${PREFIX}TRIALS completed 2 of 3`,
         ];
         expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: capped, },), },), },).detail,).toBe(
-          '2 rows logged, each once; the guard capped the arm before trial 3',
+          '2 rows logged, each once; the guard capped the arm before unit 3',
         );
         expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: capped, },), },), },).ok,).toBe(true,);
         /**
@@ -92,7 +92,7 @@ await describe({
         },);
         expect(rowAnswer({ facts: factsOf({ log: logOf({ lines: silent, },), },), },),).toStrictEqual({
           ok: false,
-          detail: '2 of 3 planned trials were completed and no CAPPED line says why the arm stopped',
+          detail: '2 of 3 planned units were completed and no CAPPED line says why the arm stopped',
         },);
         expect(rowAnswer({
           facts: factsOf({

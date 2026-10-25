@@ -406,6 +406,19 @@ await describe({
     },),
 
     it({
+      name: 'FAILS THE PLANNED CHECK FOR A LOG WITH NO POOL LINE, saying there is no pool line to hold the planned trials '
+        + 'against, in place of printing a pool of -1 trials',
+      fn: async () => {
+        const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notPool(line,): boolean {
+          return !line.includes('pool: ',);
+        },);
+        expect(lineFor({ log: goodArm({ arm: { opening: without, }, },), check: 'planned line', },),).toBe(
+          'FAIL low: planned line: 40 trials planned, and no pool line was logged to hold them against',
+        );
+      },
+    },),
+
+    it({
       name: 'FAILS THE CEILING CHECK for a log with no ceiling line, or one for a different number of trials than the pool',
       fn: async () => {
         const without = openingOf({ specs: SPECS, maxUsd: 3, },).filter(function notCeiling(line,): boolean {
@@ -418,7 +431,7 @@ await describe({
           return line.replace(': 40 trials, one ask', ': 12 trials, one ask',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: other, }, },), check: 'ceiling line', },),).toBe(
-          'FAIL low: ceiling line: 12 trials, for 40 planned',
+          'FAIL low: ceiling line: 12 units, for 40 planned',
         );
       },
     },),
@@ -464,7 +477,7 @@ await describe({
           },),
         };
         expect(lineFor({ log: other, check: 'EDITOR line', },),).toBe(
-          'FAIL low: EDITOR line: counts 38 trials, for 40 completed',
+          'FAIL low: EDITOR line: counts 38 units, for 40 completed',
         );
       },
     },),
@@ -474,7 +487,7 @@ await describe({
         + 'logged twice',
       fn: async () => {
         expect(lineFor({ log: goodArm({ arm: { rows: 39, }, },), check: 'row count', },),).toBe(
-          'FAIL low: row count: 39 rows logged for 40 completed trials',
+          'FAIL low: row count: 39 rows logged for 40 completed units',
         );
         const log = goodArm({ arm: {}, },);
         const twice: ArmLog = {

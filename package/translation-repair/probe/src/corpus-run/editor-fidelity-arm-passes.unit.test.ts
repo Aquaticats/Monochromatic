@@ -271,7 +271,7 @@ await describe({
         expect(lineFor({ log, check: 'planned line', },),).toBe(
           'PASS high: planned line: 264 units planned in 3 passes over a pool of 88 trials',
         );
-        expect(lineFor({ log, check: 'ceiling line', },),).toBe('PASS high: ceiling line: 264 trials priced',);
+        expect(lineFor({ log, check: 'ceiling line', },),).toBe('PASS high: ceiling line: 264 units priced',);
         expect(lineFor({ log, check: 'EDITOR line', },).startsWith(
           `PASS high: EDITOR line: EDITOR ${HIGH_CARD}: clean fix 264 of 264`,
         ),).toBe(true,);
@@ -287,13 +287,13 @@ await describe({
         const [high,] = benchOf({ count: 150, planned: 264, },);
         const log = nonNullishOrThrow(high,);
         expect(log.lines.some(function isCapped(line,): boolean {
-          return line.includes('CAPPED at trial 151 of 264: 150 trials completed; the guard refused',);
+          return line.includes('CAPPED at unit 151 of 264: 150 units completed; the guard refused',);
         },),).toBe(true,);
         expect(lineFor({ log, check: 'planned line', },),).toBe(
           'PASS high: planned line: 264 units planned in 3 passes over a pool of 88 trials',
         );
         expect(lineFor({ log, check: 'row count', },),).toBe(
-          'PASS high: row count: 150 rows logged, each once; the guard capped the arm before trial 151',
+          'PASS high: row count: 150 rows logged, each once; the guard capped the arm before unit 151',
         );
         expect(checkEditorArms({ arms: [log,], },).failed,).toBe(0,);
       },
@@ -310,14 +310,14 @@ await describe({
         expect(lineFor({ log, check: 'planned line', },),).toBe(
           'PASS medium: planned line: 150 units planned in 3 passes over a pool of 88 trials',
         );
-        expect(lineFor({ log, check: 'ceiling line', },),).toBe('PASS medium: ceiling line: 150 trials priced',);
+        expect(lineFor({ log, check: 'ceiling line', },),).toBe('PASS medium: ceiling line: 150 units priced',);
         expect(checkEditorArms({ arms: [log,], },).failed,).toBe(0,);
       },
     },),
 
     it({
-      name: 'KEEPS THE SINGLE PASS WORDING: a planned line of 88 of 88 trials, and a capped one of 41 of 88, read against '
-        + 'the pool as before',
+      name: 'KEEPS THE SINGLE PASS WORDING: a planned line of 88 of 88 trials, and a capped one of 41 of 88, each passes '
+        + 'against the pool of 88 trials and says how many trials were planned of it',
       fn: async () => {
         expect(lineFor({
           log: nonNullishOrThrow(benchOf({ count: 88, },)[0],),
@@ -327,6 +327,23 @@ await describe({
           log: nonNullishOrThrow(benchOf({ count: 41, planned: 41, },)[1],),
           check: 'planned line',
         },),).toBe('PASS medium: planned line: 41 trials planned of a pool of 88',);
+      },
+    },),
+
+    it({
+      name: 'FAILS THE PLANNED CHECK OF AN ARM THAT WALKS THREE PASSES WHEN NO POOL LINE WAS LOGGED, saying so in place of a '
+        + 'pool of -1 trials',
+      fn: async () => {
+        const log = nonNullishOrThrow(benchOf({ count: 264, },)[0],);
+        expect(lineFor({
+          log: {
+            ...log,
+            lines: log.lines.filter(function notPool(line,): boolean {
+              return !line.includes('pool: ',);
+            },),
+          },
+          check: 'planned line',
+        },),).toBe('FAIL high: planned line: 264 units planned, and no pool line was logged to hold them against',);
       },
     },),
 
@@ -405,7 +422,8 @@ await describe({
     },),
 
     it({
-      name: 'READS A SINGLE PASS BENCH OF 88 UNITS TO A VERDICT as before',
+      name: 'READS A SINGLE PASS BENCH OF 88 UNITS TO A VERDICT: no check fails, 88 units are shared over 44 entries, and '
+        + 'the last line is the verdict, high shown better than medium',
       fn: async () => {
         const arms = benchOf({ count: 88, },);
         expect(checkEditorBench({ arms, },).failed,).toBe(0,);

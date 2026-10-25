@@ -194,7 +194,7 @@ await describe({
           'PASS low: earlier spend declared: --bench-spent-usd 4 covers the 4.000000 USD the arms before it counted',
         );
         expect(lineFor({ lines, scope: 'low', check: 'trials in the first arm\'s order', },),).toBe(
-          'PASS low: trials in the first arm\'s order: the 64 trials it walked are the first 64 of high\'s',
+          'PASS low: trials in the first arm\'s order: the 64 units it walked are the first 64 of high\'s',
         );
         expect(lineFor({ lines, scope: 'bench', check: 'shared units', },),).toBe(
           'PASS bench: shared units: 64 shared units over 32 entries, 0 left out as thrown and 0 not completed by '
@@ -382,7 +382,7 @@ await describe({
           scope: 'low',
           check: 'trials in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: it walked 66 trials and high completed 64',
+          'FAIL low: trials in the first arm\'s order: it walked 66 units and high completed 64',
         );
       },
     },),
@@ -412,7 +412,7 @@ await describe({
           },).lines,
           scope: 'low',
           check: 'trials in the first arm\'s order',
-        },),).toBe('PASS low: trials in the first arm\'s order: the 128 trials it walked are the first 128 of high\'s',);
+        },),).toBe('PASS low: trials in the first arm\'s order: the 128 units it walked are the first 128 of high\'s',);
         expect(lineFor({
           lines: checkEditorBench({
             arms: [

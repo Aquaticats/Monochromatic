@@ -785,7 +785,7 @@ await describe({
              The line that says where the arm was capped.
              */
             const capped = nonNullishOrThrow(seen.lines.find(function isCapped(line,): boolean {
-              return line.startsWith('CAPPED at trial 2 of 2: 1 trial completed; ',);
+              return line.startsWith('CAPPED at unit 2 of 2: 1 unit completed; ',);
             },),);
             expect(capped.includes(
               `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this call can cost 0.3`,
@@ -794,7 +794,7 @@ await describe({
               ' USD at most, and together they pass --max-usd 0.5000; the arm ends here, and the rows it finished stay in '
                 + 'their files',
             ),).toBe(true,);
-            expect(seen.lines,).toContain('TRIALS completed 1 of 2',);
+            expect(seen.lines,).toContain('TRIALS completed 1 of 2 units',);
             const [runName,] = (await readdir(scratch.path,)).filter(function isRun(name,): boolean {
               return name.startsWith('editor-fidelity-',);
             },);
@@ -837,9 +837,9 @@ await describe({
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.asked,).toStrictEqual([],);
             expect(seen.lines.some(function isCapped(line,): boolean {
-              return line.startsWith('CAPPED at trial 1 of 2: 0 trials completed; ',);
+              return line.startsWith('CAPPED at unit 1 of 2: 0 units completed; ',);
             },),).toBe(true,);
-            expect(seen.lines,).toContain('TRIALS completed 0 of 2',);
+            expect(seen.lines,).toContain('TRIALS completed 0 of 2 units',);
           },
         },),
 
@@ -858,7 +858,7 @@ await describe({
             expect(seen.asked,).toStrictEqual([LOW_CARD,],);
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.lines,).toContain(
-              'CAPPED at trial 2 of 2: 1 trial completed; '
+              'CAPPED at unit 2 of 2: 1 unit completed; '
                 + `the editor fidelity probe will not ask ${LOW_CARD}: the spend so far is 0.2050 USD, this attempt can `
                 + 'cost 0.6000 USD at most, and together they pass --max-usd 0.7000; the arm ends here, and the rows it '
                 + 'finished stay in their files',
@@ -1002,7 +1002,7 @@ await describe({
               return line.includes(`; entry ${SPEC.entryId}; stopped `,);
             },),).toBe(true,);
             expect(seen.lines,).toContain('planned: 2 of 2 trials',);
-            expect(seen.lines,).toContain('TRIALS completed 2 of 2',);
+            expect(seen.lines,).toContain('TRIALS completed 2 of 2 units',);
             expect(seen.lines.some(function isCapped(line,): boolean {
               return line.startsWith('CAPPED ',);
             },),).toBe(false,);
@@ -1088,7 +1088,7 @@ await describe({
             expect(seen.asked,).toStrictEqual([LOW_CARD,],);
             expect(seen.lines,).toContain('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
             expect(seen.lines,).toContain('planned: 1 of 2 trials',);
-            expect(seen.lines,).toContain('TRIALS completed 1 of 1',);
+            expect(seen.lines,).toContain('TRIALS completed 1 of 1 unit',);
             expect(seen.lines.filter(function isRow(line,): boolean {
               return line.startsWith('row ',);
             },).length,).toBe(1,);
@@ -1122,7 +1122,7 @@ await describe({
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD, LOW_CARD, LOW_CARD,],);
             expect(seen.lines,).toContain('planned: 4 of 4 asks (2 passes over the 2 trials of the pool)',);
-            expect(seen.lines,).toContain('TRIALS completed 4 of 4',);
+            expect(seen.lines,).toContain('TRIALS completed 4 of 4 units',);
             /**
              The row lines, the first pass's two and the second pass's two.
              */
@@ -1175,7 +1175,7 @@ await describe({
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.asked.length,).toBe(3,);
             expect(seen.lines,).toContain('planned: 3 of 4 asks (2 passes over the 2 trials of the pool)',);
-            expect(seen.lines,).toContain('TRIALS completed 3 of 3',);
+            expect(seen.lines,).toContain('TRIALS completed 3 of 3 units',);
             expect(seen.lines,).toContain('partial reviewed matrix: 3 of 4 rows; not complete admission evidence',);
             expect(seen.lines.filter(function isSecondPass(line,): boolean {
               return line.startsWith('row ',) && line.includes('; pass 2;',);

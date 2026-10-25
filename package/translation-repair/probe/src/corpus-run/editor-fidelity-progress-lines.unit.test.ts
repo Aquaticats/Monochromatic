@@ -48,17 +48,17 @@ await describe({
       name: cappedLine.name,
       children: [
         it({
-          name: 'SAYS THE TRIAL AT WHICH THE GUARD CAPPED THE ARM and how many trials were completed before it, then the '
+          name: 'SAYS THE UNIT AT WHICH THE GUARD CAPPED THE ARM and how many units were completed before it, then the '
             + 'guard\'s own sentence',
           fn: async () => {
             expect(cappedLine({ completed: 41, planned: 88, said: 'the guard said so', },),).toBe(
-              'CAPPED at trial 42 of 88: 41 trials completed; the guard said so',
+              'CAPPED at unit 42 of 88: 41 units completed; the guard said so',
             );
             expect(cappedLine({ completed: 1, planned: 3, said: 'x', },),).toBe(
-              'CAPPED at trial 2 of 3: 1 trial completed; x',
+              'CAPPED at unit 2 of 3: 1 unit completed; x',
             );
             expect(cappedLine({ completed: 0, planned: 3, said: 'x', },),).toBe(
-              'CAPPED at trial 1 of 3: 0 trials completed; x',
+              'CAPPED at unit 1 of 3: 0 units completed; x',
             );
           },
         },),
@@ -69,10 +69,13 @@ await describe({
       name: trialsLine.name,
       children: [
         it({
-          name: 'SAYS HOW MANY TRIALS WERE COMPLETED of the planned, which is the count the later arms are told to walk',
+          name: 'SAYS HOW MANY UNITS WERE COMPLETED of the planned, which is the count the later arms are told to walk, and keeps '
+            + 'the number the runbook reads after the TRIALS marker',
           fn: async () => {
-            expect(trialsLine({ completed: 41, planned: 88, },),).toBe('TRIALS completed 41 of 88',);
-            expect(trialsLine({ completed: 88, planned: 88, },),).toBe('TRIALS completed 88 of 88',);
+            expect(trialsLine({ completed: 41, planned: 88, },),).toBe('TRIALS completed 41 of 88 units',);
+            expect(trialsLine({ completed: 88, planned: 88, },),).toBe('TRIALS completed 88 of 88 units',);
+            expect(trialsLine({ completed: 1, planned: 1, },),).toBe('TRIALS completed 1 of 1 unit',);
+            expect(trialsLine({ completed: 150, planned: 264, },).startsWith('TRIALS completed 150 ',),).toBe(true,);
           },
         },),
       ],
