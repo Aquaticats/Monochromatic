@@ -14,6 +14,10 @@ import type {
   IncumbentKind,
   SliceValidation,
 } from '@monochromatic-dev/translation-repair-translate-floor/ts';
+import {
+  MIN_SELECTION_BALLOTS,
+  type TranslateStageResult,
+} from '@monochromatic-dev/translation-repair-translate-stage/ts';
 
 //region Ineligible standing text
 // A STANDING TEXT THE DETERMINISTIC GATE HAS ALREADY REFUSED may not ship, and
@@ -119,6 +123,16 @@ export const GATE_PREFERRED_INELIGIBLE_STANDING_FINDING: string = 'gate-preferre
  */
 export const UNHEARD_GATE_KEEPS_STANDING_FINDING: string = 'unheard-gate-keeps-standing: the gate heard fewer than two '
   + 'answering judges, so it settled nothing and the proposal the slate judges chose does not ship past it';
+
+/**
+ Finding recorded on a settlement whose gate heard fewer than two answering
+ judges over a standing the deterministic rule refused, so the proposal two or
+ more slate ballots chose shipped rather than the archive the rule refused
+ (the owner's answer of 2026-10-25, "Ship the slate's wording").
+ */
+export const UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING: string = 'unheard-gate-ships-slate-pick: the gate heard fewer than '
+  + 'two answering judges over a standing that failed the deterministic publication rule, so the proposal two or more '
+  + 'slate ballots chose ships rather than the archive the rule refused';
 
 /**
  Finding recorded on a settlement where no wording passed the deterministic
@@ -255,6 +269,34 @@ export function keepTheArchive(
 }
 
 /**
+ Ballots of the slate round that named the proposal it chose, which is how
+ many judges stand behind the pick the gate is then asked about.
+
+ ZERO WHERE THE SLATE RECORDS NO ROW FOR THE SHIPPED POSITION, which a pick
+ that never drew a ballot is (a tie broken by the fixed order across candidates
+ nobody named). Zero is below the two a pick needs, so such a pick is never
+ shipped past an unheard gate.
+
+ @param decided - what the slate judges settled, a fresh consolidation
+
+ @returns Ballots that named the shipped position, self-votes included
+
+ @example
+ ```ts
+ const slatePickBallots = slatePickBallotsOf({ decided, },);
+ ```
+ */
+export function slatePickBallotsOf(
+  { decided, }: { readonly decided: Pick<TranslateStageResult, 'perCandidate' | 'shippedIndex'>; },
+): number {
+  return decided.perCandidate
+    .find(function atShipped(row,): boolean {
+      return row.index === decided.shippedIndex;
+    },)
+    ?.ballots ?? 0;
+}
+
+/**
  Ships the proposal the slate chose past a gate that settled on neither
  rendering, when the standing it would otherwise keep is ineligible.
 
@@ -290,9 +332,17 @@ export function keepTheArchive(
  standing the gate prefers still ships as before.
 
  A GATE THAT HEARD FEWER THAN TWO ANSWERING JUDGES SHIPS NOTHING PAST ITS
- NEITHER (XingZ6021, 2026-10-25): its neither is the want of a quorum, not an
- indecision among judges, and one judge alone never decides. The outcome comes
- back as it stands with {@link UNHEARD_GATE_KEEPS_STANDING_FINDING}.
+ NEITHER ON THE GATE'S OWN AUTHORITY (XingZ6021, 2026-10-25): its neither is
+ the want of a quorum, not an indecision among judges, and one judge alone
+ never decides. What the slate decided stands on its own, though: where two or
+ more slate ballots chose the proposal and the standing is the archive the
+ deterministic rule refused, the proposal ships, with
+ {@link UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING}, because the archive cannot ship
+ and the slate's choice is itself a two-ballot decision (the owner's answer of
+ 2026-10-25, "Ship the slate's wording"). Over a standing the contest majority
+ called flawed, which passes the rule, and over a pick fewer than two slate
+ ballots chose, the outcome comes back as it stands with
+ {@link UNHEARD_GATE_KEEPS_STANDING_FINDING}.
 
  @param outcome - what the gate settled
 
@@ -302,6 +352,10 @@ export function keepTheArchive(
  ballots called the standing flawed (`archiveFlawedByMajority` in
  `consolidate-archive-flawed.ts`)
 
+ @param slatePickBallots - ballots of the slate round that named the proposal
+ the gate was asked about (`slatePickBallotsOf`), whose ships-anyway rule needs
+ two; required so that a caller cannot omit what a one-ballot gate turns on
+
  @param l - stage logger, told when the rule applies
 
  @returns Outcome as settled, or one shipping the consolidation with the
@@ -309,7 +363,7 @@ export function keepTheArchive(
 
  @example
  ```ts
- const gated = shipPastForfeitStanding({ outcome, standingEligible, standingFlawedByMajority, l, },);
+ const gated = shipPastForfeitStanding({ outcome, standingEligible, standingFlawedByMajority, slatePickBallots, l, },);
  ```
  */
 export function shipPastForfeitStanding(
@@ -317,11 +371,13 @@ export function shipPastForfeitStanding(
     outcome,
     standingEligible,
     standingFlawedByMajority = false,
+    slatePickBallots,
     l,
   }: {
     readonly outcome: ConsolidateGateOutcome;
     readonly standingEligible: boolean;
     readonly standingFlawedByMajority?: boolean;
+    readonly slatePickBallots: number;
     readonly l: Logger;
   },
 ): ConsolidateGateOutcome {
@@ -358,9 +414,32 @@ export function shipPastForfeitStanding(
   // A GATE THAT HEARD FEWER THAN TWO ANSWERING JUDGES HAS NO VERDICT, undecided or otherwise, to ship a proposal past.
   // XingZ6021 shipped five consolidations (slices 13, 14, 33, 44 and 84) on a gate with one usable ballot, which
   // broke the owner's standing rule that one judge alone never decides, restated on 2026-10-25 ("Two ballots
-  // decide"). The standing stays: an ineligible one then leaves the archive kept through `nothingValidShips`
-  // (owner, 2026-09-27, "Keep archive, ship"), and a majority-flawed one ships as it stands.
+  // decide"). The standing stays unless the slate's own pick was chosen by two or more slate ballots over an
+  // archive the rule refused (owner, 2026-10-25, "Ship the slate's wording"), where the pick ships; otherwise an
+  // ineligible standing leaves the archive kept through `nothingValidShips` (owner, 2026-09-27, "Keep archive,
+  // ship"), and a majority-flawed one ships as it stands.
   if (outcome.usable < CONSOLIDATE_GATE_QUORUM) {
+    if ((!standingEligible) && (slatePickBallots >= MIN_SELECTION_BALLOTS)) {
+      l.warn(
+        `consolidate gate: heard ${String(outcome.usable,)} usable ${
+          wordForCount({
+            count: outcome.usable,
+            one: 'ballot',
+            many: 'ballots',
+          },)
+        }, below the two judges a verdict needs, over an ineligible standing; the proposal ${
+          String(slatePickBallots,)
+        } slate ballots chose ships, since the slate's pick is a two-ballot decision of its own`,
+      );
+      return {
+        ...outcome,
+        ships: 'consolidated',
+        findings: [
+          ...outcome.findings,
+          UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING,
+        ],
+      };
+    }
     l.warn(
       `consolidate gate: heard ${String(outcome.usable,)} usable ${
         wordForCount({

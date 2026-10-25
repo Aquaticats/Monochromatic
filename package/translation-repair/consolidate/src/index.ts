@@ -33,8 +33,10 @@ export {
   nothingValidShips,
   shipPastForfeitStanding,
   slateIncumbentFor,
+  slatePickBallotsOf,
   UNDECIDED_GATE_SHIPS_PROPOSAL_FINDING,
   UNHEARD_GATE_KEEPS_STANDING_FINDING,
+  UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING,
 } from './consolidate-ineligible-standing.ts';
 export {
   consolidationWorthResuming,

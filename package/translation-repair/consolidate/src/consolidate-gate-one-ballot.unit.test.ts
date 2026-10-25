@@ -31,6 +31,7 @@ import {
   type GateBallot,
   type GateChoice,
   shipPastForfeitStanding,
+  slatePickBallotsOf,
 } from '../dist/final/node/index.mjs';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 
@@ -169,6 +170,52 @@ await describe({
           l: capturingLogger({ messages, },),
         },);
         expect(gated.ships,).toBe('consolidated',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: slatePickBallotsOf.name,
+  children: [
+    it({
+      name: 'READS THE BALLOTS OF THE ROW AT THE SHIPPED POSITION, self-votes included, so a pick two judges named '
+        + 'counts two whatever its weight',
+      fn: async () => {
+        expect(slatePickBallotsOf({
+          decided: {
+            shippedIndex: 2,
+            perCandidate: [
+              {
+                index: 1,
+                ballots: 1,
+                fullVotes: 1,
+                selfVotes: 0,
+                weight: 1,
+              },
+              {
+                index: 2,
+                ballots: 2,
+                fullVotes: 1,
+                selfVotes: 1,
+                weight: 1.5,
+              },
+            ],
+          },
+        },),).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'READS ZERO where the slate records no row for the shipped position, so a pick no ballot named never '
+        + 'ships past an unheard gate',
+      fn: async () => {
+        expect(slatePickBallotsOf({
+          decided: {
+            shippedIndex: 3,
+            perCandidate: [],
+          },
+        },),).toBe(0,);
       },
     },),
   ],
