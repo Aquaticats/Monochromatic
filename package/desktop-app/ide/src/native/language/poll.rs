@@ -9,7 +9,7 @@
 /// The state,
 ///  the request record,
 ///  and the steps of a tick.
-use super::{Action, Language, Pending, guard, message, outcome, surface, sync};
+use super::{Language, guard, message, outcome, rest_step, surface, sync};
 /// The window,
 ///  the source,
 ///  the navigation that opens other files,
@@ -300,57 +300,6 @@ fn snapshots(
 }
 
 /// What:
-///  Ask for hover information where the pointer has rested long enough.
-/// Why:
-///  Nothing is asked while the list,
-///  the search overlay,
-///  or a note is shown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function rest(window, source, language, displayed: DocumentStamp): void
-/// ```
-fn rest(
-    window: &AppWindow,
-    source: &Rc<RefCell<State>>,
-    language: &mut Language,
-    displayed: DocumentStamp,
-) {
-    let blocked = window.get_search_open()
-        || matches!(
-            language.shown,
-            surface::Shown::List { .. } | surface::Shown::Popup { note: true, .. }
-        );
-    if blocked {
-        return;
-    }
-    if language.rest.idle() && matches!(language.shown, surface::Shown::Popup { pointer: true, .. })
-    {
-        language.shown = surface::dismiss(
-            window,
-            &language.shown,
-            "the pointer rests over no character",
-        );
-    }
-    let Some(character) = language.rest.due() else {
-        return;
-    };
-    language.rest.asked = true;
-    // A character outside the displayed text cannot be asked about.
-    if character > source.borrow().document.text().len_chars() {
-        return;
-    }
-    language.hover = Some(Pending {
-        action: Action::PointerHover,
-        stamp: displayed,
-        position: character,
-        number: None,
-        outcomes: Vec::new(),
-        complete: false,
-    });
-}
-
-/// What:
 ///  Watch the project's source folders for the servers while one registered file watchers,
 ///  and stop
 ///       when none does or language support stopped.
@@ -401,7 +350,7 @@ fn steps(
         language.status = status;
     }
     cancel_stale(window, source, language, displayed);
-    rest(window, source, language, displayed);
+    rest_step::rest(window, source, language, displayed);
     send(language, false, displayed)?;
     send(language, true, displayed)?;
     replies(language, displayed)?;

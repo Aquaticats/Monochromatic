@@ -4564,6 +4564,44 @@ drawn lines 438 to 447 and 492 to 505 (28 to 49 lines off; the one for 418 showe
 the view settles hover is right (lines 493 and 495). Whether it is new (hold or `drawn-y`) or old is unknown; an agent
 reproduces it on the pre-hold build `52056f6fbc`, finds the cause and fixes it behind a failing test; its report is
 verified, landed and the IDE reinstalled.
+Result, landed 2026-10-25 as `495bf2f39e` (agent tip `3eab14b046`; gates on the merged tree: `lint` 0, `test:native`
+331 passed and 5 skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0; 5 tests in
+`src/native/language/pointer_scroll_tests.rs`, 6 `hover-*` guard cases): cause `Rest`
+(`src/native/language/pointer.rs`) kept only the character found at the last pointer move, Slint sends no pointer event
+for text that scrolls under a still pointer, so the 350 ms dwell requested the pre-scroll character; the constant
+`position=5386` is the character under the compositor's `wheel X Y` command point at the instant of the command; a rest
+already asked about sent nothing after a turn. New or old (11 trials per cell, four sessions alternating, 300 to 310
+notches): pointer moved 100 ms before the wheel, main 11 of 11 wrong and pre-hold 11 of 11 wrong (old); rested 900 ms with a
+popup, main 11 of 11 and pre-hold 11 of 11 wrong (old); pointer moved 90 ms after the wheel inside the hold, main 3
+requests all 55 to 56 lines off and pre-hold none in 11 (new with the hold; the silence of the pre-hold build is
+inferred from the code). Fix: `Spot` keeps the pointer's distance from the top of the view, `Rest::follow` restarts an
+unasked rest while the drawn offset moves by more than 0.5 px, `src/native/language/rest_step.rs` finds the character
+from that distance plus the drawn offset when the request is built and sends nothing when no character is there;
+deliberate difference from editord (README): a request after a wheel jump lands 0.54 to 0.83 s after the wheel, not
+0.35 to 0.40 s; a scroll after an already-asked rest asks nothing new.
+Installed: sha256 `dd16d49c0d586fb1…` from `495bf2f39e`, prints 0.1.1. Verified on it (three sessions at once, load 7 to
+13 for hover, 9 to 24 for the rest, recorder 15 to 25 fps against 60 requested): 0 of 14 hover requests named a wrong
+line (before the fix 11 of 11, 11 of 11 and 3 of 3), requests 0.54 to 0.83 s after the wheel in 9 of 14 and 0.865 to
+1.11 s in 5 of 14 under that load, every request answered `hover=true` with `popup shown` at the same position; no
+request in 7 of 12, 8 of 12 and 7 of 12 trials (13 logged `resolved=None`: the pointer was over no character after the
+jump; 9 had no log line at all and were not explained, 2 of 16 plain settled hovers at one row sent nothing and logged
+nothing); settled hover 14 of 16 requests 0.351 to 0.371 s after the move, all for the drawn line. Regression smoke: 30
+far jumps (10 each at 150, 300 and 600 notches) 0 blank and 0 partial frames, 1.00 tile applied per jump, held frames
+1.0, 1.8, 2.4 per jump; five-press means as before and none blank; 88-click recording of 902 frames 0 blank code and
+minimap frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; drag after a wheel
+9 of 9 located anchors on a drawn row, head on the drawn row at release 9 of 9, one start not located; Ctrl+End and
+Ctrl+Home 0 blank code frames.
+The 9 hover trials with no request and no log line, and the 2 settled hovers at one row that sent nothing, are
+explained by the code (read 2026-10-25, not reproduced per trial): `Rest::due` (`src/native/language/pointer.rs:146-158`)
+fires only when the rest began over a character (`self.at = Some((Some(_), since))`); a pointer move that resolves to
+no character (a hint row, the gutter, past the end of a line, or text not yet drawn under the point during the hold)
+stores `None` (`Rest::moved`, `:106-120`), `rest()` returns before the `resolved=` log line
+(`src/native/language/rest_step.rs:63-65`), and `Rest::idle` only dismisses a popup. The consequence, a limitation and
+not a regression (the same before the fix): a pointer that rests over no character when the view moves under it never
+asks, even when an identifier arrives under it; only a pointer move restarts the rest. Not fixed, nobody asked; the
+fix would resolve a rest over `None` again at due time when the view has moved, and keep `idle` for the popup.
+Popup screenshots were not viewed for all 14 requests (log only).
+All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
@@ -4800,6 +4838,50 @@ and the orchestrating session's design was built and measured.
   the toolkit's own ease is checked only in the nested compositor;
   a touchpad fling is not followed;
   the minimap runs ahead of the held text for 1 to 3 frames.
+
+## A hover request names the row under the pointer after a far wheel jump, 2026-10-25 (branch worktree-agent-a84733523872cff39)
+
+A verifier found on the installed hold build that the hover request after a 300-notch jump named a line far from the one
+drawn under the pointer (a constant position for a resting pointer).
+
+- Cause:
+  `Rest` (`src/native/language/pointer.rs`) kept the character found at the last pointer move,
+  and the toolkit sends no pointer event for text that moves under a still pointer.
+  The dwell timer handed that character back after 350 ms.
+- New or old:
+  the two resting variants are old (11 of 11 wrong in `main`,
+  11 of 11 wrong in `52056f6fbc` before the hold).
+  The variant of a pointer moved inside the hold is new with the hold:
+  `main` sent 3 requests in 11 trials,
+  all 55 to 56 lines off;
+  before the hold sent none (the rows under the pointer were not drawn).
+  The positive control (hover after the view settled) is right in every build,
+  11 of 11.
+- Fix:
+  `Spot` keeps the pointer's distance from the top of the view,
+  `Rest::follow` starts a not yet asked rest again when the drawn offset moves,
+  `rest` in `src/native/language/rest_step.rs` finds the character in the drawn view when the request is built.
+  Like editord,
+  no request follows a scroll for a rest already asked for.
+- Measured on the fixed build:
+  every request named the line drawn under the pointer (gap 0) in all trials that sent one
+  (5,
+  5,
+  2,
+  and 11 requests in the four cells),
+  and in the others the pointer was over no character
+  (`resolved=None` at the due time, or no character where it moved).
+  Details in `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+  "A hover request after a far wheel jump".
+- Tests:
+  `src/native/language/pointer_scroll_tests.rs` (5 tests),
+  6 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+- Open:
+  a pointer that rested and was asked about shows no new popup after a scroll until it moves
+  (as in editord).
+  The harness (nested compositor,
+  OCR of the gutter,
+  four builds alternating) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

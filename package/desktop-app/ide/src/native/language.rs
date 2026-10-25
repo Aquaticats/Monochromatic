@@ -91,6 +91,8 @@ mod pointer;
 ///  snapshots,
 ///  and due requests.
 mod poll;
+/// The step that asks for hover information where the pointer has rested.
+mod rest_step;
 /// The popup and the location list:
 ///  showing and dismissing.
 mod surface;
@@ -126,6 +128,9 @@ mod hover_tests;
 /// Message sentences and hover text rendering without a window.
 #[cfg(test)]
 mod message_tests;
+/// A resting pointer while the view scrolls under it.
+#[cfg(test)]
+mod pointer_scroll_tests;
 /// Server states,
 ///  stale replies,
 ///  and closing while a request is pending.
