@@ -221,10 +221,18 @@ and resuming a session cannot lose the count.
    I haven't read,
    I haven't confirmed,
    I haven't run,
+   I haven't measured,
+   I haven't tried,
+   I haven't looked,
+   I haven't reproduced,
+   I haven't rerun (or re-run),
+   I haven't shown,
    not verified,
    not checked,
-   not tested
-   (each also in the "did not" and "have not" forms)
+   not tested,
+   not viewed,
+   test gap
+   (each "I haven't" entry also in the "did not", "didn't" and "have not" forms)
 
 ## Installation
 

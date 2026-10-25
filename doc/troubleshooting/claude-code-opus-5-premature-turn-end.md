@@ -1152,6 +1152,45 @@ Not built.
 A Luna uncertainty label would need its own corpus calibration (see #1772) and a decision on whether it replaces or
 adds to the phrase list.
 
+### More admitted-gap wording, and a stop the phrases cannot reach, 2026-10-25
+
+The owner pasted a Slint IDE report (session `55e550ef`, 24 Oct 23:11 local) that ended with "Still open" items:
+"I didn't try to remove it, and I didn't measure the capture-to-file lag", "Unexplained: why a slice list set inside a
+frame isn't shown", "Test gap: there is no regression test".
+The owner's reply was "Unexplained? Test gap? Just do it."
+The verdict log has the stop: Luna read it and gave `work_closed` 0.48, below the 0.60 cutoff, and the phrase list had
+no entry for "measure" or "try", so nothing blocked.
+The owner also said a second miss happened in the same session around 10:00 the next morning.
+
+What I found for that second one, by reading the transcript and the verdict log (timestamps in the log are UTC, four
+hours ahead of local time):
+
+- The 10:29:37 message ("I suspect the pointer rested over no character ... I haven't shown that") was blocked on
+  `"i suspect"` (transcript records 64655 to 64657), so that stop worked.
+- The next two stops, 10:30:44 and 10:31:04, came inside that blocked chain.
+  `stopRemindersDecision` turns the phrase detectors off while `stop_hook_active` is true, and Claude Code never
+  clears it for the rest of the turn, so they ran no phrase check at all.
+  Luna was still asked: `work_closed` for the first, `waits_on_user` at 0.59 for the second, 0.01 under the cutoff.
+- The 10:31 message listed "Popup screenshots: I checked the 14 hover popups from the log only" and "Hover
+  limitation ... I left it unfixed".
+  No phrase would catch "from the log only", so extending the list cannot cover it.
+- I did not confirm that the owner meant the 10:31 message. It is the only 10 o'clock stop whose check was off.
+
+Changes: first-person gaps for `measure`, `try`, `look`, `reproduce`, `rerun` and `re-run` (each in the "didn't",
+"did not", "haven't" and "have not" forms), `I haven't shown`, `test gap` and `not viewed`.
+Measured on 1,200 stops under 200 MB, against the list as it stood: 169 already flagged; the candidates would flag 67
+more if every candidate were added, 39 of those from `still open`, which I left out.
+Of the kept phrases about 15 stops are newly flagged, and every snippet I read was the agent's own gap ("I haven't
+measured the net effect on collisions", "I haven't looked into it", "I did not rerun scoped mutation").
+The bare adjectives `unexplained` and `unmeasured` were left out for the reason `untested` was: the snippets
+mostly describe a thing ("an unexplained abnormality"), not the agent's own gap.
+The built hook blocks the 23:11 report on `"i didn't measure"`, and passes "I tried the build and it passed".
+
+Not changed: the chain gate.
+Re-running the phrase detectors inside a blocked chain would re-block text the agent has already answered for.
+A narrower rule (run them in a chain only when the matched phrase differs from the one in the last block reason) is a
+design decision for the owner.
+
 ### Not yet known
 
 - Agreement between Luna's label and a human label.

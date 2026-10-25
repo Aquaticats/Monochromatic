@@ -60,8 +60,9 @@ function normaliseApostrophes(text: string,): string {
  - Uncertainty markers (not sure, hard to say, difficult to tell)
  - Approximation markers (if I recall, from what I recall, as far as I know)
  - Comparative hedges ("worse than most", "more than most", "less than most")
- - Admitted gaps (I didn't check, I haven't verified, not verified); the bare adjectives
-   `untested` and `unverified` are left out because they mostly describe a thing, not the agent's own gap
+ - Admitted gaps (I didn't check, I haven't measured, I didn't try, test gap, not verified); the bare
+   adjectives `untested`, `unverified`, `unexplained` and `unmeasured` are left out because they mostly
+   describe a thing, not the agent's own gap
 
  The `\wer than most` variant is handled separately by
  {@link containsErThanMost} since it requires a word-character prefix the
@@ -132,6 +133,36 @@ const UNCERTAINTY_PHRASES: readonly string[] = [
   'not verified',
   'not checked',
   'not tested',
+  // Admitted gaps in evidence-gathering steps beyond check and verify.
+  "i didn't measure",
+  'i did not measure',
+  "i haven't measured",
+  'i have not measured',
+  "i didn't try",
+  'i did not try',
+  "i haven't tried",
+  'i have not tried',
+  "i didn't look",
+  'i did not look',
+  "i haven't looked",
+  'i have not looked',
+  "i didn't reproduce",
+  'i did not reproduce',
+  "i haven't reproduced",
+  'i have not reproduced',
+  "i didn't rerun",
+  'i did not rerun',
+  "i didn't re-run",
+  'i did not re-run',
+  "i haven't rerun",
+  'i have not rerun',
+  "i haven't re-run",
+  'i have not re-run',
+  "i haven't shown",
+  'i have not shown',
+  // Report labels that name an open gap.
+  'test gap',
+  'not viewed',
 ];
 
 //endregion
