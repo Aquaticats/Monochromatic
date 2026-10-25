@@ -13,20 +13,24 @@ import type { IssueClaim, } from '@monochromatic-dev/translation-repair-shared-c
 
 /**
  Wire-level critical non-translation votes required before repair may be
- blocked: three independent voices, not a bare pair.
- The first real-corpus false block (AkiraComplex, commit `72f5537c1`) discarded
- a faithful translation on TWO votes from only two of seven critics heard on an
- English-epigraph slice (English in both source and target, so the two heard
- critics misread it as source-equals-target non-translation). Three votes
- demands genuine ensemble agreement and, since three votes cannot come from
- fewer than three heard critics, folds a participation floor into the count so
- a low-participation slice can never block. Three is also the observed
- true-positive floor (the unrelated cat / "meow" pair drew three wire votes),
- and erring high is the safe direction: a missed block attempts repair on a
- garbage pair with its issues still surfaced, while a false block discards a
- faithful translation whole.
+ blocked: two answering critics, the ballots any decision needs, and no more.
+
+ THE OWNER'S RULINGS OF 2026-10-25 set this at two ("floor of 3 - don't set a
+ floor.", "Two ballots decide (Recommended)" and "Every weight floor"): a claim
+ or contest is decided with two or more answering judges, and one judge alone
+ never decides. It was three from the first real-corpus false block
+ (AkiraComplex, commit `72f5537c1`), which discarded a faithful translation on
+ TWO votes from only two of seven critics heard on an English-epigraph slice
+ (English in both source and target, so the two heard critics misread it as
+ source-equals-target non-translation), and it stopped two critics from
+ blocking invented text in a later pass (XingZ6021, slices 68 and 69). Two
+ votes cannot come from fewer than two heard critics, so a single critic can
+ never block. What guards the AkiraComplex shape now is the deterministic
+ contradiction check ({@link NON_TRANSLATION_CONTRADICTION_MIN}) and the
+ good-translation anchor that vetoes a document-wide block; the vote count is no
+ longer the guard. A false block still discards a faithful translation whole.
  */
-export const NON_TRANSLATION_BLOCK_VOTES = 3;
+export const NON_TRANSLATION_BLOCK_VOTES = 2;
 
 /**
  Validated content-critique claims anchored into target text at which
