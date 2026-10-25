@@ -1,5 +1,6 @@
 import {
   identifierName,
+  nodesUnder,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
@@ -9,13 +10,17 @@ import {
 } from './claude-schema-blind-positions.test-fixture.ts';
 import { isBoundAround, } from './claude-schema-blind-scopes.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  nodeAt,
+  nodesAt,
+} from './claude-schema-tree.test-fixture.ts';
 
 //region The global object written as a whole value
 // A member of the global object computed from anything but a string literal can name `eval` or `Function`
 // (`claude-schema-blind-unreadable.test-fixture.ts` reports it). The global object can also be held first and read
 // through the holder: kept in a constant, taken apart by a pattern with a computed key, put in an array, handed to
 // `Reflect.get`, `Object.assign`, `call` or any function, chosen by a conditional, a logical operand or a comma
-// expression, or given as a default. The check reports the global object (`globalThis`, `window`, `self` or `global`)
+// expression, given as a default, exported in an export list (`export { globalThis as gt }`) or exported as the default. The check reports the global object (`globalThis`, `window`, `self` or `global`)
 // wherever a file writes it as a whole value that no scope binds again. The object of a member (`globalThis.fetch`,
 // `globalThis['fetch']`), the operand of `typeof`, a type, a key of an object, a member read off another object and a
 // parameter or a constant of the same name are not the global object as a value.
@@ -118,6 +123,53 @@ function isGlobalValue(
 }
 
 /**
+ The identifiers an export of the file hands out under the name of the global object, which no reference visit holds
+ because an export list and a default export are no value position: the names in `export { globalThis as gt }` and the
+ value of `export default globalThis`. An export from another module names that module's export, not the global object.
+
+ @param context - what the file's names are read against
+
+ @returns Identifiers in order, none that the file binds at its top level
+
+ @example
+ ```ts
+ const exported = exportedGlobalsIn({ context, },);
+ ```
+ */
+function exportedGlobalsIn({ context, }: { readonly context: BlindContext; },): readonly TreeNode[] {
+  /**
+   The program of the file.
+   */
+  const { program, } = context.facts;
+  return nodesUnder({ root: program, },)
+    .flatMap(function exportedBy(node,): readonly TreeNode[] {
+      if (node.type === 'ExportDefaultDeclaration')
+        return [nodeAt({
+          node,
+          field: 'declaration',
+        },),];
+      if ((node.type !== 'ExportNamedDeclaration') || (node.source !== null))
+        return [];
+      return nodesAt({
+        node,
+        field: 'specifiers',
+      },)
+        .map(function localOf(specifier,): TreeNode {
+          return nodeAt({
+            node: specifier,
+            field: 'local',
+          },);
+        },);
+    },)
+    .filter(function isUnboundGlobal(candidate,): boolean {
+      return namesGlobalObject({ node: candidate, },)
+        && (!context.facts
+          .bindings
+          .has(identifierName({ node: candidate, },),));
+    },);
+}
+
+/**
  The places in a file that write the global object as a whole value.
 
  @param context - what the file's names are read against
@@ -130,25 +182,35 @@ function isGlobalValue(
  ```
  */
 export function globalValueShapesIn({ context, }: { readonly context: BlindContext; },): readonly FoundShape[] {
-  return context.references
-    .flatMap(function shapeOfReference({ node, },): readonly FoundShape[] {
-      /**
-       Whether the reference is the global object written as a whole value.
-       */
-      const isValue = namesGlobalObject({ node, },) && isGlobalValue({
-        context,
-        node,
-      },);
-      return isValue
-        ? [
-          {
-            shape: 'code-the-search-cannot-read',
-            node,
-            position: GLOBAL_AS_VALUE,
-          },
-        ]
-        : [];
-    },);
+  return [
+    ...context.references
+      .flatMap(function shapeOfReference({ node, },): readonly FoundShape[] {
+        /**
+         Whether the reference is the global object written as a whole value.
+         */
+        const isValue = namesGlobalObject({ node, },) && isGlobalValue({
+          context,
+          node,
+        },);
+        return isValue
+          ? [
+            {
+              shape: 'code-the-search-cannot-read',
+              node,
+              position: GLOBAL_AS_VALUE,
+            },
+          ]
+          : [];
+      },),
+    ...exportedGlobalsIn({ context, },)
+      .map(function shapeOfExport(node,): FoundShape {
+        return {
+          shape: 'code-the-search-cannot-read',
+          node,
+          position: GLOBAL_AS_VALUE,
+        };
+      },),
+  ];
 }
 
 //endregion The global object written as a whole value

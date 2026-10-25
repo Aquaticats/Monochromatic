@@ -8,6 +8,7 @@ import {
   moduleLoadOf,
   nodeAt,
   nodesAt,
+  pathOf,
   stringValueOf,
 } from './claude-schema-tree.test-fixture.ts';
 
@@ -15,10 +16,13 @@ import {
 // Besides `eval` and `Function` (`claude-schema-blind-unreadable.test-fixture.ts`), code is made from text by the `vm`
 // module and by the constructor of a function, which is the `Function` constructor. Both can be told by a read of the
 // text. The module is told by its specifier, `vm` or `node:vm`, in an import, an export from, a call of `require`, an
-// `import()` or the module of an import-equals declaration. The constructor is told by a member named `constructor`
-// written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get` with the string
-// `constructor` as its key. A key that is no literal and a pattern that takes `constructor` out of a value are not told,
-// and are limits of the search that the ledger states, as are the keys of `Reflect.get` that are no literal.
+// `import()`, a call of `process.getBuiltinModule` or the module of an import-equals declaration; an import or an export
+// that names types only (`import type`) loads nothing and names no module. The constructor is told by a member named
+// `constructor` written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get`,
+// `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A
+// key that is no literal, a pattern that takes `constructor` out of a value, and a method that is written through an
+// alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger
+// states.
 
 /**
  What a report says of a place that loads the `vm` module.
@@ -49,7 +53,7 @@ const SOURCE_KINDS: ReadonlySet<string> = new Set([
 
 /**
  The module a node names, when the node is an import, an export from, a load or the module of an import-equals
- declaration.
+ declaration. An import or an export that names types only loads nothing, so it names no module.
 
  @param node - node read, of any kind
 
@@ -61,8 +65,11 @@ const SOURCE_KINDS: ReadonlySet<string> = new Set([
  ```
  */
 function moduleNamedBy({ node, }: { readonly node: TreeNode; },): string {
-  if (SOURCE_KINDS.has(node.type,))
-    return stringValueOf({ node: node.source, },);
+  if (SOURCE_KINDS.has(node.type,)) {
+    return ((node.importKind === 'type') || (node.exportKind === 'type'))
+      ? ''
+      : stringValueOf({ node: node.source, },);
+  }
   if (node.type === 'TSExternalModuleReference')
     return stringValueOf({ node: node.expression, },);
   if ((node.type !== 'ImportExpression') && (node.type !== 'CallExpression'))
@@ -100,11 +107,29 @@ function readsConstructor({ node, }: { readonly node: TreeNode; },): boolean {
 }
 
 /**
- Whether a call is `Reflect.get` with the string `constructor` as its key.
+ The methods that read a member of a value by a key given as an argument, by the object they are read off: `Reflect.get`,
+ `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor`.
+ */
+const KEY_READERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  [
+    'Object',
+    new Set(['getOwnPropertyDescriptor',],),
+  ],
+  [
+    'Reflect',
+    new Set([
+      'get',
+      'getOwnPropertyDescriptor',
+    ],),
+  ],
+]);
+
+/**
+ Whether a call reads a member by a key and the key is the string `constructor`.
 
  @param node - call expression
 
- @returns Whether the callee is `Reflect.get` and the second argument is that string
+ @returns Whether the callee is one of the methods that read a member by a key and the second argument is that string
 
  @example
  ```ts
@@ -132,13 +157,62 @@ function reflectsConstructor({ node, }: { readonly node: TreeNode; },): boolean 
   if (callee.computed === true)
     return false;
   /**
-   Whether the callee is `Reflect.get`.
+   The methods of the object the callee reads from that read a member by a key.
    */
-  const isReflectGet = (identifierName({ node: callee.object, },) === 'Reflect')
-    && (identifierName({ node: callee.property, },) === 'get');
-  if (!isReflectGet)
+  const readers = KEY_READERS.get(identifierName({ node: callee.object, },),);
+  /**
+   Whether the callee is a method that reads a member by a key.
+   */
+  const isKeyReader = readers?.has(identifierName({ node: callee.property, },),) ?? false;
+  if (!isKeyReader)
     return false;
   return (key !== undefined) && (stringValueOf({ node: key, },) === 'constructor');
+}
+
+/**
+ Whether a call is `process.getBuiltinModule` of the module `vm`.
+
+ @param node - node read, of any kind
+
+ @returns Whether the node is such a call with the specifier as a string literal
+
+ @example
+ ```ts
+ const loads = getsBuiltinVm({ node, },);
+ ```
+ */
+function getsBuiltinVm({ node, }: { readonly node: TreeNode; },): boolean {
+  if (node.type !== 'CallExpression')
+    return false;
+  /**
+   The callee of the call.
+   */
+  const callee = nodeAt({
+    node,
+    field: 'callee',
+  },);
+  /**
+   The first argument of the call, absent when it has none.
+   */
+  const specifier = nodesAt({
+    node,
+    field: 'arguments',
+  },)
+    .at(0,);
+  /**
+   The names the callee reads through, joined, whatever marks the object is written under.
+   */
+  const calleePath = pathOf({ node: callee, },)
+    .join('.',);
+  /**
+   Whether the callee is `process.getBuiltinModule`.
+   */
+  const isGetter = calleePath === 'process.getBuiltinModule';
+  /**
+   Whether the first argument is a string literal that names `vm`.
+   */
+  const isVm = (specifier !== undefined) && VM_SPECIFIERS.has(stringValueOf({ node: specifier, },),);
+  return isGetter && isVm;
 }
 
 /**
@@ -154,7 +228,7 @@ function reflectsConstructor({ node, }: { readonly node: TreeNode; },): boolean 
  ```
  */
 function textCodePositionOf({ node, }: { readonly node: TreeNode; },): string {
-  if (VM_SPECIFIERS.has(moduleNamedBy({ node, },),))
+  if (VM_SPECIFIERS.has(moduleNamedBy({ node, },),) || getsBuiltinVm({ node, },))
     return LOADS_VM;
   if ((node.type === 'MemberExpression') && readsConstructor({ node, },))
     return READS_CONSTRUCTOR;
