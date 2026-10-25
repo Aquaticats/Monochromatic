@@ -4534,6 +4534,59 @@ a 32 GB target copy
 no frames kept;
 the owner can delete it.
 
+## Slices set inside the frame: the cause, 2026-10-24 (branch worktree-agent-accda2a5caee03c58)
+
+Cause found in Slint 1.18.1 (the latest release;
+master `8be16937037c` keeps the order of steps):
+`WindowInner::draw_contents` (`i-slint-core` `window.rs:1846`) brings every repeater up to date
+(`ensure_tree_instantiated`,
+`Repeater::ensure_updated` `model/repeater.rs:685`) before the renderer closure,
+femtovg calls the rendering notifier inside that closure (`lib.rs:260`),
+and the closure runs while the redraw tracker depends on nothing (`properties.rs:1361`).
+So a list changed in `BeforeRendering` is seen by the next frame,
+and nothing asks for one:
+`set_vec` (`model.rs:549`) resets the repeater (`repeater.rs:612`) and the frame visits no row,
+a new `ModelRc` in the property draws the old rows,
+and `set_row_data` (`repeater.rs:533`) updates the row at once and the frame draws it.
+`show_slices` (`src/native/gpu_tile/types.rs`) picks `set_row_data` when the number of textures is unchanged,
+and `set_vec` when it changes,
+which is the whole tile versus minimap difference (a tile has 1 to 4 textures,
+a picture nearly always one).
+The earlier belief that the harness cannot show the blank was wrong:
+it shows a reset or a new list,
+and the earlier test press kept the number of textures.
+Details,
+minimal repro and the filing decision (do not file):
+`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
+
+New tests (all pass;
+they fail with the slices set inside the frame again):
+`repeater_frame_tests` (4 tests,
+a bare Slint window),
+`the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures`,
+and `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures`
+(the frame after a hand-over must draw the same pixels as the frame after it).
+Four guard cases `tile-slices-prepared-drawn`,
+`tile-slices-applied-drawn`,
+`minimap-slices-prepared-drawn`
+and `minimap-slices-applied-drawn` fail with the line removed (status 100,
+for example
+`drew 0 pixels of the tile and the next frame 4056`) and pass restored.
+Production code:
+only `tracing::debug!` lines in `show_slices`;
+behaviour is unchanged.
+Not shown:
+a recorded blank frame of a reset list in the real window (presses on 287-line and 1500-line plain texts
+kept the number of textures:
+240 frames of the code column,
+none changed);
+a TypeScript file whose hints change a tile's height would be the case to record.
+Scratch `~/temp/agent/fd` (drivers,
+logs,
+a debug binary with the scratch toggles `ide-scratch`,
+a 24 GB `gcache`)
+can be deleted by the owner.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
