@@ -509,7 +509,7 @@ await describe({
           0,
         ];
         /**
-         Attempts the caller counted for the entries before this invocation began.
+         Attempts the caller counted for the entries in earlier invocations.
          */
         const EARLIER = 4;
         await runAttemptQueue({
