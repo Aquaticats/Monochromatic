@@ -89,6 +89,7 @@ import {
   FORWARDER_CASES,
   WRAPPER_THAT_SENDS_CASE,
 } from './claude-schema-forwarder-forms.test-fixture.ts';
+import { UNDECLARED_FORWARDER_CASES, } from './claude-schema-forwarder-shape-forms.test-fixture.ts';
 import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts';
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
 import { SENDER_PIN_CASES, } from './claude-schema-sender-pin-forms.test-fixture.ts';
@@ -812,6 +813,7 @@ await describe({
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
+      ...UNDECLARED_FORWARDER_CASES,
       WRAPPER_THAT_SENDS_CASE,
       ...CONSTANT_PIN_CASES,
       ...SENDER_PIN_CASES,
@@ -870,6 +872,7 @@ await describe({
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
+      ...UNDECLARED_FORWARDER_CASES,
       WRAPPER_THAT_SENDS_CASE,
       ...CONSTANT_PIN_CASES,
       ...SENDER_PIN_CASES,

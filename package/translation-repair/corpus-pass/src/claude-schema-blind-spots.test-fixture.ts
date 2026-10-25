@@ -66,6 +66,7 @@ type BlindShape =
     | 'builder-result-returned-outside-a-wrapper'
     | 'code-the-search-cannot-read'
     | 'computed-load-path'
+    | 'forwarder-in-undeclared-function'
     | 'format-in-undeclared-function'
     | 'load-in-unfollowed-form'
     | 'module-binding-outside-a-read-position'
