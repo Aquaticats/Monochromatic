@@ -186,7 +186,7 @@ function lineOf(
  const spots = spotsOf({ text, found, file: 'a/src/a.ts', },);
  ```
  */
-function spotsOf(
+export function spotsOf(
   {
     text,
     found,

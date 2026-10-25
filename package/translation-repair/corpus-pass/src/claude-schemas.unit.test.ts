@@ -48,7 +48,14 @@ import {
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../dist/final/node/index.mjs';
 import { BINDING_KIND_CASES, BUILDER_MEMBER_CASES, } from './claude-schema-binding-kind-forms.test-fixture.ts';
 import { BUILDER_FORM_CASES, } from './claude-schema-builder-forms.test-fixture.ts';
-import { blindSpotsOf, } from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  blindSpotsOf,
+  spotsOf,
+} from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  SPOT_KEY_CASES,
+  type SpotKeyCase,
+} from './claude-schema-spot-key-forms.test-fixture.ts';
 import {
   NAMED_PLACES,
   placesWithoutSpot,
@@ -1081,6 +1088,19 @@ await describe({
             unnamed: namedCase.unnamed,
             stale: namedCase.stale,
           },);
+        },
+      },);
+    },),
+
+    ...SPOT_KEY_CASES.map(function caseOfKey(keyCase: SpotKeyCase,) {
+      return it({
+        name: `KEEPS THE REPORTS OF NODES AS PLACES BY THEIR TYPE AND THEIR RANGE: ${keyCase.name}`,
+        fn: async () => {
+          expect(spotsOf({
+            text: 'a\n'.repeat(40,),
+            found: keyCase.found,
+            file: 'imaginary/src/key.ts',
+          },).length,).toBe(keyCase.places,);
         },
       },);
     },),
