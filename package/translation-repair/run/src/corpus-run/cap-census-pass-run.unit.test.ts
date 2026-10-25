@@ -136,6 +136,37 @@ await describe({
       },
     },),
     it({
+      name: 'READS A LOG WITH 200 PAGE-ABSENT INCOMPLETE LINES BEFORE ITS MARKER, which a pass prints for the entries '
+        + 'whose page is absent at the pin before it prints START, and which hold more bytes than a head counted in '
+        + 'bytes allows (ledger B961 to B964)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        /**
+         One line per entry whose page is absent at the pin, as the pass prints them before START.
+         */
+        const pageAbsent = Array.from(
+          { length: 200, },
+          function lineOf(_unused, index,): string {
+            return `INCOMPLETE tabby${String(index,)
+              .padStart(4, '0',)} at=2026-09-28T09:59:00.000Z: target page absent at the pin (missing-object)`;
+          },
+        );
+
+        expect(pageAbsent.join('\n',).length,).toBeGreaterThan(HEAD_BYTES,);
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [
+              ...pageAbsent,
+              'START tip=tabby0001',
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toEqual(CALL_READING,);
+      },
+    },),
+    it({
       name: 'READS A LOG WHOSE HEAD ENDS PART WAY THROUGH A CHARACTER, which the marker line before it does not '
         + 'depend on',
       fn: async () => {
