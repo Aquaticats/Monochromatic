@@ -10,9 +10,11 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // arguments of the schema from its callers all the same. The first name of the object is then a name made from the
 // parameter: the object an assignment stores a value in (a field, an index, a field of a field), the list or the map
 // that a method which stores its argument is called on (`push`, `set`), the first argument of `Object.assign` and of
-// the methods that define a property, the name of a class whose field reads the parameter, and the names a pattern
-// default binds. What stays unread, and is pinned silent here: a value handed to a function or to a method that is not
-// one of those, which may store it in an object it receives, and a value stored in a field of `this`.
+// the methods that define a property, the name of a class or of a function declared inside whose body reads the
+// parameter, and the names a pattern default binds. What stays unread, and is pinned silent here: a value handed to a
+// function or to a method that is not one of those, which may store it in an object it receives, a value stored
+// through another name for the object (`const alias = holder; alias.a = args`), and a value stored in a field of
+// `this`.
 
 /**
  The line that declares a local object a case stores a value in.
@@ -243,6 +245,39 @@ export const DERIVED_CONTAINER_CASES: readonly ShapeCase[] = [
     isListed: true,
   },),
   storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM THE CALL OF A FUNCTION DECLARED INSIDE IT THAT RETURNS ITS '
+      + 'PARAMETER',
+    lines: [
+      '  function inner() {',
+      '    return args;',
+      '  }',
+    ],
+    argument: 'inner()',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM THE CALL OF AN ASYNC FUNCTION DECLARED INSIDE IT THAT '
+      + 'RETURNS ITS PARAMETER',
+    lines: [
+      '  async function inner() {',
+      '    return args;',
+      '  }',
+    ],
+    argument: 'await inner()',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM THE VALUE A GENERATOR DECLARED INSIDE IT YIELDS FROM ITS '
+      + 'PARAMETER',
+    lines: [
+      '  function* inner() {',
+      '    yield args;',
+      '  }',
+    ],
+    argument: 'inner().next().value',
+    isListed: true,
+  },),
+  storingCase({
     name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM A NAME THE DEFAULT OF AN OBJECT PATTERN GIVES ITS PARAMETER',
     lines: ['  const { a = args, } = {} as any;',],
     argument: 'a',
@@ -271,6 +306,17 @@ export const DERIVED_CONTAINER_CASES: readonly ShapeCase[] = [
     lines: [
       '  const holder = { put(value: any,): void { holder.a = value; }, a: undefined as any, };',
       '  holder.put(args,);',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT ITS PARAMETER WAS STORED IN THROUGH '
+      + 'ANOTHER NAME FOR THE OBJECT, a limit of the reading',
+    lines: [
+      HOLDER,
+      '  const alias = holder;',
+      '  alias.a = args;',
     ],
     argument: 'holder.a',
     isListed: false,
