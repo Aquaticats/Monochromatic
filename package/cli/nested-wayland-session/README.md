@@ -1420,11 +1420,26 @@ and the client receives the same string either way.
   The amount is sent as Wayland `axis_value120` in 1/120 notches,
   the way a high-resolution wheel does.
   Amounts that round to nothing are refused.
+  A point that no hosted window covers is refused too:
+  the answer is `err no nested client surface at wheel position X,Y: ...` and nothing is sent to the client.
+  That happens at every point until the app has committed its first buffer
+  (a client creates its toplevel, then spends tens to hundreds of milliseconds on its renderer),
+  so a driver must read the answer and send the wheel again,
+  or wait until `windows` lists a window.
+  A driver that ignores the answer loses the wheel without a trace in the app's log.
 - `scroll X Y DX DY [mods=CHORD] [steps=N] [step-ms=MS]` is a touchpad two-finger scroll of `DX`,
   `DY` logical pixels in total,
   split into `N` events (default 1) and followed by the finger-lift stop.
   Clients receive pixel deltas from a finger source,
   not wheel notches.
+
+`click`,
+`move`,
+and `button` do not refuse a point that no window covers:
+they answer `ok`,
+and no client receives the event,
+as for a real pointer over an empty desktop.
+Use `windows` to know that the window can take input before the first of them.
 
 Modifier keys are real key events on the nested keyboard,
 so the client sees Ctrl or Shift down before the pointer event,
@@ -1444,8 +1459,14 @@ keyboard focus returns to the most recently focused remaining toplevel,
 which becomes activated again.
 Killing the dialog's process with `SIGKILL` takes the same path.
 
-- `windows` answers the count and one record per toplevel,
-  first mapped first:
+- `windows` answers the count and one record per mapped toplevel,
+  first mapped first.
+  A toplevel is mapped once its client has committed a buffer;
+  until then it has no extent and no pointer event reaches it,
+  so it is not listed,
+  and the first answer that lists a window is the moment `wheel`,
+  `scroll`,
+  and `click` can reach it:
   `index=N app-id=... title=... focused=true|false`,
   text percent-encoded.
   Index 0 is the window `title` and `app-id` describe.
@@ -2009,6 +2030,21 @@ and why.
   text ranges,
   and change events:
   `a11y` reads the tree only.
+
+## Changes after 0.6.1 (not released)
+
+- `windows`,
+  `focus`,
+  and `close` list a toplevel only once its client has committed a buffer.
+  Before, a toplevel was listed from the moment its client created it,
+  tens to hundreds of milliseconds before any point of the screen belonged to it,
+  so a driver that waited for `windows` and then sent `wheel` was refused.
+  Measured with a Slint IDE window in 36 headless sessions with the app's Wayland protocol log:
+  the wheel was refused in 17 of 17 sent before the toplevel's first `wl_surface.attach` of a buffer
+  (no `wl_pointer.enter` and no `axis` event was sent to the client)
+  and delivered in 19 of 19 sent after.
+- The answer to a refused `wheel` or `scroll` says why and what to do,
+  and the README says that `click` and `move` over no window answer `ok` and reach nobody.
 
 ## Changes in 0.6.1
 
