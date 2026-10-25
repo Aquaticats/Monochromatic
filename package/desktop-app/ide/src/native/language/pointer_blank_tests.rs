@@ -11,8 +11,8 @@
 use super::pointer::{REST, Rest, Spot, View};
 /// The fixture of the scroll tests and its checks of the line a request names.
 use super::pointer_scroll_tests::{
-    ROW, assert_names_line_drawn_under, line_drawn_under, resting_place, resting_place_with,
-    wait_for_popup,
+    ROW, TEXT, assert_names_line_drawn_under, line_drawn_under, long_text, resting_place,
+    resting_place_with, wait_for_popup,
 };
 /// Fixtures and real window events.
 use super::test_support::{LanguageReader, escape, idle, move_to, point, popup, rows};
@@ -23,10 +23,13 @@ use crate::native::annotate::displayed;
 use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
+/// The identity of the displayed text.
+use ide_app::language::identity::DocumentStamp;
 /// Timers of the toolkit.
 use slint::platform::update_timers_and_animations;
-/// Instants for a rest that began long ago.
-use std::time::Instant;
+/// An external change of the displayed file,
+///  and instants for a rest that began long ago.
+use std::{fs, time::Instant};
 
 /// A line of `long_text` with no character:
 ///  odd lines are blank.
@@ -248,6 +251,7 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
         x: 20.0,
         offset: 500.0,
         extent: 9000.0,
+        text: TEXT,
     };
     let mut rest = Rest::default();
     rest.moved(None, spot);
@@ -257,6 +261,7 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
     rest.follow(View {
         offset: 620.0,
         extent: 9000.0,
+        text: TEXT,
     });
     assert_eq!(rest.due(), None, "the move did not start the rest again");
     assert!(!rest.idle(), "a moved view left the rest over nothing idle");
@@ -275,6 +280,7 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
     rest.follow(View {
         offset: 700.0,
         extent: 9000.0,
+        text: TEXT,
     });
     rest.moved(None, spot);
     rest.at = Some((None, Instant::now() - REST * 2));
@@ -290,6 +296,7 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
     rest.follow(View {
         offset: 800.0,
         extent: 9000.0,
+        text: TEXT,
     });
     rest.moved(None, spot);
     rest.at = Some((None, Instant::now() - REST * 2));
@@ -343,6 +350,7 @@ fn a_growing_text_restarts_a_rest_that_was_not_asked_for() {
         x: 20.0,
         offset: 500.0,
         extent: 9000.0,
+        text: TEXT,
     };
     let mut rest = Rest::default();
     rest.moved(Some(7), spot);
@@ -352,11 +360,13 @@ fn a_growing_text_restarts_a_rest_that_was_not_asked_for() {
     rest.follow(View {
         offset: 500.0,
         extent: 9000.3,
+        text: TEXT,
     });
     assert_eq!(rest.due(), Some(spot), "rounding restarted the rest");
     rest.follow(View {
         offset: 500.0,
         extent: 9052.0,
+        text: TEXT,
     });
     assert_eq!(rest.due(), None, "a taller text did not restart the rest");
     let mut blank = Rest::default();
@@ -364,6 +374,7 @@ fn a_growing_text_restarts_a_rest_that_was_not_asked_for() {
     blank.follow(View {
         offset: 500.0,
         extent: 9052.0,
+        text: TEXT,
     });
     blank.at = Some((None, Instant::now() - REST * 2));
     assert_eq!(
@@ -385,12 +396,14 @@ fn a_rest_that_began_over_nothing_and_was_asked_about_a_character_is_not_idle() 
         x: 20.0,
         offset: 500.0,
         extent: 9000.0,
+        text: TEXT,
     };
     let mut rest = Rest::default();
     rest.moved(None, spot);
     rest.follow(View {
         offset: 620.0,
         extent: 9000.0,
+        text: TEXT,
     });
     rest.at = Some((None, Instant::now() - REST * 2));
     assert_eq!(rest.due(), Some(spot));
@@ -403,4 +416,141 @@ fn a_rest_that_began_over_nothing_and_was_asked_about_a_character_is_not_idle() 
     assert_eq!(rest.due(), None, "the same rest asked twice");
     rest.moved(Some(7), spot);
     assert!(rest.asked, "a move within the character asked again");
+}
+
+/// A text that was replaced under a pointer that did not move
+///  puts other characters under it without a change of the offset or of the height of the text,
+///  so a rest that was not asked for yet starts again;
+///  a rest that was asked about stays asked.
+#[test]
+fn a_replaced_text_restarts_a_rest_that_was_not_asked_for() {
+    let spot = Spot {
+        below_top: 100.0,
+        x: 20.0,
+        offset: 500.0,
+        extent: 9000.0,
+        text: TEXT,
+    };
+    let reloaded = DocumentStamp {
+        file: TEXT.file,
+        revision: TEXT.revision + 1,
+    };
+    let mut rest = Rest::default();
+    rest.moved(None, spot);
+    rest.at = Some((None, Instant::now() - REST * 2));
+    assert_eq!(rest.due(), None, "a settled rest over nothing is due");
+    rest.follow(View {
+        offset: 500.0,
+        extent: 9000.0,
+        text: reloaded,
+    });
+    assert!(
+        !rest.idle(),
+        "a replaced text left the rest over nothing idle"
+    );
+    rest.at = Some((None, Instant::now() - REST * 2));
+    assert_eq!(
+        rest.due(),
+        Some(spot),
+        "a replaced text did not make the rest over nothing due"
+    );
+    let mut other_file = Rest::default();
+    other_file.moved(None, spot);
+    other_file.follow(View {
+        offset: 500.0,
+        extent: 9000.0,
+        text: DocumentStamp {
+            file: TEXT.file + 1,
+            revision: TEXT.revision,
+        },
+    });
+    other_file.at = Some((None, Instant::now() - REST * 2));
+    assert_eq!(
+        other_file.due(),
+        Some(spot),
+        "another file did not make the rest over nothing due"
+    );
+    let mut asked = Rest::default();
+    asked.moved(Some(7), spot);
+    asked.at = Some((Some(7), Instant::now() - REST * 2));
+    asked.asked_about(7);
+    asked.follow(View {
+        offset: 500.0,
+        extent: 9000.0,
+        text: reloaded,
+    });
+    assert!(asked.asked, "a replaced text made a request forgotten");
+    assert_eq!(asked.due(), None, "the same rest asked twice");
+}
+
+/// A pointer at rest over a blank line while the file changes on disk
+///  so that an identifier stands in that line:
+///  the line count,
+///  the offset and the height of the text are the same,
+///  and the pointer did not move,
+///  yet the request is for the identifier.
+#[test]
+fn a_rest_over_no_character_asks_when_a_reload_puts_a_character_under_it() {
+    let (fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
+    let place = point(&reader, BLANK, x);
+    move_to(&reader.window, place);
+    idle(3 * REST.as_millis() as u64);
+    assert_eq!(popup(&reader), "", "a blank line under the pointer asked");
+    let revision = reader.source.borrow().document.revision();
+    let before = reader.window.get_content_extent();
+    let replaced = long_text(400).replacen("\n\nalpha006", "\nalpha005 beta\nalpha006", 1);
+    assert_ne!(replaced, long_text(400), "the text to write did not change");
+    fs::write(fixture.root.join("main.scripted"), replaced).expect("external change");
+    {
+        let mut waiting = Waiting::language();
+        while reader.source.borrow().document.revision() == revision {
+            waiting.step("the reload did not arrive");
+        }
+    }
+    let text = wait_for_popup(
+        &reader,
+        "no hover appeared for the identifier the reload put under the pointer",
+    );
+    assert_eq!(
+        reader.window.get_content_extent(),
+        before,
+        "the reload changed the height of the text"
+    );
+    assert!(
+        text.starts_with("line=alpha005 beta"),
+        "the popup `{text}` is no hover for the line the reload put under the pointer"
+    );
+    assert_answer_stays(&reader, place.y, &text);
+}
+
+/// A pointer whose rest was asked about stays asked when the file reloads:
+///  no new request follows,
+///  as no request follows a scroll for a rest that was asked about.
+#[test]
+fn a_rest_that_was_asked_about_is_not_asked_again_by_a_reload() {
+    let (fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
+    move_to(&reader.window, point(&reader, 4, x));
+    let shown = wait_for_popup(&reader, "no hover appeared for the resting pointer");
+    assert!(
+        shown.starts_with("line=alpha004 beta"),
+        "the popup is `{shown}`"
+    );
+    let revision = reader.source.borrow().document.revision();
+    fs::write(
+        fixture.root.join("main.scripted"),
+        long_text(400).replacen("alpha004 beta", "alpha004 beta ", 1),
+    )
+    .expect("external change");
+    {
+        let mut waiting = Waiting::language();
+        while reader.source.borrow().document.revision() == revision {
+            waiting.step("the reload did not arrive");
+        }
+    }
+    idle(3 * REST.as_millis() as u64);
+    assert_eq!(
+        popup(&reader),
+        "",
+        "a reload asked again for a rest that was asked about"
+    );
 }

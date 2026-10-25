@@ -2363,7 +2363,7 @@ const cases: Guard[] = [
   {
     name: 'hover-view-moving-restarts',
     file: 'src/native/language/pointer.rs',
-    before: '        if !(offset_moved || extent_moved) {',
+    before: '        if !(offset_moved || extent_moved || text_changed) {',
     after: '        if true {',
     native: true,
     test: 'a_view_still_scrolling_asks_nothing_until_it_stops',
@@ -2372,7 +2372,7 @@ const cases: Guard[] = [
   {
     name: 'hover-view-moving-restarts-unit',
     file: 'src/native/language/pointer.rs',
-    before: '        if !(offset_moved || extent_moved) {',
+    before: '        if !(offset_moved || extent_moved || text_changed) {',
     after: '        if true {',
     native: true,
     test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
@@ -2552,6 +2552,42 @@ const cases: Guard[] = [
     file: 'src/native/language/rest_step.rs',
     before: '        extent: window.get_content_extent(),',
     after: '        extent: 0.0,',
+    native: true,
+    test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
+    failure: 'a tick of a view that stood still started the rest again'
+  },
+  {
+    name: 'hover-text-change-ignored',
+    file: 'src/native/language/pointer.rs',
+    before: '        let text_changed = view.text != seen.text;',
+    after: '        let text_changed = false;',
+    native: true,
+    test: 'a_rest_over_no_character_asks_when_a_reload_puts_a_character_under_it',
+    failure: 'no hover appeared for the identifier the reload put under the pointer'
+  },
+  {
+    name: 'hover-text-change-ignored-unit',
+    file: 'src/native/language/pointer.rs',
+    before: '        let text_changed = view.text != seen.text;',
+    after: '        let text_changed = false;',
+    native: true,
+    test: 'a_replaced_text_restarts_a_rest_that_was_not_asked_for',
+    failure: 'a replaced text left the rest over nothing idle'
+  },
+  {
+    name: 'hover-spot-text',
+    file: 'src/native/language/actions.rs',
+    before: '            text: surface::displayed(&move_state.borrow()),',
+    after: '            text: ide_app::language::identity::DocumentStamp { file: u64::MAX, revision: 0 },',
+    native: true,
+    test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
+    failure: 'a tick of a view that stood still started the rest again'
+  },
+  {
+    name: 'hover-tick-text',
+    file: 'src/native/language/rest_step.rs',
+    before: '        text: displayed,',
+    after: '        text: ide_app::language::identity::DocumentStamp { file: u64::MAX, revision: 0 },',
     native: true,
     test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
     failure: 'a tick of a view that stood still started the rest again'
