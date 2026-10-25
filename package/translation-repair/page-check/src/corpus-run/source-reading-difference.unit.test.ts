@@ -146,6 +146,18 @@ await describe({
       },
     },),
     it({
+      name: 'PLACES THE WORDS OF A BLOCK WHERE THE PAGE SHOWS THEM AFTER THE QUOTE, not at the first place the same words stand',
+      fn: async () => {
+        /**
+         A block quote whose footnote holds the same raw HTML tag as the block after it, so the first place the tag stands on
+         the page is inside the footnote.
+         */
+        const quote = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
+        expect(encodedDifference({ source: `${quote}\n<a href="x">\n\n<script>\n`, },).kind,).toBe('undecided',);
+        expect(encodedDifference({ source: `${quote}\n<a href="x">\n\nexport to PDF\n`, },).kind,).toBe('undecided',);
+      },
+    },),
+    it({
       name: 'SAYS UNDECIDED FOR A LINK BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, whose target the comparison leaves out as it does for a whole text',
       fn: async () => {
         expect(
