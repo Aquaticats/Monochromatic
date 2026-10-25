@@ -14,15 +14,17 @@ import {
 } from './editor-fidelity-decide.ts';
 
 //region Editor fidelity arm fix rate
-// THE FIX RATE OF THE DEFAULT EFFORT, which the repeat warning's reach depends on. The repeat warning compares measured
-// repeat agreements, and from a true fix rate of about 0.93 an arm that gives a fresh reading in each pass reads its passes
-// alike so often that the comparison no longer sees it, while the chance of choosing another effort when none is better
-// stays above the bound. When the default effort cleanly fixes this share of the units every arm holds, or more, the read
-// step says so, beside the repeat lines, so that a verdict of high or low is read under that caveat whether or not a repeat
-// warning printed. The share is counted by cross-multiplying, so that a share exactly at the limit warns.
+// THE FIX RATE OF THE DEFAULT EFFORT, which the repeat warning's reach depends on. The rule states its false pick bounds
+// for true fix rates up to 0.90; above that the chance of choosing another effort when none is better rose (0.108 at 0.91,
+// 0.123 at 0.92 and about 0.13 at 0.93 in the fixture), while an arm that gives a fresh reading in each pass reads its
+// passes alike more often as the fix rate rises, so the repeat comparison sees it less. When the default effort cleanly
+// fixes 90 percent of the units every arm holds, or more, the read step says so, beside the repeat lines, so that a verdict
+// of high or low is read under that caveat whether or not a repeat warning printed. The share is observed and not true,
+// so the line meets the rule's stated region at its edge. It is counted by cross-multiplying, so that a share exactly at
+// the limit warns.
 
 /**
- Says that the default effort fixes nearly every unit the arms share.
+ Says that the default effort fixes nine in ten of the units the arms share, or more.
 
  @param arm - the name of the arm of the default effort
 
@@ -34,7 +36,7 @@ import {
 
  @example
  ```ts
- const line = warningLine({ arm: 'medium', fixed: 93, units: 100, },);
+ const line = warningLine({ arm: 'medium', fixed: 90, units: 100, },);
  ```
  */
 function warningLine(
@@ -56,9 +58,9 @@ function warningLine(
     },)
   } (${String(Math.round((100 * fixed) / units,),)} percent), at or above ${
     String(DEFAULT_FIX_RATE_WARNED_AT_PERCENT,)
-  } percent; the repeat warning cannot see unequal repeat agreement at fix rates this high, so any verdict of high or low `
+  } percent; at fix rates this high the repeat warning can miss unequal repeat agreement, so any verdict of high or low `
     + `stands under the caveat that its chance of being a false pick can be above ${String(FALSE_PICK_BOUND_ALIKE,)}, `
-    + 'whether or not a WARN repeat agreement line printed; the simulation reached '
+    + 'whether or not a WARN repeat agreement line printed; the committed fixture read '
     + `${FALSE_PICK_READINGS_ABOVE_NINE_TENTHS} when the default effort repeats itself far less than the others`;
 }
 

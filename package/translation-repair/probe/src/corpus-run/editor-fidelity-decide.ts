@@ -71,23 +71,37 @@ export const FALSE_PICK_BOUND_ALIKE = 0.05;
 export const FALSE_PICK_UNEQUAL_REACHED = 0.107;
 
 /**
- The chance of choosing another effort when none is better that an independent re-implementation of the model read at
- fix rates above 0.9, when the default effort repeats itself far less than the others (re-check 5, seed prefix edrc5,
- 4000 replicates, three passes of 264 units, within-entry correlation 1): the committed fixture read 0.130 at 0.93 and
- 0.175 at 0.95 (seed edr9-fx, the same cells, correlation 1), and 0.0975 and 0.1365 at correlation 0.5.
+ The chance of choosing another effort when none is better that the committed fixture read at true fix rates above 0.9,
+ when the default effort repeats itself far less than the others (high and low repeating their first answer, the default
+ effort asked afresh in each pass, three passes of 264 units, within-entry correlation 1): 0.108 at 0.91 and 0.123 at
+ 0.92 (the second reviewer's run of the fixture's own functions, seed prefix edrc6, 8000 replicates each), 0.130 at 0.93
+ (seed edr9-fx, 4000 replicates; 0.132 at seed edrc6, 8000 replicates, so about 0.13) and 0.175 at 0.95 (seed edr9-fx,
+ 4000 replicates), against 0.1072 at 0.9 under the round 8 seed. At a correlation of 0.5 the fixture read 0.0975 at 0.93
+ and 0.1365 at 0.95. The independent re-implementation of the model read other figures, listed in
+ `FALSE_PICK_REIMPLEMENTATION_READINGS`.
  */
-export const FALSE_PICK_READINGS_ABOVE_NINE_TENTHS = '0.142 at 0.93, 0.173 at 0.95 and 0.241 at 0.97';
+export const FALSE_PICK_READINGS_ABOVE_NINE_TENTHS = '0.108 at 0.91, 0.123 at 0.92, about 0.13 at 0.93 and 0.175 at 0.95';
+
+/**
+ The chance of choosing another effort when none is better that an independent re-implementation of the model read at
+ fix rates above 0.9, in the same bench (re-check 5, seed prefix edrc5, 4000 replicates, three passes of 264 units,
+ within-entry correlation 1). It is a second source and its readings are kept apart from the fixture's, which read
+ 0.130 at 0.93 and 0.175 at 0.95 in the same cells.
+ */
+export const FALSE_PICK_REIMPLEMENTATION_READINGS = '0.142 at 0.93, 0.173 at 0.95 and 0.241 at 0.97';
 
 /**
  The share of the units every arm holds, in percent, that the default effort cleanly fixes at or above which the read
- step prints `WARN high fix rate`. The unequal-repeat warning compares measured repeat agreements, and an arm that gives
- a fresh reading in each pass reads three passes alike with chance r^3 + (1-r)^3 for a fix rate r, so the expected gap
- to an arm that always repeats is 27 points at 0.9, 19.5 at 0.93, 14.3 at 0.95 and 8.7 at 0.97, against the 15 points
- the warning needs. Re-check 5 saw the repeat warning fire on 81, 40 and 3 percent of its benches at 0.93, 0.95 and 0.97
- (99 percent at 0.9), so from 0.93 it cannot be relied on to see unequal repeats. The repeat warning was calibrated for
- fix rates up to 0.9.
+ step prints `WARN high fix rate`. It is read on the share observed, and it is 90 so that the region the rule states its
+ bounds for (true fix rates 0.30 to 0.90) and the warning meet: a threshold of 93 left a true rate of 0.91 or 0.92 with
+ neither a stated bound nor a warning, where the fixture read the false pick chance 0.108 and 0.123. The repeat warning
+ compares measured repeat agreements, and an arm that gives a fresh reading in each pass reads three passes alike with
+ chance r^3 + (1-r)^3 for a fix rate r, so its expected agreement is 73 percent at 0.9, 80.5 at 0.93, 85.7 at 0.95 and
+ 91.3 at 0.97 against 100 for an arm that always repeats: a gap of 27, 19.5, 14.3 and 8.7 points that the exact test of
+ the repeat warning must see in a limited number of trials. The measured rates at which each warning fires are in the
+ README and the ledger.
  */
-export const DEFAULT_FIX_RATE_WARNED_AT_PERCENT = 93;
+export const DEFAULT_FIX_RATE_WARNED_AT_PERCENT = 90;
 
 /**
  The efforts the rule tests against the default.
@@ -136,18 +150,21 @@ export function decisionRuleText(): string {
     + 'replicates, within the noise of 0.008, and the four cells over 0.05 were at most 0.035 at 4000), and '
     + `${String(FALSE_PICK_UNEQUAL_REACHED,)} when the default effort repeats itself far less than the others (a true fix `
     + 'rate of 0.9, three passes, 4000 replicates of the committed fixture). Both figures hold for fix rates up to 0.90 and '
-    + 'no higher. Above 0.90 the chance when the default effort repeats itself far less than the others was higher: '
-    + `${FALSE_PICK_READINGS_ABOVE_NINE_TENTHS} by an independent re-implementation of the model (reviewer seed edrc5, 4000 `
-    + 'replicates, 264 units), and 0.130 at 0.93 and 0.175 at 0.95 by the committed fixture (seed edr9-fx, 4000 '
-    + 'replicates, three passes of 264 units, correlation 1). The read step prints each arm\'s repeat agreement over the '
+    + 'no higher. Above 0.90 the chance when the default effort repeats itself far less than the others was higher: the '
+    + `committed fixture read ${FALSE_PICK_READINGS_ABOVE_NINE_TENTHS} (0.108 at 0.91 and 0.123 at 0.92 at reviewer seed `
+    + 'edrc6 and 8000 replicates; 0.130 at 0.93 at seed edr9-fx and 4000 replicates, and 0.132 at 0.93 at seed edrc6 and '
+    + '8000 replicates; 0.175 at 0.95 at seed edr9-fx and 4000 replicates; each in three passes of 264 units with '
+    + 'correlation 1), and an independent re-implementation of the model read '
+    + `${FALSE_PICK_REIMPLEMENTATION_READINGS} (reviewer seed edrc5, 4000 replicates, 264 units). The read step prints each `
+    + 'arm\'s repeat agreement over the '
     + 'units every arm holds and warns when an exact one-sided test of the default effort\'s count of trials that read '
     + 'alike in every pass against that of the other arm with the highest share is at or under '
     + `${String(REPEAT_ALPHA,)} divided by the number of other arms, which holds the chance of that warning at or under `
     + `${String(REPEAT_ALPHA,)} when every arm repeats itself alike, counting the trials of an arm as independent draws, a `
     + 'warning relied on for fix rates up to 0.90, and '
     + `prints WARN high fix rate when the default effort fixes ${String(DEFAULT_FIX_RATE_WARNED_AT_PERCENT,)} percent or `
-    + 'more of the shared units, since the repeat warning cannot see unequal repeats there and a verdict of high or low '
-    + 'then stands under the caveat. Over the 88 trials '
+    + 'more of the shared units, since the repeat warning can miss unequal repeats at fix rates this high and a verdict of '
+    + 'high or low then stands under the caveat. Over the 88 trials '
     + 'walked once the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half, 20 points '
     + 'when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred, and over 176 units (two passes) '
     + '25, 21 and 14 points where a repeat always gives the arm\'s first answer again, 21, 17 and 12 points where it does '
