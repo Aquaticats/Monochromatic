@@ -398,6 +398,37 @@ await describe({
     },),
 
     it({
+      name: 'KEEPS A GIVE-UP IN FORCE WHEN ITS RETURN LIFTS ONE FLOOR AND LEAVES ANOTHER UNMET, as in XingZ6020, where '
+        + 'Synthetic back lifted two benches and left five short',
+      fn: async () => {
+        const { aside, given, lines, } = decisionOver({
+          unmetFloors: function syntheticLiftsOnlyTheSelectBench({ dry, },): readonly string[] {
+            return dry.synthetic
+              ? [
+                'select 1 of 8 reachable, quorum 4',
+                'slate 1 of 7 reachable, quorum 4',
+              ]
+              : ['slate 1 of 7 reachable, quorum 4',];
+          },
+        },);
+        given.add('synthetic',);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
+        expect(lines.length,).toBe(1,);
+        expect(lines[0],).toContain('would still leave these bench floors unmet: slate 1 of 7 reachable, quorum 4;',);
+      },
+    },),
+
+    it({
       name: 'MOVES BETWEEN ASIDE AND HELD AS THE PROVIDERS LEFT CHANGE: a give-up whose return cures the floor is set '
         + 'aside, put back in force once another provider meets the floor without it, and set aside again when that '
         + 'provider is held',
@@ -563,6 +594,17 @@ await describe({
         );
         expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
         expect(lines[0],).toContain('because synthetic is the only writing provider not dry',);
+      },
+    },),
+
+    it({
+      name: 'READS THE ROSTER IN THE FLOOR OF A CALLER WITH NO BENCHES TOO: Xiaomi given up and wet, outside the roster, '
+        + 'is no writing provider, so its return buys the entry nothing and the give-up holds',
+      fn: async () => {
+        const { aside, given, } = decisionOver({ writing: providerRecord({ of: writesExceptXiaomi, },), },);
+        given.add('xiaomi',);
+        aside.noteReading({ dry: dryExcept({ wet: ['xiaomi',], },), },);
+        expect(aside.isAside({ provider: 'xiaomi', },),).toBe(false,);
       },
     },),
 
