@@ -230,12 +230,14 @@ and not off a time window,
 is the operational meaning of "waited out" here:
 a window would have to outlast the transport's retry ladder,
 whose length no measurement fixes.
-A given-up provider reads dry to the router and to the seat reader until the entry ends,
+While another writing provider reads wet,
+a given-up provider reads dry to the router and to the seat reader until the entry ends,
 its cooldowns count for no wait,
 and the reader seats the other providers' seats without waiting.
 One warn line from `hold` says it:
 `synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between;
-entry <id> stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends`.
+entry <id> stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends,
+unless it is the only writing provider not dry`.
 Each attempt of an entry starts with nothing given up (`beginEntry`,
 called by `settleEntry`),
 so the next entry waits once and decides on its own evidence,
@@ -251,13 +253,43 @@ and the waits the benches take for the judges they count.
 A provider that served after its cooldown is waited for each time,
 however often it refuses later.
 
-The limit:
-when every other provider that writes reads dry too,
-the given-up provider was the last one left,
-and the seat reader refuses with every provider dry,
-which ends the run and says so in its stop line.
-Before,
-the entry waited a cooldown for every slice until its cap.
+The give-up never ends the run:
+when the given-up provider is the only writing provider not dry,
+every other one being dry,
+held or itself given up,
+the give-up is set aside.
+Reading it dry would leave every provider dry,
+and the router and the seat reader would raise `EveryProviderDryError`,
+which ends the run,
+for a provider that serves again after its cooldown.
+So the reader and the router wait its cooldown out and ask it again,
+as they did before the give-up existed,
+and the entry's own abort is again the only bound on that loop.
+A wet provider that writes nothing (Xiaomi,
+whose one seat is a checker) is no alternative,
+as it is none against "every provider dry";
+the roster of writing providers reaches the budgets through `configureProviders` (`writing`).
+The decision is `provider-budget-give-up-aside.ts`'s,
+taken from each meter reading and from the holds as they stand.
+One warn line from it says when the give-up is set aside,
+naming the provider,
+the entry and how each other writing provider reads,
+and one info line says when it is back in force,
+which happens the moment another writing provider reads wet again.
+
+Where the give-up holds,
+a call for a model only the given-up provider serves ends at the router as `NoProviderForModelError`,
+with no request sent.
+The stage reads that as that seat unreachable,
+never as an error of the entry or the end of the run,
+and the quorum and bench rules decide from there
+(the trace is in ledger B965).
+
+The limit that remains:
+an entry whose bench the give-up leaves below its floor,
+with a wet provider too small to lift it,
+ends that entry with `WritingBenchUnreachableError`,
+which does not end the run and which a re-attempt starts again with nothing given up.
 The rule is the lead's of 2026-10-25 and is open to the owner's veto;
 the owner kept the gather quorums above two and the bench waits as they were the same day.
 The record is ledger B965.

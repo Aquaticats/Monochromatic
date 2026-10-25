@@ -220,15 +220,36 @@ so the next entry meets the provider fresh.
 A loop that waits and asks again is bounded by what its waits bought,
 and by its entry's abort only as the last resort.
 
+The rule for a give-up:
+giving a provider up narrows where a call may go,
+and it never ends the run.
+The give-up holds only while another provider that keeps the run going reads wet.
+When the given-up provider is the only writing provider not dry,
+every other one being dry,
+held or itself given up,
+the give-up is set aside:
+the reader and the router wait its cooldown out and ask it again,
+since the other way leaves every provider dry and ends the run for a provider that serves again after its cooldown.
+A wet provider that writes nothing is no alternative.
+Where the give-up holds,
+a call for a model only the given-up provider serves must end as that seat unreachable,
+with no request sent,
+and never as an error of the entry or the end of the run.
+
 What enforces it:
 `run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts` runs the real budgets and the real seat reader on one fake
 clock with a provider that refuses at once after each cooldown,
-and fails when the reader waits for more than the first.
+and fails when the reader waits for more than the first beside a live provider,
+or ends the entry when the refusing provider is alone.
 Its pins fail for three mutants:
 the served check removed,
 the entry-start check removed,
 and a stated return counted as a cooldown.
-`provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves.
+`provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves,
+`provider/src/provider-budget-give-up-aside.unit.test.ts` those of the set-aside,
+and `provider/src/provider-budget-cooldown-set-aside.unit.test.ts` the budgets and the router's wait over it.
+`stage/src/stage-call-given-up-provider.unit.test.ts` runs the real router over the real budgets and fails when the
+seat only the given-up provider serves is anything but unreachable.
 No scan finds a loop that waits and asks again.
 
 How to find the next one:

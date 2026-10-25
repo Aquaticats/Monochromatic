@@ -536,10 +536,27 @@ the refusal 12 s after the wait ended,
 at 00:34:14 UTC (line 20260),
 and the next wait of 299850 ms (line 20355).
 It repeated every 5 min 17 s,
-and 58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s.
-The brief for the fix counted about 25 waits by a gap scan,
-which the count of the `waited=` lines does not reproduce.
-Both counts are of waits the seat reader took for one provider that never served after them.
+and 58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s,
+with 395 lines of the refusal `synthetic: refused us while its meter reads unreadable`.
+The two counts,
+re-run on 2026-10-25 against the log:
+
+```sh
+# distinct minutes with a seat-reader wait of 240 to 300 s on 2026-10-23, then their number
+rg --only-matching --no-line-number --replace '$1' \
+  '^\[[a-z]+\] \[(2026-10-23T[0-9]{2}:[0-9]{2}):[0-9]{2}\.[0-9]+Z\] .*JUDGE SEATS .*waited=(?:2[4-9][0-9]{4}|300000)ms' \
+  /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log | sort --unique | wc --lines
+# lines recording a refusal of Synthetic on an unreadable meter
+rg --count-matches 'synthetic: refused us while its meter reads unreadable' \
+  /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log
+```
+
+The first prints 58 (the first minute 00:34 UTC,
+the last 06:05 UTC) and the second 395.
+The brief for the fix said about 25 waits.
+That figure was the lead's error:
+a gap scan the count of the `waited=` lines does not reproduce.
+The 58 and the 395 both count what one provider that never served after its cooldowns cost.
 
 The trace on `35c7a95a34`:
 the 429 reaches the router's catch (`provider-router.ts` 583 and 588),
@@ -571,10 +588,12 @@ refusal named no return),
 that hold has ended,
 it ended after the entry began,
 and the provider has served nothing since.
-A given-up provider reads dry in the budgets' view and its meter word,
+While another writing provider reads wet,
+a given-up provider reads dry in the budgets' view and its meter word,
 its cooldown counts for no wait in `holds`,
 and one warn line names the provider,
 the entry and the cooldown that ran out.
+When no other writing provider reads wet the give-up is set aside (see "The give-up never ends the run" in this entry).
 The router reports each served call (`markServed`,
 from `callOn` and the decisions route),
 the run client carries `beginEntry`,
@@ -601,16 +620,77 @@ it would have to outlast the transport's retry ladder,
 whose length no measurement fixes,
 and it would give up a provider that served for a minute and then refused.
 
-The limit the fix accepts:
-when every other provider that writes reads dry as well,
-the given-up provider was the last one left,
-and the seat reader refuses with every provider dry,
-which the owner ruled ends the run.
-Before,
-the entry waited a cooldown for every slice until its cap and settled nothing.
-The case of the red commit gave the budgets no other provider and was changed to give them Bedrock for that reason.
+The give-up never ends the run:
+the ruling is the lead's of 2026-10-25 and is open to the owner's veto.
+Giving a provider's cooldowns up narrows where a call may go,
+and it must never be the cause of the run ending,
+because the owner's rule is that a run always ships.
+The give-up as first landed read a given-up provider dry for the rest of the entry,
+so when that provider was the only writing provider not dry the seat reader and the router raised `EveryProviderDryError`,
+which `pass-dry-stop.ts` turns into the end of the run,
+for a provider that serves again after its cooldown.
+So the give-up holds only while another writing provider reads wet.
+When the given-up provider is the only writing provider not dry,
+every other one being dry,
+held or itself given up,
+the give-up is set aside:
+the reader and the router treat its cooldown as before it existed,
+wait it out and ask again,
+and the entry's abort is again the only bound on that loop.
+A provider that is wet but writes nothing (Xiaomi) is no alternative,
+as it is none against "every provider dry" (`WritingReach`).
+The decision is the budget layer's (`provider-budget-give-up-aside.ts`),
+taken from each meter reading and from the holds as they stand,
+so the router and the seat reader,
+which read only the dryness and the holds,
+change nothing.
+It comes back in force when another writing provider reads wet again.
+One warn line says when it is set aside,
+naming the provider,
+the entry and how each other writing provider reads,
+and one info line says when it is back in force.
+The roster of writing providers reaches the budgets through `configureProviders` (`writing`),
+which `runClientFrom` fills with `RUN_WRITING_PROVIDERS`.
 
-The red case:
+Where the give-up applies and a call names a model only the given-up provider serves,
+the call ends at the router as `NoProviderForModelError` with no request sent.
+The trace on this branch:
+`routeProviderFor` finds a wet writing provider,
+so no `EveryProviderDryError` (`budget-routing.ts` 756),
+and no usable provider serves the model (`budget-routing.ts` 786 to 802),
+which returns `unreachable`;
+`chooseProvider` refuses it through `refuseDarkModel` (`provider-router.ts` 368 to 375;
+`model-dark-reason.ts` 201 to 204).
+In the stage,
+`attemptStageCall` rethrows only a request fault (`stage-call.ts` 464) and the end of the run (`endsTheRun`,
+`stage-run-end.ts` 46 to 48,
+which is `EveryProviderDryError` alone),
+so the `NoProviderForModelError` becomes `seat unreachable` (`stage-call.ts` 475 to 484),
+and the voice is unheard,
+unanswered and unreachable.
+The seat tally counts it as unreachable and never withholds the seat for it (`seat-tally.ts` 494 to 499),
+the round frees the seat's place (`refusedByRouter` at `stage-round.ts` 373 to 381,
+counted by `noteRefusal` at 543 and read by the quorum at 567),
+and the quorum and bench rules decide from there.
+The decision seats (`stage-decision-call.ts` 217) and the picture reader (`image-reading-past-refusal.ts` 291) read it the same way.
+The entry's gate parks only on `EveryProviderDryError` and `WritingBenchUnreachableError` (`pass-dry-stop.ts` 307 to 309),
+and ends the run only on the first.
+`stage/src/stage-call-given-up-provider.unit.test.ts` runs the real budgets and the real router with a stub caller that fails
+if it is asked,
+and passes:
+no request was sent,
+and the voice is unheard,
+unanswered and unreachable.
+
+The limit that remains:
+an entry whose bench the give-up leaves below its floor,
+with a wet provider that is too small to lift it (NeuralWatt serves two translators and DeepSeek one,
+against a floor of two),
+ends that entry with `WritingBenchUnreachableError`,
+which the queue re-attempts or stalls on and which does not end the run.
+The re-attempt begins the entry again with nothing given up.
+
+The red case of the give-up:
 `dd85fdefb2`,
 `run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts`.
 It runs the real budgets (a Synthetic meter that cannot be read) and the real seat reader on one fake clock,
@@ -619,7 +699,7 @@ each right after the cooldown the reading waited out,
 and counts the waiting lines.
 It failed on the parent with `expected 3 to equal 1`:
 the reader waited for every refusal.
-The fix `3d5997c42b` changed its second provider to Bedrock (so the reader had a seat to move to)
+The fix `3d5997c42b` gave the case Bedrock as a second provider (so the reader had a seat to move to)
 and added the pins that pass on the parent's behavior:
 a provider that served after its cooldown is waited for each time,
 a refusal that states its return is waited for each time,
@@ -631,6 +711,48 @@ each failed a case:
 the served check removed (the served case failed),
 the entry-start check removed (the second entry case failed),
 and a stated return counted as a cooldown (the stated return case failed).
+
+The red cases of the set-aside:
+`cd0e879442` restores the case that gave the budgets no other provider (the XingZ6020 shape) as its own pinned case
+and keeps the wet-alternative case beside it,
+now over a NeuralWatt meter that reads wet:
+Bedrock is kept off and never topped up,
+so no test models it as a live alternative,
+and NeuralWatt serves two of the eight translators,
+which keeps the translate lane at its floor
+(DeepSeek serves one and the lane then stops on `WritingBenchUnreachableError`,
+a different stop).
+The pinned case fails on the parent with two of the three readings ending in `EveryProviderDryError`.
+`92088c6a8e` adds `provider-budget-cooldown-set-aside.unit.test.ts` at the level of the budgets and the router's wait:
+five cases,
+all failing on the parent for the reason their names state
+(the cooldown of a given-up provider counting for 0 ms where 239000 ms were left,
+or for 0 ms where 300000 were,
+no set-aside line,
+and `readBudgetsPastHolds` raising `EveryProviderDryError` at once).
+The fix `4988ea3d5c` makes both pass and adds the pins that pass on the parent:
+no line while another provider is wet,
+and the line when the give-up is back in force.
+`0ed0c824c0` adds the case for two providers given up with nothing else wet
+and a case that `configureProviders` hands the roster to the budgets.
+`8ba3f07c3f` moves the router service cases off Bedrock onto Hyper and OpenRouter.
+`83d09f26da` and `ccf97ca721` give the decision module its own unit test and one shared fixture,
+so the own-test,
+blank-text,
+real-clock and duplicate-body scans pass.
+Mutants of the set-aside,
+each built and run once,
+each failed the cases named:
+the set-aside never applying (six of the seven cases of the set-aside file),
+the roster ignored (the Xiaomi case in the set-aside file and in the holds unit file),
+a given-up provider counted as an alternative (the set-aside cases at the budgets and the router's wait;
+the holds unit file did not catch it until the two-given-up case was added,
+which does),
+a held provider counted as an alternative (the held case of the holds unit file),
+and `configureProviders` not passing the roster on (the roster case of the run package).
+`runClientFrom`'s own argument (`RUN_WRITING_PROVIDERS`) is read,
+not exercised by a case,
+because a run client exposes no refusal to drive the budgets with.
 
 Prevention rule:
 a wait that repeats an ask is judged by what the first wait bought,

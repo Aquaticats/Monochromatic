@@ -38,6 +38,7 @@ The groups that follow name the main ones.
   `routeProviderFor`,
   `createProviderBudgets`,
   `createRefusalHolds`,
+  `createGiveUpAside`,
   `readEveryMeter`,
   `EveryProviderDryError`,
   `createRequestPace`.
@@ -46,6 +47,7 @@ The groups that follow name the main ones.
   `budget-routing.ts`,
   `provider-budget.ts`,
   `provider-budget-refusal-holds.ts`,
+  `provider-budget-give-up-aside.ts`,
   `provider-meters.ts`,
   and `request-pace.ts`.
 - Provider clients:
