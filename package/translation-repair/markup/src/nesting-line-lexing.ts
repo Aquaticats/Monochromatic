@@ -470,10 +470,10 @@ export function isRuleLine({ line, }: { readonly line: string; },): boolean {
 
  @example
  ```ts
- const lines = linesOf({ body: 'a\rb\r\nc', },); // ['a', 'b', 'c']
+ const lines = linesAtEveryEnding({ body: 'a\rb\r\nc', },); // ['a', 'b', 'c']
  ```
  */
-export function linesOf({ body, }: { readonly body: string; },): readonly string[] {
+export function linesAtEveryEnding({ body, }: { readonly body: string; },): readonly string[] {
   /**
    Lines found so far.
    */
