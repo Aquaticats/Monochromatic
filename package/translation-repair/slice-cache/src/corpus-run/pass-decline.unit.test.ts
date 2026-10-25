@@ -22,7 +22,6 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { format, } from 'node:util';
 
 import {
   DEFAULT_CONCURRENCY,
@@ -44,6 +43,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { entryLinesWritten, } from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
 /**
@@ -356,35 +356,33 @@ await describe({
             + 'logger\'s and a reader windowing the log by attempt would otherwise place it nowhere',
           fn: async (ctx,) => {
             using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
-            /**
-             Stub on `console.info` recording what the entry logger prints.
-             */
-            const informed = ctx.sinon.stub(
-              console,
-              'info',
-            );
             await using run = await runsDirectory();
 
-            await inEntryLogContext({
-              entry: ENTRY.id,
-              generation: DIGEST_TEXT,
-              attempt: THIRD_ATTEMPT,
+            /**
+             Lines the entry logger wrote while the decline was recorded inside the attempt.
+             */
+            const entryLines = await entryLinesWritten({
+              sinon: ctx.sinon,
+              entryId: ENTRY.id,
               run: async () => {
-                await decline({ run, },);
+                await inEntryLogContext({
+                  entry: ENTRY.id,
+                  generation: DIGEST_TEXT,
+                  attempt: THIRD_ATTEMPT,
+                  run: async () => {
+                    await decline({ run, },);
+                  },
+                },);
               },
             },);
 
             expect(printed.lines.length,).toBe(1,);
             /**
-             The lines the entry logger printed that open with the archive line.
+             The lines among them that are the archive line.
              */
-            const archiveLines = informed.args
-              .map(function lineOf(parts,): string {
-                return format(...parts,);
-              },)
-              .filter(function isArchiveLine(line,): boolean {
-                return line.includes('ARCHIVE ORIGINAL',);
-              },);
+            const archiveLines = entryLines.filter(function isArchiveLine(line,): boolean {
+              return line.includes('ARCHIVE ORIGINAL',);
+            },);
             expect(archiveLines.length,).toBe(1,);
             expect(archiveLines[0],).toContain(`[${ENTRY.id}] [attempt 3] ARCHIVE ORIGINAL entry=${ENTRY.id}:`,);
           },

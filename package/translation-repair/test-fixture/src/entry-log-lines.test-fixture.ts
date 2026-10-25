@@ -54,10 +54,14 @@ export async function entryLinesWritten(
     'warn',
   );
   await run();
-  return [
+  /**
+   Arguments of every call the work made to either method, `console.info` first.
+   */
+  const calls: readonly (readonly unknown[])[] = [
     ...informed.args,
     ...warned.args,
-  ]
+  ];
+  return calls
     .flatMap(function linesOf(parts,): readonly string[] {
       // The logger hands a run of lines of one level to the console as one call, so a call can hold several lines.
       return format(...parts,)
