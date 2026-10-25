@@ -726,6 +726,30 @@ on the evidence of that pass,
 does not stop the loop that prompted the work.
 That is for the lead and the owner to weigh.
 
+A narrower reading of the ruling is not built:
+set the give-up aside only where the given-up provider's return would cure the floors the providers left leave unmet.
+The state of XingZ6020 (scratch script over `unmetBenchFloors`) separates the readings.
+Without Synthetic,
+NeuralWatt,
+DeepSeek and Xiaomi leave the roster at 2 of 10 (quorum 5),
+the readers at 1 of 6 (quorum 2),
+and the wide bench at 1 of 8,
+the translators at 2 of 8,
+the select bench at 1 of 8,
+the late bench at 1 of 7 and the slate bench at 1 of 7 (quorum 4 each).
+With Synthetic wet as well,
+the readers and the translators reach their quorums and five benches stay short:
+the roster at 4 of 10,
+the wide and select benches at 3 of 8,
+the late and slate benches at 2 of 7.
+So Synthetic's return would lift two benches and cure none of the other five.
+A reading that sets the give-up aside only when the return cures every unmet floor would have held the give-up in that pass
+and ended the 58 waits;
+a reading that sets it aside when the return lifts any unmet floor,
+which is what "anything waiting would have saved" says,
+sets it aside,
+as the reading built does.
+
 Where the give-up applies and a call names a model only the given-up provider serves,
 the call ends at the router as `NoProviderForModelError` with no request sent.
 The trace on this branch:
