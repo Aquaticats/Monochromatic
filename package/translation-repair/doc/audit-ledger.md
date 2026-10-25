@@ -578,15 +578,15 @@ named for that subject and listed here.
   a gate that heard one judge and shipped a consolidation (B903),
   the cache versions that moved (B904),
   the replay of the recorded ballots (B905),
-  the floors that stay with the choices not taken (B906),
-  and round 2:
-  the checker count of two (B907),
+  and the floors that stay with the choices not taken (B906).
+- [Audit ledger: the weight floors removed, rounds 2 and 3](audit-ledger-weight-floors-removed-rounds-two-and-three.md):
+  The checker count of two (B907),
   a declined round that ships only what two judges named (B908),
   an unheard gate that ships the slate's two-ballot pick (B909),
   the page title and the consistency round on two voices (B910,
   B911),
   the cache versions (B912) and the replay after the round (B913),
-  and the addendum:
+  the addendum:
   a tie across every offered candidate that ships only among the candidates two judges named (B914),
   and round 3:
   a page title that settles only on a rendering two voices gave (B915)
