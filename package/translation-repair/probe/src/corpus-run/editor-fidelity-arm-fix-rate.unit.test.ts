@@ -1,9 +1,9 @@
 /**
- Tests for the warning the read step prints when the default effort fixes nearly every unit the arms share: at a true
- fix rate of 0.93 and above the repeat warning cannot see unequal repeat agreement, and the false pick chance with it
- reached 0.13 and more in the simulation, so a verdict of high or low there stands under a caveat. The share is counted
- over the units every arm holds, compared by cross-multiplying the counts, and printed for each arm of the default
- effort.
+ Tests for the warning the read step prints when the default effort fixes nine in ten of the units the arms share or more:
+ the rule states its false pick bounds for true fix rates up to 0.90, above which the false pick chance reached 0.108 at
+ 0.91 and 0.13 and more from 0.93 in the simulation and the repeat warning can miss unequal repeat agreement, so a verdict
+ of high or low there stands under a caveat. The share observed is counted over the units every arm holds, compared by
+ cross-multiplying the counts, and printed for each arm of the default effort.
 
  The logs are the arm-log fixture's, written by the probe's own writers. Fixtures are cat-themed invention.
 
@@ -32,13 +32,13 @@ import {
 import { readAsBuilt, } from './editor-fidelity-arm-read-built.test-fixture.ts';
 
 /**
- What the warning of an arm of the default effort ends with: what the repeat warning cannot see at this rate and what
- the simulation reached.
+ What the warning of an arm of the default effort ends with: what the repeat warning can miss at this rate and what the
+ committed fixture read.
  */
-const WARNING_END = 'the repeat warning cannot see unequal repeat agreement at fix rates this high, so any verdict of high or '
+const WARNING_END = 'at fix rates this high the repeat warning can miss unequal repeat agreement, so any verdict of high or '
   + 'low stands under the caveat that its chance of being a false pick can be above 0.05, whether or not a WARN repeat '
-  + 'agreement line printed; the simulation reached 0.142 at 0.93, 0.173 at 0.95 and 0.241 at 0.97 when the default '
-  + 'effort repeats itself far less than the others';
+  + 'agreement line printed; the committed fixture read 0.108 at 0.91, 0.123 at 0.92, about 0.13 at 0.93 and 0.175 at '
+  + '0.95 when the default effort repeats itself far less than the others';
 
 /**
  A bench of three arms over the same units, the default effort fixing the leading ones.
@@ -96,22 +96,23 @@ await describe({
       name: fixRateLinesOf.name,
       children: [
         it({
-          name: 'WARNS AT 93 PERCENT OF THE SHARED UNITS AND NOT AT 92, counting exactly: 93 of 100 units warns and says how '
-            + 'many of how many, and 92 of 100 says nothing',
+          name: 'WARNS AT 90 PERCENT OF THE SHARED UNITS AND NOT AT 89, the line where the rule\'s stated region of true fix '
+            + 'rates ends, counting exactly: 90 of 100 units warns and says how many of how many, and 89 of 100 says nothing',
           fn: async () => {
-            expect(fixRateLinesOf({ arms: benchOf({ units: 100, mediumFixed: 93, othersFixed: 100, },), },),).toStrictEqual([
-              `WARN high fix rate: medium cleanly fixed 93 of 100 shared units (93 percent), at or above 93 percent; ${WARNING_END}`,
+            expect(fixRateLinesOf({ arms: benchOf({ units: 100, mediumFixed: 90, othersFixed: 100, },), },),).toStrictEqual([
+              `WARN high fix rate: medium cleanly fixed 90 of 100 shared units (90 percent), at or above 90 percent; ${WARNING_END}`,
             ],);
-            expect(fixRateLinesOf({ arms: benchOf({ units: 100, mediumFixed: 92, othersFixed: 100, },), },),).toStrictEqual([],);
+            expect(fixRateLinesOf({ arms: benchOf({ units: 100, mediumFixed: 89, othersFixed: 100, },), },),).toStrictEqual([],);
           },
         },),
 
         it({
-          name: 'COUNTS BY CROSS-MULTIPLYING ON A BENCH OF ONE WHOLE PASS: 82 of 88 units is under 93.2 percent and warns, 81 of 88 '
-            + 'is under 92.1 percent and does not',
+          name: 'COUNTS BY CROSS-MULTIPLYING ON A BENCH OF ONE WHOLE PASS: 80 of 88 units is 90.9 percent and warns, 79 of 88 '
+            + 'is 89.8 percent and does not, and 82 of 88 (93.2 percent) still does',
           fn: async () => {
+            expect(fixRateLinesOf({ arms: benchOf({ units: 88, mediumFixed: 80, othersFixed: 88, },), },),).toHaveLength(1,);
+            expect(fixRateLinesOf({ arms: benchOf({ units: 88, mediumFixed: 79, othersFixed: 88, },), },),).toStrictEqual([],);
             expect(fixRateLinesOf({ arms: benchOf({ units: 88, mediumFixed: 82, othersFixed: 88, },), },),).toHaveLength(1,);
-            expect(fixRateLinesOf({ arms: benchOf({ units: 88, mediumFixed: 81, othersFixed: 88, },), },),).toStrictEqual([],);
           },
         },),
 
@@ -124,8 +125,8 @@ await describe({
         },),
 
         it({
-          name: 'COUNTS ONLY THE UNITS EVERY ARM HOLDS: the default effort fixes 139 of the 150 units the arms share, which is '
-            + 'under 93 percent, though it fixes 95.8 percent of the 264 it walked',
+          name: 'COUNTS ONLY THE UNITS EVERY ARM HOLDS: the default effort fixes 133 of the 150 units the arms share, which is '
+            + 'under 90 percent, though it fixes 93.6 percent of the 264 it walked',
           fn: async () => {
             /**
              The high and the default effort walk 264 units, the low effort the leading 150 of them.
@@ -135,7 +136,7 @@ await describe({
               armOf({
                 arm: 'medium',
                 cardId: MEDIUM_CARD,
-                rows: walkOf({ units: 264, fixedAt: ({ unit, },) => (unit >= 150) || (unit < 139), },),
+                rows: walkOf({ units: 264, fixedAt: ({ unit, },) => (unit >= 150) || (unit < 133), },),
                 declaredUsd: 2.5,
                 countedUsd: 1.5,
               },),
@@ -162,16 +163,16 @@ await describe({
         },),
 
         it({
-          name: 'WARNS OF EACH ARM OF THE DEFAULT EFFORT THAT FIXES 93 PERCENT, naming it, when a second medium arm is read',
+          name: 'WARNS OF EACH ARM OF THE DEFAULT EFFORT THAT FIXES 90 PERCENT, naming it, when a second medium arm is read',
           fn: async () => {
             const [high, medium, low,] = benchOf({ units: 100, mediumFixed: 100, othersFixed: 100, },);
             /**
-             A second arm of the default effort that fixes 90 of the 100 units.
+             A second arm of the default effort that fixes 89 of the 100 units.
              */
             const second = armOf({
               arm: 'medium-b',
               cardId: MEDIUM_CARD,
-              rows: walkOf({ units: 100, fixedAt: ({ unit, },) => unit < 90, },),
+              rows: walkOf({ units: 100, fixedAt: ({ unit, },) => unit < 89, },),
               declaredUsd: 3,
               countedUsd: 1.5,
             },);
@@ -188,17 +189,17 @@ await describe({
       children: [
         it({
           name: 'PRINTS THE WARNING AFTER THE REPEAT LINES AND BEFORE THE COUNT OF CHECKS, over the logs of one whole pass in which '
-            + 'the default effort fixes 82 of 88 units, and still ends on the verdict',
+            + 'the default effort fixes 80 of 88 units, and still ends on the verdict',
           fn: async () => {
             const run = await readAsBuilt({
-              arms: benchOf({ units: 88, mediumFixed: 82, othersFixed: 88, },),
+              arms: benchOf({ units: 88, mediumFixed: 80, othersFixed: 88, },),
               prefix: 'editor-fidelity-fix-rate-',
             },);
             expect(run.code,).toBe(0,);
             const repeatAt = run.stdout.findIndex(function isRepeat(line,): boolean {
               return line.startsWith('REPEAT high: ',);
             },);
-            expect(run.stdout[repeatAt + 3]?.startsWith('WARN high fix rate: medium cleanly fixed 82 of 88 shared units (93 percent)',),).toBe(true,);
+            expect(run.stdout[repeatAt + 3]?.startsWith('WARN high fix rate: medium cleanly fixed 80 of 88 shared units (91 percent)',),).toBe(true,);
             expect(run.stdout[repeatAt + 4]?.startsWith('CHECKS ',),).toBe(true,);
             expect(run.stdout.at(-1,)?.startsWith('VERDICT ',),).toBe(true,);
           },
