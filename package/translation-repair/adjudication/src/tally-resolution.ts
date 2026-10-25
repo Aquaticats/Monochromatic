@@ -28,7 +28,9 @@ export const MIN_RESOLUTION_BALLOTS = 2;
 
 /**
  Ballots naming `worse` an issue needs before it can read as regressed: two,
- so one checker never sets the flag that reorders shippable candidates. Counted
+ so one checker never sets the flag that reorders shippable candidates, strips
+ an edit from a patch or rolls a rewrite back (the three readers of the flag
+ since 2026-10-25, "Two ballots for undo too"). Counted
  in ballots naming `worse`, not in cast ballots and not in weight, so a
  `worse` against a text author's own half-weight `fixed` is still one voice.
  */
@@ -277,14 +279,24 @@ function weightBehind(
  model decides.
 
  `regressed` NEEDS TWO VOICES, since 2026-10-25 (lead ruling on re-check 3,
- by the owner rule that one judge alone never decides). It ships no text, but
- candidate selection ranks it third (`compareCandidates`), above total
- resolution and preservation, so it can choose which of two shippable
- candidates ships; one `worse` ballot, with the other checker silent or
- against a text author's own half-weight `fixed`, therefore leaves it unset.
- It holds when two or more ballots name `worse` and the weight behind `worse`
- exceeds the weight behind `fixed` and `not-fixed` together
- (`MIN_REGRESSION_BALLOTS`). Level weights do not regress, as before.
+ by the owner rule that one judge alone never decides). Candidate selection
+ ranks it third (`compareCandidates`), above total resolution and
+ preservation, so it can choose which of two shippable candidates ships; one
+ `worse` ballot, with the other checker silent or against a text author's own
+ half-weight `fixed`, therefore leaves it unset. It holds when two or more
+ ballots name `worse` and the weight behind `worse` exceeds the weight behind
+ `fixed` and `not-fixed` together (`MIN_REGRESSION_BALLOTS`). Level weights do
+ not regress, as before.
+
+ THE FLAG IS THE ONE DEFINITION OF A WORSE VERDICT THAT ACTS, read at three
+ sites since the owner's answer of 2026-10-25, "Two ballots for undo too": the
+ candidate ranking (`regressedKnownIssues`, `repair/src/chunk-measure.ts`), the
+ strip of a patch's unconfirmed edits (ledger L3,
+ `repair/src/repair-worse-strip.ts`) and the rollback of a rewrite on an open
+ issue (ledger L11, `repair/src/refine-recheck.ts`). The last two restore
+ earlier text and ship nothing new, but they change what ships, so they read
+ this flag and not a count of their own. They acted on one `worse` ballot
+ before that answer.
 
  @param issueIds - issue ids under check
 
