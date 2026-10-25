@@ -356,7 +356,8 @@ and it sits in `source-scan/src/position-references-vocabulary.test-fixture.ts`;
 the reading is in `position-references-compared.test-fixture.ts`.
 A list,
 because the scan cannot tell a verb from a noun.
-Words that are also nouns stay out when a text compares with them
+Words that are also nouns stay out when a text could compare with them,
+as a precaution that the texts neither support nor contradict
 (count,
 use,
 run,
