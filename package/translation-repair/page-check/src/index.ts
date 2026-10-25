@@ -207,6 +207,7 @@ export {
   type FootnoteRead,
 } from './corpus-run/source-ships-footnote-spans.ts';
 export { footnoteInContainerSpans, } from './corpus-run/source-ships-container.ts';
+export { separatingEdits, } from './corpus-run/source-ships-separation.ts';
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { lazyUnderlinesBlanked, } from './corpus-run/source-ships-lazy.ts';

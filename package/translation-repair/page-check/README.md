@@ -273,12 +273,14 @@ where `<head>` is the commit the last green full run was made on:
 an empty difference means the last run still stands.
 
 It took 293 to 402 seconds across the runs made so far,
-under a host load average above thirty,
+under the load of the other sessions of the host (no load figure was recorded for them),
 and peaked at 535 to 559 MB of memory.
 Run it as its own capped unit,
 for example `systemd-run --user --unit=live-full --collect --property=MemoryMax=4G --property=CPUQuota=300%`.
 
-It guards two things: no live construct, and no unforced drop.
+It guards two things:
+no live construct,
+and no unforced drop.
 It does not see a change that only escapes more than needed (the output stays safe and differs),
 such as a tab no longer ending a footnote label or a carriage return left before a joined line.
 Unit cases pin those:

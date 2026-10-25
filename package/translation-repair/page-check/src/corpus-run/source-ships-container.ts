@@ -306,7 +306,7 @@ function linesRead(
 
  @example
  ```ts
- const spans = footnoteInContainerSpans({ source, readable, readSpans: spansOf, range, split: 8, end: 20, },);
+ const spans = footnoteInContainerSpans({ source, readable, readSpans: spansOf, footnotes, range, split: 8, end: 20, },);
  ```
  */
 export function footnoteInContainerSpans(

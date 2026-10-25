@@ -92,7 +92,7 @@ await describe({
   children: [
     ...SHAPE_PAIRS.map(function shapeCase([name, pair,],) {
       return it({
-        name: `SHIPS NO LIVE CONSTRUCT AND KEEPS EVERY ORIGINAL FOR ${name}`,
+        name: `SHIPS NO LIVE CONSTRUCT AND KEEPS EVERY ORIGINAL IN THE SHAPE: ${name}`,
         fn: async () => {
           /**
            What the composition made of the pair.

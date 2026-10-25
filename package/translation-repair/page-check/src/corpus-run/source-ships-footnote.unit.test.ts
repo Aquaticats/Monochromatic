@@ -71,6 +71,27 @@ function onlyBlock({ source, }: { readonly source: string; },): TreeNode {
 }
 
 /**
+ Whether the only block of a text opens a footnote.
+
+ @param source - text
+
+ @returns Whether it does
+
+ @example
+ ```ts
+ const yes = opens({ source: '[^1]: {', },);
+ ```
+ */
+function opens({ source, }: { readonly source: string; },): boolean {
+  const node = onlyBlock({ source, },);
+  return opensFootnote({
+    source,
+    node,
+    range: rangeOf({ node, },),
+  },);
+}
+
+/**
  Cases of the marks of a block quote a line gives up: what it is, the text, where the stretch starts, and the
  characters kept.
  */
@@ -215,21 +236,6 @@ await describe({
           name: 'READS A DEFINITION WITH A CARET LABEL, A PARAGRAPH AND A HEADING STARTING [^label]: AS THE FIRST LINE '
             + 'OF A FOOTNOTE, and no other block',
           fn: async () => {
-            /**
-             Whether the only block of a text opens a footnote.
-
-             @param source - text
-
-             @returns Whether it does
-             */
-            function opens({ source, }: { readonly source: string; },): boolean {
-              const node = onlyBlock({ source, },);
-              return opensFootnote({
-                source,
-                node,
-                range: rangeOf({ node, },),
-              },);
-            }
             expect(opens({ source: '[^1]: {', },),).toBe(true,);
             expect(opens({ source: '[^1]: x {\ny\n===\n', },),).toBe(true,);
             expect(opens({ source: '# [^1]: x {\n', },),).toBe(false,);
@@ -244,17 +250,6 @@ await describe({
           name: 'READS NO FOOTNOTE DEFINITION IN A PARAGRAPH WHOSE LABEL HOLDS A BRACKET OR IS LONGER THAN THE STRICT '
             + 'GRAMMAR READS',
           fn: async () => {
-            /**
-             Whether the only block of a text opens a footnote.
-             */
-            function opens({ source, }: { readonly source: string; },): boolean {
-              const node = onlyBlock({ source, },);
-              return opensFootnote({
-                source,
-                node,
-                range: rangeOf({ node, },),
-              },);
-            }
             expect(opens({ source: `[^${'a'.repeat(MOST_READ + 1,)}]: {`, },),).toBe(false,);
             expect(opens({ source: '[^a[b]]: {', },),).toBe(false,);
           },

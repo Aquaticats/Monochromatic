@@ -6,7 +6,6 @@ import {
   type ComposedPage,
   encodeAsLiteralMdx,
   type GrammarReader,
-  type PageGrammarReading,
   readPageGrammar,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';

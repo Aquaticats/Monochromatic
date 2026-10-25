@@ -88,7 +88,7 @@ function readFirst({ source, continuesFootnote, }: { readonly source: string; re
 
  @example
  ```ts
- const read = readInContainer({ source: '> a \`b\n> [^1]: c\` d\n', },);
+ const read = readInContainer({ source: "> a `b\n> [^1]: c` d\n", },);
  ```
  */
 function readInContainer({ source, }: { readonly source: string; },) {
