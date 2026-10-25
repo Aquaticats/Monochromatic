@@ -70,19 +70,23 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'READS empty outside any entry, the entry inside one, and entry, lane and slice inside a slice',
+          name: 'READS empty outside any entry, the entry and its attempt inside one, and entry, attempt, lane and slice '
+            + 'inside a slice (ledger B960)',
           fn: async () => {
             expect(currentLogContext(),).toStrictEqual({
               entry: '',
               generation: '',
+              attempt: '',
               lane: '',
               slice: '',
             },);
             await inEntryLogContext({
               entry: 'Tabby',
               generation: 'nap-3',
+              attempt: 2,
               run: async () => {
                 expect(currentLogContext().entry,).toBe('Tabby',);
+                expect(currentLogContext().attempt,).toBe('2',);
                 await inSliceLogContext({
                   lane: 'repair',
                   sliceIndex: 3,
@@ -90,14 +94,47 @@ await describe({
                     expect(currentLogContext(),).toStrictEqual({
                       entry: 'Tabby',
                       generation: 'nap-3',
+                      attempt: '2',
                       lane: 'repair',
                       slice: '3',
                     },);
                   },
                 },);
                 expect(currentLogContext().slice,).toBe('',);
+                expect(currentLogContext().attempt,).toBe('2',);
               },
             },);
+          },
+        },),
+        it({
+          name: 'KEEPS an entry\'s attempt apart from the attempt of the same entry run after it, since a second '
+            + 'attempt of one entry begins under a fresh context',
+          fn: async () => {
+            /**
+             Attempt each of two runs of one entry saw.
+             */
+            const seen: string[] = [];
+            for (
+              const attempt of [
+                1,
+                2,
+              ]
+            ) {
+              /* oxlint-disable no-await-in-loop -- the attempts of an entry run one after the other */
+              await inEntryLogContext({
+                entry: 'Tabby',
+                generation: 'nap-3',
+                attempt,
+                run: async () => {
+                  seen.push(currentLogContext().attempt,);
+                },
+              },);
+              /* oxlint-enable no-await-in-loop */
+            }
+            expect(seen,).toStrictEqual([
+              '1',
+              '2',
+            ],);
           },
         },),
         it({
@@ -109,6 +146,7 @@ await describe({
             const seen = await inEntryLogContext({
               entry: 'Calico',
               generation: 'nap-3',
+              attempt: 1,
               run: async () => await Promise.all([
                 1,
                 2,
@@ -139,7 +177,7 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'NAMES the entry, lane and slice after the root tag, and nothing outside an entry',
+          name: 'NAMES the entry, its attempt, lane and slice after the root tag, and nothing outside an entry',
           fn: async () => {
             /**
              Root logger under test.
@@ -153,7 +191,9 @@ await describe({
                 await inEntryLogContext({
                   entry: 'Tabby',
                   generation: 'nap-3',
+                  attempt: 2,
                   run: async () => {
+                    l.info('purr in the entry',);
                     await inSliceLogContext({
                       lane: 'repair',
                       sliceIndex: 3,
@@ -167,7 +207,10 @@ await describe({
               },
             },);
             expect(lines.some(function tagsSlice(line,): boolean {
-              return line.includes('[whiskers] [Tabby] [repair slice 3] purr in the slice',);
+              return line.includes('[whiskers] [Tabby] [attempt 2] [repair slice 3] purr in the slice',);
+            },),).toBe(true,);
+            expect(lines.some(function tagsEntry(line,): boolean {
+              return line.includes('[whiskers] [Tabby] [attempt 2] purr in the entry',);
             },),).toBe(true,);
             expect(lines.some(function bareOutside(line,): boolean {
               return line.includes('[whiskers] purr outside',);
@@ -175,7 +218,7 @@ await describe({
           },
         },),
         it({
-          name: 'ADDS only the lane and slice to a logger already tagged with the entry',
+          name: 'ADDS only the attempt, lane and slice to a logger already tagged with the entry',
           fn: async () => {
             /**
              Entry logger under test, tagged with the entry the way the pass
@@ -187,17 +230,24 @@ await describe({
              */
             const lines = await infoLinesOf({
               run: async () => {
-                await inSliceLogContext({
-                  lane: 'consolidation',
-                  sliceIndex: 7,
+                await inEntryLogContext({
+                  entry: 'Tabby',
+                  generation: 'nap-3',
+                  attempt: 4,
                   run: async () => {
-                    l.info('kneads',);
+                    await inSliceLogContext({
+                      lane: 'consolidation',
+                      sliceIndex: 7,
+                      run: async () => {
+                        l.info('kneads',);
+                      },
+                    },);
                   },
                 },);
               },
             },);
             expect(lines.some(function tagsSliceOnce(line,): boolean {
-              return line.includes('[Tabby] [consolidation slice 7] kneads',);
+              return line.includes('[Tabby] [attempt 4] [consolidation slice 7] kneads',);
             },),).toBe(true,);
           },
         },),

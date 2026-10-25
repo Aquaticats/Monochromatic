@@ -180,7 +180,7 @@ await describe({
     it({
       name: 'COUNTS AND PERSISTS AN ATTEMPT BEFORE IT RUNS, and settles each entry under its own name and the '
         + 'build and the attempt number it persisted, so a crash still records that the attempt happened and the lines '
-        + 'of the attempt name it',
+        + 'of the attempt, the logger\'s too, name it',
       fn: async (ctx) => {
         resetRunSpend();
         using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
@@ -210,6 +210,7 @@ await describe({
           readonly persisted: ReadonlyMap<string, number>;
           readonly context: string;
           readonly generation: string;
+          readonly contextAttempt: string;
         }[] = [];
 
         await runPassQueue({
@@ -236,6 +237,7 @@ await describe({
               persisted: await readAttemptMap(attemptsPath,),
               context: currentLogContext().entry,
               generation: currentLogContext().generation,
+              contextAttempt: currentLogContext().attempt,
             },);
             return { kind: 'settled', };
           },
@@ -253,6 +255,7 @@ await describe({
             ],),
             context: 'tabby',
             generation: GENERATION,
+            contextAttempt: '3',
           },
           {
             entry: 'mittens',
@@ -269,6 +272,7 @@ await describe({
             ],),
             context: 'mittens',
             generation: GENERATION,
+            contextAttempt: '1',
           },
         ],);
         expect(attempts,).toEqual(new Map([
