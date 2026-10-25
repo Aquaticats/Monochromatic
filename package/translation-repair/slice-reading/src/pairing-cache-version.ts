@@ -63,8 +63,9 @@
 
  THE ACCOUNT OF 2026-10-18 (ledger B670) for the production commits from `d614a0c1d` to `29d606470`, which no account had read
  (1,205 commits under the sources of the family and of the one package before the split, 27 of them touching the files of the
- pairing stage): 3 need not move. The statement of the pre-launch check of 2026-09-28, that no slice-cache file had been written since, holds no
- longer: `corpus-pass-TianqiChen66626` wrote three block pairings under 3 between 20:58 and 21:00 UTC on 2026-10-18. What
+ pairing stage): 3 need not move. The statement of the pre-launch check of 2026-09-28, that no slice-cache file had been
+ written since, holds no longer: `corpus-pass-TianqiChen66626` wrote three block pairings under 3 between 20:58 and
+ 21:00 UTC on 2026-10-18. What
  retires a stored pairing when the code that settled it changes is not this number. The key holds the version, the question, the
  texts, the pictures and the roster (`pairingQuestionKey`), so the sheet a seat was shown and the rules that closed the round
  are in no key and no number could have retired a record when they changed. What does is the namespace's generation: both
