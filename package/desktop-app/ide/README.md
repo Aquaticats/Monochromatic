@@ -2072,7 +2072,9 @@ The worker keeps its own `TextShaper`,
 and it builds only the newest queued job.
 A `slint::Timer` polls the worker every 20 ms (`src/native/tile.rs`).
 The displayed tile stays on screen until the result arrives,
-so a scroll never shows a blank frame.
+so a scroll that stays within the tile's reach never shows a blank frame
+(for the jump that does not,
+see "A jump faster than the tile").
 A result is swapped in only when it still holds the view and its paint inputs still match,
 and the image,
 its offset,
@@ -2100,6 +2102,61 @@ All four stay at zero while the view moves inside the tile and during a scroll r
 and the worker's own counts rise for each re-center.
 A swapped-in tile matches a fresh render at the same offset,
 and a result built before an edit is discarded.
+
+### A jump faster than the tile
+
+A wheel command of many notches is not a placement.
+The toolkit's `Flickable` eases the whole delta in a fixed 180 ms
+(`WHEEL_SCROLL_DURATION` in Slint 1.18.1 `items/flickable.rs`),
+60 logical px for a notch,
+and the speed at the start of that ease is twice the mean:
+200 px/ms for 300 notches,
+against a tile that reaches one view height (1,848 px in a window of 1080 by 1880 logical px) past the view.
+Each step of the ease asks the worker for a tile,
+and a tile arrives 60 to 125 ms after the step it was built for,
+when the view has moved on.
+So the code area is black,
+gutter included,
+from the first frame in which no tile holds the view until the tile of the end of the ease lands,
+and a late tile that holds only part of the view shows only that part.
+This is not new:
+the build of 2026-10-22 and the builds before and after the minimap re-aim,
+the hint skip rule,
+and the slice hand-over fix behave alike
+(measured 2026-10-25,
+478 jumps of 40,
+150,
+300,
+and 600 notches in four builds,
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`):
+
+- 40 notches:
+  a blank frame in 2 of 30 jumps in three builds and 0 of 30 in the current one,
+  with a few lines at an edge empty for a frame in about half of the jumps.
+- 150 notches:
+  a blank frame in 29 of 30 jumps in every build.
+- 300 and 600 notches:
+  a blank frame in every jump,
+  100 to 165 ms of blank frames (2 to 3 frames at about 19 fps),
+  and the last tile applied 212 to 266 ms after the command.
+- The same 150 notches as single-notch commands 10 ms apart (5 px/ms):
+  no blank frame in 10 jumps of the current build
+  and one frame in 10 of the 2026-10-22 build.
+
+The first frame that shows text shows the right lines for the new offset,
+without the hint rows of that place,
+which arrive about half a second later and move the text.
+A placement (a key,
+a minimap press,
+a drag,
+a page step)
+builds its tile before the next frame and is not affected.
+Ranked options that are not built:
+take a wheel delta the tile cannot hold as a placement,
+a small window-thread tile in the frame that misses the view,
+a tile for the end of the ease queued at the first step,
+a taller overscan,
+and keeping the old tile (which is out of view for a far jump and so changes nothing).
 
 ### Soft wrap
 

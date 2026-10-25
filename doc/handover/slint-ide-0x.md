@@ -4455,8 +4455,26 @@ switches 4, launch 1); the 3 windows with blank code frames each followed a whee
 wheel and a reset, frames 3335 and 3336 after a 300-notch wheel with no count change, whole area blank, gutter included).
 Minimap: 1 to 3 blank frames after Ctrl+End or Ctrl+Home (27 runs of 34), 1 to 2 at file switches, one run of 4 frames
 after Page Down, none at minimap clicks, none from a minimap list reset (there were none).
-Not established: whether those far-wheel blank frames are the old late-tile behaviour or new; an agent compares them
-with older installed builds. Evidence tables stay in `~/temp/agent/final` until that agent ends.
+Not established then: whether those far-wheel blank frames are the old late-tile behaviour or new; an agent compared
+them with older builds (result in the next paragraph). Evidence tables stay in `~/temp/agent/final` until that agent ends.
+Result of that comparison, 2026-10-25 (record: `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`;
+README section "A jump faster than the tile"): OLD, not a regression. Four release builds (`cd49e20a92` the 2026-10-22
+install, `76f7818e8f` re-aim, `5e9584aa51` skip rule, `d91f415253` main, whose IDE sources equal `f32566de81`; the main
+and oct22 builds are byte-identical to the installed binaries), 478 jumps of 40, 150, 300, 600 notches from a settled
+random place, three batches of 10 per binary and N, alternating, 19 fps median at load average 26: blank code frames in
+29 of 30 jumps at 150 notches and 30 of 30 at 300 in every build (600: 29 of 29 or 30 of 30), 0 to 2 of 30 at 40
+(main 0, the three older 2 each); the spread between batches of one binary (for example main at 600: 27, 31, 36 blank
+frames) is as large as the difference between binaries. Mechanism: a wheel command is eased by Slint's `Flickable`
+over a fixed 180 ms whatever its length (`flickable.rs:51`, 60 px per notch in the winit adapter), 200 px/ms at the start
+for 300 notches, and the tile worker's tile arrives 60 to 125 ms after the step it was built for, so no tile holds the
+view for about 100 to 165 ms; the last tile is applied 212 to 266 ms after the command; the first frame with text has
+the right lines without the hint rows, which arrive at about 500 ms. A control of 150 notches as single-notch commands
+10 ms apart blanks 0 of 10 (main) and 1 of 10 (oct22). The earlier "0.25 s after the wheel" was the file modification
+time (encode time) of the frame, not its capture time. No product change; ranked options (placement for a wheel delta
+the tile cannot hold; a small window-thread tile; a tile for the end of the ease; a larger overscan; keeping the old tile
+changes nothing) are in the troubleshooting doc and need the owner's decision. Numeric tables (`jumps.csv`, `results/`,
+`results-control-b9/`) stay in `~/temp/agent/wheel` with the scripts; frames, extra worktrees and the disposable project
+were removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
