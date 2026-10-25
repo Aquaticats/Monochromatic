@@ -1,4 +1,11 @@
 import type { SourceBlock, } from './source-reading-account.ts';
+import {
+  indexOfWords,
+  matchesAt,
+  placedAfter,
+  type Placings,
+  type Segment,
+} from './source-reading-places.ts';
 import type { TextRange, } from './source-ships-ranges.ts';
 
 //region Source reading blocks
@@ -21,8 +28,9 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // shows words; a stretch that does not show the same, with a block of the source in it, is undecided.
 //
 // THE WORK. Each anchor is placed in one pass over the places its words stand at and the places the anchors before it can
-// end at (`placedAfter`), so the work grows with the blocks times the words of the page and not with their cube, however
-// often the same words repeat.
+// end at (`placedAfter` in `source-reading-places.ts`), read off an index of where each word of the page stands, so
+// the work grows with the number of pairs of an anchor and a place it can end at, and not with the blocks times the words
+// of the page, nor with their cube, however often the same words repeat.
 
 /**
  What the blocks of a source and of a page say of each other.
@@ -65,26 +73,6 @@ function overlaps({
 }
 
 /**
- A run of blocks of the source that a disagreeing range reaches, or that none reaches, and the words they show.
- */
-type Segment = {
-  /**
-   Whether a disagreeing range reaches the blocks.
-   */
-  readonly reached: boolean;
-
-  /**
-   Words the blocks show, in order.
-   */
-  readonly words: readonly string[];
-
-  /**
-   How many blocks of the source are in the segment.
-   */
-  readonly blocks: number;
-};
-
-/**
  The blocks a range reaches when there are none: nothing shown, no block.
  */
 const NO_BLOCKS: Segment = {
@@ -111,35 +99,6 @@ function wordsOf({ account, }: { readonly account: string; },): readonly string[
     .filter(function isWord(word,): boolean {
       return word !== '';
     },);
-}
-
-/**
- Whether two lists of words are the same words in the same order.
-
- @param left - one list
-
- @param right - other list
-
- @returns Whether they are equal
-
- @example
- ```ts
- const same = sameWords({ left: ['a',], right: ['a',], },); // true
- ```
- */
-function sameWords({
-  left,
-  right,
-}: {
-  readonly left: readonly string[];
-  readonly right: readonly string[]
-},): boolean {
-  return (left.length === right.length) && left.every(function equal(
-    word,
-    at,
-  ): boolean {
-    return word === right[at];
-  },);
 }
 
 /**
@@ -206,257 +165,6 @@ function segmentsOf(
 }
 
 /**
- Where a run of words stands in a list of words, at every place.
-
- @param page - words to look in
-
- @param words - run of words to find
-
- @returns Index of the first word of each place the run stands, in order
-
- @example
- ```ts
- const places = placesOf({ page: ['a', 'b', 'a',], words: ['a',], },); // [0, 2]
- ```
- */
-function placesOf({
-  page,
-  words,
-}: {
-  readonly page: readonly string[];
-  readonly words: readonly string[]
-},): readonly number[] {
-  /**
-   Places found.
-   */
-  const places: number[] = [];
-  for (let at = 0; (at + words.length) <= page.length; at += 1) {
-    if (sameWords({
-      left: page.slice(
-        at,
-        at + words.length,
-      ),
-      right: words,
-    },))
-      places.push(at,);
-  }
-  return places;
-}
-
-/**
- How far the page is read once the words of the blocks no range reaches are placed in it, and what it cost: for each place
- the last such block can end at, the fewest blocks the readings cannot be asked about on the way there.
- */
-type Placings = ReadonlyMap<number, number>;
-
-/**
- A place the blocks before can end at, and what getting there cost.
- */
-type Placing = {
-  /**
-   Index of the page word the blocks end after.
-   */
-  readonly place: number;
-
-  /**
-   Blocks a range reaches that the readings cannot be asked about on the way there.
-   */
-  readonly cost: number;
-};
-
-/**
- Records what one way of placing a block costs, keeping the cheapest cost for the place the block ends at.
-
- @param next - where the block can end, with the cost, which this adds to
-
- @param end - place the block ends at
-
- @param cost - what the way of getting there costs
-
- @example
- ```ts
- keepCheapest({ next: new Map(), end: 4, cost: 1, },);
- ```
- */
-function keepCheapest(
-  {
-    next,
-    end,
-    cost,
-  }: {
-    readonly next: Map<number, number>;
-    readonly end: number;
-    readonly cost: number;
-  },
-): void {
-  next.set(
-    end,
-    Math.min(
-      next.get(end,) ?? Number.POSITIVE_INFINITY,
-      cost,
-    ),
-  );
-}
-
-/**
- Places the words of one block no range reaches after each place the blocks before it can end at.
-
- The cost of a way of getting to a place is the cost of the place the blocks before ended at, and the blocks a range
- reaches when the words of the page between the two places are not what those blocks show. Only the place that is exactly
- as many words back as those blocks show can avoid that cost, so the cheapest way to a place is the cheaper of that one
- and the cheapest of every place the words can start after, which is read off the places in order and not asked of each
- pair: the work is the places the words stand at and the places the blocks before can end at, each once.
-
- @param page - words the page shows
-
- @param placings - where the blocks before can end, with their cost
-
- @param segment - block's words, and how many blocks a range reaches stand since the last such block
-
- @param held - what the blocks a range reaches show since the last block no range reaches
-
- @param isLast - whether no block of the source follows
-
- @returns Where the block can end, with the cost; none when the page shows its words nowhere it can come
-
- @example
- ```ts
- const next = placedAfter({ page, placings: new Map([[0, 0,],],), segment, held, isLast: false, },);
- ```
- */
-function placedAfter(
-  {
-    page,
-    placings,
-    segment,
-    held,
-    isLast,
-  }: {
-    readonly page: readonly string[];
-    readonly placings: Placings;
-    readonly segment: Segment;
-    readonly held: Segment;
-    readonly isLast: boolean;
-  },
-): Placings {
-  /**
-   The block's words.
-   */
-  const { words, } = segment;
-  /**
-   What the blocks a range reaches show since the last block no range reaches, and how many they are.
-   */
-  const {
-    words: heldWords,
-    blocks: heldBlocks,
-  } = held;
-  /**
-   Where the block's words stand in the page, the last block's only where they end the page.
-   */
-  const places = placesOf({
-    page,
-    words,
-  },)
-    .filter(function canEnd(place,): boolean {
-      return (!isLast) || ((place + words.length) === page.length);
-    },);
-  /**
-   Where the block can end, with the cost.
-   */
-  const next = new Map<number, number>();
-  if (heldBlocks === 0) {
-    // No block a range reaches stands between: the block starts where the blocks before it ended.
-    for (const place of places) {
-      /**
-       What the blocks before cost up to this place, absent where none ended there.
-       */
-      const cost = placings.get(place,);
-      if (cost !== undefined) {
-        keepCheapest({
-          next,
-          end: place + words.length,
-          cost,
-        },);
-      }
-    }
-    return next;
-  }
-  /**
-   The places the blocks before can end at, with their cost, in the order of the page.
-   */
-  const unordered: Placing[] = [];
-  for (const [place, cost,] of placings)
-    unordered.push({
-      place,
-      cost,
-    },);
-  /**
-   The same places, in the order of the page.
-   */
-  const froms = unordered.toSorted(function byPlace(
-    left: Placing,
-    right: Placing,
-  ): number {
-    return left.place - right.place;
-  },);
-  /**
-   How many of those places the words start after, and the cheapest of them.
-   */
-  const reading = {
-    taken: 0,
-    cheapest: Number.POSITIVE_INFINITY,
-  };
-  for (const place of places) {
-    for (;;) {
-      /**
-       The next place the blocks before can end at.
-       */
-      const from = froms[reading.taken];
-      if ((from === undefined) || (from.place > place))
-        break;
-      reading.cheapest = Math.min(
-        reading.cheapest,
-        from.cost,
-      );
-      reading.taken += 1;
-    }
-    /**
-     The place the blocks before ended at if the words of the page between it and this one are what the blocks a range
-     reaches show.
-     */
-    const exact = place - heldWords.length;
-    /**
-     What getting there from that place costs, absent where the words are other or no block ended there.
-     */
-    const exactCost = ((exact >= 0) && sameWords({
-      left: page.slice(
-        exact,
-        place,
-      ),
-      right: heldWords,
-    },))
-      ? placings.get(exact,)
-      : undefined;
-    /**
-     The cheapest way to this place: from any place before it at the cost of the blocks a range reaches, or from the exact
-     one at none.
-     */
-    const cost = Math.min(
-      reading.cheapest + heldBlocks,
-      exactCost ?? Number.POSITIVE_INFINITY,
-    );
-    if (Number.isFinite(cost,)) {
-      keepCheapest({
-        next,
-        end: place + words.length,
-        cost,
-      },);
-    }
-  }
-  return next;
-}
-
-/**
  Compares the blocks of a source with the blocks of the page that carries it.
 
  @param sourceBlocks - what each top-level block of the source shows and where it stands
@@ -517,6 +225,10 @@ export function blockDifferenceOf(
     return wordsOf({ account, },);
   },);
   /**
+   Where each word the page shows stands.
+   */
+  const pageIndex = indexOfWords({ page, },);
+  /**
    The runs of blocks of the source.
    */
   const segments = segmentsOf({
@@ -555,6 +267,7 @@ export function blockDifferenceOf(
     }
     reading.placings = placedAfter({
       page,
+      index: pageIndex,
       placings: reading.placings,
       segment,
       held: reading.held,
@@ -569,25 +282,28 @@ export function blockDifferenceOf(
   /**
    For each place the last block can end, what the page shows after it against what the trailing blocks show.
    */
-  const ends = [...reading.placings
-    .keys(),].map(function costAtEnd(from,): number {
+  const ends: number[] = [];
+  /**
+   What the trailing blocks show, and how many they are.
+   */
+  const {
+    words: trailingWords,
+    blocks: trailingBlocks,
+  } = trailing;
+  for (const [from, cost,] of reading.placings) {
     /**
-     What the blocks cost up to that place.
+     Whether the page shows after the place what the trailing blocks show, and nothing else.
      */
-      const cost = reading.placings
-        .get(from,)
-        ?? 0;
-    /**
-     What the page shows after it.
-     */
-      const rest = page.slice(from,);
-      if (trailing.blocks === 0)
-        return (rest.length === 0) ? cost : Number.POSITIVE_INFINITY;
-      return sameWords({
-        left: rest,
-        right: trailing.words,
-      },) ? cost : (cost + trailing.blocks);
+    const same = ((page.length - from) === trailingWords.length) && matchesAt({
+      page,
+      at: from,
+      words: trailingWords,
     },);
+    if (same)
+      ends.push(cost,);
+    else
+      ends.push((trailingBlocks === 0) ? Number.POSITIVE_INFINITY : (cost + trailingBlocks),);
+  }
   /**
    The fewest blocks the readings cannot be asked about over every way the words can be placed.
    */

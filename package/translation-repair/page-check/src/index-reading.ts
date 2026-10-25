@@ -28,6 +28,11 @@ export {
   type BlockDifference,
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
+export {
+  indexOfWords,
+  matchesAt,
+  placedAfter,
+} from './corpus-run/source-reading-places.ts';
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
 export {
   containerCharactersAt,
