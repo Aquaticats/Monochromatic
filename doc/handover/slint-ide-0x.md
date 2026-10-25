@@ -4601,6 +4601,12 @@ not a regression (the same before the fix): a pointer that rests over no charact
 asks, even when an identifier arrives under it; only a pointer move restarts the rest. Not fixed, nobody asked; the
 fix would resolve a rest over `None` again at due time when the view has moved, and keep `idle` for the popup.
 Popup screenshots were not viewed for all 14 requests (log only).
+Started 2026-10-25 on the owner's question "what is going on, you named what's left so why are you not working?": an
+agent (scratch `~/temp/agent/hover2`) fixes the limitation (a rest over no character restarts and resolves at due time
+when the view moved under it, `idle` kept for the popup dismissal of a settled pointer) behind failing tests, measures it
+against `main`, and views the screenshots of 12 popups (after a far jump and settled) to check each is attached to the
+identifier under the pointer; its report is verified, landed and the IDE reinstalled. The recorder rate (15 to 25 fps
+against 60 requested) is a property of this loaded host and is not something to fix.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
