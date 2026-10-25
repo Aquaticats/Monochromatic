@@ -300,6 +300,15 @@ named for that subject and listed here.
   Code the search cannot read and specifiers the check cannot resolve (B868),
   and four surviving mutants with the cases they called for (B869).
   It continues B865 to B867.
+- [Audit ledger: the check over the schema sources, the named place, the carriers, the callbacks and
+  the loaders](audit-ledger-schema-source-check-named-place-carriers-callbacks-and-loaders.md):
+  A named place that holds the module of the function it names,
+  the namespace of a module that declares forwarders,
+  the parameters of a function written as an argument,
+  the loader of modules and the binding of Node read where they are no direct call,
+  the key readers of a constructor,
+  and the limits and over-reports each leaves (B948).
+  It continues B865 to B869.
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,

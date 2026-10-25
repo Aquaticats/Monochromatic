@@ -799,14 +799,18 @@ and the suite lacked the input):
   A report of a forwarder read in a place that is no call now holds the name of the function
   as it is declared where it is declared (`held`),
   so an import under another local name and a member of a namespace give the same name,
-  and the name of the place holds `settleEntry`.
+  and the name of the place holds `settleEntry`
+  (fix round 21 makes the name hold the module that declares the function as well,
+  B948).
   The name is compared in all four parts,
   and a place stands for one report:
   each report is matched with the first place still free that stands for it,
   and a second report that agrees in every part stays.
   The reports of a forwarder are kept once for each node and no longer once for each line,
   because two forwarders on one line were one report
-  and the name could stand for the one that hid the other.
+  and the name could stand for the one that hid the other
+  (fix round 21 keeps every shape once for each node,
+  B948).
   On the same real sources the variants now leave one report each:
   a second forwarder as another dependency,
   on the line of the first,
@@ -903,11 +907,11 @@ and the suite lacked the input):
   and a builder's result as the key of a computed member that is called with a function.
   The cases are green on the parent,
   because the code was right.
-  The mutants that drop the `for...in` link,
-  that bind nothing for a loop target,
-  and that ask every member for a callback are killed by 2,
+  The mutants that drop the `for...in` link (R18-01),
+  that bind nothing for a loop target (R18-02),
+  and that ask every member for a callback (Y-F5v) are killed by 2,
   3 and 1 cases.
-  The ledger called the last one equivalent for a call with no function written as an argument only
+  The ledger called Y-F5v equivalent for a call with no function written as an argument only
   (B869).
 - The bound of the search for forwarders
   (`3ba7fcb5205a461614a90b750d04aa0d5baf85fe`):

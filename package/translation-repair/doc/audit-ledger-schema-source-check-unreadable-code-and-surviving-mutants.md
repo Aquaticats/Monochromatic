@@ -181,7 +181,8 @@ Follow-up of fix round 20
   each with a case or a reason:
   a loader that `process.getBuiltinModule` was assigned to and is called by another name
   (`const load = process.getBuiltinModule; load("node:vm")`,
-  held by a case),
+  held by a case;
+  fix round 21 reports the read of the member where it is held and states other limits in B948),
   a specifier that is a variable,
   a key of `constructor` that is no literal,
   a pattern that takes `constructor` out of a value,
@@ -431,7 +432,9 @@ Follow-up of fix round 19
   and which the schema suite reached only through the walks that use it.
 - The 1620 real sources gave one report,
   the named place of B867.
-  Of 430 adversarial inputs 173 were silent at the base of round 18 and 20 are silent after this round,
+  Of 430 adversarial inputs 173 were silent at the base of round 18 (176 of the 434 rows of the files:
+  the count of the report of fix round 20 left out three of the four controls of `adv17-h`)
+  and 20 are silent after this round,
   none is worse than at the base.
   Of the 20,
   16 are inputs whose expectation re-check 17 judged wrong
@@ -674,7 +677,9 @@ except the pins):
   Y-F5v is killed,
   and the throw whose code is gone leaves the table.
 - The adversarial inputs were run on the head of this round and on the three heads it is compared with.
-  The 430 inputs of re-check 17 and before are silent 173 times at `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`,
+  The 430 inputs of re-check 17 and before are silent 176 times over the 434 rows of the files at `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`
+  (the report of the round said 173,
+  which left out three of the four controls of `adv17-h`),
   64 at `6b7244fbb8d243387b3a9ed6ccbecae3bac420fe`,
   20 at `a50897193205a09db7f3a3d3af7ed6db9815492c`
   and 20 at the head,
