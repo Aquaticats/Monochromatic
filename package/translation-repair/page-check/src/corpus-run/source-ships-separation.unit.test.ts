@@ -99,9 +99,26 @@ await describe({
       },
     },),
     it({
-      name: 'LEAVES A BLOCK THAT IS NEITHER A DEFINITION NOR A PARAGRAPH, such as a heading, however the page goes',
+      name: 'LEAVES A BLOCK THAT IS NEITHER A DEFINITION NOR A PARAGRAPH, such as a heading, where the page does not go on',
       fn: async () => {
-        expect(editsFor({ source: '[^1]: x\n# cat\n', footnoteEnd: 7, pageGoesOn: true, },),).toEqual([],);
+        expect(editsFor({ source: '[^1]: x\n# cat\n', footnoteEnd: 7, pageGoesOn: false, },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'DOUBLES THE LINE ENDING BEFORE ANY BLOCK WHERE THE PAGE GOES ON, a heading and a table too',
+      fn: async () => {
+        /**
+         The edit that doubles the line feed after the footnote.
+         */
+        const doubled = [
+          {
+            start: 7,
+            end: 8,
+            replacement: '\n\n',
+          },
+        ];
+        expect(editsFor({ source: '[^1]: x\n# cat\n', footnoteEnd: 7, pageGoesOn: true, },),).toEqual(doubled,);
+        expect(editsFor({ source: '[^1]: x\n| a |\n| - |\n', footnoteEnd: 7, pageGoesOn: true, },),).toEqual(doubled,);
       },
     },),
     it({
