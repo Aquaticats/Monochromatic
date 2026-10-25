@@ -83,12 +83,12 @@ export type BlindContext = {
   readonly forwarders: KnownFunctions;
 
   /**
-   Paths of the modules that carry a builder.
+   Paths of the modules that carry a builder or a forwarder.
    */
   readonly bearing: ReadonlySet<string>;
 
   /**
-   Keys of the objects that hold a builder as a member.
+   Keys of the objects that hold a builder or a forwarder as a member.
    */
   readonly carriers: ReadonlySet<string>;
 

@@ -28,9 +28,9 @@ import {
 
  @param forwarding - forwarders of the sources, by where each sits and by name
 
- @param bearing - paths of the modules that carry a builder
+ @param bearing - paths of the modules that carry a builder or a forwarder
 
- @param carriers - keys of the objects that hold a builder as a member
+ @param carriers - keys of the objects that hold a builder or a forwarder as a member
 
  @param constants - where the other files read a constant a file exports
 

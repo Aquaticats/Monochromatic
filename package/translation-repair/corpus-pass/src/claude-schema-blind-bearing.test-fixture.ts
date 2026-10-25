@@ -1,19 +1,21 @@
+import type { FunctionAt, } from './claude-schema-blind-forwarders.test-fixture.ts';
 import {
   type Family,
   resolveExport,
 } from './claude-schema-resolve.test-fixture.ts';
-import type { SchemaBuilder, } from './claude-schema-sources.test-fixture.ts';
 import { targetOf, } from './claude-schema-target.test-fixture.ts';
 import {
   keyOf,
   type KnownFunctions,
 } from './claude-schema-usage.test-fixture.ts';
 
-//region Which modules carry a builder
+//region Which modules carry a builder or a forwarder
 // What the check behind the schema search (`claude-schema-blind-spots.test-fixture.ts`) reads a path against: the
-// modules a path can lead to a builder through. A module carries a builder when it declares one, or when something it
-// exports is one: an export of its own, one it re-exports from another module, a namespace of a module that carries
-// one, or an object that holds one as a member.
+// modules a path can lead to a builder or to a forwarder through. A module carries one when it declares one, or when
+// something it exports is one: an export of its own, one it re-exports from another module, a namespace of a module
+// that carries one, or an object that holds one as a member. A file reaches the forwarders of a module as it reaches
+// its builders (`ns['mk']`, `Object.values(ns)`, `import('./stage.ts')`), whether the module is imported itself or
+// through a barrel, so the list the closure starts from is the builders and the forwarders together.
 
 /**
  The nothing followed when an export is resolved from the start.
@@ -21,9 +23,9 @@ import {
 const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
 
 /**
- The objects that hold a builder as a member, by the module that declares them and their name.
+ The objects that hold a builder or a forwarder as a member, by the module that declares them and their name.
 
- @param builders - builders and wrappers of the sources
+ @param builders - builders, wrappers and forwarders of the sources
 
  @returns Keys of the objects, `file#object`
 
@@ -36,7 +38,7 @@ export function carryingObjectsOf(
   {
     builders,
   }: {
-    readonly builders: readonly SchemaBuilder[];
+    readonly builders: readonly FunctionAt[];
   },
 ): ReadonlySet<string> {
   return new Set(builders.flatMap(function ownerOf({
@@ -189,11 +191,11 @@ function exportsBuilder(
 }
 
 /**
- The modules that carry a builder, until no module is added.
+ The modules that carry a builder or a forwarder, until no module is added.
 
  @param family - modules of the sources
 
- @param builders - builders and wrappers of the sources
+ @param builders - builders, wrappers and forwarders of the sources, which the closure starts from
 
  @returns Paths of the modules
 
@@ -208,11 +210,11 @@ export function bearingFilesOf(
     builders,
   }: {
     readonly family: Family;
-    readonly builders: readonly SchemaBuilder[];
+    readonly builders: readonly FunctionAt[];
   },
 ): ReadonlySet<string> {
   /**
-   The builders by where each sits and by name.
+   The builders and forwarders by where each sits and by name.
    */
   const known: KnownFunctions = {
     keys: new Set(builders.map(function keyOfBuilder(builder,): string {
@@ -262,4 +264,4 @@ export function bearingFilesOf(
   );
 }
 
-//endregion Which modules carry a builder
+//endregion Which modules carry a builder or a forwarder

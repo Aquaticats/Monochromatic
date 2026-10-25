@@ -298,17 +298,6 @@ export function blindSpotsOf(
     },),),
   };
   /**
-   The modules that carry a builder.
-   */
-  const bearing = bearingFilesOf({
-    family,
-    builders,
-  },);
-  /**
-   The objects that hold a builder as a member.
-   */
-  const carriers = carryingObjectsOf({ builders, },);
-  /**
    What the references of each file stand for.
    */
   const usages = usagesIn({ family, },);
@@ -325,6 +314,24 @@ export function blindSpotsOf(
    The forwarders, by where each sits and by name.
    */
   const knownForwarders = knownIn({ functions: forwarders, },);
+  /**
+   The builders, the wrappers and the forwarders, which a file reaches through a module in the same ways.
+   */
+  const carrying = [
+    ...builders,
+    ...forwarders,
+  ];
+  /**
+   The modules that carry a builder or a forwarder.
+   */
+  const bearing = bearingFilesOf({
+    family,
+    builders: carrying,
+  },);
+  /**
+   The objects that hold a builder or a forwarder as a member.
+   */
+  const carriers = carryingObjectsOf({ builders: carrying, },);
   /**
    The functions of that kind that no declaration names, by the file that writes each.
    */

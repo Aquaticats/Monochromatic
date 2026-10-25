@@ -15,17 +15,15 @@ import {
   moduleHeadOf,
   settledSpecifierOf,
 } from './claude-schema-tree.test-fixture.ts';
-import {
-  keyOf,
-  type KnownFunctions,
-} from './claude-schema-usage.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region What a chain of names stands for
 // The first half of the second total of the check behind the schema search: a chain of names is read from its first
 // name, a name the file binds, a name the file does not bind, or a load read in place, then one member at a time, and
-// each prefix of it stands for a builder, for a module or object that carries one, or for neither. A module that
-// declares a forwarder is read as one that carries a builder, since a file reaches the forwarder through the module
-// (`ns['mk']`, `ns[key]`, `Object.values(ns)`) as it reaches a builder. Where the chain sits is read by
+// each prefix of it stands for a builder, for a module or object that carries one, or for neither. A module or an
+// object that carries a forwarder, because it declares one or exports one (also through a barrel), is read as one that
+// carries a builder, since a file reaches the forwarder through the module (`ns['mk']`, `ns[key]`,
+// `Object.values(ns)`) as it reaches a builder. Where the chain sits is read by
 // `claude-schema-blind-chains.test-fixture.ts`.
 
 /**
@@ -126,37 +124,6 @@ export function chainOf({ node, }: { readonly node: unknown; },): Chain {
 }
 
 /**
- Whether a module declares one of the known functions.
-
- @param known - functions known, by where each sits and by name
-
- @param file - path of the module
-
- @returns Whether some key of the known functions starts with the path of the module
-
- @example
- ```ts
- const declares = declaresKnown({ known: context.forwarders, file: 'a/src/a.ts', },);
- ```
- */
-function declaresKnown(
-  {
-    known,
-    file,
-  }: {
-    readonly known: KnownFunctions;
-    readonly file: string;
-  },
-): boolean {
-  return [...known.keys,].some(function isDeclaredIn(key,): boolean {
-    return key.startsWith(keyOf({
-      file,
-      name: '',
-    },),);
-  },);
-}
-
-/**
  What a chain, cut after some of its members, stands for.
 
  @param context - what the file's names are read against
@@ -252,16 +219,12 @@ export function standingAfter(
     };
   }
   /**
-   Whether the thing is a module or an object that carries a builder, or a module that declares a forwarder, which a
-   file can reach through the module as it reaches a builder.
+   Whether the thing is a module or an object that carries a builder or a forwarder, which a file can reach through
+   the module as it reaches a builder.
    */
   const carries = ((resolved.kind === 'namespace')
-    && (context.bearing
-      .has(resolved.file,)
-      || declaresKnown({
-        known: context.forwarders,
-        file: resolved.file,
-      },)))
+    && context.bearing
+      .has(resolved.file,))
     || ((resolved.kind === 'object')
       && context.carriers
         .has(keyOf(resolved,),));
