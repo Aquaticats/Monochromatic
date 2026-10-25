@@ -517,6 +517,7 @@ await describe({
             countAttempt({
               attempts,
               id: '__proto__',
+              attemptsPath,
             },);
             expect(attemptsOf({
               attempts,
@@ -546,12 +547,44 @@ await describe({
               countAttempt({
                 attempts,
                 id: 'Mittens',
+                attemptsPath: '/runs/attempts.json',
               },);
             },).toThrow();
             expect(attemptsOf({
               attempts,
               id: 'Mittens',
             },),).toBe(Number.MAX_SAFE_INTEGER,);
+          },
+        },),
+
+        it({
+          name: 'SAYS, where it refuses to count, which entry and which file hold the count, what the count is, that '
+            + 'the next launch reads it as zero beside a warning, and what an operator can do, since the refusal ends '
+            + 'the pass between entries and reaches the person who ran it as the message alone (ledger B963)',
+          fn: async () => {
+            /**
+             An entry whose count is the largest a number holds exactly.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER,],],);
+
+            for (
+              const piece of [
+                'Mittens holds an attempt count of 9007199254740991 in /runs/attempts.json',
+                'one more attempt would be no safe integer',
+                'this pass ends here',
+                'The next launch reads that count as 0 beside a warning naming Mittens and /runs/attempts.json',
+                'To go on, launch again, or set the count of Mittens in /runs/attempts.json to a whole number below '
+                + '9007199254740991',
+              ]
+            ) {
+              expect(() => {
+                countAttempt({
+                  attempts,
+                  id: 'Mittens',
+                  attemptsPath: '/runs/attempts.json',
+                },);
+              },).toThrow(piece,);
+            }
           },
         },),
 
@@ -565,6 +598,7 @@ await describe({
             countAttempt({
               attempts,
               id: 'Mittens',
+              attemptsPath: '/runs/attempts.json',
             },);
             expect(attemptsOf({
               attempts,
