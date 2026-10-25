@@ -272,9 +272,14 @@ The difference is `git diff --stat <head> HEAD -- <paths>`,
 where `<head>` is the commit the last green full run was made on:
 an empty difference means the last run still stands.
 
-It took 293 to 402 seconds across the runs made so far,
+It took 293 to 402 seconds across the runs made before the follow-up round,
 under the load of the other sessions of the host (no load figure was recorded for them),
 and peaked at 535 to 559 MB of memory.
+The two runs of the follow-up round took 308 seconds and 762 seconds,
+the second with a host load average of 58.75 when it started and 26.15 when it ended,
+and the unit's summary from `systemd-run --wait` reported a memory peak of 746.7 MB and of 687.1 MB (320.3 MB swapped).
+Time varies with the load by more than a factor of two,
+so a run that is slow under load is no sign of a slower check.
 Run it as its own capped unit,
 for example `systemd-run --user --unit=live-full --collect --property=MemoryMax=4G --property=CPUQuota=300%`.
 

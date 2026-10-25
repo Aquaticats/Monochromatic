@@ -4,9 +4,10 @@
 
  NOT PART OF `test:unit`: the file name carries `.expensive.`, which the task leaves out unless asked for it. Run it
  with `mise run //package/translation-repair/page-check:test:live-full`; the README of the package says when it must
- be run. It reads 80000 pairs and 32256 footnote texts in one process: 293 s to 402 s across the runs made so far,
- under the load of the other sessions of the host (no load figure was recorded for them), and a peak of 535 MB to
- 559 MB of memory. It is the check that holds what
+ be run. It reads 80000 pairs and 32256 footnote texts in one process: 293 s to 402 s across the runs made before the follow-up
+ round, under the load of the other sessions of the host (no load figure was recorded for them), and a peak of 535 MB
+ to 559 MB of memory; 308 s and 762 s in the two runs of the follow-up round, the second at a host load average of
+ 58.75 when it started, and a peak of 746.7 MB and 687.1 MB (320.3 MB swapped) in the summary of `systemd-run --wait`. It is the check that holds what
  a sample of the generated sets can miss: a class of a few pairs among the 80000, such as the one pair of the seed
  31415926 that a code span across a footnote line in a block quote once took to the last step of the composition, or
  the three pairs of each seed that a footnote that is a block of its own, then a definition line, once took there.
