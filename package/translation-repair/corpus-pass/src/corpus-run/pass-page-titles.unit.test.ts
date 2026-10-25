@@ -141,7 +141,7 @@ function titleClient(
      The renderings a seat gives, by title number from one, for a seat that
      names its own; every other seat renders the first title alike.
      */
-    readonly renderingsBySeat?: Readonly<Partial<Record<RosterModelId, readonly string[]>>>;
+    readonly renderingsBySeat?: Readonly<Record<string, readonly string[]>>;
   },
 ): ModelClient {
   return {
@@ -236,7 +236,7 @@ async function lexiconRun(
     readonly resumed: ReadonlyMap<string, PageTitleLexiconRecord>;
     readonly reseat: boolean;
     readonly answering?: readonly RosterModelId[];
-    readonly renderingsBySeat?: Readonly<Partial<Record<RosterModelId, readonly string[]>>>;
+    readonly renderingsBySeat?: Readonly<Record<string, readonly string[]>>;
 
     /**
      The bench the round starts on, the two-seat roster when absent.

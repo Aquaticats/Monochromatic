@@ -350,7 +350,11 @@ export async function passPageTitles(
   // later run on a fuller bench would resume the gap instead of asking again.
   // A round that settled every title heard at least two voices, since a title
   // settles on a rendering two voices gave, so this one test covers both.
-  if (lexicon.titles.length === spans.length) {
+  /**
+   Titles the round settled, one for each title it asked when none was left out.
+   */
+  const { titles, } = lexicon;
+  if (titles.length === spans.length) {
     await cache.persist({
       key,
       serialized: JSON.stringify({
