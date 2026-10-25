@@ -482,12 +482,6 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > The insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim,
 > not the span-only view production gives an editor.
 
-Two efforts are each tested at 0.025,
-so the chance of picking either when neither is better is under 0.05 where the test holds its level,
-which it does when every arm repeats itself alike and the true fix rate is no higher than 0.9.
-When the default effort repeats itself far less than the others the chance was 0.107 at 0.9 and higher above it.
-The readings above 0.90 are in the rule's text and in the simulations doc,
-which keeps the fixture's apart from the independent re-implementation's.
 The read step answers with two warnings,
 measured in round 10 by one simulation run of the committed fixture
 (seed prefix `edr10-sim`,
@@ -507,8 +501,6 @@ measured in round 10 by one simulation run of the committed fixture
   0.0537 over 34000 replicates with re-check 7 (about three standard deviations over 0.05),
   against 0.0296,
   0.0430 and 0.0379 in its three contrast cells.
-  The simulations doc names the cells,
-  and the detection rates when the default effort repeats itself 15 and 30 points less.
 - The high fix rate warning fires when the default effort cleanly fixes 90 percent or more of the shared units,
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
   With both warnings,
@@ -522,7 +514,9 @@ measured in round 10 by one simulation run of the committed fixture
   four of them at the true rate 0.90).
 
 The simulations behind these figures,
-the false pick bounds and the readings above a true fix rate of 0.9,
+the false pick bounds and the readings above a true fix rate of 0.9
+(the fixture's and the independent re-implementation's kept apart),
+the contrast cells and the detection rates when the default effort repeats itself 15 and 30 points less,
 the exact test of the repeat warning with its measured false alarm and detection rates,
 the share of benches that print neither warning,
 the smallest difference detected at 60 shared units,
@@ -665,14 +659,13 @@ A unit that made no call is no trial:
 the build of this round writes no such row,
 and the billed high log of `dd4b15b75c` says 150 where 88 made a call.
 The command prints the number alone.
-For a log with no `TRIALS` line,
-as a dry run's output is,
-it prints nothing,
-writes a message to standard error and exits 1.
-The launch block refuses such a log the same way,
+For the log of a dry run (no `TRIALS` line) it prints nothing and exits 1
+with a message on standard error;
+the launch block,
+the stop rule and the pre-launch block do the same,
 so no arm gets `--trials 0`.
-Both end the shell they run in,
-so each runs in a shell of its own:
+Each ends the shell it runs in,
+so it runs in a shell of its own:
 
 ```bash
 # README.md (editor fidelity bench): n, the units the high arm completed with a call
@@ -700,14 +693,14 @@ The command counts the high arm's reuse lines and its rows whose stop words incl
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
 REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
 echo "$((N - REUSED - THREW))"
 ```
 
 `rg` exits 1 and prints nothing when no row threw or no reply was a reuse,
-`wc` then counts 0,
-and the pipeline prints the count with status 0 (do not set `pipefail` here).
+so `wc` counts 0 and the pipeline exits 0 (do not set `pipefail` here).
 Under 60,
 record n,
 the count and the `CAPPED at unit k` line of the high arm in the ledger and stop:
@@ -724,18 +717,17 @@ A lower effort asks for fewer output tokens,
 so the high arm's spend a unit is taken as the most a later arm spends a unit;
 this is an assumption the bench has not measured,
 and the guard still ends an arm that spends faster.
-The guard admits an ask only while the spend so far plus the ask's ceiling is at most the cap,
-and the ceiling is the `ceiling` line of the dry run over its asks,
-which for the current pool is 0.377 USD an ask.
-An arm that spends s a unit therefore completes floor((cap - 0.377) / s) + 1 units,
-which is fewer than cap / s:
-about 21 fewer at 0.0167 USD a unit,
-and one fewer at the margin of 60 units
-(0.25 USD a unit at 15 USD gives 59,
-where 15 / 0.25 says 60).
-The spend a unit is over the units that made a call
-and leaves out the `SPEND` lines the guard wrote at a call's ceiling (`estimated=`):
-the billed log's 62 of them would read 0.27 USD a unit where its 88 calls cost 0.0071.
+An arm that spends s a unit completes floor((cap - 0.377) / s) + 1 units,
+fewer than cap / s,
+for reasons the simulations doc gives in its section on the units a cap buys.
+The spend a unit is over the units that made a call.
+For a log with no `PROMPT-REUSE` line it is the `GUARD total`,
+which books no reuse.
+A log of the billed build books each reuse at its ceiling,
+so its spend is the `SPEND` lines without `estimated=`
+(0.0071 USD a unit over 88 calls where the `GUARD total` reads 0.27),
+which holds only while the `estimated=` lines are the reuses and no others;
+the block refuses a log where their count differs.
 The block counts that reserve and also checks n,
 less the rows without a call and the rows in which an ask threw,
 against the floor of 60,
@@ -746,9 +738,16 @@ which the cap alone does not:
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
 REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
-HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) { micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) } END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
+if [ "$REUSED" -eq 0 ]; then
+  HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
+else
+  CEILINGS=$(rg --only-matching ' SPEND provider=.* estimated=' "$BENCH/high.log" | wc --lines)
+  if [ "$CEILINGS" -ne "$REUSED" ]; then echo "$CEILINGS SPEND lines at a ceiling for $REUSED reuses: the log does not tell the spend" >&2; exit 1; fi
+  HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) { micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) } END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
+fi
 echo "$HIGH $N $THREW $REUSED" | awk '{ calls = $2 - $4; per = $1 / calls; left = calls - $3; reserve = 0.377;
   m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
   printf "units left after thrown rows %d; spend a unit %.4f USD; ", left, per;

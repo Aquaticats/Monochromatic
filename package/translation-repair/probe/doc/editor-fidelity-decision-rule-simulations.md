@@ -211,6 +211,18 @@ and 24 points when it fixes seven in ten,
 against 37 and 28 points at 40 units,
 which is why 60 is the fewest the read step accepts.
 
+## The units a cap buys
+
+The guard admits an ask only while the spend so far plus the ask's ceiling is at most the cap.
+The ceiling is the `ceiling` line of the dry run over its asks,
+0.377 USD an ask for the current pool.
+An arm that spends s a unit therefore completes floor((cap - 0.377) / s) + 1 units,
+which is fewer than cap / s:
+about 21 fewer at 0.0167 USD a unit,
+and one fewer at the margin of 60 units
+(0.25 USD a unit at 15 USD gives 59,
+where 15 / 0.25 says 60).
+
 ## The simulation
 
 The simulation plays the bench over the committed pool in its order,

@@ -157,10 +157,22 @@ The class was added to the marked classes of `source-scan/src/message-names-only
   off the number the `TRIALS` line gives.
   The build of this round writes none (an arm that gets one ends),
   so the number taken off is 0 for its logs and exact for a log of an earlier build.
-  The pre-launch block takes the spend of the arm from the `SPEND` lines without `estimated=`,
+  The pre-launch block takes the spend of the arm from the `GUARD total=` line when the log has no `PROMPT-REUSE` line,
+  since a log of the build of this round books no reuse.
+  For a log with such lines,
+  which is a log of the billed build,
+  it sums the `SPEND` lines without `estimated=`,
   because the guard total of the billed log holds 23.314928 USD of ceilings that were never spent:
   it reads 0.0071 USD a unit there,
   where the guard total gives 0.27 and the block said not to launch.
+  That subtraction is right only while the `estimated=` lines are the reuses,
+  so the block refuses a log where their count differs from the count of reuse lines.
+  The first form of this block (round 12) left out every `estimated=` line for every log,
+  which understates the spend of a log of the new build,
+  whose `estimated=` lines are the `abandoned-bound` lines of attempts the client saw cut
+  and the guard's own `unreported-bound` and `abandoned-bound` lines for calls that may have been billed
+  (re-check 9,
+  minor 1).
   The `n` block and the launch block refuse a log with no `TRIALS` line,
   where the arithmetic had read the missing number as 0 and the launch block would have passed `--trials 0`.
   Each changed block was run in a fresh `bash --noprofile --norc` shell on constructed logs.
@@ -278,17 +290,6 @@ and changes no reply,
 key or cache record.
 No cache version moves.
 
-### The limit of the reuse check at the guard
-
-The guard can end an arm on a reply with no request behind it only for a client built over its admit,
-since only that client tells it of each attempt.
-A client given as itself tells the guard nothing,
-and a reply of the reuse layer then looks like a reply whose provider wrote no line on the meter,
-so the guard counts it at the ceiling as an unreported cost.
-Every construction in production passes a builder (`probe-run.ts`),
-so the case does not arise in a run,
-and the TSDoc of `spendGuardedClient` and the comment at the branch say so.
-
 ## Round 12: the findings of re-check 8
 
 The independent re-check of round 11 (`editor-recheck8.md`) found no major,
@@ -314,17 +315,20 @@ and each was ruled a fix.
   the corrective comment on `1dba616f89e67b71c1ba18e054caed921021188b` is posted by the lead.
 - Nit 3:
   the commit list and the break of the scan B79 are in the section on the round 11 commits.
+  The fixes of this round broke the same scan a second time (see the section on the second break of that scan in round 13).
 - Nit 4:
   the pointer by position names its heading.
 - Nit 5:
   `isReuseBody` finds the reuse line behind any number of tags.
   The red commit is `7854e18682b5d8c71f9f3d182e78a887b11a3c90` with 2 failing lines for its case of tags,
-  the fix `c3f7f4a6343ef7399494071156524929588f9d09`.
+  the fix `c3f7f4a6343ef7399494071156524929588f9d09`,
+  which also removed an article from the `@param bodies` text of `reusedRowFlags`.
   Its second case takes the line from the stage's own writer and passes at the parent.
 - Nit 6:
   the articles of the `@param`,
   `@returns` and `@throws` text this work wrote are gone
-  (`d1372493f7369a1efb5c3ef5c00d70ed71398e81`).
+  (`d1372493f7369a1efb5c3ef5c00d70ed71398e81`,
+  and the `@param bodies` text in `c3f7f4a6343ef7399494071156524929588f9d09`).
 - Nit 7:
   see the section on the limit of the reuse check.
 
@@ -332,8 +336,115 @@ The README went back under its bound by moving its paragraph on the smallest dif
 and by cutting its restatement of the readings above 0.90,
 which the rule's text and the doc hold.
 
-### Prevention
+### The limit of the reuse check at the guard
+
+The guard can end an arm on a reply with no request behind it only for a client built over its admit,
+since only that client tells it of each attempt.
+A client given as itself tells the guard nothing,
+and a reply of the reuse layer then looks like a reply whose provider wrote no line on the meter,
+so the guard counts it at the ceiling as an unreported cost.
+Every construction in production passes a builder (`probe-run.ts`),
+so the case does not arise in a run,
+and the TSDoc of `spendGuardedClient` and the comment at the branch say so.
+
+### Prevention of round 12
 
 [Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md)
 holds the rule:
 a repeat measurement proves that each repeat made its own call.
+
+## Round 13: the findings of re-check 9
+
+The independent re-check of round 12 (`editor-recheck9.md`) found no major,
+one minor and six nit,
+and each was ruled a fix.
+The build the high arm runs is the frozen copy of `85e21653a2ebb055ee807a6edc2fdf1248073abc`,
+and the code changes of this round are in the read step only:
+`unusableWarning` and the TSDoc of `isReuseBody`,
+neither reachable from the entry the arms run (`editor-fidelity-probe`).
+
+- Minor 1:
+  the pre-launch block's subtraction of the `estimated=` lines is right only for the billed log.
+  The README and the section on the read step,
+  the stop rule and the README now say so,
+  and the block picks the `GUARD total=` for a log with no `PROMPT-REUSE` line.
+  Each form was run in a fresh `bash --noprofile --norc` shell on four logs:
+  the billed log
+  (0.0071 USD a unit,
+  88 units left,
+  medium 2487 and low 2064),
+  the billed log with three `estimated=abandoned-bound` lines added
+  (refused:
+  65 lines at a ceiling for 62 reuses),
+  a constructed log of the new build with a guard total of 2.5 over 264 units
+  (0.0095 USD a unit,
+  medium 1861 and low 1545),
+  and the same with three `abandoned-bound` lines of 0.322 USD added to its guard total
+  (0.0131 USD a unit,
+  medium 1343 and low 1114).
+  The block on a dry run's log and the `GUARD total` branch are covered by the same runs.
+- Nit 1:
+  the stop rule block and the pre-launch block refuse a log with no `TRIALS` line like the `n` block
+  (message on standard error,
+  exit 1,
+  nothing on standard output),
+  run on a dry run's log and on the billed log (88 for the stop rule).
+  The read step no longer prints `0 of -1 units` for such a log:
+  `unusableWarning` reads the units as at least zero.
+  Red `5fa864ffbdfdf99cdaf41747f7b506e1e8d9f12b` with 2 failing lines (the warning was written),
+  fix `b84403bb13fa1c0de816558491dbafa21f6fa8d1`.
+- Nit 2:
+  a case for a body that opens with `[` and never closes it.
+  A mutant that makes that branch of `isReuseBody` return true fails it with 2 failing lines,
+  and the code passes it (`fd12b8a29342cd486193a9a7bd5c1dc2788b2ed3`).
+- Nit 3:
+  see the section on the second break of the scan.
+- Nit 4:
+  the README has 998 lines after round 12 and 997 after this one;
+  the clause that the number taken off is exact for a log of an earlier build stays in the section on the read step,
+  where it is true for the count of reuse lines and now carries the correction of the spend;
+  the commit `c3f7f4a6343ef7399494071156524929588f9d09` is cited for the article it removed.
+- Nit 5:
+  the articles of the `@param` of `armWithReuseLine` and the `@returns` of `isReuseBody` are gone
+  (`fd12b8a29342cd486193a9a7bd5c1dc2788b2ed3`).
+- Nit 6:
+  the limit section sits under round 12 and the prevention heading names its round;
+  the prevention file holds the limit of the guard and the lesson of the scan.
+
+The README went back under its bound of 1000 lines by moving the units-a-cap-buys paragraph to the simulations doc
+and by shortening two paragraphs that restated the doc.
+
+### The second break of the process globals scan
+
+`7854e18682b5d8c71f9f3d182e78a887b11a3c90` added a suite that imports `infoLinesDuring`
+from `typography/console-warn-lines.test-fixture.ts` and left its cases beside each other.
+The scan failed at that commit and at each commit up to the merge `93a5887a70c3f35e260c36a27d7ba706cf4a1265`,
+and `85e21653a2ebb055ee807a6edc2fdf1248073abc` fixed it with `concurrency: 1`.
+The scan file `source-scan/src/global-writes-sequenced.unit.test.ts` was run at each of seven commits
+in a detached worktree of its own:
+
+- `564d165033e61cab8d136fbf774eabfb4efd86f9`:
+  exit 0,
+  no finding.
+- `7854e18682b5d8c71f9f3d182e78a887b11a3c90`:
+  exit 1,
+  `console assigned, in a suite that runs cases beside it`.
+- `c3f7f4a6343ef7399494071156524929588f9d09`,
+  `d1372493f7369a1efb5c3ef5c00d70ed71398e81`,
+  `22f2ca82dae29c016ea5d875e8f2cf997a57ed65`
+  and the merge `93a5887a70c3f35e260c36a27d7ba706cf4a1265`:
+  exit 1,
+  the same finding.
+- `85e21653a2ebb055ee807a6edc2fdf1248073abc`:
+  exit 0.
+
+Five commits fail the scan,
+so a bisect through them meets a failure that is not the one searched for.
+The messages of those commits do not say so.
+
+### Prevention of round 13
+
+[Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md)
+holds the limit of the guard on a client given as itself
+and the lesson of the scan:
+run the source scans before the first commit of a test that imports a fixture writer.
