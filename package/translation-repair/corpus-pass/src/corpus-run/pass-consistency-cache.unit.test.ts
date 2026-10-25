@@ -223,11 +223,12 @@ await describe({
           },
         },),
         it({
-          name: 'IS AT VERSION 8: the reader of a model\'s reply takes a label that differs from a listed label only '
-            + 'in its capital as the listed label, and the key digests the version, the sheet and the roster, not the '
-            + 'reader, so only this number retires a ballot stored under the reader before',
+          name: 'IS AT VERSION 9: the reader of a model\'s reply takes a label that differs from a listed label only '
+            + 'in its capital as the listed label (version 8), and a count decides only on two or more usable ballots '
+            + '(the lead\'s ruling of 2026-10-25), and the key digests the version, the sheet and the roster, not the '
+            + 'reader or the rule, so only this number retires a ballot stored under the reader or the rule before',
           fn: async () => {
-            expect(CONSISTENCY_CACHE_VERSION,).toBe(8,);
+            expect(CONSISTENCY_CACHE_VERSION,).toBe(9,);
           },
         },),
         it({
