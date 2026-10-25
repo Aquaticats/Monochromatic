@@ -3,10 +3,8 @@ import type {
   RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
-  FULL_VOTE_WEIGHT,
   type IssueAuthorship,
-  MIN_SELECTION_WEIGHT,
-  SELF_VOTE_WEIGHT,
+  MIN_SELECTION_BALLOTS,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import type {
   ClaimAttribution,
@@ -59,7 +57,7 @@ export type RepairModels = {
    Producers used to be removed per round, which is why this once required a
    model that never edits. Since the ruling of 2026-08-15 they are seated and
    a ballot for their own work is discounted instead, so the only requirement
-   left is that some candidate could reach the minimum weight: see
+   left is that a candidate could draw the ballots a winner needs: see
    {@link assertJudgeableEditorRoster}.
    */
   readonly judgeModelIds: readonly RosterModelId[];
@@ -200,7 +198,7 @@ export class ProducerRosterError extends Error {
  @param judgeModelIds - roster judges are drawn from
 
  @throws {@link ProducerRosterError} when either side repeats, editors are
- empty, or too few judges are seated to reach the minimum weight
+ empty, or fewer judges are seated than a winner needs ballots
 
  @example
  ```ts
@@ -233,22 +231,30 @@ export function assertJudgeableEditorRoster(
  made that ruling unreachable, since a roster where every model produces has
  no disinterested judge at all.
 
- WHAT REMAINS STRUCTURAL: a judge contributes at most one full-weight ballot,
- so a roster with fewer seats than the minimum weight cannot select anything,
- and every round would decline into the fallback. That reads as a working
- pipeline in logs and in tests, which is why it is refused at stage entry
- rather than left to be inferred from a corpus of unchanged documents.
+ WHAT REMAINS STRUCTURAL: a judge contributes at most one ballot, so a
+ roster with fewer seats than the ballots a winner needs cannot select
+ anything, and every round would decline into the fallback. That reads as a
+ working pipeline in logs and in tests, which is why it is refused at stage
+ entry rather than left to be inferred from a corpus of unchanged documents.
+
+ NO WEIGHT IS COMPARED. By the owner's rulings of 2026-10-25, "floor of 3 -
+ don't set a floor." and "Every weight floor", a candidate wins with two
+ answering judges whatever they weigh, and a producer's vote for its own text
+ is one answering judge at half weight. This guard used to measure the
+ heaviest candidate the roster could write against a summed weight of two,
+ which refused two authors judging only each other and one author judged by
+ itself and one other model; either can draw two ballots now.
 
  Repeats are refused on both sides: a repeated id is one model counted twice,
  inflating an ensemble without adding an independent voice, and a repeated
- judge would reach the minimum weight by itself.
+ judge would count as two answering judges by itself.
 
  @param producerModelIds - models that generate candidates
 
  @param judgeModelIds - roster judges are drawn from
 
  @throws {@link ProducerRosterError} when either side repeats, producers are
- empty, or too few judges are seated to reach the minimum weight
+ empty, or fewer judges are seated than a winner needs ballots
 
  @example
  ```ts
@@ -287,7 +293,7 @@ export function assertJudgeableProducerRoster(
 
   /**
    Judges keyed the same way, since a repeated judge is one opinion counted
-   twice and would reach the minimum weight on its own.
+   twice and would count as two answering judges on its own.
    */
   const judges = new Set(judgeModelIds,);
   if (judges.size !== judgeModelIds.length)
@@ -295,63 +301,17 @@ export function assertJudgeableProducerRoster(
       producerModelIds,
       judgeModelIds,
       role,
-      fault: 'a judge is listed more than once, which would let one model reach the minimum weight alone',
+      fault: 'a judge is listed more than once, which would let one model count as two answering judges',
     },);
-
-  /**
-   Whether some producer sits outside the judge roster, in which case a
-   candidate exists that every judge can back at full weight.
-   */
-  const hasOutsideProducer = producerModelIds.some(function isOutside(
-    modelId,
-  ): boolean {
-    return !judges.has(modelId,);
-  },);
-
-  /**
-   Most weight ANY candidate this roster could write is able to draw.
-
-   Measured over the most favourable candidate, which is one written by
-   exactly ONE producer: every other judge is disinterested in it and votes at
-   full weight, and only its author is discounted. That is the right question
-   for a guard whose stated job is refusing rosters that could not decide a
-   round HOWEVER they voted.
-
-   NOT THE COLLAPSE CASE, which an earlier version of this measured instead by
-   treating every producer as a stakeholder in one candidate. That refused
-   three authors judging only each other, and that roster decides comfortably:
-   a candidate by one of them draws half a vote from its author and a full one
-   from each of the other two. Rounds where those three write identical text
-   and each back it do decline, at three halves against a minimum of two, and
-   that is the weights doing their work rather than a broken roster. The same
-   arithmetic ships four byte-identical authors and stops three.
-
-   COUNTING SEATS INSTEAD WOULD PASS A ROSTER THAT CAN NEVER DECIDE: one
-   producer, judged by itself and one other model, tops out at half a vote
-   plus a whole one, which never reaches a minimum of two. Every round would
-   keep its fallback and the stage would read as one that found nothing worth
-   changing.
-
-   What this bounds is FRESH text specifically. A candidate nobody on the
-   bench wrote, which in the translate lane is the incumbent translation, can
-   still draw full weight from every judge; the roster this refuses is one
-   whose own proposals can never beat what was already there.
-
-   Derived from the weights rather than written as a number, so tuning any of
-   them cannot leave this quietly wrong.
-   */
-  const capacity = hasOutsideProducer
-    ? FULL_VOTE_WEIGHT * judgeModelIds.length
-    : (FULL_VOTE_WEIGHT * (judgeModelIds.length - 1)) + SELF_VOTE_WEIGHT;
-  if (capacity >= MIN_SELECTION_WEIGHT)
+  if (judges.size >= MIN_SELECTION_BALLOTS)
     return;
   throw new ProducerRosterError({
     producerModelIds,
     judgeModelIds,
     role,
-    fault: `these judges could award at most ${String(capacity,)} to text this roster wrote, against a minimum of ${
-      String(MIN_SELECTION_WEIGHT,)
-    }, so nothing it proposes could ever be selected`,
+    fault: `judges seated: ${String(judges.size,)}; ballots a winner needs: ${
+      String(MIN_SELECTION_BALLOTS,)
+    }; so nothing it proposes could ever be selected`,
   },);
 }
 
@@ -493,19 +453,23 @@ export function assertCheckerIndependence(
 }
 
 /**
- Fewest checkers a split verdict can be read from.
+ Fewest checkers a verdict can be read from: two, since one judge alone never
+ decides.
 
- DERIVED FROM THE TALLY RULE rather than chosen. `tallyResolutionChecks`
- resolves an issue on `fixed > (notFixed + worse)`, so at two checkers one
- `fixed` against one `not-fixed` decides nothing and only a unanimous two-nil
- decides anything: a roster of two that disagrees returns no verdict at all.
- Three is the smallest roster where a majority still reads as a majority.
+ THE OWNER'S ANSWER OF 2026-10-25, "Allow two checkers", moved this from
+ three. `tallyResolutionChecks` resolves an issue on
+ `fixed > (notFixed + worse)` among at least two answering checkers, so a
+ roster of two decides a unanimous two-nil and a split one against one
+ resolves nothing: it returns no verdict, never a wrong one. Three was the
+ smallest roster where a split still read as a majority; the owner chose to
+ run on two and take the split as undecided. One checker is still refused,
+ because a single answer is no ballot count.
 
  SCALE-FREE UNDER THE DISCOUNT, which is why one number covers both arms.
  Halving every weight on an issue halves both sides of that comparison, so a
- roster of three whose members all wrote the text still resolves two-to-one.
+ roster whose members all wrote the text resolves the same issues.
  */
-const MINIMUM_CHECKER_COUNT = 3;
+const MINIMUM_CHECKER_COUNT = 2;
 
 /**
  Thrown when a checker roster is too small to return a verdict.
@@ -530,27 +494,29 @@ export class CheckerQuorumError extends Error {
     super(
       `this run configures ${String(checkerModelIds.length,)} checker(s), [${
         checkerModelIds.join(', ',)
-      }], against a floor of ${String(MINIMUM_CHECKER_COUNT,)}; below that a disagreement returns no `
-        + `verdict, because resolution needs more weight behind fixed than behind not-fixed and worse `
-        + `together, so checking would run and decide nothing`,
+      }], against a floor of ${String(MINIMUM_CHECKER_COUNT,)}; below that no verdict can be read, `
+        + `because resolution needs two answering checkers and one judge alone never decides, so `
+        + `checking would run and decide nothing`,
     );
     this.name = 'CheckerQuorumError';
   }
 }
 
 /**
- Refuses a checker roster too small for a disagreement to resolve.
+ Refuses a checker roster too small to return a verdict: fewer than two
+ checkers.
 
  WHY THIS EXISTS SEPARATELY FROM THE EMPTY-ROLE FLOOR. `assertRostersConfigured`
- refuses a role with nobody in it and nothing more, so a roster of two passed
- every guard while being unable to produce a verdict any two members disagree
- about. Narrowing checking is exactly what widening the producing roles does
- to a fixed-size roster, so the guard belongs next to the one that permits it.
+ refuses a role with nobody in it and nothing more, so a roster of one passed
+ every guard while being unable to produce a verdict at all. Narrowing
+ checking is exactly what widening the producing roles does to a fixed-size
+ roster, so the guard belongs next to the one that permits it. The floor was
+ three until the owner's answer of 2026-10-25, "Allow two checkers".
 
  @param checkerModelIds - checkers proving the shipped repair
 
  @throws {@link CheckerQuorumError} when fewer checkers are configured than a
- split verdict needs
+ verdict needs
 
  @example
  ```ts

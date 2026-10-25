@@ -81,7 +81,9 @@ const CANDIDATES: readonly Candidate<PatchOutcome>[] = [
 /**
  Judges' ballots and the sheet they were shown.
 
- @param named - judges naming candidate 1; every other judge declines
+ @param namingCalls - places in the order of call, from zero, whose judge names candidate 1; every other judge declines. A
+ judge is picked by when it was asked, not by seat, because the round asks three of the four seats (quorum plus one) and the
+ seat that is left out moves with the rotation of the bench, which the sheet's text and the sweep's salt both change
 
  @param sheets - collector the judges' system sheets land in
 
@@ -89,15 +91,15 @@ const CANDIDATES: readonly Candidate<PatchOutcome>[] = [
 
  @example
  ```ts
- const client = judgesClient({ named: [], sheets: [], },);
+ const client = judgesClient({ namingCalls: [], sheets: [], },);
  ```
  */
 function judgesClient(
   {
-    named,
+    namingCalls,
     sheets,
   }: {
-    readonly named: readonly RosterModelId[];
+    readonly namingCalls: readonly number[];
     readonly sheets: string[];
   },
 ): ModelClient {
@@ -107,6 +109,11 @@ function judgesClient(
     },
     chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
       /**
+       Place of this judge in the order of call, read before its sheet is
+       recorded.
+       */
+      const callIndex = sheets.length;
+      /**
        System sheet this judge was shown.
        */
       const system = request.messages.at(0,);
@@ -115,7 +122,7 @@ function judgesClient(
        This judge's ballot.
        */
       const scripted: unknown = {
-        best: named.includes(request.modelId,) ? 1 : 0,
+        best: namingCalls.includes(callIndex,) ? 1 : 0,
         assessment: 'scripted',
       };
       if (!request.validate(scripted,))
@@ -135,16 +142,16 @@ function judgesClient(
 /**
  Runs one chunk selection.
 
- @param named - judges naming candidate 1
+ @param namingCalls - places in the order of call whose judge names candidate 1
 
  @returns Text that ships, and the judges' sheets
 
  @example
  ```ts
- const { shipped, sheets, } = await select({ named: [], },);
+ const { shipped, sheets, } = await select({ namingCalls: [], },);
  ```
  */
-async function select({ named, }: { readonly named: readonly RosterModelId[]; },): Promise<{
+async function select({ namingCalls, }: { readonly namingCalls: readonly number[]; },): Promise<{
   readonly shipped: string;
   readonly sheets: readonly string[];
 }> {
@@ -153,7 +160,7 @@ async function select({ named, }: { readonly named: readonly RosterModelId[]; },
    */
   const sheets: string[] = [];
   const { patch, } = await selectChunkPatch({
-    client: judgesClient({ named, sheets, },),
+    client: judgesClient({ namingCalls, sheets, },),
     candidates: CANDIDATES,
     judgeModelIds: JUDGES,
     sourceText: '猫猫喜欢太阳。',
@@ -181,7 +188,7 @@ await describe({
       name: 'TELLS the judges the existing English is kept only when every judge declines, and what goes on '
         + 'otherwise',
       fn: async () => {
-        const { sheets, } = await select({ named: [], },);
+        const { sheets, } = await select({ namingCalls: [], },);
         expect({
           asked: sheets.length > 0,
           everyJudge: sheets.every(function states(sheet,) {
@@ -204,13 +211,13 @@ await describe({
     it({
       name: 'KEEPS the existing English when every judge declines',
       fn: async () => {
-        expect((await select({ named: [], },)).shipped,).toBe(EXISTING_TEXT,);
+        expect((await select({ namingCalls: [], },)).shipped,).toBe(EXISTING_TEXT,);
       },
     },),
     it({
       name: 'SENDS the fallback repair on when most judges decline and one names a candidate, as the sheet says',
       fn: async () => {
-        expect((await select({ named: [SEAT_HYPER_OPENROUTER_UNMEASURED,], },)).shipped,).toBe('The cat likes the sun.',);
+        expect((await select({ namingCalls: [0,], },)).shipped,).toBe('The cat likes the sun.',);
       },
     },),
   ],

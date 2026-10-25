@@ -5,15 +5,12 @@ import {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import type { RepeatedTitleSpan, } from '@monochromatic-dev/translation-repair-rendering-audit/ts';
 import {
-  rendersAsNothing,
-  straightenQuotes,
-  wordForCount,
-} from '@monochromatic-dev/translation-repair-typography/ts';
-import {
-  foldedLine,
-  type RepeatedTitleSpan,
-} from '@monochromatic-dev/translation-repair-rendering-audit/ts';
+  mostGiven,
+  unwrappedRendering,
+} from './page-title-lexicon-count.ts';
 import {
   buildPageTitleLexiconMessages,
   isPageTitleLexiconWire,
@@ -25,6 +22,7 @@ import {
 import {
   type FanOutMode,
   gatherStageVoices,
+  MIN_STAGE_VOICES,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -36,34 +34,23 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 // B24), the earliest seat on the
 // roster breaking a tie so a resumed page reads the same answer. The lines
 // are evidence beside the page-name block: the judges still decide.
+//
+// NO TITLE SETTLES ON FEWER THAN TWO HEARD VOICES (the lead's ruling of
+// 2026-10-25, on the owner's rule that one judge alone never decides): a
+// bench of seven that lost six seats for the round used to settle, and cache,
+// the one voice's rendering as a line the translators and judges read. A
+// round that heard one voice settles nothing and every repeated title keeps its
+// current rendering. A TITLE SETTLES ONLY ON A RENDERING TWO OR MORE VOICES
+// GAVE (the lead's ruling of 2026-10-25, on the same rule, re-check 2 finding
+// F1): a title one voice alone rendered, or that tied at one voice apiece,
+// stays unsettled with a finding, however many voices were heard. A tie of two
+// voices apiece or more is still broken by the earliest seat.
 
 /**
  Heading of the sheet block.
  */
 const HEADING = 'TITLES THIS PAGE REPEATS THAT THE ARCHIVE DOES NOT RENDER '
   + '(the bench settled one English rendering for each, so every passage renders the same title the same way):';
-
-/**
- Marks a rendering may arrive wrapped in, taken off before comparing: quotes
- of every style a voice answers in, and Markdown emphasis of either kind
- (ledger B24).
- */
-const WRAPPERS: ReadonlySet<string> = new Set([
-  '"',
-  '\'',
-  '*',
-  '_',
-  '“',
-  '”',
-  '‘',
-  '’',
-  '《',
-  '》',
-  '「',
-  '」',
-  '『',
-  '』',
-],);
 
 /**
  One title's settled rendering.
@@ -139,141 +126,9 @@ type ResolvedVoice = {
 };
 
 /**
- A rendering with its wrapping marks and surrounding space off.
-
- @param rendering - rendering as a voice gave it
-
- @returns Rendering as the sheet shows it
-
- @example
- ```ts
- unwrapped({ rendering: ' “Song of the Cat” ', },); // 'Song of the Cat'
- ```
- */
-function unwrapped({ rendering, }: { readonly rendering: string; },): string {
-  /**
-   Rendering without surrounding space; every wrapper is one UTF-16 unit, so
-   an index walks them from either end.
-   */
-  const trimmed = rendering.trim();
-  /**
-   Bounds of the wrapped words: first unit that is no wrapper, and one past the last.
-   */
-  const bounds = {
-    start: 0,
-    end: trimmed.length,
-  };
-  while ((bounds.start < bounds.end) && WRAPPERS.has(trimmed.charAt(bounds.start,),))
-    bounds.start += 1;
-  while ((bounds.end > bounds.start) && WRAPPERS.has(trimmed.charAt(bounds.end - 1,),))
-    bounds.end -= 1;
-  return trimmed
-    .slice(
-    bounds.start,
-    bounds.end,
-    )
-    .trim();
-}
-
-/**
- Form two renderings share when they differ only in case, spacing of any
- kind, or the style of their apostrophes and quotation marks: the typography
- fold, since the typography restoration makes such renderings one (ledger
- B24).
-
- @param rendering - unwrapped rendering
-
- @returns Comparison key
-
- @example
- ```ts
- comparisonKey({ rendering: 'The  Cat’s song', },); // "the cat's song"
- ```
- */
-function comparisonKey({ rendering, }: { readonly rendering: string; },): string {
-  return foldedLine({ text: straightenQuotes({ text: rendering, },), },)
-    .toLowerCase();
-}
-
-/**
- The rendering most voices gave one title, the earliest seat breaking a tie.
-
- A RENDERING THAT SHOWS A READER NOTHING IS NONE, asked of `rendersAsNothing`
- (ledger B40): asked of an empty-string comparison after the trim, two seats
- answering a zero-width space outvoted the one seat answering in words, and
- the title settled on a rendering no reader sees.
-
- @param answers - each voice's rendering of the title, in roster order, empty
- for a voice that gave none
-
- @returns Rendering and how many voices gave it, none where no voice rendered it
-
- @example
- ```ts
- const chosen = mostGiven({ answers: ['Song of the Cat', 'song of the cat', 'Cat Song',], },);
- ```
- */
-function mostGiven(
-  { answers, }: { readonly answers: readonly string[]; },
-): readonly {
-  readonly rendering: string;
-  readonly voices: number;
-}[] {
-  /**
-   Voices per comparison key, with the first wording given under it.
-   */
-  const tally = answers
-    .filter(function given(answer,): boolean {
-      return !rendersAsNothing({ text: answer, },);
-    },)
-    .reduce(
-    function count(
-      seen,
-      answer,
-    ) {
-        /**
-         Key the answer counts under.
-         */
-      const key = comparisonKey({ rendering: answer, },);
-        /**
-         Count so far under that key.
-         */
-      const held = seen.get(key,);
-      seen.set(
-        key,
-        {
-          rendering: held?.rendering ?? answer,
-          voices: (held?.voices ?? 0) + 1,
-        },
-      );
-      return seen;
-    },
-    new Map<string, {
-      readonly rendering: string;
-      readonly voices: number
-    }>(),
-    );
-  return [...tally.values(),]
-    .reduce(
-    function best(
-      chosen: readonly {
-        readonly rendering: string;
-        readonly voices: number
-      }[],
-      candidate,
-    ) {
-        /**
-         Leader so far, none before the first.
-         */
-      const [leader,] = chosen;
-      return ((leader === undefined) || (candidate.voices > leader.voices)) ? [candidate,] : chosen;
-    },
-    [],
-    );
-}
-
-/**
  Settles one English rendering for each title a page repeats, asking the bench once.
+ A round that heard fewer than two voices settles nothing, and a title settles
+ only on a rendering two or more voices gave.
 
  @param client - provider client
 
@@ -400,9 +255,27 @@ export async function settlePageTitles(
     };
   },);
   /**
-   Each title's settled rendering, where some voice gave one.
+   Whether the round heard too few voices for any title to settle on: one judge
+   alone never decides (the lead's ruling of 2026-10-25), so a thin round
+   settles nothing and every repeated title keeps its current rendering.
    */
-  const titles = spans.flatMap(function settle(
+  const tooFewVoices = heard < MIN_STAGE_VOICES;
+  if (tooFewVoices) {
+    tl.warn(
+      `PAGE TITLES heard=${String(heard,)}, below the ${String(MIN_STAGE_VOICES,)} ${
+        wordForCount({
+          count: MIN_STAGE_VOICES,
+          one: 'voice',
+          many: 'voices',
+        },)
+      } a title settles on; nothing settles`,
+    );
+  }
+  /**
+   Each title's leading rendering, where some voice gave one and enough voices
+   were heard.
+   */
+  const leaders = tooFewVoices ? [] : spans.flatMap(function settle(
     span,
     at,
   ): readonly SettledPageTitle[] {
@@ -416,7 +289,7 @@ export async function settlePageTitles(
       const rendering = voice.answers
         .renderings
         .get(at + 1,);
-      return (rendering === undefined) ? '' : unwrapped({ rendering, },);
+      return (rendering === undefined) ? '' : unwrappedRendering({ rendering, },);
     },);
     return mostGiven({ answers, },)
       .map(function toSettled(chosen,): SettledPageTitle {
@@ -429,6 +302,18 @@ export async function settlePageTitles(
         };
       },);
   },);
+  /**
+   Titles a rendering two or more voices gave settles: the leader of a title
+   that only one voice rendered, or that tied at one voice apiece, is no
+   decision, since one judge alone never decides.
+   */
+  const titles = leaders.filter(function namedByTwoVoices(title,): boolean {
+    return title.voices >= MIN_STAGE_VOICES;
+  },);
+  /**
+   Titles some voice rendered that no two voices agreed on.
+   */
+  const unsettled = leaders.length - titles.length;
   tl.info(
     `PAGE TITLES heard=${String(heard,)} asked=${String(spans.length,)} settled=${String(titles.length,)}`,
   );
@@ -459,6 +344,36 @@ export async function settlePageTitles(
           many: 'voices',
         },)
       }`,
+      ...((unsettled === 0)
+        ? []
+        : [
+          `page title lexicon left ${String(unsettled,)} repeated ${
+            wordForCount({
+              count: unsettled,
+              one: 'title',
+              many: 'titles',
+            },)
+          } unsettled, since no rendering was given by ${String(MIN_STAGE_VOICES,)} ${
+            wordForCount({
+              count: MIN_STAGE_VOICES,
+              one: 'voice',
+              many: 'voices',
+            },)
+          }`,
+        ]),
+      ...(tooFewVoices
+        ? [
+          `page title lexicon heard fewer than ${
+            String(MIN_STAGE_VOICES,)
+          } ${
+            wordForCount({
+              count: MIN_STAGE_VOICES,
+              one: 'voice',
+              many: 'voices',
+            },)
+          }, so no title settles and every repeated title keeps its current rendering`,
+        ]
+        : []),
     ],
   };
 }

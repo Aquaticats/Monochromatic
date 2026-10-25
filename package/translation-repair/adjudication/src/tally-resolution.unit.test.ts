@@ -263,6 +263,100 @@ await describe({
         },),
 
         it({
+          name: 'A LONE WORSE BALLOT REGRESSES NOTHING when the other checker cast no verdict on the issue: the '
+            + 'flag reorders shippable candidates, so one judge alone never sets it (owner rule of 2026-10-25)',
+          fn: async () => {
+            /** The first issue judged worse by one checker while the other stays silent on it. */
+            const tallies = tallyResolutionChecks({
+              issueIds: ISSUE_IDS,
+              authorship: UNATTRIBUTED_TEXT,
+              ballots: {
+                a: {
+                  verdicts: { 'adjudicated/whisker': 'worse', },
+                  findings: [],
+                },
+                b: {
+                  verdicts: { 'adjudicated/paw': 'fixed', },
+                  findings: [],
+                },
+              },
+            },);
+            expect(tallies['adjudicated/whisker']?.worse,).toBe(1,);
+            expect(tallies['adjudicated/whisker']?.regressed,).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'REGRESSES on two worse ballots against one fixed, which is the positive control for the lone '
+            + 'worse ballot: the assertion has to be reading the count of worse ballots and not the weights',
+          fn: async () => {
+            /** Two checkers judge the first issue worse and one judges it fixed. */
+            const tallies = tallyResolutionChecks({
+              issueIds: ISSUE_IDS,
+              authorship: UNATTRIBUTED_TEXT,
+              ballots: {
+                a: {
+                  verdicts: { 'adjudicated/whisker': 'worse', },
+                  findings: [],
+                },
+                b: {
+                  verdicts: { 'adjudicated/whisker': 'worse', },
+                  findings: [],
+                },
+                c: {
+                  verdicts: { 'adjudicated/whisker': 'fixed', },
+                  findings: [],
+                },
+              },
+            },);
+            expect(tallies['adjudicated/whisker'],).toEqual({
+              fixed: 1,
+              notFixed: 0,
+              worse: 2,
+              resolved: false,
+              regressed: true,
+            },);
+          },
+        },),
+
+        it({
+          name: 'DOES NOT REGRESS when two worse ballots are level with two fixed ballots: worse has to strictly '
+            + 'outweigh the rest as well as come from two judges',
+          fn: async () => {
+            /** Two checkers judge the first issue worse and two judge it fixed. */
+            const tallies = tallyResolutionChecks({
+              issueIds: ISSUE_IDS,
+              authorship: UNATTRIBUTED_TEXT,
+              ballots: {
+                a: {
+                  verdicts: { 'adjudicated/whisker': 'worse', },
+                  findings: [],
+                },
+                b: {
+                  verdicts: { 'adjudicated/whisker': 'worse', },
+                  findings: [],
+                },
+                c: {
+                  verdicts: { 'adjudicated/whisker': 'fixed', },
+                  findings: [],
+                },
+                d: {
+                  verdicts: { 'adjudicated/whisker': 'fixed', },
+                  findings: [],
+                },
+              },
+            },);
+            expect(tallies['adjudicated/whisker'],).toEqual({
+              fixed: 2,
+              notFixed: 0,
+              worse: 2,
+              resolved: false,
+              regressed: false,
+            },);
+          },
+        },),
+
+        it({
           name: 'ONE CAST BALLOT RESOLVES NOTHING, while two agreeing ballots do: one model never decides '
             + 'that a defect is gone (759 of 8,788 readings over 403 run directories resolved on one '
             + 'ballot, 756 inside a selected patch; XingZ6014 slice 87 shipped one)',

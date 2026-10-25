@@ -926,6 +926,22 @@ until `20a379f77a` and `a169580740`,
 and the translate stage,
 the pairing preparation and the corpus-pass admission and preparation seams did not,
 until `1305066161`.
+A change to the rule that sizes a window moves the rotation into cases that never met it,
+with no sheet text edited (ledger B944 to B946).
+`1dee3ca797` sized the selection fan-out by the ballots a winner needs and not by a summed weight,
+so a bench of four that was asked whole became a window of three,
+and the seat left out followed the hash.
+`d42e79be74` updated the asked count of one case to three and ran no sweep.
+The next sweep found four cases that passed at salt 0:
+a straggler held back by seat,
+a judge that named a candidate by seat,
+and two cases that read the self-vote of the refiner.
+The rule is the same and the remedies are the ones named here:
+hold or script a judge by its place in the order of call where the case needs one judge of those asked,
+and seat only as many judges as the window asks where the case reads a named seat's own finding
+and the stage has no seam for a whole bench.
+A case that scripts the asked count itself fails when the count changes,
+and that failure is the signal to run the sweep.
 Before a test is rewritten to ignore an order,
 its diff is read for each assertion it drops,
 and a guard is removed to show the new test still fails for it.
@@ -953,6 +969,8 @@ builds included,
 on 2026-10-21 (UTC)),
 so it is not run on every commit.
 It runs before a commit that changes the text of a sheet lands,
+or the quorum,
+the spare or the rule that sizes a window (ledger B944 to B946),
 and in the pre-launch checks (`mistake-prevention.md`,
 "Before a run launches",
 step 13).

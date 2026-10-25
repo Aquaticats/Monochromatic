@@ -842,7 +842,6 @@ const ALLOWLIST: readonly string[] = [
   'lane-contest/sample-draw-identity.ts',
   'adjudication/sealed-node-ids.ts',
   'lane-contest/seed-detection.ts',
-  'adjudication/select-decline-consequence.ts',
   'adjudication/severity-scale.ts',
   'translate-floor/slice-cost-log.ts',
   'translate-floor/slice-delivery-decide.ts',

@@ -6,6 +6,11 @@ each recording a seat a model took or left and the evidence for it.
 Part of [Roster seating of 2026-09-01, on the two calibrations under the owner blocklist](translation-repair-roster-seating-2026-09-01.md),
 which lists every file of this record.
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+the `minBallotWeight` of 3 of 6 named in the addendum of 2026-09-03 no longer exists,
+and two answering judges decide whatever their weight.
+
 ## Addendum 2026-09-02: GLM-5.3-Flash leaves every judge seat
 
 Decided by the owner ("Unseat GLM-5.3-Flash as a judge,

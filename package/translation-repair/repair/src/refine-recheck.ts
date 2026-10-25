@@ -28,7 +28,7 @@ import {
 
 /**
  Whether a refinement kept every issue the checkers had already confirmed,
- and made no accepted issue `T1` leaves open worse.
+ and made no accepted issue `T1` leaves open regress.
 
  Rolls back the WHOLE slice when it did not. Checkers report per ISSUE while
  refinement happens per paragraph, and an issue can span paragraphs, so which
@@ -66,9 +66,11 @@ import {
  @returns Whether refinement may ship, plus the checker stage's own findings
  and the recheck's verdict as findings
 
- AN OPEN ISSUE IS ROLLED BACK ON ONE WORSE BALLOT, the threshold the owner
- ruled for a patch's unconfirmed edits the same day (ledger L3): the checkers
- were never going to call an issue the patch did not fix `fixed`, so
+ AN OPEN ISSUE IS ROLLED BACK WHERE IT REGRESSES: two or more checkers name it
+ worse and their weight exceeds the rest (the tally's `regressed`, the
+ threshold of a patch's unconfirmed edits, ledger L3). The owner raised both
+ from one worse ballot on 2026-10-25 ("Two ballots for undo too"). The
+ checkers were never going to call an issue the patch did not fix `fixed`, so
  `not-fixed` is the text as it stood and `worse` is the only verdict that
  says the rewrite damaged it. A `fixed` ballot credits nothing; the round is
  a rollback gate, and a resolution it recorded would rest on a round no panel
@@ -345,7 +347,9 @@ export async function retainsResolvedIssues(
     },);
 
   /**
-   Open issues at least one checker found the refinement made worse.
+   Open issues the refinement made worse by the tally's own definition: two or
+   more checkers named it worse and the worse weight exceeds the rest
+   (`regressed`, owner 2026-10-25, "Two ballots for undo too").
    */
   const worsened = open
     .filter(function readable(issue,) {
@@ -354,8 +358,7 @@ export async function retainsResolvedIssues(
     .filter(function madeItWorse(issue,) {
       return readingOf(issue,)
         .tally
-        .worse
-        > 0;
+        .regressed;
     },)
     .map(function toId(issue,) {
       return issue.issueId;

@@ -705,8 +705,50 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  that holds that commit and lacks the fold, so the change cannot ride inside it and the number moves. A build whose
  pipeline digest differs discards the namespace before it reads it (`openNamespacedCache`), and the number is the belt
  beside that brace. The account of every cache is in the header of `provider/src/enum-case-fold.ts`.
+
+ Version 47 covers the owner's rulings of 2026-10-25 that removed every weight floor ("floor of 3 - don't set a floor.",
+ "Two ballots decide (Recommended)" and "Every weight floor"): a claim the panel tally decides with two answering
+ panelists no longer lands `needs-human` for want of an electorate weight of 3 (`adjudication/src/tally-votes.ts`,
+ `minBallotWeight` is gone from `AdjudicationConfig`), the editor ensemble's candidate selection names a winner two ballots
+ named whatever their weight (`translate-stage/src/candidate-select.ts`), and two critics' non-translation votes block a
+ slice (`archive/src/non-translation-evidence.ts`, `NON_TRANSLATION_BLOCK_VOTES` 3 to 2). Each changes what a settled
+ slice holds for the same texts: XingZ6021 slice 67 settled its claims `needs-human` on two unanimous panelists and
+ shipped invented text. The key hashes the version, the shape of the run and the texts, not the rule that reads the
+ ballots, so a record written before would be served after. The previous number was set in `170c1936f7`; no slice-cache
+ directory was searched for a record written by code that holds it, so records may stand at 46 and the change cannot
+ ride inside it, and the number moves. The translate (28), refine (17) and consolidate (35) versions move for the same
+ selection and gate rules, each beside its own account. The lane-contest, consistency, pairing and page-title versions
+ stay: their ballots are counted by their own rules of two, which this change leaves as they were. No record has been
+ written at 47, which this change sets first.
+
+ Version 48 covers the lead's ruling on re-check 3 (M1, 2026-10-25), by the owner rules that two ballots decide and
+ that one judge alone never decides: an accepted issue counts as regressed only when two or more checker ballots name
+ `worse` and the weight behind `worse` exceeds the rest (`adjudication/src/tally-resolution.ts`). Candidate selection
+ ranks that count third (`adjudication/src/select-candidate.ts`, `compareCandidates`), so for the same texts a slice
+ whose checker round held one `worse` ballot now ranks its candidates by the other measurements and can ship another
+ candidate; the stored outcome also holds each issue's tally, whose `regressed` field changes for that round. The key
+ hashes the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written
+ before would be served after. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 47 and the change cannot ride inside
+ it; the number moves. The refine version moves for the same reason (18), because a refinement record embeds the
+ readings of its recheck round. The translate, consolidate, lane-contest, consistency, pairing and page-title
+ versions stay: none of them runs the resolution checkers. No record has been written at 48, which this change sets
+ first.
+
+ Version 49 covers the owner's answer of 2026-10-25, "Two ballots for undo too", that the two-ballot rule also covers
+ the strip of a patch's unconfirmed edits (ledger L3) and the rollback of a refinement (L11): an edit is stripped only
+ where its issue regresses, two or more ballots naming `worse` with the `worse` weight above the rest, and one `worse`
+ ballot strips nothing (`repair/src/repair-worse-strip.ts`, which reads the tally's `regressed`). A checker round that
+ held one `worse` ballot on an unconfirmed edit used to strip the edit and prove the reduced patch once more; the same
+ texts now keep the edit on a single round, so the shipped patch, the stored proof and the findings differ. The key
+ hashes the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written
+ before would be served after. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 48 and the change cannot ride inside
+ it; the number moves. The refine version moves with it (19), because the rollback reads the same flag. The
+ translate, consolidate, lane-contest, consistency, pairing and page-title versions stay for this change: none of
+ them runs the resolution checkers. No record has been written at 49, which this change sets first.
  */
-export const SLICE_CACHE_VERSION = 46;
+export const SLICE_CACHE_VERSION = 49;
 /**
  Everything about a repair run that changes what the models are ASKED, folded
  into every cache key.

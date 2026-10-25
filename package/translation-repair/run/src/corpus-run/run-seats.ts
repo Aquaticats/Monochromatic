@@ -50,9 +50,11 @@ import {
 // per million tokens, 52 to 61 percent of an entry's all-OpenRouter cost, and
 // the owner decided on 2026-09-03 to withhold it wherever only OpenRouter
 // would buy it (`doc/decision/translation-repair-openrouter-fallback.md`).
-// That reaches its checker seat too, and a checker roster of two is below the
-// hard floor `assertCheckerQuorumReachable` holds, so the next checker of the
-// measured order (`RUN_CHECKER_ORDER`) a wet provider serves takes the seat.
+// That reaches its checker seat too, and the next checker of the measured
+// order (`RUN_CHECKER_ORDER`) a wet provider serves takes the seat, so the
+// static bench stays three wide although `assertCheckerQuorumReachable` has
+// held a floor of two since the owner's answer of 2026-10-25 ("Allow two
+// checkers").
 //
 // WHERE A MODEL WOULD BE SERVED is the router's own answer: the first provider
 // in `PROVIDER_ORDER` that serves the model and reads wet, holds folded in

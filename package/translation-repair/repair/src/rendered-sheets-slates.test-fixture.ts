@@ -25,7 +25,9 @@ import {
   repairSelectionSourceEvidence,
   selectDecision,
   type SelectEvidence,
-  SHIPS_BY_PREFERENCE,
+  SETTLES_NOTHING_AND_ASKS_AGAIN,
+  SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
+  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   buildRefineSelectionContext,
@@ -159,6 +161,41 @@ function typedDecisionText(): string {
 }
 
 /**
+ The rendered slate the translate lane asks over wording that cannot ship, one per round of a pair: only the decline
+ text differs, and each is built with the planted archive and repair candidates so the sheet-wide scans reach it
+ (re-check 5, the rendered-sheets gap).
+
+ @param declineConsequence - what the round tells its judges a decline does
+
+ @returns The slate as its judges read it
+
+ @example
+ ```ts
+ const text = withheldWordingSlateText({ declineConsequence: SETTLES_NOTHING_AND_ASKS_AGAIN, },);
+ ```
+ */
+function withheldWordingSlateText(
+  { declineConsequence, }: { readonly declineConsequence: string; },
+): string {
+  return joined({
+    messages: buildCandidateSelectMessages({
+      task: TRANSLATE_SELECTION_TASK,
+      criteria: translateSelectionCriteria({
+        lineStructured: false,
+        syntax: 'front-matter',
+      },),
+      evidence: translatedEvidence({ sourceText: SOURCE, },),
+      rendered: [
+        ARCHIVE,
+        REPAIR,
+      ],
+      declineConsequence,
+      sourceText: SOURCE,
+    },),
+  },);
+}
+
+/**
  Every selection slate by its own task, criteria and decline text, and the
  same choice asked as a typed decision (ledger X17).
 
@@ -253,22 +290,15 @@ export function slateSheets(): readonly RenderedSheet[] {
     },
     {
       name: 'translate front matter slate',
-      text: joined({
-        messages: buildCandidateSelectMessages({
-          task: TRANSLATE_SELECTION_TASK,
-          criteria: translateSelectionCriteria({
-            lineStructured: false,
-            syntax: 'front-matter',
-          },),
-          evidence: translatedEvidence({ sourceText: SOURCE, },),
-          rendered: [
-            ARCHIVE,
-            REPAIR,
-          ],
-          declineConsequence: SHIPS_BY_PREFERENCE,
-          sourceText: SOURCE,
-        },),
-      },),
+      text: withheldWordingSlateText({ declineConsequence: SHIPS_WHAT_TWO_JUDGES_NAMED, },),
+    },
+    {
+      name: 'translate first ask slate',
+      text: withheldWordingSlateText({ declineConsequence: SETTLES_NOTHING_AND_ASKS_AGAIN, },),
+    },
+    {
+      name: 'translate deferring challenge slate',
+      text: withheldWordingSlateText({ declineConsequence: SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN, },),
     },
     ...REFINE_MODES.map(function refineSlate({
       name,

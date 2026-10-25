@@ -209,6 +209,11 @@ export function pageTitleKey(
  THE HOOK IS READ ONLY WHEN THE PAGE REPEATS SUCH A TITLE, since a page that
  repeats none asks nobody and so has no bench to re-seat.
 
+ A ROUND IS STORED ONLY WHEN EVERY TITLE IT ASKED IS SETTLED (the lead's ruling
+ of 2026-10-25 on re-check 3, Q1). A round that leaves any title unsettled is
+ not stored, so the next run asks again on whatever bench it has; the lines it
+ returns for this run still carry the titles it did settle.
+
  @param client - provider client
 
  @param modelIds - roster the preparation started on
@@ -336,10 +341,20 @@ export async function passPageTitles(
     l,
     stageSettings,
   },);
-  // A ROUND NOBODY ANSWERED IS NOT AN ANSWER and is not stored: the bench was
-  // unreachable, not undecided, and storing that would keep the page unsettled
-  // on every resume.
-  if (lexicon.heard > 0) {
+  // A ROUND IS STORED ONLY WHEN EVERY TITLE IT ASKED IS SETTLED (the lead's
+  // ruling of 2026-10-25 on re-check 3, Q1, on the owner's rule that one judge
+  // alone never decides). A round that heard fewer than two voices is the bench
+  // unreachable, not undecided, and settles nothing; a round that heard two or
+  // more and left any title unsettled (a split of one voice apiece, a title no
+  // voice rendered) would freeze that gap under the key of this bench, and a
+  // later run on a fuller bench would resume the gap instead of asking again.
+  // A round that settled every title heard at least two voices, since a title
+  // settles on a rendering two voices gave, so this one test covers both.
+  /**
+   Titles the round settled, one for each title it asked when none was left out.
+   */
+  const { titles, } = lexicon;
+  if (titles.length === spans.length) {
     await cache.persist({
       key,
       serialized: JSON.stringify({

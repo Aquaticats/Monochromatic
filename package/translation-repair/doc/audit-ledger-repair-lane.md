@@ -36,8 +36,11 @@ one cast ballot resolves nothing (`MIN_RESOLUTION_BALLOTS`,
 `REFINE_CACHE_VERSION` 5),
 and the bench is the first three of `RUN_CHECKER_ORDER` a wet provider serves,
 padded with unserved ranked seats only while fewer than three are served.
-`regressed` keeps no floor:
+`regressed` kept no floor when this was written:
 it only ranks a candidate and never ships text.
+Superseded on 2026-10-25 (B917):
+it ranks third in the candidate selection,
+so it needs two or more ballots naming `worse`.
 
 ## L2: the archive-dispute stand-in is the archive's own wording whenever the repair lost
 
@@ -87,6 +90,12 @@ the owner's L2 answer rules on the standing after a lost repair,
 not on a winning patch's contents,
 and `design-commitments.md` commits that every stage changing shipped text is audited,
 which counts against reverting unconfirmed envelopes with no recheck of the composite.
+Superseded on 2026-10-25 (B922),
+owner answer "Two ballots for undo too":
+an edit is stripped only where its issue's tally flags it `regressed`,
+two or more ballots naming `worse` with the `worse` weight exceeding the `fixed` and `not-fixed` weight together,
+and one `worse` ballot strips nothing.
+Repair slice version 49 retires the records written before.
 
 ## L4: the editor preservation gate can never reject anything
 
@@ -609,6 +618,12 @@ and crediting a fixed ballot are each caught;
 the comment-wording control survives.
 Cache:
 rides inside refine version 5 with an account in `refine-slice-key.ts`.
+Superseded on 2026-10-25 (B922),
+owner answer "Two ballots for undo too":
+the rollback on an open issue reads the same `regressed` flag as the strip of L3,
+two or more ballots naming `worse` with the `worse` weight exceeding the rest,
+and one `worse` ballot rolls nothing back.
+Refine version 19 retires the records written before.
 
 **The probe rolls a rewrite back**,
 decided for quality under the owner's standing directive

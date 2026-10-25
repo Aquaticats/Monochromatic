@@ -338,8 +338,8 @@ await describe({
 
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
-              'StatedRefusalError: this translator roster cannot select anything: these judges could award at most 0.5 '
-                + 'to text this roster wrote, against a minimum of 2, so nothing it proposes could ever be selected. '
+              'StatedRefusalError: this translator roster cannot select anything: judges seated: 1; ballots a winner '
+                + 'needs: 2; so nothing it proposes could ever be selected. '
                 + `translators [${SEAT_HYPER_VISION}], judges [${SEAT_HYPER_VISION}]`,
             );
             expect(asked,).toEqual({

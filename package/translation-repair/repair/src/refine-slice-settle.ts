@@ -292,8 +292,8 @@ export async function settleRefinedSlice(
   /**
    Whether the recheck reached its quorum of checkers on the round and on
    every issue, every issue they had confirmed is still confirmed in the
-   refined text, and no accepted issue the text never fixed drew a worse
-   ballot on it.
+   refined text, and no accepted issue the text never fixed regressed on it
+   (two or more worse ballots outweighing the rest).
    */
   const retained = await retainsResolvedIssues({
     client,
@@ -307,7 +307,8 @@ export async function settleRefinedSlice(
     sourceText,
     refinedText: refined.refinedText,
     // The rewriters' evidence, which the checkers judge the rewrite by
-    // (ledger L14): a worse ballot rolls the whole slice back.
+    // (ledger L14): two worse ballots that outweigh the rest roll the whole
+    // slice back.
     ...(identityContext === undefined ? {} : { identityContext, }),
     ...(referenceContext === undefined ? {} : { referenceContext, }),
     signal,

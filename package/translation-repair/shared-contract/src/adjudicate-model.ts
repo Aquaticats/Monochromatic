@@ -272,12 +272,6 @@ export type AdjudicatedIssue = {
  */
 export type AdjudicationConfig = {
   /**
-   Minimum non-abstain weight before any decision;
-   below it the claim lands needs-human.
-   */
-  readonly minBallotWeight: number;
-
-  /**
    Fraction of non-abstain weight supported votes must strictly exceed
    for acceptance; the same fraction gates rejection symmetrically.
    */
@@ -305,11 +299,15 @@ const SOURCE_DEFECT_BLOCK_DENOMINATOR = 3;
 
 /**
  Defaults until canary calibration supplies weights:
- strict majority decides, three ballots minimum, one-third blocks on
- suspected source defects.
+ strict majority of the weight that answered decides, one-third blocks on
+ suspected source defects. THERE IS NO WEIGHT FLOOR: the owner's rulings of
+ 2026-10-25, "floor of 3 - don't set a floor." and "Two ballots decide
+ (Recommended)", removed the minimum ballot weight of three. The tally decides
+ with two or more answering panelists and leaves a claim that only one
+ panelist answers to a human, whatever weight that panelist carries
+ (`MIN_PANEL_BALLOTS` in the adjudication package).
  */
 export const DEFAULT_ADJUDICATION_CONFIG: AdjudicationConfig = {
-  minBallotWeight: 3,
   decisionThreshold: 1 / 2,
   sourceDefectThreshold: 1 / SOURCE_DEFECT_BLOCK_DENOMINATOR,
 };

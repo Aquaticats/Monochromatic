@@ -7,6 +7,12 @@ and changes the premise of two findings:
 that the checker-side self-certification discount is unreachable in production,
 and that checker width changes no verdict.
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+`MINIMUM_CHECKER_COUNT` is two,
+by the owner's answer "Allow two checkers",
+where this record says it refuses a roster below three.
+
 ## Contents
 
 This record is kept as one file per subject or span,

@@ -15,7 +15,6 @@ import {
   LEAVES_PASSAGE_UNTRANSLATED,
   repairSelectionSourceEvidence,
   type SelectEvidence,
-  SHIPS_BY_PREFERENCE,
 } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   acceptedRepairClaimsNote,
@@ -118,7 +117,7 @@ function objectionModeOf(
  const evidence = translatedEvidence({ subject: CAT_SUBJECT, sourceText: CAT_SUBJECT.source, },);
  ```
  */
-function translatedEvidence(
+export function translatedEvidence(
   {
     subject,
     sourceText,
@@ -322,28 +321,6 @@ export const SLATE_STAGES: readonly PromptStage[] = [
         ],
         declineConsequence: LEAVES_PASSAGE_UNTRANSLATED,
         sourceText: subject.verseSource,
-      },);
-    },
-  },
-  {
-    name: 'translate front matter slate',
-    render: function renderTranslateFrontMatterSlate({ subject, },) {
-      return buildCandidateSelectMessages({
-        task: TRANSLATE_SELECTION_TASK,
-        criteria: translateSelectionCriteria({
-          lineStructured: false,
-          syntax: 'front-matter',
-        },),
-        evidence: translatedEvidence({
-          subject,
-          sourceText: subject.source,
-        },),
-        rendered: [
-          subject.archive,
-          subject.repair,
-        ],
-        declineConsequence: SHIPS_BY_PREFERENCE,
-        sourceText: subject.source,
       },);
     },
   },

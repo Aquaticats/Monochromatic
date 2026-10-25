@@ -878,17 +878,32 @@ await describe({
         },),
 
         it({
-          name: 'RECHECKS A REWRITE OF THE ARCHIVE AFTER A LOST PATCH against the '
-            + 'slice\'s accepted issues, and a rewrite one checker votes worse keeps '
-            + 'the text before it (ledger L11, owner 2026-09-28): 1,218 of 2,144 '
-            + 'refined slices were such rewrites, 457 over accepted issues the '
-            + 'rewrite was never shown, and none had a checker round',
-          fn: async function aWorseRewriteOfTheArchiveRollsBack() {
+          name: 'KEEPS A REWRITE OF THE ARCHIVE the checkers find one worse ballot on: one worse ballot is '
+            + 'one voice, and one voice rolls nothing back (owner, 2026-10-25, "Two ballots for undo too")',
+          fn: async function aLoneWorseBallotRollsNothingBack() {
             const phase = await runPhase({
               resolvedIssueIds: [],
               unresolvedIssues: [{ issueId: 'adjudicated/open', status: 'accepted', },],
               checkerVerdict: 'not-fixed',
               dissent: { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, verdict: 'worse', },
+            },);
+            expect(phase.outcomes[0]?.repairedText,).toBe(SMOOTH_TEXT,);
+            expect(phase.findings,).toContain('refine-recheck-passed (1 issue)',);
+          },
+        },),
+
+        it({
+          name: 'RECHECKS A REWRITE OF THE ARCHIVE AFTER A LOST PATCH against the '
+            + 'slice\'s accepted issues, and a rewrite two checkers vote worse keeps '
+            + 'the text before it (ledger L11, owner 2026-09-28, two ballots since 2026-10-25): '
+            + '1,218 of 2,144 refined slices were such rewrites, 457 over accepted issues the '
+            + 'rewrite was never shown, and none had a checker round',
+          fn: async function aWorseRewriteOfTheArchiveRollsBack() {
+            const phase = await runPhase({
+              resolvedIssueIds: [],
+              unresolvedIssues: [{ issueId: 'adjudicated/open', status: 'accepted', },],
+              checkerVerdict: 'worse',
+              dissent: { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, verdict: 'not-fixed', },
             },);
             expect(phase.outcomes[0]?.repairedText,).toBe(REPAIRED_TEXT,);
             expect(phase.outcomes[0]?.changed,).toBe(false,);

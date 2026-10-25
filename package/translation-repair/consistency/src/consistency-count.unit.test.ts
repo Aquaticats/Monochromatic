@@ -1469,6 +1469,30 @@ await describe({
           },
         },),
         it({
+          name: 'NAMES NO WINNER ON ONE USABLE BALLOT though the gather closed on a quorum of one (a bench of one or two '
+            + 'seats), since one judge alone never decides (the lead\'s ruling of 2026-10-25, on the owner\'s rule), and '
+            + 'runs nothing off',
+          fn: async () => {
+            const count = countOver({ voices: [voiceOf({ seat: 'a', },),], quorum: 1, },);
+            expect({ usable: count.usable, winner: count.winner, finalists: count.finalists, },).toEqual({
+              usable: 1,
+              winner: { kind: 'none', reason: 'no-quorum', },
+              finalists: [],
+            },);
+          },
+        },),
+        it({
+          name: 'STILL NAMES A WINNER ON TWO USABLE BALLOTS under a quorum of one, the positive control: two judges '
+            + 'decide',
+          fn: async () => {
+            const count = countOver({ voices: [voiceOf({ seat: 'a', },), voiceOf({ seat: 'b', },),], quorum: 1, },);
+            expect({ usable: count.usable, winner: count.winner, },).toEqual({
+              usable: 2,
+              winner: { kind: 'chosen', label: 'OCCURRENCE 1', },
+            },);
+          },
+        },),
+        it({
           name: 'NAMES NO WINNER when nobody was heard',
           fn: async () => {
             expect(countOver({ voices: [], },).winner,).toEqual({ kind: 'none', reason: 'no-quorum', },);
@@ -1493,11 +1517,12 @@ await describe({
                 voiceOf({ seat: 'b', over: { reason: ' ', choice: 'OCCURRENCE 2', }, },),
                 voiceOf({ seat: 'c', over: { choice: 'OCCURRENCE 9', }, },),
                 voiceOf({ seat: 'd', over: { keep: ['OCCURRENCE 9',], }, },),
+                voiceOf({ seat: 'e', },),
               ],
               quorum: 1,
             },);
             expect({ usable: count.usable, winner: count.winner, },).toEqual({
-              usable: 1,
+              usable: 2,
               winner: { kind: 'chosen', label: 'OCCURRENCE 1', },
             },);
           },

@@ -102,18 +102,6 @@ import type {
 
  @param responsibility - initial selection or prior-decline challenge
 
- @param runoff - whether this judging is the challenge round's run-off over
- finalists the prior round backed, which the ballot floor then decides under
- the weight minimum (class seventy-three)
-
- @param fallbackCondemned - whether a strict majority of the contest's ballots
- called the incumbent flawed, so a leader that at least two ballots named
- wins under the weight minimum although no run-off narrowed the question; the
- consolidation sets it over an eligible standing (one entry's slice 45,
- 2026-10-19). Read by the challenge round alone: the first round still
- declines under the minimum, so a tie that backed two candidates is still run
- off over them (slice 34) and not decided on the first plurality
-
  @param withheldStanding - whether an absent incumbent stands for wording
  that exists and cannot ship (a standing the deterministic rule refused, an
  archive rendering the floor refused or the adjudicators disputed) rather
@@ -121,7 +109,9 @@ import type {
  "Preference + polish")
 
  @param shipPastDecline - whether a challenge round declined with nothing
- left to narrow ships its preferred candidate; defaults to the withheld
+ left to narrow ships its preferred candidate among those two or more judges
+ named, and keeps the archive wording where none drew two ballots (owner,
+ 2026-10-25, "Two judges must name it"); defaults to the withheld
  standing, and a caller with a further round of its own (the translate
  lane's follow-up production) defers it to that round
 
@@ -175,8 +165,6 @@ export async function judgeTranslateSlate(
     syntax,
     lineStructured,
     responsibility = 'initial-selection',
-    runoff = false,
-    fallbackCondemned = false,
     withheldStanding = false,
     shipPastDecline = withheldStanding,
     signal,
@@ -221,8 +209,6 @@ export async function judgeTranslateSlate(
      */
     readonly lineStructured: boolean;
     readonly responsibility?: TranslateJudgeResponsibility;
-    readonly runoff?: boolean;
-    readonly fallbackCondemned?: boolean;
     readonly withheldStanding?: boolean;
     readonly shipPastDecline?: boolean;
     readonly signal: AbortSignal;
@@ -437,20 +423,22 @@ export async function judgeTranslateSlate(
     // keeps text it already trusts; at an anchor there is no such text, so that
     // sentence asks for caution by promising a fallback that does not exist and
     // buys a missing passage with it.
-    // Wording that exists and cannot ship is neither: a declined challenge
-    // round ships by preference there (owner, 2026-09-27).
+    // Wording that exists and cannot ship is neither, and what a decline does
+    // there depends on the round (re-check 4, F1): the first ask of a pair
+    // settles nothing and asks the panel again; a challenge that ships
+    // past a decline ships a candidate two judges named and otherwise keeps
+    // the archive wording (owner, 2026-09-27 and 2026-10-25); a challenge that
+    // does not ship past one ships only a level tie and otherwise raises the
+    // absence its caller answers with a follow-up round. A tie that backs only
+    // some candidates sends the panel to a run-off first in all three (re-check
+    // 5, M-B), and no sentence promises the same seats (re-check 5, M-D).
     declineConsequence: declineConsequenceFor({
       incumbentKind,
       withheldStanding,
+      responsibility,
+      shipPastDecline,
     },),
     task,
-    runoff,
-    // THE CHALLENGE ROUND ALONE. The first round declining under the minimum
-    // is what lets a tie across two candidates be narrowed to a run-off, a
-    // narrower question than the first plurality answered (slice 34 of the
-    // same entry); only a round that is already the second ask has nothing
-    // narrower left to give.
-    fallbackCondemned: fallbackCondemned && (responsibility === 'decline-challenge'),
     criteria: translatedSlateCriteria({
       sourceText,
       archiveText: incumbentText,
@@ -577,8 +565,9 @@ export async function judgeTranslateSlate(
     disposition: outcome.disposition,
   },);
   if (incumbentKind === 'absent') {
-    // A challenge round tied across every valid candidate ships one by
-    // preference (class one hundred seventy-four); any other decline raises.
+    // A challenge round tied across every valid candidate ships, by
+    // preference, one that two or more judges named (class one hundred
+    // seventy-four); any other decline raises.
     return settleAbsentDecline({
       challenged: responsibility === 'decline-challenge',
       outcome,

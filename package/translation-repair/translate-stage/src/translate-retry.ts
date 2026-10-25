@@ -357,9 +357,6 @@ export async function judgeSlateWithRetry(
               ...judging.produced,
               candidates: offered,
             },
-            // The ballot floor decides a run-off between valid finalists
-            // (class seventy-three).
-            runoff: true,
           }
           : {}),
         responsibility: 'decline-challenge',
@@ -384,8 +381,8 @@ export async function judgeSlateWithRetry(
       if (isRetriedDecline({ reason: result.decision, },)
         && (kept !== undefined)
         && (kept.length < offeredCount)) {
-        // A ROUND THAT LEAVES NO WINNER IS A TIE OR A PLURALITY SHORT OF THE
-        // MINIMUM (ledger B806), so the line says what the round did and not
+        // A ROUND THAT LEAVES NO WINNER IS A TIE OR A PLURALITY ONE JUDGE ALONE
+        // DREW (ledger B806), so the line says what the round did and not
         // what it was.
         l.info(
           `translate stage: run-off left no winner over ${String(offeredCount,)} ${
@@ -486,7 +483,7 @@ export async function judgeSlateWithRetry(
  @param finalists - candidates the round backed, fewer than the whole slate
 
  @param basis - why they are the finalists: tied at the top, or the leader and its runner-up where one candidate led and
- fell short of the minimum weight, which the line announcing the run-off says (ledger B806)
+ one judge alone named it, which the line announcing the run-off says (ledger B806)
 
  @returns The run-off's decision, or the first round's decline, with the
  findings of both rounds
@@ -532,9 +529,6 @@ export async function runoffTiedFinalists(
       ...judging.produced,
       candidates: finalists,
     },
-    // The ballot floor decides a run-off between valid finalists (class
-    // seventy-three), as the translate lane's run-off does.
-    runoff: true,
     responsibility: 'decline-challenge',
   },);
 

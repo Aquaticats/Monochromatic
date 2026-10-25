@@ -147,11 +147,19 @@
  whose pipeline digest differs discards the namespace before it reads it (`openNamespacedCache`), and the number is
  the belt beside that brace. The account of every cache is in the header of `provider/src/enum-case-fold.ts`.
 
+ Version 9 covers the rule of 2026-10-25 (the lead's ruling on the owner's "Two ballots decide"): a consistency count
+ decides only on the usable ballots of two or more judges (`consistency/src/consistency-deciding-quorum.ts`), where a gather
+ that closed on a quorum of one, on a seated bench of one or two seats, let one usable ballot decide a place, a carry
+ choice or a run-off. A stored answer is the heard voices with the quorum the gather closed on, and the count is read
+ from them, so the number moves as the lead ruled and not because the key could hide a different count: no stored
+ record stands under a number whose rule differs, and a build whose pipeline digest differs discards the namespace
+ before it reads it (`openNamespacedCache`). No record has been written at 9, which this change sets first.
+
  @example
  ```ts
  const material = JSON.stringify({ version: CONSISTENCY_CACHE_VERSION, sheet, roster, },);
  ```
  */
-export const CONSISTENCY_CACHE_VERSION = 8;
+export const CONSISTENCY_CACHE_VERSION = 9;
 
 //endregion Consistency cache version

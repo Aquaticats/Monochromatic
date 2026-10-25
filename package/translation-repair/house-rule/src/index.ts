@@ -27,7 +27,7 @@ export {
   describeProducer,
   FULL_VOTE_WEIGHT,
   mergeProducers,
-  MIN_SELECTION_WEIGHT,
+  MIN_SELECTION_BALLOTS,
   producerModelIds,
   type SelectionBallot,
   type SelectionDisposition,

@@ -75,7 +75,10 @@ export type CandidateMeasurements = {
   readonly resolvedTotal: number;
 
   /**
-   Accepted issues the checkers marked WORSE in the patched candidate.
+   Accepted issues the checkers marked WORSE in the patched candidate, two or
+   more of them with the weight behind WORSE above the rest
+   (`IssueResolutionTally.regressed`), since this count is ranked third and a
+   lone checker never decides which candidate ships.
 
    Named for what it can see. The check reads checker verdicts keyed by
    existing accepted issue ids, so a wholly new defect the patch introduces

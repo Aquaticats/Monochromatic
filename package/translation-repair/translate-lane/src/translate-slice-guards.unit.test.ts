@@ -123,6 +123,8 @@ type Settlement = {
 
  @param unplanned - log every schema without a scripted reply is appended to
 
+ @param judgesDecline - whether every judge names no candidate instead of backing the rendering
+
  @returns Client over both halves of a round
 
  @example
@@ -135,10 +137,12 @@ function scriptedClient(
     rendering,
     sheets,
     unplanned,
+    judgesDecline = false,
   }: {
     readonly rendering: string;
     readonly sheets: string[];
     readonly unplanned: string[];
+    readonly judgesDecline?: boolean;
   },
 ): ModelClient {
   return {
@@ -173,10 +177,12 @@ function scriptedClient(
         ? { translation: rendering, }
         : (schema === 'candidate_ballot')
           ? {
-            best: candidateCarrying({
-              content,
-              needle: rendering,
-            },),
+            best: judgesDecline
+              ? 0
+              : candidateCarrying({
+                content,
+                needle: rendering,
+              },),
             assessment: 'the scripted rendering',
           }
           : undefined;
@@ -205,6 +211,8 @@ function scriptedClient(
 
  @param archiveDispute - dispute over the slice, absent where there is none
 
+ @param judgesDecline - whether every judge names no candidate, so the slate declines
+
  @returns Record, sheets, unplanned schemas and log lines
 
  @example
@@ -218,11 +226,13 @@ async function settle(
     targetText,
     rendering,
     archiveDispute,
+    judgesDecline = false,
   }: {
     readonly sourceText: string;
     readonly targetText: string;
     readonly rendering: string;
     readonly archiveDispute?: ArchiveDispute;
+    readonly judgesDecline?: boolean;
   },
 ): Promise<Settlement> {
   /**
@@ -248,6 +258,7 @@ async function settle(
       rendering,
       sheets,
       unplanned,
+      judgesDecline,
     },),
     slice,
     prepared,
@@ -455,6 +466,45 @@ await describe({
             },),).toBe(false,);
             expect(settled.record.findings,).toContain(describeArchiveDispute({ dispute: archiveDispute, },),);
             expect(settled.record.outputText,).toBe(rendering,);
+          },
+        },),
+
+        it({
+          name: 'SETTLES THE SLICE AS UNCHANGED, with the archive wording as the output and the archive-kept finding, '
+            + 'where the dispute withholds the stand-in and every judge declines the slate: no candidate drew two '
+            + 'ballots, so nothing ships past the decline and the archive stays (owner, 2026-10-25, "Two judges must '
+            + 'name it"; re-check 2, finding F12)',
+          fn: async () => {
+            /**
+             Archive wording the dispute leaves standing.
+             */
+            const targetText = 'The cat is doing the sleeping on the windowsill and swallowed pills.';
+            const settled = await settle({
+              sourceText: '猫猫在窗台上打盹。',
+              targetText,
+              rendering: 'The cat napped on the windowsill.',
+              judgesDecline: true,
+              archiveDispute: {
+                sliceIndex: 0,
+                standIn: 'The cat slept on the sill all afternoon.',
+                standInEligible: false,
+                standInRefusal: 'unresolved',
+                acceptedClaims: ['accuracy/addition major: The cat did not swallow pills.',],
+              },
+            },);
+            expect({
+              unplanned: settled.unplanned,
+              outputText: settled.record.outputText,
+              changed: settled.record.changed,
+              disposition: settled.record.disposition,
+              kept: settled.record.findings.includes('translate-slate-declined-archive-kept',),
+            },).toEqual({
+              unplanned: [],
+              outputText: targetText,
+              changed: false,
+              disposition: 'stage-result',
+              kept: true,
+            },);
           },
         },),
 

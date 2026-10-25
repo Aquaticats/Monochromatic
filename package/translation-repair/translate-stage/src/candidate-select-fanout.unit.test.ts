@@ -1,6 +1,6 @@
 /**
- Tests for the selection fan-out: when a judge bench is too thin for the
- window to carry a unanimous self-written slate.
+ Tests for the selection fan-out: when a judge bench is too thin for the window to hold two answering judges, the
+ ballots a winner needs (the owner's rulings of 2026-10-25 removed the weight the window used to be sized by).
 
  @module
  */
@@ -11,45 +11,39 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-house-rule';
 import {
-  MIN_SELECTION_WEIGHT,
-  SELF_VOTE_WEIGHT,
-} from '@monochromatic-dev/translation-repair-house-rule';
-import { FANOUT_SPARE, } from '@monochromatic-dev/translation-repair-stage';
+  FANOUT_SPARE,
+  firstRoundWindow,
+} from '@monochromatic-dev/translation-repair-stage';
 import { selectionFanOut, } from '../dist/final/node/index.mjs';
-
-/**
- Seats whose self-votes alone reach the minimum.
- */
-const SEATS_CARRYING_MINIMUM = Math.ceil(MIN_SELECTION_WEIGHT / SELF_VOTE_WEIGHT,);
-
-/**
- Smallest bench whose window holds those seats: the window is half the bench
- rounded up plus the spare, so an odd bench one short of twice the seats
- less the spare already carries it.
- */
-const THINNEST_WINDOWED_BENCH = (2 * (SEATS_CARRYING_MINIMUM - FANOUT_SPARE)) - 1;
 
 await describe({
   name: selectionFanOut.name,
   children: [
     it({
-      name: 'ASKS the whole bench where the window\'s self-votes alone fall short of the minimum, and the '
-        + 'window from the first bench whose window carries it, so a four-seat review still ships a '
-        + 'unanimous revision',
+      name: 'ASKS the window from a four-seat bench, since the window holds at least two judges, which is all a '
+        + 'winner needs; weight no longer sizes it',
       fn: async () => {
-        expect(selectionFanOut({ judgeCount: THINNEST_WINDOWED_BENCH - 1, },),).toBe('whole-bench',);
-        expect(selectionFanOut({ judgeCount: THINNEST_WINDOWED_BENCH, },),).toBe('window',);
-        expect(selectionFanOut({ judgeCount: THINNEST_WINDOWED_BENCH + 2, },),).toBe('window',);
+        expect(firstRoundWindow({ benchSize: 4, },) >= MIN_SELECTION_BALLOTS,).toBe(true,);
+        expect(selectionFanOut({ judgeCount: 4, },),).toBe('window',);
+        expect(selectionFanOut({ judgeCount: 4 + FANOUT_SPARE + 1, },),).toBe('window',);
+      },
+    },),
+    it({
+      name: 'ASKS the whole bench where the window holds fewer judges than a winner needs ballots',
+      fn: async () => {
+        expect(firstRoundWindow({ benchSize: 1, },) < MIN_SELECTION_BALLOTS,).toBe(true,);
+        expect(selectionFanOut({ judgeCount: 1, },),).toBe('whole-bench',);
       },
     },),
     it({
       name: 'HONOURS a whole-bench request on any bench, since a fixture scripting every seat reads its '
         + 'tally over the bench it wrote',
       fn: async () => {
-        expect(selectionFanOut({ judgeCount: THINNEST_WINDOWED_BENCH + 2, requested: 'whole-bench', },),)
+        expect(selectionFanOut({ judgeCount: 9, requested: 'whole-bench', },),)
           .toBe('whole-bench',);
-        expect(selectionFanOut({ judgeCount: THINNEST_WINDOWED_BENCH + 2, requested: 'window', },),)
+        expect(selectionFanOut({ judgeCount: 9, requested: 'window', },),)
           .toBe('window',);
       },
     },),

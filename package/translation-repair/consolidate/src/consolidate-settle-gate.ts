@@ -8,6 +8,7 @@ import {
   keepTheArchive,
   nothingValidShips,
   shipPastForfeitStanding,
+  slatePickBallotsOf,
 } from './consolidate-ineligible-standing.ts';
 import type {
   ConsolidationSettlement,
@@ -108,9 +109,11 @@ export function gateObjectionsOf(
  @param standingMayShip - whether unchanged baseline has prior endorsement
 
  @param standingEligible - whether the standing passed the deterministic
- gate; over an ineligible standing every gate verdict ships the proposal
- the slate chose, a preference for the standing or a neither verdict
- recorded as a finding (classes fifty-four and one hundred eighty-five)
+ gate; over an ineligible standing a gate that heard two or more answering
+ judges ships the proposal the slate chose, whether it preferred the standing
+ or settled on neither, recorded as a finding (classes fifty-four and one
+ hundred eighty-five), and a gate that heard fewer ships it only when two or
+ more slate ballots chose it (owner, 2026-10-25, "Ship the slate's wording")
 
  @param standingRefusal - why the deterministic gate refused the standing,
  shown to the gate judges so keeping it is not taken for the safe choice
@@ -213,6 +216,7 @@ export async function gateAndShip(
     outcome: gate,
     standingEligible,
     standingFlawedByMajority,
+    slatePickBallots: slatePickBallotsOf({ decided, },),
     l,
   },);
 

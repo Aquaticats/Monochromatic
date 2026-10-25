@@ -196,7 +196,7 @@ export class BlankSelectionError extends Error {
 
  -   `tied-at-top`: two or more candidates drew the same highest weight.
  -   `leader-and-runner-up`: one candidate drew the highest weight and still
-     fell short of the minimum, so the run-off is over it and the candidate
+     was named by fewer than the two ballots a winner needs, so the run-off is over it and the candidate
      behind it; nothing was tied.
 
  @example

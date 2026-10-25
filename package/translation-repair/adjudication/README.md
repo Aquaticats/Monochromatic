@@ -19,12 +19,17 @@ The groups that follow name the main ones.
 
 - Panel adjudication:
   run a panel over the claimed issues of a slice and tally its votes.
+  A claim is decided when `MIN_PANEL_BALLOTS` panelists answer it,
+  whatever their weight,
+  by the owner's rulings of 2026-10-25;
+  one panelist alone never decides.
   Names:
   `runPanelStage`,
   `buildAdjudicationMessages`,
   `ADJUDICATION_RESPONSE_FORMAT`,
   `resolvePanelBallot`,
   `usablePanelBallotFor`,
+  `MIN_PANEL_BALLOTS`,
   `tallyVotes`.
   Declared in `panel-stage.ts`,
   `adjudicate-prompt.ts`,

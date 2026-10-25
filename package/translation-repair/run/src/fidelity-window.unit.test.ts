@@ -59,9 +59,9 @@ const SURROUNDING_LABEL = 'SURROUNDING ORIGINAL';
 /**
  Roster the sheets go to.
 
- THREE RATHER THAN ONE because selection requires a minimum weight of two: a
- lone judge backing a candidate at full weight still falls short, and the
- trial declines. A one-model roster would make every sheet assertion here read
+ THREE RATHER THAN ONE because selection requires two ballots: a lone judge
+ backing a candidate, whatever its weight, still falls short, and the trial
+ declines. A one-model roster would make every sheet assertion here read
  a declined run.
  */
 const ROSTER = [

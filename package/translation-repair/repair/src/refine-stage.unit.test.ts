@@ -98,17 +98,31 @@ const JUDGES: readonly RosterModelId[] = [
 ];
 
 /**
+ A bench of three, the refiner among them, for the cases that read the self-vote
+ finding. A window of quorum plus one holds all three seats however the bench
+ rotates, so the refiner is always asked; on the bench of four the window leaves
+ one seat out, and the seat it leaves out moves with the rotation (the sweep's
+ salt and the text of the sheet both move it), so the refiner's self-vote was
+ in the findings under some rotations and absent under others.
+ */
+const JUDGES_ALL_ASKED: readonly RosterModelId[] = JUDGES.slice(
+  0,
+  3,
+);
+
+/**
  Refiners proposing rewrites.
  */
 const REFINERS: readonly RosterModelId[] = [SEAT_HYPER_OPENROUTER_VISION_EDITOR,];
 
 /**
  Stages one run of the fixture asks when the one refiner proposes a rewrite,
- one entry per exchange: the refiner, then each of the four judges.
+ one entry per exchange: the refiner, then the three judges of the window of
+ quorum plus one on a bench of four (it asked all four while a window of three
+ halves fell short of the weight minimum, removed on 2026-10-25).
  */
 const STAGES_OF_A_JUDGED_REWRITE: readonly string[] = [
   'refine_report',
-  'candidate_ballot',
   'candidate_ballot',
   'candidate_ballot',
   'candidate_ballot',
@@ -281,6 +295,10 @@ function scriptedRefiner(
  @param logger - logger the stage writes to, the file's unless a case reads
  what the stage logged
 
+ @param stageSettings - settings the stage runs under, the scripted ones unless a case brings its own
+
+ @param judgeModelIds - judges seated, the file's bench of four unless a case needs every seat asked
+
  @returns Stage result
 
  @example
@@ -299,7 +317,9 @@ async function runFixture(
     repairedText = REPAIRED_TEXT,
     logger = l,
     stageSettings = SCRIPTED_STAGE_SETTINGS,
+    judgeModelIds = JUDGES,
   }: {
+    readonly judgeModelIds?: readonly RosterModelId[];
     readonly identityContext?: string;
     readonly referenceContext?: string;
     readonly acceptedRepairClaimsNote?: string;
@@ -318,7 +338,7 @@ async function runFixture(
     sliceIndex: 0,
     client,
     refinerModelIds: REFINERS,
-    judgeModelIds: JUDGES,
+    judgeModelIds,
     sourceText: SOURCE_TEXT,
     repairedText,
     envelopes: slice.envelopes,
@@ -659,13 +679,13 @@ await describe({
                   newText: SMOOTH_TEXT,
                 },
               ],
-            },),);
+            },), { judgeModelIds: JUDGES_ALL_ASKED, },);
             expect(result.findings,).toEqual([
               `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: refine-duplicate-paragraph (1)`,
               `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: refine-unknown-paragraph (7)`,
               'refine-candidates (1/1 heard, 1 proposing)',
               `select-self-vote (${SEAT_HYPER_OPENROUTER_VISION_EDITOR})`,
-              'refine-selected (weight 3.5 of 4 ballots)',
+              'refine-selected (weight 2.5 of 3 ballots)',
             ],);
             expect(result.refinedText,).toBe(SMOOTH_TEXT,);
           },
@@ -733,12 +753,15 @@ await describe({
               newText: REPAIRED_TEXT,
               furtherRewrites: [{ paragraph: 2, newText: smoothed, },],
               ballot: 1,
-            },), { repairedText, },);
+            },), {
+              repairedText,
+              judgeModelIds: JUDGES_ALL_ASKED,
+            },);
             expect(result.findings,).toEqual([
               `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: refine-unchanged-rewrite (paragraph 1)`,
               'refine-candidates (1/1 heard, 1 proposing)',
               `select-self-vote (${SEAT_HYPER_OPENROUTER_VISION_EDITOR})`,
-              'refine-selected (weight 3.5 of 4 ballots)',
+              'refine-selected (weight 2.5 of 3 ballots)',
             ],);
             expect(result.refinedText,).toBe(`${REPAIRED_TEXT}\n\n${smoothed}`,);
           },
@@ -1084,9 +1107,9 @@ await describe({
         },),
 
         it({
-          name: 'refuses a roster that could never reach the minimum weight, '
-            + 'since two refiners grading only each other can award one vote '
-            + 'between them and every round would decline in silence',
+          name: 'refuses a roster that could never draw two ballots, '
+            + 'since a lone judge can cast one ballot '
+            + 'and every round would decline in silence',
           fn: async () => {
             /** Refinable slice of the fixture. */
             const slice = fixtureSlice();
@@ -1100,10 +1123,7 @@ await describe({
                   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
                   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
                 ],
-                judgeModelIds: [
-                  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-                  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-                ],
+                judgeModelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
                 sourceText: SOURCE_TEXT,
                 repairedText: REPAIRED_TEXT,
                 envelopes: slice.envelopes,

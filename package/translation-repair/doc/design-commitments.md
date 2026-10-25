@@ -37,7 +37,8 @@ a new commitment goes into the file whose subject it belongs to.
   neutral claims,
   the standing directive on quality,
   the run-offs,
-  and the polish gate's tie.
+  the polish gate's tie,
+  and two answering judges deciding with no weight floor.
 - [Design commitments: the rulings of 2026-10-21](design-commitments-rulings-of-2026-10-21.md):
   the full record of the polish gate's tie rule
   and of every ballot giving its reason before its choice.

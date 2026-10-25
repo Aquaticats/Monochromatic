@@ -62,10 +62,15 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
  Words that, after a position, make it a comparison rather than a pointer:
  "ranks the house rules above its own", "a rate above one", "the threshold
  below which", "a voice below half".
+
+ A WORD THAT IS ALSO A VERB DOES NOT BELONG HERE (re-check 7, nit 2). "ties" stood in this list for "preservation above
+ ties", and let "the asked count below ties the script" pass, the verb read as the object. The one comparison in the
+ texts that used the noun is in the exemptions, with its reason. "total" can be a verb as well, but no sentence of the
+ texts reads it as one after a position, and the list keeps it until one does.
  */
 export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
   words: 'the a an its their his her one zero it that this what any every each some all which baseline threshold '
-    + 'quorum half twice hard exact total ties regression both anything two three four five six seven eight nine ten '
+    + 'quorum half twice hard exact total regression both anything two three four five six seven eight nine ten '
     + 'sixteen',
 },);
 

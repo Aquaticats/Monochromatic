@@ -92,11 +92,20 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  third review of the Claude route).
  Version 27 reads a reply value that differs from a listed enum or const value only in
  capitalization as the listed value.
+ Version 28 removes every weight floor (owner, 2026-10-25): two ballots decide a selection whatever their weight.
+ Version 29 ships a declined round's candidate only when two judges named it (owner, 2026-10-25, "Two judges must name it").
+ Version 33 tells the judges the sentence about a declined round per round (re-check 4, F1), which moved this literal.
+ Version 34 tells the judges what a tie backing only some candidates does and drops "the same judges" (re-check 5, M-B
+ and M-D), which moved this literal.
+ Version 35 tells the judges the run-off is asked only where it leaves some candidates behind (re-check 6, M-B), which
+ moved this literal.
+ Version 36 tells the judges a round that leaves nothing to narrow asks no such question, in place of a round that
+ leaves no candidate behind (re-check 7, nit 1), which moved this literal.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '3aafcd70beafc75dd298bc1c1f9ef3aa58bc95bbe69cbfe076d2eddb55e3bb44';
+const LEGACY_WINDOWLESS_KEY = '5925d39143526917de216c16675d54c6363800d37061a511a7b939c0a305ddd6';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -129,11 +138,22 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 27: the reader of a model\'s reply takes a value that differs from a listed enum or const '
-        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
-        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      name: 'IS AT VERSION 36: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+        + 'ships a candidate only when two judges named it (29), a tie across every candidate ships by the fixed '
+        + 'preference only among candidates two judges named (30), the sentence the judges read about a declined '
+        + 'round over wording that cannot ship stopped contradicting itself (31) and then said that declining does not '
+        + 'by itself keep the wording and that a judge\'s own decline names no candidate (32, re-check 3, M3) and was '
+        + 'then told per round, the first ask settling nothing and the challenge of the first call sending the '
+        + 'passage back for new proposals (33, re-check 4, F1) and then said what a tie backing only some candidates does '
+        + 'and that the panel, not the same judges, is asked again (34, re-check 5, M-B and M-D) and then said that the '
+        + 'run-off is asked only where it leaves some candidates behind (35, re-check 6, M-B) and then said that a round '
+        + 'with nothing to narrow asks no such question, in place of a round that leaves no candidate behind (36, '
+        + 're-check 7, nit 1), so a '
+        + 'stored slice may hold ballots cast under the old sentence, and the key hashes the version, the shape of '
+        + 'the run and the texts, not the sheet, so only this number retires a record written '
+        + 'under the old sentence before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(27,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(36,);
       },
     },),
     it({

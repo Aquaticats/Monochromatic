@@ -58,9 +58,14 @@ which lists every file of these commitments.
   1 on a worse majority):
   "Revert worse-voted,
   recheck".
-  An edit whose issue drew at least one worse ballot is stripped from the patch,
+  An edit whose issue drew at least one worse ballot was stripped from the patch,
   and the reduced patch faces one more checker round before it ships;
-  a not-fixed edit with no worse ballot stays (ledger L3).
+  a not-fixed edit with no worse ballot stayed (ledger L3).
+  Raised on 2026-10-25 by "Two ballots for undo too" (ledger B922):
+  an edit is stripped only where two or more ballots name worse
+  and the worse weight exceeds the fixed and not-fixed weight together,
+  which is when the issue's tally flags it regressed,
+  and one worse ballot strips nothing.
   Corrected after the ruling:
   the question put the stripped share at 40 of the 691 issues,
   counting only the ties and the worse majority;
@@ -79,6 +84,11 @@ which lists every file of these commitments.
   "Recheck the rewrite".
   The rewrite faces a checker round against the slice's accepted issues and the regression probe,
   and a rewrite the checkers find worse keeps the text before it (ledger L11).
+  Raised on 2026-10-25 by "Two ballots for undo too" (ledger B922):
+  the checkers find an open issue worse when two or more ballots on it name worse
+  and the worse weight exceeds the rest,
+  the same condition as the strip of L3,
+  and one worse ballot rolls nothing back.
   Decided for quality,
   2026-09-28,
   under the owner's standing directive that the quality of the end result decides:
@@ -180,3 +190,88 @@ which lists every file of these commitments.
   2026-10-21:
   "Polished text wins ties"
   (full record in [the rulings of 2026-10-21](design-commitments-rulings-of-2026-10-21.md)).
+- **Two answering judges decide;
+  no weight floor stands in their way;
+  one judge alone never decides.**
+  Owner,
+  2026-10-25,
+  after the corpus pass XingZ6021 shipped slices 67 to 69 with a quotation from Metal Gear Solid 2
+  and two paragraphs the source does not hold,
+  although the two panelists heard supported every critic claim against them:
+  the panel tally asked for a summed weight of 3 (`minBallotWeight`),
+  two panelists at the default weight of one summed to 2,
+  and a unanimous panel left every claim for a human.
+  Asked whether to keep that floor:
+  "floor of 3 - don't set a floor."
+  Asked what decides a claim that only one judge answers
+  (and,
+  by the same stroke,
+  a claim two judges answer):
+  "Two ballots decide (Recommended)".
+  Asked how far this goes:
+  "Every weight floor".
+  So a claim or a contest is decided once two or more judges have answered it,
+  by the shares of the weight that answered (the decision,
+  source-defect and run-off ratios,
+  which stay),
+  and a summed weight is never compared with a number again.
+  One judge alone still never decides,
+  whatever it weighs:
+  the older standing rule of the owner,
+  restated here,
+  which also keeps the lane contest at two seats and the slate at two judges.
+  A self-vote counts as one answering judge,
+  as the owner ruled on 2026-10-20 ("Count self-votes"),
+  and its half weight only ranks candidates.
+  What fell:
+  the panel tally's `minBallotWeight` of 3,
+  the candidate selection's minimum weight of 2 with its scaled short-bench minimum,
+  the run-off and condemned-fallback exceptions that existed to get around that weight,
+  the roster guard's weight arithmetic,
+  and the count of three non-translation votes
+  (now two critics heard,
+  which cannot come from fewer than two critics;
+  the contradiction check and the good-translation anchor remain the guards against a false block).
+  A consolidation gate that heard fewer than two judges ships nothing past its neither on its own authority.
+  The owner answered the open questions the same day:
+  "Allow two checkers" (the checker count is two),
+  "Keep waiting for half" (a gather above two voices and the bench waits stay),
+  "Two judges must name it" (a declined round ships a candidate only when two or more judges named it,
+  and otherwise the wording in place stays,
+  or the source text under the note where none exists),
+  "Ship the slate's wording" (a gate that hears fewer than two usable answers over an archive the publication rule
+  refused ships the slate's pick when two or more slate ballots chose it),
+  and "Ship the slate's pick (Recommended)" (the same for an eligible standing a majority of the contest judges
+  called flawed).
+  The lead ruled that a page title settles only on a rendering two or more voices gave
+  (a title one voice alone rendered,
+  or a tie of one voice apiece,
+  stays unsettled)
+  and that a consistency round decides on two or more answering ballots,
+  and that the derivability probe and the restoration judge,
+  which feed the benchmark scorecard only,
+  stay as they are.
+  The lead ruled,
+  settled by "Two judges must name it",
+  that a challenge round tied across every offered candidate ships by the fixed preference
+  only among the candidates two or more judges named,
+  and otherwise the wording in place stays by the path of the declined round.
+  On the third re-check the lead ruled,
+  by the same rules,
+  that an issue counts as regressed only when two or more checker ballots name `worse`
+  (the count ranks third in the candidate selection,
+  so it can choose which candidate ships),
+  that the sheet sentence about a declined round says declining does not by itself keep the wording
+  and that a judge's own decline names no candidate,
+  and that a page title round is stored only when every title it asked is settled.
+  Asked on the fourth re-check whether the two-ballot rule also covers the strip of a patch's unconfirmed edits (L3)
+  and the rollback of a refinement (L11),
+  which acted on one worse ballot by the rulings of 2026-09-28,
+  the owner answered "Two ballots for undo too":
+  an edit is stripped,
+  and a rewrite rolled back,
+  only where the issue's tally flags it regressed
+  (two or more ballots name worse and the worse weight exceeds the fixed and not-fixed weight together),
+  by the one definition the candidate ranking reads (ledger B922).
+  The stage quorum that sizes a round (a majority of the seated bench,
+  two on a short bench) was not changed (ledger B900 to B926).

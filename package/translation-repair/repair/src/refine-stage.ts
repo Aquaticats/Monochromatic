@@ -167,7 +167,7 @@ export type RefineStageResult = {
 
  @throws {@link ProducerRosterError} when the
  roster could not select anything: repeats on either side, no refiner, or
- judges too few to reach the minimum weight
+ fewer judges than the ballots a winner needs
 
  @example
  ```ts

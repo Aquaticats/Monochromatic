@@ -4549,6 +4549,21 @@ supplementary d=20 trial whose start fits a frame the recorder missed; 3 trials 
 Baseline `d9f48256…` for comparison (28 drags at 300 notches): 5 had a selection start on rows that were never drawn
 (all at delays 80 and 110 ms, during its blank frames), 15 ok, 8 with one end not located. Nothing changed in the code
 for this. Scratch `~/temp/agent/final`, `final2`, `wheel` and `wheel2` were cleared after this.
+The four held-state cases that had not been run, on the installed `e96cdd88596d32e9…` (3 legs each, recorder 18.0 to
+22.8 fps, load 3 to 45): caret held upward shifted with gutter and text by 52 px, error 0.0 (5 held frames); selection
+held at 616 notches down (+20 px) and 671 up (-96 px), error 0.0 in 6 held frames each direction; find marks held
+upward (342 notches) shifted +64 px with gutter and text, errors 0.10 to 0.19 (the shift window drops 64 rows, the held
+frame shows the same lines as before the wheel, shifted; not a mismatch of layers); a non-held ease frame sweeping across
+the selection showed estimator disagreement in 2 frames not looked at by eye. HOVER while held is a DEFECT: no hover
+request is sent during the hold, the popup closes at the first scroll step (README), and the cursor query answers
+`ok text`, but the first hover request after a far wheel names a line other than the one drawn under the pointer in every
+trial: with the pointer resting before a 300-notch wheel it is always `position=5386` (line 108 col 90) in 10 of 10
+trials (pointer line before the wheel 111, line drawn under it 446 to 505), sent 0.35 to 0.40 s after the wheel, no popup;
+with the pointer moved onto an identifier 0.09 s into the hold the requests name lines 410, 410, 418 and 455 against
+drawn lines 438 to 447 and 492 to 505 (28 to 49 lines off; the one for 418 showed a popup for an off-screen line); after
+the view settles hover is right (lines 493 and 495). Whether it is new (hold or `drawn-y`) or old is unknown; an agent
+reproduces it on the pre-hold build `52056f6fbc`, finds the cause and fixes it behind a failing test; its report is
+verified, landed and the IDE reinstalled.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
@@ -4785,6 +4800,50 @@ and the orchestrating session's design was built and measured.
   the toolkit's own ease is checked only in the nested compositor;
   a touchpad fling is not followed;
   the minimap runs ahead of the held text for 1 to 3 frames.
+
+## A hover request names the row under the pointer after a far wheel jump, 2026-10-25 (branch worktree-agent-a84733523872cff39)
+
+A verifier found on the installed hold build that the hover request after a 300-notch jump named a line far from the one
+drawn under the pointer (a constant position for a resting pointer).
+
+- Cause:
+  `Rest` (`src/native/language/pointer.rs`) kept the character found at the last pointer move,
+  and the toolkit sends no pointer event for text that moves under a still pointer.
+  The dwell timer handed that character back after 350 ms.
+- New or old:
+  the two resting variants are old (11 of 11 wrong in `main`,
+  11 of 11 wrong in `52056f6fbc` before the hold).
+  The variant of a pointer moved inside the hold is new with the hold:
+  `main` sent 3 requests in 11 trials,
+  all 55 to 56 lines off;
+  before the hold sent none (the rows under the pointer were not drawn).
+  The positive control (hover after the view settled) is right in every build,
+  11 of 11.
+- Fix:
+  `Spot` keeps the pointer's distance from the top of the view,
+  `Rest::follow` starts a not yet asked rest again when the drawn offset moves,
+  `rest` in `src/native/language/rest_step.rs` finds the character in the drawn view when the request is built.
+  Like editord,
+  no request follows a scroll for a rest already asked for.
+- Measured on the fixed build:
+  every request named the line drawn under the pointer (gap 0) in all trials that sent one
+  (5,
+  5,
+  2,
+  and 11 requests in the four cells),
+  and in the others the pointer was over no character
+  (`resolved=None` at the due time, or no character where it moved).
+  Details in `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+  "A hover request after a far wheel jump".
+- Tests:
+  `src/native/language/pointer_scroll_tests.rs` (5 tests),
+  6 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+- Open:
+  a pointer that rested and was asked about shows no new popup after a scroll until it moves
+  (as in editord).
+  The harness (nested compositor,
+  OCR of the gutter,
+  four builds alternating) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

@@ -283,6 +283,10 @@ export {
   type SliceClass,
 } from './displacement-class.ts';
 export {
+  mostGiven,
+  unwrappedRendering,
+} from './page-title-lexicon-count.ts';
+export {
   type PageTitleLexicon,
   pageTitleLines,
   type SettledPageTitle,

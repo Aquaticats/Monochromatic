@@ -73,7 +73,7 @@ const TRANSLATORS: readonly RosterModelId[] = [
 },);
 
 /**
- Judges, three so the first candidate reaches the minimum weight.
+ Judges, three so the first candidate reaches its two ballots.
  */
 const JUDGES: readonly RosterModelId[] = [
   'hf:cat/Cat-C',

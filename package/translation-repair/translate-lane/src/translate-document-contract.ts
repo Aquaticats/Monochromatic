@@ -447,8 +447,116 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  the fold, so the change cannot ride inside it and the number moves. A build whose pipeline digest differs discards
  the namespace before it reads it (`openNamespacedCache`), and the number is the belt beside that brace. The account
  of every cache is in the header of `provider/src/enum-case-fold.ts`.
+
+ Version 28 covers the owner's rulings of 2026-10-25 that removed every weight floor ("floor of 3 - don't set a floor.",
+ "Two ballots decide (Recommended)" and "Every weight floor"): the lane's candidate selection names a winner two ballots
+ named whatever their weight, where it declined against a summed weight of 2 (a self-vote and a full vote, 1.5, is a
+ winner), the run-off and condemned-fallback exceptions that existed to get around that weight are gone, and a bench of
+ four is asked the window of quorum plus one (`translate-stage/src/candidate-select.ts`,
+ `translate-stage/src/candidate-select-fanout.ts`). A stored slice may hold a declined slate, or a run-off, the same
+ texts now settle on the first round. The key hashes the version, the shape of the run and the texts, not the rule that
+ reads the ballots, so a record written before would be served after. The previous number was set in `2aceac0487`; no
+ slice-cache directory was searched for a record written by code that holds it, so records may stand at 27 and the change
+ cannot ride inside it, and the number moves. The repair slice (47), refine (17) and consolidate (35) versions move for
+ the same rules. No record has been written at 28, which this change sets first.
+
+ Version 29 covers the owner's answers of 2026-10-25 "Two judges must name it" and "Ship the slate's wording": a
+ challenge round that declined with nothing to ship past no longer ships a candidate by the fixed preference of repair
+ lane, then translate lane, then slate order; it ships a candidate only when two or more judges named it, and otherwise
+ the wording in place stays (`translate-stage/src/translate-runoff-tie.ts`, `shipPreferredPastDecline`). A stored slice
+ may hold a candidate shipped by that preference where the same texts now keep the wording in place. The key hashes the
+ version, the shape of the run and the texts, not the rule that reads the ballots, so a record written before would be
+ served after. The previous number was set in the round 1 commits of the weight-floor branch; whether a record
+ stands at 28 is not known, and the change cannot ride inside it, so the number moves. The consolidate version (36)
+ moves for the same rule, the repair slice (47) and refine (17) versions stay (neither stores a slate shipped by
+ preference), and the page title (7) and consistency (9) versions move for the two-voice rule at their own stages.
+ No record has been written at 29, which this change sets first.
+
+ Version 30 covers the lead's ruling of 2026-10-25, settled by "Two judges must name it": a challenge round tied across
+ every offered candidate (class 174, `breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`) ships by the
+ fixed preference only among the tied candidates two or more judges named, and where none drew two ballots the wording
+ in place stays, or the absence is raised where there is none. A stored slice may hold a candidate shipped by that
+ preference where the same texts now keep the wording in place. The key hashes the version, the shape of the run and
+ the texts, not the rule that reads the ballots, so a record written before would be served after. Whether a record
+ stands at 29 is not known (the number was set a few commits before and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (37) moves for the same rule and
+ for the flawed-majority gate answer; the repair slice (47) and refine (17) versions stay.
+
+ Version 31 covers the reworded sheet text a judge reads about a declined round over wording that cannot ship
+ (`adjudication/src/select-decline-consequence.ts`, `SHIPS_WHAT_TWO_JUDGES_NAMED`, re-check 2 finding F2): it contradicted
+ itself, saying that declining does not keep the wording and, in its last clause, that the wording stays. By the
+ repository's convention a change to a sheet's wording moves the version, since a stored slice holds ballots cast under
+ the old sentence and the key hashes the version, the shape of the run and the texts, not the sheet. The consolidate
+ version (38) moves for the same sheet; the repair slice (47) and refine (17) versions stay, since neither reads this
+ sentence.
+
+ Version 32 covers the sheet sentence reworded a second time (`adjudication/src/select-decline-consequence.ts`,
+ `SHIPS_WHAT_TWO_JUDGES_NAMED`, re-check 3 finding M3): the three negatives of version 31 ("cannot ship unreported",
+ "not a quiet keep", "stays") left a judge able to read its own decline as the way to the stay, so the sentence now says
+ that declining does not by itself keep the wording and that a judge's own decline names no candidate, that with no
+ candidate named by two or more judges the wording in place stays and the page reports it, and that with one or more
+ named by two or more judges the preferred of those ships by a fixed order. The rule the code applies is the same as
+ under 31; the judges are told it differently, and a stored slice holds ballots cast under the old sentence. The key
+ hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 31 is not known (the number was set a few commits before and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (39) moves for the same sheet;
+ the repair slice (48) and refine (18) versions move for the regressed flag (re-check 3, M1) and not for this sentence.
+
+ Version 33 covers the sheet sentence told per round (`adjudication/src/select-decline-consequence.ts`,
+ `declineConsequenceFor`, re-check 4 finding F1): the sentence of version 32 promised the ship or the stay in every
+ round, but the first ask of a pair settles nothing and asks the same judges again, and the challenge of this lane's
+ first call does not ship past a decline and sends the passage back for new proposals (`translate-stage-repair.ts`).
+ The first ask now reads `SETTLES_NOTHING_AND_ASKS_AGAIN`, the challenge of the first call
+ `SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN`, and the challenge that ships past a decline keeps the sentence of version 32.
+ The rule the code applies is the same; the judges are told it differently, and a stored slice holds ballots cast under
+ the old sentence. The key hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 32 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (40) moves for the same sheet; the
+ repair slice (49) and refine (19) versions move for the strip and the rollback (owner, 2026-10-25, "Two ballots for
+ undo too") and not for this sentence.
+
+ Version 34 covers the three sentences reworded (`adjudication/src/select-decline-consequence.ts`, re-check 5, M-B and
+ M-D): the two challenge sentences now say that a tie backing only some candidates, or a leader only one judge named,
+ sends the panel to a run-off first and that the ship, the stay and the level-tie ship wait on it, which the code did
+ and the sentences of version 33 did not say (`settleAbsentDecline` ships or keeps only when no run-off is left), and
+ the first ask now says that the panel is asked again, though a round may seat other members of it, where it said the
+ same judges. The rule the code applies is the same; the judges are told it differently, and a slice stored at 33 would
+ hold ballots cast under the old sentences. The key hashes the version, the shape of the run and the texts, not the
+ sheet (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 33 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (41) moves for the same sheets; the
+ repair slice (49) and refine (19) versions stay, since neither reads these sentences.
+
+ Version 35 covers the sentences made true in every shape of declined round
+ (`adjudication/src/select-decline-consequence.ts`, re-check 6, M-B): the run-off part of both challenge sentences and
+ of the first ask now says the panel is asked again over the leaders only where that leaves some candidates behind;
+ the challenges add that a round that leaves no
+ candidate behind (the whole slate tied, every judge declining, a leader alone in drawing a ballot, a slate of only two)
+ asks no such question, which the code does not ask there (`runoffFinalists` returns the whole slate), and the first
+ ask adds that it is otherwise asked over the whole slate. The rule the code applies is the same; the judges are told
+ it differently, and a slice stored at 34 would hold ballots cast under the old sentences. The key hashes the version,
+ the shape of the run and the texts, not the sheet (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only
+ the number retires a record. Whether a record stands at 34 is not known (the number was set in this same branch and no
+ search of a slice-cache directory was made), and the change cannot ride inside it, so the number moves. The
+ consolidate version (42) moves for the same sheets; the repair slice (49) and refine (19) versions stay, since neither
+ reads these sentences.
+
+ Version 36 covers one phrase of the challenge sentences (`adjudication/src/select-decline-consequence.ts`, re-check 7,
+ nit 1): the part about the rounds that ask no run-off said "a round that leaves no candidate behind", while the
+ run-off part counts a candidate that drew no ballot as behind, so a lone leader of a wide slate was listed under a
+ phrase that did not fit it. It now says "a round that leaves nothing to narrow", which is what the code does in each
+ of the four shapes it lists (`runoffFinalists` returns the whole slate). The rule the code applies is the same; the
+ judges are told it differently, and a slice stored at 35 would hold ballots cast under the old sentences. The key
+ hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 35 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (43) moves for the same sheets; the
+ repair slice (49) and refine (19) versions stay, since neither reads these sentences. The first ask does not carry the
+ phrase, so its text is the same as at 35.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 27;
+export const TRANSLATE_SLICE_CACHE_VERSION = 36;
 
 /**
  Models the translate lane seats.

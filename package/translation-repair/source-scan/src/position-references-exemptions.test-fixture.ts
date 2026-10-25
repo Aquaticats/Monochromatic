@@ -135,6 +135,11 @@ export const PACKAGE_EXEMPTIONS: readonly PositionExemption[] = [
     reason: 'a score below another model\'s, a comparison',
   },
   {
+    path: 'adjudication/select-candidate.unit.test.ts',
+    holds: 'preservation above ties',
+    reason: 'a ranking of two selection criteria, a comparison; "ties" is the noun',
+  },
+  {
     path: 'page-check/consolidation-polish.unit.test.ts',
     holds: 'SHORT BODY PROSE below repair-lane',
     reason: 'prose shorter than a window, a comparison',
