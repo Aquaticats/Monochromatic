@@ -380,6 +380,14 @@ export function chainShapesAt(
   const chain = chainOf({ node, },);
   if (chain === NO_CHAIN)
     return [];
+  /**
+   The node that holds the chain.
+   */
+  const holder = context.parents
+    .get(node,);
+  // The first name of a qualified name belongs to an import-equals declaration, which its own scan reports.
+  if (holder?.type === 'TSQualifiedName')
+    return [];
   if ((chain.members
     .length
     > 0) && isImportOfNothing({

@@ -79,6 +79,8 @@ function namesValueUnder({ visit, }: { readonly visit: Visit; },): boolean {
   }
   if (parent.type === 'MemberExpression')
     return (field !== 'property') || (parent.computed === true);
+  if (parent.type === 'TSQualifiedName')
+    return field !== 'right';
   if ((parent.type === 'MethodDefinition') || (parent.type === 'PropertyDefinition'))
     return (field !== 'key') || (parent.computed === true);
   if (DECLARING_KINDS.has(parent.type,))
@@ -92,7 +94,8 @@ function namesValueUnder({ visit, }: { readonly visit: Visit; },): boolean {
 
 /**
  The kinds of node that start with `TS` and hold a value the program uses, which are no type: a namespace, an enum, a
- parameter property, an export assignment and the two forms of import-equals. The search leaves them out with the types,
+ parameter property, an export assignment, the two forms of import-equals, and the qualified name an import-equals
+ declaration reads (a qualified name in a type sits under a type, which the walk leaves out with everything under it). The search leaves them out with the types,
  and the check behind it reads what they hold.
  */
 const VALUE_HOLDING_TS_KINDS: ReadonlySet<string> = new Set([
@@ -105,6 +108,7 @@ const VALUE_HOLDING_TS_KINDS: ReadonlySet<string> = new Set([
   'TSModuleBlock',
   'TSModuleDeclaration',
   'TSParameterProperty',
+  'TSQualifiedName',
 ],);
 
 /**
