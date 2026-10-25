@@ -26,7 +26,8 @@ the model cards carry exactly one side each (`shared-contract/src/direct-card-si
 and both clients throw before any request is built for any other roster model
 (`DeepSeekModelNotServedError`,
 `XiaomiModelNotServedError`).
-`shared-contract/src/direct-cards.unit.test.ts` and `provider/src/direct-client.unit.test.ts` fail when any of the three is removed.
+`shared-contract/src/direct-cards.unit.test.ts` and `provider/src/direct-client.unit.test.ts`
+fail when any of the three is removed.
 
 The roster does not change.
 No model is seated in a new role and no owner hold is lifted:
@@ -53,7 +54,8 @@ and the addresses of the model listings.
   when the word "json" is in the prompt.
   The client sends JSON mode and states the schema in the system prompt,
   whose text carries that word.
-- Xiaomi serves `mimo-v2.6-flash` (roster seat `xiaomi/mimo-v2.6-flash`) on `https://api.xiaomimimo.com/v1/chat/completions`.
+- Xiaomi serves `mimo-v2.6-flash` (roster seat `xiaomi/mimo-v2.6-flash`)
+  on `https://api.xiaomimimo.com/v1/chat/completions`.
   It accepts `json_schema` with `strict` unchanged.
 - Both put reasoning in `delta.reasoning_content`,
   which the stream reader drops,
@@ -515,11 +517,18 @@ On `mimo-v2.6-flash` with a cap of 64,
 both members returned `finish_reason` "length" with `completion_tokens` 64
 (`reasoning_tokens` 22 included).
 The two result lines,
-as the probe wrote them:
+as the probe wrote them
+(each broken between its members here to fit the line limit, with no value changed):
 
-```jsonl
-{"field":"max_tokens","status":200,"finish":"length","usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,"completion_tokens_details":{"reasoning_tokens":22},"prompt_tokens_details":{"cached_tokens":0}}}
-{"field":"max_completion_tokens","status":200,"finish":"length","usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,"completion_tokens_details":{"reasoning_tokens":22},"prompt_tokens_details":{"cached_tokens":0}}}
+```json
+{"field":"max_tokens","status":200,"finish":"length",
+"usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,
+"completion_tokens_details":{"reasoning_tokens":22},
+"prompt_tokens_details":{"cached_tokens":0}}}
+{"field":"max_completion_tokens","status":200,"finish":"length",
+"usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,
+"completion_tokens_details":{"reasoning_tokens":22},
+"prompt_tokens_details":{"cached_tokens":0}}}
 ```
 
 The limit of this evidence:
