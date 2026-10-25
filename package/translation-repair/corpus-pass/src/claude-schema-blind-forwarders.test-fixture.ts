@@ -1,27 +1,24 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
+  ancestorsOf,
   nodesUnder,
   parentsOf,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
+import {
+  callsFromParameter,
+  derivedNamesOf,
+} from './claude-schema-blind-derived.test-fixture.ts';
 import {
   callsAnySender,
   SENDER_KEYS,
 } from './claude-schema-blind-senders.test-fixture.ts';
-import { referencesIn, } from './claude-schema-reference.test-fixture.ts';
 import type { Family, } from './claude-schema-resolve.test-fixture.ts';
-import {
-  isNoNode,
-  nodeAt,
-  nodesAt,
-  pathOf,
-} from './claude-schema-tree.test-fixture.ts';
+import { isFunctionNode, } from './claude-schema-tree.test-fixture.ts';
 import {
   keyOf,
   type KnownFunctions,
-  standsForKnown,
   type Usage,
   usersIn,
 } from './claude-schema-usage.test-fixture.ts';
@@ -39,6 +36,13 @@ import {
 // sender of its own to call, since the files that call it write the arguments of the schema as much as the files that
 // call the first forwarder do. The forwarders are the fixpoint of that reading, as the wrappers are the fixpoint of the
 // reading of a returned call: a chain of any length is followed to its end.
+//
+// The same reading finds a function that no declaration names (a class method, a static method, a constructor, a
+// getter, a setter, a member of an object nested in an object, an anonymous default export, a function expression
+// nothing binds). No name stands for it that another file could write, so the files that call it cannot be listed, and
+// the check reports the function where it is written, as it reports a function that holds a format and that no
+// declared function holds. A getter has no parameter to build from, so the function it gives back is the one reported.
+// Of a function and the functions inside it that do the same, only the outermost is reported.
 
 /**
  A function, by the file that declares it.
@@ -70,179 +74,6 @@ type Known = {
    */
   readonly forwarders: KnownFunctions;
 };
-
-/**
- Whether the code under a node reads a name of the set, at the head of a chain of members.
-
- @param root - node to look under
-
- @param names - names looked for
-
- @returns Whether some reference under the node starts with one of them
-
- @example
- ```ts
- const reads = readsOneOf({ root: argument, names: new Set(['args',],), },);
- ```
- */
-function readsOneOf(
-  {
-    root,
-    names,
-  }: {
-    readonly root: TreeNode;
-    readonly names: ReadonlySet<string>;
-  },
-): boolean {
-  return referencesIn({ root, },)
-    .some(function startsWithName(path,): boolean {
-      return names.has(path.at(0,) ?? '',);
-    },);
-}
-
-/**
- The names a round adds to the names made from a function's parameters: those that a constant binds when its value reads
- one of the names so far.
-
- @param declarators - every constant the function holds, nested ones too
-
- @param derived - names so far
-
- @returns The names, and the names so far, once no later round adds a name
-
- @example
- ```ts
- const names = derivedFrom({ declarators, derived: new Set(['args',],), },);
- ```
- */
-function derivedFrom(
-  {
-    declarators,
-    derived,
-  }: {
-    readonly declarators: readonly TreeNode[];
-    readonly derived: ReadonlySet<string>;
-  },
-): ReadonlySet<string> {
-  /**
-   The names the constants bind from a name made from a parameter, which are not known yet.
-   */
-  const added = declarators.flatMap(function addedBy(declarator,): readonly string[] {
-    /**
-     The value the constant holds, `NO_NODE` when it holds none.
-     */
-    const init = nodeAt({
-      node: declarator,
-      field: 'init',
-    },);
-    return (isNoNode({ node: init, },) || (!readsOneOf({
-      root: init,
-      names: derived,
-    },)))
-      ? []
-      : namesBoundBy({ node: declarator.id, },)
-        .filter(function isNew(name,): boolean {
-          return !derived.has(name,);
-        },);
-  },);
-  return (added.length === 0)
-    ? derived
-    : derivedFrom({
-      declarators,
-      derived: new Set([
-        ...derived,
-        ...added,
-      ],),
-    },);
-}
-
-/**
- The names a function's own parameters bind, and the constants inside it made from them, to the end of the chain.
-
- @param fn - function
-
- @returns Names, the parameters' first
-
- @example
- ```ts
- const derived = derivedNamesOf({ fn, },);
- ```
- */
-function derivedNamesOf({ fn, }: { readonly fn: TreeNode; },): ReadonlySet<string> {
-  return derivedFrom({
-    declarators: nodesUnder({ root: fn, },)
-      .filter(function isDeclarator({ type, },): boolean {
-        return type === 'VariableDeclarator';
-      },),
-    derived: new Set(nodesAt({
-      node: fn,
-      field: 'params',
-    },)
-      .flatMap(function boundByParameter(parameter,): readonly string[] {
-        return namesBoundBy({ node: parameter, },);
-      },),),
-  },);
-}
-
-/**
- Whether a call is a call of a known function with an argument that reads a name made from the function's parameters.
-
- @param family - modules of the sources
-
- @param file - path of the file that declares the function
-
- @param known - functions the callee is looked for among
-
- @param derived - names made from the function's parameters
-
- @param call - call
-
- @returns Whether the callee stands for one of them and an argument reads a derived name
-
- @example
- ```ts
- const isFromParameter = callsFromParameter({ family, file, known, derived, call, },);
- ```
- */
-function callsFromParameter(
-  {
-    family,
-    file,
-    known,
-    derived,
-    call,
-  }: {
-    readonly family: Family;
-    readonly file: string;
-    readonly known: KnownFunctions;
-    readonly derived: ReadonlySet<string>;
-    readonly call: TreeNode;
-  },
-): boolean {
-  /**
-   The names the callee is written with.
-   */
-  const callee = pathOf({ node: call.callee, },);
-  if (callee.length === 0)
-    return false;
-  if (!standsForKnown({
-    family,
-    file,
-    path: callee,
-    known,
-  },))
-    return false;
-  return nodesAt({
-    node: call,
-    field: 'arguments',
-  },)
-    .some(function readsDerived(argument,): boolean {
-      return readsOneOf({
-        root: argument,
-        names: derived,
-      },);
-    },);
-}
 
 /**
  Whether a function hands a sender a builder call made from its own parameters, or passes a name made from them to a
@@ -348,6 +179,48 @@ function knownIn({ functions, }: { readonly functions: readonly FunctionAt[]; },
 }
 
 /**
+ The files that refer to a sender or use a forwarder, which are the only files a forwarder can be in.
+
+ @param usages - what the references of each file stand for
+
+ @param forwarders - forwarders known so far
+
+ @returns Usage of each such file, in the order of the sources
+
+ @example
+ ```ts
+ const referring = referringTo({ usages, forwarders: [], },);
+ ```
+ */
+function referringTo(
+  {
+    usages,
+    forwarders,
+  }: {
+    readonly usages: readonly Usage[];
+    readonly forwarders: readonly FunctionAt[];
+  },
+): readonly Usage[] {
+  /**
+   The files that use a forwarder known so far.
+   */
+  const usingForwarder = new Set(forwarders.flatMap(function usersOfForwarder(forwarder,): readonly string[] {
+    return usersIn({
+      usages,
+      builder: forwarder,
+    },);
+  },),);
+  return usages.filter(function referToSenderOrForwarder({
+    file,
+    keys,
+  },): boolean {
+    return usingForwarder.has(file,) || [...SENDER_KEYS,].some(function isReferred(key,): boolean {
+      return keys.has(key,);
+    },);
+  },);
+}
+
+/**
  The functions that hand a sender a builder call made from their own parameters, or pass a name made from them to one
  that does, found round by round until a round adds none.
 
@@ -387,26 +260,12 @@ function forwardersAfter(
     forwarders: knownIn({ functions: found, },),
   };
   /**
-   The files that use a forwarder found so far.
-   */
-  const usingForwarder = new Set(found.flatMap(function usersOfForwarder(forwarder,): readonly string[] {
-    return usersIn({
-      usages,
-      builder: forwarder,
-    },);
-  },),);
-  /**
    The functions this round adds.
    */
-  const added = usages
-    .filter(function referToSenderOrForwarder({
-      file,
-      keys,
-    },): boolean {
-      return usingForwarder.has(file,) || [...SENDER_KEYS,].some(function isReferred(key,): boolean {
-        return keys.has(key,);
-      },);
-    },)
+  const added = referringTo({
+    usages,
+    forwarders: found,
+  },)
     .flatMap(function addedInFile({ file, },): readonly FunctionAt[] {
       /**
        What the file declares and its syntax tree.
@@ -496,6 +355,114 @@ export function forwardersIn(
     usages,
     found: [],
   },);
+}
+
+/**
+ A function that hands a sender a builder call made from its own parameters and that no declaration names.
+ */
+export type UndeclaredForwarder = {
+  /**
+   Path of the file that writes it.
+   */
+  readonly file: string;
+
+  /**
+   The function.
+   */
+  readonly node: TreeNode;
+};
+
+/**
+ The functions that hand a sender a builder call made from their own parameters, or pass a name made from them to a
+ forwarder, and that no declaration names: a class method, a static method, a constructor, a getter, a setter, a member
+ of an object nested in an object, an anonymous default export, a function expression that nothing names. Only the
+ outermost such function is listed, and none that sits inside a function that does the same, declared or not.
+
+ @param family - modules of the sources
+
+ @param builders - builders and wrappers of the sources
+
+ @param forwarders - forwarders the declarations name
+
+ @param usages - what the references of each file stand for, to tell the files that refer to a sender or a forwarder
+
+ @returns One entry per function, in the order of the sources
+
+ @example
+ ```ts
+ const undeclared = undeclaredForwardersIn({ family, builders, forwarders, usages, },);
+ ```
+ */
+export function undeclaredForwardersIn(
+  {
+    family,
+    builders,
+    forwarders,
+    usages,
+  }: {
+    readonly family: Family;
+    readonly builders: readonly FunctionAt[];
+    readonly forwarders: readonly FunctionAt[];
+    readonly usages: readonly Usage[];
+  },
+): readonly UndeclaredForwarder[] {
+  /**
+   The builders and wrappers, and the forwarders the declarations name.
+   */
+  const known: Known = {
+    builders: knownIn({ functions: builders, },),
+    forwarders: knownIn({ functions: forwarders, },),
+  };
+  return referringTo({
+    usages,
+    forwarders,
+  },)
+    .flatMap(function undeclaredInFile({ file, },): readonly UndeclaredForwarder[] {
+      /**
+       What the file declares and its syntax tree.
+       */
+      const facts = nonNullishOrThrow(family.get(file,),);
+      /**
+       Parent of each node of the file.
+       */
+      const parents = parentsOf({ program: facts.program, },);
+      /**
+       The functions of the file, of every form, that forward.
+       */
+      const forwarding = new Set(nodesUnder({ root: facts.program, },)
+        .filter(function isForwardingFunction(node,): boolean {
+          return isFunctionNode({ node, },) && forwardsFrom({
+            family,
+            file,
+            parents,
+            known,
+            fn: node,
+          },);
+        },),);
+      /**
+       The functions the declarations name.
+       */
+      const declared = new Set(facts.declared
+        .map(function fnOf({ fn, },): TreeNode {
+          return fn;
+        },),);
+      return [...forwarding,]
+        .filter(function isOutermostUndeclared(node,): boolean {
+          return (!declared.has(node,)) && (!ancestorsOf({
+            node,
+            parents,
+          },)
+            .some(function isForwardingAncestor(ancestor,): boolean {
+              return forwarding.has(ancestor,);
+            },));
+        },)
+        .map(function atFile(node,): UndeclaredForwarder {
+          return {
+            file,
+            node,
+          };
+        },);
+    },);
 }
 
 //endregion Functions that hand a sender a builder call made from their own parameters

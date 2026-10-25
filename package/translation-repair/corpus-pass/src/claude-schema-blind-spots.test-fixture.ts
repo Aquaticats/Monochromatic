@@ -19,6 +19,11 @@ import {
   namesBearingModule,
 } from './claude-schema-blind-loads.test-fixture.ts';
 import { constantReadersOf, } from './claude-schema-blind-constants.test-fixture.ts';
+import {
+  forwardersIn,
+  undeclaredForwardersIn,
+  type UndeclaredForwarder,
+} from './claude-schema-blind-forwarders.test-fixture.ts';
 import type {
   BlindContext,
   ConstantReaders,
@@ -39,6 +44,7 @@ import { moduleLoadOf, } from './claude-schema-tree.test-fixture.ts';
 import {
   keyOf,
   type KnownFunctions,
+  usagesIn,
 } from './claude-schema-usage.test-fixture.ts';
 
 //region Places the schema search reads nothing of, found in the family's sources
@@ -50,7 +56,9 @@ import {
 // (`claude-schema-blind-specifiers.test-fixture.ts`), and no code may build a loader or run text
 // (`claude-schema-blind-unreadable.test-fixture.ts`); every chain of names that stands for a builder, or for a module
 // that carries one, must sit where the search reads it; and the value of a builder's call must end in a sender, a
-// wrapper or a constant that does (`claude-schema-blind-flow.test-fixture.ts`).
+// wrapper or a constant that does (`claude-schema-blind-flow.test-fixture.ts`); and no function that hands a sender a
+// builder call made from its own parameters may be one that no declaration names, since the files that call it cannot
+// be listed (`claude-schema-blind-forwarders.test-fixture.ts`).
 // Anything else is reported with the file, the line and the position, so a place the search cannot read never turns up
 // in the family without a failure that names it. The check is a net, not a second search: it reports every place it
 // does not understand, whether or not a producer hides there, and a place it reports is answered by reading the place
@@ -340,6 +348,33 @@ export function blindSpotsOf(
    */
   const carriers = carryingObjectsOf({ builders, },);
   /**
+   What the references of each file stand for.
+   */
+  const usages = usagesIn({ family, },);
+  /**
+   The functions a declaration names that hand a sender a builder call made from their own parameters, or pass a name
+   made from them on.
+   */
+  const forwarders = forwardersIn({
+    family,
+    builders,
+    usages,
+  },);
+  /**
+   The functions of that kind that no declaration names, by the file that writes each.
+   */
+  const undeclaredForwarders = Map.groupBy(
+    undeclaredForwardersIn({
+      family,
+      builders,
+      forwarders,
+      usages,
+    },),
+    function fileOf({ file, },): string {
+      return file;
+    },
+  );
+  /**
    The contexts of the files whose tree has been read, so a file that another file's constant leads to is read once.
    */
   const contexts = new Map<string, BlindContext>();
@@ -452,11 +487,27 @@ export function blindSpotsOf(
       nodes,
     },);
     /**
-     Whether the file is read no further: nothing in it leads to a builder, it holds no undeclared format to look for
-     and it writes no specifier the check cannot resolve.
+     The functions the file writes that hand a sender a builder call made from their own parameters and that no
+     declaration names, as places to report.
+     */
+    const forwarding = (undeclaredForwarders.get(file,) ?? [])
+      .map(function shapeOf({ node, }: UndeclaredForwarder,): FoundShape {
+        return {
+          shape: 'forwarder-in-undeclared-function',
+          node,
+          position: node.type,
+        };
+      },);
+    /**
+     Whether the file is read no further: nothing in it leads to a builder, it holds no undeclared format to look for,
+     it writes no specifier the check cannot resolve and no function that forwards without a declaration.
      */
     const isIdle = (!isRelevant) && (!checksUndeclared);
-    if (isIdle && (unresolved.length === 0))
+    /**
+     Whether the file writes nothing to report apart from what its tree holds.
+     */
+    const reportsNothingElse = (unresolved.length === 0) && (forwarding.length === 0);
+    if (isIdle && reportsNothingElse)
       return [];
     /**
      What the names of the file are read against.
@@ -474,6 +525,7 @@ export function blindSpotsOf(
           nodes,
         },),
         ...unresolved,
+        ...forwarding,
         ...builderShapesIn({
           context,
           nodes,
