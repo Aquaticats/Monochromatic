@@ -63,7 +63,11 @@ export type AttemptMap = Map<string, number>;
 function isAttemptCount(value: unknown,): value is number {
   if ((typeof value) !== 'number')
     return false;
-  return Number.isSafeInteger(value,) && (value >= 0) && Number.isSafeInteger(value + 1,);
+  if (!Number.isSafeInteger(value,))
+    return false;
+  if (value < 0)
+    return false;
+  return Number.isSafeInteger(value + 1,);
 }
 
 /**
