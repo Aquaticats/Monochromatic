@@ -22,31 +22,12 @@ import {
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { createRefusalHolds, } from '../dist/final/node/index.mjs';
+import { dryExcept, } from './dry-except.test-fixture.ts';
 
 /**
  The refusal cooldown the cases state, in milliseconds.
  */
 const COOLDOWN_MS = 300_000;
-
-/**
- What a meter reading finds when only the named providers read wet.
-
- @param wet - providers that read wet
-
- @returns Dryness per provider, dry for every provider not named
-
- @example
- ```ts
- const dry = dryExcept({ wet: ['neuralwatt',], },);
- ```
- */
-function dryExcept({ wet, }: { readonly wet: readonly ProviderName[]; },): ProviderRecord<boolean> {
-  return providerRecord({
-    of: function isDry(provider,): boolean {
-      return !wet.includes(provider,);
-    },
-  },);
-}
 
 /**
  Holds on a clock the case moves, and the lines they write. NeuralWatt reads wet unless the case says otherwise, so a

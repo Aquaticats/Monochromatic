@@ -2,8 +2,8 @@
  Tests for the decision whether an entry's give-up of a provider is set aside: the give-ups hold while another writing
  provider reads wet, and are set aside when none does, so that giving a provider up never leaves every provider dry.
 
- The providers given up, the holds and the reading are numbers and sets the case moves by hand, and the logger is one
- that keeps its lines, so no case waits and nothing is asked.
+ The providers given up, the time each refusal still holds a provider out and the reading are numbers and sets the case
+ moves by hand, and the logger is one that keeps its lines, so no case waits and nothing is asked.
 
  Fixtures are cat-themed invention; no meter is read and no provider is asked.
 
@@ -25,47 +25,29 @@ import {
   createGiveUpAside,
   EVERY_PROVIDER_COUNTS,
 } from '../dist/final/node/index.mjs';
+import { dryExcept, } from './dry-except.test-fixture.ts';
 
 /**
- A reading in which only the named providers are not dry.
-
- @param wet - providers the reading found wet
-
- @returns Dryness per provider
-
- @example
- ```ts
- const dry = dryExcept({ wet: ['neuralwatt',], },);
- ```
- */
-function dryExcept({ wet, }: { readonly wet: readonly ProviderName[]; },): ProviderRecord<boolean> {
-  return providerRecord({
-    of: function isDry(provider,): boolean {
-      return !wet.includes(provider,);
-    },
-  },);
-}
-
-/**
- The hold of a provider no refusal has held: none.
+ The time a provider no refusal has held is still held out: none.
 
  @returns Zero milliseconds
 
  @example
  ```ts
- const holds = providerRecord({ of: holdNothing, },);
+ const remaining = providerRecord({ of: heldForNothing, },);
  ```
  */
-function holdNothing(): number {
+function heldForNothing(): number {
   return 0;
 }
 
 /**
- A decision over sets and holds the case moves, and the lines it writes.
+ A decision over sets and times the case moves, and the lines it writes.
 
  @param writing - the providers whose wet reading keeps the run going (default: every provider)
 
- @returns The decision, the providers given up, the holds in milliseconds, the entry's words and the lines written
+ @returns The decision, the providers given up, the milliseconds each provider is still held out, the entry's words and
+ the lines written
 
  @example
  ```ts
@@ -77,7 +59,7 @@ function decisionOver(
 ): {
   readonly aside: ReturnType<typeof createGiveUpAside>;
   readonly given: Set<ProviderName>;
-  readonly holds: Record<ProviderName, number>;
+  readonly remaining: Record<ProviderName, number>;
   readonly entry: { words: string; };
   readonly lines: string[];
 } {
@@ -86,9 +68,9 @@ function decisionOver(
    */
   const given = new Set<ProviderName>();
   /**
-   How much longer each refusal holds a provider out.
+   How much longer a refusal holds each provider out, in milliseconds.
    */
-  const holds: Record<ProviderName, number> = providerRecord({ of: holdNothing, },);
+  const remaining: Record<ProviderName, number> = providerRecord({ of: heldForNothing, },);
   /**
    The entry, worded for the lines.
    */
@@ -99,14 +81,14 @@ function decisionOver(
   const lines: string[] = [];
   return {
     given,
-    holds,
+    remaining,
     entry,
     lines,
     aside: createGiveUpAside({
       writing,
       given,
       left: function left({ provider, },): number {
-        return holds[provider];
+        return remaining[provider];
       },
       entryWords: function entryWords(): string {
         return entry.words;
@@ -154,7 +136,7 @@ await describe({
     it({
       name: 'COUNTS NO PROVIDER AS AN ALTERNATIVE THAT IS HELD OUT, GIVEN UP, OR NOT IN THE ROSTER',
       fn: async () => {
-        const { aside, given, holds, } = decisionOver({
+        const { aside, given, remaining, } = decisionOver({
           writing: providerRecord({
             of: function writesExceptXiaomi(provider,): boolean {
               return provider !== 'xiaomi';
@@ -173,11 +155,11 @@ await describe({
         },);
         expect(aside.isAside(),).toBe(false,);
 
-        holds.neuralwatt = 60_000;
+        remaining.neuralwatt = 60_000;
         given.add('hyper',);
         expect(aside.isAside(),).toBe(true,);
 
-        holds.neuralwatt = 0;
+        remaining.neuralwatt = 0;
         expect(aside.isAside(),).toBe(false,);
       },
     },),
@@ -186,7 +168,7 @@ await describe({
       name: 'SAYS WHEN A GIVE-UP IS SET ASIDE, once, with the entry and how each other writing provider reads, and '
         + 'says when it is back in force',
       fn: async () => {
-        const { aside, given, holds, lines, } = decisionOver({
+        const { aside, given, remaining, lines, } = decisionOver({
           writing: providerRecord({
             of: function writesNeuralwattSyntheticAndHyper(provider,): boolean {
               return (provider === 'neuralwatt') || (provider === 'synthetic') || (provider === 'hyper');
@@ -194,7 +176,7 @@ await describe({
           },),
         },);
         given.add('synthetic',);
-        holds.hyper = 90_000;
+        remaining.hyper = 90_000;
         aside.noteReading({ dry: dryExcept({ wet: ['hyper',], },), },);
         aside.noteReading({ dry: dryExcept({ wet: ['hyper',], },), },);
         aside.reconsider();
@@ -205,7 +187,7 @@ await describe({
         ],);
 
         lines.length = 0;
-        holds.hyper = 0;
+        remaining.hyper = 0;
         aside.reconsider();
         expect(lines,).toEqual([
           'info [reconsider] synthetic: entry CatEntry1 puts its give-up back in force, because hyper reads wet again, '
