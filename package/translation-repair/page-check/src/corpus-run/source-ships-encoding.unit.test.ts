@@ -453,6 +453,14 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     'two footnote definitions in one paragraph of the plain reading, a code span across them',
     'a `b\n[^1]: c {d}\n[^2]: e` {f}\n',
   ],
+  [
+    'a definition line right after indented code at the top',
+    '猫\n\n    code {\n[b]: u{ "t"\n',
+  ],
+  [
+    'a definition line right after indented code at the top, then a definition after a blank line',
+    '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
+  ],
 ];
 
 /**
@@ -581,8 +589,9 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
 
 /**
  Texts whose definition line the plain reading takes for a definition and the strict grammar for the lazy line of a
- paragraph, which a raw HTML block or indented code above it is to the strict grammar: the page parses and shows the
- characters of the line, which no reader of plain Markdown sees as text. Each case has what the page shows.
+ paragraph, which a raw HTML block or indented code above it in a block quote or a list item is to the strict grammar:
+ the page parses and shows the characters of the line, which no reader of plain Markdown sees as text. At the top the
+ encoder writes a blank line between the two (`source-ships-page-goes-on.unit.test.ts`). Each case has what the page shows.
  */
 const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
   [
@@ -594,16 +603,6 @@ const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
     'a definition line right after a block quote holding a raw HTML block',
     '> <div>\n[b]: u{ "t"\n',
     '<div> [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after indented code',
-    '猫\n\n    code {\n[b]: u{ "t"\n',
-    '猫 code { [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after indented code, then a definition after a blank line',
-    '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
-    '猫 code { [b]: u{ "t"',
   ],
   [
     'an opener of a comment that never closes, then a blank line and a definition line holding a brace',

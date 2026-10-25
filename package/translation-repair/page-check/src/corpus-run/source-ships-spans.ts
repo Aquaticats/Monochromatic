@@ -18,7 +18,7 @@ import {
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
-import { afterHtmlBlockEdits, } from './source-ships-separation.ts';
+import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
 import { withPageOnlyStarts, } from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
@@ -301,7 +301,7 @@ export function spansOf(
         range,
       },),);
       if (isRootChild) {
-        edits.push(...afterHtmlBlockEdits({
+        edits.push(...afterLiteralBlockEdits({
           readable,
           range,
         },),);
@@ -335,6 +335,12 @@ export function spansOf(
           node,
           range,
         },),);
+        if (isRootChild) {
+          edits.push(...afterLiteralBlockEdits({
+            readable,
+            range,
+          },),);
+        }
       }
       continue;
     }

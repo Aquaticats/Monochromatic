@@ -153,25 +153,26 @@ export function separatingEdits(
 }
 
 /**
- The edit that puts a blank line after a raw HTML block of the top that ends at a line of its own.
+ The edit that puts a blank line after a block of the top that the page writes as a paragraph, and that ends at a line of
+ its own: raw HTML of the kinds that end so (a processing instruction, a declaration, a CDATA section, a script, a pre or a
+ style element), and indented code, which the page has none of.
 
- A block of the kinds that end at a line of their own (a processing instruction, a declaration, a CDATA section, a script,
- a pre or a style element) is followed by a new block on the very next line. The page writes the lines of the block as a
- paragraph, so the next line would be a lazy line of it: a definition would show as text and the underline of a heading as
- a row of equals signs. A block of the other kinds ends at a blank line and needs nothing.
+ Such a block is followed by a new block on the very next line. The page writes the lines of the block as a paragraph, so
+ the next line would be a lazy line of it: a definition would show as text and the underline of a heading as a row of
+ equals signs. Raw HTML of the other kinds ends at a blank line and needs nothing.
 
  @param readable - whole text with its comments blanked, the parse's own input
 
- @param range - where the raw HTML block stands
+ @param range - where the block stands
 
  @returns Edit that doubles the line ending after the block, none when the text ends there or a blank line stands there
 
  @example
  ```ts
- const edits = afterHtmlBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },);
+ const edits = afterLiteralBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },);
  ```
  */
-export function afterHtmlBlockEdits(
+export function afterLiteralBlockEdits(
   {
     readable,
     range,

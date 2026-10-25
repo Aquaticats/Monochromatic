@@ -208,7 +208,7 @@ export {
 } from './corpus-run/source-ships-footnote-spans.ts';
 export { footnoteInContainerSpans, } from './corpus-run/source-ships-container.ts';
 export {
-  afterHtmlBlockEdits,
+  afterLiteralBlockEdits,
   separatingEdits,
 } from './corpus-run/source-ships-separation.ts';
 export { withPageOnlyStarts, } from './corpus-run/source-ships-footnote-ranges.ts';

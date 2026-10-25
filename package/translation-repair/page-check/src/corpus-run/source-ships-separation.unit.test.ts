@@ -13,7 +13,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
-  afterHtmlBlockEdits,
+  afterLiteralBlockEdits,
   separatingEdits,
 } from '../../dist/final/node/index.mjs';
 
@@ -136,12 +136,12 @@ await describe({
 },);
 
 await describe({
-  name: afterHtmlBlockEdits.name,
+  name: afterLiteralBlockEdits.name,
   children: [
     it({
       name: 'DOUBLES THE LINE ENDING AFTER AN HTML BLOCK WHEN THE NEXT LINE HOLDS TEXT',
       fn: async () => {
-        expect(afterHtmlBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },),).toEqual([
+        expect(afterLiteralBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },),).toEqual([
           {
             start: 5,
             end: 6,
@@ -153,7 +153,7 @@ await describe({
     it({
       name: 'DOUBLES A CARRIAGE RETURN AND LINE FEED AS ONE ENDING',
       fn: async () => {
-        expect(afterHtmlBlockEdits({ readable: '<?x?>\r\ncat\r\n', range: { start: 0, end: 5, }, },),).toEqual([
+        expect(afterLiteralBlockEdits({ readable: '<?x?>\r\ncat\r\n', range: { start: 0, end: 5, }, },),).toEqual([
           {
             start: 5,
             end: 7,
@@ -165,10 +165,10 @@ await describe({
     it({
       name: 'LEAVES A BLANK LINE THAT STANDS THERE ALREADY, and the end of the text',
       fn: async () => {
-        expect(afterHtmlBlockEdits({ readable: '<?x?>\n\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
-        expect(afterHtmlBlockEdits({ readable: '<?x?>\n \t\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
-        expect(afterHtmlBlockEdits({ readable: '<?x?>\n', range: { start: 0, end: 5, }, },),).toEqual([],);
-        expect(afterHtmlBlockEdits({ readable: '<?x?>', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterLiteralBlockEdits({ readable: '<?x?>\n\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterLiteralBlockEdits({ readable: '<?x?>\n \t\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterLiteralBlockEdits({ readable: '<?x?>\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterLiteralBlockEdits({ readable: '<?x?>', range: { start: 0, end: 5, }, },),).toEqual([],);
       },
     },),
   ],
