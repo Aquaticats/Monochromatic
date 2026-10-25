@@ -254,6 +254,39 @@ type LineWriter = (
 ) => void;
 
 /**
+ The level methods of a logger that carry a line.
+ */
+type LogLevel = 'debug' | 'error' | 'fatal' | 'info' | 'trace' | 'warn';
+
+/**
+ Function that hands a line to one level of a logger.
+
+ @param l - logger the line goes to
+
+ @param level - level the line is written at
+
+ @returns Function writing the text it is given at that level
+
+ @example
+ ```ts
+ sendingTo({ l, level: 'info', },)('purrs',);
+ ```
+ */
+function sendingTo(
+  {
+    l,
+    level,
+  }: {
+    readonly l: Logger;
+    readonly level: LogLevel;
+  },
+): (text: string,) => void {
+  return function send(text: string,): void {
+    l[level](text,);
+  };
+}
+
+/**
  Logger that writes every line through one writer, at every level.
 
  @param l - logger the lines go to
@@ -264,7 +297,7 @@ type LineWriter = (
 
  @example
  ```ts
- const logger = writing({ l, write: ({ message, send, },) => { send(`[Tabby] ${message}`,); }, },);
+ const logger = writing({ l, write: writeSliceTagsOnce, },);
  ```
  */
 function writing(
@@ -280,25 +313,28 @@ function writing(
     debug: function debug(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.debug(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'debug',
+        },),
       },);
     },
     error: function error(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.error(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'error',
+        },),
       },);
     },
     fatal: function fatal(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.fatal(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'fatal',
+        },),
       },);
     },
     flush: async function flush(): Promise<void> {
@@ -307,25 +343,28 @@ function writing(
     info: function info(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.info(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'info',
+        },),
       },);
     },
     trace: function trace(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.trace(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'trace',
+        },),
       },);
     },
     warn: function warn(message: string,): void {
       write({
         message,
-        send: (text,) => {
-          l.warn(text,);
-        },
+        send: sendingTo({
+          l,
+          level: 'warn',
+        },),
       },);
     },
   };
@@ -356,22 +395,25 @@ function prefixing(
 ): Logger {
   return writing({
     l,
-    write: function prefixed({ message, send, },): void {
+    write: function prefixed(
+      {
+        message,
+        send,
+      },
+    ): void {
       send(`${prefixOf()}${message}`,);
     },
   },);
 }
 
 /**
- Whether the line being written has had its attempt, lane and slice tags put on by a slice-tagged logger that was
- called first.
+ Holds `true` while a slice-tagged logger hands on a line it has put its attempt, lane and slice tags on.
 
  A line passes through every logger wrapped around the one that is called, so an entry logger that names the attempt
- and a lane that slice-tags the logger it is handed would each add the tags. The logger called first adds them and
- sets this for the length of its call; each one beneath it writes the line as it is. Writes are synchronous, so
- nothing else writes while it is set.
+ and a lane that slice-tags the logger it is handed would each add the tags. The logger called first adds them and runs
+ the rest of the line's journey under this store; each slice-tagged logger beneath it writes the line as it is.
  */
-let sliceTagsOnLine = false;
+const sliceTagsWritten = new AsyncLocalStorage<true>();
 
 /**
  Entry, attempt, lane and slice tags for the line being written.
@@ -421,6 +463,40 @@ function slicePrefix(): string {
 }
 
 /**
+ Hands a line on with the attempt, lane and slice tags, unless a slice-tagged logger that was called first has put them
+ on it.
+
+ @param message - the line as the logger was given it
+
+ @param send - hands the line to the logger beneath
+
+ @example
+ ```ts
+ const logger = writing({ l, write: writeSliceTagsOnce, },);
+ ```
+ */
+function writeSliceTagsOnce(
+  {
+    message,
+    send,
+  }: {
+    readonly message: string;
+    readonly send: (text: string,) => void;
+  },
+): void {
+  if (sliceTagsWritten.getStore() === true) {
+    send(message,);
+    return;
+  }
+  sliceTagsWritten.run(
+    true,
+    function sendTagged(): void {
+      send(`${slicePrefix()}${message}`,);
+    },
+  );
+}
+
+/**
  A module's root logger, naming the entry, attempt, lane and slice of every
  line written inside one.
 
@@ -460,19 +536,7 @@ export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
 export function sliceTagged({ l, }: { readonly l: Logger; },): Logger {
   return writing({
     l,
-    write: function sliceTagsOnce({ message, send, },): void {
-      if (sliceTagsOnLine) {
-        send(message,);
-        return;
-      }
-      sliceTagsOnLine = true;
-      try {
-        send(`${slicePrefix()}${message}`,);
-      }
-      finally {
-        sliceTagsOnLine = false;
-      }
-    },
+    write: writeSliceTagsOnce,
   },);
 }
 
