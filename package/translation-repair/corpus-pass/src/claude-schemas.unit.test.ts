@@ -81,6 +81,8 @@ import { OUTSIDE_MODULE_CASES, } from './claude-schema-outside-module-forms.test
 import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.ts';
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
+import { CALLBACK_CASES, } from './claude-schema-callback-forms.test-fixture.ts';
+import { UNREAD_CALLBACK_CASES, } from './claude-schema-callback-unread-forms.test-fixture.ts';
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
@@ -811,6 +813,8 @@ await describe({
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
       ...SURVIVOR_CASES,
+      ...CALLBACK_CASES,
+      ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...IMPORT_EQUALS_CASES,
@@ -872,6 +876,8 @@ await describe({
       ...WHITELIST_READ_CASES,
       ...SPECIFIER_CASES,
       ...SURVIVOR_CASES,
+      ...CALLBACK_CASES,
+      ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...IMPORT_EQUALS_CASES,
