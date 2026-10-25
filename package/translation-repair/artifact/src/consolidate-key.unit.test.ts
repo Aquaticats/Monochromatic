@@ -77,14 +77,16 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 36: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 37: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
-        + 'named it, and an unheard gate over a refused archive ships the pick two slate ballots chose, so a stored '
-        + 'settlement may hold a wording the same texts now settle otherwise, and the key hashes the version, the '
-        + 'shape of the run and the texts, not the rule that reads the ballots, so only this number retires a record '
-        + 'written under the rule before (34 was the reader taking a capitalization-only difference as the listed value)',
+        + 'named it, an unheard gate over a refused archive ships the pick two slate ballots chose (36), and the same '
+        + 'gate over a standing a contest majority called flawed ships that pick, and a tie across every candidate '
+        + 'ships only among candidates two judges named, so a stored settlement may hold a wording the same texts now '
+        + 'settle otherwise, and the key hashes the version, the shape of the run and the texts, not the rule that '
+        + 'reads the ballots, so only this number retires a record written under the rule before (34 was the reader '
+        + 'taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(36,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(37,);
       },
     },),
     it({
@@ -450,7 +452,7 @@ await describe({
         // two judges named it and ships the slate's two-ballot pick past an
         // unheard gate over a refused archive, which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          'aa4de456c4f3d8da5969c10a7359f0ee4d49c202493023ce47aa6e384c266878',
+          'f4ec1eba2a19169e1506efe32e940d01b246b536c21529a49d4624ecf294380a',
         );
       },
     },),

@@ -551,8 +551,21 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  not known, and the change cannot ride inside it, so the number moves. The translate slice version (29) moves for the
  same slate rule; the repair slice (47) and refine (17) versions stay. No record has been written at 36, which this
  change sets first.
+
+ Version 37 covers two rulings of 2026-10-25. The owner's answer "Ship the slate's pick (Recommended)": a gate that
+ heard fewer than two usable ballots over an eligible standing a majority of the contest ballots called flawed ships
+ the slate's pick when two or more slate ballots chose it, with the finding `unheard-gate-ships-slate-pick`, where
+ version 36 kept the standing (`consolidate/src/consolidate-ineligible-standing.ts`). The lead's ruling settled by
+ "Two judges must name it": a slate tied across every offered candidate (class 174) ships by preference only among
+ the tied candidates two or more judges named, and otherwise the archive text stays
+ (`translate-stage/src/translate-runoff-tie.ts`). A stored settlement may hold the standing where the same texts now
+ ship the slate's pick, or a candidate shipped by the order where the same texts now keep the archive. The key hashes
+ the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written before
+ would be served after. Whether a record stands at 36 is not known (the number was set a few commits before and no
+ search of a slice-cache directory was made), and the change cannot ride inside it, so the number moves. The
+ translate slice version (30) moves for the tie rule; the repair slice (47) and refine (17) versions stay.
  */
-export const CONSOLIDATE_CACHE_VERSION = 36;
+export const CONSOLIDATE_CACHE_VERSION = 37;
 
 /**
  What a line-structured slice appends to its key material.
