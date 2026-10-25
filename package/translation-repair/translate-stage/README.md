@@ -38,10 +38,14 @@ The groups that follow name the main ones.
   A declined round ships a candidate only when two or more judges named it,
   and otherwise the wording in place stays (the owner's answer of 2026-10-25,
   "Two judges must name it").
-  A round tied across every offered candidate still ships one by a fixed preference
+  A round tied across every offered candidate ships by a fixed preference
   (repair lane,
   then translate lane,
-  then slate order).
+  then slate order)
+  only among the candidates two or more judges named,
+  and where none drew two ballots the wording in place stays
+  (the lead's ruling of 2026-10-25,
+  settled by the same answer).
   Names:
   `runoffFinalists`,
   `runoffTiedFinalists`,

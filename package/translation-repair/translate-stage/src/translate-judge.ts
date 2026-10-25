@@ -557,8 +557,9 @@ export async function judgeTranslateSlate(
     disposition: outcome.disposition,
   },);
   if (incumbentKind === 'absent') {
-    // A challenge round tied across every valid candidate ships one by
-    // preference (class one hundred seventy-four); any other decline raises.
+    // A challenge round tied across every valid candidate ships, by
+    // preference, one that two or more judges named (class one hundred
+    // seventy-four); any other decline raises.
     return settleAbsentDecline({
       challenged: responsibility === 'decline-challenge',
       outcome,

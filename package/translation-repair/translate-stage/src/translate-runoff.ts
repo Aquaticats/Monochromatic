@@ -21,8 +21,9 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 // challenge round is therefore a run-off over the candidates that drew a
 // ballot, when that is fewer than the whole slate: the judges are asked a
 // narrower question rather than the identical one. A second tie across every
-// finalist ships one of them by preference where nothing stands to keep
-// (class one hundred seventy-four, `translate-runoff-tie.ts`).
+// finalist ships by preference one of the finalists that two or more judges
+// named, where nothing stands to keep (class one hundred seventy-four,
+// `translate-runoff-tie.ts`); with none named twice, nothing ships by it.
 //
 // NARROWED TO THE LEADERS ON XINGZ613 (2026-09-19, class sixty-three): slice
 // 84's standing was ineligible, four valid proposals went to a bench at
