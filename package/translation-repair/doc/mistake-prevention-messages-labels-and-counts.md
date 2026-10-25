@@ -598,6 +598,8 @@ the absent `attempt=` is what tells two lines that share an opening apart.
 The logger's lines inside an attempt name it through the log context,
 in one place,
 as `[attempt <n>]`.
+A logger built for an entry is slice-tagged,
+since a plain tagged logger never reads the context and its lines carry no attempt.
 The attempt is the number the pass persists for the entry once it has counted the attempt,
 so the lines of one attempt agree and a line never keeps a count of its own.
 A limit that applies to an attempt says so where the limit is printed.
@@ -627,5 +629,10 @@ whose default-clock cases compare with a fixed floor and read no clock of their 
 `corpus-pass-queue.unit.test.ts` reads the `REATTEMPT` and `STALLED` lines of a pass queue against the attempts file,
 the stop lines of the queue,
 and the clock the queue hands its settlement.
-`log-context.unit.test.ts` reads the logger's prefix.
+`log-context.unit.test.ts` reads the logger's prefix,
+and that a lane slice-tagging an entry logger's logger does not repeat it.
+`entry-logger-scan.unit.test.ts` fails an entry logger built without `sliceTagged`,
+and the whole-run case of `settleEntry`,
+the seam cases of `pass-seams-reseat.unit.test.ts` and the hook cases of `pass-reseat.unit.test.ts`
+read every line that names the entry inside an attempt for the bracket.
 Nothing finds a new `console.log` line of the pass or of an entry that omits the stamp.

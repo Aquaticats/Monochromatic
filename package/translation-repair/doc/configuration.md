@@ -507,6 +507,14 @@ so a search by line prefix still finds them.
 The attempt is the number `attempts.json` in the runs directory holds for the entry after the pass counts the attempt,
 which counts every attempt of every invocation,
 so a pass that finds an entry already at 4 prints `attempt=5` on its first attempt.
+A count in that file that is not a whole number from 0 to 9007199254740990 (a hand-edited `1.5`,
+`-3`,
+`1e999`,
+`1e20` or `9007199254740991`,
+whose successor is the first integer a number cannot hold exactly) is read as 0,
+beside a warning that names the entry,
+the file and the value,
+so the entry sorts first and the pass does not end on a count its stamp would refuse.
 The lines are `OVERLAP`,
 `TALLY` (settled,
 error,
@@ -547,6 +555,13 @@ Those it writes inside an entry's attempt (`ARCHIVE ORIGINAL`,
 the lane lines and the `SPEND` lines among them) name the attempt in a bracket of its own after the entry,
 `[<entry>] [attempt <n>] [<lane> slice <i>]`,
 from the same number.
+Every logger the pass builds for an entry is slice-tagged (`sliceTagged({ l: tagged({ tag: entry }) })`),
+so it reads the attempt,
+lane and slice from the log context at each line,
+and a line gets those tags once:
+a lane that slice-tags the logger an entry logger handed it does not repeat them.
+A source scan (`entry-logger-scan.unit.test.ts`) fails a plain `tagged({ tag: entryId })` or `tagged({ tag: entry.id })`
+in the family source.
 `the pass resumes` and the parked warning are logger lines of the pass,
 so they carry the logger's time and no attempt.
 

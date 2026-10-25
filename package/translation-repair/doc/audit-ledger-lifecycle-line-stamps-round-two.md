@@ -15,6 +15,14 @@ The corrections in place are in the entries they correct,
 in the file of B960:
 its census citation and its list of what stayed open.
 
+Round 3 answered the second independent re-check,
+which also found no major finding.
+Its three minor findings and its nits extend the entries they belong to rather than take new ids:
+the residue of B961 (the largest safe integer as a count),
+the nits of B962,
+and two findings of B963 (the logger's lines that read no context,
+and the window the cap census searches for `START`).
+
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
@@ -53,6 +61,35 @@ The cases write the four values as text,
 because `JSON.stringify` writes the `1e999` that parses to Infinity as `null`,
 and a control keeps 0 and the largest safe integer quiet.
 
+Round 3 (re-check 2,
+minor 2 and a nit):
+that control kept one count the stamp refuses.
+`9007199254740991` is a safe integer,
+and one more is `9007199254740992`,
+which is not,
+so `countAttempt` wrote an unsafe count and `lifecycleStamp` refused it at the same `OVERLAP` line,
+again at every launch.
+Fixed on 2026-10-25 (UTC) in `a56ca8f70a` (glossary),
+with its cases committed red first in `7257b0ffb4`:
+a count is usable only when it and its successor are safe integers,
+so 0 to 9007199254740990,
+and the warning says that range,
+since "no non-negative whole number" called the largest safe integer one.
+`countAttempt` throws the new `AttemptCountError`,
+exported from the package,
+rather than write such a count,
+and leaves the count it was given.
+The control moves to `9007199254740990`,
+the largest count a file can hold.
+`AttemptCountError` stays without the `messageNamesOnly` marker,
+because it names an entry id the corpus chose,
+and the inventory in `message-names-only.unit.test.ts` records why.
+The nit that the warning's quoting of a text count was unpinned (mutant G4 printed every value with `String`)
+is closed in `2a99097f3b`:
+the cases expect `counts Mittens as "5",` beside `counts Mittens as 1.5,`,
+and G4 fails the case by assertion,
+which passes unmutated.
+
 Cache versions:
 none moved (B963 holds the search).
 
@@ -79,7 +116,9 @@ and the source was restored from the commit.
   The only reads of the default clock are the ones the function under test makes,
   and none is compared with a second read,
   which also removes the tolerance of 60 seconds the case had.
-  The mutant now fails two cases.
+  The mutant failed two cases in `dbc4198da0` and fails three at the head (re-check 2 counted
+  `lifecycle-stamp.unit.test.ts:77`,
+  `:152` and `:163`).
 - Mutant M15 removed `wallClock` from the `settle({ entry, attempt, wallClock })` call of `runPassQueue`,
   so the queue's clock never reached the settlement,
   and every file of the package passed:
@@ -100,6 +139,21 @@ A search for the wording found three,
 `corpus-pass-lines`,
 `corpus-pass` and `corpus-pass-refusals`,
 with six assertions between them (B963 changed all six).
+
+Two slips of the commits themselves,
+recorded as the second re-check found them and not amendable:
+`ce95582627` is typed `test` while it changes `corpus-pass/src/index.ts` to export `printSettledLines`
+(allowed,
+so a built-artifact test can reach the helper,
+but the type should have said so),
+and the red commit `6450c31d15` is not lint clean,
+because its built-pass fixture held a regex literal that oxlint
+refuses (the fix commit rewrote it).
+The raised count of 12 in `real-clock-bounds.unit.test.ts`,
+the dropped allow-list entry of
+`pass-entry-persist.ts` and the `attemptText` line of `blank-text-tests.unit.test.ts` are scan bookkeeping,
+not a
+loosened bound.
 
 ## B963: the lines of the pass itself and the logger's lines carried no time or no attempt
 
@@ -162,12 +216,110 @@ The re-check read the census again and judged each:
   so the fixture takes the times out of the output and hands them back,
   and the cases compare the rest of each line whole.
 
+Round 3 (re-check 2,
+minor 1):
+the attempt reached only the loggers built on the log context.
+The pass's own per-entry loggers were plain `tagged({ tag: entryId })` calls on the default logger,
+which never reads the context:
+eight in `pass-entry.ts`,
+three in `pass-reseat.ts`,
+two in `pass-decline.ts`,
+and one each in `pass-prepare-reseat.ts`,
+`pass-lanes.ts` and `pass-insertion-reseat.ts`.
+So `ARCHIVE ORIGINAL`,
+`FOOTNOTES` (written through the logger `preparePassEntry` is handed),
+`JUDGE SEATS` and the pass-level warnings printed no `[attempt n]`,
+though the docs,
+the logger bullet of this entry and the prevention rule said they did.
+The round 1 census had named exactly these lines as the ones wanting the attempt.
+Fixed on 2026-10-25 (UTC):
+every one is now `sliceTagged({ l: tagged({ tag: entry }) })`,
+and `runEntryPipeline` builds one such logger and hands it to its stages.
+The commits are `eeac4078fd` (typography),
+`9770c92b9d` (slice-cache) and `33b5ed4855` (corpus-pass and the test fixture),
+with their cases committed red first in `644b50b094`,
+`8cb7513e88` and `2fe404c947`,
+and the scan in `09e50ec7d0` (answered in `0c5f71edbf`).
+The first typography version drew eight errors from oxlint (a module-level `let`,
+a `try ... finally`,
+arrow functions),
+so the flag became an `AsyncLocalStorage` in `80ed32c810`.
+The red commit `644b50b094` fails on its parent by assertion on the doubled bracket.
+
+- Decision:
+  a line gets the attempt,
+  lane and slice tags once.
+  `repairPreparedDocument` and `translateDocument` slice-tag the logger they are handed,
+  and `pass-lanes.ts` hands them the entry logger,
+  so on the parent's `sliceTagged` a lane line would have read
+  `[Tabby] [attempt 2] [repair slice 3] [repairPreparedDocument] [attempt 2] [repair slice 3] ...`.
+  The logger called first now writes the tags and runs the rest of the line's journey under an `AsyncLocalStorage`,
+  and a slice-tagged logger beneath it writes the line as it is,
+  so lane lines keep the order they have always had.
+  Two other shapes were weighed and not taken:
+  dropping the `sliceTagged` of the two lanes,
+  which would take the lane and slice tags from every bench and probe caller that hands the lanes a plain logger,
+  and handing the lanes a plain entry logger while the pass writes its own lines through a slice-tagged one,
+  which would leave a plain `tagged({ tag: entryId })` that the scan must allow.
+- Cases,
+  one per family.
+  A whole `settleEntry` run inside attempt 2 expects the bracket on every line that names the entry (26 lacked it on
+  the parent) and expects none to hold it twice.
+  The seams of `pass-seams-reseat.unit.test.ts` (preparation,
+  insertion admission,
+  lanes) and the hooks of
+  `pass-reseat.unit.test.ts` (`lanesHooksFor`,
+  `translateReseatFor`) do the same for the loggers they build,
+  and the decline case in `pass-decline.unit.test.ts` for `ARCHIVE ORIGINAL`.
+  `entry-log-lines.test-fixture.ts` collects the lines from `console.info` and `console.warn`,
+  one line each,
+  since the logger hands a run of lines of one level to the console as one call.
+- The scan,
+  `entry-logger-scan.unit.test.ts`,
+  reads the family source and finds an entry logger built as `tagged({ tag: entryId })` or `tagged({ tag: entry.id })`
+  that no `sliceTagged` wraps,
+  modelled on the log root scan.
+  It found sixteen on the parent and none now.
+  It reads two spellings of the tag and not a template literal.
+  It covers the one logger the cases cannot reach,
+  the debug line of `pass-lanes.ts`,
+  which the logger writes to stderr.
+- Mutant D1 makes `sliceTagged` write its tags whether or not a logger called first has written them.
+  With typography and corpus-pass rebuilt from it,
+  the typography case,
+  the lanes seam case and the whole-run case fail by assertion,
+  and all three pass unmutated (`202c97d8e1`).
+  The two built-pass cases show that the bundled packages share one copy of the logger's state.
+
+Round 3 (re-check 2,
+minor 3):
+the cap census found a pass by `START tip=` in the first 4096 bytes of its log.
+A pass prints one `INCOMPLETE` line for each entry whose page is absent at the pin before `START`,
+and each grew from 66 to 94 bytes with `at=`,
+so a pin with 44 to 60 such entries moved the marker out of the window with the marker itself unmoved.
+Fixed on 2026-10-25 (UTC) in `c6f996904f` (run),
+with its case committed red first in `c515cbe961`:
+`capCensusPassRunReading` reads the log line by line and stops at the marker or after 2000 lines,
+a bound in lines that no field added to a line changes,
+and a log without the marker costs 2000 lines of reading and not its whole text.
+The cases write 200 page-absent lines before `START` (red on the parent),
+a marker as line 2000 (read) and as line 2001 (not),
+and a line wider than the old window before the marker.
+A bare carriage return also ends a line for the reader,
+which the old split on line feeds did not;
+a log with `START tip=` right after a lone carriage return would now count.
+The lint fix is `7176ec3e25`.
+
 Cache versions:
 none moved.
 `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 5c40a5fcb9..HEAD` printed nothing,
 and its control over `c265e8df95~1..c265e8df95` printed `c265e8df95`.
 No prompt,
 model call or cached step input changed.
+Round 3 changed no cache version either:
+the same search over `a60375aeb9..HEAD` and over `5c40a5fcb9..HEAD` printed nothing,
+and the control printed `c265e8df95` again.
+The logger's tags are no part of any cache key or of the pipeline digest's inputs but the built bytes.
 
 ## B964: docs that claimed what the code did not
 
