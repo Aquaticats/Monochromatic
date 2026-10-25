@@ -460,4 +460,45 @@ export function isRuleLine({ line, }: { readonly line: string; },): boolean {
     },);
 }
 
+/**
+ The lines of a body as the parser reads them: a line feed, a carriage return and a carriage return with a line feed after
+ it each end a line.
+
+ @param body - text about to be parsed
+
+ @returns Lines without their endings, one more than the endings the body holds
+
+ @example
+ ```ts
+ const lines = linesOf({ body: 'a\rb\r\nc', },); // ['a', 'b', 'c']
+ ```
+ */
+export function linesOf({ body, }: { readonly body: string; },): readonly string[] {
+  /**
+   Lines found so far.
+   */
+  const lines: string[] = [];
+  /**
+   Index where the line being read starts.
+   */
+  const line = { start: 0, };
+  for (let at = 0; at < body.length; at += 1) {
+    /**
+     The character at the index.
+     */
+    const character = body.charAt(at,);
+    if ((character !== '\n') && (character !== '\r'))
+      continue;
+    lines.push(body.slice(
+      line.start,
+      at,
+    ),);
+    if ((character === '\r') && (body.charAt(at + 1,) === '\n'))
+      at += 1;
+    line.start = at + 1;
+  }
+  lines.push(body.slice(line.start,),);
+  return lines;
+}
+
 //endregion Nesting line lexing

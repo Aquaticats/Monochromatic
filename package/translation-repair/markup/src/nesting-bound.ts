@@ -17,6 +17,7 @@ import {
   containerPrefixOf,
   indentationOf,
   isRuleLine,
+  linesOf,
 } from './nesting-line-lexing.ts';
 import {
   NESTING_BOUND,
@@ -391,7 +392,7 @@ export function firstNestingExcess(
    Lines of the body as the parser reads them, a leading byte order mark
    dropped.
    */
-  const lines = (body.startsWith('\uFEFF',) ? body.slice(1,) : body).split('\n',);
+  const lines = linesOf({ body: body.startsWith('\uFEFF',) ? body.slice(1,) : body, },);
   for (const [position, line,] of lines.entries()) {
     /**
      Index after the line's leading blanks, the line's length when it is all blank.
