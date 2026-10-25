@@ -202,7 +202,15 @@ export function unusableWarning({
     0,
     figures.refused,
   );
-  return ((together * PERCENT) > (figures.trials * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
+  /**
+   Units the arm completed. A log that states none (a dry run's output) reads as minus one unit, which would put every
+   arm over the share.
+   */
+  const units = Math.max(
+    0,
+    figures.trials,
+  );
+  return ((together * PERCENT) > (units * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
     ? [
       `WARN ${arm}: unusable plus refused is ${String(together,)} of ${
         countWithNoun({
