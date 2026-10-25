@@ -252,6 +252,66 @@ await describe({
           },
         },),
         it({
+          name: 'WRITES the attempt, lane and slice ONCE where a lane slice-tags its lines beneath an entry logger that '
+            + 'is slice-tagged too, and keeps the order of the tags a lane has always written (ledger B963)',
+          fn: async () => {
+            /**
+             Entry logger, slice-tagged as the pass builds it.
+             */
+            const entryLogger = sliceTagged({ l: tagged({ tag: 'Tabby', },), },);
+            /**
+             Lane logger over it, tagged with the lane's function and slice-tagged again, as `repairPreparedDocument` does.
+             */
+            const laneLogger = sliceTagged({
+              l: tagged({
+                tag: 'repairPreparedDocument',
+                l: entryLogger,
+              },),
+            },);
+            /**
+             A stage logger over the entry logger, tagged with a function only.
+             */
+            const stageLogger = tagged({
+              tag: 'editor',
+              l: entryLogger,
+            },);
+            /**
+             Lines printed inside one slice.
+             */
+            const lines = await infoLinesOf({
+              run: async () => {
+                await inEntryLogContext({
+                  entry: 'Tabby',
+                  generation: 'nap-3',
+                  attempt: 2,
+                  run: async () => {
+                    await inSliceLogContext({
+                      lane: 'repair',
+                      sliceIndex: 3,
+                      run: async () => {
+                        laneLogger.info('kneads',);
+                        stageLogger.info('stretches',);
+                      },
+                    },);
+                  },
+                },);
+              },
+            },);
+            expect(lines.filter(function isLane(line,): boolean {
+              return line.includes('[Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',);
+            },).length,).toBe(1,);
+            expect(lines.filter(function isStage(line,): boolean {
+              return line.includes('[Tabby] [attempt 2] [repair slice 3] [editor] stretches',);
+            },).length,).toBe(1,);
+            expect(lines.map(function attemptTags(line,): number {
+              return line.split('[attempt 2]',).length - 1;
+            },),).toStrictEqual([
+              1,
+              1,
+            ],);
+          },
+        },),
+        it({
           name: 'PREFIXES EVERY LEVEL, not only info, and forwards a flush (ledger T8)',
           fn: async () => {
             /**
