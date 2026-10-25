@@ -30,11 +30,13 @@ const LINES_BEFORE_CASE_LINES = 2;
 
  @param isReported - whether the callback is reported as unreadable
 
+ @param note - words that end the name of the case, empty for none
+
  @returns Case that lists the stage file
 
  @example
  ```ts
- const shapeCase = methodCase({ method: 'sort', call: '((a, b) => 0)', isReported: true, },);
+ const shapeCase = methodCase({ method: 'sort', call: '((a, b) => 0)', isReported: true, note: '', },);
  ```
  */
 function methodCase(
@@ -42,10 +44,12 @@ function methodCase(
     method,
     call,
     isReported,
+    note,
   }: {
     readonly method: string;
     readonly call: string;
     readonly isReported: boolean;
+    readonly note: string;
   },
 ): ShapeCase {
   /**
@@ -58,7 +62,7 @@ function methodCase(
   ];
   return {
     name: isReported
-      ? `REPORTS A BUILDER'S RESULT HANDED TO A FUNCTION WRITTEN AS THE ARGUMENT OF ${method}`
+      ? `REPORTS A BUILDER'S RESULT HANDED TO A FUNCTION WRITTEN AS THE ARGUMENT OF ${method}${note}`
       : `ACCEPTS A BUILDER'S RESULT IN A LIST WHOSE ${method} TAKES NO FUNCTION`,
     files: [
       stageFile({
@@ -91,31 +95,43 @@ export const METHOD_CALLBACK_CASES: readonly ShapeCase[] = [
     method: 'sort',
     call: '((a, b,) => 0,)',
     isReported: true,
+    note: '',
   },),
   methodCase({
     method: 'findLast',
     call: '((a,) => true,)',
     isReported: true,
+    note: '',
   },),
   methodCase({
     method: 'findIndex',
     call: '((a,) => true,)',
     isReported: true,
+    note: '',
   },),
   methodCase({
     method: 'reduceRight',
     call: '((acc, a,) => acc, 0,)',
     isReported: true,
+    note: '',
   },),
   methodCase({
     method: 'toSorted',
     call: '(function (a, b,) { return 0; },)',
     isReported: true,
+    note: '',
+  },),
+  methodCase({
+    method: 'sort',
+    call: '(((a, b,) => 0) as never,)',
+    isReported: true,
+    note: ', under a mark',
   },),
   methodCase({
     method: 'includes',
     call: '(1,)',
     isReported: false,
+    note: '',
   },),
 ];
 

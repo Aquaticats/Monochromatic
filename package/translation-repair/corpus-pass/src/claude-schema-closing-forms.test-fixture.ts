@@ -142,6 +142,19 @@ export const CLOSING_CASES: readonly ShapeCase[] = [
     },),],
   },),
   stageCase({
+    name: 'ACCEPTS AN EXPORT OF THE NAME OF THE GLOBAL OBJECT FROM ANOTHER MODULE, which names an export of that module',
+    lines: ['export { globalThis as other } from \'node:process\';',],
+    spots: [],
+  },),
+  stageCase({
+    name: 'ACCEPTS getBuiltinModule OF AN OBJECT THAT IS NOT process, even for vm',
+    lines: [
+      'declare const loader: { getBuiltinModule(name: string,): unknown; };',
+      'export const vm = loader.getBuiltinModule(\'node:vm\');',
+    ],
+    spots: [],
+  },),
+  stageCase({
     name: 'ACCEPTS process.getBuiltinModule OF A MODULE THAT RUNS NO TEXT',
     lines: ['export const fs = process.getBuiltinModule(\'node:fs\');',],
     spots: [],
