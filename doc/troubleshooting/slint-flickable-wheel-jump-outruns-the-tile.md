@@ -566,6 +566,154 @@ and 220 in this one for both builds).
   as it did before,
   with the hold covering the gap.
 
+## A hover request after a far wheel jump
+
+A verifier on the installed release binary of 2026-10-25 (`e96cdd88596d32e9`,
+the hold build) found that the hover request
+sent 0.35 to 0.40 s after a 300-notch wheel jump named a line other than the one drawn under the pointer.
+
+### Cause
+
+`Rest` (`src/native/language/pointer.rs`) kept the character that was under the pointer at its last move,
+resolved by `character_at` in `on_pointer_moved` (`src/native/language/actions.rs`),
+and the dwell timer handed that same character back 350 ms later (`due`,
+sent from `rest`).
+The toolkit's `TouchArea` sends no pointer event for text that moves under a pointer that does not,
+so after a wheel turn,
+a jump,
+or rows arriving,
+the stored character was one of the view before the move of the text.
+This is the same as the old behaviour of the code,
+not an effect of the hold:
+the section "Fix of 2026-10-25" mapped the pointer through `drawn-y` for the events that arrive,
+and none arrives here.
+
+The constant position of the verifier's resting trials is the character under the wheel command's own point at the instant
+of the command:
+the compositor's `wheel X Y` moves the pointer to the point first (one pointer move,
+which the log shows twice with identical numbers),
+and a pointer that moved less than 350 ms before the turn,
+or onto another point with the command,
+has its dwell fire after the turn for that character.
+A pointer that had already rested 350 ms and been asked about sends nothing after the turn
+(`asked` stays set until the pointer moves to another character).
+
+### Is it new
+
+Measured on 2026-10-25,
+11 trials in every cell (the turn is 300 to 310 notches,
+one of each remainder of the 11-line cycle
+of the generated file),
+the four sessions alternating inside every repetition,
+whatever load the host had.
+`main` is `83af48b117` (`e96cdd88596d32e9`),
+`before the hold` is `52056f6fbc` (`d9f48256d152b429`),
+and the fix is the build of this change.
+A request is wrong when the line it names differs from the line whose gutter number (read from the screenshot taken within
+a few ms of the log line) is nearest to the pointer.
+The control for the spread is the second copy of the fixed build.
+A first batch of 10 trials at 300 notches,
+with a second copy of `main` as the control,
+gave the same numbers for `main`,
+the second copy,
+and before the hold.
+
+- The pointer moved onto a word 100 ms before the wheel turn,
+  which turned at the same point:
+  `main` 11 of 11 requests wrong (line 4 against 636 to 652 drawn),
+  before the hold 11 of 11 wrong.
+  Old,
+  not new.
+- The pointer rested 900 ms on a word (its popup was shown),
+  then the wheel turned at another word
+  (the verifier's variant):
+  `main` 11 of 11 wrong (line 9 against 641 to 658 drawn),
+  before the hold 11 of 11 wrong.
+  Old,
+  not new.
+- The pointer moved onto text 90 ms after the wheel command,
+  inside the hold (the verifier's second variant),
+  at a column that varies with the trial:
+  `main` sent 3 requests,
+  all wrong (lines 608,
+  610,
+  and 616 against 664,
+  665,
+  and 671 drawn,
+  55 to 56 lines off),
+  and none in the other 8 trials (the pointer was over no character);
+  before the hold sent none in 11 trials,
+  because the view then showed no rows of the displayed tile under the pointer and `character_at` found none.
+  New:
+  the hold makes the rows drawn under the pointer reachable by `character_at`
+  (`drawn-y` maps the move into the held tile),
+  and the stored character then names a row of the held frame,
+  not of the settled view.
+  The cause is the same stored character.
+- After the view settled,
+  the pointer moved onto a word (the positive control):
+  `main` 11 of 11 right,
+  before the hold 11 of 11 right.
+
+### Fix
+
+`Rest` keeps the pointer's place as a distance from the top of the view (`Spot`),
+`Rest::follow` starts a rest that was not asked for yet again when the drawn offset moves by more than half a pixel
+between two ticks,
+and `rest` in `src/native/language/rest_step.rs` finds the character from that distance and the offset drawn at the time
+the request is built
+(a pointer over no character there sends nothing).
+The move itself still tests the character it is over,
+so moving within one character keeps the timer.
+editord resolves the hover position the same way (`getPositionFromPoint` of the last mouse event when the 350 ms debounce
+fires,
+`package-paused/desktop-daemon/editord/src/client/app/lsp-hover.ts`),
+and,
+like editord,
+asks nothing after a scroll for a rest that was already asked for.
+
+Native tests (`src/native/language/pointer_scroll_tests.rs`) and the guard cases `hover-*` of
+`bin/inspect-source-guards.ts`:
+each guard removes its change in a disposable copy and the named test fails,
+then the restored copy passes.
+
+Measured with the same trials on the fixed build,
+11 per cell,
+alternating with `main` and before the hold and with a second copy of the fixed build for the spread:
+
+- Moved onto a word 100 ms before the turn:
+  5 requests,
+  all for the line drawn under the pointer (gap 0 lines),
+  and 6 trials without a request;
+  the log of each of those six has `resolved=None`
+  (the pointer was over a hint row or a line with no character at its column).
+  The second copy gave the same 5 and 6.
+- Rested 900 ms,
+  then the wheel at another word:
+  5 requests,
+  all for the line drawn (gap 0),
+  6 without a request;
+  the second copy 6 and 5 (one trial differed in whether the pointer lay over a character,
+  and its request was right).
+- Moved 90 ms after the wheel command:
+  2 requests,
+  both for the line drawn (gap 0),
+  9 without
+  (in 1 of them the rest fell due and `character_at` found none,
+  in the other 8 the pointer was over no character where it moved,
+  so no rest was started);
+  the second copy the same.
+- Positive control,
+  the pointer moved onto a word after the view settled:
+  11 of 11 right in both copies,
+  as in `main` and before the hold.
+- No request named a line other than the one drawn under the pointer in any of the 44 trials of the fixed build
+  (the stale constants,
+  line 4,
+  line 9,
+  and lines 608 to 616,
+  did not come back).
+
 ## Workarounds before the fix
 
 The reader could avoid the blank by moving the view with a placement (Ctrl+End,
