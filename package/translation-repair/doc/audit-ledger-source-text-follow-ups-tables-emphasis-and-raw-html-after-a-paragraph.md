@@ -481,13 +481,16 @@ CPU time 13 min 34.234 s,
 memory peak 749.1M,
 swap 0B.
 
-`origin/main` moved twice during the round
+`origin/main` moved three times during the round
 (`1362f15c40c72d721e13a6beab11c12e334e03e7`,
-then `495bf2f39e5b7ebbeacec33b5cdfb239a2649c5a`),
-and was merged once at the second by a merge that `git merge-tree` showed clean.
-That merge changes no file of `page-check`,
+then `495bf2f39e5b7ebbeacec33b5cdfb239a2649c5a`,
+then `cff94d8247df758de839d7dc839e68dbd5df18bf`),
+and was merged at the second and at the third,
+each by a merge that `git merge-tree` showed clean.
+The second merge changes no file of `page-check`,
 `document-structure`,
-`markup` or `run`.
+`markup` or `run`,
+and the third changes one handover note.
 Main's own commits in the merged range bump cache versions of other stages;
 this round's commits (`242d4d14fd..af5e52e29a`) name none.
 
