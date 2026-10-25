@@ -77,20 +77,21 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 41: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 42: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
         + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
         + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
         + '(38) and then said that declining does not by itself keep the wording and that a judge\'s own decline names '
         + 'no candidate (39, re-check 3, M3) and was then told per round, the first ask settling nothing (40, '
         + 're-check 4, F1) and then said what a tie backing only some candidates does and that the panel, not the '
-        + 'same judges, is asked again (41, re-check 5, M-B and M-D), so a stored settlement may hold ballots cast '
+        + 'same judges, is asked again (41, re-check 5, M-B and M-D) and then said that the run-off is asked only '
+        + 'where it leaves some candidates behind (42, re-check 6, M-B), so a stored settlement may hold ballots cast '
         + 'under the old sentence, and '
         + 'the key hashes the version, the shape of the run and the texts, not the sheet, so only this number '
         + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
         + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(41,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(42,);
       },
     },),
     it({
@@ -464,8 +465,11 @@ await describe({
         // Version 41 (2026-10-25) tells the judges what a tie backing only some
         // candidates does and drops "the same judges" (re-check 5, M-B and M-D),
         // which moved this literal.
+        // Version 42 (2026-10-25) tells the judges the run-off is asked only where
+        // it leaves some candidates behind (re-check 6, M-B), which moved this
+        // literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          'f973915d8ea3a9c1b3e8ad110b3d0a488a179dd48215078b472ca1686d12c960',
+          '52b4539249bb485f11cb61a5fe49a9239f53a68342f6eca7c958226b48a27657',
         );
       },
     },),
