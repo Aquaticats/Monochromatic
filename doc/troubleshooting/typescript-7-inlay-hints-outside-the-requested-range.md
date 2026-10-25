@@ -924,7 +924,13 @@ and not shown by it:
 a switch to another file clears the textures and sets an empty list (`forget_minimap`,
 `set_minimap_slices(ModelRc::default())` in `apply`),
 so the next picture's list is a new one (`show_slices` in `src/native/gpu_tile/types.rs`),
-which is the case in which the source tile's list was not shown either.
+so a new list is set inside the frame.
+This does not explain the tile's blank:
+after its first tile the window's list of slices is a `VecModel` too,
+and a press that replaced the tile's textures changed it in place (`set_vec` or `set_row_data`),
+the path of the in-place minimap changes that were shown.
+Why a list changed in place was shown by the frame for the minimap and not for the tile is not known,
+and is recorded here as an open difference.
 A list that is changed in place (every other action,
 including the resizes that replace the textures) was shown by the frame that set it:
 in 72 of the 157 actions with times the last hand-over replaced textures inside the last frame before the screenshot,

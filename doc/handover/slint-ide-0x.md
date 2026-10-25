@@ -4450,7 +4450,8 @@ The minimap picture can show the same blank:
 a file switch empties the window's list (`forget_minimap`,
 `ModelRc::default()`),
 so the first picture of the new file sets a new list inside the frame,
-which the frame does not show;
+which the frame does not show
+(why an in-place change of the tile's list was not shown while the minimap's was is not known);
 17 of 32 recorded switches (debug build of `c1509291c8`,
 nested compositor,
 1080x1880 at scale 2,
@@ -4470,7 +4471,9 @@ outside any frame;
 0 of 16 switches after it (0.062 to 0.116 s),
 63 actions and 3,259
 frames on the fixed binary,
-71 blank frames all before the first picture's frame.
+71 blank frames,
+the last of each action 0.051 to 0.116 s after the first picture's frame
+(the file-time lag of 0.07 to 0.13 s).
 Two native tests and six `minimap-slices-*` guard cases (14 runs accepted).
 Not shown:
 a permanent blank (no switch handed over a single picture);
