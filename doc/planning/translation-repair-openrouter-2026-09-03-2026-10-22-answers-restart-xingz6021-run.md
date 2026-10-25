@@ -127,10 +127,18 @@ and a figure the check did not recompute is marked as read by the first reader o
   and no `.env*`,
   auth file,
   `/proc/<pid>/environ` or file under `/tmp/claude-1000/` was opened.
-- The figures of `XingZ6020` quoted here for comparison are the lead's read of that run,
-  which is not yet filed in this record
-  (it lives at `temp/agent/tr-fan/w312-xingz20/XingZ6020-read.md`),
-  so they carry no log lines in this record.
+- The figures of `XingZ6020` quoted here for comparison were the lead's read of that run when this record was made.
+  That read is now filed as checked by a second reader,
+  with the log lines behind each figure,
+  in
+  [the run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md),
+  [its stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-stages.md),
+  [its evidence](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-evidence.md)
+  and [its defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md).
+  Where the filed read corrects a figure quoted here,
+  the filed read stands:
+  the 1,030.8 summed wait minutes are 1,030.7 by the check,
+  and the 158 min of the lane contest and the consolidation are 163.1 min.
 
 ## Headlines
 
@@ -404,7 +412,9 @@ and they hold.
 
 Measured differences,
 each from the scripts named
-(the `XingZ6020` figures are the lead's read of that run):
+(the `XingZ6020` figures are the lead's read of that run,
+now filed as checked in
+[the run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)):
 
 - No hold waits:
   0 wait lines (`rg --count "waiting [0-9]+ms"` finds none),
@@ -862,4 +872,5 @@ The check found the mechanism:
   not rounding.
   The check did not fetch DeepSeek's page:
   the peak hours are the build's own comment on it.
-  Whether booking at peak when the run is off peak is wanted is filed as N8 in the defects file.
+  Whether booking at peak when the run is off peak is wanted is filed as N8 in the defects file,
+  where the update of 2026-10-25 (UTC) records that ledger B920 fixes it and has not landed.

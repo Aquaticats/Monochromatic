@@ -445,11 +445,23 @@ this section is the readiness reading of it.
   so the floor stopped the entry instead of waiting (ledger B826,
   open,
   the fix in progress).
+  Note of 2026-10-25 UTC:
+  B826 is fixed by the merge `9eea0009d1`.
   `XingZ6020` was relaunched at 19:32:29 UTC on the same build.
-  The `XingZ6021` read quotes the lead's figures for it
-  (10 h 33 min over two attempts,
-  the tail slices unfilled);
-  that read of `XingZ6020` is not filed.
+  Its read is filed,
+  as checked by a second reader
+  ([the run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)).
+  It settled on its second attempt after 10 h 32 min 51 s,
+  the first attempt having ended on the 7 h hard deadline inside a wait for a hold,
+  and it does not move the answer toward yes.
+  The page it shipped is missing its last 30 of 118 slices (31.5 percent of the source,
+  every footnote definition among them) with nothing on the page to say so,
+  and the run was idle for 249.0 of the 336.8 min after Synthetic's weekly credit ran out.
+  The build had read that weekly block as unreadable since Synthetic renamed it
+  ([the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md),
+  S1 and D1 to D7,
+  each with the commit that fixed it).
+  The `XingZ6021` entry stays the latest reading.
 - `XingZ6021` ran on 2026-10-24 and 2026-10-25 on the build `bcff23b8ce`,
   which carries the fixes for the defects found in `XingZ6020`,
   and SETTLED on its first attempt in 2 h 5 min 45 s

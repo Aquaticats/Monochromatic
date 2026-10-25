@@ -8,7 +8,9 @@ and the points no log settles.
 None of the ten was fixed in the run's build.
 The defects `D1` to `D7` of `XingZ6020` are accounted for in
 [the stages of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md),
-under the seven checks.
+under the seven checks;
+the same defects with the commit that fixed each are in
+[the defects of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md).
 The log,
 the providers and the meters are in
 [the run of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md).
@@ -680,9 +682,22 @@ minor and conservative.
 ### N8: the DeepSeek cost is booked at peak though the run was off peak
 
 Status:
-an open defect candidate,
-filed for the owner;
-the check explains the mechanism and does not call it a defect.
+the fix is in progress as ledger B920
+(`package/translation-repair/doc/audit-ledger-providers-routing-and-seating.md`)
+and has not landed:
+`git log origin/main --grep B920` finds no commit and the ledger on `main` at `7a61c5e19e` has no B920.
+As first filed on 2026-10-25 (UTC),
+N8 was an open defect candidate filed for the owner;
+the check explained the mechanism and did not call it a defect.
+The update of 2026-10-25 (UTC) under this heading describes the fix;
+the bullets filed on 2026-10-25 are kept as written.
+
+Note of 2026-10-25 (UTC),
+added with the third round of the fix,
+which merges `main` into its branch:
+the entry B920 now stands in `package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`,
+not in the providers file named in the status lines of this heading,
+and those status lines are history.
 
 - The meter fell by 0.07 USD while 15 calls booked 0.147093 USD.
   The mechanism is in the run file under "The DeepSeek balance against the booked cost":
@@ -703,6 +718,51 @@ the check explains the mechanism and does not call it a defect.
   The cost of the rule is a booked spend up to twice the true spend on a weekend or an off-peak run
   (the filer's reading of the stated bound).
   This record keeps it as an open defect candidate until the owner rules.
+
+Update of 2026-10-25 (UTC),
+from the lead's brief for this filing:
+ledger B920 fixes N8 once it lands,
+and it has not landed.
+
+- The rule:
+  DeepSeek is booked at the card's peak rates only for a request that started in a weekday peak window in UTC,
+  01:00 to 04:00 UTC and 06:00 to 10:00 UTC
+  (half-open,
+  so 01:00 UTC and 06:00 UTC are peak and 04:00 UTC and 10:00 UTC are not),
+  and at half otherwise.
+- The recomputation on this run:
+  the 15 DeepSeek calls were all off peak (Saturday and Sunday in UTC),
+  so the booked 0.147093 USD recomputes to 0.073547 USD,
+  against a meter fall of 0.07 USD read to two decimals.
+  The run file already named half of 0.147093 as 0.0735.
+- The call path had no clock,
+  so one was added.
+- Every earlier run's DeepSeek figure is a peak-rate upper bound that over-reads its off-peak calls by up to twice.
+  That includes the 0.278706 USD booked by `XingZ6020`.
+- Limits kept:
+  a call that spans a window edge is booked at its start;
+  a Chinese make-up working Saturday counts as off peak,
+  because the page says Monday through Friday.
+- The question this section left to the owner,
+  whether booking at peak when a call falls in off-peak hours is wanted,
+  has no owner ruling recorded in this record;
+  the change in progress books each call at the rate of its own hour.
+
+Note of 2026-10-25 (UTC),
+added with the third round of the fix,
+which merges `main` into its branch:
+the rule as built differs from the bullets "The rule" and "Limits kept" of the update under this heading,
+which are kept as written.
+A call is booked at the card's peak rates when its request started,
+or its reply completed,
+inside a weekday peak window in UTC,
+and at half of them only when both instants lie outside every window;
+a call that crosses a window edge is no longer booked at its start only.
+Not bounded:
+a make-up working Saturday,
+and a call that spans a whole window with both instants outside it.
+The current rule is in `package/translation-repair/provider/src/direct-cost.ts`
+and in ledger B920 (`package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`).
 
 ### N9: the page keeps the archive's Chinese translator comment and its invented sentence
 
@@ -855,7 +915,10 @@ Not determined by either reader:
   none was among the filer's inputs.
 - The read of `XingZ6020`,
   whose figures this record quotes for comparison,
-  is not filed in this record.
+  was not filed when this record was made;
+  it is now filed as checked in
+  [the defects of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md)
+  and the three files beside it.
 
 ## Figures from the brief of the read that were checked
 

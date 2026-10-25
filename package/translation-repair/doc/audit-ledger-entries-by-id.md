@@ -440,6 +440,7 @@ which lists every file of this record.
 - [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md)
 - [B899 follow-ups of round 10, the exact repeat test, the high fix rate warning and the runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md)
 - [B900 to B916, the weight floors removed and two ballots deciding](audit-ledger-weight-floors-removed-and-two-ballots-decide.md)
+- [B920, every DeepSeek call booked at peak rates](audit-ledger-deepseek-off-peak-pricing.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

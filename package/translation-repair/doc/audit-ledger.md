@@ -132,6 +132,10 @@ named for that subject and listed here.
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.
+- [Audit ledger: DeepSeek off-peak pricing](audit-ledger-deepseek-off-peak-pricing.md):
+  The cost of a DeepSeek call booked at the rate of the hours it spanned,
+  where it had been booked at peak whatever the hour,
+  and what that figure bounds (B920).
 - [Audit ledger: the repair lane](audit-ledger-repair-lane.md):
   Findings in the repair lane,
   L1 to L13 and L15.

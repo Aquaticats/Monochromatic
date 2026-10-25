@@ -2062,6 +2062,27 @@ const cases: Guard[] = [
     test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
     failure: 'the window still holds the slices of the tile before the press'
   },
+  // The cause is the toolkit's frame discipline (src/native/repeater_frame_tests.rs): the frame that holds a change of
+  // the slice list made inside it draws no row of a reset list and the old rows of a replaced one. These cases hand the
+  // tile over inside the frame again, and the test counts the pixels the very next frame draws of it.
+  {
+    name: 'tile-slices-prepared-drawn',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {',
+    after: '        if true {',
+    native: true,
+    test: 'the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures',
+    failure: 'pixels of the tile and the next frame'
+  },
+  {
+    name: 'tile-slices-applied-drawn',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    native: true,
+    test: 'the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures',
+    failure: 'so the test counts nothing'
+  },
   // The very first tile of a window is handed over before the window's device is held, so its textures and slices are
   // made inside the first frame; that frame does not show a slice list it was given, so the notifier gives the window
   // the slices and asks for the next frame.
@@ -2158,6 +2179,27 @@ const cases: Guard[] = [
     native: true,
     test: 'a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame',
     failure: 'the window holds the slices of the earlier picture after the hand-over'
+  },
+  // The same frame-discipline cases for the picture: handed over inside the frame again, the next frame draws less of it
+  // than the frame after: the textures are made at the hand-over, and the slices the window gets in the frame are not drawn by it.
+  {
+    name: 'minimap-slices-prepared-drawn',
+    file: 'src/native/gpu_tile/slice.rs',
+    before: '        if self.stack_fits(shape.width, &shape.sizes) {',
+    after: '        if true {',
+    native: true,
+    test: 'the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures',
+    failure: 'the frame that followed the hand-over drew'
+  },
+  {
+    name: 'minimap-slices-applied-drawn',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    occurrence: 1,
+    native: true,
+    test: 'the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures',
+    failure: 'the frame that followed the hand-over drew'
   },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
