@@ -64,6 +64,7 @@ export {
   type Runoff,
   runoffFinalists,
 } from './translate-runoff.ts';
+export { settleAbsentDecline, } from './translate-runoff-tie.ts';
 export { translateSlateEvidence, } from './translate-slate-evidence.ts';
 export {
   type TranslateDecision,

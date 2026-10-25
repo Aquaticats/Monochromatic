@@ -1,13 +1,12 @@
 /**
- Guards the owner's answer of 2026-09-27 ("Preference + polish", fifteenth
- addendum of `doc/decision/translation-repair-ineligible-standing.md`): over
- wording that cannot ship, a slate the judges decline in both rounds ships
- one valid candidate by the tenth addendum's order (the repair lane's text,
- the translate lane's, then slate order) instead of stopping the entry, the
- reasons of the ballots that did not back it go to the polish as objections,
- and the judges are told what a decline now does. On the translate lane the
- same holds where the archive's own wording fails the deterministic floor
- (sixteenth addendum). A passage with no wording at all still raises.
+ Guards the owner's answer of 2026-10-25, "Two judges must name it", which narrows the answer of 2026-09-27
+ ("Preference + polish", fifteenth addendum of `doc/decision/translation-repair-ineligible-standing.md`): over wording
+ that cannot ship, a slate the judges decline in both rounds used to ship one valid candidate by a fixed order (the
+ repair lane's text, the translate lane's, then slate order), whatever any judge named. One judge alone never decides,
+ so the slate now ships a candidate only when two or more judges named it; otherwise the archive wording stays and the
+ page ships with it reported (owner, 2026-09-27, "Keep archive, ship"), the judges are told so, and no polish runs over
+ wording nobody chose. On the translate lane the same holds where the archive's own wording fails the deterministic
+ floor (sixteenth addendum). A passage with no wording at all still raises.
 
  Cat-themed invention throughout; no corpus content appears here.
 
@@ -45,7 +44,6 @@ import {
 } from '../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-  SEAT_OPENROUTER_DECISIONS,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -68,9 +66,15 @@ const SOURCE = '猫猫在窗台上打盹，尾巴垂在暖气片旁边。';
 const REJECTION = 'Every candidate adds that the cat purred, which the original never states.';
 
 /**
- Finding a slate shipped past two declines records, before its basis.
+ Finding a slate shipped past two declines by preference used to record, before its basis, and which no case here may
+ find any more.
  */
 const SHIPPED_PAST_DECLINE = 'translate-slate-declined-shipped-by-preference';
+
+/**
+ Finding a slate declined in both rounds records where no candidate drew two judges and the archive wording stays.
+ */
+const ARCHIVE_KEPT_FINDING = 'translate-slate-declined-archive-kept';
 
 /**
  Translators, whose renderings come back in call order.
@@ -235,12 +239,6 @@ function rejectingClient(
 
  @param judgeModelIds - judges the slate seats, the roster's by default
 
- @param rejection - reason every judge gives, the fixture's rejection when
- left out
-
- @param decide - typed exchange a decision seat on the bench answers
- through, absent where none sits
-
  @returns What the retry settled on
 
  @example
@@ -253,28 +251,19 @@ async function judgedRejecting(
     withheldStanding,
     judgeSheets,
     judgeModelIds = JUDGES,
-    rejection,
-    decide,
   }: {
     readonly withheldStanding?: boolean;
     readonly judgeSheets: string[];
     readonly judgeModelIds?: readonly RosterModelId[];
-    readonly rejection?: string;
-    readonly decide?: ModelClient['decide'];
   },
 ): Promise<TranslateStageResult> {
   /**
    Client every judge rejects under.
    */
-  const client: ModelClient = {
-    ...rejectingClient({
-      judgeSheets,
-      refinerSheets: [],
-      ...((rejection === undefined) ? {} : { rejection, }),
-    },),
-    // Conditional spread keeps the exchange absent where no decision seat sits.
-    ...((decide === undefined) ? {} : { decide, }),
-  };
+  const client: ModelClient = rejectingClient({
+    judgeSheets,
+    refinerSheets: [],
+  },);
   /**
    Slate the translators produced.
    */
@@ -391,11 +380,11 @@ async function settleRejected(
 }
 
 await describe({
-  name: 'a slate declined twice over wording that cannot ship ships by preference (owner, 2026-09-27)',
+  name: 'a slate declined twice over wording that cannot ship ships only what two judges named (owner, 2026-10-25)',
   children: [
     it({
-      name: 'SHIPS the repair lane text past two rejections, carrying the rejecting reasons as objections, and '
-        + 'tells the judges what a decline does',
+      name: 'KEEPS THE ARCHIVE past two rejections, ships no fixed-order candidate and no objections, and tells the '
+        + 'judges what a decline does',
       fn: async () => {
         /**
          Every judge sheet the judging sent.
@@ -405,19 +394,30 @@ await describe({
           withheldStanding: true,
           judgeSheets,
         },);
-        expect(result.text,).toBe(REPAIR_LANE.text,);
-        expect(result.findings.includes(`${SHIPPED_PAST_DECLINE} (repair lane)`,),).toBe(true,);
-        expect(result.shippedPastDecline?.objections.includes(REJECTION,),).toBe(true,);
+        expect({
+          origin: result.origin,
+          shippedPastDecline: result.shippedPastDecline,
+          kept: result.findings.includes(ARCHIVE_KEPT_FINDING,),
+          shipped: result.findings.some(function byPreference(finding,): boolean {
+            return finding.startsWith(SHIPPED_PAST_DECLINE,);
+          },),
+        },).toEqual({
+          origin: 'incumbent',
+          shippedPastDecline: undefined,
+          kept: true,
+          shipped: false,
+        },);
+        expect(result.text === REPAIR_LANE.text,).toBe(false,);
         expect(judgeSheets.length,).toBeGreaterThan(0,);
-        expect(judgeSheets.every(function toldPreference(sheet,): boolean {
+        expect(judgeSheets.every(function toldTwoJudges(sheet,): boolean {
           return (sheet.includes('the wording in place cannot ship',))
+            && (sheet.includes('two or more judges named it',))
             && (!sheet.includes('there is no existing translation of this passage',));
         },),).toBe(true,);
       },
     },),
     it({
-      name: 'SHIPS THE REPAIR LANE TEXT WITH NO WEIGHT AND NO OBJECTIONS where no judge sat: the round declined '
-        + 'before counting any candidate',
+      name: 'KEEPS THE ARCHIVE WITH NO WEIGHT where no judge sat: the round declined before counting any candidate',
       fn: async () => {
         /**
          Every judge sheet the judging sent, which stays empty.
@@ -429,75 +429,17 @@ await describe({
           judgeModelIds: [],
         },);
         expect({
-          text: result.text,
+          origin: result.origin,
           voteWeight: result.voteWeight,
           shippedPastDecline: result.shippedPastDecline,
+          kept: result.findings.includes(ARCHIVE_KEPT_FINDING,),
           judgeSheets,
         },).toEqual({
-          text: REPAIR_LANE.text,
+          origin: 'incumbent',
           voteWeight: 0,
-          shippedPastDecline: {
-            basis: 'repair lane',
-            objections: [],
-          },
+          shippedPastDecline: undefined,
+          kept: true,
           judgeSheets: [],
-        },);
-      },
-    },),
-    it({
-      name: 'RECORDS NO OBJECTION from a rejection whose reason is invisible characters alone, which trim() keeps '
-        + 'and no refiner could read (ledger B40)',
-      fn: async () => {
-        const result = await judgedRejecting({
-          withheldStanding: true,
-          judgeSheets: [],
-          rejection: '\u{200B}\u{3164}',
-        },);
-        expect(result.shippedPastDecline,).toEqual({
-          basis: 'repair lane',
-          objections: [],
-        },);
-      },
-    },),
-    it({
-      name: 'RECORDS NO OBJECTION from a decision seat\'s decline, whose reason is a distribution and objects to '
-        + 'nothing in words, beside the written judges\' rejection (ledger B125)',
-      fn: async () => {
-        /**
-         Every typed question the decision seat was asked.
-         */
-        const asked: RosterModelId[] = [];
-        const result = await judgedRejecting({
-          withheldStanding: true,
-          judgeSheets: [],
-          judgeModelIds: [
-            ...JUDGES,
-            SEAT_OPENROUTER_DECISIONS,
-          ],
-          decide: async (request,) => {
-            asked.push(request.modelId,);
-            return {
-              model: SEAT_OPENROUTER_DECISIONS,
-              answers: {
-                best: {
-                  type: 'choice',
-                  choice: '0',
-                  probabilities: { '0': 0.9, '1': 0.1, },
-                  confidence: 0.8,
-                },
-              },
-            };
-          },
-        },);
-        expect({
-          asked: asked.length > 0,
-          shippedPastDecline: result.shippedPastDecline,
-        },).toEqual({
-          asked: true,
-          shippedPastDecline: {
-            basis: 'repair lane',
-            objections: [REJECTION,],
-          },
         },);
       },
     },),
@@ -520,8 +462,8 @@ await describe({
       },
     },),
     it({
-      name: 'SHIPS a rendering on the translate lane past two rejections where the archive wording fails the '
-        + 'deterministic floor',
+      name: 'KEEPS THE ARCHIVE WORDING on the translate lane past two rejections where it fails the deterministic '
+        + 'floor, and ships no rendering a fixed order chose',
       fn: async () => {
         const result = await runTranslateStage({
           client: rejectingClient({
@@ -540,27 +482,41 @@ await describe({
           l,
           stageSettings: SCRIPTED_STAGE_SETTINGS,
         },);
-        expect(RENDERINGS.includes(result.text,),).toBe(true,);
-        expect(result.findings.includes(`${SHIPPED_PAST_DECLINE} (slate order)`,),).toBe(true,);
+        expect({
+          text: result.text,
+          origin: result.origin,
+          kept: result.findings.includes(ARCHIVE_KEPT_FINDING,),
+        },).toEqual({
+          text: SOURCE,
+          origin: 'incumbent',
+          kept: true,
+        },);
       },
     },),
     it({
-      name: 'SHIPS the consolidation past two rejections over an ineligible standing and sends the slate\'s '
-        + 'reasons to the polish',
+      name: 'KEEPS THE ARCHIVE over an ineligible standing when every slate judge rejects, runs no polish over '
+        + 'wording nobody chose, and reports that no wording passed',
       fn: async () => {
         /**
          Every refiner sheet the settlement sent.
          */
         const refinerSheets: string[] = [];
         const settled = await settleRejected({ refinerSheets, },);
-        expect(settled.terminal,).toBe('consolidated',);
-        expect(refinerSheets.length,).toBeGreaterThan(0,);
-        expect(refinerSheets.every(function carriesSlateObjection(sheet,): boolean {
-          return sheet.includes('OBJECTIONS FROM THE CONSOLIDATION SLATE',) && sheet.includes(REJECTION,);
-        },),).toBe(true,);
-        expect(settled.findings.some(function namesSlateObjections(finding,): boolean {
-          return finding.startsWith('polish-objection-correction',) && finding.includes('consolidation slate',);
-        },),).toBe(true,);
+        expect({
+          terminal: settled.terminal,
+          archiveKept: settled.archiveKept,
+          noValidWording: settled.findings.some(function namesIt(finding,): boolean {
+            return finding.startsWith('no-valid-wording',);
+          },),
+          kept: settled.findings.includes(ARCHIVE_KEPT_FINDING,),
+          refinerSheets: refinerSheets.length,
+        },).toEqual({
+          terminal: 'slate-declined-standing',
+          archiveKept: true,
+          noValidWording: true,
+          kept: true,
+          refinerSheets: 0,
+        },);
       },
     },),
   ],

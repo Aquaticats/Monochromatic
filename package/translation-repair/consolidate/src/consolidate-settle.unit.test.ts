@@ -1870,9 +1870,10 @@ await describe({
       },
     },),
     it({
-      name: 'SHIPS THE PROPOSAL BY PREFERENCE when the standing is ineligible and every judge declines the '
-        + 'slate in both rounds, rather than stopping the entry (owner, 2026-09-27, "Preference + polish", '
-        + 'superseding the stop this case pinned since class fifty-four)',
+      name: 'KEEPS THE ARCHIVE when the standing is ineligible and every judge declines the slate in both '
+        + 'rounds, and ships no proposal by a fixed order that no two judges named, rather than stopping the '
+        + 'entry (owner, 2026-09-27, "Keep archive, ship", and 2026-10-25, "Two judges must name it", '
+        + 'superseding the shipping by preference of "Preference + polish")',
       fn: async () => {
         const { settled, } = await settleWith({
           voices: [voiceOf({ modelId: ROSTER[0], translation: FRESH, },),],
@@ -1881,9 +1882,12 @@ await describe({
           gateReply: ballot({ choice: 'consolidated', },),
           standingEligible: false,
         },);
-        expect(settled.terminal,).toBe('consolidated',);
-        expect(settled.findings.includes('translate-slate-declined-shipped-by-preference (slate order)',),)
-          .toBe(true,);
+        expect(settled.terminal,).toBe('slate-declined-standing',);
+        expect(settled.archiveKept,).toBe(true,);
+        expect(settled.findings.includes('translate-slate-declined-archive-kept',),).toBe(true,);
+        expect(settled.findings.some(function byPreference(finding,): boolean {
+          return finding.startsWith('translate-slate-declined-shipped-by-preference',);
+        },),).toBe(false,);
       },
     },),
 
