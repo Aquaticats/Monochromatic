@@ -481,8 +481,16 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  stands at 29 is not known (the number was set a few commits before and no search of a slice-cache directory was made),
  and the change cannot ride inside it, so the number moves. The consolidate version (37) moves for the same rule and
  for the flawed-majority gate answer; the repair slice (47) and refine (17) versions stay.
+
+ Version 31 covers the reworded sheet text a judge reads about a declined round over wording that cannot ship
+ (`adjudication/src/select-decline-consequence.ts`, `SHIPS_WHAT_TWO_JUDGES_NAMED`, re-check 2 finding F2): it contradicted
+ itself, saying that declining does not keep the wording and, in its last clause, that the wording stays. By the
+ repository's convention a change to a sheet's wording moves the version, since a stored slice holds ballots cast under
+ the old sentence and the key hashes the version, the shape of the run and the texts, not the sheet. The consolidate
+ version (38) moves for the same sheet; the repair slice (47) and refine (17) versions stay, since neither reads this
+ sentence.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 30;
+export const TRANSLATE_SLICE_CACHE_VERSION = 31;
 
 /**
  Models the translate lane seats.
