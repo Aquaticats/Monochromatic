@@ -819,14 +819,9 @@ await describe({
               return judge !== SEAT_HYPER_OPENROUTER_VISION_EDITOR;
             },);
             /**
-             Judges the window asked in the run of each seating, in the order of the seatings.
+             The run of each seating, in the order of the seatings: the judges the window asked and the findings.
              */
-            const askedPerSeating: RosterModelId[][] = [];
-            /**
-             Findings of the run of each seating, in the order of the seatings.
-             */
-            const findingsPerSeating: (readonly string[])[] = [];
-            for (const seat of JUDGES.keys()) {
+            const seatings = await Promise.all(JUDGES.map(async function runSeating(_judge, seat,) {
               /**
                Judges the window asked in this run.
                */
@@ -848,20 +843,24 @@ await describe({
                   ],
                 },
               );
-              askedPerSeating.push(asked,);
-              findingsPerSeating.push(result.findings,);
-            }
+              return {
+                asked,
+                findings: result.findings,
+              };
+            },),);
             // The window of quorum plus one asks three of the four seats in every run.
-            expect(askedPerSeating.map(function widthOf(asked,): number {
+            expect(seatings.map(function widthOf({ asked, },): number {
               return asked.length;
             },),).toEqual(JUDGES.map(function windowWidth(): number {
               return WINDOW_OF_A_BENCH_OF_FOUR;
             },),);
             // One seating in four leaves the refiner out, so both outcomes run under every rotation.
-            expect(askedPerSeating.filter(function asksTheRefiner(asked,): boolean {
+            expect(seatings.filter(function asksTheRefiner({ asked, },): boolean {
               return asked.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,);
             },).length,).toBe(JUDGES.length - 1,);
-            expect(findingsPerSeating,).toEqual(askedPerSeating.map(function findingsOf(asked,): readonly string[] {
+            expect(seatings.map(function findingsOf({ findings, },): readonly string[] {
+              return findings;
+            },),).toEqual(seatings.map(function expectedFindings({ asked, },): readonly string[] {
               return asked.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,)
                 ? [
                   'refine-candidates (1/1 heard, 1 proposing)',
