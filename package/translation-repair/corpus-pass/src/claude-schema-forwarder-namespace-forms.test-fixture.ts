@@ -1,5 +1,10 @@
 import type { BlindSpot, } from './claude-schema-blind-spots.test-fixture.ts';
 import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
+import { CONTEST_IMPORT, } from './claude-schema-destination-forms.test-fixture.ts';
+import {
+  SENDER_FILE,
+  SENDER_IMPORT,
+} from './claude-schema-forwarder-forms.test-fixture.ts';
 import {
   positionSpotAt,
   POS_ARGUMENTS,
@@ -7,6 +12,7 @@ import {
   userCase,
 } from './claude-schema-forwarder-position-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region A forwarder reached through the namespace of a module that declares forwarders and no builder
 // A file that imports such a module as a namespace reaches its forwarders with a member written as a name, as a string
@@ -14,7 +20,9 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // listing of callers does not see the files that call the forwarder afterwards. The module is read like a module that
 // carries a builder: a member that names a forwarder and is no callee is reported where it sits, a member computed from
 // a name and the namespace written as a whole value are reported as a module that is read where the search does not
-// look, and a call of a member written as a string is read.
+// look, and a call of a member written as a string is read. A module whose export assignment wraps a forwarder in a
+// call is reported where the forwarder is handed to the call, and a file that calls the module as a function is
+// reported too, as the module read where the search does not look.
 
 /**
  The import of the namespace that the user file starts with.
@@ -189,6 +197,50 @@ export const FORWARDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     spots: [],
     isListed: true,
   },),
+  {
+    name: 'REPORTS A FORWARDER THAT AN EXPORT ASSIGNMENT WRAPS IN A CALL AND THE FILE THAT CALLS THE MODULE AS A '
+      + 'FUNCTION',
+    files: [
+      SENDER_FILE,
+      {
+        file: 'imaginary/src/pos-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'declare function wrap<T,>(f: T): T;',
+          'async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+          'export = wrap(mk,);',
+        ],),
+      },
+      {
+        file: USER,
+        text: textOf([
+          'import s = require(\'./pos-stage.ts\');',
+          `export const SENT = s(${POS_ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: ['imaginary/src/pos-stage.ts',],
+    builders: [],
+    spots: [
+      {
+        file: 'imaginary/src/pos-stage.ts',
+        line: 7,
+        shape: 'forwarder-outside-a-read-position',
+        position: 'CallExpression.arguments',
+        held: keyOf({
+          file: 'imaginary/src/pos-stage.ts',
+          name: 'mk',
+        },),
+      },
+      moduleSpotAt({
+        line: 2,
+        position: 'CallExpression.callee',
+      },),
+    ],
+  },
   withPlainModule(userCase({
     name: 'ACCEPTS THE NAMESPACE OF A MODULE THAT DECLARES NO FORWARDER AND NO BUILDER, handed on whole, while another '
       + 'module of the same directory declares a forwarder',
