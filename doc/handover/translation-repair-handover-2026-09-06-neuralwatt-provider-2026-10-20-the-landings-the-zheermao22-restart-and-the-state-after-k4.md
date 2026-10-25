@@ -864,6 +864,15 @@ The other statements of that state stand.
   half-open) and at half otherwise;
   `XingZ6021` recomputes from 0.147093 to 0.073547 USD against a 0.07 balance fall.
   Every earlier run's DeepSeek figure is a peak-rate upper bound.
+  Note of 2026-10-25 (UTC),
+  added with the third round of the fix,
+  which merges `main` into its branch:
+  the rule as built books a call at peak when its request started,
+  or its reply completed,
+  inside a weekday UTC peak window,
+  and at half only when both instants lie outside every window,
+  so "only for a request started" in this bullet is the first round's reading;
+  the entry is in `package/translation-repair/doc/audit-ledger-deepseek-off-peak-pricing.md`.
 - Next:
   land B920;
   land the floors change for N1,
