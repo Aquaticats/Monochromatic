@@ -4947,8 +4947,8 @@ subsection "A pointer that rests over no character".
   on screen;
   the popup of the hints trial overlaps the left 10 px of the minimap.
 - Tests:
-  `src/native/language/pointer_blank_tests.rs` (10 tests),
-  22 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+  `src/native/language/pointer_blank_tests.rs` (11 tests),
+  24 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
 - Open:
   one fresh-session trial under load had no character under the pointer after a 301-notch first scroll,
   settled as well (a finished tile left for a scroll step that never came);
