@@ -180,6 +180,34 @@ async function refuseAtOnceAfterTheCooldown(
   },);
 }
 
+/**
+ Begins the entry of XingZ6020, refuses Synthetic, lets its cooldown run out, and refuses it again at once.
+
+ @param budgets - budgets the refusals are marked on
+
+ @param world - what the case moves
+
+ @example
+ ```ts
+ await refuseAtOnceInXingZ6020({ budgets, world, },);
+ ```
+ */
+async function refuseAtOnceInXingZ6020(
+  {
+    budgets,
+    world,
+  }: {
+    readonly budgets: ReturnType<typeof createProviderBudgets>;
+    readonly world: World;
+  },
+): Promise<void> {
+  budgets.beginEntry({ entryId: 'XingZ6020', },);
+  await refuseAtOnceAfterTheCooldown({
+    budgets,
+    world,
+  },);
+}
+
 await describe({
   name: `${createProviderBudgets.name} give-up set aside`,
   // One case at a time: each stubs the console, which is one for the whole process.
@@ -372,9 +400,8 @@ await describe({
           },
         },);
         const lines = await consoleLinesDuring({
-          run: async function refuseBesideASmallProvider(): Promise<void> {
-            budgets.beginEntry({ entryId: 'XingZ6020', },);
-            await refuseAtOnceAfterTheCooldown({
+          run: function refuseBesideASmallProvider(): Promise<void> {
+            return refuseAtOnceInXingZ6020({
               budgets,
               world,
             },);
@@ -416,9 +443,8 @@ await describe({
           },
         },);
         const lines = await consoleLinesDuring({
-          run: async function refuseBesideAProviderThatNeedsIt(): Promise<void> {
-            budgets.beginEntry({ entryId: 'XingZ6020', },);
-            await refuseAtOnceAfterTheCooldown({
+          run: function refuseBesideAProviderThatNeedsIt(): Promise<void> {
+            return refuseAtOnceInXingZ6020({
               budgets,
               world,
             },);
