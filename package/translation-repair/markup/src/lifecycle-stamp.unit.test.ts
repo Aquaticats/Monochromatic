@@ -103,8 +103,13 @@ await describe({
           .split(' ',)[0]
           ?.slice('at='.length,) ?? '';
         expect(isIsoStampText({ text: time, },),).toBe(true,);
-        expect(Math.abs(Date.parse(time,) - wallClockNow()
-          .getTime(),),).toBeLessThan(60_000,);
+
+        /**
+         The wall clock's own stamp, read right after.
+         */
+        const afterwards = wallClockNow()
+          .toISOString();
+        expect(Math.abs(Date.parse(time,) - Date.parse(afterwards,),),).toBeLessThan(60_000,);
       },
     },),
     it({

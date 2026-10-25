@@ -39,6 +39,11 @@ export function wallClockNow(): Date {
  */
 export class LifecycleAttemptError extends Error {
   /**
+   Declares the message safe because it holds fixed words and the number it names, a count.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
    Names the number a line was asked to carry.
 
    @param attempt - the number that is not an attempt count
