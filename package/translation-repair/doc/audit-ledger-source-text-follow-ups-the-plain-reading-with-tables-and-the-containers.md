@@ -759,28 +759,32 @@ No version is bumped.
 
 ### My slips
 
-- Calls printed a long listing (the directory of the documents,
-  a grep of the line limit,
-  a `.pnpm` listing,
-  and a grep of a whole error file that held every warning of a run),
-  and several calls capped a result with `head` where the rule asks for the whole.
-- A call of `true` that did nothing,
-  and the use of `node --eval` for edits where the edit tool serves,
-  several times;
-  one such edit renamed a variable of a helper as well as of the test it was meant for,
-  and a suite failed on it.
-- The runner that summarises failing cases (`failing.ts`) counted failures that end in milliseconds only,
-  so a failing case that took seconds was missed in two runs;
-  a failing task was seen from its exit status only,
-  and the pattern was widened afterwards.
+- I ran the source scans only at the end of the round,
+  so 13 failing scans surfaced together.
+- Several calls printed large outputs (a search over test logs,
+  a search of a whole error file that held every
+  finding of a run),
+  and one call capped a result with `head` where the rule asks for the whole.
+- I made edits with `node --eval` where the edit tool serves,
+  several times,
+  and a sed changed an unrelated index in a test,
+  which I reverted.
+- The runner that summarises failing cases (`failing.ts`) matched failures that end in milliseconds only,
+  so a failing case that took seconds went unseen until its pattern was widened,
+  and it hides wrapper failures,
+  so the exit status of each task was read as well.
 - The commit message of `ff20a155fd` says five cases fail by assertion where six do,
-  and the message of `737e303547` quotes the 931 texts that an intermediate state of the work measured and the
-  final code does not;
-  the second is corrected here (the final code leaves 184 texts undecided),
-  and neither commit is amended.
+  and the message of `737e303547` quotes 931 of 1119 texts,
+  measured on an intermediate state;
+  the final code leaves 184 texts undecided.
+  The body of `fcba40799a` has an awkward sentence.
+  No commit is amended.
 - The commit message of `db2ef41c60` says the search of the block comparison work had no such text,
-  which I did not check:
-  the code of that round read these texts as it should.
+  which I did not check.
+- The red `e4de486aad` first held a display-math case that failed for an older reason (an indented dollar pair),
+  and I moved it to a blank-line control in the fix commit.
+- The measurement scripts `corpus-all` and its kind read the source of the worktree directly,
+  so each measured the code the worktree held when it ran.
 - The merge commit keeps the default message.
 - The paragraph route of `d4e94f77aa` was gated in `c55c3ea07c` and ungated in `069dcc58e1`:
   the gate hid a defect of the nested edit (a join that leaves a quote mark in the page) instead of fixing it,
