@@ -4591,9 +4591,16 @@ far jumps (10 each at 150, 300 and 600 notches) 0 blank and 0 partial frames, 1.
 minimap frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; drag after a wheel
 9 of 9 located anchors on a drawn row, head on the drawn row at release 9 of 9, one start not located; Ctrl+End and
 Ctrl+Home 0 blank code frames.
-Open from this: the 9 hover trials with no request and no log line, and the 2 settled hovers at one row that sent
-nothing, are unexplained (probably a pointer that rests over no character, which starts no rest, but not shown);
-popup screenshots were not viewed for all 14 requests (log only).
+The 9 hover trials with no request and no log line, and the 2 settled hovers at one row that sent nothing, are
+explained by the code (read 2026-10-25, not reproduced per trial): `Rest::due` (`src/native/language/pointer.rs:146-158`)
+fires only when the rest began over a character (`self.at = Some((Some(_), since))`); a pointer move that resolves to
+no character (a hint row, the gutter, past the end of a line, or text not yet drawn under the point during the hold)
+stores `None` (`Rest::moved`, `:106-120`), `rest()` returns before the `resolved=` log line
+(`src/native/language/rest_step.rs:63-65`), and `Rest::idle` only dismisses a popup. The consequence, a limitation and
+not a regression (the same before the fix): a pointer that rests over no character when the view moves under it never
+asks, even when an identifier arrives under it; only a pointer move restarts the rest. Not fixed, nobody asked; the
+fix would resolve a rest over `None` again at due time when the view has moved, and keep `idle` for the popup.
+Popup screenshots were not viewed for all 14 requests (log only).
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
