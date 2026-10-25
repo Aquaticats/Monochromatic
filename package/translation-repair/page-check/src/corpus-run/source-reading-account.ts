@@ -5,6 +5,7 @@ import {
   parseMdxBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { decodedTarget, } from './source-reading-target.ts';
 import { blanking, } from './source-ships-readable.ts';
 import type { TextRange, } from './source-ships-ranges.ts';
 import { UNTRANSLATED_PASSAGE_NOTE, } from './source-ships.ts';
@@ -139,7 +140,7 @@ function leavesOf({ node, }: { readonly node: TreeNode; },): string {
   if (node.type === 'footnoteReference')
     return `[^${node.identifier}]`;
   if (node.type === 'link')
-    return `⟦${decodeURI(node.url,)}⟧${childrenLeaves({ node, },)}`;
+    return `⟦${decodedTarget({ target: node.url, },)}⟧${childrenLeaves({ node, },)}`;
   if (node.type === 'footnoteDefinition')
     return `[^${node.identifier}]: ${childrenLeaves({ node, },)}\n`;
   return `${childrenLeaves({ node, },)}\n`;

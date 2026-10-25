@@ -28,6 +28,7 @@ export {
   type BlockDifference,
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
+export { decodedTarget, } from './corpus-run/source-reading-target.ts';
 export { splitFlow, } from './corpus-run/source-ships-opener-flow.ts';
 export { openersInFootnoteFlowsOf, } from './corpus-run/source-ships-opener-footnote.ts';
 export { htmlInterruptionEdits, } from './corpus-run/source-ships-html-interrupt.ts';
