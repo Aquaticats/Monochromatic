@@ -787,8 +787,9 @@ fixed on 2026-10-23 (UTC),
 red `5585eeddd1`,
 fix `4452f464b4` (with `3827743a7e`,
 a lint split of one line in the tally).
-The shipped tree has not been landed on `main` at the time of writing,
-so these hashes are the worktree's.
+The shipped tree was not on `main` when this entry was written;
+it has since landed by a merge,
+so these hashes are ancestors of `main` as written.
 
 The corpus pass XingZ6020 ended `SETTLED` with 88 of 118 slices on the page.
 The translate lane tried slices 88 to 117 again and left all 30 unfilled;

@@ -369,9 +369,12 @@ export type DeepSeekCard = ServedCard<DeepSeekServedId> & {
    price (peak is 01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday to Friday,
    excluding Chinese public holidays; the provider package halves the card's
    rates for a call whose request started and whose reply completed outside every
-   weekday peak window, and reads no holiday calendar, so a booked figure is an
-   upper bound as to holidays and as to which instant decides, and is not
-   bounded as to a Saturday that China makes a working day).
+   weekday peak window, even if the call spanned a whole window between them, and
+   reads no holiday calendar, so a booked figure is an upper bound as to holidays
+   and, for a call with an instant inside a window, as to which instant decides;
+   it is not bounded as to a call that spans a whole window with both instants
+   outside, which is under-read if DeepSeek bills by an instant between the two,
+   nor as to a Saturday that China makes a working day).
    */
   readonly promptCacheHitUsdPerMillion: number;
 
