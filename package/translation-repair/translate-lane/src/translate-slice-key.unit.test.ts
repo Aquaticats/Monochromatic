@@ -130,12 +130,13 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 28: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored slice may '
-        + 'hold a declined slate the same texts now settle on two ballots, and the key hashes the version, the shape of '
+      name: 'IS AT VERSION 29: the owner\'s rulings of 2026-10-25 removed every weight floor (28) and a declined round '
+        + 'ships a candidate only when two judges named it, so a stored slice may hold a candidate shipped by the fixed '
+        + 'preference the same texts now keep the wording in place for, and the key hashes the version, the shape of '
         + 'the run and the texts, not the rule that reads the ballots, so only this number retires a record written '
-        + 'under the floors before (27 was the reader taking a capitalization-only difference as the listed value)',
+        + 'under the preference before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(28,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(29,);
       },
     },),
     it({

@@ -459,8 +459,20 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  slice-cache directory was searched for a record written by code that holds it, so records may stand at 27 and the change
  cannot ride inside it, and the number moves. The repair slice (47), refine (17) and consolidate (35) versions move for
  the same rules. No record has been written at 28, which this change sets first.
+
+ Version 29 covers the owner's answers of 2026-10-25 "Two judges must name it" and "Ship the slate's wording": a
+ challenge round that declined with nothing to ship past no longer ships a candidate by the fixed preference of repair
+ lane, then translate lane, then slate order; it ships a candidate only when two or more judges named it, and otherwise
+ the wording in place stays (`translate-stage/src/translate-runoff-tie.ts`, `shipPreferredPastDecline`). A stored slice
+ may hold a candidate shipped by that preference where the same texts now keep the wording in place. The key hashes the
+ version, the shape of the run and the texts, not the rule that reads the ballots, so a record written before would be
+ served after. The previous number was set in the round 1 commits of the weight-floor branch; whether a record
+ stands at 28 is not known, and the change cannot ride inside it, so the number moves. The consolidate version (36)
+ moves for the same rule, the repair slice (47) and refine (17) versions stay (neither stores a slate shipped by
+ preference), and the page title (7) and consistency (9) versions move for the two-voice rule at their own stages.
+ No record has been written at 29, which this change sets first.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 28;
+export const TRANSLATE_SLICE_CACHE_VERSION = 29;
 
 /**
  Models the translate lane seats.
