@@ -462,29 +462,41 @@ so both are covered there without a list.
 
 ## Prices
 
-DeepSeek is priced at the rate of the hour the request started in.
+DeepSeek is priced at the rate of the hours the call spanned.
 The card holds the peak rates:
 0.006 (cache hit),
 0.3 (cache miss) and 1.2 (output) USD per million tokens,
 with the hit and miss split read from the usage block.
-The page halves every rate off peak (01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak),
-and a call is booked at the peak rates when its request started inside one of those windows on a Monday to Friday in UTC,
-and at half of them otherwise.
+The page halves every rate off peak
+(01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak,
+and every other hour is off peak, weekends and Chinese public holidays in full).
+A call is booked at the peak rates when its request started,
+or its reply completed,
+inside one of those windows on a Monday to Friday in UTC,
+and at half of them only when both instants lie outside every window.
 Each window is read as half-open
 (01:00:00 UTC and 06:00:00 UTC are peak,
 04:00:00 UTC and 10:00:00 UTC are off peak),
 because the page does not say whether its last instant belongs to a window.
+The page does not say either whether the start or the end of a request decides its rate,
+so a call that crosses an edge is booked at peak.
+The client reads the clock it is given
+(`now` of `createDeepSeekClient`,
+the system clock by default)
+before the first attempt and again when the attempt that succeeded has completed,
+so a retried call is bracketed by its first start and its last completion.
 The run reads no holiday calendar,
 and a holiday only makes a weekday window cheaper,
-so the booked figure stays an upper bound and never an under-read of the balance.
-The instant is read once before the first attempt from the clock the client is given
-(`now` of `createDeepSeekClient`,
-the system clock by default),
-so a call that spans an edge is booked at the rate of its start.
+so the booked figure is an upper bound as to holidays and as to which instant decides.
+It is not bounded as to a Saturday that China makes a working day,
+which the page books off peak and DeepSeek may bill at peak,
+nor as to a call that starts before a window and completes after it.
 This replaced "peak always" on 2026-10-25,
 after the XingZ6021 run (Saturday 22:49 UTC to Sunday 00:55 UTC,
 off peak throughout)
 booked 0.147093 USD while the balance fell 0.07.
+SPEND lines and run meters written before this change book every DeepSeek call at peak,
+so they over-read off-peak calls by up to twice.
 Xiaomi is 0.0028 (cached),
 0.14 and 0.28 USD per million tokens,
 with the cached count read from the usage block.
