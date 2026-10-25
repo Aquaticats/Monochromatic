@@ -13,7 +13,7 @@ import {
 // A BLOCK OF RAW HTML THAT STARTS FIRST ON A LINE RIGHT AFTER A PARAGRAPH. A reader of the source takes a line that starts
 // an HTML block of the kinds that may interrupt a paragraph (an element of the block list such as a `div`, a `pre` or a
 // `script`, a processing instruction, a declaration, a comment, among them one that never closes) for the start of that
-// block, which ends the paragraph before it even with no blank line between them, so a backtick or a dollar sign in the
+// block, which cuts the paragraph short even with no blank line between them, so a backtick or a dollar sign in the
 // paragraph that nothing closes opens no code span or math there. The page has no raw HTML: the lines of the block are
 // written as the text of a paragraph (`source-ships-spans.ts`, and the opener of a comment that never closes as a character
 // reference, `source-ships-encoding.ts`), so the paragraph goes on, and the backtick pairs with one in the lines of the

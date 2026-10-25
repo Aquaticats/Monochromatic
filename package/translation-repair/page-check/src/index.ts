@@ -211,7 +211,10 @@ export {
   afterLiteralBlockEdits,
   separatingEdits,
 } from './corpus-run/source-ships-separation.ts';
-export { withPageOnlyStarts, } from './corpus-run/source-ships-footnote-ranges.ts';
+export {
+  startsOffTables,
+  withPageOnlyStarts,
+} from './corpus-run/source-ships-footnote-ranges.ts';
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { lazyUnderlinesBlanked, } from './corpus-run/source-ships-lazy.ts';

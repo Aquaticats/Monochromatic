@@ -44,7 +44,7 @@ const CASES: readonly (readonly [string, string])[] = [
     '[^1]: x\n\n\t```\n\t<!-- never\n\t```\n',
   ],
   [
-    'AN OPENER IN A FENCE UNDER A FOOTNOTE DEFINITION, WITH A BRACE IN THE PARAGRAPH AFTER IT',
+    'AN OPENER IN A FENCE UNDER A FOOTNOTE DEFINITION, WITH A BRACE IN A PARAGRAPH OF THE FOOTNOTE',
     '[^1]: x\n\n    ```\n    <!-- never\n    ```\n\n    after {d}\n',
   ],
   [

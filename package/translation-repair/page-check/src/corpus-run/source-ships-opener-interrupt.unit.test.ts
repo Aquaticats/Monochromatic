@@ -2,8 +2,8 @@
  Tests that a comment opener that never closes, standing first on a line right after a paragraph, is shown as the source
  shows it when the paragraph holds a backtick or a dollar sign that nothing closes.
 
- A reader of the source takes the opener at the start of a line for the start of a block of raw HTML, which ends the
- paragraph before it, so the backtick or dollar sign before it opens no code span or math. The page has no raw HTML: it
+ A reader of the source takes the opener at the start of a line for the start of a block of raw HTML, which cuts the
+ paragraph short, so the backtick or dollar sign before it opens no code span or math. The page has no raw HTML: it
  writes the opener as a character reference and the lines after it as the text of a paragraph, so the paragraph went on
  and the backtick paired with one of the lines after the opener, and the page showed a code span the source does not
  have. A blank line before the line of the opener ends the paragraph on the page where it ends for the reader of the

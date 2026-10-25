@@ -3,8 +3,8 @@
  paragraph holds a backtick or a dollar sign that nothing closes.
 
  A reader of the source takes a line that starts an HTML block of the kinds that may interrupt a paragraph (an element of
- the block list such as a `div`, a `pre`, a `script`, a processing instruction) for the start of that block, which ends the
- paragraph before it, so the backtick or dollar sign before it opens no code span or math. The page has no raw HTML: it
+ the block list such as a `div`, a `pre`, a `script`, a processing instruction) for the start of that block, which cuts the
+ paragraph short, so the backtick or dollar sign before it opens no code span or math. The page has no raw HTML: it
  writes the lines of the block as the text of a paragraph, so the paragraph went on and the backtick paired with one of the
  lines of the block, and the page showed a code span the source does not have. A blank line before the line of the block
  ends the paragraph on the page where it ends for the reader of the source (`source-ships-html-interrupt.ts`). A comment
