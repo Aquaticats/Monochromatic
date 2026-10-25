@@ -6,7 +6,6 @@ import {
 import {
   footnoteBodyStart,
   withoutIndentation,
-  withoutQuoteMarks,
 } from './source-ships-footnote.ts';
 import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
@@ -175,7 +174,7 @@ export function nestedSpans(
  const both = joinedSpans({ first: bodySpans, second: tailSpans, },);
  ```
  */
-function joinedSpans(
+export function joinedSpans(
   {
     first,
     second,
@@ -245,9 +244,6 @@ function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): Sourc
 
  @param range - where the body stands, from the start of its first line or the first character after the label
 
- @param inContainer - whether the footnote stands in a block quote or a list item, whose quote marks each later line
- gives up before its indentation
-
  @returns Spans of the body at the offsets of the whole text
 
  @throws {@link Error} when a node of the body has no position, which the reading used never builds
@@ -265,29 +261,23 @@ export function footnoteBodySpans(
     readSpans,
     footnotes,
     range,
-    inContainer = false,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly readSpans: SpansReader;
     readonly footnotes: readonly TextRange[];
     readonly range: TextRange;
-    readonly inContainer?: boolean;
   },
 ): SourceSpans {
   /**
-   The footnote the body belongs to, absent where the strict reading found none there and for a footnote in a container,
-   whose paragraph the plain reading keeps whole as the strict grammar does: it ends where the paragraph does, the
-   lines after it are lines of the paragraph and not a block that starts there.
+   The footnote the body belongs to, absent where the strict reading found none there.
    */
-  const footnote = inContainer
-    ? undefined
-    : footnotes.find(function holds({
-      start,
-      end,
-    },): boolean {
-      return (start <= range.start) && (range.start < end);
-    },);
+  const footnote = footnotes.find(function holds({
+    start,
+    end,
+  },): boolean {
+    return (start <= range.start) && (range.start < end);
+  },);
   /**
    Where the footnote's body ends: the end of the footnote, when the plain reading goes on past it.
    */
@@ -314,7 +304,6 @@ export function footnoteBodySpans(
         start: range.start,
         end: bodyEnd,
       },
-      marks: inContainer,
     },),
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
@@ -349,12 +338,7 @@ export function footnoteBodySpans(
         source,
         readable,
         readSpans,
-        indices: inContainer
-          ? withoutQuoteMarks({
-            source,
-            range: after,
-          },)
-          : indicesOf({ range: after, },),
+        indices: indicesOf({ range: after, },),
       },),
       second: editsOnly({
         edits: separatingEdits({
@@ -385,10 +369,6 @@ export function footnoteBodySpans(
 
  @param end - where the lines of the footnote end, the end of the paragraph or beyond it
 
- @param inContainer - whether the paragraph stands in a block quote or a list item: the lines before the definition lose
- their quote marks, the line of the definition belongs to no part before its label, and each later line of the
- footnote loses them before its indentation
-
  @returns Spans of both parts at the offsets of the whole text
 
  @throws {@link Error} when a node of either part has no position, which the reading used never builds
@@ -408,7 +388,6 @@ export function footnoteInParagraphSpans(
     range,
     split,
     end,
-    inContainer = false,
   }: {
     readonly source: string;
     readonly readable: string;
@@ -417,7 +396,6 @@ export function footnoteInParagraphSpans(
     readonly range: TextRange;
     readonly split: number;
     readonly end: number;
-    readonly inContainer?: boolean;
   },
 ): SourceSpans {
   return joinedSpans({
@@ -425,30 +403,18 @@ export function footnoteInParagraphSpans(
       source,
       readable,
       readSpans,
-      indices: inContainer
-        ? withoutQuoteMarks({
-          source,
-          range: {
-            start: range.start,
-            end: source.lastIndexOf(
-              '\n',
-              split - 1,
-            ) + 1,
-          },
-        },)
-        : indicesOf({
-          range: {
-            start: range.start,
-            end: split,
-          },
-        },),
+      indices: indicesOf({
+        range: {
+          start: range.start,
+          end: split,
+        },
+      },),
     },),
     second: footnoteBodySpans({
       source,
       readable,
       readSpans,
       footnotes,
-      inContainer,
       range: {
         start: footnoteBodyStart({
           source,

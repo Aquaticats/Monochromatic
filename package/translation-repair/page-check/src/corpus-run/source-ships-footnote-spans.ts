@@ -2,6 +2,7 @@ import type {
   BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { footnoteInContainerSpans, } from './source-ships-container.ts';
 import {
   footnoteBodyStart,
   footnoteStartInside,
@@ -32,10 +33,9 @@ import type {
 //
 // A FOOTNOTE LINE IN A BLOCK QUOTE OR A LIST ITEM is cut where the strict grammar starts the footnote, whatever stands
 // before it on its line: the marks of the quote, the hanging indent of the item, or a lazy line indented up to three
-// spaces. The lines before it are read as a text of their own and the footnote as the body, to the end of the
-// paragraph, with the quote marks of each line taken off before its indentation. The paragraph is the plain
-// reading's, which is one to the strict grammar too, so a definition line after the footnote is a line of it and not a
-// definition, and what follows the paragraph in the container is read on its own.
+// spaces. The lines before it are read as a text of their own and the footnote with what follows it as another, with
+// the quote marks of each line taken off when the footnote line stays in the container
+// (`source-ships-container.ts`); what follows the paragraph in the container is read on its own.
 
 /**
  The answer for a block that is no part of a footnote definition.
@@ -124,9 +124,10 @@ export function footnoteRead(
   },
 ): FootnoteRead {
   /**
-   Where a footnote definition starts inside the paragraph, when one does on a line after its first.
+   Where a footnote definition starts inside the paragraph, or the heading made of its lines and a line of equals signs
+   or hyphens, when one does on a line after its first.
    */
-  const split = (node.type === 'paragraph')
+  const split = ((node.type === 'paragraph') || (node.type === 'heading'))
     ? footnoteStartInside({
       footnotes,
       range,
@@ -159,16 +160,25 @@ export function footnoteRead(
     return {
       kind: 'read',
       state: reach.state,
-      spans: footnoteInParagraphSpans({
-        source,
-        readable,
-        readSpans,
-        footnotes,
-        range,
-        split,
-        end,
-        inContainer: !isRootChild,
-      },),
+      spans: isRootChild
+        ? footnoteInParagraphSpans({
+          source,
+          readable,
+          readSpans,
+          footnotes,
+          range,
+          split,
+          end,
+        },)
+        : footnoteInContainerSpans({
+          source,
+          readable,
+          readSpans,
+          footnotes,
+          range,
+          split,
+          end,
+        },),
     };
   }
   /**

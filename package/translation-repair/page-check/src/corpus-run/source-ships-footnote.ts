@@ -578,46 +578,29 @@ function quoteMarksOf(
 
  @param range - where the block stands, from the start of its first line
 
- @param marks - whether each line that starts a line of the text gives up the marks of a block quote it stands in first,
- which the lines of a footnote definition in a block quote carry
-
  @returns Indices in text order
 
  @example
  ```ts
- const kept = withoutIndentation({ source, range, marks: true, },);
+ const kept = withoutIndentation({ source, range, },);
  ```
  */
 export function withoutIndentation(
   {
     source,
     range,
-    marks = false,
   }: {
     readonly source: string;
     readonly range: TextRange;
-    readonly marks?: boolean;
   },
 ): readonly number[] {
   return linesWithoutPrefix({
     source,
     range,
-    prefixLength: function indentationAfterMarks(line,): number {
-      /**
-       The marks of a block quote the line starts with.
-       */
-      const quoted = marks
-        ? quoteMarksOf({
-          source,
-          line,
-        },)
-        : 0;
-      return quoted + indentationOf({
+    prefixLength: function indentation(line,): number {
+      return indentationOf({
         source,
-        line: {
-          start: line.start + quoted,
-          end: line.end,
-        },
+        line,
       },);
     },
   },);

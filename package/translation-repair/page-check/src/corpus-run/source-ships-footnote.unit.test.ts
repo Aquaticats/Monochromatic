@@ -376,36 +376,6 @@ await describe({
             expect(kept({ source: '  x', },),).toBe('x',);
           },
         },),
-
-        it({
-          name: 'GIVES UP THE MARKS OF A BLOCK QUOTE BEFORE THE INDENTATION WHEN ASKED, so a footnote in a quote is read '
-            + 'without them and a line with no mark is kept from behind its indentation alone',
-          fn: async () => {
-            /**
-             Characters kept from a block, as text.
-
-             @param source - text, of which the whole is the block
-
-             @returns Kept characters joined
-             */
-            function kept({ source, }: { readonly source: string; },): string {
-              return withoutIndentation({
-                source,
-                range: {
-                  start: 0,
-                  end: source.length,
-                },
-                marks: true,
-              },)
-                .map(function characterAt(at,): string {
-                  return source.charAt(at,);
-                },)
-                .join('',);
-            }
-            expect(kept({ source: '> x\n>    y\n  z', },),).toBe('x\ny\nz',);
-            expect(kept({ source: '> x\n>      y', },),).toBe('x\n y',);
-          },
-        },),
       ],
     },),
 
