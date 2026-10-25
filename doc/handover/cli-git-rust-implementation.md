@@ -2156,6 +2156,14 @@ that is verification, not a decision for the user.
   The user confirmed (2026-10-25): keep the `~/.local/bin` link owned by the global mise config. Proposal written to
   `doc/planning/cli-git-global-install.md` (status: awaiting the user's acceptance; nothing implemented, host
   unchanged). Machines the user does not control (server-side rulesets or CI) remain a separate undecided question.
+  ACCEPTED by the user 2026-10-25 ("Accept as written") after the term "global postinstall" was explained (a command
+  mise runs after installing the wrapper, attached to an entry in the user's own `~/.config/mise/config.toml`).
+  Authorized sequence, in order: (1) podman: verify the atomic link form and that installing a newer version repoints
+  the link, testing the exact TOML block read from the proposal (`~/temp/agent/podman-proof-1796-d.ts`); (2) add the
+  entry to the host `~/.config/mise/config.toml` and run `mise install`; (3) verify at the user boundary (clean login
+  shell `type -a git`, and a `claude -p` commit in a scratch clone reaching a bare remote); (4) a short runbook for
+  other machines and the `AGENTS.md` `APG`/`APQ` wording; (5) update or close issue 1796. Host edit happens only
+  after step (1) passes.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
