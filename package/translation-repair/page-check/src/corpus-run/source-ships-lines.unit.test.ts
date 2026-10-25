@@ -418,6 +418,25 @@ await describe({
         },),
 
         it({
+          name: 'STARTS THE JOIN AT THE CARRIAGE RETURN OF A CARRIAGE RETURN AND LINE FEED BEFORE A CODE SPAN THAT STARTS '
+            + 'WITH AN INDENTED FENCE MARK, so no stray carriage return stays before the space',
+          fn: async () => {
+            expect(joinsOfFirstSpan({ source: 'a\r\n    ```\r\n`x {\r\n    ```\r\n    y`\r\n', },),).toEqual([
+              {
+                start: 1,
+                end: 7,
+                replacement: ' ',
+              },
+              {
+                start: 16,
+                end: 22,
+                replacement: ' ',
+              },
+            ],);
+          },
+        },),
+
+        it({
           name: 'JOINS NO LINE ENDING BEFORE A CODE SPAN THAT STARTS A LINE WITHOUT A FENCE MARK INDENTED FOUR SPACES',
           fn: async () => {
             expect(joinsOfFirstSpan({ source: 'a\n   ```x```\n', },),).toEqual([],);

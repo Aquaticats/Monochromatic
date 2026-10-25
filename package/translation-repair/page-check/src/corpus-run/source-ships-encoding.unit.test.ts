@@ -1048,9 +1048,31 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'LEAVES THE BODY OF A DEFINITION WHOSE LABEL HOLDS A TAB, A CARRIAGE RETURN, A LINE FEED OR A SPACE '
+            + 'AS IT STANDS, since the strict grammar reads it as a link reference definition whose destination is the '
+            + 'tag, and writes the body of a definition whose label holds none of them or holds a no-break space as '
+            + 'text of a footnote',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['[^a\tb]: <b>\n', '[^a\tb]: <b>\n',],
+                ['[^a\nb]: <b>\n', '[^a\nb]: <b>\n',],
+                ['[^a\rb]: <b>\n', '[^a\nb]: <b>\n',],
+                ['[^a b]: <b>\n', '[^a b]: <b>\n',],
+                ['[^ab]: <b>\n', '[^ab]: \\<b\\>\n',],
+                ['[^a\u00A0b]: <b>\n', '[^a\u00A0b]: \\<b\\>\n',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            }
+          },
+        },),
+
+        it({
           name: 'WRITES A REFERENCE WHOSE LABEL HOLDS A BRACE OR A LESS-THAN SIGN WITH A BACKSLASH AND LEAVES THE '
-            + 'LABEL OF ITS DEFINITION AS IT STANDS (a limit the module comment names): the page parses and holds no '
-            + 'expression, and the reference no longer names the definition, so it shows as text',
+            + 'LABEL OF ITS DEFINITION AS IT STANDS (a limit the module comment names): the page parses, which the '
+            + 'cases check, and the text written is the one listed',
           fn: async () => {
             for (
               const [text, written,] of [
