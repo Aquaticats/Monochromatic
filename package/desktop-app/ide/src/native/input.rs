@@ -3,7 +3,12 @@
 /// Borrow the parent's state,
 ///  its single rendering boundary,
 ///  and the caret-following scroll.
-use super::{AppWindow, State, render, viewport::follow};
+use super::{
+    AppWindow, State,
+    pointer_log::{Pointer, Selection, log_drag, log_press, log_release},
+    render,
+    viewport::follow,
+};
 /// Geometry-free caret movement over source characters.
 use ide_app::caret_motion::{Motion, moved};
 /// Source offsets remain independent of rendered pixels,
@@ -52,6 +57,8 @@ struct Drag {
     ///  or line,
     ///  as chosen by the click count.
     granularity: Granularity,
+    /// Whether a drag move has come since the latest press.
+    dragged: bool,
 }
 
 /// What:
@@ -128,6 +135,7 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
         clicks: ClickCounter::default(),
         origin: (0, 0),
         granularity: Granularity::Character,
+        dragged: false,
     }));
     // What: clone shares Rc ownership, whereas cloning a String copies its bytes.
     // Why: The callback remains valid after this binding function returns.
@@ -182,21 +190,31 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
             position.anchor = start;
             position.head = end;
         }
-        // What: `?pressed.granularity` logs the value in its debug form, as a named field.
-        // Why: Which unit a press selected is the branch decision that explains a later drag.
+        // What: The record names the line the press selected, with the offsets of the view at that moment.
+        // Why: Which unit a press selected is the branch decision that explains a later drag, and which line it
+        // selected, against the line drawn under the pointer, is what a press during a held view must get right.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // logger.debug('source pointer press', { line, extend, granularity, head: position.head });
+        // logger.debug('source pointer press', { y, x, line, offset, drawnOffset, held, extend, granularity, head });
         // ```
-        tracing::debug!(
-            line,
+        log_press(
+            &Pointer {
+                window: &window,
+                current: &current,
+                line,
+                hit,
+                y,
+                x,
+            },
             extend,
-            granularity = ?pressed.granularity,
-            anchor = position.anchor,
-            head = position.head,
-            "source pointer press"
+            Selection {
+                granularity: pressed.granularity,
+                anchor: position.anchor,
+                head: position.head,
+            },
         );
+        pressed.dragged = false;
         drop(pressed);
         // A caret at a soft-wrap offset stays on the side that was clicked.
         position.affinity = if position.head == hit {
@@ -219,7 +237,7 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
         let line = current.row_map.line_at(y);
         let (hit, side) =
             pointer_position(&mut current, line, (x, y), window.window().scale_factor());
-        let pressed = drag.borrow();
+        let mut pressed = drag.borrow_mut();
         let granularity = pressed.granularity;
         let (anchor, head) = extended(
             current.document.text().slice(..),
@@ -227,6 +245,9 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
             granularity,
             hit,
         );
+        // The first move after a press is where a drag starts.
+        let first = !pressed.dragged;
+        pressed.dragged = true;
         drop(pressed);
         let mut position = current.document.position();
         position.anchor = anchor;
@@ -236,27 +257,65 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
         } else {
             ReadingAffinity::Downstream
         };
-        // What: `?granularity` logs the value in its debug form, as a named field.
+        // What: The record carries the point the drag move names, with the offsets of the view, and says whether it is
+        // the move that starts the drag.
         // Why: A drag that never reaches this callback and one that reaches it with the wrong unit look alike
         // on screen; the log tells them apart.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // logger.debug('source pointer drag', { line, granularity, anchor, head });
+        // logger.debug('source pointer drag', { first, y, x, line, offset, drawnOffset, held, granularity, anchor, head });
         // ```
-        tracing::debug!(
-            line,
-            y,
-            x,
-            ?granularity,
-            anchor,
-            head,
-            "source pointer drag"
+        log_drag(
+            &Pointer {
+                window: &window,
+                current: &current,
+                line,
+                hit,
+                y,
+                x,
+            },
+            first,
+            Selection {
+                granularity,
+                anchor,
+                head,
+            },
         );
         current.document.select(position);
         drop(current);
         // A drag past an edge of the view scrolls just far enough to show where the selection now ends.
         follow(&window, &state, 0.0);
+    });
+    let release_state = Rc::clone(shared);
+    let release_window = owner.as_weak();
+    // What: The release changes nothing; it writes the record of the point the button went up at.
+    // Why: The line a drag ended on is read from the log against the line drawn under the pointer, as the press is.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // window.onPointerRelease((y, x) => { logger.debug('source pointer release', { y, x, line, offset, drawnOffset }); });
+    // ```
+    owner.on_pointer_release(move |y, x| {
+        // The line and the character are found only to be written, so a build that does not log pays nothing.
+        if !tracing::enabled!(tracing::Level::DEBUG) {
+            return;
+        }
+        let Some(window) = release_window.upgrade() else {
+            return;
+        };
+        let mut current = release_state.borrow_mut();
+        let line = current.row_map.line_at(y);
+        let (hit, _side) =
+            pointer_position(&mut current, line, (x, y), window.window().scale_factor());
+        log_release(&Pointer {
+            window: &window,
+            current: &current,
+            line,
+            hit,
+            y,
+            x,
+        });
     });
 }
 

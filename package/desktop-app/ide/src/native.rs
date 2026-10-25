@@ -221,6 +221,17 @@ mod overscan_tile_tests;
 /// A picture asks for a frame of its own only when no frame draws it first.
 #[cfg(test)]
 mod picture_frame_tests;
+/// The offsets and the line a pointer event names,
+///  for the debug records of a press,
+///  a drag move,
+///  and a release.
+mod pointer_log;
+/// The press,
+///  drag,
+///  and release records carry the line a press selected,
+///  read from a captured log.
+#[cfg(test)]
+mod pointer_log_tests;
 /// Real pointer events select by character,
 ///  word,
 ///  and line,
