@@ -34,7 +34,8 @@ None of the findings was fixed in the run's own build.
   "On `main`" means the commit is an ancestor of `origin/main` at `7a61c5e19e`,
   and "in the build of `XingZ6021`" means it is an ancestor of the frozen build `bcff23b8ce`;
   both were measured with `git merge-base --is-ancestor` when this record was filed.
-  Every hash named as a fix or a red case here passed both.
+  Every hash named as a fix or a red case here passed both,
+  directly or because `bcff23b8ce` is itself an ancestor of `origin/main`.
 - Two ledger sentences are out of date on this point and are not followed.
   Ledger B827 says its shipped tree "has not been landed on `main` at the time of writing";
   `4452f464b4` and `5585eeddd1` are on `main` and in the build of `XingZ6021`.
@@ -48,12 +49,16 @@ None of the findings was fixed in the run's own build.
   the handover calls the brief's D4 model-level dryness (ledger B822),
   while the read's D4 is the rollback with no log line.
   This record uses the read's labels throughout and cites ledger ids and hashes for the rest.
-  Of the fix commits named here only the merge `9eea0009d1` (the fix rounds 1 to 9 of the briefs' D4 and E2) is an
-  ancestor of `a0b38f5a45`,
-  the merge the briefs name for the D4 and E2 round;
-  the others are not,
-  and are ancestors of `bcff23b8ce`,
-  the merge the briefs name for the D1 to D3 and X1 round.
+  `a0b38f5a45` is the merge the briefs name for the D4 and E2 round,
+  and `bcff23b8ce` the merge they name for the D1 to D3 and X1 round.
+  Measured against `a0b38f5a45`,
+  the ancestors among the hashes of this record are the S1 commits and their merge `0204b7c8ba`,
+  the E2 merge `9eea0009d1` (the fix rounds 1 to 9 of the briefs' D4 and E2) with `e9d79e6f0d`,
+  `a019032c6d` (the waiting rule of D1) and `9639e19d85` (D5's B815).
+  The commits of B827 to B831 and B833 to B841 are not ancestors of `a0b38f5a45`,
+  including `ee54c874bf`,
+  the fix of the read's D4;
+  all of them are ancestors of `bcff23b8ce`.
 - The ledger numbers moved once.
   The entries now numbered B833 to B836 were first written as B827 to B830 and were renumbered by `2a8514d7fa`
   on 2026-10-23,

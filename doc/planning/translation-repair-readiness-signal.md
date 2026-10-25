@@ -461,7 +461,7 @@ this section is the readiness reading of it.
   ([the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md),
   S1 and D1 to D7,
   each with the commit that fixed it).
-  The `XingZ6021` entry that follows stays the latest reading.
+  The `XingZ6021` entry stays the latest reading.
 - `XingZ6021` ran on 2026-10-24 and 2026-10-25 on the build `bcff23b8ce`,
   which carries the fixes for the defects found in `XingZ6020`,
   and SETTLED on its first attempt in 2 h 5 min 45 s

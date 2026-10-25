@@ -90,7 +90,7 @@ so that no file passes the repository's limit of 1,000 lines:
   [the XingZ6019 record](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6019.md).
   `XingZ6019` ended with no page after 19.2 min on a short writing bench;
   `XingZ6020` was running when the record was filed,
-  and its read is filed since in the next item.
+  and its read is filed since under its own `XingZ6020` item.
 - `XingZ6020` (entry `XingZ60`):
   launched at 19:32:29 UTC on 2026-10-22 on the build `1d46232457`.
   [The run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)

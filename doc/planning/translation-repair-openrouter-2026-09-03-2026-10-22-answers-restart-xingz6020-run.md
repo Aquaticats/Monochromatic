@@ -279,7 +279,7 @@ Synthetic `wet`,
   peak windows of 01:00 to 04:00 UTC and 06:00 to 10:00 UTC,
   so this figure over-reads the calls that started off peak by up to twice.
   The run lay on a Thursday evening and a Friday morning in UTC,
-  so some of its 22 DeepSeek calls may have started inside the Friday windows and some outside;
+  so some of its 21 booked DeepSeek calls (22 streams) may have started inside the Friday windows and some outside;
   their start times were not examined for this record,
   and how much the figure over-reads is not computed.
 - Xiaomi `wet` throughout (`xiaomiUsdSpent` 0.0000 to 0.0975,

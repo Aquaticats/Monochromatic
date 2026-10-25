@@ -689,8 +689,8 @@ and has not landed:
 As first filed on 2026-10-25 (UTC),
 N8 was an open defect candidate filed for the owner;
 the check explained the mechanism and did not call it a defect.
-The fix is described after the original text of this section,
-which is kept as it was filed.
+The update of 2026-10-25 (UTC) under this heading describes the fix;
+the bullets filed on 2026-10-25 are kept as written.
 
 - The meter fell by 0.07 USD while 15 calls booked 0.147093 USD.
   The mechanism is in the run file under "The DeepSeek balance against the booked cost":
