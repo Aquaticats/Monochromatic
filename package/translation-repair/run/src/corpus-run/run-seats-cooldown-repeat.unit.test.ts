@@ -15,10 +15,10 @@
 
 import {
   describe,
+  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
 
 import { createProviderBudgets, } from '@monochromatic-dev/translation-repair-provider';
 import { consoleLinesDuring, } from '@monochromatic-dev/translation-repair-provider/ts/neuralwatt-ledger.test-fixture.ts';
