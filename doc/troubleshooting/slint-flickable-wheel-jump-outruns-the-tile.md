@@ -1241,8 +1241,12 @@ and reads the last `row map rebuilt` record of the log) was kept only in the ses
   a second copy of the same binary 7 of 160
   (the spread of one binary),
   the fix 0 of 160
-  (Fisher exact test, one-sided, the fix against the 320 sessions of both copies of `origin/main`: p = 0.0004).
-  Two earlier groups of the first build: 5 of 60 and 3 of 30.
+  (Fisher exact test,
+  one-sided,
+  the fix against the 320 sessions of both copies of `origin/main`:
+  p = 0.0004).
+  Two earlier groups of the first build:
+  5 of 60 and 3 of 30.
 - Sessions with a taller map by another amount (36,114 to 36,178) held a block of virtual rows:
   an information message of the language support that the harness itself caused
   (`bwrap: Can't bind mount ... on /tmp`:
@@ -1284,11 +1288,13 @@ each with two rows in the map and one row at the real width:
    and the map disagrees with it below line 150.
    `apply_pass` (`src/native/tile/pass.rs`) never applies the lines of the displayed tile,
    so the pass that finishes some milliseconds later does not correct them either
-   (the probe: `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
+   (the probe:
+   `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
    then `done=true`).
    The map ends 3 rows taller than the text.
 
-The earlier account, that measurement passes at the narrow width "end late",
+The earlier account,
+that measurement passes at the narrow width "end late",
 was wrong:
 the pass at the narrow width is finished or dropped,
 and what stays are heights it left in the table that the window thread's rounds did not reach.
@@ -1392,7 +1398,9 @@ Two branches dropped a turn without a record
 they write a debug record now.
 `src/logging.rs` does not write straight to the file:
 `src/logging/background.rs` queues records for a writer thread
-and drops records, with a warning that carries the count, only when 8 MiB wait in the queue;
+and drops records,
+with a warning that carries the count,
+only when 8 MiB wait in the queue;
 no such warning stood in any log read here.
 
 Measured:

@@ -395,6 +395,9 @@ mod wrap_clip_tests;
 /// and multi-clicks on wrapped lines.
 #[cfg(test)]
 mod wrap_keys_tests;
+/// A tile the window thread takes for a new width holds only lines whose heights the map has measured at that width.
+#[cfg(test)]
+mod wrap_measure_tests;
 /// A new window width:
 /// the window thread breaks the lines near the view again and paints the tile for it before the
 ///  next frame,
@@ -402,9 +405,6 @@ mod wrap_keys_tests;
 /// and what does not fit goes to the tile worker.
 #[cfg(test)]
 mod wrap_resize_tests;
-/// A tile the window thread takes for a new width holds only lines whose heights the map has measured at that width.
-#[cfg(test)]
-mod wrap_measure_tests;
 /// The pixels the GPU draws for wrapped lines,
 /// clips,
 /// selections,

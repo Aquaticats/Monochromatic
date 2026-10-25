@@ -18,9 +18,11 @@ use ide_app::wrap::has_wrap_width;
 /// What:
 ///  Most rounds of measuring the lines of one tile.
 /// Why:
-///  A round measures the lines the tile asked for covers and the map follows the heights it found, so the tile asked
-///  for next can reach further down the text; each round brings in the lines that tile gained, so the rounds end
-///  when no height changes.
+///  A round measures the lines the tile asked for covers,
+///  and the map follows the heights it found,
+///  so the tile asked for next can reach further down the text.
+///  Each round brings in the lines that tile gained,
+///  so the rounds end when no height changes.
 ///  The bound keeps a pathological text from holding the window thread,
 ///  and a tile still changing after it is logged at warn level.
 ///

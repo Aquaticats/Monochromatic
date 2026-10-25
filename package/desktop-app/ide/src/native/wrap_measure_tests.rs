@@ -35,7 +35,13 @@ fn stale_in_tile(reader: &Reader, scale: f32) -> Vec<(usize, usize, usize)> {
     let first = current.shown.first;
     let end = first + current.shown.count;
     let mut shaper = TextShaper::new();
-    let fresh = shaper.measure_lines(&current.document, first..end, scale, Some(current.width), &[]);
+    let fresh = shaper.measure_lines(
+        &current.document,
+        first..end,
+        scale,
+        Some(current.width),
+        &[],
+    );
     let mut stale = Vec::new();
     for (line, rows) in fresh.lines {
         if current.row_map.rows_of(line) != rows {
@@ -70,13 +76,19 @@ fn a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines() {
     }
     {
         let mut current = opened.source.borrow_mut();
-        let narrow = (0..600).map(|line| (line, 2));
-        assert!(absorb(&mut current, narrow), "the stale heights changed nothing");
+        let narrow = (0..600).map(|line| return (line, 2));
+        assert!(
+            absorb(&mut current, narrow),
+            "the stale heights changed nothing"
+        );
     }
     change_width(&opened, 500.0, 660.0);
     {
         let current = opened.source.borrow();
-        assert_eq!(current.rewrap_deferred, 0, "the width was left to the worker");
+        assert_eq!(
+            current.rewrap_deferred, 0,
+            "the width was left to the worker"
+        );
         assert!(
             current.shown.count > 40,
             "the tile holds only {} lines",
