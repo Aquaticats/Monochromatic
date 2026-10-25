@@ -14,8 +14,9 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 //region Names made from a function's parameters through a member as the target of a pattern or of a call
 // A member as the target of a pattern (an element of an array pattern, a rest element, a member with a default in
 // an assignment pattern) stores the value in the object the member is read off, and so does a storing method
-// written under a type mark (`(holder as any).push(args)`, `holder.push!(args)`). The first name of the object is
-// then a name made from the parameter, as it is for the other places that store
+// written under a type mark (`(holder as any).push(args)`, `holder.push!(args)`) and `Object.assign` or a method that
+// defines a property when `Object` is written under a type mark or read off the global object. The first name of the
+// object is then a name made from the parameter, as it is for the other places that store
 // (`claude-schema-derived-container-forms.test-fixture.ts`). A value that one function stores in an object of the
 // module and another function builds from is a flow between two functions, which is not read.
 

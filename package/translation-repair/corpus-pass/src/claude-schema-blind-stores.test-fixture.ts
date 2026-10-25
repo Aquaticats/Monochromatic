@@ -5,11 +5,13 @@ import {
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { GLOBAL_OBJECTS, } from './claude-schema-blind-global-values.test-fixture.ts';
 import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
 import {
   memberNameOf,
   nodeAt,
   nodesAt,
+  pathOf,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Where a value made from a parameter is stored, and the names that hold it afterwards
@@ -17,10 +19,10 @@ import {
 // stored in an object, a list or a map is read through the first name of that object, so the first name of the object
 // is a name made from the parameter. The places that store are an assignment to a member or an index, a pattern whose
 // target is a member, a call of a method that stores its arguments in the object it is called on (`push`, `set`), a
-// call of `Object.assign` or of a method that defines a property, which store in the first argument, a class or a
-// function declared inside whose code reads the parameter, and the default of a pattern, which is a value the pattern
-// takes. A call of any other
-// function or method may store its arguments in an object it receives, and is not read; so is a field of `this`.
+// call of `Object.assign` or of a method that defines a property, which store in the first argument (also when `Object`
+// is written under a type mark or read off the global object), a class or a function declared inside whose code reads
+// the parameter, and the default of a pattern, which is a value the pattern takes. A call of any other function or
+// method may store its arguments in an object it receives, and is not read; so is a field of `this`.
 
 /**
  A place where names become derived: the names that a statement or an expression binds, and the code whose value they
@@ -144,6 +146,32 @@ export function namesStoredInto({ node, }: { readonly node: unknown; },): readon
 }
 
 /**
+ The name of the built-in object a method is read off, whatever marks the object is written under and whether or not it
+ is read off the global object.
+
+ @param node - object the method is read off, of any kind
+
+ @returns Name, empty when the object is neither a name nor a name read off the global object
+
+ @example
+ ```ts
+ const name = staticNameOf({ node: callee.object, },);
+ // => 'Object' for `Object`, `(Object as any)` and `globalThis.Object`
+ ```
+ */
+function staticNameOf({ node, }: { readonly node: unknown; },): string {
+  /**
+   The names the object is written with.
+   */
+  const path = pathOf({ node, },);
+  if (path.length === 1)
+    return path[0] ?? '';
+  return ((path.length === 2) && GLOBAL_OBJECTS.has(path[0] ?? '',))
+    ? (path[1] ?? '')
+    : '';
+}
+
+/**
  The names a call stores its arguments in.
 
  @param call - call
@@ -175,7 +203,7 @@ function namesStoredByCall({ call, }: { readonly call: TreeNode; },): readonly s
    The methods of the object the callee is read off that store in their first argument, none for an object that has
    none.
    */
-  const statics = STORING_STATICS.get(identifierName({ node: callee.object, },),) ?? new Set<string>();
+  const statics = STORING_STATICS.get(staticNameOf({ node: callee.object, },),) ?? new Set<string>();
   if (statics.has(method,)) {
     return namesStoredInto({ node: nodesAt({
       node: call,
