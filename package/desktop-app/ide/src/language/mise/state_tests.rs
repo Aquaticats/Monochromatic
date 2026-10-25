@@ -108,11 +108,17 @@ fn a_sandbox_that_stopped_before_mise_is_not_blamed_on_the_mise_configuration() 
         "the notice blamed mise for a sandbox that stopped: {paragraphs:?}"
     );
     assert!(
-        !paragraphs.iter().any(|paragraph| paragraph.contains("mise doctor") || paragraph.contains("mise said")),
+        !paragraphs
+            .iter()
+            .any(|paragraph| return paragraph.contains("mise doctor")
+                || paragraph.contains("mise said")),
         "the notice blamed mise for a sandbox that stopped: {paragraphs:?}"
     );
     assert!(paragraphs[1].contains("bwrap --version"), "{paragraphs:?}");
-    assert!(paragraphs[1].contains("monochromatic-ide/language"), "{paragraphs:?}");
+    assert!(
+        paragraphs[1].contains("monochromatic-ide/language"),
+        "{paragraphs:?}"
+    );
     assert!(
         paragraphs[2].starts_with("bubblewrap said: bwrap: Can't bind mount"),
         "{paragraphs:?}"
@@ -125,10 +131,16 @@ fn only_a_message_that_begins_with_bubblewraps_prefix_is_the_sandbox() {
         ("bwrap: No permissions to create new namespace", true),
         ("  bwrap: leading blanks", true),
         ("mise ERROR Config files are not trusted", false),
-        ("`mise bin-paths` did not finish within 10 s and was stopped", false),
+        (
+            "`mise bin-paths` did not finish within 10 s and was stopped",
+            false,
+        ),
         ("mise ERROR the word bwrap: appears later", false),
     ] {
-        let failed = Failed { message: message.to_string(), untrusted: None };
+        let failed = Failed {
+            message: message.to_string(),
+            untrusted: None,
+        };
         assert_eq!(failed.stopped_by_sandbox(), sandbox, "{message}");
     }
 }

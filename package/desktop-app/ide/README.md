@@ -967,10 +967,26 @@ Each server writes only its private state,
 which also holds its private `/tmp`,
  caches,
  and cargo output.
-The state root is resolved through symbolic links first
-and must not contain the project.
-It may lie inside the project,
-as it does when the home folder is the project (`~/.cache` is below it).
+The private `/tmp` is emptied before every launch,
+in place (`empty_in_place` in `src/language/launch/state.rs`):
+its files go and the directory stays.
+The sandbox binds that directory by path,
+and another process on the same project (a second window of the IDE)
+prepares the same path while this one starts bubblewrap.
+A directory removed and made again is missing in between,
+and bubblewrap then stops with `bwrap: Can't find source path .../tmp: No such file or directory`
+(or `Can't open source ...`, `Can't bind mount ... on /tmp`).
+Measured on 2026-10-25 with three sessions at a time on one cache folder and one project:
+the old version failed in 4 of 709 launches (mise's run in 3, the server's in 1),
+the new one in 0 of 300 (those counts alone do not separate them);
+with a cache folder for each session the old version failed in 0 of 120.
+`preparation_empties_a_scratch_directory_without_replacing_it` (`src/language/launch_tests.rs`)
+holds the directory open across a preparation and needs it still linked;
+the removing version fails it.
+Two processes still share one private `/tmp` for each server,
+so the launch of the second removes the temporary files of the first one's running server
+(its directory stays valid).
+`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md` has the account.
 After the sandbox replaces `/tmp`,
  `/run`,
  and `/dev`,
@@ -1249,6 +1265,23 @@ For any other failure it points at `mise doctor`.
 A mise that does not finish in 10 seconds is stopped and reported the same way.
 A sandbox that cannot be set up is not a mise failure:
 the servers are refused for that reason anyway.
+A run that bubblewrap itself stops
+(its message begins `bwrap:`,
+mise's begin `mise`)
+is reported as a stopped sandbox,
+not as a fault of the mise configuration.
+The notice says the sandbox stopped before mise started,
+that the project's mise configuration is not the cause,
+that the message does not say why,
+and that displaying a file again asks again (not sooner than `RETRY_AFTER`).
+It names the checks
+(`bwrap --version`,
+the private folder's existence,
+space and permission,
+another window on the project),
+then quotes bubblewrap (`Failed::stopped_by_sandbox` in `src/language/mise/state.rs`).
+Before,
+it read `Fix what mise names (mise doctor ...)` and `mise said: bwrap: ...`.
 
 #### What the servers get
 

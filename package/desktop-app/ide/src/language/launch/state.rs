@@ -179,13 +179,20 @@ pub fn prepare(
     return Ok(());
 }
 
+/// The reason text of a scratch directory that could not be emptied.
+fn emptying_refused(path: &Path, error: &std::io::Error) -> String {
+    return format!("cannot empty {}: {error}", path.display());
+}
+
 /// What:
 ///  Remove everything inside a scratch directory and keep the directory itself.
 ///  A path that is a symbolic link or a file is replaced by a real directory
 ///  and never followed.
 /// Why:
 ///  The directory is the source of a `--bind` of the sandbox.
-///  Another process on the same project (a second window, or a server and a mise run starting together)
+///  Another process on the same project
+///  (a second window,
+///  or a server and a mise run starting together)
 ///  prepares the same path while this process is about to start bubblewrap,
 ///  and a directory removed and made again is missing in between:
 ///  bubblewrap then stops with `Can't bind mount ... No such file or directory`.
@@ -203,23 +210,27 @@ fn empty_in_place(directory: &Path) -> Result<(), String> {
     };
     if !found.is_dir() {
         // A link or a file where the directory belongs: remove the name only, never what a link points at.
-        return std::fs::remove_file(directory)
-            .map_err(|error| format!("cannot empty {}: {error}", directory.display()));
+        if let Err(error) = std::fs::remove_file(directory) {
+            return Err(emptying_refused(directory, &error));
+        }
+        return Ok(());
     }
     let entries = match std::fs::read_dir(directory) {
         Ok(entries) => entries,
         // Removed by another process since the check: the caller creates it.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("cannot empty {}: {error}", directory.display())),
+        Err(error) => return Err(emptying_refused(directory, &error)),
     };
-    for entry in entries {
-        let entry =
-            entry.map_err(|error| format!("cannot empty {}: {error}", directory.display()))?;
+    for listed in entries {
+        let entry = match listed {
+            Ok(entry) => entry,
+            Err(error) => return Err(emptying_refused(directory, &error)),
+        };
         let path = entry.path();
-        let is_directory = entry
-            .file_type()
-            .map_err(|error| format!("cannot empty {}: {error}", path.display()))?
-            .is_dir();
+        let is_directory = match entry.file_type() {
+            Ok(kind) => kind.is_dir(),
+            Err(error) => return Err(emptying_refused(&path, &error)),
+        };
         let removed = if is_directory {
             std::fs::remove_dir_all(&path)
         } else {
@@ -229,7 +240,7 @@ fn empty_in_place(directory: &Path) -> Result<(), String> {
             Ok(()) => {}
             // Another process emptied it at the same time.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("cannot empty {}: {error}", path.display())),
+            Err(error) => return Err(emptying_refused(&path, &error)),
         }
     }
     return Ok(());

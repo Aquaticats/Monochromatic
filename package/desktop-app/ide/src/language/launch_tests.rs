@@ -164,8 +164,10 @@ fn preparation_creates_directories_and_empties_scratch_below_the_state_root() {
     );
 }
 
-/// A sandbox binds the scratch directory by its path, and another process on the same project prepares the same path.
-/// The directory must stay the one that was there: a directory removed and made again is missing for a moment,
+/// A sandbox binds the scratch directory by its path,
+/// and another process on the same project prepares the same path.
+/// The directory must stay the one that was there:
+/// a directory removed and made again is missing for a moment,
 /// and bubblewrap stops with `Can't bind mount ... No such file or directory` when it looks in that moment.
 #[cfg(target_os = "linux")]
 #[test]
@@ -182,18 +184,29 @@ fn preparation_empties_a_scratch_directory_without_replacing_it() {
     // An open directory is what a running sandbox holds: it must stay linked, and stay the directory at the path.
     let held = fs::File::open(&scratch).expect("hold the scratch directory");
     let before = held.metadata().expect("metadata before").ino();
-    prepare(&launch(Vec::new(), vec![scratch.clone()]), &root, Some(&state)).expect("preparation");
+    prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect("preparation");
     let after = held.metadata().expect("metadata after");
     assert!(
         after.nlink() > 0,
         "the scratch directory was removed: a sandbox that holds it keeps a deleted directory"
     );
     assert_eq!(
-        fs::metadata(&scratch).expect("the path still names a directory").ino(),
+        fs::metadata(&scratch)
+            .expect("the path still names a directory")
+            .ino(),
         before,
         "the path names another directory than the one that was held"
     );
-    assert_eq!(fs::read_dir(&scratch).expect("scratch").count(), 0, "files of an earlier launch stayed");
+    assert_eq!(
+        fs::read_dir(&scratch).expect("scratch").count(),
+        0,
+        "files of an earlier launch stayed"
+    );
 }
 
 /// A link where the scratch directory belongs is never followed:
@@ -212,16 +225,38 @@ fn preparation_does_not_follow_a_link_where_the_scratch_directory_belongs() {
     fs::write(state.join("server/real/keep"), "keep").expect("file behind the inner link");
     let scratch = state.join("server/tmp");
     std::os::unix::fs::symlink(&other, &scratch).expect("link out of the state root");
-    let reason = prepare(&launch(Vec::new(), vec![scratch.clone()]), &root, Some(&state))
-        .expect_err("a link out of the state root was accepted");
-    assert!(reason.contains("is not below the private state directory"), "{reason}");
-    assert!(other.join("keep").exists(), "the link was followed and the directory behind it emptied");
+    let reason = prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect_err("a link out of the state root was accepted");
+    assert!(
+        reason.contains("is not below the private state directory"),
+        "{reason}"
+    );
+    assert!(
+        other.join("keep").exists(),
+        "the link was followed and the directory behind it emptied"
+    );
     fs::remove_file(&scratch).expect("remove the outer link");
-    std::os::unix::fs::symlink(state.join("server/real"), &scratch).expect("link inside the state root");
-    prepare(&launch(Vec::new(), vec![scratch.clone()]), &root, Some(&state)).expect("preparation");
-    assert!(state.join("server/real/keep").exists(), "the link was followed and what it led to emptied");
+    std::os::unix::fs::symlink(state.join("server/real"), &scratch)
+        .expect("link inside the state root");
+    prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect("preparation");
+    assert!(
+        state.join("server/real/keep").exists(),
+        "the link was followed and what it led to emptied"
+    );
     let found = fs::symlink_metadata(&scratch).expect("scratch");
-    assert!(found.is_dir() && !found.file_type().is_symlink(), "the link stayed in place of the directory");
+    assert!(
+        found.is_dir() && !found.file_type().is_symlink(),
+        "the link stayed in place of the directory"
+    );
 }
 
 #[test]

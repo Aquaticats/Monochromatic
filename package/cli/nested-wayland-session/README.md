@@ -2043,6 +2043,8 @@ and why.
   the wheel was refused in 17 of 17 sent before the toplevel's first `wl_surface.attach` of a buffer
   (no `wl_pointer.enter` and no `axis` event was sent to the client)
   and delivered in 19 of 19 sent after.
+  With the IDE as the client and the wheel sent at once when `windows` first listed a window (60 sessions),
+  0.6.1 refused 60 of 60 and this version refused 0 of 60.
 - The answer to a refused `wheel` or `scroll` says why and what to do,
   and the README says that `click` and `move` over no window answer `ok` and reach nobody.
 
