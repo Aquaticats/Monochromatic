@@ -171,7 +171,9 @@ model call or cached step input changed.
 
 ## B964: docs that claimed what the code did not
 
-Fixed on 2026-10-25 (UTC) in `80a8a4cf57`.
+Fixed on 2026-10-25 (UTC) in `80a8a4cf57` (the first three claims)
+and `70e839ad3f` (the commit of this file,
+which also replaces the fourth).
 
 The re-check found four claims in the docs of round 1 that the code did not bear out:
 
