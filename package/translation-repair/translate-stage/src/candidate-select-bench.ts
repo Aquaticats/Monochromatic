@@ -1,6 +1,6 @@
 import { rosterQuorumSize, } from '@monochromatic-dev/translation-repair-stage/ts';
 
-//region Selection floor of two ballots
+//region Selection bench
 // THE OWNER'S RULINGS OF 2026-10-25, which removed every weight floor from the pipeline: "floor of 3 - don't set a
 // floor." (about the panel tally) and "Every weight floor" (the scope). A selection round used to need a summed weight
 // of two, scaled by reachable over quorum on a bench short of quorum (the owner's decision of 2026-09-09,
@@ -110,4 +110,4 @@ export function shortBenchFinding(
   })`;
 }
 
-//endregion Selection floor of two ballots
+//endregion Selection bench

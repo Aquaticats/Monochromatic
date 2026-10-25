@@ -27,10 +27,11 @@ import {
 //
 // BETWEEN THE FLOOR AND THE QUORUM the stage runs on the reachable bench: a gather closes on the reduced voices with
 // a `stage-short-bench` finding, a selection decides on two ballots and names the short bench in a
-// `select-short-bench` finding (`selectionBench`, `candidate-select-minimum.ts`). A return that lifts a bench over its floor changes whether the
-// stages call at all; one that lifts it to its quorum changes the voices they settle on. A BENCH AT EXACTLY ITS QUORUM,
-// above two voices, KEEPS THE SHORT MARK all the same: a gather closes one voice below the quorum there and carries the
-// finding (`reachableQuorum`, `stage-reachable-quorum.ts:112-123`), so only a lift past the quorum drops the mark.
+// `select-short-bench` finding (`selectionBench`, `candidate-select-bench.ts`). A return that lifts a bench over its
+// floor changes whether the stages call at all; one that lifts it to its quorum changes the voices they settle on. A
+// BENCH AT EXACTLY ITS QUORUM, above two voices, KEEPS THE SHORT MARK all the same: a gather closes one voice below the
+// quorum there and carries the finding (`reachableQuorum`, `stage-reachable-quorum.ts:112-123`), so only a lift past the
+// quorum drops the mark.
 // Both lifts change the result, so both are waited for.
 
 /**

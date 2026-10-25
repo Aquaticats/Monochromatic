@@ -35,6 +35,10 @@ The groups that follow name the main ones.
   run off tied finalists,
   ask a panel that declined a slate once more over the same slate,
   and settle a slice no voice cleared the floor for.
+  A declined round ships a candidate only when two or more judges named it,
+  and otherwise the wording in place stays (the owner's answer of 2026-10-25, "Two judges must name it").
+  A round tied across every offered candidate still ships one by a fixed preference
+  (repair lane, then translate lane, then slate order).
   Names:
   `runoffFinalists`,
   `runoffTiedFinalists`,
@@ -60,7 +64,7 @@ The groups that follow name the main ones.
   Declared in `candidate-select.ts`,
   `candidate-select-record.ts`,
   `candidate-select-fanout.ts`,
-  and `candidate-select-minimum.ts`.
+  and `candidate-select-bench.ts`.
 - Tense candidates:
   flag sentences that read as present narration of a life that has ended,
   as candidates for judges to check,

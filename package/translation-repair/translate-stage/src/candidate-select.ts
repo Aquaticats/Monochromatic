@@ -13,7 +13,7 @@ import {
 import {
   selectionBench,
   shortBenchFinding,
-} from './candidate-select-minimum.ts';
+} from './candidate-select-bench.ts';
 import {
   buildCandidateSelectMessages,
   CANDIDATE_SELECT_RESPONSE_FORMAT,
@@ -275,7 +275,7 @@ export async function decideBestCandidate<ValueT,>(
 
   /**
    Seats a wet provider could serve (the owner's decision of 2026-09-09,
-   `candidate-select-minimum.ts`), read for the findings and the log only: the
+   `candidate-select-bench.ts`), read for the findings and the log only: the
    winner needs two ballots whatever the bench.
    */
   const bench = selectionBench({

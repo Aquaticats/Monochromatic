@@ -12,7 +12,7 @@ export {
   type SelectionBench,
   selectionBench,
   shortBenchFinding,
-} from './candidate-select-minimum.ts';
+} from './candidate-select-bench.ts';
 export { selectBestCandidate, } from './candidate-select-record.ts';
 export { decideBestCandidate, } from './candidate-select.ts';
 export {
