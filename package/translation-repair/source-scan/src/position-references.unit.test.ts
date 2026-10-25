@@ -79,7 +79,43 @@ import {
 } from './prose-texts.test-fixture.ts';
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 
-
+/**
+ One sentence for each word that makes "that" after a position a comparison, written out in full here so that a word
+ dropped from the scan's own list fails exactly its case (a loop over the exported list would drop it too).
+ */
+const COMPARISONS_WITH_THAT: readonly {
+  readonly word: string;
+  readonly sentence: string;
+}[] = [
+  {
+    word: 'floor',
+    sentence: '// A roster below that floor declines.',
+  },
+  {
+    word: 'speed',
+    sentence: '// A cap below that speed naps.',
+  },
+  {
+    word: 'size',
+    sentence: '// A nap below that size is short.',
+  },
+  {
+    word: 'opening',
+    sentence: '// A gap above that opening purrs.',
+  },
+  {
+    word: 'calibration',
+    sentence: '// A rate above that calibration holds.',
+  },
+  {
+    word: 'percentile',
+    sentence: '// A nap below that percentile is short.',
+  },
+  {
+    word: 'of',
+    sentence: '// A cat above that of the dog naps.',
+  },
+];
 
 await describe({
   name: 'references by position',
@@ -374,6 +410,34 @@ await describe({
               '// A count above zero, a nap below baseline for a day, a vote below threshold.',
               '// A rate above total resolution, a cap below that speed, and a nap not below that size.',
               '// It ranks above all else and above all others, below each of them, and above all, it naps.',
+            ].join('\n',),
+          },
+        },),).toEqual([],);
+      },
+    },),
+    ...COMPARISONS_WITH_THAT.map(function leavesThatBefore({ word, sentence, },) {
+      return it({
+        name: `LEAVES a position before "that ${word}", which compares (ledger B952)`,
+        fn: async () => {
+          expect(positionReferences({
+            file: {
+              path: 'src/cat.unit.test.ts',
+              text: sentence,
+            },
+          },),).toEqual([],);
+        },
+      },);
+    },),
+    it({
+      name: 'LEAVES a position before a quantifier that a determiner or a pronoun follows, since "all the others" '
+        + 'and "all its peers" name what is compared',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// A tabby ranks above all the others.',
+              '// A tabby ranks below all its peers.',
             ].join('\n',),
           },
         },),).toEqual([],);
