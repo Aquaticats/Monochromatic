@@ -727,7 +727,8 @@ State after the `XingZ6018` and `XingZ6019` reads,
 State after the `XingZ6021` read,
 2026-10-25 (UTC):
 
-- The statement above that `XingZ6020` is running is out of date.
+- The state "State after the `XingZ6018` and `XingZ6019` reads" says `XingZ6020` is running;
+  that is out of date.
   The `XingZ6021` read quotes the lead's figures for `XingZ6020`:
   10 h 33 min over two attempts (a 7 h deadline attempt,
   then 3 h 33 min),
