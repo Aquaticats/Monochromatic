@@ -361,7 +361,10 @@ await describe({
           '2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d8150',
           '',
         ];
-        expect(await Promise.all(tips.map(async function readWith(tip, index,): Promise<unknown> {
+        /**
+         What the census made of the log opened by each of them.
+         */
+        const readings = await Promise.all(tips.map(async function readWith(tip, index,): Promise<unknown> {
           return await capCensusPassRunReading({
             path: await writeLog({
               directory: scratch.path,
@@ -375,7 +378,9 @@ await describe({
               ],
             },),
           },);
-        },),),).toStrictEqual(tips.map(function none(): string {
+        },),);
+
+        expect(readings,).toStrictEqual(tips.map(function none(): string {
           return 'not-a-pass-run';
         },),);
       },
