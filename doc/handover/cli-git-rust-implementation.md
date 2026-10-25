@@ -2249,7 +2249,22 @@ that is verification, not a decision for the user.
   (to bring to the user with evidence, not decide alone): pin mise in `.github/workflows/cargo-publish.yml` via the
   mise-action `version` input with an explanatory comment (the repo allows pins with a comment), or fix the cmake
   lock resolution; manual publish from the host is not available because the crate publishes through Trusted
-  Publishing.
+  Publishing. The rerun (attempt 2 of `40242133604`) failed at the same step, so the CI failure is deterministic
+  (3 failing runs on 2 commits; `gpc-detect` and the other detect jobs pass, `gpc-publish-crate` fails, release and
+  later jobs are skipped).
+  HOST REGRESSION found 2026-10-25 from a paste by the user ("Might be relevant"): `mise self-update` on the host
+  prints `mise ERROR [cmake] plugin update` because mise runs `git -C ~/.local/share/mise/plugins/cmake checkout
+  --force main`, `git` now resolves to the wrapper through the global `~/.local/bin/git` link made for issue 1796,
+  and `linked-worktree-only` rejects it ("git checkout with paths, --force ... is rejected in the main git
+  worktree"); `mise plugins update` exits 1. This is the unmeasured risk recorded earlier (every `git` call by every
+  tool now goes through the wrapper), now observed. Cause in code: the wrapper exempts only repositories under an
+  allowlisted tool cache (`src/native/effective_target.rs`, `classify_effective_target`; the README says so under
+  "Discarding commands"), and that allowlist is uv's cache (`UV_CACHE_DIR`, `XDG_CACHE_HOME/uv`, `~/.cache/uv`);
+  mise's data directory (default `~/.local/share/mise`, plugin clones in `plugins/`) is not on it. The only other
+  control is the per-invocation `--no-enforce-linked-worktree-only` / `--no-enforce-worktree` flag, which tools cannot
+  pass; the `CLI_GIT_*` environment variables found in `src/native` include no bypass. Unmeasured: other tools that
+  run discarding forms in their own clones (Homebrew at `/home/linuxbrew/.linuxbrew` is on the user's login `PATH`;
+  cargo git checkouts; pnpm git dependencies). The two failures are separate: CI has no wrapper installed.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
