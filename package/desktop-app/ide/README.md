@@ -2072,9 +2072,9 @@ The worker keeps its own `TextShaper`,
 and it builds only the newest queued job.
 A `slint::Timer` polls the worker every 20 ms (`src/native/tile.rs`).
 The displayed tile stays on screen until the result arrives,
-so a scroll that stays within the tile's reach never shows a blank frame
-(for the jump that does not,
-see "A jump faster than the tile").
+so a scroll that stays within the tile's reach never shows a blank frame,
+and a scroll that outruns the tile is drawn at the tile's edge until the next tile lands
+(see "A jump faster than the tile").
 A result is swapped in only when it still holds the view and its paint inputs still match,
 and the image,
 its offset,
@@ -2112,51 +2112,136 @@ The toolkit's `Flickable` eases the whole delta in a fixed 180 ms
 and the speed at the start of that ease is twice the mean:
 200 px/ms for 300 notches,
 against a tile that reaches one view height (1,848 px in a window of 1080 by 1880 logical px) past the view.
-Each step of the ease asks the worker for a tile,
-and a tile arrives 60 to 125 ms after the step it was built for,
-when the view has moved on.
-So the code area is black,
+A tile built by the worker for a step of the ease arrives 60 to 125 ms after the step,
+when the view has moved on,
+so until 2026-10-25 the code area was black,
 gutter included,
-from the first frame in which no tile holds the view until the tile of the end of the ease lands,
-and a late tile that holds only part of the view shows only that part.
-This is not new:
-the build of 2026-10-22 and the builds before and after the minimap re-aim,
-the hint skip rule,
-and the slice hand-over fix behave alike
-(measured 2026-10-25,
-478 jumps of 40,
-150,
-300,
-and 600 notches in four builds,
-`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`):
-
-- 40 notches:
-  a blank frame in 2 of 30 jumps in three builds and 0 of 30 in the current one,
-  with a few lines at an edge empty for a frame in about half of the jumps.
-- 150 notches:
-  a blank frame in 29 of 30 jumps in every build.
-- 300 and 600 notches:
-  a blank frame in every jump,
-  100 to 165 ms of blank frames (2 to 3 frames at about 19 fps),
-  and the last tile applied 212 to 266 ms after the command.
-- The same 150 notches as single-notch commands 10 ms apart (5 px/ms):
-  no blank frame in 10 jumps of the current build
-  and one frame in 10 of the 2026-10-22 build.
-
-The first frame that shows text shows the right lines for the new offset,
-without the hint rows of that place,
-which arrive about half a second later and move the text.
+from the first frame in which no tile held the view until the tile of the end of the ease landed
+(measured in every build since 2026-10-22:
+a blank frame in 29 to 30 of 30 jumps of 150 notches and in every jump of 300 and 600 notches,
+100 to 165 ms of it,
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`).
 A placement (a key,
 a minimap press,
 a drag,
 a page step)
-builds its tile before the next frame and is not affected.
-Ranked options that are not built:
-take a wheel delta the tile cannot hold as a placement,
+builds its tile before the next frame and was never affected.
+
+Two changes since 2026-10-25 remove the blank.
+
+- The view is held at the tile's edge.
+  The markup draws the view at `drawn-offset`,
+  which is the toolkit's offset limited to what the displayed tile's raster covers
+  (`hold-top` and `hold-bottom`,
+  which `show` sets with the tile and its origin,
+  and `viewport::reach` computes from the same edges as `holds`).
+  While the displayed tile holds the view the two are equal and nothing differs from before.
+  While the tile for the toolkit's offset has not landed the view is drawn at the nearest offset the displayed tile does hold,
+  so the code area shows real rows of that tile with their right line numbers,
+  and the view moves to the toolkit's offset in the frame the tile lands.
+  Everything that rides with the tile stands in one group of the markup that is moved by the difference:
+  the picture,
+  the gutter,
+  the selection and find rectangles,
+  and the caret.
+  The pointer maps through the same difference (`drawn-y` in `ui/app.slint`),
+  so a press,
+  a hover,
+  a Ctrl+click,
+  and a drag that begins on a held view act on the rows that are drawn.
+  The hold is a presentation only:
+  the offset the window reports,
+  the document position's viewport line,
+  the hint requests,
+  the minimap's box and picture,
+  and the keys all read the toolkit's offset as before.
+  The minimap box therefore runs ahead of the text for the held frames:
+  its picture is built for the bands around the toolkit's offset,
+  so a box that followed the drawn text would stand over a picture of other bands.
+- One tile is asked for at the end of the ease (`src/native/wheel.rs`).
+  The windowing system's wheel event reaches the window's event hook before the toolkit
+  (`frame_trace::bind` carries the hook,
+  which a window has only one of),
+  and the toolkit's `flicked` report says the source view took it.
+  The end of the ease is the offset it started at plus the distance of the turn (60 px a notch),
+  plus what an unfinished ease before it had left,
+  limited to the text:
+  the same sum the toolkit makes.
+  When the displayed tile does not hold that place,
+  the window requests the one tile for it at once
+  (`viewport::request_window`,
+  the arithmetic `place` uses)
+  and asks for no tile at the steps of the ease while they lie on the way to it
+  (`wheel::following`,
+  tested in `place_scrolled`).
+  The tile of the end is accepted when it lands although the view is still far from it
+  (`wheel::holds_end` in `accepts`),
+  so it lands 60 to 125 ms after the first step,
+  while the ease still runs,
+  and the hold draws the view at its near edge until the ease arrives.
+  A turn the displayed tile holds asks for nothing,
+  and a slow scroll,
+  a touchpad pan,
+  a wheel over the tree,
+  and every placement go the way they always went;
+  a placement releases the follow,
+  and rows that arrive during the ease ask for the tile of the same end again under the new map (`wheel::refit`).
+
+Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
+the hardware GPU,
+a 1,500-line TypeScript file with TypeScript 7.1.0-beta as the server,
+recorder at 60 fps requested and a median of 21.2 achieved,
+the 1-minute load average at the start of a jump with a median of 8.9),
+239 jumps of 40,
+150,
+300,
+and 600 notches in three batches of freshly started sessions,
+the build of `main` against the fix,
+alternating inside every repetition:
+
+- Blank code frames,
+  jumps with one or more over the 30 jumps of each size
+  (batches of 10 in brackets for the spread of one binary):
+  `main` 0 of 30 at 40 notches,
+  29 of 30 at 150 (11/10/9 blank frames),
+  29 of 29 at 300 (19/20/19),
+  30 of 30 at 600 (28/28/32);
+  the fix 0 of 30 at every size.
+- Partial frames and frames with a few lines at an edge empty:
+  `main` 20 / 16 / 17 partial frames at 150 / 300 / 600 notches,
+  and 7 / 6 / 14 / 9 jumps with an edge gap at 40 / 150 / 300 / 600;
+  the fix none.
+- Tiles for one jump:
+  `main` applied 1.0 / 2.7 / 3.5 / 3.9 on average at 40 / 150 / 300 / 600 notches,
+  the fix exactly 1.0 and discarded none.
+  The window thread builds the same tile about half a second after the jump,
+  when the hints of the new place arrive,
+  as before (0.07 to 0.2 of a jump on average in both builds).
+- Time from the first changed frame to the frame that shows the final lines
+  (median over the 30 jumps):
+  184 to 189 ms in both builds.
+- Held frames of the fix (the frames the app drew with the drawn offset away from the toolkit's):
+  none at 40 notches,
+  1.0 per jump at 150 (all at the near edge of the tile of the end),
+  1.7 at 300 (0.1 at the edge of the displayed tile),
+  and 2.6 at 600 (0.8 at the edge of the displayed tile),
+  with a median largest distance of 2,335 px,
+  6,549 px,
+  and 16,620 px between the toolkit's offset and the drawn one.
+  The frames at the near edge of the tile of the end come from the tile that lands during the ease:
+  the view jumps from the old tile's far edge to the new tile's near edge once,
+  and the ease arrives in it.
+
+The first frame that shows text shows the right lines for the new offset,
+without the hint rows of that place,
+which arrive about half a second later and move the text.
+Options that were rejected before this:
+take a wheel delta the tile cannot hold as a placement (the sweep would not be eased),
 a small window-thread tile in the frame that misses the view,
-a tile for the end of the ease queued at the first step,
+a tile for the end of the ease predicted from its first two steps,
 a taller overscan,
-and keeping the old tile (which is out of view for a far jump and so changes nothing).
+and keeping the old tile drawn where the map puts it (it is out of view for a far jump).
+The hold above is the last of these done as the picture's presentation rather than its position.
 
 ### Soft wrap
 
@@ -3469,6 +3554,12 @@ and `render/MainMinimap.kt`.
   key does,
   because a tile built by the worker for a place the drag has already left would arrive out of date and leave
   the text blank while the pointer moves over a long file.
+  The hold at the tile's edge (see "A jump faster than the tile") covers drags as well:
+  the minimap drag and the scroll bar drag move the view by placements,
+  so the displayed tile holds the view in every frame and the drawn offset equals the offset,
+  the box follows the pointer one to one,
+  and if a drag's tile ever came from the worker the view would be drawn at the tile's edge
+  and the pointer would map through the drawn rows (`drawn-y`).
 - The minimap is a slider for assistive tools,
   labelled "Source minimap",
   with the offset as its value,

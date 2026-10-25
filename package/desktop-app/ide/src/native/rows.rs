@@ -11,7 +11,14 @@
 /// The source state,
 ///  the stamp of the displayed text,
 ///  and the tile and view the map decides.
-use super::{State, annotate::displayed, minimap::aim_again, tile::requested, viewport::place};
+use super::{
+    State,
+    annotate::displayed,
+    minimap::aim_again,
+    tile::requested,
+    viewport::{note_view, place},
+    wheel,
+};
 /// The rank that orders severities.
 use ide_app::annotation::rank;
 /// Measured visual rows of every line.
@@ -377,7 +384,12 @@ pub(super) fn settle(
     // A re-center that waits for the worker and is still needed under new bounds (a measurement moved the rows,
     // or the width changed again) stays a worker re-center, never a build on the window thread.
     let waiting = current.scroll_wanted.is_some();
-    if place(current, kept, width, height) && waiting && current.shown.width > 0.0 {
+    if wheel::following(current, kept) {
+        // The toolkit's scroll is still easing to the end the window asked a tile for: the new rows move that end,
+        // so the same end is asked for again under the new map, and the ease stays followed.
+        note_view(current, kept, width);
+        wheel::refit(current, width, height);
+    } else if place(current, kept, width, height) && waiting && current.shown.width > 0.0 {
         current.scroll_wanted = Some(requested(current));
     }
     tracing::debug!(
