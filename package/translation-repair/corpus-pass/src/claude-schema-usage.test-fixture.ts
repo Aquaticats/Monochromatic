@@ -56,6 +56,12 @@ const PRODUCER_LIST_FILE = 'corpus-pass/src/claude-schema-producers.ts';
 const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
 
 /**
+ The key of a function: the path of the file that declares it, a hash mark and its name. A bare name is no key, and the
+ type tells the two apart, so a place that must hold a key cannot be given a name that no module declares.
+ */
+export type FunctionKey = `${string}#${string}`;
+
+/**
  Where a function sits, as one text.
 
  @param file - path of the file that declares the function
@@ -75,7 +81,7 @@ export function keyOf({
 }: {
   readonly file: string;
   readonly name: string
-},): string {
+},): FunctionKey {
   return `${file}#${name}`;
 }
 

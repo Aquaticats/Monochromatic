@@ -1,5 +1,8 @@
 import type { BlindSpot, } from './claude-schema-blind-spots.test-fixture.ts';
-import { keyOf, } from './claude-schema-usage.test-fixture.ts';
+import {
+  type FunctionKey,
+  keyOf,
+} from './claude-schema-usage.test-fixture.ts';
 
 //region Places in the family's source that the check reports and the test names
 // The check behind the schema search reports every place it does not understand, and a place it reports is answered
@@ -34,9 +37,10 @@ export type NamedPlace = {
 
   /**
    The function a report of the place holds, where the shape holds one: the key of the forwarder the place hands over,
-   the module that declares it and its name.
+   the module that declares it and its name. The type of a key refuses a bare name, which stands for a function no
+   module declares and which no name stands for.
    */
-  readonly held?: string;
+  readonly held?: FunctionKey;
 
   /**
    Why the place is not a way for a schema to reach a send unlisted.
