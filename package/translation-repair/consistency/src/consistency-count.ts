@@ -1,4 +1,5 @@
 import { markPastRunOf, } from './consistency-closing-marks.ts';
+import { decidingQuorumOf, } from './consistency-deciding-quorum.ts';
 import {
   locateWords,
   type SpanSearch,
@@ -50,7 +51,8 @@ import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typogra
 // it, the unit being kept or cut as the character it shows would be). A ballot whose quote stands nowhere or twice is one of the
 // usable ballots that did not agree. Otherwise the place is unlocated and stays
 // as it stands. THE CHOICE WINS ON A STRICT MAJORITY and only with the quorum
-// the gather closed on, and only if its own span is located; with no strict
+// the gather closed on, never fewer than two usable ballots (`decidingQuorumOf`: one judge alone never decides,
+// the lead's ruling of 2026-10-25), and only if its own span is located; with no strict
 // majority, the labels with the highest count (and, when one label leads alone, the labels
 // next behind it) are named as the finalists of a run-off, which the pass asks
 // once (`finalists`). A PLACE IS KEPT when a strict majority list it.
@@ -381,7 +383,8 @@ function locatedRendering(
 
  @param framed - whether the group is a frame with a slot
 
- @param quorum - voices the gather closed on, which the usable ballots must reach
+ @param quorum - voices the gather closed on, which the usable ballots must reach and never fewer than two (a quorum of
+ one, on a seated bench of one or two seats, is raised to two)
 
  @returns What the usable ballots come to
 
@@ -471,7 +474,7 @@ export function countConsistency(
       labels,
       renderings,
     },),
-    finalists: ((usableVoices.length === 0) || (usableVoices.length < quorum))
+    finalists: ((usableVoices.length === 0) || (usableVoices.length < decidingQuorumOf({ quorum, },)))
       ? []
       : runOffFinalistsOf({
         voices: usableVoices,
@@ -485,7 +488,7 @@ export function countConsistency(
 
  @param usable - usable ballots
 
- @param quorum - voices the gather closed on
+ @param quorum - voices the gather closed on, raised to two where it is one
 
  @param chosen - label a strict majority chose, as a list of zero or one
 
@@ -518,7 +521,8 @@ export function winnerOf(
     readonly renderings: readonly ConsistencyRendering[];
   },
 ): ConsistencyWinner {
-  if ((usable === 0) || (usable < quorum)) {
+  // A quorum of one (a seated bench of one or two seats) is raised to two: one judge alone never decides.
+  if ((usable === 0) || (usable < decidingQuorumOf({ quorum, },))) {
     return {
       kind: 'none',
       reason: 'no-quorum',

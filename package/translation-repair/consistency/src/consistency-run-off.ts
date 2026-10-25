@@ -303,7 +303,7 @@ export function buildConsistencyRunOffMessages(
 
  @param finalists - labels of the finalists, the only places a choice may name
 
- @param quorum - voices the run-off's gather closed on
+ @param quorum - voices the run-off's gather closed on, raised to two where it is one
 
  @param labels - labels of the places, in order
 
