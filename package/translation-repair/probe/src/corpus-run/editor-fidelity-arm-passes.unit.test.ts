@@ -514,7 +514,7 @@ await describe({
 
     it({
       name: 'REFUSES THE BILLED LOGS AS THE BUILT COMMAND: the first arm\'s 62 rows that reuse answered make the row check '
-        + 'fail, so the command exits with a failure and prints that line and the 88 units that made a call',
+        + 'fail, so the command exits with a failure and prints that line, and the replays are no repeat reading',
       fn: async () => {
         const [, medium, low,] = benchOf({ count: 150, planned: 150, firstPlanned: 264, },);
         const run = await readAsBuilt({ arms: [reusedHighArm(), nonNullishOrThrow(medium,), nonNullishOrThrow(low,),], },);
@@ -522,8 +522,9 @@ await describe({
           'FAIL high: row count: 62 of 150 rows were answered by prompt reuse and made no call, so none of them is a trial',
         );
         expect(run.code,).not.toBe(0,);
-        expect(run.stdout.some(function isShared(line,): boolean {
-          return line.startsWith('SHARED 88 units over 44 entries (',);
+        // The figures are printed only for logs whose checks passed; the repeat reading is printed with the checks.
+        expect(run.stdout.some(function readsNoRepeat(line,): boolean {
+          return line.startsWith('REPEAT high',) && line.includes('no trial was asked in more than one pass',);
         },),).toBe(true,);
       },
     },),

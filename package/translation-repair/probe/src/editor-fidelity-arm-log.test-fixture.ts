@@ -35,6 +35,11 @@ export {
 const LOG_PREFIX ='[info] [2026-10-23T12:00:00.000Z] [editor-fidelity-probe] ';
 
 /**
+ The digest the invented PROMPT-REUSE lines name: sixty-four hexadecimal characters, as a prompt digest is.
+ */
+const REUSED_DIGEST = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+/**
  How many trials of one kind a card fixed cleanly, and how many replies removed the defect and changed more.
  */
 type KindFixed = {
@@ -398,7 +403,7 @@ export function armLogOf(
         return [
           // The line is written by hand, as the SPEND line is: its writer is the stage's logger, which a case must not call.
           ...((row.reused === true)
-            ? [`PROMPT-REUSE source=memory model=${tally.cardId} digest=${'ab'.repeat(32,)}`,]
+            ? [`PROMPT-REUSE source=memory model=${tally.cardId} digest=${REUSED_DIGEST}`,]
             : []),
           rowLineFor({
             cardId: tally.cardId,
