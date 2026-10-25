@@ -532,7 +532,7 @@ launched through the root `mise.toml` key path
 (`mise exec`) with every provider key but the Claude key unset,
 from a frozen copy of the built probe so that a later build cannot change what an arm ran.
 Run from the repository root of the checkout that holds the sealed key file.
-Every block below sets the variables it reads,
+Every block of this section sets the variables it reads,
 so each runs in a fresh shell,
 and every block that reads the logs begins with the two lines that name the bench directory,
 `SHA` and `BENCH`,
@@ -790,7 +790,7 @@ and `low` with the low card and `--max-usd 15`,
 each with `--passes 3 --trials n`
 (or `--trials 88` where the high arm repeats itself on every trial),
 so that each walks the same first n units in the same order.
-The launch block above does it:
+The launch block of the section "The high arm and n" does it:
 write `medium` on its first line and run it,
 then write `low` and run it after the medium arm has ended.
 

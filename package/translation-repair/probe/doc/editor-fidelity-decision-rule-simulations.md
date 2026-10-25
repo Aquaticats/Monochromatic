@@ -1,8 +1,10 @@
 # Editor fidelity bench: simulations behind the decision rule
 
-The decision rule of the editor fidelity bench (`decideEffort` in `src/corpus-run/editor-fidelity-decide.ts`,
-quoted in the [probe README](../README.md)) states its bounds on the chance of choosing another effort when none is
-better, and the read step warns where those bounds do not hold.
+The decision rule of the editor fidelity bench
+(`decideEffort` in `src/corpus-run/editor-fidelity-decide.ts`,
+quoted in the [probe README](../README.md))
+states its bounds on the chance of choosing another effort when none is better,
+and the read step warns where those bounds do not hold.
 This file keeps the simulations those statements rest on:
 the false pick bounds and the readings above a true fix rate of 0.9,
 the exact test of the repeat warning with its measured false alarm and detection rates,
@@ -94,8 +96,10 @@ Round 10 measured the rates by simulation of the committed fixture
 (one run,
 seed prefix `edr10-sim`,
 4000 replicates a cell,
-a leading 100, 176 or 264 units of three passes over the pool of 88 trials,
-which hold 12, 88 and 88 trials asked again):
+a leading 100,
+176 or 264 units of three passes over the pool of 88 trials,
+which hold 12,
+88 and 88 trials asked again):
 
 - Three alike arms,
   at fix rates 0.5,
