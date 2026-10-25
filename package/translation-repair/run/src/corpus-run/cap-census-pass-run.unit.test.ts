@@ -77,6 +77,11 @@ const BUILD_LINES = Array.from(
 );
 
 /**
+ Bytes of one line the census reads before it gives up on a log as no pass run.
+ */
+const LINE_BYTES = 65_536;
+
+/**
  The two lines of one completed call, five content characters delivered.
  */
 const CALL_LINES = [
@@ -383,6 +388,60 @@ await describe({
         expect(readings,).toStrictEqual(tips.map(function none(): string {
           return 'not-a-pass-run';
         },),);
+      },
+    },),
+    it({
+      name: 'READS A LOG WHOSE START LINE HOLDS EXACTLY THE BYTES A LINE MAY, and says a log whose START line holds '
+        + 'one more is no pass run, since the census reads at most that many bytes of a line (ledger B963)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        /**
+         A START line padded to the given number of bytes.
+
+         @param bytes - the bytes the line holds
+
+         @returns The line
+         */
+        function startLineOf({ bytes, }: { readonly bytes: number; },): string {
+          return `${REAL_START} ${'x'.repeat(bytes - Buffer.byteLength(REAL_START,) - 1,)}`;
+        }
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            name: 'at-the-bound.log',
+            lines: [
+              startLineOf({ bytes: LINE_BYTES, },),
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toEqual(CALL_READING,);
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            name: 'past-the-bound.log',
+            lines: [
+              startLineOf({ bytes: LINE_BYTES + 1, },),
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toBe('not-a-pass-run',);
+      },
+    },),
+    it({
+      name: 'SAYS A LOG OF ONE 13-MEGABYTE LINE IS NO PASS RUN even where the line opens with a START line, since the '
+        + 'census reads at most a stated number of bytes of a line and does not buffer a log that has no line break '
+        + '(ledger B963)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [`${REAL_START} ${'x'.repeat(13_000_000,)}`,],
+          },),
+        },),).toBe('not-a-pass-run',);
       },
     },),
     it({
