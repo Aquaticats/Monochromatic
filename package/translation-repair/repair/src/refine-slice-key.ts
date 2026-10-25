@@ -403,8 +403,20 @@ import type {
  searched for a record written by code that holds it, so records may stand at 17 and the change cannot ride inside
  it; the number moves. The repair slice version moves with it (48). No record has been written at 18, which this
  change sets first.
+
+ Version 19 covers the owner's answer of 2026-10-25, "Two ballots for undo too", that the two-ballot rule also covers
+ the rollback of a refinement (ledger L11) and the strip of a patch's unconfirmed edits (L3): an open issue now rolls the
+ slice back only where it regresses, two or more checker ballots naming `worse` with the `worse` weight above the rest
+ (`repair/src/refine-recheck.ts`, which reads the tally's `regressed`), where the recheck rolled back on one `worse`
+ ballot. For the same texts a recheck round holding one `worse` ballot on an open issue now ships the rewrite under
+ `refine-recheck-passed`, where a stored refinement holds the text before it under `refine-rolled-back`. The key
+ hashes the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written
+ before would be served after. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 18 and the change cannot ride inside
+ it; the number moves. The repair slice version moves with it (49), which holds the strip. No record has been written
+ at 19, which this change sets first.
  */
-export const REFINE_CACHE_VERSION = 18;
+export const REFINE_CACHE_VERSION = 19;
 
 /**
  Everything about this run that changes what the voices are ASKED.

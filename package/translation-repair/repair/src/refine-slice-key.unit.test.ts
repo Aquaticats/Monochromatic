@@ -91,14 +91,15 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'IS AT VERSION 18: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
-            + 'refinement may hold a rewrite the same texts now ship where they were declined, and a stored recheck '
-            + 'reading holds a regressed flag that now needs two worse ballots (re-check 3, M1); the key hashes the '
+          name: 'IS AT VERSION 19: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
+            + 'refinement may hold a rewrite the same texts now ship where they were declined, a stored recheck '
+            + 'reading holds a regressed flag that now needs two worse ballots (re-check 3, M1), and a rewrite is '
+            + 'rolled back only on that same regression ("Two ballots for undo too"); the key hashes the '
             + 'version, the shape of the run and the texts, not the rule that reads the ballots, so only this number '
             + 'retires a record written under the floors before (16 was the reader taking a capitalization-only '
             + 'difference as the listed value)',
           fn: async () => {
-            expect(REFINE_CACHE_VERSION,).toBe(18,);
+            expect(REFINE_CACHE_VERSION,).toBe(19,);
           },
         },),
         it({
@@ -132,9 +133,11 @@ await describe({
             + 'such a voice; and from 16 to 17 with the removal of every weight floor (owner, 2026-10-25): a stored '
             + 'refinement was declined against a summed weight a pair of ballots could not reach; and from 17 to 18 with '
             + 'the regressed flag that needs two worse ballots (re-check 3, M1): a stored recheck reading held the flag '
-            + 'on a single worse ballot)',
+            + 'on a single worse ballot; and from 18 to 19 with the rollback that needs the same two worse ballots '
+            + '(owner, 2026-10-25, "Two ballots for undo too"): a stored refinement was rolled back on a single worse '
+            + 'ballot)',
           fn: async () => {
-            expect(refineSliceKey(BASE,),).toBe('4667fc4114e8d94d862f7b4ac11152ec31c7f5a437d9f304121eefc6e1ca966e',);
+            expect(refineSliceKey(BASE,),).toBe('daf30b1435e0f4bee519cd7aea7b912632e73fe7393c89b744e6cd616367f12c',);
           },
         },),
 
