@@ -16,6 +16,7 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
+  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
@@ -33,6 +34,7 @@ import {
   type RunClient,
 } from '@monochromatic-dev/translation-repair-run';
 import type { DocumentLanesResult, } from '@monochromatic-dev/translation-repair-translate-lane';
+import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography';
 import type {
   BudgetView,
   ChatJsonOutcome,
@@ -54,6 +56,10 @@ import {
   runPassPreparation,
 } from '../../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import {
+  entryLinesWritten,
+  linesWithoutAttempt,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 import { insertionRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts/sole-lane-comparison-row.test-fixture.ts';
 
 import { NO_OUTSIDE_READS, } from './pass-outside-reads.test-fixture.ts';
@@ -865,6 +871,53 @@ async function picturesAsked(
   };
 }
 
+/**
+ Entry the logger cases run under, which every seam helper names as its entry.
+ */
+const ATTEMPT_ENTRY = 'CatEntry';
+
+/**
+ Attempt the logger cases run inside.
+ */
+const LOGGED_ATTEMPT = 2;
+
+/**
+ Runs work inside an attempt of the entry and collects the lines the entry's loggers wrote.
+
+ @param sinon - calling case's own sandbox (`ctx.sinon`)
+
+ @param run - the work, a seam run
+
+ @returns Lines the seam wrote that name the entry, from `console.info` and `console.warn`
+
+ @example
+ ```ts
+ const lines = await entryLinesInAttempt({ sinon: ctx.sinon, run: async () => { await lanesAsked({ later: ALL_WET, },); }, },);
+ ```
+ */
+async function entryLinesInAttempt(
+  {
+    sinon,
+    run,
+  }: {
+    readonly sinon: DisposableSandbox;
+    readonly run: () => Promise<void>;
+  },
+): Promise<readonly string[]> {
+  return await entryLinesWritten({
+    sinon,
+    entryId: ATTEMPT_ENTRY,
+    run: async () => {
+      await inEntryLogContext({
+        entry: ATTEMPT_ENTRY,
+        generation: DIGEST,
+        attempt: LOGGED_ATTEMPT,
+        run,
+      },);
+    },
+  },);
+}
+
 await describe({
   name: '',
   concurrency: 1,
@@ -1262,6 +1315,78 @@ await describe({
               askedAny: true,
               offReaders: [],
             },);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'pass seams name the attempt on the lines of the entry logger they build (ledger B963)',
+      // SEQUENTIAL: each case diverts the global `console.info` and `console.warn`, where the tagged logger's sinks
+      // resolve, and concurrent cases would capture each other's lines.
+      concurrency: 1,
+      children: [
+        it({
+          name: 'THE PREPARATION SEAM NAMES THE ATTEMPT on every line of its entry logger, the JUDGE SEATS reading '
+            + 'among them',
+          fn: async ctx => {
+            /**
+             Lines of the entry logger the seam wrote inside the attempt.
+             */
+            const lines = await entryLinesInAttempt({
+              sinon: ctx.sinon,
+              run: async () => {
+                await preparationAsked({ later: ALL_WET, },);
+              },
+            },);
+            expect(lines.some(function readsSeats(line,): boolean {
+              return line.includes('JUDGE SEATS phase=preparation',);
+            },),).toBe(true,);
+            expect(linesWithoutAttempt({
+              lines,
+              attempt: LOGGED_ATTEMPT,
+            },),).toStrictEqual([],);
+          },
+        },),
+        it({
+          name: 'THE INSERTION SEAM NAMES THE ATTEMPT on every line of its entry logger',
+          fn: async ctx => {
+            /**
+             Lines of the entry logger the seam wrote inside the attempt.
+             */
+            const lines = await entryLinesInAttempt({
+              sinon: ctx.sinon,
+              run: async () => {
+                await admissionAsked({ later: ALL_WET, },);
+              },
+            },);
+            expect(lines.length,).toBeGreaterThan(0,);
+            expect(linesWithoutAttempt({
+              lines,
+              attempt: LOGGED_ATTEMPT,
+            },),).toStrictEqual([],);
+          },
+        },),
+        it({
+          name: 'THE LANES SEAM NAMES THE ATTEMPT on every line of its entry logger and of the logger its seat reading '
+            + 'builds, the JUDGE SEATS reading among them',
+          fn: async ctx => {
+            /**
+             Lines of the entry logger the seam wrote inside the attempt.
+             */
+            const lines = await entryLinesInAttempt({
+              sinon: ctx.sinon,
+              run: async () => {
+                await lanesAsked({ later: ALL_WET, },);
+              },
+            },);
+            expect(lines.some(function readsSeats(line,): boolean {
+              return line.includes('JUDGE SEATS phase=lanes',);
+            },),).toBe(true,);
+            expect(linesWithoutAttempt({
+              lines,
+              attempt: LOGGED_ATTEMPT,
+            },),).toStrictEqual([],);
           },
         },),
       ],

@@ -43,6 +43,7 @@ import {
   messageText,
 } from '@monochromatic-dev/translation-repair-provider';
 import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check';
+import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography';
 import { settleEntry, } from '../../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -54,6 +55,10 @@ import {
   WALL_START_MS,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/wall-clock-stub.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import {
+  entryLinesWritten,
+  linesWithoutAttempt,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 
 import { NO_OUTSIDE_READS, } from './pass-outside-reads.test-fixture.ts';
 import { NO_PICTURE_SOURCES, } from './pass-picture-sources.test-fixture.ts';
@@ -2582,6 +2587,59 @@ await describe({
         expect(served,).toContain('translation_report',);
         expect(served,).toContain('candidate_ballot',);
         expect(served,).toContain('lane_contest',);
+      },
+    },),
+    it({
+      name: 'NAMES THE ATTEMPT on every line the entry\'s loggers write while it settles inside an attempt (ledger '
+        + 'B963): preparation, lanes, contest, consolidation and the page each log through a logger built for the '
+        + 'entry, and a line without the bracket cannot be placed by attempt',
+      fn: async ctx => {
+        await using dirs = await throwawayDirs();
+        /**
+         Model schemas reached across complete entry boundary.
+         */
+        const served: string[] = [];
+        /**
+         Lines the entry's loggers wrote while it settled inside its attempt, each tagged with the entry.
+         */
+        const entryLines = await entryLinesWritten({
+          sinon: ctx.sinon,
+          entryId: FRONT_MATTER_ENTRY.id,
+          run: async () => {
+            await inEntryLogContext({
+              entry: FRONT_MATTER_ENTRY.id,
+              generation: DIGEST,
+              attempt: ATTEMPT,
+              run: async () => {
+                await settleEntry({
+                  attempt: ATTEMPT,
+                  wallClock: fixedWallClock,
+                  client: entryClient({ served, },),
+                  entry: FRONT_MATTER_ENTRY,
+                  artifactsDir: dirs.artifactsDir,
+                  publishDir: dirs.publishDir,
+                  declinedDir: dirs.declinedDir,
+                  sliceCacheDir: dirs.sliceCacheDir,
+                  tip: 'a'.repeat(40,),
+                  pipelineDigest: DIGEST,
+                  pin: ENTRY_PIN,
+                  outsideReads: NO_OUTSIDE_READS,
+                  pictureSources: NO_PICTURE_SOURCES,
+                  hardCapMs: HANG_STOP_MS,
+                  baseSignal: new AbortController().signal,
+                  overlap: PASS_FALLBACK_OVERLAP,
+                  stageSettings: SCRIPTED_STAGE_SETTINGS,
+                },);
+              },
+            },);
+          },
+        },);
+
+        expect(entryLines.length,).toBeGreaterThan(0,);
+        expect(linesWithoutAttempt({
+          lines: entryLines,
+          attempt: ATTEMPT,
+        },),).toStrictEqual([],);
       },
     },),
     it({

@@ -22,6 +22,10 @@ The groups that follow name the main ones.
   throwaway directories removed when their scope ends.
   `capturing-logger.test-fixture.ts` gives `capturingLogger`,
   a logger that keeps every line.
+  `entry-log-lines.test-fixture.ts` gives `entryLinesWritten`,
+  which collects the lines the default logger writes for one entry while work runs,
+  and `linesWithoutAttempt`,
+  which picks out those that do not name the attempt.
   `hang-stop.test-fixture.ts` gives `HANG_STOP_MS`,
   the one real-clock bound a test may set over scripted work.
   `wall-clock-stub.test-fixture.ts` gives `stubWallClock`.
