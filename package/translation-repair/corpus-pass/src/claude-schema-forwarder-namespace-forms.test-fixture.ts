@@ -53,6 +53,31 @@ function moduleSpotAt(
 }
 
 /**
+ A case with one more module in the directory of the stage file, which declares no forwarder and no builder.
+
+ @param shapeCase - case whose stage file declares a forwarder
+
+ @returns Case with the module added to its files
+
+ @example
+ ```ts
+ const withPlain = withPlainModule(userCase({ name: 'x', lines: [], spots: [], isListed: false, },),);
+ ```
+ */
+function withPlainModule(shapeCase: ShapeCase,): ShapeCase {
+  return {
+    ...shapeCase,
+    files: [
+      ...shapeCase.files,
+      {
+        file: 'imaginary/src/pos-plain.ts',
+        text: textOf(['export const plain = 1;',],),
+      },
+    ],
+  };
+}
+
+/**
  Cases of a forwarder reached through a namespace.
  */
 export const FORWARDER_NAMESPACE_CASES: readonly ShapeCase[] = [
@@ -158,25 +183,16 @@ export const FORWARDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     spots: [],
     isListed: true,
   },),
-  {
-    name: 'ACCEPTS THE NAMESPACE OF A MODULE THAT DECLARES NO FORWARDER AND NO BUILDER, handed on whole',
-    files: [
-      {
-        file: 'imaginary/src/pos-plain.ts',
-        text: textOf(['export const plain = 1;',],),
-      },
-      {
-        file: USER,
-        text: textOf([
-          'import * as ns from \'./pos-plain.ts\';',
-          'export const held = [ns,];',
-        ],),
-      },
+  withPlainModule(userCase({
+    name: 'ACCEPTS THE NAMESPACE OF A MODULE THAT DECLARES NO FORWARDER AND NO BUILDER, handed on whole, while another '
+      + 'module of the same directory declares a forwarder',
+    lines: [
+      'import * as ns from \'./pos-plain.ts\';',
+      'export const held = [ns,];',
     ],
-    found: [],
-    builders: [],
     spots: [],
-  },
+    isListed: false,
+  },),),
 ];
 
 //endregion A forwarder reached through the namespace of a module that declares forwarders and no builder
