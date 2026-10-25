@@ -63,7 +63,7 @@ and the failing lines of every red commit were kept as files apart from the comm
   the fix.
 - `bed83bb5c3c8cd0ff8e7329f4b80e15b72a93040`:
   the sampled check,
-  the full task and the invariant for the last step.
+  the full task and the invariant for step 3 of the composition.
 
 ### A lone carriage return
 
@@ -116,20 +116,23 @@ tilde fences at the first column,
 a footnote in a list item and in a block quote,
 and a definition line after a footnote that is a tag alone.
 The footnote product is 32256 texts.
-The rate is one pair in four:
-a class of nine pairs among 40000 is missed with chance 0.75 to the power 9,
+The rate is one pair in four of the first seed:
+a class of nine pairs among its 40000 draws is missed with chance 0.75 to the power 9,
 so it is caught with chance 0.925,
 where one in six catches it with chance 0.81.
-The sampled case takes 40.2 s and 51.4 s in the two measurements made.
+The sampled case took 40.2 s and 51.4 s in the two measurements made, for that one seed.
 A task,
 `test:live-full` of `translation-repair-page-check`,
 runs `source-live-full.expensive.unit.test.ts`,
 all 40000 pairs of each of the seeds 31415926 and 27182818 and all 32256 texts,
-and takes 293 s to 318 s in two measurements under a cap of three threads
+and took 293 s to 318 s in two measurements under a cap of three threads
 (one seed alone,
 143 s and about 360 MB).
+The second fix round of this record corrects both figures:
+the sampled case now reads both seeds,
+and the full task is timed across the runs made so far (see the section on that round).
 
-The invariant for the last step read the nesting of the pair texts with a function that splits lines on the line feed
+The invariant for step 3 of the composition read the nesting of the pair texts with a function that splits lines on the line feed
 and gave false alarms.
 It now reads what the grammar refused of each page the composition tried,
 and a page that ships without the original of a run is reported unless one refusal says the page nests too deeply.
@@ -147,7 +150,7 @@ in turn:
   `isFootnoteLabel` and `hasFootnoteLabel` now say it once.
 - A code span across a footnote definition line in a block quote or a list item,
   one pair of the seed 31415926.
-- The ten pairs of the two seeds that the fix of the last one made live,
+- The ten pairs of the two seeds that the fix of the code span across a footnote line made live,
   by cutting a paragraph of a container at a footnote of the container itself;
   the cut now takes only a definition that starts a line.
   The sampled case of that round did not keep any of the ten.
@@ -159,7 +162,7 @@ caller's by looking for the function name in the call stack.
 V8 writes a frame called with an object as its receiver as `Object.parseMdxBody`,
 so a call through an object property,
 the module namespace or `Function.prototype.call` with an object hid the name and the grammar's own read raised.
-`parseMdxBody` and `parseMarkdownBody` now call a hook last
+`parseMdxBody` and `parseMarkdownBody` now call a hook once they have made their own reads of the tree
 (`document-structure/src/parse-end-hook.ts`),
 which stands on the `Symbol` function under a registry symbol
 and does nothing where no test sets it;
@@ -221,7 +224,7 @@ with the sampled case and the unmutated tree as the control (it passes):
 121 for artifact),
 `lint:types` and `lint:oxlint` of the packages touched,
 and `test:unit` (68) and `source-scans` (53) of `translation-repair-source-scan`,
-run in turn and on the code of the last fix.
+run one at a time on the code of `1c7918806f6f2ae46586bceb622c2f61802591e5`, the commit that ended the round.
 No cache version moved:
 `git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' bcff23b8ce..HEAD` names no commit,
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
