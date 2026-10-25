@@ -22,7 +22,7 @@
  const clause: DeclineClause = { meaning: 'a decline names no candidate', inOrder: [['own decline',], ['no candidate',],], };
  ```
  */
-export type DeclineClause = {
+type DeclineClause = {
   /**
    What the clause tells a judge, as it is named in a failure.
    */
@@ -49,7 +49,7 @@ export type DeclineClause = {
  const unmet = unmetDeclineClauses(sheetText,);
  ```
  */
-export const DECLINE_CLAUSES: readonly DeclineClause[] = [
+const DECLINE_CLAUSES: readonly DeclineClause[] = [
   {
     meaning: 'declining does not by itself keep the wording in place',
     inOrder: [

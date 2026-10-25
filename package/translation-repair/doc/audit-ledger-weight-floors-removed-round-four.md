@@ -32,21 +32,27 @@ Main changed no cache version and none of the files this branch changed apart fr
 
 The nits:
 - N1 and N7 are in B918.
-- N2: the heading of B901 lost a clause so that it fits in 120 characters,
-  and the B906 line that was too long went with the rewrite of its bullet.
-- N3: the blank line between the `ResolvedVoice` type and the TSDoc of `settlePageTitles` is restored.
-- N4: nothing changed.
+- N2:
+  the heading of B901 lost a clause so that it fits in 120 characters,
+  and the B906 line that was too long was wrapped.
+- N3:
+  the blank line between the `ResolvedVoice` type and the TSDoc of `settlePageTitles` is restored.
+- N4:
+  nothing changed.
   The count test of the page title lexicon already imported `../dist/final/node/index.mjs` at the head of round 3,
   as its siblings do.
-- N5: the commit-message slips are listed in the hand-back and nothing is posted.
-- N6: nothing.
+- N5:
+  the commit-message slips are listed in the hand-back and nothing is posted.
+- N6:
+  nothing.
 
 The cache versions that moved in this round,
 each in its own commit with its reason in the key's TSDoc:
 repair slice 48 and refine 18 (B917),
 translate slice 32 and consolidate 39 (B918),
 page title 9 (B919).
-Lane contest 18, pairing 3 and consistency 9 stay:
+Lane contest 18,
+pairing 3 and consistency 9 stay:
 none of the three stores a checker reading or reads the sheet sentence or the page title storage rule.
 
 ## B917: a regressed issue needs two ballots naming worse (round 4)
@@ -99,6 +105,10 @@ The tests:
   `self-certification-weight.unit.test.ts`,
   the three checkers of `repair-edit-stages.unit.test.ts`),
   and none flipped.
+  One case that asserted the flag on a single ballot did:
+  the stored recheck reading of one `worse` ballot in `refine-recheck.unit.test.ts`,
+  which expected `regressed: true` and now expects `false`.
+  It is the reading the refine cache version retires.
 
 The consumers of the flag,
 found by searching the translation-repair packages for `regressed`:
@@ -212,8 +222,14 @@ by a fixed order,
 the repair lane's text first,
 then the translate lane's,
 then the first on the slate)
-as patterns that any wording of the meaning satisfies,
-and a control case shows the reader names the clauses a shortened sentence lacks.
+as ordered slots of alternative phrasings,
+each read inside one part of the text between semicolons,
+so a rewording that keeps the meaning passes and a lost clause fails
+(regex literals are refused by the lint rules of the repository,
+so the reader uses string search).
+A control case shows the reader names the clauses a shortened sentence lacks.
+The test of the consolidation that copied two substrings of the old sentence
+(`consolidate/src/slate-decline-two-judges-name-it.unit.test.ts`) reads the sheets the same way.
 
 N7:
 `repair/src/rendered-sheets-slates.unit.test.ts` renders the translate slate over withheld wording through the fixtures
@@ -271,13 +287,20 @@ so the next run asks again on whatever bench it has.
 The lines returned for the run still carry the titles that did settle.
 
 The tests in `pass-page-titles.unit.test.ts`:
-- two seats of two answer one against one: nothing is stored,
-  and a next run on the same bench asks again;
-- two seats of seven answer one against one (the 2-of-7 split of the ruling): nothing is stored,
-  and a next run on the same bench asks again;
-- two titles asked, one settled and one split: nothing is stored,
+- two seats of two answer one against one:
+  nothing is stored,
+  and a run on the same bench asks again;
+- two seats of seven answer one against one (the 2-of-7 split of the ruling):
+  nothing is stored,
+  and a run on the same bench asks again;
+- two titles asked,
+  one settled and one split:
+  nothing is stored,
   and the settled title is still in the lines of the run;
-- two titles asked and both settled on two voices apiece: stored once (the control, passing on both commits).
+- two titles asked and both settled on two voices apiece:
+  stored once
+  (the control,
+  passing on both commits).
 The red commits fail three cases between them.
 The fake client gained an option naming the renderings of each seat,
 and the helper an option naming the bench.

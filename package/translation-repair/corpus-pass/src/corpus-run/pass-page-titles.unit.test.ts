@@ -566,7 +566,7 @@ await describe({
         },),
         it({
           name: 'STORES THE ROUND when both titles settled on two voices apiece, which is the control for the '
-            + 'two cases above: the assertion has to be reading whether every title settled and not whether the '
+            + 'cases that expect nothing stored: the assertion has to be reading whether every title settled and not whether the '
             + 'round heard enough voices',
           fn: async () => {
             /**

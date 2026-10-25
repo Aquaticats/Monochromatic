@@ -511,8 +511,12 @@ A tie of two voices apiece or more is still broken by the earliest seat,
 which is a tie of two judges or more.
 `corpus-pass/src/corpus-run/pass-page-titles.ts` needed no change:
 it stores the titles the stage returns.
-(Round 4 changed that: a round is stored only when every title it asked is settled, B919.)
-`PAGE_TITLE_CACHE_VERSION` is 8 (B912; 9 since B919).
+(Round 4 changed that:
+a round is stored only when every title it asked is settled,
+B919.)
+`PAGE_TITLE_CACHE_VERSION` is 8
+(B912;
+9 since B919).
 
 The tests:
 the pins of `page-title-lexicon.unit.test.ts` at the lines of "BREAKS A TIE BY THE EARLIEST SEAT"
