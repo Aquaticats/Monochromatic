@@ -115,10 +115,10 @@ import {
 // (`claude-schema-blind-text-code.test-fixture.ts`). A key that is no string literal, and a pattern that takes
 // `constructor` out of a value, reach code with no name the search could tell, and a `Reflect.get` with a key that is
 // no literal does too; these are limits of the search that the ledger states. A specifier that is no built-in module,
-// no package the lockfile holds for the family and no file is reported (`unresolved-module-specifier`), in `claude-schema-blind-specifiers.test-fixture.ts`:
-// an alias that begins with `#`, a package nothing holds, a relative path to a file that does not exist; a type-only
-// import or export and a type are left out. The lockfile gives the packages of every package of the family together,
-// and the check reads it from the root of the repository.
+// no package the lockfile holds for the family and no file is reported (`unresolved-module-specifier`), in
+// `claude-schema-blind-specifiers.test-fixture.ts`: an alias that begins with `#`, a package nothing holds, a relative
+// path to a file that does not exist; a type-only import or export and a type are left out. The lockfile gives the
+// packages of every package of the family together, and the check reads it from the root of the repository.
 //
 // The second total is every chain of names that stands for a builder, or for a module or object that carries one. A
 // builder is read as the callee of a call, of `new` or of a tagged template, after any of `.call`, `.apply` and
@@ -146,22 +146,23 @@ import {
 // `claude-schema-blind-senders.test-fixture.ts`; a name that the file assigns again anywhere is no sender, whatever
 // it was first bound to. The third is a constant, a pattern, a default, a name assigned, or a parameter of the callback
 // of `every`, `filter`, `find`, `flatMap`, `forEach`, `map`, `reduce` or `some` called on the value
-// (`claude-schema-blind-callbacks.test-fixture.ts`), whose every reference ends in one of the three in turn, also at the top level of a file, and for a constant a file
-// exports also in every other file of the family that reads it, by its name, by an alias, through a module that
-// exports it again (by name or by `export *`), through a member of a namespace import, or through an `import()` or a
-// `require` of the file (`claude-schema-blind-constants.test-fixture.ts`). A namespace import read as a whole, a
-// namespace export and a load of the file are reported at once, and a place in another file is reported with that
-// file after it. The one function that only checks each schema of a list of producers is sendable is a sender too
-// (`assertSchemasSendable`), since the list of producers holds every schema. Any other place that takes
-// the value is reported (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a
-// call that is no sender, an argument of `new`, a substitution of a tagged template (the arguments of the tag
-// function), a store into a member, a field or `this`, a pattern an assignment takes the value apart into, a thrown
-// value, a loop that iterates it. A place that reads the value and gives back nothing the schema could travel in ends
-// the walk without a report: the test of a conditional or a loop, a computed key, an operand of an operator, a
-// substitution in a plain template, a statement that drops it, an element of a sequence that is not the last, and the
-// target of an assignment. A callback the search cannot read (one that is a parameter, a name from another file, or a
-// computed member) is reported as code it cannot read. A method that takes a callback and is none of the eight ends the
-// walk without a report, a limit the ledger states.
+// (`claude-schema-blind-callbacks.test-fixture.ts`), whose every reference ends in one of the three in turn, also at
+// the top level of a file, and for a constant a file exports also in every other file of the family that reads it, by
+// its name, by an alias, through a module that exports it again (by name or by `export *`), through a member of a
+// namespace import, or through an `import()` or a `require` of the file
+// (`claude-schema-blind-constants.test-fixture.ts`). A namespace import read as a whole, a namespace export and a load
+// of the file are reported at once, and a place in another file is reported with that file after it. The one function
+// that only checks each schema of a list of producers is sendable is a sender too (`assertSchemasSendable`), since the
+// list of producers holds every schema. Any other place that takes the value is reported
+// (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a call that is no
+// sender, an argument of `new`, a substitution of a tagged template (the arguments of the tag function), a store into a
+// member, a field or `this`, a pattern an assignment takes the value apart into, a thrown value, a loop that iterates
+// it. A place that reads the value and gives back nothing the schema could travel in ends the walk without a report:
+// the test of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
+// statement that drops it, an element of a sequence that is not the last, and the target of an assignment. A callback
+// the search cannot read (one that is a parameter, a name from another file, or a computed member) is reported as code
+// it cannot read. A method that is none of the eight and is given a function written as an argument is reported the
+// same way; one given no such function ends the walk without a report, a limit the ledger states.
 //
 // The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
 // hides there, and a place it reports is answered by reading the place in the search or by naming the place in the

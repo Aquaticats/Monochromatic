@@ -12,11 +12,11 @@ import {
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region A name that holds the sender and is assigned again
-// A name that holds the sender (`let g = gatherThroughCache;`) is a way to call it only while the name keeps that value.
-// A name that is assigned again anywhere in the file, by an assignment, a pattern that an assignment takes apart or a
-// loop head, can hold any function when it is called, so the call of it is no call of the sender and the object it takes
-// is reported like the argument of any call. A name that is never assigned again, whether `let`, `var` or `const`, and a
-// name of the same kind that holds something else, stay as they were.
+// A name that holds the sender (`let g = gatherThroughCache;`) is a way to call it only while the name keeps that
+// value. A name that is assigned again anywhere in the file, by an assignment, a pattern that an assignment takes apart
+// or a loop head, can hold any function when it is called, so the call of it is no call of the sender and the object it
+// takes is reported like the argument of any call. A name that is never assigned again, whether `let`, `var` or
+// `const`, and a name of the same kind that holds something else, stay as they were.
 
 /**
  The path of the stage file of every case.
@@ -111,8 +111,8 @@ export const SENDER_ALIAS_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   aliasCase({
-    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED BY A PATTERN, in an array pattern and '
-      + 'in an object pattern',
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED BY A PATTERN, in an array pattern '
+      + 'and in an object pattern',
     lines: [
       'let g: any = gatherThroughCache;',
       '[g,] = [(o: object,) => o,];',
@@ -168,7 +168,8 @@ export const SENDER_ALIAS_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   aliasCase({
-    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER AN ANGLE BRACKET ASSERTION',
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS ASSIGNED AGAIN UNDER AN ANGLE BRACKET '
+      + 'ASSERTION',
     lines: [
       'const other = (o: object,) => o;',
       'let g: any = gatherThroughCache;',
@@ -195,8 +196,8 @@ export const SENDER_ALIAS_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   aliasCase({
-    name: 'ACCEPTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS NEVER ASSIGNED AGAIN, with let, and a name of '
-      + 'another alias that is assigned again',
+    name: 'ACCEPTS A SCHEMA HANDED TO A NAME THAT HOLDS THE SENDER AND IS NEVER ASSIGNED AGAIN, with let, and a name '
+      + 'of another alias that is assigned again',
     lines: [
       'let g: any = gatherThroughCache;',
       'let h: any = (o: object,) => o;',

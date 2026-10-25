@@ -106,7 +106,8 @@ export const PARAMETER_PROPERTY_CASES: readonly ShapeCase[] = [
     parameter: 'args: any',
   },),
   constructorCase({
-    name: 'REPORTS A CONSTRUCTOR WHOSE PARAMETER IS A PRIVATE PARAMETER PROPERTY, since the name it binds is a parameter',
+    name: 'REPORTS A CONSTRUCTOR WHOSE PARAMETER IS A PRIVATE PARAMETER PROPERTY, since the name it binds is a '
+      + 'parameter',
     parameter: 'private args: any',
   },),
   constructorCase({

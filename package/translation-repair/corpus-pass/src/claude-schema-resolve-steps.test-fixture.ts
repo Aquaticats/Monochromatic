@@ -9,9 +9,9 @@ import type {
 import { targetOf, } from './claude-schema-target.test-fixture.ts';
 
 //region The steps that read one question of the resolver
-// What `claude-schema-resolve.test-fixture.ts` dispatches each question to: the reading of a member of a thing, of a name
-// of a module, of a chain of names, of an export of a module, and of a name a module exports everything of. The module
-// that holds the dispatcher says which function a name stands for.
+// What `claude-schema-resolve.test-fixture.ts` dispatches each question to: the reading of a member of a thing, of a
+// name of a module, of a chain of names, of an export of a module, and of a name a module exports everything of. The
+// module that holds the dispatcher says which function a name stands for.
 
 /**
  The thing no function is read through.
@@ -52,8 +52,8 @@ function valueOf({ resolved, }: { readonly resolved: Resolved; },): Resolved {
 
 // `memberStep`, `nameStep`, `pathStep`, `exportStep` and `starStep` call one another: a name leads to a member, a
 // member to an export, an export to a name. Source order cannot put each before the functions it calls, so none calls
-// another by its name: each takes `resolve`, which answers a `Query` about any of the five, and `resolveQuery`, declared
-// after them, hands itself to the step it dispatches to.
+// another by its name: each takes `resolve`, which answers a `Query` about any of the five, and `resolveQuery`,
+// declared after them, hands itself to the step it dispatches to.
 
 /**
  A question the resolver answers: what a member of a thing, a name of a module, a chain of names, an export of a module
@@ -354,7 +354,8 @@ export function nameStep(
       );
   }
   /**
-   Whether the binding is the module as a whole: a namespace import, or the require form of an import-equals declaration.
+   Whether the binding is the module as a whole: a namespace import, or the require form of an import-equals
+   declaration.
    */
   const isWhole = (binding.imported === '*') || (binding.imported === REQUIRE_FORM);
   if (target === '') {

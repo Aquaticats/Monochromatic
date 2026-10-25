@@ -6,9 +6,9 @@ import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import { isNoNode, } from './claude-schema-tree.test-fixture.ts';
 
 //region Where the value of a builder's call goes
-// The part of the second total of the check behind the schema search (`claude-schema-blind-chains.test-fixture.ts`) that
-// reads a call of a builder: its value goes out of a function that the search does not know as a builder, or to a place
-// that no sender, wrapper or constant answers for, or to code the search cannot read.
+// The part of the second total of the check behind the schema search (`claude-schema-blind-chains.test-fixture.ts`)
+// that reads a call of a builder: its value goes out of a function that the search does not know as a builder, or to a
+// place that no sender, wrapper or constant answers for, or to code the search cannot read.
 
 /**
  The shapes a call of a builder holds: its value goes out of a function that the search does not know as a builder, or

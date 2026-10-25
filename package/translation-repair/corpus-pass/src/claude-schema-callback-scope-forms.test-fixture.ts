@@ -121,8 +121,8 @@ function handsTo(
  */
 export const CALLBACK_SCOPE_CASES: readonly ShapeCase[] = [
   scopeCase({
-    name: 'ACCEPTS A BUILDER\'S RESULT HANDED TO A CALLBACK NAMED FOR A FUNCTION THE FILE DECLARES AT ITS TOP LEVEL, the '
-      + 'control of the cases that bind the name again',
+    name: 'ACCEPTS A BUILDER\'S RESULT HANDED TO A CALLBACK NAMED FOR A FUNCTION THE FILE DECLARES AT ITS TOP LEVEL, '
+      + 'the control of the cases that bind the name again',
     lines: [
       'function cb(_x: unknown,) {}',
       'export function mk() {',

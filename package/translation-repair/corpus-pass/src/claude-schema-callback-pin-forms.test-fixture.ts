@@ -111,8 +111,8 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     ],
   },
   acceptingCase({
-    name: 'ACCEPTS A BUILDER\'S RESULT WHOSE CALLBACK KEEPS ONLY THE INDEX, since the index is a number and the value is '
-      + 'not handed to it',
+    name: 'ACCEPTS A BUILDER\'S RESULT WHOSE CALLBACK KEEPS ONLY THE INDEX, since the index is a number and the value '
+      + 'is not handed to it',
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
@@ -126,14 +126,15 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
-      `  [contestResponseFormat(${ARGUMENTS},),].reduce((total, s, index, all,) => { kept.push(all,); return total; }, 0,);`,
+      `  [contestResponseFormat(${ARGUMENTS},),].reduce(`
+        + '(total, s, index, all,) => { kept.push(all,); return total; }, 0,);',
       '}',
     ],
     position: CALL_ARGUMENT,
   },),
   reportingCase({
-    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A METHOD THAT TAKES A SECOND ARGUMENT, the value the callback is called '
-      + 'with as this, since only reduce reads that argument as the start value',
+    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A METHOD THAT TAKES A SECOND ARGUMENT, the value the callback is '
+      + 'called with as this, since only reduce reads that argument as the start value',
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
@@ -153,8 +154,8 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     position: CALL_ARGUMENT,
   },),
   reportingCase({
-    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHOD IS NAMED BY A STRING IN BRACKETS AND HANDS IT TO A CALLBACK '
-      + 'THAT KEEPS IT',
+    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHOD IS NAMED BY A STRING IN BRACKETS AND HANDS IT TO A '
+      + 'CALLBACK THAT KEEPS IT',
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
@@ -184,8 +185,8 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     ],
   },),
   {
-    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CONVERSION FUNCTION NAME THAT A SCOPE AROUND THE CALLBACK BINDS AGAIN '
-      + 'WITH A PARAMETER',
+    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CONVERSION FUNCTION NAME THAT A SCOPE AROUND THE CALLBACK BINDS '
+      + 'AGAIN WITH A PARAMETER',
     files: [
       stageFile({
         file: 'imaginary/src/callback-pin-stage.ts',
@@ -206,8 +207,8 @@ export const CALLBACK_PIN_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CONVERSION FUNCTION NAME THAT THE FILE IMPORTS, since the name is then '
-      + 'the import and not Boolean',
+    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CONVERSION FUNCTION NAME THAT THE FILE IMPORTS, since the name is '
+      + 'then the import and not Boolean',
     files: [
       stageFile({
         file: 'imaginary/src/callback-pin-stage.ts',

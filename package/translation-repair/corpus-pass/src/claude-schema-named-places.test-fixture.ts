@@ -41,8 +41,8 @@ export const NAMED_PLACES: readonly NamedPlace[] = [
     position: 'Property.value',
     reason: '`settleEntry` is handed to the pass as its `settle` dependency, and `corpus-pass-run.ts` calls '
       + '`input.settle({ client, entry, ... })`. The arguments there are a corpus pair and the settings of the run, '
-      + 'not the arguments of a schema, which `settleEntry` makes inside from the pair; the wide reading of a forwarder '
-      + 'lists such a function whatever the arguments are.',
+      + 'not the arguments of a schema, which `settleEntry` makes inside from the pair; the wide reading of a '
+      + 'forwarder lists such a function whatever the arguments are.',
   },
 ];
 

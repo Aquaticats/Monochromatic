@@ -10,9 +10,9 @@ import type { SourceFile, } from './claude-schema-sources.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region A value handed to a callback
-// The third total follows a builder's value through the array, the object and the constant it is put in, and through the
-// members read off it and the methods called on it. A method that calls a function with the elements of the array it is
-// called on (`forEach`, `map`, `filter`, `flatMap`, `find`, `some`, `every` and `reduce`) hands the value to the
+// The third total follows a builder's value through the array, the object and the constant it is put in, and through
+// the members read off it and the methods called on it. A method that calls a function with the elements of the array
+// it is called on (`forEach`, `map`, `filter`, `flatMap`, `find`, `some`, `every` and `reduce`) hands the value to the
 // parameters of that function, so the walk goes on from the parameters the callback binds: the element, and the array
 // itself as the last parameter; for `reduce` the accumulator, the element and the array. A callback that is a function
 // written there, or a name of a function the file declares, is read. A callback that is any other expression (a
@@ -165,8 +165,8 @@ export function reportingCase(
  */
 export const CALLBACK_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS IT, for every, filter, '
-      + 'find, flatMap, forEach, map and some, since the callback\'s parameter is where the value goes on',
+    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS IT, for every, '
+      + 'filter, find, flatMap, forEach, map and some, since the callback\'s parameter is where the value goes on',
     files: ELEMENT_METHODS.map(function fileOf(method,): SourceFile {
       return stageFile({
         file: `imaginary/src/callback-${method}-stage.ts`,
@@ -224,7 +224,8 @@ export const CALLBACK_CASES: readonly ShapeCase[] = [
     position: CALL_ARGUMENT,
   },),
   reportingCase({
-    name: 'REPORTS A BUILDER\'S RESULT READ OFF A MEMBER OF THE VALUE WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS IT',
+    name: 'REPORTS A BUILDER\'S RESULT READ OFF A MEMBER OF THE VALUE WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS '
+      + 'IT',
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
@@ -237,8 +238,8 @@ export const CALLBACK_CASES: readonly ShapeCase[] = [
     position: CALL_ARGUMENT,
   },),
   {
-    name: 'REPORTS A BUILDER\'S RESULT IN A CONSTANT ARRAY WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS IT, in the file '
-      + 'that declares the constant, in a file that imports the constant, and in a constant inside a function',
+    name: 'REPORTS A BUILDER\'S RESULT IN A CONSTANT ARRAY WHOSE METHOD HANDS IT TO A CALLBACK THAT KEEPS IT, in the '
+      + 'file that declares the constant, in a file that imports the constant, and in a constant inside a function',
     files: [
       stageFile({
         file: 'imaginary/src/callback-list.ts',
@@ -286,8 +287,8 @@ export const CALLBACK_CASES: readonly ShapeCase[] = [
     ],
   },
   reportingCase({
-    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHODS ARE CHAINED, the filter by `Boolean` then the callback '
-      + 'that keeps it',
+    name: 'REPORTS A BUILDER\'S RESULT IN AN ARRAY WHOSE METHODS ARE CHAINED, the filter by `Boolean` then the '
+      + 'callback that keeps it',
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',

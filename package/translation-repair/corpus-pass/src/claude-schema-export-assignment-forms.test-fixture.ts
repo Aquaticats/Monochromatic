@@ -114,8 +114,8 @@ export const EXPORT_ASSIGNMENT_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'ACCEPTS A CALL OF A NAME THAT A FILE WITH AN `export =` DOES NOT EXPORT, since only its default is the value '
-      + 'the `export =` gives',
+    name: 'ACCEPTS A CALL OF A NAME THAT A FILE WITH AN `export =` DOES NOT EXPORT, since only its default is the '
+      + 'value the `export =` gives',
     files: [
       SENDER_FILE,
       {

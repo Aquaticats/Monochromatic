@@ -20,10 +20,11 @@ import {
 // (`claude-schema-blind-unreadable.test-fixture.ts` reports it). The global object can also be held first and read
 // through the holder: kept in a constant, taken apart by a pattern with a computed key, put in an array, handed to
 // `Reflect.get`, `Object.assign`, `call` or any function, chosen by a conditional, a logical operand or a comma
-// expression, given as a default, exported in an export list (`export { globalThis as gt }`) or exported as the default. The check reports the global object (`globalThis`, `window`, `self` or `global`)
-// wherever a file writes it as a whole value that no scope binds again. The object of a member (`globalThis.fetch`,
-// `globalThis['fetch']`), the operand of `typeof`, a type, a key of an object, a member read off another object and a
-// parameter or a constant of the same name are not the global object as a value.
+// expression, given as a default, exported in an export list (`export { globalThis as gt }`) or exported as the
+// default. The check reports the global object (`globalThis`, `window`, `self` or `global`) wherever a file writes it
+// as a whole value that no scope binds again. The object of a member (`globalThis.fetch`, `globalThis['fetch']`), the
+// operand of `typeof`, a type, a key of an object, a member read off another object and a parameter or a constant of
+// the same name are not the global object as a value.
 
 /**
  What a report says of the global object written as a whole value.

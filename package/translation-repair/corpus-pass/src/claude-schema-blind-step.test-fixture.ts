@@ -24,8 +24,9 @@ import {
 
 //region One step of the walk of a builder's value
 // What `claude-schema-blind-flow.test-fixture.ts` asks of one node that holds the value: the nodes that hold it next,
-// the names it is bound to, the function it leaves by, the place it goes when that place is reported, and the callback a
-// method called on it hands it to. The places are told apart by the node that holds the value and the field it sits in.
+// the names it is bound to, the function it leaves by, the place it goes when that place is reported, and the callback
+// a method called on it hands it to. The places are told apart by the node that holds the value and the field it sits
+// in.
 
 /**
  The kinds of node that put the value they hold into themselves, so the value is read on from the node that holds them.

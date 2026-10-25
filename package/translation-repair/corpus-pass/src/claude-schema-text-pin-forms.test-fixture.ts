@@ -58,8 +58,8 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'REPORTS THE GLOBAL OBJECT WRITTEN AS THE KEY OF A MEMBER AND UNDER VOID, since neither reads it as the operand '
-      + 'of typeof',
+    name: 'REPORTS THE GLOBAL OBJECT WRITTEN AS THE KEY OF A MEMBER AND UNDER VOID, since neither reads it as the '
+      + 'operand of typeof',
     files: [
       {
         file: STAGE,

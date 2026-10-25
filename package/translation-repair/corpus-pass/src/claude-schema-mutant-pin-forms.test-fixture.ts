@@ -166,8 +166,8 @@ function vmSpotAt({ line, }: { readonly line: number; },): BlindSpot {
  */
 export const MUTANT_PIN_CASES: readonly ShapeCase[] = [
   forwarderCase({
-    name: 'LISTS THE FILE THAT CALLS A FUNCTION WHOSE BUILDER CALL TAKES A CONSTANT MADE FROM ANOTHER CONSTANT DECLARED '
-      + 'AFTER IT, since the constants made from a parameter are found until no more are',
+    name: 'LISTS THE FILE THAT CALLS A FUNCTION WHOSE BUILDER CALL TAKES A CONSTANT MADE FROM ANOTHER CONSTANT '
+      + 'DECLARED AFTER IT, since the constants made from a parameter are found until no more are',
     lines: [
       'export async function mk(args: any,) {',
       '  const pick = () => a;',
@@ -177,8 +177,8 @@ export const MUTANT_PIN_CASES: readonly ShapeCase[] = [
     ],
   },),
   forwarderCase({
-    name: 'LISTS THE FILE THAT CALLS A FUNCTION WHOSE BUILDER CALL HAS A SECOND ARGUMENT THAT READS NO PARAMETER, since '
-      + 'one argument that reads a parameter is enough',
+    name: 'LISTS THE FILE THAT CALLS A FUNCTION WHOSE BUILDER CALL HAS A SECOND ARGUMENT THAT READS NO PARAMETER, '
+      + 'since one argument that reads a parameter is enough',
     lines: [
       'export async function mk(args: any,) {',
       '  return await gatherThroughCache({ responseFormat: (contestResponseFormat as any)(args, 0,), },);',
@@ -238,8 +238,8 @@ export const MUTANT_PIN_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'ACCEPTS A SCHEMA HANDED TO THE SENDER THROUGH A NAMESPACE MEMBER AND `.call`, whose first argument is the `this` '
-      + 'and whose second is the object',
+    name: 'ACCEPTS A SCHEMA HANDED TO THE SENDER THROUGH A NAMESPACE MEMBER AND `.call`, whose first argument is the '
+      + '`this` and whose second is the object',
     files: [
       SENDER_FILE,
       {
@@ -247,7 +247,8 @@ export const MUTANT_PIN_CASES: readonly ShapeCase[] = [
         text: textOf([
           CONTEST_IMPORT,
           'import * as g from \'../../corpus-pass/src/corpus-run/pass-consistency-gather.ts\';',
-          `export const r = g.gatherThroughCache.call(null, { responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
+          'export const r = g.gatherThroughCache.call(null, '
+            + `{ responseFormat: contestResponseFormat(${ARGUMENTS},), },);`,
         ],),
       },
     ],

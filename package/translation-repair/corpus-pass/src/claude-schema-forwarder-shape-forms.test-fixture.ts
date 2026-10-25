@@ -147,7 +147,8 @@ export const UNDECLARED_FORWARDER_CASES: readonly ShapeCase[] = [
     ],
   },),
   undeclaredCase({
-    name: 'REPORTS A STATIC METHOD THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, as a method of the class',
+    name: 'REPORTS A STATIC METHOD THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, as a method of the '
+      + 'class',
     lines: [
       'export class Asker {',
       `  static async ask(args: ${PARAMETER_TYPE},) {`,
@@ -183,8 +184,8 @@ export const UNDECLARED_FORWARDER_CASES: readonly ShapeCase[] = [
     ],
   },),
   undeclaredCase({
-    name: 'REPORTS A MEMBER OF AN OBJECT NESTED IN AN OBJECT THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, '
-      + 'which the one level of members a constant holds does not declare',
+    name: 'REPORTS A MEMBER OF AN OBJECT NESTED IN AN OBJECT THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS '
+      + 'PARAMETER, which the one level of members a constant holds does not declare',
     lines: [
       'export const api = {',
       '  sub: {',
@@ -237,8 +238,8 @@ export const UNDECLARED_FORWARDER_CASES: readonly ShapeCase[] = [
     ],
   },),
   undeclaredCase({
-    name: 'REPORTS A FUNCTION A GETTER GIVES BACK THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, since the '
-      + 'getter has no parameter to build from and the function it returns is what a caller calls',
+    name: 'REPORTS A FUNCTION A GETTER GIVES BACK THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, since '
+      + 'the getter has no parameter to build from and the function it returns is what a caller calls',
     lines: [
       'export const api = {',
       '  get ask() {',
@@ -257,8 +258,8 @@ export const UNDECLARED_FORWARDER_CASES: readonly ShapeCase[] = [
     ],
   },),
   undeclaredCase({
-    name: 'REPORTS A SETTER THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, whose one parameter is the value '
-      + 'a caller assigns',
+    name: 'REPORTS A SETTER THAT HANDS A SENDER A BUILDER CALL MADE FROM ITS PARAMETER, whose one parameter is the '
+      + 'value a caller assigns',
     lines: [
       'export const api = {',
       `  set ask(args: ${PARAMETER_TYPE},) {`,
@@ -276,8 +277,8 @@ export const UNDECLARED_FORWARDER_CASES: readonly ShapeCase[] = [
     ],
   },),
   undeclaredCase({
-    name: 'REPORTS A CLASS METHOD A DECLARED FUNCTION REACHES, since the function that calls the method is no forwarder '
-      + 'the search could list by a name the method has',
+    name: 'REPORTS A CLASS METHOD A DECLARED FUNCTION REACHES, since the function that calls the method is no '
+      + 'forwarder the search could list by a name the method has',
     lines: [
       'class Impl {',
       `  async run(args: ${PARAMETER_TYPE},) {`,

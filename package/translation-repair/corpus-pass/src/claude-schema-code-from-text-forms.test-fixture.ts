@@ -110,9 +110,9 @@ function textSpotAt(
  */
 export const CODE_FROM_TEXT_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS node:vm AND vm IMPORTED, EXPORTED FROM, REQUIRED AND LOADED, AND A READ OF constructor by a dot, by a '
-      + 'string in brackets, by ?. and by Reflect.get with a string, and nothing for node:path, node:child_process, a '
-      + 'member of another name, the constructor of a class, a key, a key that is no literal, a pattern that takes '
+    name: 'REPORTS node:vm AND vm IMPORTED, EXPORTED FROM, REQUIRED AND LOADED, AND A READ OF constructor by a dot, by '
+      + 'a string in brackets, by ?. and by Reflect.get with a string, and nothing for node:path, node:child_process, '
+      + 'a member of another name, the constructor of a class, a key, a key that is no literal, a pattern that takes '
       + 'constructor out, a string and a type',
     files: [
       {

@@ -27,9 +27,9 @@ import {
 // method is read off and the member is called: whether the method calls a function it is given with the value, and
 // which parameters of that function the value arrives in. `forEach`, `map`, `filter`, `flatMap`, `find`, `some` and
 // `every` call it with the element, the index and the array; `reduce` with the accumulator, the element, the index and
-// the array. The callback is the first argument. A function written there is read; so is the name of a function the file
-// declares, and `Boolean`, `String` and `Number` that no scope binds, which keep nothing of what they are given. Any
-// other callback is code the search cannot read. So is a function written as an argument of any other method called
+// the array. The callback is the first argument. A function written there is read; so is the name of a function the
+// file declares, and `Boolean`, `String` and `Number` that no scope binds, which keep nothing of what they are given.
+// Any other callback is code the search cannot read. So is a function written as an argument of any other method called
 // on the value, `sort`, `findLast` and a method of the object that holds the value included.
 
 /**

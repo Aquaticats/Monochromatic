@@ -188,16 +188,17 @@ export const FORWARDER_CHAIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'LISTS THE FILE THAT CALLS THE LAST OF TEN FUNCTIONS EACH OF WHICH PASSES ITS PARAMETER ON TO THE ONE BEFORE, '
-      + 'since a chain has no length at which the files that call its end stop writing the arguments of the schema',
+    name: 'LISTS THE FILE THAT CALLS THE LAST OF TEN FUNCTIONS EACH OF WHICH PASSES ITS PARAMETER ON TO THE ONE '
+      + 'BEFORE, since a chain has no length at which the files that call its end stop writing the arguments of the '
+      + 'schema',
     files: chainOfLength({ length: 10, },),
     found: pathsOfChain({ length: 10, },),
     builders: [],
     spots: [],
   },
   {
-    name: 'DOES NOT LIST THE FILE THAT CALLS A FUNCTION THAT CALLS A FORWARDER WITH NOTHING OF ITS PARAMETERS, since the '
-      + 'arguments of the schema are written in the file of that function, which uses the forwarder and is listed',
+    name: 'DOES NOT LIST THE FILE THAT CALLS A FUNCTION THAT CALLS A FORWARDER WITH NOTHING OF ITS PARAMETERS, since '
+      + 'the arguments of the schema are written in the file of that function, which uses the forwarder and is listed',
     files: [
       SENDER_FILE,
       FIRST_LINK,

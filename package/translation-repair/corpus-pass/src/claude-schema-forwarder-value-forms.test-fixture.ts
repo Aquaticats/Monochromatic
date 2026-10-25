@@ -12,8 +12,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // function from a place that is no call (a property of an object, an element of an array, an argument of a call, an
 // operand of a comma) can call it where the search does not look, so the check reports the place, as it reports a
 // wrapper that is held the same way. A call is read, and so are the members `call`, `apply` and `bind`, the whole value
-// of an export assignment (the listing reads it as the module), the members `name` and `length` that hand out no function,
-// and a default export.
+// of an export assignment (the listing reads it as the module), the members `name` and `length` that hand out no
+// function, and a default export.
 
 /**
  The path of the file that declares the forwarder in every case.
@@ -93,7 +93,14 @@ function valueSpotAt(
 
  @example
  ```ts
- const shapeCase = heldCase({ name: 'x', lines: [], call: 'api.mk(1,)', imported: 'api', position: 'Property.value', line: 6, },);
+ const shapeCase = heldCase({
+   name: 'x',
+   lines: [],
+   call: 'api.mk(1,)',
+   imported: 'api',
+   position: 'Property.value',
+   line: 6,
+ },);
  ```
  */
 function heldCase(
@@ -168,7 +175,12 @@ function heldCase(
 
  @example
  ```ts
- const shapeCase = passedCase({ name: 'x', held: 'Reflect.apply(mk, null, [args,],)', line: 2, position: 'CallExpression.arguments', },);
+ const shapeCase = passedCase({
+   name: 'x',
+   held: 'Reflect.apply(mk, null, [args,],)',
+   line: 2,
+   position: 'CallExpression.arguments',
+ },);
  ```
  */
 function passedCase(
@@ -234,7 +246,8 @@ function passedCase(
  */
 export const FORWARDER_VALUE_CASES: readonly ShapeCase[] = [
   heldCase({
-    name: 'REPORTS A FORWARDER HELD BY A PROPERTY OF AN EXPORTED OBJECT, shorthand, since the caller of api.mk is not listed',
+    name: 'REPORTS A FORWARDER HELD BY A PROPERTY OF AN EXPORTED OBJECT, shorthand, since the caller of api.mk is not '
+      + 'listed',
     lines: ['export const api = { mk, };',],
     call: `api.mk(${VALUE_ARGUMENTS},)`,
     imported: '{ api, }',
@@ -314,8 +327,8 @@ export const FORWARDER_VALUE_CASES: readonly ShapeCase[] = [
     position: 'CallExpression.arguments',
   },),
   heldCase({
-    name: 'ACCEPTS A FORWARDER THAT IS THE WHOLE VALUE OF AN EXPORT ASSIGNMENT, a DEFAULT EXPORT, a NAME READ OFF IT AND A '
-      + 'CALL WITH call',
+    name: 'ACCEPTS A FORWARDER THAT IS THE WHOLE VALUE OF AN EXPORT ASSIGNMENT, a DEFAULT EXPORT, a NAME READ OFF IT '
+      + 'AND A CALL WITH call',
     lines: [
       'export default mk;',
       'export const tag = mk.name;',

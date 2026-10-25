@@ -27,8 +27,8 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 // or the second through `.call`, and none through `.apply` or `.bind`. A sender is named by the module that declares
 // it, so another function of the same name, a free name, or a name that a scope around the call binds again (a
 // parameter, a constant, a nested function or class, a loop variable, a `catch` binding) or that the file assigns again
-// anywhere (an alias of the sender that is reassigned, by an assignment, a pattern or a loop head) is no sender; any other call
-// that takes the value is reported, since it may keep it, copy it or send it where the search cannot read.
+// anywhere (an alias of the sender that is reassigned, by an assignment, a pattern or a loop head) is no sender; any
+// other call that takes the value is reported, since it may keep it, copy it or send it where the search cannot read.
 
 /**
  One function where a stage hands the schema it makes to the bench.

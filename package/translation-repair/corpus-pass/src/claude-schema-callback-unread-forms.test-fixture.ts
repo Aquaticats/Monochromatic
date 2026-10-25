@@ -5,10 +5,10 @@ import { ARGUMENTS, } from './claude-schema-destination-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region A value handed to a callback the search cannot read, and to one that keeps nothing
-// The cases beside `claude-schema-callback-forms.test-fixture.ts` that end the walk of a callback: a callback that is any
-// expression but a function written there or the name of a function the file declares is code the search cannot read,
-// and the check reports it where the builder's call is. A callback that keeps nothing of its parameter ends the walk
-// with no report.
+// The cases beside `claude-schema-callback-forms.test-fixture.ts` that end the walk of a callback: a callback that is
+// any expression but a function written there or the name of a function the file declares is code the search cannot
+// read, and the check reports it where the builder's call is. A callback that keeps nothing of its parameter ends the
+// walk with no report.
 
 /**
  The report for a builder's value handed to a callback the search cannot read.
@@ -46,8 +46,8 @@ function unreadAt(
  */
 export const UNREAD_CALLBACK_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CALLBACK THE SEARCH CANNOT READ, a parameter, a declared function with '
-      + 'no body, a computed member, a member, a name another file exports, and a call that makes the callback',
+    name: 'REPORTS A BUILDER\'S RESULT HANDED TO A CALLBACK THE SEARCH CANNOT READ, a parameter, a declared function '
+      + 'with no body, a computed member, a member, a name another file exports, and a call that makes the callback',
     files: [
       stageFile({
         file: 'imaginary/src/callback-parameter.ts',
@@ -148,8 +148,9 @@ export const UNREAD_CALLBACK_CASES: readonly ShapeCase[] = [
     ],
   },
   {
-    name: 'ACCEPTS A BUILDER\'S RESULT IN AN ARRAY WHOSE CALLBACK KEEPS NOTHING OF IT, one that only drops its parameter, '
-      + 'the filter of the array by `Boolean` whose length is kept, and the accumulator of a reduce that has a start value',
+    name: 'ACCEPTS A BUILDER\'S RESULT IN AN ARRAY WHOSE CALLBACK KEEPS NOTHING OF IT, one that only drops its '
+      + 'parameter, the filter of the array by `Boolean` whose length is kept, and the accumulator of a reduce that '
+      + 'has a start value',
     files: [
       stageFile({
         file: 'imaginary/src/callback-quiet.ts',

@@ -76,8 +76,8 @@ function shadowedStage(
  */
 export const SCOPE_PIN_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT A NAMESPACE OR AN ENUM DECLARES IN THE BODY OF A NAMESPACE, since the '
-      + 'name is then no sender',
+    name: 'REPORTS A SCHEMA HANDED TO A NAME THAT A NAMESPACE OR AN ENUM DECLARES IN THE BODY OF A NAMESPACE, since '
+      + 'the name is then no sender',
     files: [
       SENDER_FILE,
       shadowedStage({
@@ -129,7 +129,8 @@ export const SCOPE_PIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'LISTS THE FILE THAT CALLS A FORWARDER THROUGH A MEMBER OF A MODULE BROUGHT IN WITH `import x = require(path)`',
+    name: 'LISTS THE FILE THAT CALLS A FORWARDER THROUGH A MEMBER OF A MODULE BROUGHT IN WITH `import x = '
+      + 'require(path)`',
     files: [
       SENDER_FILE,
       FORWARDER_STAGE,
@@ -149,8 +150,8 @@ export const SCOPE_PIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'REPORTS A CONSTANT A FILE EXPORTS WITH `export =` WHEN ANOTHER FILE HANDS A MEMBER OF IT TO A CALL THAT IS NO '
-      + 'SENDER THROUGH `import x = require(path)`, beside the export',
+    name: 'REPORTS A CONSTANT A FILE EXPORTS WITH `export =` WHEN ANOTHER FILE HANDS A MEMBER OF IT TO A CALL THAT IS '
+      + 'NO SENDER THROUGH `import x = require(path)`, beside the export',
     files: [
       {
         file: 'imaginary/src/scope-assigned-format.ts',

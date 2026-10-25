@@ -81,10 +81,17 @@ function forwarderShapesAt(
   if (holder === undefined)
     return [];
   /**
+   Whether the holder is a call or `new`.
+   */
+  const isCallOrNew = (holder.type === 'CallExpression') || (holder.type === 'NewExpression');
+  /**
+   Whether the forwarder is the tag of a tagged template.
+   */
+  const isTag = (holder.type === 'TaggedTemplateExpression') && (holder.tag === top);
+  /**
    Whether the forwarder is the callee of a call, of `new` or of a tagged template, which the listing of callers reads.
    */
-  const isCalled = (((holder.type === 'CallExpression') || (holder.type === 'NewExpression')) && (holder.callee === top))
-    || ((holder.type === 'TaggedTemplateExpression') && (holder.tag === top));
+  const isCalled = (isCallOrNew && (holder.callee === top)) || isTag;
   /**
    Whether the call is a call of a bound function, whose value is the function again.
    */

@@ -113,7 +113,8 @@ export const SENDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   namespaceCase({
-    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE EXPORTS AS A CONSTANT',
+    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE EXPORTS AS A '
+      + 'CONSTANT',
     lines: [
       'export namespace Stage {',
       '  export const gatherThroughCache = (sent: object,) => sent;',
@@ -123,8 +124,8 @@ export const SENDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   namespaceCase({
-    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE BINDS WITH `import x = '
-      + 'y`, since an import-equals declaration binds its name as a constant does',
+    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE BINDS WITH `import '
+      + 'x = y`, since an import-equals declaration binds its name as a constant does',
     lines: [
       'namespace Other {',
       '  export const make = (sent: object,) => sent;',
@@ -137,8 +138,8 @@ export const SENDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   namespaceCase({
-    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE DECLARES AS A CLASS, '
-      + 'AN ENUM, A NAMESPACE OR A DECLARED FUNCTION',
+    name: 'REPORTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO A CALL OF A NAME THE NAMESPACE DECLARES AS A '
+      + 'CLASS, AN ENUM, A NAMESPACE OR A DECLARED FUNCTION',
     lines: [
       'export namespace Stage {',
       '  export declare function gatherThroughCache(sent: object,): object;',
@@ -162,8 +163,8 @@ export const SENDER_NAMESPACE_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   namespaceCase({
-    name: 'ACCEPTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO THE SENDER FROM A NAMESPACE THAT BINDS NOTHING OF THAT '
-      + 'NAME, and from one beside the namespace that binds it',
+    name: 'ACCEPTS A SCHEMA BUILT OUTSIDE A NAMESPACE AND HANDED TO THE SENDER FROM A NAMESPACE THAT BINDS NOTHING OF '
+      + 'THAT NAME, and from one beside the namespace that binds it',
     lines: [
       'namespace Binds {',
       '  export function gatherThroughCache(sent: object,) {',

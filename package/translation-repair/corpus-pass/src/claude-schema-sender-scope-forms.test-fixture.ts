@@ -12,11 +12,11 @@ import {
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region A name of the sender that a namespace declares again, and a name of a forwarder a file leaves free
-// A call is a call of the sender only where the name it calls is the one the file imports. A namespace that declares the
-// name again, as a function with `declare function`, or as a qualified namespace (`namespace gatherThroughCache.Inner`),
-// makes the name another thing inside it, so the object that the call takes is reported like the argument of any call.
-// A name that a file leaves free, with only a `declare const` for it, is read as the forwarder of that name, so the
-// files that call a function around it are listed.
+// A call is a call of the sender only where the name it calls is the one the file imports. A namespace that declares
+// the name again, as a function with `declare function`, or as a qualified namespace
+// (`namespace gatherThroughCache.Inner`), makes the name another thing inside it, so the object that the call takes is
+// reported like the argument of any call. A name that a file leaves free, with only a `declare const` for it, is read
+// as the forwarder of that name, so the files that call a function around it are listed.
 
 /**
  The path of the stage file of the cases of the namespace.
@@ -29,8 +29,8 @@ const STAGE = 'imaginary/src/scope-stage.ts';
 const LINE_OF_BUILDER = 3;
 
 /**
- The constant that holds the schema, which every case of the namespace declares at the top level of the stage file, since
- a builder written inside a namespace is reported for the namespace.
+ The constant that holds the schema, which every case of the namespace declares at the top level of the stage file,
+ since a builder written inside a namespace is reported for the namespace.
  */
 const SCHEMA_CONSTANT = `const SCHEMA = contestResponseFormat(${ARGUMENTS},);`;
 
@@ -100,8 +100,8 @@ const CALL_OF_SENDER = 'gatherThroughCache({ responseFormat: SCHEMA, },)';
  */
 export const SENDER_SCOPE_CASES: readonly ShapeCase[] = [
   namespaceCase({
-    name: 'ACCEPTS A CALL OF THE SENDER INSIDE A NAMESPACE THAT DECLARES NOTHING UNDER ITS NAME, the control of the cases '
-      + 'that declare the name again',
+    name: 'ACCEPTS A CALL OF THE SENDER INSIDE A NAMESPACE THAT DECLARES NOTHING UNDER ITS NAME, the control of the '
+      + 'cases that declare the name again',
     lines: [
       'export namespace Outer {',
       `  export const r = ${CALL_OF_SENDER};`,
@@ -120,8 +120,8 @@ export const SENDER_SCOPE_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   namespaceCase({
-    name: 'REPORTS A CALL OF A NAME THAT A QUALIFIED NAMESPACE DECLARES INSIDE A NAMESPACE, so it is not the sender the '
-      + 'file imports',
+    name: 'REPORTS A CALL OF A NAME THAT A QUALIFIED NAMESPACE DECLARES INSIDE A NAMESPACE, so it is not the sender '
+      + 'the file imports',
     lines: [
       'export namespace Outer {',
       '  namespace gatherThroughCache.Inner {',

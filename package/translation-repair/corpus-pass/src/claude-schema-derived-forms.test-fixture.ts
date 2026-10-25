@@ -116,7 +116,8 @@ export const DERIVED_NAME_CASES: readonly ShapeCase[] = [
     isListed: true,
   },),
   derivedCase({
-    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM A MEMBER OF A NAME A FOR-IN LOOP BINDS, a key of its parameter',
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM A MEMBER OF A NAME A FOR-IN LOOP BINDS, a key of its '
+      + 'parameter',
     signature: 'mk(rec: any,)',
     body: [
       '  for (const key in rec) {',

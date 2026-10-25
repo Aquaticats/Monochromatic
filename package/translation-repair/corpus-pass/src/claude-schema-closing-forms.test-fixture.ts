@@ -3,11 +3,11 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Closing forms of the places that make code from text and that hold the global object
-// The global object is held by an export list (`export { globalThis as gt }`) and by a default export, which are no value
-// positions of a reference. Code is made from text by `process.getBuiltinModule('node:vm')` as by an import of the module,
-// and by `Object.getOwnPropertyDescriptor` and `Reflect.getOwnPropertyDescriptor` with the key `constructor`, as by
-// `Reflect.get`. An import or an export that names types only loads nothing. The key read through an alias of
-// `Reflect` is a stated limit of the search, which the case holds.
+// The global object is held by an export list (`export { globalThis as gt }`) and by a default export, which are no
+// value positions of a reference. Code is made from text by `process.getBuiltinModule('node:vm')` as by an import of
+// the module, and by `Object.getOwnPropertyDescriptor` and `Reflect.getOwnPropertyDescriptor` with the key
+// `constructor`, as by `Reflect.get`. An import or an export that names types only loads nothing. The key read through
+// an alias of `Reflect` is a stated limit of the search, which the case holds.
 
 /**
  The path of the stage file of every case.
@@ -123,8 +123,8 @@ export const CLOSING_CASES: readonly ShapeCase[] = [
     },),],
   },),
   stageCase({
-    name: 'ACCEPTS AN EXPORT LIST AND A DEFAULT EXPORT OF A NAME THAT IS NO GLOBAL OBJECT, or of a constant that takes the '
-      + 'name of one',
+    name: 'ACCEPTS AN EXPORT LIST AND A DEFAULT EXPORT OF A NAME THAT IS NO GLOBAL OBJECT, or of a constant that takes '
+      + 'the name of one',
     lines: [
       'const window = { width: 1, };',
       'const other = 1;',
@@ -169,8 +169,8 @@ export const CLOSING_CASES: readonly ShapeCase[] = [
     spots: [],
   },),
   stageCase({
-    name: 'HOLDS THE LIMIT THAT A METHOD OF Reflect READ THROUGH AN ALIAS IS NOT TOLD, since the search reads names and '
-      + 'does not follow what a constant holds',
+    name: 'HOLDS THE LIMIT THAT A METHOD OF Reflect READ THROUGH AN ALIAS IS NOT TOLD, since the search reads names '
+      + 'and does not follow what a constant holds',
     lines: [
       'const R = Reflect;',
       'export const read = R.get(() => 1, \'constructor\',);',

@@ -16,9 +16,9 @@ import {
 // Besides `eval` and `Function` (`claude-schema-blind-unreadable.test-fixture.ts`), code is made from text by the `vm`
 // module and by the constructor of a function, which is the `Function` constructor. Both can be told by a read of the
 // text. The module is told by its specifier, `vm` or `node:vm`, in an import, an export from, a call of `require`, an
-// `import()`, a call of `process.getBuiltinModule` or the module of an import-equals declaration; an import or an export
-// that names types only (`import type`) loads nothing and names no module. The constructor is told by a member named
-// `constructor` written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get`,
+// `import()`, a call of `process.getBuiltinModule` or the module of an import-equals declaration; an import or an
+// export that names types only (`import type`) loads nothing and names no module. The constructor is told by a member
+// named `constructor` written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get`,
 // `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A
 // key that is no literal, a pattern that takes `constructor` out of a value, and a method that is written through an
 // alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger
@@ -107,8 +107,8 @@ function readsConstructor({ node, }: { readonly node: TreeNode; },): boolean {
 }
 
 /**
- The methods that read a member of a value by a key given as an argument, by the object they are read off: `Reflect.get`,
- `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor`.
+ The methods that read a member of a value by a key given as an argument, by the object they are read off:
+ `Reflect.get`, `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor`.
  */
 const KEY_READERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [

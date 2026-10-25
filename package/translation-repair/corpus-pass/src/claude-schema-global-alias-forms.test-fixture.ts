@@ -7,8 +7,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // check reports it. The global object itself can be held in a constant, a default, an array, a conditional, an argument
 // or a pattern, and read through that name with a key no one can read, so the check reports the global object
 // (`globalThis`, `window`, `self` or `global`) wherever it is written as a whole value that no scope binds again. The
-// object of a member (`globalThis.fetch`, `globalThis['fetch']`), the operand of `typeof`, a type, a key of an object, a
-// member read off another object and a parameter or constant of the same name are not the global object as a value.
+// object of a member (`globalThis.fetch`, `globalThis['fetch']`), the operand of `typeof`, a type, a key of an object,
+// a member read off another object and a parameter or constant of the same name are not the global object as a value.
 
 /**
  The position a report gives for the global object written as a whole value.
@@ -77,11 +77,11 @@ function globalSpotAt({ line, }: { readonly line: number; },): BlindSpot {
  */
 export const GLOBAL_ALIAS_CASES: readonly ShapeCase[] = [
   {
-    name: 'REPORTS THE GLOBAL OBJECT WRITTEN AS A WHOLE VALUE, in a constant, a pattern with a computed key, the argument '
-      + 'of Reflect.get, a comma expression, a conditional, a logical fallback, an array, the argument of '
+    name: 'REPORTS THE GLOBAL OBJECT WRITTEN AS A WHOLE VALUE, in a constant, a pattern with a computed key, the '
+      + 'argument of Reflect.get, a comma expression, a conditional, a logical fallback, an array, the argument of '
       + 'getOwnPropertyDescriptor, a parameter default, the argument of a function, of call and of Object.assign, and '
-      + 'as window, self and global, and nothing for its members, typeof, a type, a key, a member of another object, and '
-      + 'a parameter or constant of the same name',
+      + 'as window, self and global, and nothing for its members, typeof, a type, a key, a member of another object, '
+      + 'and a parameter or constant of the same name',
     files: [
       {
         file: 'imaginary/src/global-alias-stage.ts',

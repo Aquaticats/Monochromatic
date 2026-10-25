@@ -31,8 +31,9 @@ import {
 // - a constant, a pattern, a default or a name assigned, whose every reference is followed in turn; a name bound at the
 //   top level of a file is also followed into the files that read it, through the imports, the exports from, the
 //   namespace imports and the `import()` of the file (`claude-schema-blind-constants.test-fixture.ts`);
-// - a parameter of the callback of an array method called on the value (`claude-schema-blind-callbacks.test-fixture.ts`),
-//   whose every reference is followed in turn; a callback the search cannot read is reported as code it cannot read.
+// - a parameter of the callback of an array method called on the value
+//   (`claude-schema-blind-callbacks.test-fixture.ts`), whose every reference is followed in turn; a callback the search
+//   cannot read is reported as code it cannot read.
 //
 // A place that takes the value and gives nothing the schema could travel in ends the walk without a report: the test
 // of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
@@ -187,8 +188,8 @@ export function destinationsOf(
      */
     const scope = (isFileWide || isNoNode({ node: binding, },)) ? program : binding;
     /**
-     The names to follow, each with the function or file it is read in: the names the value is bound to, and the names the
-     parameters of a callback bind.
+     The names to follow, each with the function or file it is read in: the names the value is bound to, and the names
+     the parameters of a callback bind.
      */
     const reads = [
       ...names.map(function readInScope(name,): ReadName {

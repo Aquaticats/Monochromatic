@@ -4,11 +4,11 @@ import { spotAt, } from './claude-schema-destination-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region An import-equals declaration that reads a member of a module
-// `import U = A.S` binds `U` to the member `S` of the namespace `A`, as `const U = A.S` does, and a qualified name is no
-// member expression. The name the declaration reads from is a reference to the namespace like any other, so a constant
-// that the module exports and the declaration reads is reported where the declaration reads it, whether the namespace
-// comes from `import * as A` or from `import A = require(path)`, and whether the declaration is exported or not. A
-// qualified name that reads a namespace the file declares itself is no read of a module and reports nothing.
+// `import U = A.S` binds `U` to the member `S` of the namespace `A`, as `const U = A.S` does, and a qualified name is
+// no member expression. The name the declaration reads from is a reference to the namespace like any other, so a
+// constant that the module exports and the declaration reads is reported where the declaration reads it, whether the
+// namespace comes from `import * as A` or from `import A = require(path)`, and whether the declaration is exported or
+// not. A qualified name that reads a namespace the file declares itself is no read of a module and reports nothing.
 
 /**
  The path of the file that declares the constant in every case.
@@ -79,8 +79,8 @@ function chainCase(
  */
 export const IMPORT_CHAIN_CASES: readonly ShapeCase[] = [
   chainCase({
-    name: 'REPORTS A CONSTANT READ BY AN IMPORT-EQUALS DECLARATION OF A MEMBER OF A NAMESPACE IMPORT, since the qualified '
-      + 'name is no member expression',
+    name: 'REPORTS A CONSTANT READ BY AN IMPORT-EQUALS DECLARATION OF A MEMBER OF A NAMESPACE IMPORT, since the '
+      + 'qualified name is no member expression',
     lines: [
       'import * as A from \'./chain-a.ts\';',
       'import U = A.FORMAT;',
@@ -100,8 +100,8 @@ export const IMPORT_CHAIN_CASES: readonly ShapeCase[] = [
     isReported: true,
   },),
   chainCase({
-    name: 'REPORTS A CONSTANT READ BY AN EXPORTED IMPORT-EQUALS DECLARATION OF A MEMBER, where the declaration reads it '
-      + 'and not where another file reads the name it exports',
+    name: 'REPORTS A CONSTANT READ BY AN EXPORTED IMPORT-EQUALS DECLARATION OF A MEMBER, where the declaration reads '
+      + 'it and not where another file reads the name it exports',
     lines: [
       'import * as A from \'./chain-a.ts\';',
       'export import T = A.FORMAT;',
