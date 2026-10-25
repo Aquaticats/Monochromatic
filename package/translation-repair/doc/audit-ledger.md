@@ -131,7 +131,8 @@ named for that subject and listed here.
   the module lines from the tokenizer and the footnote reading (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
-  the router and the seating of models.
+  the router and the seating of models,
+  among them every DeepSeek call booked at peak rates whatever the hour (B920).
 - [Audit ledger: the repair lane](audit-ledger-repair-lane.md):
   Findings in the repair lane,
   L1 to L13 and L15.

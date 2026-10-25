@@ -935,3 +935,64 @@ Record:
 section "The spend report",
 and `mistake-prevention-stored-files-and-cached-decisions.md`,
 "Cached decisions".
+
+### B920: every DeepSeek call was booked at peak rates, so an off-peak run booked twice what the balance fell
+
+Status:
+fixed on 2026-10-25 (UTC), found by the read of the XingZ6021 run (its defect N8).
+The id is the lead's allocation and may be renumbered at merge time.
+The behaviour is the lead's ruling of that day.
+
+The defect:
+`deepSeekCostOf` (`provider/src/direct-cost.ts`) priced every call at the card's peak rates,
+"because a run cannot know the holidays".
+The XingZ6021 run went from Saturday 22:49 UTC to Sunday 00:55 UTC, off peak throughout,
+and booked 0.147093 USD on its 15 DeepSeek lines while the account's balance fell 0.07.
+The page (`https://api-docs.deepseek.com/quick_start/pricing`, read 2026-10-25 by the lead) puts peak at
+01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday through Friday, excluding Chinese public holidays,
+and halves every rate at all other hours.
+A holiday only turns a weekday window off peak,
+so the safe upper bound needs the peak rate only inside the weekday windows.
+
+The fix:
+a call is booked at the card's peak rates when its request started inside a weekday peak window in UTC,
+and at half of them otherwise (`DEEPSEEK_OFF_PEAK_MULTIPLIER`, `isDeepSeekPeakAt`).
+Each window is half-open: 01:00:00 and 06:00:00 are peak, 04:00:00 and 10:00:00 are off peak,
+because the page does not say whether a window's last instant belongs to it.
+The weekday is the UTC weekday, which is the Beijing weekday at every instant a window covers.
+An instant that is not a time is peak.
+The direct client had no clock,
+so `createDirectClient` and `createDeepSeekClient` take `now` (the system clock by default) and read it once,
+before the first attempt of a call,
+and hand it to the route as `startedAt`;
+Xiaomi's route ignores it.
+
+The red cases:
+`1ebf4ca7e0` (seven cases fail: a Saturday call, a call at 23:59 on a Sunday and the edges of both windows and of the week
+in `direct-cost.unit.test.ts`,
+and in `deepseek-client.unit.test.ts` a Saturday call booked at half and the clock read once before the exchange),
+fixed by `57c772b8ab`.
+The failing lines are in the red run's log,
+and the new predicate has cases of its own in the fix commit.
+
+The readers of the booked cost:
+the run spend meter (`noteRunSpend`, fed from `reportSpend`),
+the per-run spend ceiling (`pass-stop-before-next.ts`, `spend-ceiling.ts`),
+the spend report (`spend-read.ts`, `spend-cost.ts`),
+and the SPEND lines themselves add up the figure as written and assumed no peak pricing.
+The dry floor of the DeepSeek meter (`DEEPSEEK_DRY_FLOOR_USD`) and the decision record reason from peak as the worst case,
+which stays true.
+A ceiling now stops a run later in real time on an off-peak night,
+at the same real dollars.
+
+Recomputed from the XingZ6021 log, the 15 lines come to 0.073547 USD under the new rule against the balance fall of 0.07
+(the balance is printed to two places).
+
+The rule for next time:
+a price read from a page that varies by the hour is priced by the hour of the request from an injected clock,
+and the page's wording at an edge is stated where the code pins it.
+
+Cache versions:
+none moved.
+The booked cost is written to the SPEND line and the run meter only,
+and no cache key reads either.
