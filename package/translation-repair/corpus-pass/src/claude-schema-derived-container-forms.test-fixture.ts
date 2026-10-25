@@ -13,13 +13,13 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // the methods that define a property, the name of a class or of a function declared inside whose body reads the
 // parameter, and the names a pattern default binds. What stays unread, and is pinned silent here: a value handed to a
 // function or to a method that is not one of those, which may store it in an object it receives, a value stored
-// through another name for the object (`const alias = holder; alias.a = args`), and a value stored in a field of
-// `this`.
+// through another name for the object (`const alias = holder; alias.a = args`), a value stored in a field of
+// `this`, and a value that one function stores in an object of the module and another function builds from.
 
 /**
  The line that declares a local object a case stores a value in.
  */
-const HOLDER = '  const holder: any = {};';
+export const HOLDER = '  const holder: any = {};';
 
 /**
  A case where the parameter is stored in a local object by the lines given, and the builder call reads the object.
@@ -39,7 +39,7 @@ const HOLDER = '  const holder: any = {};';
  const shapeCase = storingCase({ name: 'x', lines: [HOLDER,], argument: 'holder.a', isListed: true, },);
  ```
  */
-function storingCase(
+export function storingCase(
   {
     name,
     lines,
