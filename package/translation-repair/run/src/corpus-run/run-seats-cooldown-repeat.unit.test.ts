@@ -5,8 +5,13 @@
 
  The budgets are the real ones over a stub meter that cannot be read, the seat reader is the real one, and one fake
  clock moves both the budgets' hold arithmetic and the reader's sleeps, so no case waits. The cooldown is the real
- 300 s, which the clock passes in an instant. A second provider reads wet, since a reader left with no provider at
- all refuses with every provider dry, which is another case's subject.
+ 300 s, which the clock passes in an instant.
+
+ Two shapes are kept apart. With a live provider (NeuralWatt, which serves two of the translators and so keeps the
+ translate lane at its floor) reading wet beside it, the entry gives the refusing provider up and moves on to the live
+ one. With the refusing provider the only one not dry, which is the XingZ6020 shape itself, giving it up would leave
+ every provider dry and end the run for a provider that would serve again after its cooldown, so the cooldown is waited
+ out as before and the run is not ended.
 
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
@@ -20,7 +25,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { createProviderBudgets, } from '@monochromatic-dev/translation-repair-provider';
+import {
+  createProviderBudgets,
+  type NeuralWattEnergy,
+} from '@monochromatic-dev/translation-repair-provider';
 import { consoleLinesDuring, } from '@monochromatic-dev/translation-repair-provider/ts/neuralwatt-ledger.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
 import { unreadableQuotas, } from '@monochromatic-dev/translation-repair-provider/ts/unreadable-quotas.test-fixture.ts';
@@ -53,6 +61,24 @@ const REFUSALS = 3;
 const STATED_MS = 120_000;
 
 /**
+ A NeuralWatt day with all of its energy left, which reads wet.
+ */
+const NEURALWATT_WET_DAY: NeuralWattEnergy = {
+  dayStart: '2026-10-25T00:00:00.000Z',
+  dailyWh: 550,
+  spentWh: 0,
+  reckonedWh: 0,
+  reservedWh: 0,
+  remainingWh: 550,
+  calls: 0,
+};
+
+/**
+ Which provider reads wet beside the refusing one: none, or NeuralWatt.
+ */
+type Alternative = 'none' | 'neuralwatt';
+
+/**
  What one case needs of the budgets, the clock and the reader: a rig over the real code.
  */
 type Rig = {
@@ -76,22 +102,37 @@ type Rig = {
    Lines the seat reader wrote.
    */
   readonly lines: string[];
+
+  /**
+   The names of the errors the readings ended with, none when every reading seated its benches.
+   */
+  readonly endings: string[];
 };
 
 /**
- Builds the rig: a fake clock, the real budgets over a Synthetic meter that cannot be read and a Bedrock meter that reads
- wet, and the real seat reader over them.
+ Builds the rig: a fake clock, the real budgets over a Synthetic meter that cannot be read and, where asked, a NeuralWatt
+ meter that reads wet, and the real seat reader over them.
 
  @param sinon - case's own sandbox, which fakes the timers
+
+ @param alternative - which provider reads wet beside Synthetic
 
  @returns The rig, and the disposable that puts the real timers back
 
  @example
  ```ts
- using installed = rigOn({ sinon: ctx.sinon, });
+ using installed = rigOn({ sinon: ctx.sinon, alternative: 'neuralwatt', });
  ```
  */
-function rigOn({ sinon, }: { readonly sinon: DisposableSandbox; },): Rig & Disposable {
+function rigOn(
+  {
+    sinon,
+    alternative,
+  }: {
+    readonly sinon: DisposableSandbox;
+    readonly alternative: Alternative;
+  },
+): Rig & Disposable {
   /**
    Fake clock moving the budgets' holds and the reader's sleeps together.
    */
@@ -107,22 +148,24 @@ function rigOn({ sinon, }: { readonly sinon: DisposableSandbox; },): Rig & Dispo
    */
   const lines: string[] = [];
   /**
+   The names of the errors the readings ended with.
+   */
+  const endings: string[] = [];
+  /**
    The real budgets over the stub meters, on the fake clock.
    */
   const budgets = createProviderBudgets({
     maxHoldMs: TEST_MAX_HOLD_MS,
     synthetic: { quotas: unreadableQuotas, },
-    bedrock: {
-      credits: function credits() {
-        return Promise.resolve({
-          creditUsd: 100,
-          spentUsd: 10,
-          reckonedUsd: 0,
-          remainingUsd: 90,
-          calls: 4,
-        },);
-      },
-    },
+    ...((alternative === 'neuralwatt')
+      ? {
+        neuralwatt: {
+          energy: function energy(): Promise<NeuralWattEnergy> {
+            return Promise.resolve(NEURALWATT_WET_DAY,);
+          },
+        },
+      }
+      : {}),
     now: function now(): number {
       return clock.now;
     },
@@ -166,13 +209,18 @@ function rigOn({ sinon, }: { readonly sinon: DisposableSandbox; },): Rig & Dispo
       pollMs: POLL_MS,
     },);
     await clock.tickAsync(COOLDOWN_MS + POLL_MS,);
-    // The reading's answer is not read, only what it said.
-    await reading;
+    // The reading's answer is not read, only what it said and whether it ended the entry.
+    try {
+      await reading;
+    } catch (error) {
+      endings.push((error instanceof Error) ? error.name : String(error,),);
+    }
   }
 
   return {
     budgets,
     lines,
+    endings,
     refuseAndRead,
     refuseAtOnceAfterEachCooldown: async function refuseAtOnceAfterEachCooldown(): Promise<void> {
       for (const _refusal of Array.from({ length: REFUSALS, },)
@@ -212,16 +260,39 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'WAITS OUT THE COOLDOWN ONCE AND NO MORE when the provider refuses again right after it, so the entry '
-        + 'spends one cooldown and not one for every slice that is refused',
+      name: 'WAITS OUT THE COOLDOWN ONCE AND NO MORE when the provider refuses again right after it and a live '
+        + 'provider reads wet beside it, so the entry spends one cooldown and not one for every slice that is refused',
       fn: async ctx => {
-        using rig = rigOn({ sinon: ctx.sinon, },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'neuralwatt',
+        },);
         await consoleLinesDuring({
           run: rig.refuseAtOnceAfterEachCooldown,
           sinon: ctx.sinon,
         },);
 
+        expect(rig.endings,).toEqual([],);
         expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS WAITING OUT THE COOLDOWN, AND NEVER ENDS THE RUN, when the refusing provider is the only one not dry: '
+        + 'giving it up would leave every provider dry for a provider that serves again after its cooldown (the '
+        + 'XingZ6020 shape, which ended the run on the first give-up)',
+      fn: async ctx => {
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'none',
+        },);
+        await consoleLinesDuring({
+          run: rig.refuseAtOnceAfterEachCooldown,
+          sinon: ctx.sinon,
+        },);
+
+        expect(rig.endings,).toEqual([],);
+        expect(waitsIn({ lines: rig.lines, },).length,).toBe(REFUSALS,);
       },
     },),
 
@@ -229,7 +300,10 @@ await describe({
       name: 'LOGS THE DECISION with the provider, the entry and the cooldown that was waited out, once however often the '
         + 'provider refuses again',
       fn: async ctx => {
-        using rig = rigOn({ sinon: ctx.sinon, },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'neuralwatt',
+        },);
         rig.budgets.beginEntry({ entryId: 'XingZ6020', },);
         const lines = await consoleLinesDuring({
           run: rig.refuseAtOnceAfterEachCooldown,
@@ -252,7 +326,10 @@ await describe({
       name: 'KEEPS WAITING FOR A PROVIDER THAT SERVES AFTER ITS COOLDOWN: a call served once the hold ended is the provider '
         + 'coming back, so a refusal after it is not a refusal right after the cooldown',
       fn: async ctx => {
-        using rig = rigOn({ sinon: ctx.sinon, },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'neuralwatt',
+        },);
         await consoleLinesDuring({
           run: async function serveAfterEachCooldown(): Promise<void> {
             for (const _refusal of Array.from({ length: REFUSALS, },)
@@ -273,7 +350,10 @@ await describe({
       name: 'KEEPS THE HANDLING OF A STATED RETURN: a refusal that names when the provider comes back is not a cooldown, '
         + 'so it is waited for every time however often the provider refuses',
       fn: async ctx => {
-        using rig = rigOn({ sinon: ctx.sinon, },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'neuralwatt',
+        },);
         await consoleLinesDuring({
           run: async function refuseWithAReturnEachTime(): Promise<void> {
             for (const _refusal of Array.from({ length: REFUSALS, },)
@@ -293,7 +373,10 @@ await describe({
       name: 'STARTS A SECOND ENTRY FRESH: the provider the first entry gave up on is waited for once in the second, '
         + 'which then gives it up on its own evidence',
       fn: async ctx => {
-        using rig = rigOn({ sinon: ctx.sinon, },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          alternative: 'neuralwatt',
+        },);
         await consoleLinesDuring({
           run: async function refuseInTwoEntries(): Promise<void> {
             for (const entryId of [
