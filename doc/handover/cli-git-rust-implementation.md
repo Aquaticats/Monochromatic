@@ -2216,7 +2216,21 @@ that is verification, not a decision for the user.
   entry from `~/.config/mise/config.toml` and delete `~/.local/bin/git`. `AGENTS.md` `APG` and `APQ` need no wording
   change: `APQ` ("fires in third-party clones too") is now true on this machine; it stays false on a machine without
   the global entry, which the runbook `doc/runbook/cli-git-global-install.md` covers. Still open: machines the user
-  does not control (server-side rulesets or CI), and the user has not been asked about them yet.
+  does not control (server-side rulesets or CI): asked 2026-10-25, the user chose "Leave it open for now"; issue 1796
+  stays open with that part undecided (result comment posted:
+  `https://github.com/Aquaticats/Monochromatic/issues/1796#issuecomment-6401078387`). Unmeasured risk to revisit if
+  an IDE misbehaves: every `git` call by every tool on the user's machine now goes through the wrapper.
+  RELEASE 0.2.9 chosen by the user 2026-10-25 ("Release 0.2.9 now"), carrying the m028b survivor fixes (`571a53dc51`).
+  Gate evidence: the container gate on that commit passed 2105 tests, 5 skipped, and mutation was 0 missed in the four
+  touched files (m028c). Since then no Rust, `Cargo.toml`, `Cargo.lock`, `tests` or `build.rs` file in
+  `package/git-policy/cli` changed (`git diff --stat 571a53dc51 HEAD`); only `bin/*.mjs`, `e2e/*.ts`,
+  `native-interop/*.mjs` and the package `mise.toml` changed, as formatting from other sessions (`style(*)` commits
+  `e72b70764d`, `68415aeb53`, `3da31bdc3a`). The README example install line was pinned to `0.2.8` and the release
+  script rewrote it each release; per the user's "no pinning because we control the wrapper" it is now `latest` and
+  `~/temp/agent/release.ts` no longer touches the README and takes the commit note as its third argument. Sequence:
+  commit the README and handover, `node ~/temp/agent/release.ts 0.2.8 0.2.9 "<note>"` (cargo check, lock members,
+  publish dry run, release commit), the push triggers `cargo-publish.yml`, then `node ~/temp/agent/install-026.ts 0.2.9`
+  and verify the installed `git --version` plus the global link at `~/.local/bin/git`.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and

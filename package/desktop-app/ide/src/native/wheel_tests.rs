@@ -251,6 +251,8 @@ fn a_press_on_a_held_view_lands_on_the_row_drawn_under_it() {
     let height = window.get_viewport_height();
     scroll_to(window, START);
     settle_tile(state);
+    // The settled view is on screen, as it is for a person who presses.
+    snapshot(window.window());
     // A press on the settled view puts the caret on the row under the pointer (positive control).
     let down = 100.0;
     press(&reader, over_text(down));
@@ -263,6 +265,8 @@ fn a_press_on_a_held_view_lands_on_the_row_drawn_under_it() {
     );
     scroll_to(window, START + 6.0 * height);
     assert!(window.get_held());
+    // The held view is what the person sees, and the press is made over it.
+    snapshot(window.window());
     let drawn = window.get_drawn_offset();
     let real = -window.get_scroll_y();
     let drawn_line = state.borrow().row_map.line_at(drawn + down);
@@ -294,6 +298,8 @@ fn a_drag_on_a_held_view_reaches_the_row_drawn_under_the_pointer() {
     settle_tile(state);
     scroll_to(window, START + 6.0 * height);
     assert!(window.get_held());
+    // The held view is what the person sees, and the drag is made over it.
+    snapshot(window.window());
     let drawn = window.get_drawn_offset();
     let down = 100.0;
     let first = state.borrow().row_map.line_at(drawn + down);

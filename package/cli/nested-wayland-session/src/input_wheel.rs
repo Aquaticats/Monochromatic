@@ -79,7 +79,12 @@ fn point_pointer_at(state: &mut Compositor, x: f64, y: f64, what: &str) -> Resul
     let location: Point<f64, Logical> = (x, y).into();
     let under = state.surface_under(location);
     if under.is_none() {
-        bail!("no nested client surface at {what} position {x},{y}");
+        bail!(
+            "no nested client surface at {what} position {x},{y}: no hosted window covers that point, \
+             and before its first frame (the client's first committed buffer) no window covers any; \
+             nothing was sent to the client. Wait until `windows` lists a window, or check the point lies inside the window, \
+             then send it again"
+        );
     }
     let time = state.start_time.elapsed().as_millis() as u32;
     pointer.motion(state, under, &MotionEvent {

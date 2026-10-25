@@ -13,7 +13,7 @@ use super::{Action, Language, Pending, message, outcome, pointer, surface};
 /// The window,
 ///  the source,
 ///  and the navigation that opens other files.
-use crate::native::{AppWindow, State, navigation::Navigation};
+use crate::native::{AppWindow, State, input::shown_y, navigation::Navigation};
 /// Weak window handles keep callbacks from holding a closed window alive.
 use slint::ComponentHandle;
 /// What:
@@ -166,7 +166,9 @@ fn bind_pointer(owner: &AppWindow, source: &Rc<RefCell<State>>, language: &Rc<Re
             return;
         };
         // A Ctrl+click past the end of a line or on the line numbers asks nothing, as in editord.
-        let Some(character) = pointer::character_at(&click_state.borrow(), y, x) else {
+        // The press of this click named the row of the latest frame, so the definition is asked for that row's character.
+        let shown = shown_y(&window, &click_state.borrow(), y);
+        let Some(character) = pointer::character_at(&click_state.borrow(), shown, x) else {
             tracing::debug!(y, x, "Ctrl+click over no source character");
             return;
         };
