@@ -4,7 +4,7 @@ B948,
 which continues B865 to B869 of
 [Audit ledger: the check over the schema sources as a whitelist](audit-ledger-schema-source-check-as-a-whitelist.md)
 and
-[Audit ledger: the code the search cannot read and the mutants that survived](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md),
+[Audit ledger: B868 and B869](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md),
 both at the limit of a file.
 
 Part of [Audit ledger](audit-ledger.md),
@@ -33,7 +33,8 @@ which are green because the code was right and the suite lacked the input):
   A second function of the same name,
   declared in another module and imported in its place,
   was a report the name stood for.
-  Measured on the real sources with the import in `corpus-pass.ts` redirected to a new module that declares `settleEntry`:
+  Measured on the real sources with the import in `corpus-pass.ts` redirected to a new module that declares
+  `settleEntry`:
   the check made one report and the test left none.
   A report of a forwarder read in a place that is no call now holds the key of the function (`file#name`,
   the key `keyOf` makes),
@@ -88,17 +89,20 @@ which are green because the code was right and the suite lacked the input):
   `Object.values(ns)`,
   `[ns]` and `{ ns }` were not,
   although the same forms are reported for a module that also carries a builder.
-  `carries` in `standingAfter` now also holds for a namespace whose module declares a known forwarder (`declaresKnown` reads the keys of the forwarders).
+  `carries` in `standingAfter` now also holds for a namespace whose module declares a known forwarder (`declaresKnown`
+  reads the keys of the forwarders).
   Seven cases failed on the red commit and two controls passed:
   a call of a member written as a name or as a string is read and its file listed,
-  and the namespace of a module with no forwarder and no builder is accepted while a module of the same directory declares a forwarder.
+  and the namespace of a module with no forwarder and no builder is accepted while a module of the same directory
+  declares a forwarder.
   A namespace kept by an exported constant (`export const a = ns`) is followed into the file that reads the constant:
   `a.mk` held in a second file is reported,
   and `a.mk(...)` called there is listed.
   The type-marked form reports twice,
   the forwarder where it is held and the module where it is the object of the member,
   as the same form does for a module that carries a builder (an over-report that fails closed).
-  A file that calls as a function a module whose export assignment wraps a forwarder in a call (`import s = require(...)`,
+  A file that calls as a function a module whose export assignment wraps a forwarder in a call
+  (`import s = require(...)`,
   `s(args)`) is reported as well,
   as the module read where the search does not look (`fdae57969e22c55342dab6e9ee7f7d4acf65d21d` holds it).
   The mutants that take no forwarder-only module for a carrier,
@@ -111,11 +115,14 @@ which are green because the code was right and the suite lacked the input):
   In `args.forEach((value) => { holder.a = value; })` the parameter `value` takes the elements of `args`,
   and no link bound it,
   so `holder` was no name made from the parameter and the caller of the function was not listed.
-  `claude-schema-blind-callback-links.test-fixture.ts` binds the names that the parameters of each arrow function or function expression among the arguments of a call or of `new` bind (under type marks too) to what the callee and each argument that is no function written in place read.
+  `claude-schema-blind-callback-links.test-fixture.ts` binds the names that the parameters of each arrow function or
+  function expression among the arguments of a call or of `new` bind (under type marks too) to what the callee and
+  each argument that is no function written in place read.
   The call is read widely,
   as a call of a function that is not known is read everywhere else,
   and the body of a callback is not read for the call:
-  a callback whose own parameter comes from elsewhere binds nothing even when its body reads the parameter of the function.
+  a callback whose own parameter comes from elsewhere binds nothing even when its body reads the parameter of the
+  function.
   The red commit holds ten cases that failed and two pins that passed;
   the fix adds four cases:
   a callback of `reduce` that stores its second parameter,
@@ -163,7 +170,8 @@ which are green because the code was right and the suite lacked the input):
   as the last operand of a comma,
   as an arm of a conditional,
   or through a constant that holds the function.
-  `claude-schema-blind-loader-reads.test-fixture.ts` reports every read of either member (whether `process` is read off the global object or not,
+  `claude-schema-blind-loader-reads.test-fixture.ts` reports every read of either member (whether `process` is read
+  off the global object or not,
   under any mark) that is not the callee of a call,
   under the marks that leave it the same value.
   A direct call stays as before:
@@ -243,7 +251,8 @@ which are green because the code was right and the suite lacked the input):
   2 and 2 cases.
 - Four mutants and one claim of a commit message had no case (`5d788e1995bd69d785b4f4c543f2b1849c095ca8`,
   `5d893dce21fa26038fbaf0c46cf25305d43476a3`).
-  The commit `d0e3217f526770d3d67910cd33bc7d9f5d2c9868` says that the superclass of a class and the default of a parameter count in a declaration inside a function,
+  The commit `d0e3217f526770d3d67910cd33bc7d9f5d2c9868` says that the superclass of a class and the default of a
+  parameter count in a declaration inside a function,
   and no case held it.
   Three cases list the caller for `class Box extends (args as any) {}`,
   for a parameter that defaults to the parameter,
@@ -251,7 +260,8 @@ which are green because the code was right and the suite lacked the input):
   the mutant that reads only the body of the declaration (M19-31) is killed by 3 cases.
   The mutant that takes the statics of `Object` for those of any object (M19-14) is killed by 4 cases,
   and the mutant that takes any string that starts with `context` for the binding that makes scripts (M19-25) by 1.
-  The mutant that keeps the reports of a function once for each start offset (M19-11) mutates the key of the reports to the shape and the offset,
+  The mutant that keeps the reports of a function once for each start offset (M19-11) mutates the key of the reports
+  to the shape and the offset,
   which is not the code of the head any more;
   the row is retired with the code it mutated,
   and the key is the subject of the next entries.
@@ -263,7 +273,8 @@ which are green because the code was right and the suite lacked the input):
   so a named place of such a shape could have hidden a second report on its line;
   no such place exists,
   and the whitelist case shows the change on a real shape:
-  the line `registry.set(contestResponseFormat, contestResponseFormat,)` holds the builder twice in a position the search does not read and gives two reports now in place of one.
+  the line `registry.set(contestResponseFormat, contestResponseFormat,)` holds the builder twice in a position the
+  search does not read and gives two reports now in place of one.
   The key was the shape and the start offset of the node,
   and `4ae811e77c4323b0e146252fcd84b98c7fd45a0a` says that a node has one offset,
   one shape,
@@ -293,7 +304,8 @@ which are green because the code was right and the suite lacked the input):
 - Y-E1g,
   the mutant that makes an export assignment of an expression that is no name export the name of nothing,
   was argued equivalent in rounds 18 to 20.
-  The comparison on the head of this round found it differs on M09 of re-check 17 (`export = wrap(mk)` and a file that calls the module),
+  The comparison on the head of this round found it differs on M09 of re-check 17 (`export = wrap(mk)` and a file that
+  calls the module),
   where the head adds the report of the call of the module that the namespace as a carrier makes.
   `fdae57969e22c55342dab6e9ee7f7d4acf65d21d` holds both reports and the mutant is killed by 1 case.
 - A condition that no sender parameter can equal is removed (`1ff3eae4cb039905d9ea290a890bd81e42c003e1`).
@@ -329,7 +341,8 @@ six rows are at a new anchor),
 M19-10 and M19-11 are retired,
 and the five that survived are among the new rows),
 and 40 for the branches and comparisons this round added.
-The rows that mutate the key of the reports and the row of the export assignment were run again on `fdae57969e22c55342dab6e9ee7f7d4acf65d21d`,
+The rows that mutate the key of the reports and the row of the export assignment were run again on
+`fdae57969e22c55342dab6e9ee7f7d4acf65d21d`,
 because the key and the cases changed after the table.
 The merged table reads:
 409 rows killed by a case,
@@ -410,7 +423,8 @@ the 121 of this round 78,
 No input throws.
 One input is silent at the head and was not at `e65098851b`:
 A13 of re-check 17,
-whose arrow is not reported any more because the function that holds it lists its caller (the entry on the parameters of a callback).
+whose arrow is not reported any more because the function that holds it lists its caller (the entry on the parameters
+of a callback).
 X3-09 of re-check 18,
 whose expectation was wrong,
 is silent at `a50897193205` and the older heads of that comparison,
@@ -443,7 +457,8 @@ and 15 forwarders with the same callers as before the round;
 the merge adds two sources and no forwarder.
 
 `origin/main` at `495bf2f39e5b7ebbeacec33b5cdfb239a2649c5a` is merged (`d0565720a3eaa85173d1b6ada7ef7927b56dd5b4`).
-It brings the removal of the weight floors in other packages of the family and in `package/translation-repair` documents,
+It brings the removal of the weight floors in other packages of the family and in `package/translation-repair`
+documents,
 and a note of the ide package.
 No file conflicts,
 and the two index files that both sides edit merged without a marker;
@@ -484,7 +499,8 @@ Records corrected in fix round 21:
   The statements are in the follow-up of fix round 20 in B867 and B868.
 - `1e62055f00cb064a2763c0b452363c678af23e98` said `origin/main` had not moved after the merge,
   and `e65098851b57c0feea83c86ee5cf06778d4b863f` corrects it.
-  `3b47f21768905ddea009bc02d60d07ea41c2d526` and `c20e309953903a7962ed6637651dd6c839a1ef91` point by position (recorded in fix round 20).
+  `3b47f21768905ddea009bc02d60d07ea41c2d526` and `c20e309953903a7962ed6637651dd6c839a1ef91` point by position
+  (recorded in fix round 20).
 - The index lines of B864 to B867 in the list of entries by id passed 120 columns,
   and B865 to B867 are reference links now,
   as B868 and B869 were.
@@ -511,9 +527,11 @@ Records corrected in fix round 21:
   `5d893dce21fa26038fbaf0c46cf25305d43476a3`,
   `928ce59c7eb745d8ccfcbc5bead46db203ad4653`
   and `a1c78ef41bc4494afeef31b5a7dbf60b18fb7990`);
-  `d6a572c5d25efe8a7f648e9724e7578f4de39155` writes "the following numbers" and `59abf4225852cc95c898e65012fb92efb7b82866` writes "the rule below",
+  `d6a572c5d25efe8a7f648e9724e7578f4de39155` writes "the following numbers" and
+  `59abf4225852cc95c898e65012fb92efb7b82866` writes "the rule below",
   which point by position;
-  `f77a19e5d6f884250dd50511c9f239bbb865993f` and `d0565720a3eaa85173d1b6ada7ef7927b56dd5b4` promise a later statement (the ledger commit of this round,
+  `f77a19e5d6f884250dd50511c9f239bbb865993f` and `d0565720a3eaa85173d1b6ada7ef7927b56dd5b4` promise a later statement
+  (the ledger commit of this round,
   and the gates of the merged tree);
   `4ae811e77c4323b0e146252fcd84b98c7fd45a0a` says a node has one offset in every input,
   which `d1e5e454776e70793a042bc22e6f736f1044081e` corrects.
@@ -521,7 +539,8 @@ Records corrected in fix round 21:
 
 Cache versions in fix round 21:
 none of the commits of this branch moved one.
-The search over `e65098851b57c0feea83c86ee5cf06778d4b863f..HEAD` prints 28 commits of `origin/main` (the removal of the weight floors moved `CONSOLIDATE_CACHE_VERSION`,
+The search over `e65098851b57c0feea83c86ee5cf06778d4b863f..HEAD` prints 28 commits of `origin/main` (the removal of
+the weight floors moved `CONSOLIDATE_CACHE_VERSION`,
 `TRANSLATE_SLICE_CACHE_VERSION`,
 `SLICE_CACHE_VERSION`,
 `REFINE_CACHE_VERSION`,

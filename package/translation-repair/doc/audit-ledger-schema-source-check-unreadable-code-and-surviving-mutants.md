@@ -677,7 +677,8 @@ except the pins):
   Y-F5v is killed,
   and the throw whose code is gone leaves the table.
 - The adversarial inputs were run on the head of this round and on the three heads it is compared with.
-  The 430 inputs of re-check 17 and before are silent 176 times over the 434 rows of the files at `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`
+  The 430 inputs of re-check 17 and before are silent 176 times over the 434 rows of the files at
+  `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`
   (the report of the round said 173,
   which left out three of the four controls of `adv17-h`),
   64 at `6b7244fbb8d243387b3a9ed6ccbecae3bac420fe`,
