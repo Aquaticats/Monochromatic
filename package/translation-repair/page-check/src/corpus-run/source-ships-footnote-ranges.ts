@@ -56,7 +56,7 @@ export function pageOnlyStartsOf(
 
  @param tables - where a reader of the source reads a table, the end being the end of its last row
 
- @returns The starts whose preceding line ending lies outside every table, in the order given
+ @returns Starts whose line starts after a line ending outside every table, in the order given
 
  @example
  ```ts

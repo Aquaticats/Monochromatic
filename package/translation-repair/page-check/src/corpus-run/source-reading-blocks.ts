@@ -149,7 +149,7 @@ function sameWords({
 
  @param reached - for each block, whether a range reaches it
 
- @returns The runs in order; a block that shows nothing and no range reaches is left out, since it can stand anywhere on
+ @returns Runs in order; a block that shows nothing and no range reaches is left out, since it can stand anywhere on
  the page
 
  @example
@@ -250,6 +250,21 @@ function placesOf({
 type Placings = ReadonlyMap<number, number>;
 
 /**
+ A place the blocks before can end at, and what getting there cost.
+ */
+type Placing = {
+  /**
+   Index of the page word the blocks end after.
+   */
+  readonly place: number;
+
+  /**
+   Blocks a range reaches that the readings cannot be asked about on the way there.
+   */
+  readonly cost: number;
+};
+
+/**
  Records what one way of placing a block costs, keeping the cheapest cost for the place the block ends at.
 
  @param next - where the block can end, with the cost, which this adds to
@@ -325,20 +340,31 @@ function placedAfter(
   },
 ): Placings {
   /**
+   The block's words.
+   */
+  const { words, } = segment;
+  /**
+   What the blocks a range reaches show since the last block no range reaches, and how many they are.
+   */
+  const {
+    words: heldWords,
+    blocks: heldBlocks,
+  } = held;
+  /**
    Where the block's words stand in the page, the last block's only where they end the page.
    */
   const places = placesOf({
     page,
-    words: segment.words,
+    words,
   },)
     .filter(function canEnd(place,): boolean {
-      return (!isLast) || ((place + segment.words.length) === page.length);
+      return (!isLast) || ((place + words.length) === page.length);
     },);
   /**
    Where the block can end, with the cost.
    */
   const next = new Map<number, number>();
-  if (held.blocks === 0) {
+  if (heldBlocks === 0) {
     // No block a range reaches stands between: the block starts where the blocks before it ended.
     for (const place of places) {
       /**
@@ -348,7 +374,7 @@ function placedAfter(
       if (cost !== undefined) {
         keepCheapest({
           next,
-          end: place + segment.words.length,
+          end: place + words.length,
           cost,
         },);
       }
@@ -358,11 +384,20 @@ function placedAfter(
   /**
    The places the blocks before can end at, with their cost, in the order of the page.
    */
-  const froms = [...placings.entries(),].toSorted(function byPlace(
-    [left,],
-    [right,],
+  const unordered: Placing[] = [];
+  for (const [place, cost,] of placings)
+    unordered.push({
+      place,
+      cost,
+    },);
+  /**
+   The same places, in the order of the page.
+   */
+  const froms = unordered.toSorted(function byPlace(
+    left: Placing,
+    right: Placing,
   ): number {
-    return left - right;
+    return left.place - right.place;
   },);
   /**
    How many of those places the words start after, and the cheapest of them.
@@ -372,10 +407,16 @@ function placedAfter(
     cheapest: Number.POSITIVE_INFINITY,
   };
   for (const place of places) {
-    while ((froms[reading.taken]?.[0] ?? Number.POSITIVE_INFINITY) <= place) {
+    for (;;) {
+      /**
+       The next place the blocks before can end at.
+       */
+      const from = froms[reading.taken];
+      if ((from === undefined) || (from.place > place))
+        break;
       reading.cheapest = Math.min(
         reading.cheapest,
-        froms[reading.taken]?.[1] ?? Number.POSITIVE_INFINITY,
+        from.cost,
       );
       reading.taken += 1;
     }
@@ -383,7 +424,7 @@ function placedAfter(
      The place the blocks before ended at if the words of the page between it and this one are what the blocks a range
      reaches show.
      */
-    const exact = place - held.words.length;
+    const exact = place - heldWords.length;
     /**
      What getting there from that place costs, absent where the words are other or no block ended there.
      */
@@ -392,7 +433,7 @@ function placedAfter(
         exact,
         place,
       ),
-      right: held.words,
+      right: heldWords,
     },))
       ? placings.get(exact,)
       : undefined;
@@ -401,13 +442,13 @@ function placedAfter(
      one at none.
      */
     const cost = Math.min(
-      reading.cheapest + held.blocks,
+      reading.cheapest + heldBlocks,
       exactCost ?? Number.POSITIVE_INFINITY,
     );
     if (Number.isFinite(cost,)) {
       keepCheapest({
         next,
-        end: place + segment.words.length,
+        end: place + words.length,
         cost,
       },);
     }
@@ -422,7 +463,7 @@ function placedAfter(
 
  @param pageBlocks - what each top-level block of the page shows
 
- @param disagreements - the footnote ranges one reading has and the other lacks that start inside a block quote or a list
+ @param disagreements - footnote ranges one reading has and the other lacks that start inside a block quote or a list
  item, as offsets in the source
 
  @returns Whether a block differs on its own, and how many blocks the readings cannot be asked about

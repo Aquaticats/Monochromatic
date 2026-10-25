@@ -1,3 +1,4 @@
+import { COMMENT_OPEN, } from './source-ships-open-comment.ts';
 import type { TextRange, } from './source-ships-ranges.ts';
 
 //region Source ships readable
@@ -141,6 +142,59 @@ export function foldLoneCarriageReturns({ text, }: { readonly text: string; },):
  */
 export function asTheParseReadsIt({ text, }: { readonly text: string; },): string {
   return text.startsWith(BYTE_ORDER_MARK,) ? `${LEADING_MARK_STAND_IN}${text.slice(1,)}` : text;
+}
+
+/**
+ What the parse is given in place of an opener of a comment that never closes: the page carries `&lt;!--`, text that
+ starts with an ampersand, which a line starting with it makes a paragraph and which keeps the class of the less-than
+ sign among emphasis marks. Four spaces would make the line a blank one, or indented code, and a definition on the next
+ line would stay a definition to the parse where it is a line of the paragraph to the strict grammar.
+ */
+const COMMENT_OPENER_STAND_IN = '&!--';
+
+/**
+ Writes the stand-in of an opener over each place an opener stands.
+
+ @param text - text
+
+ @param starts - index of the `<` of each opener, in text order
+
+ @returns Text of the same length
+
+ @example
+ ```ts
+ const readable = standingIn({ text: 'a <!-- b', starts: [2,], },);
+ ```
+ */
+export function standingIn(
+  {
+    text,
+    starts,
+  }: {
+    readonly text: string;
+    readonly starts: readonly number[];
+  },
+): string {
+  /**
+   Pieces of the result, joined at the end.
+   */
+  const pieces: string[] = [];
+  /**
+   Where the text not yet copied starts.
+   */
+  const copied = { upTo: 0, };
+  for (const start of starts) {
+    pieces.push(
+      text.slice(
+        copied.upTo,
+        start,
+      ),
+      COMMENT_OPENER_STAND_IN,
+    );
+    copied.upTo = start + COMMENT_OPEN.length;
+  }
+  pieces.push(text.slice(copied.upTo,),);
+  return pieces.join('',);
 }
 
 //endregion Source ships readable

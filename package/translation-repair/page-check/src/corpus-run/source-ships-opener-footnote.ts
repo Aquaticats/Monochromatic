@@ -135,6 +135,10 @@ function splitFlowsOf(
     };
   }
   /**
+   The indentation, which the function that closes a flow reads once the search for it is over.
+   */
+  const carried: string = indent;
+  /**
    Edits written.
    */
   const edits: TextEdit[] = [];
@@ -175,7 +179,7 @@ function splitFlowsOf(
         end,
       },
       mark: flow.mark,
-      carried: indent,
+      carried,
       starts,
       closed,
     },);
@@ -260,16 +264,26 @@ export function openersInFootnoteFlowsOf(
     readonly footnotes: readonly BlockRange[];
   },
 ): OpenerInCode {
-  if ((starts.length === 0) || (footnotes.length === 0) || (!('children' in root))) {
+  if (!('children' in root)) {
+    return {
+      edits: [],
+      handled: [],
+    };
+  }
+  if (starts.length === 0) {
     return {
       edits: [],
       handled: [],
     };
   }
   /**
+   The blocks of the top of the text.
+   */
+  const { children, } = root;
+  /**
    What each block of indented code under a footnote comes to.
    */
-  const splits = root.children
+  const splits = children
     .filter(function isIndentedCode(block,): boolean {
       return (block.type === 'code') && (block.position !== undefined);
     },)

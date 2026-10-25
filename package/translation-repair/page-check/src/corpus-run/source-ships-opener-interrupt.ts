@@ -30,7 +30,7 @@ import {
 
  @param footnotes - where a footnote definition stands, for a reader of the source and for the page
 
- @returns The edit that doubles the line ending before the opener's line; none when no paragraph stands right before it,
+ @returns Edit that doubles the line ending before the opener's line; none when no paragraph stands right before it,
  when a footnote definition holds that paragraph, or when the opener starts no raw HTML block of the top of the text
 
  @example
@@ -54,25 +54,44 @@ export function interruptionEdits(
   if ((start === (-1)) || (!('children' in root)))
     return [];
   /**
-   The index of the raw HTML block that holds the opener among the blocks of the top of the text.
+   The blocks of the top of the text.
    */
-  const at = root.children.findIndex(function holdsOpener(block,): boolean {
-    if ((block.type !== 'html') || (block.position === undefined))
+  const { children, } = root;
+  /**
+   The index of the raw HTML block that holds the opener among them.
+   */
+  const at = children.findIndex(function holdsOpener(candidate,): boolean {
+    if ((candidate.type !== 'html') || (candidate.position === undefined))
       return false;
     /**
      Where the block stands.
      */
-    const range = rangeOf({ node: block, },);
+    const range = rangeOf({ node: candidate, },);
     return (range.start <= start) && (start < range.end);
   },);
   /**
-   The raw HTML block and the block right before it.
+   The raw HTML block.
    */
-  const block = root.children[at];
-  const before = root.children[at - 1];
-  if ((block?.position === undefined) || (before?.position === undefined) || (before.type !== 'paragraph'))
+  const block = children[at];
+  /**
+   The block right before it.
+   */
+  const before = children[at - 1];
+  if (block?.position === undefined)
     return [];
-  if ((before.position.end.line + 1) !== block.position.start.line)
+  if (before?.position === undefined)
+    return [];
+  if (before.type !== 'paragraph')
+    return [];
+  /**
+   Where the paragraph ends.
+   */
+  const { end: paragraphEnd, } = before.position;
+  /**
+   Where the raw HTML block starts.
+   */
+  const { start: blockStart, } = block.position;
+  if ((paragraphEnd.line + 1) !== blockStart.line)
     return [];
   /**
    Where the paragraph stands.
