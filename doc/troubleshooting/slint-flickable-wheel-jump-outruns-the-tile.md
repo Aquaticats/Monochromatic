@@ -1249,11 +1249,15 @@ the first drag move (`source pointer drag start`),
 each later move (`source pointer drag`),
 and the release (`source pointer release`) now write a debug record
 (`src/native/pointer_log.rs`,
-called from `src/native/input.rs:219`, `:290` and `:335`;
-the release is a new callback, `pointer-release`, in `ui/app.slint:308` and `:626`).
+called from `src/native/input.rs:219`,
+`:290` and `:335`;
+the release is a new callback,
+`pointer-release`,
+in `ui/app.slint:308` and `:626`).
 Each record has the log's wall-clock stamp and:
 `y` and `x` as the handler received them,
-`view_y` (`y - drawn_offset`, the pointer's distance below the top of the text area),
+`view_y` (`y - drawn_offset`,
+the pointer's distance below the top of the text area),
 `offset` (the window's real offset),
 `drawn_offset`,
 `shown_offset` (the offset the latest frame began with),
@@ -1269,7 +1273,9 @@ the line drawn under a pointer at a pixel row `p` of the view in a frame is `flo
 for the generated file (one 24 px row per line;
 a diagnostic block in the row map breaks it,
 and the 1 trial in 580 that had one is left out).
-The driver (headless nested compositor, scale 2, 1080x1880 logical px,
+The driver (headless nested compositor,
+scale 2,
+1080x1880 logical px,
 the 1,500-line `long.ts`,
 `tsc --lsp --stdio` of TypeScript 7.1.0-beta,
 a fresh session per trial,
@@ -1283,7 +1289,7 @@ sent `move` 150 px lower,
 and `button up`.
 The gutter number at the pointer row of each screenshot was read with `tesseract` over the column of numbers
 (the most common reading of the rows in the crop,
-660 screenshots,
+1,160 screenshots of the two runs,
 0 unreadable).
 
 ### What the log says
@@ -1296,29 +1302,34 @@ a second copy of it (`new2`) gives the spread.
 "own offsets" the line the press's own `drawn_offset` gives.
 "Screen" is the gutter number at the pointer row of the screenshot taken at once after the press command.
 
-- `new`, d=20 (30 trials):
+- `new`,
+  d=20 (30 trials):
   3 presses in a held frame;
   press row = last frame 3,
   = next frame 30,
   = own offsets 30;
   screen = pressed row 0 (the screen still showed the first frame of the ease).
-- `new`, d=50 (30):
+- `new`,
+  d=50 (30):
   held 5;
   last frame 5,
   next frame 30,
   own offsets 30;
   screen = pressed row 5.
-- `new`, d=80 (29 and 10 of `new2`):
+- `new`,
+  d=80 (29 and 10 of `new2`):
   held 0 and 0;
   last frame 0 and 0,
   next frame 29 and 10;
   screen = pressed row 0 and 0.
-- `new`, d=110 (30 and 10 of `new2`):
+- `new`,
+  d=110 (30 and 10 of `new2`):
   held 0 and 2;
   last frame 0 and 2,
   next frame 30 and 10;
   screen = pressed row 0 and 2.
-- `new`, d=140 (40),
+- `new`,
+  d=140 (40),
   d=150 (10),
   d=180 (40):
   held 0;
@@ -1329,7 +1340,8 @@ a second copy of it (`new2`) gives the spread.
   10,
   40;
   screen = pressed row 0 in all 90.
-- `new`, d=250 (30) and d=600 (10):
+- `new`,
+  d=250 (30) and d=600 (10):
   last frame,
   next frame,
   own offsets and screen all agree in 40 of 40.
@@ -1365,8 +1377,10 @@ by a median of 35 to 77 rows (2 at d=180).
 ### Cause
 
 The window thread handles input once per frame while a far jump runs.
-In the 420 trials of d=20 to 180 (`new`, `new2` and `fix`) the gap from the last frame before a press to the next frame
-had a median of 121 ms in the first run and 123 ms in the second (10th to 90th percentile 99 to 150 and 50 to 166 ms),
+In the 420 trials of d=20 to 180 (`new`,
+`new2` and `fix`) the gap from the last frame before a press to the next frame
+had a median of 121 ms in the first run and 123 ms in the second
+(10th to 90th percentile 99 to 150 and 50 to 166 ms),
 about 8 frames per second,
 and a press sent in between waits for the next one.
 While it waits the toolkit's ease goes on in time,
@@ -1379,12 +1393,14 @@ while the screen still shows the last frame.
 The handler's own numbers are consistent,
 so the mapping through `hold-shift` is right for the offsets of the moment;
 the defect is the moment.
-The earlier check that gave 10 of 10 at load 2 to 3 and half of 20 at load 22 to 39 therefore did not only suffer from the recorder:
+The earlier check that gave 10 of 10 at load 2 to 3 and half of 20 at load 22 to 39
+therefore did not only suffer from the recorder:
 the app itself handles a press a frame late under load,
 and the selection starts at the row of the offset of that late moment.
 The unmodified `b951a5d005` was not run again at the low load,
 and what keeps the thread from drawing for 100 ms was not found:
-in the one trial read closely (d=20, an 83 ms stretch) the log has no record from "the toolkit finished drawing a frame"
+in the one trial read closely (d=20,
+an 83 ms stretch) the log has no record from "the toolkit finished drawing a frame"
 to the first record after the wait,
 so it is no tile or measurement pass the log names,
 and the compositor's own pacing under load was not separated from it.
@@ -1395,14 +1411,17 @@ A scratch build of the same code where `drawn-y` maps with the real offset
 (`return pointer-y / 1px;`,
 the hold-shift dropped,
 not committed):
-80 trials (d=20 and 50: 30 each, d=80 and 110: 10 each),
+80 trials (d=20 and 50:
+30 each,
+d=80 and 110:
+10 each),
 the press's `view_y` error was 0 px in every press that was not held,
 and -152 to -7,254 px in every held press (8 of 8),
 and "own offsets" failed in exactly those 8 presses and in no other.
 The instrument sees a wrong mapping in held frames,
 and in no other frame;
-the native test `the_logged_line_is_the_line_the_logged_offset_and_point_name` and the guard `pointer-maps-through-real-offset`
-fail on the same change.
+the native test `the_logged_line_is_the_line_the_logged_offset_and_point_name`
+and the guard `pointer-maps-through-real-offset` fail on the same change.
 
 ### Fix
 
@@ -1414,9 +1433,12 @@ the drag,
 the release,
 and the Ctrl+click definition (`src/native/language/actions.rs:170`) use it;
 hover keeps the pointer's distance from the top of the view.
-Test: `a_press_names_the_row_of_the_frame_that_was_shown` (`src/native/pointer_log_tests.rs`),
+Test:
+`a_press_names_the_row_of_the_frame_that_was_shown`
+(`src/native/pointer_log_tests.rs`),
 with the guards `pointer-maps-through-moment-offset` and `pointer-shown-offset-unset`.
-Measured with the same driver (`fix`, the same load):
+Measured with the same driver (`fix`,
+the same load):
 
 - press row = last frame:
   d=20 30 of 30,
@@ -1429,7 +1451,10 @@ Measured with the same driver (`fix`, the same load):
   d=250 30,
   d=600 10 of 10.
   The one trial (d=50) was 3 rows off at the press and at the release alike:
-  the row map was 36,096 px high (72 px, 3 rows, taller than the text),
+  the row map was 36,096 px high
+(72 px,
+3 rows,
+taller than the text),
   the open "taller row map" item of the hover section,
   not the press.
 - Screen = pressed row:
@@ -1465,8 +1490,9 @@ matched the screen in 13,
 0 of 10 and 22 of 30),
 and no number the app has says which one is on the screen:
 winit gives no event time and the app has no presentation feedback.
-At those delays a press still names a row one frame later than the one the person saw,
-which is as it was before and closer to it than the offset of the moment.
+At those delays a press still names a row of a later frame than the one the person saw,
+as it did before (screen = pressed row in 0 of 30 to 40 trials of `new`,
+against 0 to 2 of 30 of `fix`).
 
 ### Not covered
 

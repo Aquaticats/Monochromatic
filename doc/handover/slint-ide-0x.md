@@ -5136,25 +5136,31 @@ subsections "Which row a press names" and "The log of a press".
   `line`,
   `line_number` and `column`
   (`src/native/pointer_log.rs`).
-  With the existing `the frame's view real= drawn= held=` records the drawn row of a press is read from the log alone.
-- Answer, 580 trials,
+  With the existing `the frame's view real= drawn= held=` records
+  the drawn row of a press is read from the log alone.
+- Answer,
+  580 trials,
   three sessions at a time,
   load 7 to 16,
   300 notches,
   delays 20 to 600 ms,
   gutter numbers of the screenshot at the press read with `tesseract`:
-  the pointer mapping through `drawn-y` is right for the offsets of the moment (the press's own offsets name its line in every trial without a diagnostic block),
+  the pointer mapping through `drawn-y` is right for the offsets of the moment
+  (the press's own offsets name its line in every trial without a diagnostic block),
   and the press is handled a median 110 to 121 ms after it was sent at delays of 20 to 180 ms
   (1 to 13 ms at 250 and 600),
   because the window thread draws about 8 frames per second while a far jump runs;
   the press then maps at the offset of that late moment,
-  199 of 229 presses did not name the last frame's row (median 35 to 77 rows off),
+  199 of 229 presses did not name the last frame's row
+  (median 35 to 77 rows off),
   and the screen showed the last frame's row in 29 or 30 of 30 at d=50 to 110.
   The recorder was not the cause;
   the load is (the earlier 10 of 10 at load 2 to 3 was not rerun).
 - Positive control:
-  a scratch build mapping with the real offset (not committed) gives a `view_y` error in exactly the 8 held presses of 80 trials and no other.
-- Fix (veto-open, one commit to revert):
+  a scratch build mapping with the real offset (not committed)
+  gives a `view_y` error in exactly the 8 held presses of 80 trials and no other.
+- Fix (veto-open,
+  one commit to revert):
   `shown_y` maps the press,
   the drag,
   the release and the Ctrl+click through the offset of the latest frame
@@ -5169,12 +5175,26 @@ subsections "Which row a press names" and "The log of a press".
   where the screen shows a frame older than the last one begun
   (no presentation feedback in the app).
 - Open:
-  why the thread draws only 8 frames per second during a far jump (an 83 ms stretch with no log record after a finished frame);
-  the taller row map (seen again, 1 of 330 sessions);
+  why the thread draws only 8 frames per second during a far jump
+  (an 83 ms stretch with no log record after a finished frame);
+  the taller row map (seen again,
+  1 of 330 sessions);
   the old binary at low load.
 - Tests and gates:
   `src/native/pointer_log_tests.rs` (4 tests),
-  7 guard cases `pointer-*` in `bin/inspect-source-guards.ts`.
+  7 guard cases `pointer-*` in `bin/inspect-source-guards.ts`
+  (each fails on its removal and passes restored,
+  the `.slint` one included);
+  the keyboard code of `src/native/input.rs` moved to `src/native/caret_keys.rs`
+  (the file was over the 300 code line limit with the logging;
+  5 older guard cases follow it);
+  two tests of `wheel_tests.rs` draw a frame over the held view before they press,
+  as a person does.
+  `lint` 0,
+  `test:native` 349 passed and 5 skipped,
+  `test` 811 passed,
+  `test:bin` 0,
+  `inspect:no-software-renderer` 0.
 - The harness (driver,
   analysis,
   OCR) was kept only in the session scratch and removed.

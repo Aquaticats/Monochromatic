@@ -167,7 +167,11 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
         release(window, target);
     });
     let pressed = record(&lines, "source pointer press");
-    assert_eq!(field(pressed, "line_number"), 8.0, "{pressed}");
+    assert_eq!(
+        field(pressed, "line_number"),
+        8.0,
+        "the press record named the line counted from 0, not as the gutter counts it: {pressed}"
+    );
     assert_eq!(field(pressed, "line"), 7.0, "{pressed}");
     assert_eq!(field(pressed, "offset"), 0.0, "{pressed}");
     assert_eq!(field(pressed, "drawn_offset"), 0.0, "{pressed}");
@@ -181,6 +185,12 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
         pressed.contains(" column=") && pressed.contains(" x="),
         "{pressed}"
     );
+    assert!(
+        lines
+            .iter()
+            .any(|line| return line.contains("source pointer drag start y=")),
+        "no move was written as the drag start: {lines:#?}"
+    );
     let started = record(&lines, "source pointer drag start");
     assert_eq!(field(started, "line_number"), 13.0, "{started}");
     let dragged = lines
@@ -190,6 +200,12 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
     assert_eq!(
         dragged, 1,
         "the second move is a drag, not a start: {lines:#?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| return line.contains("source pointer release y=")),
+        "the release wrote no record of the line it went up on: {lines:#?}"
     );
     let released = record(&lines, "source pointer release");
     assert_eq!(field(released, "line_number"), 13.0, "{released}");
@@ -225,14 +241,14 @@ fn the_logged_line_is_the_line_the_logged_offset_and_point_name() {
     assert_ne!(
         field(pressed, "offset"),
         field(pressed, "drawn_offset"),
-        "{pressed}"
+        "the press record carried the real offset where the drawn offset belongs: {pressed}"
     );
     // The pointer stands 12 px into the row `130` of the text at the offset the window had, so its place in the
     // view is that distance from the top of the text area; the drawn offset moves the text under it.
     assert_eq!(
         field(pressed, "view_y"),
         130.0 * ROW + ROW / 2.0 - 120.0 * ROW,
-        "{pressed}"
+        "a press on a held view named the line of the real offset, not the line drawn under the pointer: {pressed}"
     );
     // The rows are those of the latest frame, when one has been drawn, and those of the moment otherwise.
     let shown = if pressed.contains(" shown_offset=") {
@@ -275,6 +291,10 @@ fn a_press_names_the_row_of_the_frame_that_was_shown() {
         release(window, pointer);
     });
     let pressed = record(&before, "source pointer press");
+    assert!(
+        pressed.contains(" shown_offset="),
+        "the frame did not record the offset it was drawn at: {pressed}"
+    );
     assert_eq!(
         field(pressed, "shown_offset"),
         0.0,
@@ -289,7 +309,7 @@ fn a_press_names_the_row_of_the_frame_that_was_shown() {
     assert_eq!(
         field(pressed, "line"),
         shown_line,
-        "the press named the row the shown frame has 100 px below the top, not the row of the later offset: {pressed}"
+        "a press named the row of the offset of the moment it was handled, not the row of the frame the person saw: {pressed}"
     );
     let caret = position(&source).1;
     assert_eq!(
