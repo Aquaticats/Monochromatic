@@ -212,6 +212,12 @@ export const WHITELIST_CALL_CASES: readonly ShapeCase[] = [
       },
       {
         file: 'imaginary/src/leaving-stage.ts',
+        line: 42,
+        shape: 'code-the-search-cannot-read',
+        position: 'callback of then cannot be read',
+      },
+      {
+        file: 'imaginary/src/leaving-stage.ts',
         line: 46,
         shape: 'builder-result-returned-outside-a-wrapper',
         position: 'FunctionDeclaration returns it',

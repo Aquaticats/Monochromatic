@@ -29,7 +29,8 @@ import {
 // `every` call it with the element, the index and the array; `reduce` with the accumulator, the element, the index and
 // the array. The callback is the first argument. A function written there is read; so is the name of a function the file
 // declares, and `Boolean`, `String` and `Number` that no scope binds, which keep nothing of what they are given. Any
-// other callback is code the search cannot read.
+// other callback is code the search cannot read. So is a function written as an argument of any other method called
+// on the value, `sort`, `findLast` and a method of the object that holds the value included.
 
 /**
  The position of the array in the parameters of the callback of `reduce`, which has the accumulator, the element and the
@@ -201,7 +202,34 @@ function valueNamesOf(
 }
 
 /**
- The callback a member hands the value to, when the member is a method of the list called with a callback.
+ Whether a call has a function written as an argument, under the marks that leave it the same.
+
+ @param call - call
+
+ @returns Whether some argument is an arrow function, a function expression or a function under a mark
+
+ @example
+ ```ts
+ const holds = holdsFunctionArgument({ call, },);
+ ```
+ */
+function holdsFunctionArgument({ call, }: { readonly call: TreeNode; },): boolean {
+  return nodesAt({
+    node: call,
+    field: 'arguments',
+  },)
+    .some(function isFunctionWritten(argument,): boolean {
+      /**
+       The argument once the marks around it are taken off.
+       */
+      const { inner, } = unwrapped({ node: argument, },);
+      return isTreeNode(inner,) && isFunctionNode({ node: inner, },);
+    },);
+}
+
+/**
+ The callback a member hands the value to, when the member is a method of the list called with a callback. A method
+ outside the list that is called with a function written as an argument hands the value to code the search cannot read.
 
  @param context - what the file's names are read against
 
@@ -249,10 +277,18 @@ export function callbackOf(
    The positions of the parameters the value arrives in, absent for a method that calls no callback with it.
    */
   const indexes = VALUE_PARAMETERS.get(method,);
-  if ((call === undefined) || (indexes === undefined))
+  if (call === undefined)
     return NO_CALLBACK;
   if ((call.type !== 'CallExpression') || (call.callee !== top))
     return NO_CALLBACK;
+  if (indexes === undefined) {
+    return holdsFunctionArgument({ call, },)
+      ? {
+        ...NO_CALLBACK,
+        unreadable: `callback of ${method} cannot be read`,
+      }
+      : NO_CALLBACK;
+  }
   /**
    The first argument of the call, absent when the call has none, and the arguments after it.
    */
