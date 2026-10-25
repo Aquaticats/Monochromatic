@@ -82,7 +82,10 @@ export function lifecycleStamp(
 ): string {
   if ((!Number.isSafeInteger(attempt,)) || (attempt < 1))
     throw new LifecycleAttemptError({ attempt, },);
-  return `at=${wallClock().toISOString()} attempt=${String(attempt,)}`;
+  return `at=${
+    wallClock()
+      .toISOString()
+  } attempt=${String(attempt,)}`;
 }
 
 //endregion Lifecycle stamp
