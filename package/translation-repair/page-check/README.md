@@ -320,6 +320,15 @@ and peaked at 535 to 559 MB of memory.
 The two runs of the follow-up round took 308 seconds and 762 seconds,
 the second with a host load average of 58.75 when it started and 26.15 when it ended,
 and the unit's summary from `systemd-run --wait` reported a memory peak of 746.7 MB and of 687.1 MB (320.3 MB swapped).
+The three runs after them took 719.2 seconds,
+581.8 seconds and 545.4 seconds,
+with memory peaks of 708.2 MB,
+749.2 MB and 754.7 MB,
+and the run of the fifth round took 656.9 seconds
+(a service runtime of 10 minutes 58.707 seconds,
+12 minutes 55.130 seconds of CPU time,
+a memory peak of 742.6 MB with 13.7 MB swapped,
+and a host load average of 11.17 when it started and 23.82 when it ended).
 Time varies with the load by more than a factor of two,
 so a run that is slow under load is no sign of a slower check.
 Run it as its own capped unit,

@@ -212,7 +212,7 @@ Each was made on a copy of the source in the working tree,
 built,
 run against the test file named,
 and removed.
-All of the following die:
+All of these die:
 
 - `inContainer` passed as false at the two sites of `source-ships-spans.ts` (F3):
   3 cases of `source-ships-container-blank-line.unit.test.ts`.
@@ -276,8 +276,8 @@ Of the 1174 undecided texts of the fourth round,
 1 now read the same,
 54 are `differs` (the footnote was not the whole difference) and the rest stay `undecided`.
 
-FALSE POSITIVES.
-A `differs` reported by the new block rule is the only new kind of report that a text reading the same could
+On false positives:
+a `differs` reported by the new block rule is the only new kind of report that a text reading the same could
 receive,
 since the other answers are fixed by the oracle of the whole text.
 There are 54 such texts.
@@ -407,16 +407,72 @@ No version is bumped.
 
 ### The full task, the merges, the gates and the slips
 
-The merges of `origin/main` conflicted with nothing:
+The merges of `origin/main` conflicted with nothing (`git merge-tree --write-tree` exited 0 each time):
 `b6927f7ba93f5139fa0605ef160c6f44c60fa32d` at the start of the round
-(`d92e03f53944aa219ac133e1f11203416321332b`),
-and `6457f1f09c85c79c7b1b1f87d2b31314dfe4ec4e` before the gates (`5bc9c77c0b339f23827abc10cad7883d5a9ee0fb`).
+(`d92e03f53944aa219ac133e1f11203416321332b`) and `6457f1f09c85c79c7b1b1f87d2b31314dfe4ec4e` before the gates
+(`5bc9c77c0b339f23827abc10cad7883d5a9ee0fb`).
 Neither brought a change to `page-check`,
 `document-structure`,
 `markup`,
 `source-scan` or `run`.
 
-COMMIT-MESSAGE SLIPS of the third and fourth rounds that the re-check found beyond the list of the fourth round,
+The full task ran once,
+on `d782255a2cdc753ad25d21ccc99e3a7a0602bdd2` (the last commit that changes code is
+`4f1ba3055b8d288e320bfed893d06889ff487927`;
+the commits after it are Markdown and the comment header of one test file),
+in its own capped unit,
+`dx1f3-livefull`,
+with `MemoryMax=8G` and `CPUQuota=800%` and a stderr path never used before.
+It passed:
+the case that holds the three names ran in 656.9 s,
+the unit reported success after a wall clock time of 10 min 58.707 s,
+12 min 55.130 s of CPU time and a memory peak of 742.6 MB with 13.7 MB swapped.
+The one-minute load average of the host was 11.17 when the unit started and 23.82 when it ended.
+The stderr file holds three lines:
+the two preamble lines of the task and the logger message that a sink could not be verified within 5000 ms.
+The unit was started without `--wait`,
+so its summary was read from the journal.
+
+The gates ran one at a time,
+from the worktree,
+on the final code,
+and every one passed:
+
+- `document-structure`:
+  `build`,
+  `lint:types`,
+  `lint:oxlint` (0 warnings and 0 errors),
+  `test:unit` (65 `[PASS]` lines,
+  no `[FAIL]`).
+- `markup`:
+  the same four (51 `[PASS]` lines);
+  its only change is the opening of one TSDoc line.
+- `page-check`:
+  the same four (186 `[PASS]` lines,
+  6 more than the fourth round's 180).
+- `source-scan`:
+  `test:unit` (68) and `source-scans` (53),
+  and `lint:types` and `lint:oxlint` for the file it gained an entry in.
+  `run` changed its README only,
+  so no gate of it ran.
+
+The first `source-scans` run on the code of this round failed these,
+all fixed by `4f1ba3055b` and the Markdown commit:
+two modules with no unit test of their own,
+a function nothing reaches (`joinedAccounts`) and an export nothing reaches (`footnoteRangesDifferInContainer`),
+a byte order mark written literally in a test,
+two test files with more than one top-level awaited describe,
+three blankness tests not listed,
+a function body written twice,
+two TSDoc comments before a statement,
+a dead link to the file of this round before it existed,
+and Markdown lines the lint breaks (a break is wanted after every comma,
+semicolon,
+colon and full stop).
+The second run found one phrase pointing by position and one more TSDoc before a statement.
+
+The commit-message slips of the third and fourth rounds that the re-check found beyond the list of the fourth
+round,
 none corrected on the remote and nothing posted:
 
 - `e9a4920bcf`,
