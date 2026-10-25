@@ -4628,6 +4628,16 @@ popup overlaps the left 10 px of the minimap. Open from the agent: one fresh-ses
 character under the pointer after a 301-notch first scroll (its log shows a finished tile left for a scroll step that
 never came; not reproduced in 3 more trials, unexplained); rows drawn late without a move of the offset or a change of
 the text height still do not restart a rest; the height signal has a unit test only.
+Queued 2026-10-25 and started at once (QWD): the open-items agent (branch `worktree-agent-ac50f93d8163f1cf4`, tip
+`39e6a10ee3`, gates on its own tree green) found item A is no stuck view and item B one real case (a reload that keeps
+the line count) fixed behind failing tests; I merged and gated it (`land-open`), then build, install and verify the
+installed binary. Two things it left unexplained are with a second agent (scratch `~/temp/agent/rowmap`, branch off
+`654f87b6b2`): (1) a row map 72 px (3 rows) taller than the text (36096 against 36024) in 9 of 160 trials under the
+one-core limit, 4 of 53 input-free sessions under it and 1 of 1,160 unlimited, three lines keeping two rows after
+measurement passes at the narrow first width end late: is the map permanently too tall in such a session (scroll
+extent, minimap, positions all off: a real defect) or does a later pass correct it; (2) three trials with no wheel log
+line (likely a 40-notch turn the shown tile holds, which logs nothing; to be shown with file:line). Their reports are
+verified, landed and the IDE reinstalled.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
