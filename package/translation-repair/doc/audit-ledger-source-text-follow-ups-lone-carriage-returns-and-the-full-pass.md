@@ -120,7 +120,8 @@ The rate is one pair in four of the first seed:
 a class of nine pairs among its 40000 draws is missed with chance 0.75 to the power 9,
 so it is caught with chance 0.925,
 where one in six catches it with chance 0.81.
-The sampled case took 40.2 s and 51.4 s in the two measurements made, for that one seed.
+The sampled case took 40.2 s and 51.4 s in the two measurements made,
+for that one seed.
 A task,
 `test:live-full` of `translation-repair-page-check`,
 runs `source-live-full.expensive.unit.test.ts`,
@@ -130,7 +131,7 @@ and took 293 s to 318 s in two measurements under a cap of three threads
 143 s and about 360 MB).
 The second fix round of this record corrects both figures:
 the sampled case now reads both seeds,
-and the full task is timed across the runs made so far (see the section on that round).
+and the full task is timed across the runs made before the second fix round (see the heading "The second fix round").
 
 The invariant for step 3 of the composition read the nesting of the pair texts with a function that splits lines on the line feed
 and gave false alarms.
@@ -224,10 +225,243 @@ with the sampled case and the unmutated tree as the control (it passes):
 121 for artifact),
 `lint:types` and `lint:oxlint` of the packages touched,
 and `test:unit` (68) and `source-scans` (53) of `translation-repair-source-scan`,
-run one at a time on the code of `1c7918806f6f2ae46586bceb622c2f61802591e5`, the commit that ended the round.
+run one at a time on the code of `1c7918806f6f2ae46586bceb622c2f61802591e5`,
+the commit that ended the round.
 No cache version moved:
 `git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' bcff23b8ce..HEAD` names no commit,
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 The fold is in the encoder of the page,
 and no package that declares a cache version imports `translation-repair-page-check`;
 the hook of the grammar returns the tree it was given and changes no value.
+
+### The second fix round
+
+This round answers the re-check of the first fix round (`dx1f-recheck.md` in the working directory of the review,
+finding ids R1 to R11),
+and the full task it asked for.
+A red commit holds a failing case alone,
+and its failing lines were kept in `dx1f2/red-*-failing-lines.txt` of that directory;
+each fix names the red commit it answers.
+
+#### Findings of the re-check
+
+- R2,
+  a code span across a footnote line that carries the marks or the hanging indent of its container:
+  red `f7165c5e494295f08e188a33c21d26e582867510` (`red-r2`,
+  `red-r2b`),
+  fix `549d97ddf4461b830ab09b8d78fc4bdba48dee72`,
+  which cut at the character before the footnote and was replaced;
+  red `dee820cf6613af0044e77af28d353284d5715d3b` (the pool of runs and the pairs it finds as cases),
+  fix `3ef2fd61ccf622655f1e7d70d30f2ea11b02a9ff`,
+  which cuts a container paragraph at every footnote line and reads each part by whether its line stays in the container.
+- R4,
+  the label rules of `micromark-extension-gfm-footnote@2.1.0`:
+  red `e9a4920bcf28952fcd47ecf86d3a4032c58d2821` (`red-r4`) and `84c1bec06825a7f60580a65595b92376295d6803` (`red-r4b`),
+  fix `bb0d27d04a21ecdc58996dd616f04dd6b5a54e9e`.
+  The predicate of `markup` and the one of `page-check` meant the same,
+  so there is one,
+  in `markup`,
+  and `page-check` reads a definition's label from its source.
+- R5,
+  the step 3 invariant excuses a drop only by the refusal for depth that run's own page recorded:
+  red `b5fa8c92cc67dfeec565331d3eb3549bc2ebf5b6` (`red-r5`),
+  fix `b79df2282574c34e59c42ce344faf8c276020bcb`.
+- R10,
+  the pins of a tab,
+  a carriage return and a line feed in a caret label and of CRLF in the fence-mark join,
+  and the N3 case named for what it checks:
+  `f073fe69b5cff831caade709f06b1a0ec19bbecd`.
+  The two fail-safe mutants `mx-tab` and `mx-crlf` fail 3 cases each (`mut-tab`,
+  `mut-crlf`).
+- R1,
+  R3 and R6:
+  the sampled case reads both seeds at one in four and computes the reach of its carriage return guard on its own
+  (`9136a1e690f98e0adfde70e1c485ff58fc773a80`),
+  the README of `page-check` names the full task and when it runs,
+  and its header says what it guards (`874cc10c257b76e9d9eeb8b62f3225bab0110a71`),
+  and the ledger drops its positional wording (`0dbc55a48825118217ed76169fd5f9e3ce4f4c93`).
+  The chance of catching nine violators among the 80000 draws is 0.920 reading both seeds at one in four,
+  and 0.695 reading the first seed alone;
+  for seventeen it is 0.992 and 0.892
+  (`r1-sim.txt`,
+  a simulation against the real kept set).
+- R7,
+  `Symbol` among the roots of the global writes scan,
+  with a synchronous set and dispose under `using` allowed:
+  red `57a01038eecc001ba00ab20ca006b57cf41638a3` (`red-r7`),
+  fix `396af2b1f0c826d69f0f4592b3b1ca18b8d0b7d3`.
+- R8 and R9,
+  the TSDoc of the parse-end hook names the parses that call it and those that do not,
+  and three TSDoc lines lose their article:
+  `83e67534fb81ec3ee0833dd1f2db1b71be513383` and `0a4f92ba212ffcd213ccd9e34af6d4571ba00eac`.
+  `4e4065e48fc40e17d9ce8ad296a4635fc66f0747` removes an export no file imports.
+- R11,
+  the dead declarations scan follows only the imports of test files and fixtures,
+  and a built entry under `dist/` is left alone:
+  red `7458179d3761668dc11500a467ae3bd9a065ca31` (`red-r11`),
+  fix `5a3b6f7085bcef4e4d8afb42b0d527cd504c9c0a`.
+- The scratch trees of the first fix round (`dx1f/mut/`) were removed,
+  the links by `rm` on the link itself.
+- The probe grid of the re-check (80 texts:
+  a code span or a plain paragraph across a footnote line indented 0 to 4,
+  at the top,
+  in a block quote marked or lazy,
+  and in a list item,
+  with a tag or a brace after the colon) found 16 refused or live pages on `bcff23b8ce`,
+  14 on `1c7918806f`,
+  and 2 refused and 2 live on the head of this round.
+  The four that remain are the indent-4 probes named in the limits of this round.
+  The 24 lines of the shapes of the ruling (marked,
+  lazy and list,
+  indent 0 to 3,
+  a tag and a brace) parse with no live construct and read as the source does.
+  The 10 pairs that the scans of the first fix round listed (6 and 4),
+  replayed on this head,
+  have no finding.
+
+#### The first full task, and what it found
+
+`test:live-full` ran once on `0dbc55a48825118217ed76169fd5f9e3ce4f4c93` as a capped unit
+(4 GB of memory,
+300% of CPU).
+It failed,
+and a scan of all 80000 pairs on the same code found 15 findings and one crash:
+8 findings in the seed 31415926,
+7 findings and a `MarkdownParseError` in the seed 27182818.
+The pairs fail on `1c7918806f` too,
+so none came in with this round.
+Draw ids are the comments of `source-live-full-pass-pairs.test-fixture.ts`.
+
+- The measure of nesting split lines on the line feed alone,
+  so a text whose lines end in a lone carriage return hid fences and brackets from it
+  (draw 11096 of the seed 27182818 threw):
+  red `0412d71d8344ce03c76667948d61b88086fa49fa` (`red-r12`,
+  2 failing cases),
+  fix `0fda29e1d0562203ee799d9c0b93fd04ec302401`,
+  the lines cut at a line feed,
+  a carriage return and both;
+  `4b8d84aa361fdb979b5ac2047acaa3c943445ac5` names the function `linesAtEveryEnding`,
+  since `linesOf` is a name `archive` exports.
+- 11 of the 15 are a footnote followed by a line of raw HTML.
+  A reader of the source in GFM ends the footnote at the tag,
+  and the page,
+  which writes every less-than sign as text,
+  goes on with the footnote's paragraph over it,
+  so a code span pairs across the lines and a definition line is a lazy line.
+  Red `2927ecec0eec8068dafb9d8ec3d25424a8411b7b` (`red-r13`,
+  1 failing case),
+  `29b90243c88ffc29c91c526912d7297447bb104a` read the ranges with raw HTML off for every caller.
+- A lazy line with a fence mark indented four spaces after a footnote in a container
+  (draws 9633 and 33130),
+  a footnote in a container followed by blocks of the top,
+  and a block that two readers reach and so put the same edit twice.
+  Red `a830a40e8a3ce1da81cb941cf0240bb99389809c` (`red-r14`):
+  the 16 pairs and 5 shapes,
+  13 failing cases.
+- Braces that the measure of nesting counted open in front of a fence whose information string holds
+  a long line of brackets,
+  which the measure then counted as nested:
+  a brace inside a quoted string of an open expression
+  (red `53a0548d9eb7bbd7a7562a1762b576e7a7627116`,
+  `red-r15`,
+  2 failing cases;
+  fix `ebdd01317365886efe1799e19a259a264d09f57d`),
+  and the braces of a link reference definition,
+  which read a brace as a character and open no expression
+  (red `f878ffbed6619ef972edf3b9d5dc6c71e19091a3`,
+  `red-r16`,
+  1 failing case;
+  fix `286e7979b4c70aca929b17a4e56262e1ee46acef`).
+  Draw 21529 of the seed 27182818 was refused for a depth it did not have.
+
+#### Two readings of a footnote, and the choice between them
+
+`cd61a365fdc67aa115efe119fa0d7578f0052e9c` closed the 16 pairs by reading the ranges of the page everywhere.
+It turned 16 existing leaf cases red:
+the reader equality cases of `source-ships-encoding.unit.test.ts` (13),
+whose oracle reads the source in GFM with raw HTML on,
+and one case each of the container,
+pending and separation files.
+Where the oracle sees a definition,
+that version shows the line as text.
+Its commit body says so,
+and it was not kept as the end state.
+
+The end state is a choice for the owner to veto.
+`footnoteDefinitionRangesOf` reads the source's ranges with raw HTML on,
+and `pageFootnoteDefinitionRangesOf` the page's with it off
+(`1ab47ca1f5dbb8790764eb7d1352044fc22afeb3`).
+Only two places use the page's ranges:
+a footnote in a container,
+and the blank line after a footnote's last block,
+which is put before a paragraph as well as a definition where the page goes on over a line of raw HTML.
+That keeps the top of a text as the oracle reads it,
+and the page differs from the source by one blank line where the footnote ends at a tag.
+The alternative is the page's ranges everywhere with the oracle changed to read the page,
+which the state of `cd61a365fd` reaches with no finding;
+it moves the claim "the page shows the source text" to "the page shows the page's reading of the source text".
+`24cdb8ac739d0f9b3b4ded019727621797c5376f` carries the page-check side,
+and also makes the encoder make an edit once where a block is reached twice.
+
+#### Result of the full task on the final code
+
+On `6ebbd6677650d44aed8bf8a3cfe62dc688fcda08` the task passed:
+the case that holds the three names in 762.4 s,
+`systemd-run --wait` reporting a service runtime of 12 min 48.955 s,
+12 min 46.327 s of CPU time and a memory peak of 687.1 MB with 320.3 MB swapped.
+The host load average was 58.75 when it started and 26.15 when it ended.
+The first run took 308.3 s,
+with a memory peak of 746.7 MB.
+Both differ from the 535 to 559 MB of the measurements made before this round,
+whose method is not recorded here;
+these are the peaks of the unit's cgroup.
+A scan of every draw of both seeds on the code before the repeated-edit helper and the rename of `linesOf` found
+0 findings and 0 throws
+(seed 31415926:
+40000 pairs,
+32121 with literal pages;
+seed 27182818:
+40000 pairs,
+32018 with literal pages).
+The stderr file of the unit holds 100 lines stamped 03:18Z that repeat the findings of the first failed run,
+after a logger message that a sink could not be verified within 5000 ms;
+the cause of the repeat was not found,
+the exit status is 0,
+and the PASS line is stamped 05:04Z at the end of the run.
+
+#### Limits and open findings of this round
+
+- The indent-4 probes `span-top-ind4-tag`,
+  `span-top-ind4-brace`,
+  `span-quote-lazy-ind4-tag` and `span-quote-lazy-ind4-brace` still fail on the head:
+  a code span across a footnote line indented four spaces.
+  The strict grammar disables indented code,
+  so a footnote definition may start at any indent there,
+  while CommonMark reads the line as a lazy line of the paragraph.
+  The ruling named indents 0 to 3,
+  the generators of the pools write none at 4,
+  and the four fail on the base too.
+  The fix would read a footnote start at any indent in the strict grammar;
+  it is not made here.
+- The source scan of the own-test ratchet gained two own tests (`without-raw-html.unit.test.ts` and
+  `source-ships-separation.unit.test.ts`),
+  and `withoutRawHtml` and `separatingEdits` are exported for them.
+
+#### Checks of the second fix round
+
+`build`,
+`test:unit` (155 `[PASS]` lines and no `[FAIL]` for `page-check`,
+62 for `document-structure`,
+51 for `markup`),
+`lint:types` and `lint:oxlint` (0 warnings and 0 errors) of the three packages,
+and `test:unit` (68) and `source-scans` (53) of `translation-repair-source-scan`,
+run one at a time.
+No cache version moved:
+`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 1c7918806f..HEAD` names no commit,
+and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
+The nesting measure feeds the markup atom scan,
+whose result enters `markupDelta` in the page pass (`apply-patch.ts`),
+and no cache key reads it,
+so the change of the bound is no cache key either.
+No new B id was taken:
+the next free one is B842.
