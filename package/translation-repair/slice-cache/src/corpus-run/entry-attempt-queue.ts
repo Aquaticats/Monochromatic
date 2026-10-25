@@ -140,6 +140,15 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
 
   /**
    The clock time and attempt a line about this entry carries, read when the line is printed.
+
+   @param entry - entry the line is about
+
+   @returns The `at=` and `attempt=` fields of the line
+
+   @example
+   ```ts
+   const stamp = stampOf({ entry, },);
+   ```
    */
   function stampOf({ entry, }: { readonly entry: EntryT; },): string {
     return lifecycleStamp({

@@ -260,7 +260,12 @@ await describe({
             const opening = `TALLY ${ENTRY.id} status=DECLINED at=2026-10-22T08:10:11.123Z attempt=3 `
               + 'reason=archive-original ms=';
             expect(printed.lines[0]?.startsWith(opening,),).toBe(true,);
-            expect(Number.isInteger(Number(printed.lines[0]?.slice(opening.length,),),),).toBe(true,);
+
+            /**
+             Text after the opening, which is the duration in milliseconds.
+             */
+            const duration = Number(printed.lines[0]?.slice(opening.length,),);
+            expect(Number.isInteger(duration,),).toBe(true,);
           },
         },),
         it({
