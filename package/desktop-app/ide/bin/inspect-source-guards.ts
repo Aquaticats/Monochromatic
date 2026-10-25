@@ -2292,7 +2292,7 @@ const cases: Guard[] = [
     after: '    if false && wheel::following(current, offset) {',
     native: true,
     test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
-    failure: 'the worker builds the one tile of the end and none for the steps'
+    failure: 'the tile of the end landed while the ease still ran'
   },
   {
     name: 'wheel-end-tile-accepted',
@@ -2301,7 +2301,7 @@ const cases: Guard[] = [
     after: '            || false)',
     native: true,
     test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
-    failure: 'the worker builds the one tile of the end and none for the steps'
+    failure: 'the tile of the end landed while the ease still ran'
   },
   {
     name: 'wheel-placement-releases',
