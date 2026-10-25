@@ -4609,6 +4609,29 @@ when the view moved under it, `idle` kept for the popup dismissal of a settled p
 against `main`, and views the screenshots of 12 popups (after a far jump and settled) to check each is attached to the
 identifier under the pointer; its report is verified, landed and the IDE reinstalled. The recorder rate (15 to 25 fps
 against 60 requested) is a property of this loaded host and is not something to fix.
+Landed 2026-10-25 as `96959a8b67` (the agent's tip `23d3dcec4a` merged with two docs-only commits of other sessions;
+the IDE sources equal what the gates ran on): gates on the merged tree `lint` 0, `test:native` 342 passed and 5
+skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0; 11 tests in
+`src/native/language/pointer_blank_tests.rs`, 24 `hover-*` guard cases removed and restored. Reproduction on the
+installed `dd16d49c0d586fb1…` (10 trials per cell, past the end of a line at 5, 11, 29 and 301 notches, on a hint row at
+5 and 301, hints arriving under the pointer): main 0 of 10 everywhere, fix 10 of 10 right, requests 0.533 to 0.574 s
+after the wheel (0.783 to 0.818 s with hints). Fix: `Rest::due` returns a rest over no character only after the view
+moved under it; `follow` watches the text height as well as the drawn offset (hints above the pointer move text
+without moving the offset); `rest` resolves against the drawn rows and offset when the request is built, a character
+calls `asked_about`, no character calls `found_nothing` (the next view move starts the rest again); `idle` unchanged;
+a settled pointer over nothing asks nothing and logs nothing. Defect of the first version found only by viewing the
+popup screenshots: the answer came right but the popup closed 20 ms later because the rest still recorded "no
+character" and `idle` closed the popup of its own answer; counts and tests had missed it; `asked_about` fixes it and
+the tests compare the popup after twice the rest time. The agent viewed 12 far-jump popups, 2 of 6 settled ones and 1
+hints popup: each for the identifier under the pointer, below its row at the pointer's column, on screen; the hints
+popup overlaps the left 10 px of the minimap. Open from the agent: one fresh-session trial under load had no
+character under the pointer after a 301-notch first scroll (its log shows a finished tile left for a scroll step that
+never came; not reproduced in 3 more trials, unexplained); rows drawn late without a move of the offset or a change of
+the text height still do not restart a rest; the height signal has a unit test only.
+Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
+installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
++2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
+Ctrl+End and Ctrl+Home); its numbers follow, then `~/temp/agent/final5` is removed.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
