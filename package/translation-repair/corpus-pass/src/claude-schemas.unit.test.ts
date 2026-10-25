@@ -92,6 +92,7 @@ import {
 import { UNDECLARED_FORWARDER_CASES, } from './claude-schema-forwarder-shape-forms.test-fixture.ts';
 import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts';
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
+import { SENDER_NAMESPACE_CASES, } from './claude-schema-sender-namespace-forms.test-fixture.ts';
 import { SENDER_PIN_CASES, } from './claude-schema-sender-pin-forms.test-fixture.ts';
 import { SENDER_POSITION_CASES, } from './claude-schema-sender-position-forms.test-fixture.ts';
 import { SENDER_SHADOW_CASES, } from './claude-schema-sender-shadow-forms.test-fixture.ts';
@@ -820,6 +821,7 @@ await describe({
       ...PINNED_CASES,
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
+      ...SENDER_NAMESPACE_CASES,
       ...TAGGED_TEMPLATE_CASES,
     ].map(function caseOfForm(formCase: FormCase,) {
       return it({
@@ -879,6 +881,7 @@ await describe({
       ...PINNED_CASES,
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
+      ...SENDER_NAMESPACE_CASES,
       ...TAGGED_TEMPLATE_CASES,
     ].map(function caseOfSpots(shapeCase: ShapeCase,) {
       return it({
