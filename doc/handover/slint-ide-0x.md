@@ -5160,12 +5160,30 @@ the full account with counts is the section "A row map taller than the text" of
 - Missing wheel lines:
   the wheel records are written for every turn,
   covered by the tile or not;
-  the 13 of 210 sessions without a line never received the event (the wheel was sent before the real window size,
-  and the gutter showed the top of the file).
+  the 13 of 210 sessions without a line never received the event
+  (all 13 gutters showed the top of the file,
+  all 197 sessions with the line were scrolled;
+  the time of the toolkit's report of the real window size does not separate the groups,
+  and the likely cause is a wheel sent while only the small first surface existed under the pointer,
+  which is a hypothesis).
   Two silent branches of the wheel path now write a debug record.
 - Not explained:
-  where a wheel sent before the real size is dropped (compositor or toolkit);
+  where such a wheel is dropped (compositor or toolkit);
   the taller map in the one session of 1,160 without a limit (logs gone).
+- The 4 to 8 percent of sessions with a message block (`bwrap: Can't bind mount ...`) are a separate incident of the harness:
+  three concurrent sessions shared one cache directory and one project hash,
+  and the error is a missing source directory,
+  which points to a race;
+  two IDE processes on the same project could meet it too.
+  It was not investigated.
+- The earlier wheel and hover guarantees were not measured again on a real binary
+  (far jump blank frames,
+  the 88-click recording,
+  the 82 px gap);
+  `measure_requested` is not on the worker tile path of a wheel jump
+  (`wheel::turn` sets `scroll_wanted` and the tile lands through `tile::apply`),
+  and the native tests that cover hover rows,
+  drag starts and wrapping passed (346 of 346).
 - The harness was kept only in the session scratch (`~/temp/agent/rowmap`) and is removed with its throwaway builds.
 
 [scope]: ../decision/slint-ide-0x-scope.md

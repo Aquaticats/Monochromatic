@@ -1248,11 +1248,16 @@ and reads the last `row map rebuilt` record of the log) was kept only in the ses
   Two earlier groups of the first build:
   5 of 60 and 3 of 30.
 - Sessions with a taller map by another amount (36,114 to 36,178) held a block of virtual rows:
-  an information message of the language support that the harness itself caused
+  an information message of the language support
   (`bwrap: Can't bind mount ... on /tmp`:
-  the harness's private cache directory is bind-mounted into the sandbox of the mise lookup).
+  the source directory `.../language/proj-<hash>/mise/tmp` of the bind mount did not exist).
   They occur in every binary (2,
   1 and 4 of 160) and are not a row defect.
+  Three sessions at a time share the harness's cache directory and the project hash,
+  which points to a race between sessions on one project
+  (a separate incident,
+  not investigated);
+  two IDE processes on one project could meet it too.
 
 ### The lines and the cause
 
@@ -1411,19 +1416,25 @@ one-core limit,
 The 197 sessions with a `turned the wheel` line all show a scrolled gutter,
 and the 13 sessions without one all show the top of the file
 (the gutter pixels equal those of a session that never scrolled).
-The wheel was sent before the window had its real size in the 13
-(the real size stood up to 1.0 s after the server was ready,
-and no session with the real size more than 0.3 s after it had a line).
-The compositor's wheel command then reached no surface that took it,
-and the IDE never received an event,
-so the log is right to be silent.
-What is not shown is where the event is dropped
-(the compositor or the toolkit's first layout):
-the IDE has no record to write for an event it never receives.
+What separates the sessions is the gutter and nothing else that was measured:
+the time of the toolkit's report of the real view size (`viewport_width=646`) after the server was ready overlaps
+(0.12 to 1.0 s in the 9 silent sessions of the cell of 40 notches,
+negative to 0.19 s in the 4 of the cell of 301,
+negative to 0.3 s in the sessions that took the wheel),
+so it is not the discriminator.
+The likely mechanism is a hypothesis the IDE log cannot show:
+the first surface is small (a view of 173 px by 288 px),
+the pointer of the wheel command stands at 540 px by 900 px,
+and the layout report is not the commit of the fullscreen surface,
+so the pointer was over no surface of the IDE and the event reached nobody.
+The IDE never received an event,
+so the log is right to be silent,
+and it has no record to write for an event it never receives.
 
 ### Not explained
 
-- Where the event of a wheel sent before the real size is dropped.
+- Where such a wheel is dropped (the compositor or the toolkit's first surface),
+  and why the report of the real size does not tell.
 - Whether the pass at the narrow width is taken before the real size only under a one-core limit:
   the same symptom was seen once in 1,160 trials without a limit,
   whose logs are gone.

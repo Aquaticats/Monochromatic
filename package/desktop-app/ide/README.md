@@ -2251,9 +2251,15 @@ A turn the window state could not note,
 and a note older than 50 ms,
 write a record of their own.
 A session whose log has no such line received no wheel event:
-a wheel sent before the window has its real size (up to a second after the language server is ready under a one-core limit)
-reached no surface (13 of 210 sessions),
-and all of those showed the top of the file.
+13 of 210 sessions (one-core limit,
+the wheel sent 300 ms after the language server was ready) have none,
+and all 13 show the top of the file,
+while all 197 with the line show a scrolled gutter.
+The time of the toolkit's report of the real window size does not tell the two groups apart;
+the likely cause,
+which the log cannot show,
+is a wheel sent while the first,
+small surface was the only one the pointer could be over.
 
 Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
 the hardware GPU,
@@ -2450,10 +2456,11 @@ never taken into the table.
 The table holds heights from the narrow first width of a window (about 173 px,
 before the window has its real size) wherever a pass chunk was applied before the real width arrived,
 and that stands inside the tile of the real width too:
-in 19 of 320 sessions with no input under a one-core limit,
-the last 3 lines of a tile of 155 lines (150 to 152,
-the three `export const` lines of one period of the generated file) kept two rows,
-and the pass never sends the lines of the displayed tile again,
+in 19 of 320 sessions with no input under a one-core limit the row map was 72 px (3 rows) taller than the text;
+in the two sessions read with a probe the lines were 150 to 152
+(the three `export const` lines of one period of the generated file) of a tile of 155 lines,
+which kept two rows.
+The pass never sends the lines of the displayed tile again,
 so the row map stayed 72 px taller than the text until a tile that covered those lines was built.
 `apply_pass` logs a line of the displayed tile whose rows differ from what the pass measured
 (`the measurement found rows in the displayed tile that differ from the map`).
