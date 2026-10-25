@@ -417,7 +417,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=0 elapsed=42ms',
         ],);
@@ -491,7 +491,7 @@ await describe({
             + 'people/mittens/page.en.md (missing-object); the commit has no such path: check the path, or pin a '
             + 'commit that has it.)',
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=2 done=1 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=2 of pending=2; artifacts=2/2 declined=1 unpairedArtifacts=0 elapsed=42ms',
         ],);
@@ -548,7 +548,7 @@ await describe({
           return line.startsWith('START ',) || line.startsWith('DONE ',);
         },),).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=1 elapsed=42ms',
         ],);
       },
@@ -609,7 +609,7 @@ await describe({
           return line.startsWith('START ',) || line.startsWith('DONE ',);
         },),).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 unpairedArtifacts=1 elapsed=42ms',
         ],);
       },
@@ -651,7 +651,7 @@ await describe({
             + 'the pass\'s own order; run this into a throwaway TRANSLATION_REPAIR_RUNS_DIR so a hand-picked '
             + 'entry never enters a pool later draws treat as natural accumulation)',
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           'DONE processed=1 of pending=1; artifacts=1/1 declined=0 (pairs counted over the entries --only named, '
             + 'not every pair at the pin) elapsed=42ms',
@@ -690,7 +690,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=0 done=0 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           'a straggler note',
           'a writer note',
           'REQUIRED-PROVIDERS hyper status=wet',
@@ -805,6 +805,56 @@ await describe({
       },
     },),
     it({
+      name: 'HANDS EACH ENTRY THE ATTEMPT NUMBER THE PASS PERSISTED FOR IT, so the lines of the entry\'s settlement name '
+        + 'the attempt they belong to: an entry the attempts file already counts twice is settled as its third',
+      fn: async (ctx) => {
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [
+          {
+            id: 'tabby',
+            sourceText: '猫睡觉。\n',
+            targetText: 'The cat naps.\n',
+          },
+        ], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        await writeFile(
+          join(
+            runs.path,
+            'attempts.json',
+          ),
+          JSON.stringify({ tabby: 2, },),
+        );
+        /**
+         The attempt numbers the entry's settlements were handed.
+         */
+        const seen: unknown[] = [];
+
+        await runPass({
+          typed: [],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {
+            settle: async function settle({ entry, artifactsDir, attempt, },): Promise<EntryOutcome> {
+              seen.push(attempt,);
+              await writeFile(
+                join(
+                  artifactsDir,
+                  `${entry.id}.json`,
+                ),
+                '{}',
+              );
+              return { kind: 'settled', };
+            },
+          },
+        },);
+
+        expect(seen,).toEqual([3,],);
+      },
+    },),
+    it({
       name: 'COUNTS THE SOFT BUDGET DOWN ON THE PASS\'S CLOCK in what the client is handed: the first entry reads the '
         + '420 min hard cap (the soft budget is far longer), and once the pass\'s clock has run to 320 min short of '
         + 'the soft budget the bound is exactly what the soft budget has left, falling with the clock',
@@ -896,7 +946,7 @@ await describe({
 
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=0 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
           ...OFF_LINES,
           `PLAN ok tip=${TIP} pipeline=${built.digest} client=constructed pending=1 first=tabby`,
         ],);
@@ -966,7 +1016,7 @@ await describe({
         expect(watched.atFirstSettle.stalePageThere,).toBe(false,);
         expect(printed.lines[0],).toBe(
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=1 done=1 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
         );
       },
     },),
@@ -1062,7 +1112,7 @@ await describe({
         },),).rejects.toThrow('required provider hyper is not ready: key missing',);
         expect(printed.lines,).toEqual([
           `START tip=${TIP} pipeline=${built.digest} files=${String(built.fileCount,)} pending=0 done=0 `
-            + 'soft=259200000ms hard=25200000ms call=360000ms claude-call=460000ms',
+            + 'soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
         ],);
         expect(watched.clients,).toEqual([],);
       },

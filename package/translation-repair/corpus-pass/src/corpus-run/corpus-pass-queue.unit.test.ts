@@ -51,6 +51,30 @@ import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-
 const GENERATION = `sha256-tree-v1:${'c'.repeat(64,)}`;
 
 /**
+ Instant the injected wall clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ The clock time every queue line a case prints carries.
+ */
+const AT = 'at=2026-10-22T08:10:11.123Z';
+
+/**
+ Wall clock that reads the same instant every time it is asked.
+
+ @returns The instant the lines are printed at
+
+ @example
+ ```ts
+ await runPassQueue({ ...input, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  A pair of invented pages.
 
  @param id - entry id
@@ -155,7 +179,8 @@ await describe({
   children: [
     it({
       name: 'COUNTS AND PERSISTS AN ATTEMPT BEFORE IT RUNS, and settles each entry under its own name and the '
-        + 'build, so a crash still records that the attempt happened',
+        + 'build and the attempt number it persisted, so a crash still records that the attempt happened and the lines '
+        + 'of the attempt name it',
       fn: async (ctx) => {
         resetRunSpend();
         using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
@@ -181,6 +206,7 @@ await describe({
          */
         const seen: {
           readonly entry: string;
+          readonly attempt: number;
           readonly persisted: ReadonlyMap<string, number>;
           readonly context: string;
           readonly generation: string;
@@ -203,9 +229,10 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
-          settle: async function settle({ entry, },) {
+          settle: async function settle({ entry, attempt, },) {
             seen.push({
               entry: entry.id,
+              attempt,
               persisted: await readAttemptMap(attemptsPath,),
               context: currentLogContext().entry,
               generation: currentLogContext().generation,
@@ -217,6 +244,7 @@ await describe({
         expect(seen,).toEqual([
           {
             entry: 'tabby',
+            attempt: 3,
             persisted: new Map([
               [
                 'tabby',
@@ -228,6 +256,7 @@ await describe({
           },
           {
             entry: 'mittens',
+            attempt: 1,
             persisted: new Map([
               [
                 'tabby',
@@ -377,6 +406,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             made.push(entry.id,);
             /**
@@ -412,10 +442,11 @@ await describe({
           'tabby',
         ],);
         expect(printed.lines,).toEqual([
-          'REATTEMPT tabby queued: 1 more cache record than it had, so the next attempt starts further along',
-          'STALLED mittens: its 0 cache records are what it started with, so a further attempt in this '
+          `REATTEMPT tabby queued ${AT} attempt=1: 1 more cache record than it had, so the next attempt starts further `
+            + 'along',
+          `STALLED mittens ${AT} attempt=1: its 0 cache records are what it started with, so a further attempt in this `
             + 'invocation would repeat it',
-          'STALLED tabby: its 1 cache record is what it started with, so a further attempt in this '
+          `STALLED tabby ${AT} attempt=2: its 1 cache record is what it started with, so a further attempt in this `
             + 'invocation would repeat it',
         ],);
       },
@@ -460,6 +491,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle() {
             made += 1;
             if (made === 1) {
@@ -488,8 +520,9 @@ await describe({
 
         expect(made,).toBe(2,);
         expect(printed.lines,).toEqual([
-          'REATTEMPT tabby queued: 2 more cache records than it had, so the next attempt starts further along',
-          'STALLED tabby: its 2 cache records are what it started with, so a further attempt in this '
+          `REATTEMPT tabby queued ${AT} attempt=1: 2 more cache records than it had, so the next attempt starts further `
+            + 'along',
+          `STALLED tabby ${AT} attempt=2: its 2 cache records are what it started with, so a further attempt in this `
             + 'invocation would repeat it',
         ],);
       },

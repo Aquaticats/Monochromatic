@@ -273,6 +273,35 @@ const INVISIBLE_ENTRY = {
 };
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Attempt every entry here is settled for: a third one, so a line that printed a count of its own would read 1.
+ */
+const ATTEMPT = 3;
+
+/**
+ The clock time and attempt every lifecycle line a case prints carries.
+ */
+const STAMP = 'at=2026-10-22T08:10:11.123Z attempt=3';
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the lines are printed at
+
+ @example
+ ```ts
+ await settleEntry({ ...input, attempt: ATTEMPT, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Entry the cleanup case settles, under its own id.
 
  SEPARATE because that case reads what was PRINTED, and the runner runs cases
@@ -1118,6 +1147,8 @@ async function settledBesideNoInfoFile(
   await using dirs = await throwawayDirs();
   await using reference = await throwawayDirs();
   await settleEntry({
+    attempt: ATTEMPT,
+    wallClock: fixedWallClock,
     client: entryClient({ served: [], },),
     entry: ENTRY,
     artifactsDir: reference.artifactsDir,
@@ -1135,6 +1166,8 @@ async function settledBesideNoInfoFile(
     stageSettings: SCRIPTED_STAGE_SETTINGS,
   },);
   await settleEntry({
+    attempt: ATTEMPT,
+    wallClock: fixedWallClock,
     client: entryClient({ served: [], },),
     entry: ENTRY,
     artifactsDir: dirs.artifactsDir,
@@ -1315,6 +1348,8 @@ await describe({
           using dial = dialSaying({ says: 'several', },);
           await using dirs = await throwawayDirs();
           await settleEntry({
+            attempt: ATTEMPT,
+            wallClock: fixedWallClock,
             client: entryClient({
               served: [],
               activity: serial,
@@ -1350,6 +1385,8 @@ await describe({
           using dial = dialSaying({ says: 'several', },);
           await using dirs = await throwawayDirs();
           await settleEntry({
+            attempt: ATTEMPT,
+            wallClock: fixedWallClock,
             client: entryClient({
               served: [],
               activity: overlapped,
@@ -1401,6 +1438,8 @@ await describe({
         const lines = await capturedLines({
           body: async () => {
             result.outcome = await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served, },),
               entry: MISSING_VISUAL_ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -1437,7 +1476,7 @@ await describe({
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
         expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
         expect(lines.some(function incomplete(line,): boolean {
-          return line.startsWith(`TALLY ${MISSING_VISUAL_ENTRY.id} status=INCOMPLETE`,);
+          return line.startsWith(`TALLY ${MISSING_VISUAL_ENTRY.id} status=INCOMPLETE ${STAMP} `,);
         },),).toBe(true,);
       },
     },),
@@ -1455,6 +1494,8 @@ await describe({
         /** Reader invocations, not provider roster size. */
         const reads: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, coverageScript: 'absent', archivePictureSupport, archiveReviewSheets, },),
           entry: {
             id: 'CatEntryPictureReview',
@@ -1504,6 +1545,8 @@ await describe({
         /** Schemas reached after successful visual completeness guard. */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             coverageScript: 'absent',
@@ -1554,6 +1597,8 @@ await describe({
          */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -1718,6 +1763,8 @@ await describe({
           corpusNames: 0,
         };
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served: [], },),
           entry: ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -1805,6 +1852,8 @@ await describe({
          */
         const sheets: SentSheet[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served: [],
             sheets,
@@ -1881,6 +1930,8 @@ await describe({
         const lines = await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served: [], },),
               entry: SEALED_ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -1970,6 +2021,8 @@ await describe({
         const warnings = await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served: [], },),
               entry: US_FORMS_ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -2057,6 +2110,8 @@ await describe({
          */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, failOnSchema: 'page_consistency', },),
           entry: REPEATED_SENTENCE_ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -2127,6 +2182,8 @@ await describe({
          */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             polishScript: true,
@@ -2203,6 +2260,8 @@ await describe({
          What settling the entry answered.
          */
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: ownEnglish,
           artifactsDir: dirs.artifactsDir,
@@ -2262,6 +2321,8 @@ await describe({
           { entry, }: { readonly entry: typeof ownEnglish; },
         ): Promise<Awaited<ReturnType<typeof settleEntry>>> {
           return await settleEntry({
+            attempt: ATTEMPT,
+            wallClock: fixedWallClock,
             client: entryClient({ served: [], },),
             entry,
             artifactsDir: dirs.artifactsDir,
@@ -2320,6 +2381,8 @@ await describe({
         /** Model schemas reached across complete revised entry. */
         const served: string[] = [];
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, }),
           entry: ARCHIVE_REVISION_ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -2379,6 +2442,8 @@ await describe({
          */
         const quotaReads = { count: 0, };
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             contestChoice: 'repair',
@@ -2425,6 +2490,8 @@ await describe({
         const asked: number[] = [];
         const base = entryClient({ served: [], },);
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: {
             ...base,
             // A pass with a year left, far past the entry's cap.
@@ -2464,6 +2531,8 @@ await describe({
          */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: FRONT_MATTER_ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -2523,6 +2592,8 @@ await describe({
         await using dirs = await throwawayDirs();
         const served: string[] = [];
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: FRONT_MATTER_STANDING_ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -2569,6 +2640,8 @@ await describe({
         await using dirs = await throwawayDirs();
         const served: string[] = [];
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             coverageScript: 'absent',
@@ -2604,6 +2677,8 @@ await describe({
       fn: async () => {
         await using dirs = await throwawayDirs();
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served: [], },),
           entry: INVISIBLE_ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -2655,6 +2730,8 @@ await describe({
         // A directory that does not exist fails the one step every
         // settled entry has to reach, whatever the lanes did.
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: ENTRY,
           artifactsDir: join(
@@ -2704,6 +2781,8 @@ await describe({
         // directory that does not exist fails the artifact write and nothing
         // before it.
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: ENTRY,
           artifactsDir: join(
@@ -2755,6 +2834,8 @@ await describe({
         const lines = await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served, },),
               entry: GAP_ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -2793,6 +2874,8 @@ await describe({
         await using dirs = await throwawayDirs();
         const served: string[] = [];
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             coverageScript: 'full',
@@ -2831,6 +2914,8 @@ await describe({
         await using dirs = await throwawayDirs();
         const served: string[] = [];
         const outcome = await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             failOnSchema: 'translation_report',
@@ -2866,6 +2951,8 @@ await describe({
         await using dirs = await throwawayDirs();
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             coverageScript: 'absent',
@@ -2924,6 +3011,8 @@ await describe({
         // RETURNS, and a case that asserted on a thrown value would pass
         // whether or not it did.
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served, },),
           entry: ENTRY,
           artifactsDir: join(
@@ -2959,6 +3048,8 @@ await describe({
          */
         const served: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({
             served,
             failOnSchema: 'critic_report',
@@ -3036,6 +3127,8 @@ await describe({
          */
         const bought: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served: bought, },),
           entry: ENTRY,
           artifactsDir: join(
@@ -3069,6 +3162,8 @@ await describe({
          */
         const resumed: string[] = [];
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served: resumed, },),
           entry: ENTRY,
           artifactsDir: dirs.artifactsDir,
@@ -3119,6 +3214,8 @@ await describe({
         // write and the discard, so the cache has to exist before the run that
         // fails to remove it.
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: entryClient({ served: [], },),
           entry: CLEANUP_ENTRY,
           artifactsDir: join(
@@ -3158,6 +3255,8 @@ await describe({
         const lines = await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served: [], },),
               entry: CLEANUP_ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -3213,10 +3312,10 @@ await describe({
           return line.startsWith('OVERLAP ',);
         },);
         expect(overlaps,).toEqual([
-          `OVERLAP ${CLEANUP_ENTRY.id} value=4 source=fallback`,
+          `OVERLAP ${CLEANUP_ENTRY.id} ${STAMP} value=4 source=fallback`,
         ],);
         expect(cleanups.length,).toBe(1,);
-        expect(cleanups[0]?.includes('cache=retained',),).toBe(true,);
+        expect(cleanups[0]?.startsWith(`CLEANUP ${CLEANUP_ENTRY.id} ${STAMP} cache=retained `,),).toBe(true,);
         // The unlink failure is an unmarked Node error, so the line names its
         // class and never repeats its message, which carries a path.
         expect(cleanups[0]?.includes('error=refused by ',),).toBe(true,);
@@ -3225,6 +3324,12 @@ await describe({
         // EXACTLY ONE status line, and it says the entry settled.
         expect(tallies.length,).toBe(1,);
         expect(tallies[0]?.includes('status=SETTLED',),).toBe(true,);
+        expect(tallies[0]?.startsWith(`TALLY ${CLEANUP_ENTRY.id} status=SETTLED ${STAMP} slices=`,),).toBe(true,);
+
+        // The destinations line printed beside the tally carries the same stamp.
+        expect(mine.some(function isStampedDestinations(line,): boolean {
+          return line.startsWith(`DESTINATIONS ${CLEANUP_ENTRY.id} ${STAMP} source=`,);
+        },),).toBe(true,);
 
         // The artifact is on disk and the cache it could not retire is still
         // there, which costs disk and nothing else: the next run skips this
@@ -3256,6 +3361,8 @@ await describe({
          */
         const stepped = { done: false, };
         await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
           client: {
             ...scripted,
             chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
@@ -3315,6 +3422,8 @@ await describe({
           const lines = await capturedLines({
             body: async () => {
               result.outcome = await settleEntry({
+                attempt: ATTEMPT,
+                wallClock: fixedWallClock,
                 client: entryClient({
                   served,
                   failOnSchema: schema,
@@ -3343,7 +3452,7 @@ await describe({
           expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
           expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
           expect(lines.some(function incomplete(line,): boolean {
-            return line.startsWith('TALLY CatEntry1 status=INCOMPLETE',);
+            return line.startsWith(`TALLY CatEntry1 status=INCOMPLETE ${STAMP} `,);
           },),).toBe(true,);
         },
       },);
@@ -3374,6 +3483,8 @@ await describe({
           await capturedLines({
             body: async () => {
               await settleEntry({
+                attempt: ATTEMPT,
+                wallClock: fixedWallClock,
                 client: entryClient({ served: [], failOnSchema: 'critic_report', failWith, },),
                 entry: ENTRY,
                 artifactsDir: dirs.artifactsDir,
@@ -3422,6 +3533,8 @@ await describe({
         const lines = await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: entryClient({ served: [], failOnSchema: 'critic_report', failWith: dry, },),
               entry: ENTRY,
               artifactsDir: dirs.artifactsDir,
@@ -3448,10 +3561,10 @@ await describe({
         },);
         expect(asked,).toEqual([dry,],);
         expect(lines.some(function parkedLine(line,): boolean {
-          return line.startsWith('TALLY CatEntry1 status=PARKED ',);
+          return line.startsWith(`TALLY CatEntry1 status=PARKED ${STAMP} `,);
         },),).toBe(true,);
         expect(lines.some(function incompleteLine(line,): boolean {
-          return line.startsWith('TALLY CatEntry1 status=INCOMPLETE',);
+          return line.startsWith(`TALLY CatEntry1 status=INCOMPLETE ${STAMP} `,);
         },),).toBe(false,);
       },
     },),

@@ -190,7 +190,7 @@ export async function startLine(
   } = await digestPipeline({ dir: BUILT_DIRECTORY, },);
   return `START tip=${await readHeadSha()} pipeline=${digest} files=${String(fileCount,)} pending=${
     String(pending,)
-  } done=0 soft=259200000ms hard=${String(hardMs,)}ms call=360000ms claude-call=460000ms`;
+  } done=0 soft=259200000ms hard=${String(hardMs,)}ms hard-scope=per-attempt call=360000ms claude-call=460000ms`;
 }
 
 /**

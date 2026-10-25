@@ -125,7 +125,8 @@ await describe({
       name: passStartLine.name,
       children: [
         it({
-          name: 'REPORTS the tip, the pipeline and its files, the pending and the finished counts and both ceilings',
+          name: 'REPORTS the tip, the pipeline and its files, the pending and the finished counts and both ceilings, and says '
+            + 'the hard one applies to each attempt of an entry, not to the entry across its attempts',
           fn: async () => {
             expect(passStartLine({ facts: {
               tip: 'deadbeef',
@@ -139,7 +140,7 @@ await describe({
               claudeCallMs: 460_000,
             }, },),).toBe(
               'START tip=deadbeef pipeline=sha256-tree-v1:cafe files=189 pending=1 done=0 soft=259200000ms '
-                + 'hard=25200000ms call=360000ms claude-call=460000ms',
+                + 'hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms',
             );
           },
         },),
@@ -158,7 +159,7 @@ await describe({
               claudeCallMs: 460_000,
             }, },),).toBe(
               'START tip=deadbeef pipeline=sha256-tree-v1:cafe files=1 pending=12 done=3 soft=60000ms hard=90000ms '
-                + 'call=360000ms claude-call=460000ms',
+                + 'hard-scope=per-attempt call=360000ms claude-call=460000ms',
             );
           },
         },),
