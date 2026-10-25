@@ -2153,6 +2153,9 @@ that is verification, not a decision for the user.
   rounds, container not host. Revalidated reading: the `~/.local/bin` link still beats the shim, but because of per-call
   cost and because every `git` would depend on `mise` being healthy, not because of a loop. The user is asked to
   confirm the choice stands on the corrected evidence.
+  The user confirmed (2026-10-25): keep the `~/.local/bin` link owned by the global mise config. Proposal written to
+  `doc/planning/cli-git-global-install.md` (status: awaiting the user's acceptance; nothing implemented, host
+  unchanged). Machines the user does not control (server-side rulesets or CI) remain a separate undecided question.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
