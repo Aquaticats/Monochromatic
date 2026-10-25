@@ -8,6 +8,7 @@ import {
   bareAddresses,
 } from './source-ships-addresses.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import { rootWithFreshTails, } from './source-ships-fresh-tails.ts';
 import { withModuleLinesWritten, } from './source-ships-module-line.ts';
 import {
   closedWith,
@@ -389,7 +390,10 @@ function readText({ text, }: { readonly text: string; },): TextReading {
   const spans = spansOf({
     source: text,
     readable,
-    root: parseMarkdownMathBody({ body: readable, },),
+    root: rootWithFreshTails({
+      readable,
+      root: parseMarkdownMathBody({ body: readable, },),
+    },),
   },);
   return {
     text: spans.text,

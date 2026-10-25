@@ -1,7 +1,9 @@
-//region Public index of the reading comparison
-// The names the comparison of what a reader of the page sees with what a reader of the source sees gives its siblings and
-// its own tests, split out of `index.ts` to keep that file under the line bound.
+//region Public index of the reading comparison and the fresh tails
+// The names the comparison of what a reader of the page sees with what a reader of the source sees, and the reading of the
+// text after a footnote on its own, give their siblings and their own tests, split out of `index.ts` to keep that file
+// under the line bound.
 
+export { rootWithFreshTails, } from './corpus-run/source-ships-fresh-tails.ts';
 export { differenceDefectsOf, } from './corpus-run/source-ships-differences.ts';
 export {
   PageSyntaxError,
@@ -14,4 +16,4 @@ export {
   readingDifferenceOf,
 } from './corpus-run/source-reading-difference.ts';
 
-//endregion Public index of the reading comparison
+//endregion Public index of the reading comparison and the fresh tails
