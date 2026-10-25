@@ -36,11 +36,12 @@ What the evidence shows:
   (`no file '.../plugins/cmake/util.lua'`), and resolution for `linux-arm64` ends with "no version returned".
 - With mise 2026.10.17 the same files, container and command install cleanly.
 
-What is not established: which code path in mise removes the plugin directory while another resolution still reads it.
-The mise source (the vfox plugin loader and the lock resolver) has not been read for this write-up, so the sentence
-above is a description of the log, not a traced root cause.
-It is also not proven that the plugin removal causes the missing version, only that they appear together in every
-failing log.
+What is not established: why mise 2026.10.19 gets no version for `cmake` on `linux-arm64`.
+The plugin removal and reinstall is NOT the discriminator: the reproduction logs show it in the passing 2026.10.17
+runs too. The metadata load warning (`no file '.../util.lua'`) is the other candidate and was seen in the failing CI
+log; whether it also appears in the passing runs was not checked.
+The mise source (the vfox plugin loader and the lock resolver) has not been read for this write-up, so the above is a
+description of logs and a version bisection, not a traced root cause.
 
 A hypothesis that was disproved: GitHub anonymous API rate limiting.
 The host IP had 59 of 60 core requests left when checked, and the failure is a mise resolution error, not an HTTP
@@ -52,13 +53,15 @@ Harness: a podman container (Debian 13 image with git and cargo, `--memory=4g --
 `mise.toml`, `mise.lock` and `mise.no-env.toml` only, mise `2026.10.17` and `2026.10.19` from the GitHub release
 archives `mise-v<version>-linux-x64.tar.gz`, running `timeout 240 mise install rust` in the directory with the files.
 
-First attempt of each version:
+Two attempts of each version, in fresh container homes:
 
-- 2026.10.17: exit 0 after 150 seconds, reached the Rust toolchain install, no `cmake` resolution error.
-- 2026.10.19: exit 1 after 171 seconds, `failed to resolve cmake for linux-arm64` present.
+- 2026.10.17: exit 0 after 150 seconds and after 124 seconds, reached the Rust toolchain install, no `cmake` resolution
+  error.
+- 2026.10.19: exit 1 after 171 seconds and after 194 seconds, `failed to resolve cmake for linux-arm64` present both
+  times.
 
-The second attempts were still running when this was written; their result is recorded in the handover
-`doc/handover/cli-git-rust-implementation.md`.
+That is a two-version bisection with two runs each, so it shows the failure follows the mise version in this setup.
+It does not exclude another release between the two being the first to fail: only 2026.10.17 and 2026.10.19 were run.
 
 ## Verified workarounds
 
