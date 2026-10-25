@@ -124,6 +124,22 @@ function dryBeforeAnyReading(): boolean {
 }
 
 /**
+ The providers a decision is about, joined so two decisions can be compared.
+
+ @param names - given-up providers in spending order
+
+ @returns The names joined with commas
+
+ @example
+ ```ts
+ const signature = signatureOf({ names: ['synthetic', 'hyper',], },); // => 'synthetic,hyper'
+ ```
+ */
+function signatureOf({ names, }: { readonly names: readonly ProviderName[]; },): string {
+  return names.join(',',);
+}
+
+/**
  Builds the give-up decision of one budget layer.
 
  @param writing - the providers whose wet reading keeps the run going
@@ -158,9 +174,9 @@ export function createGiveUpAside(
   const reading: { dry: ProviderRecord<boolean>; } = { dry: providerRecord({ of: dryBeforeAnyReading, },), };
 
   /**
-   The providers the decision last logged was about, joined; empty when no give-up was set aside.
+   The providers the decision last logged was about; none when no give-up was set aside.
    */
-  const logged = { names: '', };
+  const logged: { names: readonly ProviderName[]; } = { names: [], };
 
   /**
    The writing providers that read wet and that nothing else keeps out, in spending order.
@@ -211,18 +227,14 @@ export function createGiveUpAside(
   }
 
   /**
-   The providers given up, in spending order, joined.
+   The providers given up, in spending order.
 
-   @returns Names of the given-up providers
+   @returns The given-up providers
    */
-  function givenNames(): string {
-    /**
-     The given-up providers in spending order.
-     */
-    const ordered = PROVIDER_ORDER.filter(function isGiven(provider,): boolean {
+  function givenInOrder(): readonly ProviderName[] {
+    return PROVIDER_ORDER.filter(function isGiven(provider,): boolean {
       return given.has(provider,);
     },);
-    return ordered.join(', ',);
   }
 
   /**
@@ -243,34 +255,42 @@ export function createGiveUpAside(
     /**
      The given-up providers a set-aside is about, none when the give-ups are in force.
      */
-    const names = isAside() ? givenNames() : '';
-    if (names === logged.names)
+    const names = isAside() ? givenInOrder() : [];
+    /**
+     The given-up providers this decision is about, joined for comparison.
+     */
+    const signature = signatureOf({ names, },);
+    /**
+     The ones last logged, joined for comparison.
+     */
+    const loggedSignature = signatureOf({ names: logged.names, },);
+    if (signature === loggedSignature)
       return;
     /**
      The providers the line last logged was about.
      */
     const before = logged.names;
     logged.names = names;
-    if (names !== '') {
+    if (names.length > 0) {
       /**
        How each other writing provider reads.
        */
       const others = othersWords();
       rl.warn(
-        `${names}: ${entry} sets its give-up aside and waits out the cooldowns of ${names} as before, because no `
-          + `other writing provider reads wet (${others.join(', ',)}), and reading ${names} dry would end the `
-          + 'run for a provider that serves again after its cooldown',
+        `${names.join(', ',)}: ${entry} sets its give-up aside and waits out the cooldowns of ${names.join(', ',)} `
+          + `as before, because no other writing provider reads wet (${others.join(', ',)}), and reading `
+          + `${names.join(', ',)} dry would end the run for a provider that serves again after its cooldown`,
       );
       return;
     }
-    if (before !== '') {
+    if (before.length > 0) {
       /**
        The writing providers that read wet again.
        */
       const wet = wetAlternatives();
       rl.info(
-        `${before}: ${entry} puts its give-up back in force, because ${wet.join(', ',)} reads wet `
-          + `again, so ${before} stays unreachable until the entry ends`,
+        `${before.join(', ',)}: ${entry} puts its give-up back in force, because ${wet.join(', ',)} reads wet `
+          + `again, so ${before.join(', ',)} stays unreachable until the entry ends`,
       );
     }
   }
@@ -281,7 +301,7 @@ export function createGiveUpAside(
     reconsider,
 
     forget: function forget(): void {
-      logged.names = '';
+      logged.names = [];
     },
 
     noteReading: function noteReading({ dry, },): void {

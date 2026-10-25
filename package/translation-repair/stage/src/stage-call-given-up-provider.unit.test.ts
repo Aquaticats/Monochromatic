@@ -33,6 +33,7 @@ import {
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
 import { unreadableQuotas, } from '@monochromatic-dev/translation-repair-provider/ts/unreadable-quotas.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { attemptStageCall, } from '../dist/final/node/index.mjs';
 
@@ -137,7 +138,7 @@ await describe({
               modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
               messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
               signal: SIGNAL,
-              exchangeTimeoutMs: 1_000,
+              exchangeTimeoutMs: HANG_STOP_MS,
               responseFormat: PURR_FORMAT,
               validate: isPurrReply,
               stage: 'critic',

@@ -56,6 +56,10 @@ export {
   type PaymentMarks,
 } from './provider-budget-payment-marks.ts';
 export {
+  createGiveUpAside,
+  type GiveUpAside,
+} from './provider-budget-give-up-aside.ts';
+export {
   createRefusalHolds,
   type RefusalHolds,
 } from './provider-budget-refusal-holds.ts';
