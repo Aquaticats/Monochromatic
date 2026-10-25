@@ -101,6 +101,7 @@ import { SCOPE_PIN_CASES, } from './claude-schema-scope-pin-forms.test-fixture.t
 import { TEXT_PIN_CASES, } from './claude-schema-text-pin-forms.test-fixture.ts';
 import { TEXT_CALL_CASES, } from './claude-schema-text-call-forms.test-fixture.ts';
 import { TEXT_KEY_CASES, } from './claude-schema-text-key-forms.test-fixture.ts';
+import { TEXT_STATIC_CASES, } from './claude-schema-text-static-forms.test-fixture.ts';
 import { UNREAD_CALLBACK_CASES, } from './claude-schema-callback-unread-forms.test-fixture.ts';
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
@@ -136,6 +137,7 @@ import { DERIVED_TARGET_CASES, } from './claude-schema-derived-target-forms.test
 import { DERIVED_CALLBACK_CASES, } from './claude-schema-derived-callback-forms.test-fixture.ts';
 import { DERIVED_IIFE_CASES, } from './claude-schema-derived-iife-forms.test-fixture.ts';
 import { DERIVED_LIMIT_CASES, } from './claude-schema-derived-limit-forms.test-fixture.ts';
+import { DERIVED_STATIC_CASES, } from './claude-schema-derived-static-forms.test-fixture.ts';
 import { CALLBACK_SCOPE_CASES, } from './claude-schema-callback-scope-forms.test-fixture.ts';
 import { PARAMETER_PROPERTY_CASES, } from './claude-schema-parameter-property-forms.test-fixture.ts';
 import { SENDER_NAMESPACE_CASES, } from './claude-schema-sender-namespace-forms.test-fixture.ts';
@@ -867,6 +869,7 @@ await describe({
       ...TEXT_PIN_CASES,
       ...TEXT_CALL_CASES,
       ...TEXT_KEY_CASES,
+      ...TEXT_STATIC_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
@@ -901,6 +904,7 @@ await describe({
       ...DERIVED_CALLBACK_CASES,
       ...DERIVED_IIFE_CASES,
       ...DERIVED_LIMIT_CASES,
+      ...DERIVED_STATIC_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
@@ -962,6 +966,7 @@ await describe({
       ...TEXT_PIN_CASES,
       ...TEXT_CALL_CASES,
       ...TEXT_KEY_CASES,
+      ...TEXT_STATIC_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
@@ -996,6 +1001,7 @@ await describe({
       ...DERIVED_CALLBACK_CASES,
       ...DERIVED_IIFE_CASES,
       ...DERIVED_LIMIT_CASES,
+      ...DERIVED_STATIC_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
