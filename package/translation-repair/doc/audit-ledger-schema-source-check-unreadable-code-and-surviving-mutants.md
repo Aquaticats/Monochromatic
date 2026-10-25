@@ -727,10 +727,12 @@ except the pins):
   1 and 1 forwarders,
   the ninth adding none.
   The variants of `corpus-pass.ts` that re-check 18 ran leave one report each after the name.
-- `origin/main` is still `b6927f7ba93f5139fa0605ef160c6f44c60fa32d`,
-  merged in `ad9daff2a2c0816ec7abf8811a669d91290ede21`,
-  so this round has no merge.
-  In corpus-pass `build`,
+- `origin/main` at `51113b9f783ad56ba765c0fe90fcef6ca5d677c6` is merged
+  (`1e5b4da78b3857a06a60a86e83bee89780f250c0`).
+  It adds 12 commits of the `ide` package and two notes under `doc`,
+  nothing under `package/translation-repair`,
+  and `git merge-tree` reported no conflict before the merge.
+  On the merged head in corpus-pass `build`,
   `lint:types` and `lint:oxlint` (0 warnings,
   0 errors) pass,
   and `test:unit` has 220 markers of pass and none of fail.
