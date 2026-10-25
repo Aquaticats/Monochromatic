@@ -10,9 +10,37 @@ which lists every file of this record.
 
 ## Correction of eight groups blamed on the census's attribution
 
+NOTE (2026-10-25,
+pointer by position named):
+the CORRECTION paragraph of this section read
+"the eight paragraphs above that explain",
+which pointed at the paragraphs that stood before it
+when the ledger was one text,
+ahead of its re-filing into files.
+They are the spend cluster (thirty-ninth) in
+`audit-ledger-test-suite-unrun-code-trial-clusters-markup-through-editor.md`
+and the slice,
+model,
+lookup,
+lane,
+nudged,
+resolution
+and canadian clusters
+(forty-third,
+fifty-sixth,
+fifty-ninth,
+sixty-second,
+sixty-fourth,
+sixty-sixth
+and sixty-eighth)
+in
+`audit-ledger-test-suite-unrun-code-trial-clusters-roster-through-publish.md`.
+The claim of the CORRECTION paragraph is unchanged;
+only the pointer now names its targets.
+
 CORRECTION (2026-10-05),
 self-named:
-the eight paragraphs above that explain cold lines as
+the eight paragraphs of the trial-cluster files that explain cold lines as
 "the census's attribution"
 (the spend,
 slice-cache-namespace,

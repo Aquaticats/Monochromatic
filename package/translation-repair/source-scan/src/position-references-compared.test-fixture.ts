@@ -8,11 +8,13 @@
 
 import type { Word, } from './position-references-text.test-fixture.ts';
 import {
+  COMPARED_NOT_BEFORE_BARE_VERB,
   COMPARED_ONLY_BEFORE_NAMED_THING,
   COMPARED_UNLESS_OBJECT_FOLLOWS,
   JOIN_GAP,
   OBJECT_OPENERS,
   QUANTIFIED_NAMES,
+  VERBS_AFTER_THAT,
 } from './position-references-vocabulary.test-fixture.ts';
 
 //region Compared words
@@ -144,8 +146,9 @@ function joinedWordIn(
  after it.
 
  TWO KINDS OF WORD ARE READ WITH THE WORD AFTER THEM (re-check 8, nit A). A word that is a verb or opens a clause
- (`zero`, `that`) compares unless a determiner, a quantifier or a pronoun follows, since a verb takes an object and a clause begins
- with one. A quantifier that floats away from its noun (`all`, `both`) compares only when a determiner, a word of
+ (`zero`, `that`) compares unless a determiner, a quantifier or a pronoun follows, since a verb takes an object and a
+ clause begins with one; `that` followed by a verb of `VERBS_AFTER_THAT` is a pointer too ("the lines below that write
+ it"). A quantifier that floats away from its noun (`all`, `both`) compares only when a determiner, a word of
  `QUANTIFIED_NAMES` follows or no word joins it, since "the cases below all pass" names no thing. Any other word
  of the list compares.
 
@@ -188,6 +191,16 @@ export function readsAsComparedObject(
     at,
     set: OBJECT_OPENERS,
   },);
+  if (
+    COMPARED_NOT_BEFORE_BARE_VERB.has(compared.text,)
+      && joinedWordIn({
+        flat,
+        words,
+        at,
+        set: VERBS_AFTER_THAT,
+      },)
+  )
+    return false;
   if (COMPARED_UNLESS_OBJECT_FOLLOWS.has(compared.text,))
     return !opens;
   if (COMPARED_ONLY_BEFORE_NAMED_THING.has(compared.text,))

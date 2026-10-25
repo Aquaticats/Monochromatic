@@ -35,10 +35,11 @@
  A COMPARED WORD THAT IS ALSO SOMETHING ELSE IS READ WITH THE WORD AFTER IT (re-check 8, nit A). A verb of the list
  ("the lines below zero the counter", with baseline, threshold and total) and "that" opening a clause
  ("the statement above that a run-off keeps its key holds") compare unless a determiner, a quantifier or a pronoun
- follows; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
+ follows, and "that" followed by a verb it names ("the lines below that write it", "the paragraphs above that explain")
+ is a pointer too; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
  only when a determiner, "of", "else", "other" or "others" follows. Thirteen words that no text needed left the list
- (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan still lets through, a bare verb
- after "that" ("the lines below that write it") and a quantifier before "of", is stated in the TSDoc of
+ (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan still
+ lets through, a verb after "that" that the scan does not name and a quantifier before "of", is stated in the TSDoc of
  `COMPARED_OBJECTS` and in ledger B938.
 
  WHAT IS LEFT is a phrase inside double quotes, which quotes the words rather
@@ -245,8 +246,9 @@ await describe({
       },
     },),
     it({
-      name: 'FINDS A POSITION BEFORE A WORD OF THE COMPARED LIST THAT IS A VERB HERE, one for each such word, since '
-        + 'the verb read as the object of a comparison and let "the lines below zero the counter" pass',
+      name: 'FINDS A POSITION BEFORE A WORD THAT IS A VERB HERE, one for each of zero, baseline, threshold and total, '
+        + 'which the compared list holds, and of exact and half, which it no longer holds, since the verb read as '
+        + 'the object of a comparison and let "the lines below zero the counter" pass',
       fn: async () => {
         expect(positionReferences({
           file: {
@@ -273,8 +275,9 @@ await describe({
       },
     },),
     it({
-      name: 'FINDS A POSITION BEFORE A QUANTIFIER THAT FLOATS AWAY FROM ITS NOUN, one for each of all, both, each '
-        + 'and some, since the quantifier read as the object of a comparison',
+      name: 'FINDS A POSITION BEFORE A QUANTIFIER THAT FLOATS AWAY FROM ITS NOUN, one for each of all and each, which '
+        + 'the compared list holds, and of both and some, which it no longer holds, since the quantifier read as '
+        + 'the object of a comparison',
       fn: async () => {
         expect(positionReferences({
           file: {

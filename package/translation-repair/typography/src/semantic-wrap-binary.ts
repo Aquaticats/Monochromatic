@@ -244,7 +244,7 @@ export function wrapWithLintBinary({
   }
 
   /**
-   The passage's length, named for the lines below that write it.
+   The passage's length, named for the log messages of this function that write it.
    */
   const counted = countedCharacters({ count: text.length, },);
 
