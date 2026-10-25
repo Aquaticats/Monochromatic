@@ -43,6 +43,52 @@ export function pageOnlyStartsOf(
 }
 
 /**
+ Takes out the starts whose line follows a row of a table, where the line is no part of a paragraph.
+
+ A reader of the source takes the line after the last row of a table for a block of its own (indented code, for a line
+ indented four columns or more), and the plain reading, which has no tables, takes the rows and the line for one
+ paragraph with a code span across them. Joining the line to the row before it writes the line into the row, so such a
+ start is cut as a start in any other paragraph is.
+
+ @param source - whole text, or the text the parse was given with its comments blanked, of the same length
+
+ @param starts - offsets where a footnote definition starts on the page and not for a reader of the source
+
+ @param tables - where a reader of the source reads a table, the end being the end of its last row
+
+ @returns The starts whose preceding line ending lies outside every table, in the order given
+
+ @example
+ ```ts
+ const joinable = startsOffTables({ source, starts: [35,], tables: [{ start: 0, end: 30, },], },);
+ ```
+ */
+export function startsOffTables(
+  {
+    source,
+    starts,
+    tables,
+  }: {
+    readonly source: string;
+    readonly starts: readonly number[];
+    readonly tables: readonly BlockRange[];
+  },
+): readonly number[] {
+  return starts.filter(function followsNoTableRow(start,): boolean {
+    /**
+     Index of the line ending that ends the line before the start's line.
+     */
+    const ending = source.lastIndexOf(
+      '\n',
+      start - 1,
+    );
+    return !tables.some(function holds(table,): boolean {
+      return (table.start <= ending) && (ending <= table.end);
+    },);
+  },);
+}
+
+/**
  Joins the source's footnote ranges with the page's that start where no range of the source stands.
 
  @param source - ranges where a reader of the source in GFM reads a footnote definition, in text order

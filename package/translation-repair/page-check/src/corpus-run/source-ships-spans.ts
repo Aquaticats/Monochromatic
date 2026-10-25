@@ -21,6 +21,7 @@ import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
 import {
   pageOnlyStartsOf,
+  startsOffTables,
   withPageOnlyStarts,
 } from './source-ships-footnote-ranges.ts';
 import {
@@ -141,9 +142,13 @@ export function spansOf(
    Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
    after a paragraph.
    */
-  const pageOnlyStarts = pageOnlyStartsOf({
-    source: sourceFootnoteRanges,
-    page: pageFootnoteRanges,
+  const pageOnlyStarts = startsOffTables({
+    source: readable,
+    starts: pageOnlyStartsOf({
+      source: sourceFootnoteRanges,
+      page: pageFootnoteRanges,
+    },),
+    tables,
   },);
   /**
    Stretches read as text.
