@@ -7,6 +7,7 @@ use super::{
     minimap::forget_unless,
     render, rows,
     tile::{self, TileBounds},
+    wheel,
 };
 /// The side of a soft-wrap offset a position is read on.
 use ide_app::document::ReadingAffinity;
@@ -148,13 +149,62 @@ fn recenter_edge(width: f32, scale: f32, height: f32) -> f32 {
 /// ```ts
 /// function tileEdges(current: State, bounds: TileBounds, end: number): [top: number, bottom: number];
 /// ```
-fn tile_edges(current: &State, bounds: TileBounds, end: usize) -> (f32, f32) {
+pub(super) fn tile_edges(current: &State, bounds: TileBounds, end: usize) -> (f32, f32) {
     let first_top = current.row_map.block_top(bounds.first);
     return match bounds.clip {
         Some(clip) => (first_top + clip.top, first_top + clip.bottom),
         None => (first_top, current.row_map.block_top(end)),
     };
 }
+
+/// What:
+///  The offsets between which the displayed tile's raster covers the whole view,
+///  as the two edges of the raster in logical pixels from the top of the text:
+///  a side that is the text's own first or last row is `HOLD_FREE` away,
+///  because no offset passes it.
+/// Why:
+///  The window draws the view at the nearest offset inside this reach while the tile for the real offset has not
+///  landed,
+///  so a wheel ease that outruns the worker shows real rows of the tile it has and not a blank.
+///  `holds` asks for more room (the re-center edge);
+///  this is the raster's own edge,
+///  which the picture cannot pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reach(current: State): [top: number, bottom: number];
+/// ```
+pub(super) fn reach(current: &State) -> (f32, f32) {
+    let shown = current.shown;
+    let lines = current.document.text().len_lines();
+    let end = (shown.first + shown.count).min(lines);
+    let (raster_top, raster_bottom) = tile_edges(current, shown, end);
+    let top = if raster_top <= 0.0 {
+        -HOLD_FREE
+    } else {
+        raster_top
+    };
+    let bottom = if raster_bottom >= current.row_map.height() {
+        HOLD_FREE
+    } else {
+        raster_bottom
+    };
+    return (top, bottom);
+}
+
+/// What:
+///  The distance,
+///  in logical pixels,
+///  that stands for "no limit" on a side of the reach.
+/// Why:
+///  The window holds plain numbers;
+///  the text is never this tall.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HOLD_FREE = 1e7;
+/// ```
+pub(super) const HOLD_FREE: f32 = 10_000_000.0;
 
 /// What:
 ///  Room kept at the right edge of the text area,
@@ -192,19 +242,19 @@ pub(super) fn wrap_width(viewport_width: f32) -> Option<f32> {
 }
 
 /// What:
-///  `&mut State` lends the source state mutably;
-///  `f32` is a 32-bit float of logical pixels;
-/// the `bool` answer says whether the materialized tile changed.
+///  Record that the view stands at `offset`:
+///  the offset every later report is compared with,
+///  the wrap width a report brings,
+///  and the document position's viewport line.
+///  Returns the wrap width in force and the offset clamped to the text.
 /// Why:
-///  Native scrolling and programmatic reveal must agree on which rows are materialized;
-///  the wrap width joins the tile's identity,
-/// so a resize asks for a new tile.
+///  A placement and a scroll step that asks for no tile both need exactly this and nothing of the tile.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function place(current: State, offset: number, width: number, height: number): boolean;
+/// function noteView(current: State, offset: number, viewportWidth: number): [width: number, view: number];
 /// ```
-pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, height: f32) -> bool {
+pub(super) fn note_view(current: &mut State, offset: f32, viewport_width: f32) -> (f32, f32) {
     // What: The map names the line at the view's top edge; `as usize` truncates a non-negative float to an
     //       address-sized index (sibling `u32`).
     // Why: Row indices address rope lines, whose interfaces use `usize`. Every line takes at least one code
@@ -219,8 +269,6 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
     current.offset = offset;
     // A press on the minimap that the view has been placed away from has been followed by scrolling.
     forget_unless(current, offset);
-    // Any placement supersedes a scroll re-center still waiting for the worker; `place_scrolled` sets it again.
-    current.scroll_wanted = None;
     // A width that cannot wrap keeps the last one.
     if let Some(wrap) = wrap_width(viewport_width) {
         current.width = wrap;
@@ -243,6 +291,28 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
         position.viewport = viewport_char;
         current.document.select(position);
     }
+    return (width, view);
+}
+
+/// What:
+///  `&mut State` lends the source state mutably;
+///  `f32` is a 32-bit float of logical pixels;
+/// the `bool` answer says whether the materialized tile changed.
+/// Why:
+///  Native scrolling and programmatic reveal must agree on which rows are materialized;
+///  the wrap width joins the tile's identity,
+/// so a resize asks for a new tile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function place(current: State, offset: number, width: number, height: number): boolean;
+/// ```
+pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, height: f32) -> bool {
+    // A placement ends any wheel ease the window was following: the view is set, not eased.
+    wheel::release(current);
+    // Any placement supersedes a scroll re-center still waiting for the worker; `place_scrolled` sets it again.
+    current.scroll_wanted = None;
+    let (width, view) = note_view(current, offset, viewport_width);
     // What: A view inside the tile's middle band keeps the tile, so the frame stamp and the raster do not change.
     // Why: Scrolling inside the tile must not cost a shaping pass, a raster, or an image upload.
     //
@@ -260,13 +330,25 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
         current.clip = shown.clip;
         return false;
     }
-    // What: The tile is re-centered on the view: one view height of overscan above it and one below.
-    // Why: Re-centering then happens only after the view has traveled about one view height inside the tile.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const tileStart = Math.max(0, view + height / 2 - (TILE_VIEWS * height) / 2);
-    // ```
+    request_window(current, view, width, height);
+    return true;
+}
+
+/// What:
+///  Choose the window of lines the tile for a view at `view` holds:
+///  one view height of overscan above the view and one below,
+///  at wrap width `width`,
+///  and set it as the requested tile.
+/// Why:
+///  Re-centering then happens only after the view has traveled about one view height inside the tile.
+///  A wheel turn asks for the tile of the place its ease ends at with the same rule,
+///  so that tile holds the view when the ease arrives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function requestWindow(current: State, view: number, width: number, height: number): void;
+/// ```
+pub(super) fn request_window(current: &mut State, view: f32, width: f32, height: f32) {
     let tile_start = view + height * 0.5 - height * TILE_VIEWS * 0.5;
     let tile_end = view + height * 0.5 + height * TILE_VIEWS * 0.5;
     let first = current.row_map.line_at(tile_start.max(0.0));
@@ -275,7 +357,6 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
     current.count = last.saturating_sub(first) + 1 + TILE_SPARE_LINES;
     current.width = width;
     current.clip = clip_for(current, (tile_start, tile_end), height);
-    return true;
 }
 
 /// What:
@@ -339,6 +420,12 @@ pub(super) fn place_scrolled(
     viewport_width: f32,
     height: f32,
 ) -> bool {
+    // What: A step of a wheel ease whose end already has a tile requested asks for no tile of its own.
+    // Why: The tile of the end supersedes the tile of every step on the way, which the worker would build late.
+    if wheel::following(current, offset) {
+        note_view(current, offset, viewport_width);
+        return wheel::unsent(current);
+    }
     let changed = place(current, offset, viewport_width, height);
     // The first width the view reports replaces a tile that was never wrapped; it is built at once, so the
     // window never shows long lines unwrapped.
@@ -364,6 +451,14 @@ pub(super) fn bind_viewport(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
     // ```ts
     // const state = shared; const weak = new WeakRef(owner);
     // ```
+    let flick_state = Rc::clone(shared);
+    let flick_weak = owner.as_weak();
+    // The source scroll reports every wheel turn or pan it takes; the turn the window noted names the end of the ease.
+    owner.on_source_flicked(move || {
+        if let Some(window) = flick_weak.upgrade() {
+            wheel::flicked(&window, &flick_state);
+        }
+    });
     let state = Rc::clone(shared);
     let weak = owner.as_weak();
     // What: `move |...|` transfers the captured handles into the stored callback.

@@ -4671,6 +4671,57 @@ a debug binary with the scratch toggles `ide-scratch`,
 a 24 GB `gcache`)
 can be deleted by the owner.
 
+## The far wheel jump no longer blanks the code area, 2026-10-25 (branch worktree-agent-a74ce816a17d718d4)
+
+Owner order of 2026-10-25 after the report of the 478 jumps:
+the five options were rejected,
+and the orchestrating session's design was built and measured.
+
+- Hold at the tile's edge:
+  `ui/app.slint` draws everything that rides with the tile in one group moved by `real offset - drawn-offset`,
+  where `drawn-offset` is the toolkit's offset limited to the raster's reach (`hold-top`,
+  `hold-bottom`,
+  set by `show` from `viewport::reach`).
+  The pointer maps through `drawn-y`.
+  Drags are placements,
+  so the hold never engages for them.
+  The minimap box and picture stay on the toolkit's offset (the picture is built for those bands).
+- One tile at the end of the ease:
+  `src/native/wheel.rs`.
+  The winit event hook (`frame_trace::bind`,
+  the one hook a window has) notes a `LineDelta` wheel turn,
+  the source `Flickable`'s `flicked` report takes the note,
+  the end is the sum the toolkit makes,
+  `viewport::request_window` asks for its tile,
+  `place_scrolled` and `rows::settle` ask for none while the view is on the way,
+  `tile::accepts` takes the tile of the end although the view is far from it,
+  and a placement releases the follow.
+- Measured over 239 jumps against `main` (`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+  "Result of the fix"):
+  0 blank,
+  0 partial,
+  0 edge-gap jumps at 40,
+  150,
+  300,
+  and 600 notches for the fix,
+  against 29 of 30,
+  29 of 29,
+  and 30 of 30 jumps with a blank frame for `main` at 150,
+  300,
+  and 600;
+  one tile applied for each jump,
+  no extra window-thread build;
+  the 88-click recording,
+  the 82 px gap and the request counts are unchanged.
+- Tests:
+  `src/native/wheel_tests.rs` (8 tests),
+  14 guard cases in `bin/inspect-source-guards.ts` (`hold-*`,
+  `wheel-*`).
+- Open:
+  the toolkit's own ease is checked only in the nested compositor;
+  a touchpad fling is not followed;
+  the minimap runs ahead of the held text for 1 to 3 frames.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

@@ -4,7 +4,7 @@
 /// The source state that is constructed,
 ///  the toolkit list models of the gutter,
 ///  and the minimap beside the text.
-use super::{State, gpu_tile::GpuTile, minimap, rows, tile::TileBounds};
+use super::{State, gpu_tile::GpuTile, minimap, rows, tile::TileBounds, wheel};
 /// Hint and diagnostic snapshots with their position index.
 use ide_app::annotation::Annotations;
 /// Visual rows of every line,
@@ -84,6 +84,7 @@ impl State {
             tile_worker: None,
             tile_poll: Timer::default(),
             tile_wake: Timer::default(),
+            wheel: wheel::Wheel::default(),
             minimap: minimap::MinimapState::new(),
             #[cfg(debug_assertions)]
             renders: 0,
