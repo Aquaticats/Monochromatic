@@ -189,6 +189,32 @@ await describe({
     },),
 
     it({
+      name: 'WARNS OF NO UNITS FOR A LOG WITH NO EDITOR AND TRIALS LINES, as a dry run\'s output is: the arm completed '
+        + 'nothing, so there is no share of its units to warn of and no negative count of units to print',
+      fn: async () => {
+        /**
+         An arm with nothing unusable or refused, and the lines that count its units taken out of its log.
+         */
+        const whole = armWith({ stops: ['ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },);
+        const dry: ArmLog = {
+          ...whole,
+          lines: whole.lines.filter(function isNotTrials(line,): boolean {
+            return (!line.includes('TRIALS completed ',)) && (!line.includes('] EDITOR ',));
+          },),
+        };
+        // POSITIVE CONTROL: the log has both lines before the cut, so a cut that removed nothing would fail here.
+        expect(whole.lines.some(function isTrials(line,): boolean {
+          return line.includes('TRIALS completed ',);
+        },),).toBe(true,);
+        expect(whole.lines.some(function isEditor(line,): boolean {
+          return line.includes('] EDITOR ',);
+        },),).toBe(true,);
+        expect(dry.lines.length,).toBeLessThan(whole.lines.length,);
+        expect(lineOf({ log: dry, check: 'unusable plus refused', },),).toBe('',);
+      },
+    },),
+
+    it({
       name: 'SCALES THE WARNING TO THE UNITS OF AN ARM THAT WALKS THREE PASSES: 26 of 264 units unusable or refused is under '
         + 'a tenth and says nothing, 27 is over it and warns, where 5 of 40 warns',
       fn: async () => {
