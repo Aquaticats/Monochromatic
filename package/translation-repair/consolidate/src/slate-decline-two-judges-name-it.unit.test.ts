@@ -47,6 +47,7 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { unmetDeclineClauses, } from '@monochromatic-dev/translation-repair-adjudication/ts/decline-consequence-clauses.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 
@@ -410,8 +411,7 @@ await describe({
         expect(result.text === REPAIR_LANE.text,).toBe(false,);
         expect(judgeSheets.length,).toBeGreaterThan(0,);
         expect(judgeSheets.every(function toldTwoJudges(sheet,): boolean {
-          return (sheet.includes('the wording in place cannot ship',))
-            && (sheet.includes('two or more judges named it',))
+          return (unmetDeclineClauses(sheet,).length === 0)
             && (!sheet.includes('there is no existing translation of this passage',));
         },),).toBe(true,);
       },
