@@ -106,18 +106,16 @@ function calledFunctionLinksOf({ node, }: { readonly node: TreeNode; },): readon
    The names the parameters of the called function bind.
    */
   const bound = parameterNamesOf({ node: callee, },);
-  return (bound.length === 0)
-    ? []
-    : nodesAt({
-      node,
-      field: 'arguments',
-    },)
-      .map(function linkOfArgument(read,): Link {
-        return {
-          read,
-          bound,
-        };
-      },);
+  return nodesAt({
+    node,
+    field: 'arguments',
+  },)
+    .map(function linkOfArgument(read,): Link {
+      return {
+        read,
+        bound,
+      };
+    },);
 }
 
 /**
