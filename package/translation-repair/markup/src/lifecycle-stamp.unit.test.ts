@@ -2,7 +2,8 @@
  Tests for the clock time and attempt a lifecycle line carries (ledger B960): the instant in the spelling
  `Date.prototype.toISOString` writes, which `isIsoStampText` reads back, and the attempt as a whole number from 1.
 
- The clock is injected, so no case waits on the real one.
+ The clock is injected, so no case waits on the real one; the cases that ask for the default clock compare what it
+ reads with a fixed floor and never read a clock of their own.
 
  @module
  */
@@ -25,6 +26,12 @@ import {
  Instant the injected clock reads.
  */
 const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ An instant before every run of this test, in the spelling of a stamp, which no wall clock reads earlier than and no
+ reading counted from the start of a process (the 1970 instants `performance.now()` gives) reaches.
+ */
+const WALL_CLOCK_FLOOR = '2026-01-01T00:00:00.000Z';
 
 /**
  Clock that reads the same instant every time it is asked.
@@ -94,7 +101,8 @@ await describe({
       },
     },),
     it({
-      name: 'READS THE WALL CLOCK when it is given no clock of its own',
+      name: 'READS THE WALL CLOCK when it is given no clock of its own, a time after a fixed floor in UTC, which a '
+        + 'monotonic reading counted from the process start (an instant in 1970) is not (ledger B78)',
       fn: async () => {
         /**
          Time the stamp names, cut off its key.
@@ -103,13 +111,20 @@ await describe({
           .split(' ',)[0]
           ?.slice('at='.length,) ?? '';
         expect(isIsoStampText({ text: time, },),).toBe(true,);
-
-        /**
-         The wall clock's own stamp, read right after.
-         */
-        const afterwards = wallClockNow()
-          .toISOString();
-        expect(Math.abs(Date.parse(time,) - Date.parse(afterwards,),),).toBeLessThan(60_000,);
+        expect(time.endsWith('Z',),).toBe(true,);
+        // The text sorts after the floor because both spell an instant the same way, most significant part first.
+        expect(time > WALL_CLOCK_FLOOR,).toBe(true,);
+        expect(Date.parse(time,) > Date.parse(WALL_CLOCK_FLOOR,),).toBe(true,);
+        expect(new Date(time,)
+          .toISOString(),).toBe(time,);
+      },
+    },),
+    it({
+      name: 'READS AN INSTANT AFTER THE FLOOR from the wall clock it names, so the stamp and the clock cannot agree '
+        + 'on a reading that is not the wall',
+      fn: async () => {
+        expect(wallClockNow()
+          .toISOString() > WALL_CLOCK_FLOOR,).toBe(true,);
       },
     },),
     it({
