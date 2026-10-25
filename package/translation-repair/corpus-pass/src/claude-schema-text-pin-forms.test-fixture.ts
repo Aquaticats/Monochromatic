@@ -11,7 +11,7 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 /**
  The path of the stage file of every case.
  */
-const STAGE = 'imaginary/src/text-pin-stage.ts';
+export const STAGE = 'imaginary/src/text-pin-stage.ts';
 
 /**
  The place the check reports for the global object written as a whole value.
@@ -48,7 +48,7 @@ function globalSpotAt({ line, }: { readonly line: number; },): BlindSpot {
  const spot = textSpotAt({ line: 1, position: LOADS_VM, },);
  ```
  */
-function textSpotAt(
+export function textSpotAt(
   {
     line,
     position,
@@ -74,7 +74,7 @@ const LOADS_VM = 'vm runs text the search cannot read';
  What a report says of a pattern that takes `getBuiltinModule` out of a value, since the function it names can load
  `vm` under any name.
  */
-const TAKES_LOADER = 'getBuiltinModule taken out of a value loads modules the search cannot read';
+export const TAKES_LOADER = 'getBuiltinModule taken out of a value loads modules the search cannot read';
 
 /**
  What a report says of a call of the binding of Node that makes scripts, the route to `vm.Script` without the module.
@@ -201,8 +201,8 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
     spots: [],
   },
   {
-    name: 'ACCEPTS A LOADER THAT process.getBuiltinModule WAS ASSIGNED TO, a limit of the search that the ledger '
-      + 'states',
+    name: 'REPORTS A LOADER THAT process.getBuiltinModule WAS ASSIGNED TO, since it is read where it is no call and '
+      + 'is then called by another name',
     files: [
       {
         file: STAGE,
@@ -214,7 +214,12 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
     ],
     found: [],
     builders: [],
-    spots: [],
+    spots: [
+      textSpotAt({
+        line: 1,
+        position: TAKES_LOADER,
+      },),
+    ],
   },
   {
     name: 'ACCEPTS A READ OF THE KEY constructor THAT IS NO REFLECT.GET, a get of another object, another method of '
