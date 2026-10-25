@@ -10,7 +10,10 @@ import {
   readPageGrammar,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
-import { encodedSlicesOf, } from './source-live-pairs-encoded.test-fixture.ts';
+import {
+  dropsWithoutCause,
+  encodedSlicesOf,
+} from './source-live-pairs-encoded.test-fixture.ts';
 import {
   liveConstructsOf,
   liveConstructsOfCarried,
@@ -57,12 +60,6 @@ export type Finding = {
 };
 
 /**
- What the grammar says of a page that nests past the bound the readers keep, which no writing of the text makes it
- accept: the one reason a page ships without the original of a run.
- */
-const DEPTH_REFUSAL = 'nested too deeply to read';
-
-/**
  Where the text of a slice stands on a composed page.
  */
 type Placed = {
@@ -90,12 +87,11 @@ type Placed = {
  @param readGrammar - what the grammar says of a text, the strict MDX grammar by default; a case hands one in to force
  a refusal the real grammar never gives
 
- @returns Composition, the artifact it was composed from, and what the grammar refused of the pages the
- composition tried, as it worded each refusal
+ @returns Composition and the artifact it was composed from
 
  @example
  ```ts
- const { composed, artifact, refusals, } = composePair({ pair: { first: '{', middle: 'Hi.\n', second: '}', }, },);
+ const { composed, artifact, } = composePair({ pair: { first: '{', middle: 'Hi.\n', second: '}', }, },);
  ```
  */
 export function composePair(
@@ -109,7 +105,6 @@ export function composePair(
 ): {
   readonly composed: ComposedPage;
   readonly artifact: WouldShipSource;
-  readonly refusals: readonly string[];
 } {
   /**
    Slices of the entry: the archive's first paragraph, the first run, the English between, the second run.
@@ -136,13 +131,8 @@ export function composePair(
    The settled artifact of the entry.
    */
   const artifact = sourceShippedArtifact({ rows, },);
-  /**
-   What the grammar refused, in the order the composition asked.
-   */
-  const refusals: string[] = [];
   return {
     artifact,
-    refusals,
     composed: composeSourcePage({
       artifact,
       slices: sourceShippedSlices({ rows, },),
@@ -150,15 +140,7 @@ export function composePair(
       entryId: 'Cat',
       // The composition writes a line for each step it takes, which a full pass takes thousands of times.
       l: capturingLogger({ messages: [], },),
-      readGrammar: function recording({ pageText, },): PageGrammarReading {
-        /**
-         What the page grammar says of the text.
-         */
-        const reading = readGrammar({ pageText, },);
-        if (reading.kind === 'refused')
-          refusals.push(reading.refusal,);
-        return reading;
-      },
+      readGrammar,
     },),
   };
 }
@@ -370,7 +352,6 @@ export function readPair(
   const {
     composed,
     artifact,
-    refusals,
   } = composePair({
     pair,
     readGrammar,
@@ -383,34 +364,26 @@ export function readPair(
     artifact,
   },);
   /**
-   Whether the grammar refused a page for its depth, the one refusal no writing of the text cures.
+   The slices whose original the page lost for no reason a writing of the text cannot cure.
    */
-  const refusedForDepth = refusals.some(function isDepth(refusal,): boolean {
-    return refusal.includes(DEPTH_REFUSAL,);
+  const droppedWithoutCause = dropsWithoutCause({
+    composed,
+    artifact,
+    readGrammar,
   },);
-  /**
-   Whether the composition shipped the page without the original of a run.
-   */
-  const dropped = composed.step === 'dropped';
-  /**
-   The slices whose original is not on the page, as the note names them.
-   */
-  const droppedSlices = composed
-    .slices
-    .join(' ',);
-  /**
-   Whether the page lost an original for no reason a writing of the text cannot cure.
-   */
-  const droppedWithoutCause = dropped && (!refusedForDepth);
   return {
     encoded: encoded.length,
     step: composed.step,
     finding: {
       where: `${String(pair.at ?? NOT_FOUND,)} ${JSON.stringify(pair,)} ${composed.step}`,
       found: [
-        ...(droppedWithoutCause
-          ? [`shipped without the source of slices ${droppedSlices} though the grammar refused no page for its depth`,]
-          : []),
+        ...((droppedWithoutCause.length === 0)
+          ? []
+          : [
+            `shipped without the source of slices ${
+              droppedWithoutCause.join(' ',)
+            } though the grammar refuses no run of them for its depth`,
+          ]),
         ...((encoded.length === 0)
           ? []
           : liveInEncodedSlices({
