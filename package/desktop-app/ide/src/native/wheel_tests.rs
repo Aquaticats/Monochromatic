@@ -36,11 +36,7 @@ use slint::{
     platform::{WindowEvent, update_timers_and_animations},
 };
 /// Shared state and the clock.
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 /// Lines of the fixture text;
 ///  the offsets used stay far from both ends.
@@ -48,6 +44,9 @@ const LINES: usize = 1500;
 
 /// The offset the view stands at before a turn.
 const START: f32 = 12_000.0;
+
+/// The ease of a wheel turn, in the toolkit's own time.
+const EASE: Duration = Duration::from_millis(180);
 
 /// Logical pixels of one wheel notch.
 const NOTCH: f32 = 60.0;
@@ -92,12 +91,13 @@ fn begin_turn(window: &AppWindow, state: &Rc<RefCell<State>>, notches: f32) -> (
     return (start, distance);
 }
 
-/// Step the toolkit's ease of a turn that `begin_turn` began until it ends,
-///  as the toolkit does:
-///  one step for each pass of the loop,
-///  with the clock running.
-fn step_ease(window: &AppWindow, started: Instant, turn: (f32, f32)) {
-    step_ease_each(window, started, turn, || {});
+/// Step the toolkit's ease of a turn that `begin_turn` began from `from` to its end,
+///  one step each 12 ms of the ease's own time,
+///  however long the host takes for a step:
+///  the ease is the toolkit's clock,
+///  and a test that stepped it by the host's clock would see a different ease under load.
+fn step_ease(window: &AppWindow, turn: (f32, f32), from: Duration) {
+    step_ease_each(window, turn, from, || {});
 }
 
 /// `step_ease`,
@@ -105,19 +105,17 @@ fn step_ease(window: &AppWindow, started: Instant, turn: (f32, f32)) {
 ///  with the window's frame still to be drawn.
 fn step_ease_each(
     window: &AppWindow,
-    started: Instant,
     turn: (f32, f32),
+    from: Duration,
     mut after_step: impl FnMut(),
 ) {
     let (start, distance) = turn;
-    loop {
-        let elapsed = started.elapsed();
+    let mut elapsed = from;
+    while elapsed < EASE {
+        elapsed = (elapsed + Duration::from_millis(12)).min(EASE);
         window.set_scroll_y(-(start - distance * eased(elapsed)));
         update_timers_and_animations();
         after_step();
-        if elapsed >= Duration::from_millis(180) {
-            return;
-        }
         std::thread::sleep(Duration::from_millis(4));
     }
 }
@@ -400,9 +398,7 @@ fn a_far_wheel_turn_asks_for_one_tile_at_its_end() {
         window.get_held() || window.get_drawn_offset() == -window.get_scroll_y(),
         "the view is drawn at the landed tile's edge or inside it"
     );
-    // The rest of the ease resumes from the middle, whatever time the wait took.
-    let resumed = Instant::now() - Duration::from_millis(90);
-    step_ease(window, resumed, begun);
+    step_ease(window, begun, Duration::from_millis(90));
     settle_tile(state);
     let [worker_tiles, _rows, applied, discarded] = worker_counts(state);
     assert_eq!(
@@ -441,13 +437,12 @@ fn a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one() {
     settle_tile(state);
     reset(state);
     // Five notches, 300 px, stay inside the 0.75 view heights the displayed tile lets the view travel.
-    let started = Instant::now();
     let begun = begin_turn(window, state, -5.0);
     assert!(
         !is_aimed(&state.borrow()),
         "a turn the tile holds is not followed"
     );
-    step_ease(window, started, begun);
+    step_ease(window, begun, Duration::ZERO);
     assert!(state.borrow().scroll_wanted.is_none());
     settle_tile(state);
     assert_eq!(
@@ -457,13 +452,12 @@ fn a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one() {
     );
     assert!(!window.get_held());
     // 40 notches, 2,400 px, take the view past the re-center edge of the tile.
-    let past_started = Instant::now();
     let past_begun = begin_turn(window, state, -40.0);
     assert!(
         is_aimed(&state.borrow()),
         "a turn past the tile is followed"
     );
-    step_ease(window, past_started, past_begun);
+    step_ease(window, past_begun, Duration::ZERO);
     settle_tile(state);
     assert_eq!(
         worker_counts(state)[0],
@@ -508,12 +502,11 @@ fn no_frame_of_a_far_ease_is_blank() {
     let state = &reader.source;
     scroll_to(window, START);
     settle_tile(state);
-    let started = Instant::now();
     let begun = begin_turn(window, state, -300.0);
     let mut frames = 0;
     let mut held = 0;
     let mut blank = Vec::new();
-    step_ease_each(window, started, begun, || {
+    step_ease_each(window, begun, Duration::ZERO, || {
         frames += 1;
         if window.get_held() {
             held += 1;
