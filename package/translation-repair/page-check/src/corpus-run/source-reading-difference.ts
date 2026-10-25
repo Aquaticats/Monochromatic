@@ -9,6 +9,7 @@ import {
   withoutLinkTargets,
 } from './source-reading-account.ts';
 import { blockDifferenceOf, } from './source-reading-blocks.ts';
+import { asTheParseReadsIt, } from './source-ships-readable.ts';
 
 //region Source reading difference
 // WHETHER A READER OF THE PAGE SEES WHAT A READER OF THE SOURCE SEES. The owner ruled on 2026-10-25 ("Add the comparison")
@@ -108,9 +109,11 @@ export function readingDifferenceOf(
     throw error;
   }
   /**
-   Where the two readings of a footnote disagree inside a block quote or a list item.
+   Where the two readings of a footnote disagree inside a block quote or a list item, read from the text as the page holds
+   it, in which a byte order mark that opens it is an ordinary character: the blocks of the source are read so, and a parse
+   that drops the mark gives offsets one behind theirs and a block quote or a list at the start of the text that is none.
    */
-  const disagreements = containerFootnoteDisagreementsOf({ body: source, },);
+  const disagreements = containerFootnoteDisagreementsOf({ body: asTheParseReadsIt({ text: source, },), },);
   if (disagreements.length === 0) {
     return {
       kind: 'differs',
