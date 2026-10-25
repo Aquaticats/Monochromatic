@@ -68,7 +68,9 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
  "Preference + polish", narrowed on 2026-10-25 by "Two judges must name it"),
  and otherwise the archive's wording stays and the page reports it, so a judge
  told the passage stays untranslated, or that trusted text is kept, would be
- told something false about what declining does.
+ told something false about what declining does. The sheet says it in order:
+ a decline is no quiet keep, a candidate two judges named ships, and the
+ wording stays only when none was named twice (re-check 2, finding F2).
 
  @example
  ```ts
@@ -76,10 +78,10 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
  ```
  */
 export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
-  'the wording in place cannot ship, so declining does not keep it as the shipped text: a slate declined in every',
-  'round ships a candidate only when two or more judges named it, chosen among those by a fixed order (the repair',
-  'lane\'s text, then the translate lane\'s, then the first on the slate) rather than by your judgment, and when no',
-  'candidate was named by two judges the archive\'s wording stays and the page reports it, with your reason recorded',
+  'the wording in place cannot ship unreported, so declining is not a quiet keep: a slate declined in every round',
+  'ships a candidate only when two or more judges named it, chosen among those by a fixed order (the repair lane\'s',
+  'text, then the translate lane\'s, then the first on the slate) rather than by your judgment, and when no',
+  'candidate was named by two judges that wording stays and the page reports it, with your reason recorded',
 ].join(' ',);
 
 /**
