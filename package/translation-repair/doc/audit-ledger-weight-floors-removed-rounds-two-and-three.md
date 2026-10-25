@@ -111,7 +111,10 @@ fix `b2dd131f80`;
 widened to a flawed-majority standing in the addendum,
 red `728a164502`,
 fix `d8e1674fbf`
-(the cache bump of that series, `784efa1591`, stands on the tie rule alone, B912).
+(the cache bump of that series,
+`784efa1591`,
+stands on the tie rule alone,
+B912).
 
 The owner's answer of 2026-10-25,
 "Ship the slate's wording" (finding F5):
@@ -190,7 +193,10 @@ What the owner should see in this entry (findings F3 and F4 of re-check 2):
   because `consolidate/src/consolidate-persistence.ts` stores a gated settlement only when the gate heard
   `CONSOLIDATE_GATE_QUORUM` usable ballots and refuses an archive-kept one.
   The pick ships on the page of that run and the slice is asked again on the next run,
-  which costs one re-ask per run and is consistent with "the hour, not the slice".
+  which costs one re-ask per run
+  and is consistent with the comment of that file,
+  that a settlement made on a thin bench is the hour and not the slice,
+  so a later pass asks the slice again.
   For the same reason no stored record stands behind the cache bumps for the unheard gate (B912).
 
 ## B910: a page title settles only on two or more heard voices (round 2)
@@ -308,7 +314,9 @@ the pairing version and the artifact generation.
 `MINIMUM_CHECKER_COUNT` is a run guard and not a key input.
 
 Checked by `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 53b55cf5c3..HEAD`,
-which lists exactly those nine commits (the six of round 2 and its addendum, and the three of round 3),
+which lists exactly those nine commits
+(the six of round 2 and its addendum,
+and the three of round 3),
 and by the positive control over `c265e8df95~1..c265e8df95`,
 which lists `c265e8df95`.
 
@@ -540,7 +548,9 @@ Finding F2 of re-check 2.
 `SHIPS_WHAT_TWO_JUDGES_NAMED` (`adjudication/src/select-decline-consequence.ts`) is the sentence the judges of the
 translate lane's and the consolidation's slates read about what declining does over a withheld standing.
 It said that declining does not keep the wording as the shipped text,
-and, in its last clause, that the archive's wording stays.
+and,
+in its last clause,
+that the archive's wording stays.
 A judge told two things about the cost of declining is asked for caution by a promise that contradicts itself.
 
 The sentence now says what happens in order:

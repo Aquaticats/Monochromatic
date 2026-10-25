@@ -510,7 +510,9 @@ Single-voice effects that remain,
 accepted (finding F8 of re-check 2),
 each with its reason:
 - `regressed` in `adjudication/src/tally-resolution.ts` keeps no ballot floor:
-  a lone `worse` ballot, where the other checker cast no verdict on the issue, marks a patched candidate regressed
+  a lone `worse` ballot,
+  where the other checker cast no verdict on the issue,
+  marks a patched candidate regressed
   (`worse > fixed + notFixed`),
   and `adjudication/src/select-candidate.ts` then ranks it below a candidate that regressed nothing.
   Accepted because it only demotes and never ships text,

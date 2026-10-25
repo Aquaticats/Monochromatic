@@ -234,7 +234,9 @@ which lists every file of these commitments.
   and "Ship the slate's pick (Recommended)" (the same for an eligible standing a majority of the contest judges
   called flawed).
   The lead ruled that a page title settles only on a rendering two or more voices gave
-  (a title one voice alone rendered, or a tie of one voice apiece, stays unsettled)
+  (a title one voice alone rendered,
+  or a tie of one voice apiece,
+  stays unsettled)
   and that a consistency round decides on two or more answering ballots,
   and that the derivability probe and the restoration judge,
   which feed the benchmark scorecard only,
