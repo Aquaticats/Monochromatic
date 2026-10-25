@@ -69,8 +69,15 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
  and otherwise the archive's wording stays and the page reports it, so a judge
  told the passage stays untranslated, or that trusted text is kept, would be
  told something false about what declining does. The sheet says it in order:
- a decline is no quiet keep, a candidate two judges named ships, and the
- wording stays only when none was named twice (re-check 2, finding F2).
+ declining does not by itself keep the wording, and a judge's own decline
+ names no candidate; the wording in place stays only when no candidate was
+ named by two or more judges; and when one or more were, the preferred of
+ those ships by a fixed order (re-check 2, finding F2; reworded in re-check 3,
+ M3, because "cannot ship unreported" beside "not a quiet keep" and "stays"
+ left a judge able to read its decline as the way to the stay).
+
+ THE CLAUSES ARE PINNED BY MEANING, not by these words
+ (`decline-consequence-clauses.test-fixture.ts`).
 
  @example
  ```ts
@@ -78,10 +85,11 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
  ```
  */
 export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
-  'the wording in place cannot ship unreported, so declining is not a quiet keep: a slate declined in every round',
-  'ships a candidate only when two or more judges named it, chosen among those by a fixed order (the repair lane\'s',
-  'text, then the translate lane\'s, then the first on the slate) rather than by your judgment, and when no',
-  'candidate was named by two judges that wording stays and the page reports it, with your reason recorded',
+  'declining does not by itself keep the wording in place, and your own decline names no candidate:',
+  'when no candidate is named by two or more judges, the wording in place stays and the page reports it,',
+  'with your reason recorded; when one or more candidates are named by two or more judges, the preferred of',
+  'those ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, then the first on the',
+  'slate) and not by your judgment',
 ].join(' ',);
 
 /**
