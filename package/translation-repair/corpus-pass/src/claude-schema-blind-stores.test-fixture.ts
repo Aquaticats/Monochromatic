@@ -5,8 +5,8 @@ import {
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { builtinNameOf, } from './claude-schema-blind-global-values.test-fixture.ts';
 import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
+import { staticCallOf, } from './claude-schema-blind-static-calls.test-fixture.ts';
 import {
   memberNameOf,
   nodeAt,
@@ -18,10 +18,12 @@ import {
 // stored in an object, a list or a map is read through the first name of that object, so the first name of the object
 // is a name made from the parameter. The places that store are an assignment to a member or an index, a pattern whose
 // target is a member, a call of a method that stores its arguments in the object it is called on (`push`, `set`), a
-// call of `Object.assign` or of a method that defines a property, which store in the first argument (also when `Object`
-// is written under a type mark or read off the global object), a class or a function declared inside whose code reads
-// the parameter, and the default of a pattern, which is a value the pattern takes. A call of any other function or
-// method may store its arguments in an object it receives, and is not read; so is a field of `this`.
+// call of `Object.assign`, of a method that defines a property or of `Reflect.set`, which store in the first argument
+// (also when `Object` is written under a type mark or read off the global object, and when the method is called through
+// `call`, `apply` or `Reflect.apply`, with its arguments spread from an array written in place, or as the last operand
+// of a comma: `claude-schema-blind-static-calls.test-fixture.ts`), a class or a function declared inside whose code
+// reads the parameter, and the default of a pattern, which is a value the pattern takes. A call of any other function
+// or method may store its arguments in an object it receives, and is not read; so is a field of `this`.
 
 /**
  A place where names become derived: the names that a statement or an expression binds, and the code whose value they
@@ -54,8 +56,8 @@ const STORING_METHODS: ReadonlySet<string> = new Set([
 ],);
 
 /**
- The methods that store in their first argument, by the object they are read off: `Object.assign` and the two methods
- of `Object` that define properties.
+ The methods that store in their first argument, by the object they are read off: `Object.assign`, the two methods of
+ `Object` that define properties, and `Reflect.set`.
  */
 const STORING_STATICS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [
@@ -65,6 +67,10 @@ const STORING_STATICS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
       'defineProperties',
       'defineProperty',
     ],),
+  ],
+  [
+    'Reflect',
+    new Set(['set',],),
   ],
 ]);
 
@@ -160,6 +166,18 @@ export function namesStoredInto({ node, }: { readonly node: unknown; },): readon
  */
 function namesStoredByCall({ call, }: { readonly call: TreeNode; },): readonly string[] {
   /**
+   The call of a method of a built-in object that the call is, however it is written.
+   */
+  const staticCall = staticCallOf({ call, },);
+  /**
+   The methods of that object that store in their first argument, none for an object that has none.
+   */
+  const statics = STORING_STATICS.get(staticCall.object,) ?? new Set<string>();
+  if (statics.has(staticCall.method,)) {
+    return namesStoredInto({ node: staticCall.received
+      .at(0,), },);
+  }
+  /**
    The callee without the type marks and parentheses around it.
    */
   const { inner: callee, } = unwrapped({ node: nodeAt({
@@ -172,18 +190,6 @@ function namesStoredByCall({ call, }: { readonly call: TreeNode; },): readonly s
    The method the call reads off the object.
    */
   const method = memberNameOf({ node: callee, },);
-  /**
-   The methods of the object the callee is read off that store in their first argument, none for an object that has
-   none.
-   */
-  const statics = STORING_STATICS.get(builtinNameOf({ node: callee.object, },),) ?? new Set<string>();
-  if (statics.has(method,)) {
-    return namesStoredInto({ node: nodesAt({
-      node: call,
-      field: 'arguments',
-    },)
-      .at(0,), },);
-  }
   return STORING_METHODS.has(method,)
     ? namesStoredInto({ node: callee.object, },)
     : [];

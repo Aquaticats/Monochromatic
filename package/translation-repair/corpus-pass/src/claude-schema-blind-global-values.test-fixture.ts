@@ -43,8 +43,13 @@ export const GLOBAL_OBJECTS: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ What `findIndex` answers where no name matches.
+ */
+const NO_INDEX = -1;
+
+/**
  The name of the built-in object a method is read off, whatever marks the object is written under and whether or not it
- is read off the global object.
+ is read off the global object, also off a chain of global objects (`globalThis.globalThis`, `window.self`).
 
  @param node - object the method is read off, of any kind
 
@@ -53,7 +58,7 @@ export const GLOBAL_OBJECTS: ReadonlySet<string> = new Set([
  @example
  ```ts
  const name = builtinNameOf({ node: callee.object, },);
- // => 'Object' for `Object`, `(Object as any)` and `globalThis.Object`
+ // => 'Object' for `Object`, `(Object as any)`, `globalThis.Object` and `window.self.Object`
  ```
  */
 export function builtinNameOf({ node, }: { readonly node: unknown; },): string {
@@ -63,8 +68,18 @@ export function builtinNameOf({ node, }: { readonly node: unknown; },): string {
   const path = pathOf({ node, },);
   if (path.length === 1)
     return path[0] ?? '';
-  return ((path.length === 2) && GLOBAL_OBJECTS.has(path[0] ?? '',))
-    ? (path[1] ?? '')
+  /**
+   Where the first name that is no global object stands in the path, none when every name is one.
+   */
+  const first = path.findIndex(function isNoGlobal(name,): boolean {
+    return !GLOBAL_OBJECTS.has(name,);
+  },);
+  /**
+   The names after the global objects the path starts with.
+   */
+  const rest = (first === NO_INDEX) ? path.slice(-1,) : path.slice(first,);
+  return ((path.length > 1) && (rest.length === 1))
+    ? (rest[0] ?? '')
     : '';
 }
 

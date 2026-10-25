@@ -3,16 +3,15 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { builtinNameOf, } from './claude-schema-blind-global-values.test-fixture.ts';
 import {
   loaderReadPositionOf,
   namesLoaderMember,
   TAKES_LOADER,
 } from './claude-schema-blind-loader-reads.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import { staticCallOf, } from './claude-schema-blind-static-calls.test-fixture.ts';
 import {
   keyNameOf,
-  memberNameOf,
   moduleLoadOf,
   nodeAt,
   nodesAt,
@@ -34,10 +33,12 @@ import {
 // module. The constructor is told by a member named `constructor` written with a dot or with a string literal in
 // brackets, also through `?.`, and by `Reflect.get`, `Reflect.getOwnPropertyDescriptor` and
 // `Object.getOwnPropertyDescriptor` with the string `constructor` as the key, whether the method is written with a dot,
-// a string or a template, and whether the object is under a type mark or read off the global object. A key that is no
-// literal, a pattern that takes `constructor` or `binding` out of a value, a method that returns every member of a
-// value, and a method that is written through an alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and
-// are limits of the search that the ledger states.
+// a string or a template, and whether the object is under a type mark or read off the global object. The call is the
+// same when the method is called through `call` or `apply`, through `Reflect.apply`, with its arguments spread from an
+// array written in place, or as the last operand of a comma (`claude-schema-blind-static-calls.test-fixture.ts`). A key
+// that is no literal, a pattern that takes `constructor` or `binding` out of a value, a method that returns every
+// member of a value, a method that is bound and called after, and a method that is written through an alias
+// (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger states.
 
 /**
  What a report says of a place that loads the `vm` module.
@@ -177,33 +178,18 @@ const KEY_READERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
  */
 function reflectsConstructor({ node, }: { readonly node: TreeNode; },): boolean {
   /**
-   The callee of the call.
+   The call of a method of a built-in object that the node is, however it is written, with the arguments the method
+   receives.
    */
-  const callee = nodeAt({
-    node,
-    field: 'callee',
-  },);
+  const staticCall = staticCallOf({ call: node, },);
   /**
-   The second argument of the call, absent when it has none.
+   The methods of that object that read a member by a key.
    */
-  const key = nodesAt({
-    node,
-    field: 'arguments',
-  },)
-    .at(1,);
-  if ((callee.type !== 'MemberExpression') || (node.type !== 'CallExpression'))
+  const readers = KEY_READERS.get(staticCall.object,);
+  if (!(readers?.has(staticCall.method,) ?? false))
     return false;
-  /**
-   The method the callee reads off the object, empty when it is computed from anything but a string.
-   */
-  const method = memberNameOf({ node: callee, },);
-  /**
-   The methods of the object the callee reads from that read a member by a key.
-   */
-  const readers = KEY_READERS.get(builtinNameOf({ node: callee.object, },),);
-  if (!(readers?.has(method,) ?? false))
-    return false;
-  return (key !== undefined) && (stringValueOf({ node: key, },) === 'constructor');
+  return stringValueOf({ node: staticCall.received
+    .at(1,), },) === 'constructor';
 }
 
 /**
