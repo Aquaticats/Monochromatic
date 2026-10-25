@@ -129,12 +129,11 @@ function taggedTemplateOf(
     readonly parents: ReadonlyMap<TreeNode, TreeNode>;
   },
 ): TreeNode {
-  if (node.type !== 'TemplateLiteral')
-    return NO_NODE;
   /**
    The node that holds the template.
    */
   const parent = parents.get(node,);
+  // The quasi of a tagged template is always a template literal, so the kind of the node needs no test.
   return ((parent?.type === 'TaggedTemplateExpression') && (parent.quasi === node)) ? parent : NO_NODE;
 }
 

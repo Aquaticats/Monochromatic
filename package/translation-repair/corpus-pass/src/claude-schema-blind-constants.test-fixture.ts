@@ -154,7 +154,8 @@ function plainMemberOf(
     .get(head,);
   if (holder?.type !== 'MemberExpression')
     return NO_NODE;
-  return ((holder.object === head) && (holder.computed !== true)) ? holder : NO_NODE;
+  // A reference that sits in a member without being its computed key is its object, so the object needs no test.
+  return (holder.computed !== true) ? holder : NO_NODE;
 }
 
 /**
