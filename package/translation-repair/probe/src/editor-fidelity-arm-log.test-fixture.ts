@@ -391,16 +391,22 @@ export function armLogOf(
       },),
       // The SPEND line is written by hand: its writer also moves the run's meter, which a case must not touch.
       `[info] [2026-10-23T12:00:01.000Z] [translation-repair] [reportSpend] SPEND provider=anthropic model=${tally.cardId} prompt=9000 completion=1500 cost=${String(guardUsd,)}`,
-      ...walked.map(function rowLine(
+      ...walked.flatMap(function rowLines(
         row,
         at,
-      ): string {
-        return rowLineFor({
-          cardId: tally.cardId,
-          row,
-          position: at,
-          total: plannedTrials,
-        },);
+      ): readonly string[] {
+        return [
+          // The line is written by hand, as the SPEND line is: its writer is the stage's logger, which a case must not call.
+          ...((row.reused === true)
+            ? [`PROMPT-REUSE source=memory model=${tally.cardId} digest=${'ab'.repeat(32,)}`,]
+            : []),
+          rowLineFor({
+            cardId: tally.cardId,
+            row,
+            position: at,
+            total: plannedTrials,
+          },),
+        ];
       },),
       ...(capped
         ? [

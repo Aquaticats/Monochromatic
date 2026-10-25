@@ -76,6 +76,12 @@ export type RowSpec = {
    The pass over the pool the row belongs to, counted from one; absent for the first pass, whose row lines name none.
    */
   readonly pass?: number;
+
+  /**
+   Whether the row's reply came from the prompt reuse layer and not from a call, which the run client logs as a
+   `PROMPT-REUSE` line just before the row's own; absent for a row that made a call.
+   */
+  readonly reused?: boolean;
 };
 
 /**

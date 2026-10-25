@@ -22,6 +22,7 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
 import {
   type ArmLog,
+  armFiguresOf,
   benchReportLines,
   checkEditorArms,
   checkEditorBench,
@@ -217,6 +218,36 @@ function benchOf(
       countedUsd: 0.875,
     },),
   ];
+}
+
+/**
+ The first arm of the billed run of `dd4b15b75c` as its log read: the pool once with a call for each unit, then 62 units of
+ the second pass answered by the prompt reuse layer, each with a `PROMPT-REUSE` line in front of its row.
+
+ @returns The arm's log, 150 rows of which 62 made no call
+
+ @example
+ ```ts
+ const log = reusedHighArm();
+ ```
+ */
+function reusedHighArm(): ArmLog {
+  return armOf({
+    arm: 'high',
+    cardId: HIGH_CARD,
+    rows: unitRows({ count: 150, fixed: everyUnit, },)
+      .map(function replayed(
+        row,
+        at,
+      ): RowSpec {
+        return (at < POOL_TRIALS) ? row : { ...row, reused: true, };
+      },),
+    planned: 264,
+    passes: 3,
+    capped: true,
+    declaredUsd: 0,
+    countedUsd: 2.5,
+  },);
 }
 
 /**
@@ -432,6 +463,68 @@ await describe({
           return line.startsWith('SHARED 88 units over 44 entries (',);
         },),).toBe(true,);
         expect(lines.at(-1,)?.startsWith('VERDICT high (shown-better): ',),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'COUNTS ONLY THE ROWS THAT MADE A CALL: of the 150 rows the billed first arm logged, 62 follow a PROMPT-REUSE '
+        + 'line, so its figures hold 88 rows and say 62 were answered by reuse',
+      fn: async () => {
+        const figures = armFiguresOf({ log: reusedHighArm(), },);
+        expect(figures.rows.length,).toBe(POOL_TRIALS,);
+        expect(figures.reusedRows,).toBe(62,);
+        expect(figures.rows.every(function inFirstPass({ pass, },): boolean {
+          return pass === 1;
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'FAILS THE ROW CHECK OF AN ARM WITH ROWS THAT MADE NO CALL, saying how many of its rows reuse answered, and '
+        + 'passes the arm whose rows all made a call',
+      fn: async () => {
+        expect(lineFor({ log: reusedHighArm(), check: 'row count', },),).toBe(
+          'FAIL high: row count: 62 of 150 rows were answered by prompt reuse and made no call, so none of them is a trial',
+        );
+        expect(lineFor({ log: benchOf({ count: 150, planned: 150, firstPlanned: 264, },)[0] as ArmLog, check: 'row count', },),)
+          .toContain('PASS high: row count: ',);
+      },
+    },),
+
+    it({
+      name: 'SHARES ONLY THE UNITS THAT MADE A CALL IN EVERY ARM: the billed first arm with 62 replayed rows, and a medium '
+        + 'and a low arm that walked all 150 units for real, share 88 units, print no repeat reading of the replays, '
+        + 'and fail the checks that the first arm and the later arms walked the same units',
+      fn: async () => {
+        const [, medium, low,] = benchOf({ count: 150, planned: 150, firstPlanned: 264, },);
+        const arms = [reusedHighArm(), nonNullishOrThrow(medium,), nonNullishOrThrow(low,),];
+        const lines = benchReportLines({ arms, },);
+        expect(lines.some(function isShared(line,): boolean {
+          return line.startsWith('SHARED 88 units over 44 entries (',);
+        },),).toBe(true,);
+        expect(lines.filter(function readsRepeats(line,): boolean {
+          return line.startsWith('REPEAT high',) && line.includes('gave the same reading in every pass',);
+        },),).toStrictEqual([],);
+        expect(checkEditorBench({ arms, },).failed,).toBeGreaterThan(0,);
+        expect(checkEditorBench({ arms, },).lines,).toContain(
+          'FAIL medium: units in the first arm\'s order: it walked 150 units and high completed 88',
+        );
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE BILLED LOGS AS THE BUILT COMMAND: the first arm\'s 62 rows that reuse answered make the row check '
+        + 'fail, so the command exits with a failure and prints that line and the 88 units that made a call',
+      fn: async () => {
+        const [, medium, low,] = benchOf({ count: 150, planned: 150, firstPlanned: 264, },);
+        const run = await readAsBuilt({ arms: [reusedHighArm(), nonNullishOrThrow(medium,), nonNullishOrThrow(low,),], },);
+        expect(run.stdout,).toContain(
+          'FAIL high: row count: 62 of 150 rows were answered by prompt reuse and made no call, so none of them is a trial',
+        );
+        expect(run.code,).not.toBe(0,);
+        expect(run.stdout.some(function isShared(line,): boolean {
+          return line.startsWith('SHARED 88 units over 44 entries (',);
+        },),).toBe(true,);
       },
     },),
 
