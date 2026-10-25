@@ -229,6 +229,35 @@ and `rendering-audit-settled-drive.ts`.
 That limit is left as it stands;
 sharing one set across those clients would need each command to build it.
 
+## What a refusal cooldown waits for
+
+A refusal on a meter that is dry or cannot be read holds the provider out for a cooldown of 300 s
+(`REFUSAL_COOLDOWN_MS` in `provider-budget.ts`),
+and the seat reader waits the cooldown out when the provider's return would lift a short bench.
+A provider that refuses right after a cooldown the entry waited out,
+with nothing served in between,
+is given up for the entry (`provider-budget-refusal-holds.ts`):
+its cooldowns count for no wait,
+and it reads dry until the entry ends.
+The give-up is set aside,
+and the cooldown waited out as before,
+in two cases only,
+because waiting buys something only when the provider's return would make the entry finishable
+(`provider-budget-give-up-aside.ts`):
+(a) the given-up provider is the only writing provider not dry,
+so a give-up never ends the run;
+or (b) with that provider back no bench floor the entry needs would be left unmet,
+while without it at least one is.
+Otherwise the give-up holds.
+The writing roster (`writing`) decides (a),
+and the bench floors the caller hands over (`unmetFloors`,
+the seat reader's own in a run) decide (b).
+Round 3's wording,
+that the give-up holds only while the providers left meet every bench floor,
+was the lead's error and is superseded.
+The record is ledger B965,
+and the rule is open to the owner's veto.
+
 ## Family dependencies
 
 Short names are directory names under `package/translation-repair`;

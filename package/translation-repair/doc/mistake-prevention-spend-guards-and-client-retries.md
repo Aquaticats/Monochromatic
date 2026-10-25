@@ -222,19 +222,28 @@ and by its entry's abort only as the last resort.
 
 The rule for a give-up:
 giving a provider up narrows where a call may go,
-and it never costs the entry what waiting would have saved.
-The give-up holds only while the providers left (not dry,
-not held,
-not given up) can meet every bench floor the
-entry's stages need,
-the writing floors and the judging quorums,
-read from the seat reader's own helpers over every bench any phase leans on.
-Otherwise the give-up is set aside:
-the reader and the router wait its cooldown out and ask it again,
-since the other way ends the run when the given-up provider was the last one not dry,
-and ends the entry with a writing bench error when a wet provider is too small to lift the bench,
-for a provider that serves again after its cooldown.
-A wet provider that cannot lift a bench is no alternative to it.
+and waiting for it buys something only when its return would make the entry finishable.
+The give-up is set aside,
+and the cooldown waited out and the provider asked again,
+in two cases only:
+(a) the given-up provider is the only writing provider not dry,
+since the other way ends the run for a provider that serves again after its cooldown;
+or (b) with that provider back no bench floor the entry's stages need would be left unmet,
+while without it at least one is
+(the writing floors and the judging quorums,
+read from the seat reader's own helpers over every bench any phase leans on).
+Otherwise the give-up holds.
+The wording of round 3,
+that the give-up holds only while the providers left meet every bench floor,
+was the lead's error and is superseded:
+it set the give-up aside whenever the providers left fell short,
+whether or not the provider's return would help,
+and in XingZ6020 the 58 waits would have recurred,
+because five benches stay short there with the provider back as well.
+Reading (b) as "the return lifts any unmet floor" is not the rule either.
+The decision is taken for each provider given up,
+and the floors are read twice,
+with the providers left and with that provider added.
 Where the give-up holds,
 a call for a model only the given-up provider serves must end as that seat unreachable,
 with no request sent,
@@ -254,8 +263,12 @@ and a stated return counted as a cooldown.
 and `provider/src/provider-budget-cooldown-set-aside.unit.test.ts` the budgets and the router's wait over it.
 `run/src/corpus-run/run-client-create.unit.test.ts` builds the run client itself (`runClientFrom`) over a
 scripted transport on a fake clock,
-and fails when the entry ends with `WritingBenchUnreachableError` beside a wet DeepSeek,
-or waits fewer cooldowns than it is refused beside a wet NeuralWatt;
+and fails when the entry waits for Synthetic more than once in the state of XingZ6020
+(NeuralWatt,
+DeepSeek and Xiaomi wet),
+or beside a wet DeepSeek or NeuralWatt alone,
+or waits fewer cooldowns than it is refused when Hyper refuses beside a wet NeuralWatt,
+or ends the run for a Synthetic that is the only writing provider not dry beside a wet Xiaomi;
 `run/src/corpus-run/run-seats-give-up-floors.unit.test.ts` holds the floors,
 and `run/src/corpus-run/run-client-writing-roster.unit.test.ts` the roster the router is handed.
 `stage/src/stage-call-given-up-provider.unit.test.ts` runs the real router over the real budgets and fails when the
