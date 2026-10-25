@@ -125,5 +125,37 @@ await describe({
         expect(encodedDifference({ source: '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n<details>\n', },).kind,).toBe('undecided',);
       },
     },),
+    it({
+      name: 'SAYS UNDECIDED, NOT DIFFERENT, FOR TEXT THE PAGE SHOWS AS THE SOURCE DOES IN OTHER BLOCKS, beside a block quote it cannot ask about',
+      fn: async () => {
+        /**
+         The same footnote in a block quote, with after it a list and an element the page reads as one list item with a lazy
+         line where the source has two blocks, and a comment that never closes whose paragraphs the page splits where the
+         source has one block of raw HTML.
+         */
+        const quote = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
+        expect(encodedDifference({ source: `${quote}1. 项\n<script>\n`, },).kind,).toBe('undecided',);
+        expect(encodedDifference({ source: `${quote}\n<!-- a <!-- b\n\n[\n`, },).kind,).toBe('undecided',);
+      },
+    },),
+    it({
+      name: 'SAYS UNDECIDED FOR A LINK BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, whose target the comparison leaves out as it does for a whole text',
+      fn: async () => {
+        expect(
+          encodedDifference({ source: '[<https://example.net/a>](u)\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n', },).kind,
+        ).toBe('undecided',);
+      },
+    },),
+    it({
+      name: 'SAYS DIFFERS FOR TEXT THE PAGE LACKS OR CHANGES BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, in whatever blocks the page shows it',
+      fn: async () => {
+        /**
+         A label with a brace, which the page writes with a backslash in the reference and not in the definition.
+         */
+        expect(
+          encodedDifference({ source: '- [^1]: <b>\n  [r]: u{b}\n[^a}]: x {\n\n[^a}] y\n[^1]: 注\n', },).kind,
+        ).toBe('differs',);
+      },
+    },),
   ],
 },);
