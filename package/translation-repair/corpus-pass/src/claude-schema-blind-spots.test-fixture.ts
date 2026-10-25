@@ -170,7 +170,8 @@ function lineOf(
 }
 
 /**
- The places a file's shapes are at, each place once, in the order of the lines.
+ The places a file's shapes are at, each place once, in the order of the lines. A shape that holds a function is
+ kept once for each node, since two reports of one function on a line are two places a name may stand for.
 
  @param text - file's text
 
@@ -201,6 +202,7 @@ function spotsOf(
       shape,
       node,
       position,
+      held,
     },): readonly [
       string,
       BlindSpot,
@@ -212,13 +214,25 @@ function spotsOf(
         text,
         node,
       },);
+      if (held === undefined) {
+        return [
+          `${String(line,)} ${shape}`,
+          {
+            file,
+            line,
+            shape,
+            position,
+          },
+        ];
+      }
       return [
-        `${String(line,)} ${shape}`,
+        `${String(line,)} ${shape} ${String(node.start,)}`,
         {
           file,
           line,
           shape,
           position,
+          held,
         },
       ];
     },),)

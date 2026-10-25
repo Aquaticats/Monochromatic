@@ -987,8 +987,8 @@ await describe({
           spots: blindSpotsOf({ sources: await familySources(), notStageSchemas: NOT_STAGE_SCHEMAS, },),
           places: NAMED_PLACES,
         },)
-          .map(function named({ file, line, shape, },): string {
-            return `${file}:${String(line,)} ${shape}`;
+          .map(function named({ file, line, shape, held, },): string {
+            return `${file}:${String(line,)} ${shape} ${held ?? ''}`;
           },),).toEqual([],);
       },
     },),

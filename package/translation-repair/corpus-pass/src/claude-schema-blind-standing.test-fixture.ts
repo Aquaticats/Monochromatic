@@ -129,7 +129,8 @@ export function chainOf({ node, }: { readonly node: unknown; },): Chain {
 
  @param count - how many members to keep
 
- @returns Whether it is a builder, a module or object that carries one, or neither, and whether the name is free
+ @returns Whether it is a builder, a module or object that carries one, or neither, whether the name is free, and the
+ name of the forwarder when it stands for one
 
  @example
  ```ts
@@ -149,6 +150,7 @@ export function standingAfter(
 ): {
   readonly standing: Standing;
   readonly isFree: boolean;
+  readonly held: string;
 } {
   /**
    The members kept.
@@ -179,6 +181,7 @@ export function standingAfter(
     return {
       standing: 'builder',
       isFree: false,
+      held: '',
     };
   }
   if ((resolved.kind === 'free')
@@ -188,6 +191,7 @@ export function standingAfter(
     return {
       standing: 'builder',
       isFree: true,
+      held: '',
     };
   }
   if ((resolved.kind === 'function')
@@ -197,6 +201,7 @@ export function standingAfter(
     return {
       standing: 'forwarder',
       isFree: false,
+      held: resolved.name,
     };
   }
   if ((resolved.kind === 'free')
@@ -206,6 +211,7 @@ export function standingAfter(
     return {
       standing: 'forwarder',
       isFree: true,
+      held: resolved.name,
     };
   }
   /**
@@ -220,6 +226,7 @@ export function standingAfter(
   return {
     standing: carries ? 'carrier' : 'other',
     isFree: resolved.kind === 'free',
+    held: '',
   };
 }
 

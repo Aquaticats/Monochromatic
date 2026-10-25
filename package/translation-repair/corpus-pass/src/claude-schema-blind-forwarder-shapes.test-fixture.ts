@@ -48,11 +48,13 @@ const NON_CALLING_MEMBERS: ReadonlySet<string> = new Set([
 
  @param isBound - whether the chain ends in `.bind`, so what the call of it gives is the forwarder again
 
+ @param held - name of the forwarder, written into the shape
+
  @returns Shape, none where the forwarder is called
 
  @example
  ```ts
- const found = forwarderShapesAt({ context, node, isBound: false, },);
+ const found = forwarderShapesAt({ context, node, isBound: false, held: 'build', },);
  ```
  */
 function forwarderShapesAt(
@@ -60,10 +62,12 @@ function forwarderShapesAt(
     context,
     node,
     isBound,
+    held,
   }: {
     readonly context: BlindContext;
     readonly node: TreeNode;
     readonly isBound: boolean;
+    readonly held: string;
   },
 ): readonly FoundShape[] {
   /**
@@ -97,6 +101,7 @@ function forwarderShapesAt(
       context,
       node: holder,
       isBound: false,
+      held,
     },);
   }
   /**
@@ -114,6 +119,7 @@ function forwarderShapesAt(
           holder,
           child: top,
         },),
+        held,
       },
     ];
 }
@@ -130,11 +136,13 @@ function forwarderShapesAt(
 
  @param count - members that lead to the forwarder
 
+ @param held - name of the forwarder, written into the shape
+
  @returns Shape, none for a chain that is called
 
  @example
  ```ts
- const found = forwarderShapesAlong({ context, chain, node, count: 1, },);
+ const found = forwarderShapesAlong({ context, chain, node, count: 1, held: 'build', },);
  ```
  */
 export function forwarderShapesAlong(
@@ -143,11 +151,13 @@ export function forwarderShapesAlong(
     chain,
     node,
     count,
+    held,
   }: {
     readonly context: BlindContext;
     readonly chain: Chain;
     readonly node: TreeNode;
     readonly count: number;
+    readonly held: string;
   },
 ): readonly FoundShape[] {
   /**
@@ -169,6 +179,7 @@ export function forwarderShapesAlong(
         shape: 'forwarder-outside-a-read-position',
         node,
         position: (stray === COMPUTED_MEMBER) ? 'member computed from a name' : `member ${stray} of a forwarder`,
+        held,
       },
     ];
   }
@@ -176,6 +187,7 @@ export function forwarderShapesAlong(
     context,
     node,
     isBound: rest.at(-1,) === 'bind',
+    held,
   },);
 }
 

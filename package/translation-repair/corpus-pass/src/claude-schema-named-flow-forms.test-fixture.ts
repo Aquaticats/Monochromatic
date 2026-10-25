@@ -93,6 +93,8 @@ function flowSpotAt(
 
  @param lines - lines of the dependencies file after the import, the first of which is line two
 
+ @param imports - the import of the forwarders the dependencies file starts with
+
  @param unnamed - reports no name stands for
 
  @returns Case
@@ -106,10 +108,12 @@ function flowCaseOf(
   {
     name,
     lines,
+    imports = 'import { mk, other, } from \'./place-stage.ts\';',
     unnamed,
   }: {
     readonly name: string;
     readonly lines: readonly string[];
+    readonly imports?: string;
     readonly unnamed: readonly BlindSpot[];
   },
 ): NamedFlowCase {
@@ -133,7 +137,7 @@ function flowCaseOf(
       {
         file: PLACE_DEPENDENCIES,
         text: textOf([
-          'import { mk, other, } from \'./place-stage.ts\';',
+          imports,
           ...lines,
         ],),
       },
@@ -205,6 +209,18 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
         held: 'mk',
       },),
     ],
+  },),
+  flowCaseOf({
+    name: 'NAMES THE FORWARDER HANDED OVER UNDER ANOTHER LOCAL NAME, since the name is that of the function',
+    imports: 'import { mk as renamed, } from \'./place-stage.ts\';',
+    lines: ['export const deps = { settle: renamed, };',],
+    unnamed: [],
+  },),
+  flowCaseOf({
+    name: 'NAMES THE FORWARDER HANDED OVER AS A MEMBER OF A NAMESPACE IMPORT, since the name is that of the function',
+    imports: 'import * as stage from \'./place-stage.ts\';',
+    lines: ['export const deps = { settle: stage.mk, };',],
+    unnamed: [],
   },),
   flowCaseOf({
     name: 'LEAVES NO REPORT WHEN THE NAMED FORWARDER IS HANDED OVER ONCE',
