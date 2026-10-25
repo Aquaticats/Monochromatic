@@ -124,6 +124,7 @@ type ResolvedVoice = {
    */
   readonly answers: PageTitleAnswers;
 };
+
 /**
  Settles one English rendering for each title a page repeats, asking the bench once.
  A round that heard fewer than two voices settles nothing, and a title settles
