@@ -12,8 +12,10 @@
 
  THE SLATE'S OWN PICK IS A DECISION OF ITS OWN (the owner's answer of 2026-10-25, "Ship the slate's wording"): when
  two or more slate ballots chose the proposal, the want of a gate verdict does not undo that decision, and the
- archive the deterministic rule refused cannot ship, so over such an archive the proposal ships. A proposal the slate
- chose on one ballot, or a standing the contest majority called flawed (which passes the rule), keeps the standing.
+ archive the deterministic rule refused cannot ship, so over such an archive the proposal ships. The owner's answer of
+ 2026-10-25, "Ship the slate's pick (Recommended)", extends this to an eligible standing a majority of the contest
+ ballots called flawed. A proposal the slate chose on one ballot, or an eligible standing no contest majority called
+ flawed, keeps the standing.
 
  Fixtures are cat-themed invention mirroring corpus structure only. No call leaves the process.
 
@@ -102,15 +104,63 @@ await describe({
 
     it({
       name: 'KEEPS THE STANDING when the gate heard one answering judge over a standing the contest majority called '
-        + 'flawed, even where the slate\'s pick drew two ballots: only the rule-failing archive gives way to the '
-        + 'slate\'s pick (the owner\'s answer of 2026-10-25, "Ship the slate\'s wording")',
+        + 'flawed and the slate\'s pick drew one ballot',
       fn: async () => {
         const messages: string[] = [];
         const gated = shipPastForfeitStanding({
           outcome: neitherOver({ usable: 1, },),
           standingEligible: true,
           standingFlawedByMajority: true,
+          slatePickBallots: 1,
+          l: capturingLogger({ messages, },),
+        },);
+        expect(gated.ships,).toBe('standing',);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE SLATE\'S PICK when the gate heard fewer than two answering judges over an eligible standing '
+        + 'the contest majority called flawed and two slate ballots chose the pick (the owner\'s answer of '
+        + '2026-10-25, "Ship the slate\'s pick (Recommended)", which replaces the narrower reading that kept the '
+        + 'standing)',
+      fn: async () => {
+        const messages: string[] = [];
+        const heardOne = shipPastForfeitStanding({
+          outcome: neitherOver({ usable: 1, },),
+          standingEligible: true,
+          standingFlawedByMajority: true,
           slatePickBallots: 2,
+          l: capturingLogger({ messages, },),
+        },);
+        const heardNone = shipPastForfeitStanding({
+          outcome: neitherOver({ usable: 0, },),
+          standingEligible: true,
+          standingFlawedByMajority: true,
+          slatePickBallots: 3,
+          l: capturingLogger({ messages, },),
+        },);
+        expect({
+          ships: [heardOne.ships, heardNone.ships,],
+          findings: heardOne.findings.map(function head(finding,): string {
+            return finding.split(':',)[0] ?? '';
+          },),
+        },).toEqual({
+          ships: ['consolidated', 'consolidated',],
+          findings: ['unheard-gate-ships-slate-pick',],
+        },);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE STANDING when the gate heard one answering judge over an eligible standing no contest majority '
+        + 'called flawed, whatever the slate\'s pick drew: the standing is the conservative default there',
+      fn: async () => {
+        const messages: string[] = [];
+        const gated = shipPastForfeitStanding({
+          outcome: neitherOver({ usable: 1, },),
+          standingEligible: true,
+          standingFlawedByMajority: false,
+          slatePickBallots: 3,
           l: capturingLogger({ messages, },),
         },);
         expect(gated.ships,).toBe('standing',);
