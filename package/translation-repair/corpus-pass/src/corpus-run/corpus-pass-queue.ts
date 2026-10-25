@@ -185,6 +185,7 @@ export async function runPassQueue(
       countAttempt({
         attempts,
         id: entry.id,
+        attemptsPath,
       },);
       // Persisted before the attempt so a crash still records that it happened.
       await writeAttemptMap({

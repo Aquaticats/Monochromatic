@@ -419,6 +419,53 @@ await describe({
       },
     },),
     it({
+      name: 'REFUSES AN ENTRY WHOSE COUNT ONE MORE ATTEMPT WOULD TAKE PAST THE SAFE INTEGERS, naming the attempts file '
+        + 'it was handed in the refusal, settling nothing and leaving the count as it was (ledger B963)',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         Entries settled.
+         */
+        const settled: string[] = [];
+        /**
+         Counts this run keeps, the entry's at the last the file can hold.
+         */
+        const attempts: AttemptMap = new Map([['tabby', Number.MAX_SAFE_INTEGER,],],);
+        /**
+         Where the attempts file would be.
+         */
+        const attemptsPath = join(
+          scratch.path,
+          'attempts.json',
+        );
+
+        await expect(runPassQueue({
+          pending: [pairOf({ id: 'tabby', },),],
+          attempts,
+          attemptsPath,
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: 1_000,
+          spendCeilingUsd: 100,
+          start: 0,
+          now: clockReading({ instants: [0, 0,], },),
+          wallClock: fixedWallClock,
+          settle: async function settle({ entry, },) {
+            settled.push(entry.id,);
+            return { kind: 'settled', };
+          },
+        },),).rejects.toThrow(`tabby holds an attempt count of 9007199254740991 in ${attemptsPath}`,);
+        expect(settled,).toEqual([],);
+        expect(attempts,).toEqual(new Map([['tabby', Number.MAX_SAFE_INTEGER,],],),);
+      },
+    },),
+    it({
       name: 'QUEUES A SECOND ATTEMPT FOR AN ENTRY THAT CACHED ONE SLICE under its own directory in the slice cache, '
         + 'and DROPS ONE THAT CACHED NONE, each said in the singular where it counts one',
       fn: async (ctx) => {

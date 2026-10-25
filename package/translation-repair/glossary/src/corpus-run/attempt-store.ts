@@ -73,31 +73,45 @@ function isAttemptCount(value: unknown,): value is number {
 /**
  An entry's attempt count that one more attempt would take past the safe integers.
 
+ THE MESSAGE IS ALL AN OPERATOR GETS. The error is thrown in the queue's attempt callback, between two entries and
+ outside any `try`, so it ends the pass and reaches the person who ran it as the command's refusal text (ledger B963).
+ It therefore names the entry, the file and the count, says what the next launch does with the count and what the
+ operator can do, and it is not a stated refusal because the entry id is a name the corpus chose.
+
  @example
  ```ts
- throw new AttemptCountError({ id: 'Kitten', count: Number.MAX_SAFE_INTEGER, },);
+ throw new AttemptCountError({ id: 'Kitten', count: Number.MAX_SAFE_INTEGER, attemptsPath: '/runs/attempts.json', },);
  ```
  */
 export class AttemptCountError extends Error {
   /**
-   Names the entry and the count it was asked to add one to.
+   Names the entry, the file and the count it was asked to add one to.
 
    @param id - entry whose attempt was being counted
 
    @param count - count the entry holds
+
+   @param attemptsPath - file that holds the count, which the next launch reads
    */
   public constructor(
     {
       id,
       count,
+      attemptsPath,
     }: {
       readonly id: string;
       readonly count: number;
+      readonly attemptsPath: string;
     },
   ) {
     super(
-      `${id} holds an attempt count of ${String(count,)}, and one more is no safe integer, which the attempts file `
-        + 'and the stamp of a lifecycle line cannot hold; the count is kept as it is',
+      `${id} holds an attempt count of ${String(count,)} in ${attemptsPath}, and one more attempt would be no safe `
+        + 'integer, which that file and the stamp of a lifecycle line cannot hold; the count is kept as it is and '
+        + `this pass ends here, before ${id} runs. The next launch reads that count as 0 beside a warning naming `
+        + `${id} and ${attemptsPath}, so ${id} sorts first and its attempts are counted again from 1. To go on, `
+        + `launch again, or set the count of ${id} in ${attemptsPath} to a whole number below ${
+          String(Number.MAX_SAFE_INTEGER,)
+        } first.`,
     );
     this.name = 'AttemptCountError';
   }
@@ -220,22 +234,26 @@ export function attemptsOf(
 
  @param id - entry about to be attempted
 
+ @param attemptsPath - file the counts persist to, which a refusal names so the operator can find the count
+
  @mutates attempts - sets this entry's count to one past what it held
 
  @throws {@link AttemptCountError} when one past the count is no safe integer, which leaves the count as it was
 
  @example
  ```ts
- countAttempt({ attempts, id: 'Kitten', },);
+ countAttempt({ attempts, id: 'Kitten', attemptsPath: '/runs/attempts.json', },);
  ```
  */
 export function countAttempt(
   {
     attempts,
     id,
+    attemptsPath,
   }: {
     readonly attempts: AttemptMap;
     readonly id: string;
+    readonly attemptsPath: string;
   },
 ): void {
   /**
@@ -249,6 +267,7 @@ export function countAttempt(
     throw new AttemptCountError({
       id,
       count,
+      attemptsPath,
     },);
   attempts.set(
     id,

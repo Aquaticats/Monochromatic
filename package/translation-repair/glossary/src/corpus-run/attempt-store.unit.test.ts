@@ -567,21 +567,26 @@ await describe({
              */
             const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER,],],);
 
+            /**
+             Where the attempts file is.
+             */
+            const attemptsPath = '/runs/attempts.json';
             for (
               const piece of [
-                'Mittens holds an attempt count of 9007199254740991 in /runs/attempts.json',
+                `Mittens holds an attempt count of 9007199254740991 in ${attemptsPath}`,
                 'one more attempt would be no safe integer',
                 'this pass ends here',
-                'The next launch reads that count as 0 beside a warning naming Mittens and /runs/attempts.json',
-                'To go on, launch again, or set the count of Mittens in /runs/attempts.json to a whole number below '
-                + '9007199254740991',
+                `The next launch reads that count as 0 beside a warning naming Mittens and ${attemptsPath}`,
+                `To go on, launch again, or set the count of Mittens in ${attemptsPath} to a whole number below ${
+                  String(Number.MAX_SAFE_INTEGER,)
+                }`,
               ]
             ) {
               expect(() => {
                 countAttempt({
                   attempts,
                   id: 'Mittens',
-                  attemptsPath: '/runs/attempts.json',
+                  attemptsPath,
                 },);
               },).toThrow(piece,);
             }
