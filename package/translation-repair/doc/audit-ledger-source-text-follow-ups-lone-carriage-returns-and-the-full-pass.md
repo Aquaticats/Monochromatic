@@ -125,7 +125,7 @@ A task,
 `test:live-full` of `translation-repair-page-check`,
 runs `source-live-full.expensive.unit.test.ts`,
 all 40000 pairs of each of the seeds 31415926 and 27182818 and all 32256 texts,
-and takes 318 s under a cap of three threads
+and takes 293 s to 318 s in two measurements under a cap of three threads
 (one seed alone,
 143 s and about 360 MB).
 

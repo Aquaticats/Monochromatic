@@ -15,10 +15,10 @@
  sample keeps one of them, so a class of k pairs among the 40000 is missed with chance 0.75 to the power k: nine pairs
  are caught with chance 0.925, seventeen with chance 0.99, where one in six would catch nine with chance 0.81. A smaller
  class is the full pass over every pair and text (`source-live-full.expensive.unit.test.ts`, the `test:live-full` task),
- which is not part of `test:unit`. The case takes 40 s to 51 s in the two measurements made, against 318 s for the full
- task. The pool holds lone carriage returns for line endings, footnote labels other than `1`, tilde fences at the first
- column, a footnote in a list item and in a block quote, and a definition line after a footnote that is a tag alone,
- beside the shapes the earlier searches found.
+ which is not part of `test:unit`. The case takes 40 s to 51 s in the two measurements made, against 293 s to 318 s
+ for the full task. The pool holds lone carriage returns for line endings, footnote labels other than `1`, tilde
+ fences at the first column, a footnote in a list item and in a block quote, and a definition line after a footnote
+ that is a tag alone, beside the shapes the earlier searches found.
 
  SCOPE: the slices the composition wrote as literal text. A slice written as recorded is the text the strict grammar
  accepts as it stands, and the site reads it as the corpus page it came from.

@@ -4,11 +4,11 @@
 
  NOT PART OF `test:unit`: the file name carries `.expensive.`, which the task leaves out unless asked for it. Run it
  with `mise run //package/translation-repair/page-check:test:live-full`. It reads 80000 pairs and 32256 footnote texts
- in one process: 318 s measured under a cap of three threads, where one seed alone took 143 s and about 360 MB. It is
- the check that holds what a sample of the generated sets can miss: a class of a few pairs among the 80000, such as the
- one pair of the seed 31415926 that a code span across a footnote line in a block quote once took to the last step of
- the composition, or the three pairs of each seed that a footnote that is a block of its own, then a definition line,
- once took there.
+ in one process: 293 s to 318 s measured under a cap of three threads, where one seed alone took 143 s and about 360
+ MB. It is the check that holds what a sample of the generated sets can miss: a class of a few pairs among the 80000,
+ such as the one pair of the seed 31415926 that a code span across a footnote line in a block quote once took to the
+ last step of the composition, or the three pairs of each seed that a footnote that is a block of its own, then a
+ definition line, once took there.
 
  EVERY PAIR AND EVERY TEXT IS READ THE WAY THE SAMPLED CASE READS ONE (`source-live-pairs.test-fixture.ts`): the page is
  composed, the text written as literal text is found on it, and no expression, JSX element or ES module may stand in
