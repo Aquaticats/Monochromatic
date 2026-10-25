@@ -2291,6 +2291,17 @@ that is verification, not a decision for the user.
   six-constraint check, and remove the pin when a newer mise installs cleanly. Still to do for the host fix:
   container gate and mutation for `effective_target.rs`, release 0.2.10 (after 0.2.9), install, and verify
   `mise plugins update` on the host.
+  DRY RUN PASSED 2026-10-25 (run `40244857970`, `workflow_dispatch` crate `monochromatic-git-policy-cli` dry-run
+  true, with the mise pin): `gpc-publish-crate` "Publish (dry run)" succeeded, real publish steps skipped. CI repro
+  final: mise 2026.10.17 passed both attempts (150 s, 124 s), 2026.10.19 failed both (171 s, 194 s). VERSION
+  CONSOLIDATION: the workflow publishes the tree at `main` HEAD, which now holds the mise data directory exemption
+  (`197ae38ff5`) after the 0.2.9 release commit (`00c4e28af4`), and 0.2.9 was never published, so 0.2.9 will be
+  published from HEAD carrying BOTH the survivor fixes and the exemption instead of a separate 0.2.10 (to be told to
+  the user; the user had chosen "release 0.2.10" for the exemption). Gate first: container gate on HEAD, tag `m029`,
+  unit `cli-git-gate-m029`, log `~/temp/agent/m029-container.log` (the earlier 2105 passed was before the
+  exemption). Then dispatch the real publish (`gh workflow run cargo-publish.yml -f crate=monochromatic-git-policy-cli
+  -f dry-run=false`), `install-026.ts 0.2.9`, verify `mise plugins update` on the host and the global link, and run
+  mutation for `effective_target.rs` in the background afterwards (never blocks a release).
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
