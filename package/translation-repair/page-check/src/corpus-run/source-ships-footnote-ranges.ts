@@ -9,6 +9,40 @@ import type { BlockRange, } from '@monochromatic-dev/translation-repair-document
 // no footnote.
 
 /**
+ Says where the page starts a footnote definition and a reader of the source does not.
+
+ @param source - ranges where a reader of the source in GFM reads a footnote definition, in text order
+
+ @param page - ranges where the page reads one, in text order
+
+ @returns The starts of the page's ranges that are outside every range of the source, in text order
+
+ @example
+ ```ts
+ const starts = pageOnlyStartsOf({ source: [], page: [{ start: 9, end: 23, },], },);
+ ```
+ */
+export function pageOnlyStartsOf(
+  {
+    source,
+    page,
+  }: {
+    readonly source: readonly BlockRange[];
+    readonly page: readonly BlockRange[];
+  },
+): readonly number[] {
+  return page
+    .map(function startOf({ start, },): number {
+      return start;
+    },)
+    .filter(function startsOutsideTheSource(start,): boolean {
+      return !source.some(function holds(range,): boolean {
+        return (start >= range.start) && (start < range.end);
+      },);
+    },);
+}
+
+/**
  Joins the source's footnote ranges with the page's that start where no range of the source stands.
 
  @param source - ranges where a reader of the source in GFM reads a footnote definition, in text order

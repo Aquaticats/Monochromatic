@@ -3,6 +3,7 @@ import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import { hasFootnoteLabel, } from './source-ships-footnote.ts';
 import {
   closingBracket,
+  rangeOf,
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
@@ -16,6 +17,11 @@ import {
 // tag or mark is read as syntax there with no way to escape it, since a backslash written into code or math shows. What
 // is written instead is the line ending, and the indentation and container marks after it, as one space: a line ending
 // in a code span or in math is read as a space already, and in a title it is white space.
+//
+// A FOOTNOTE START ONLY THE PAGE READS is the same case. The strict grammar disables indented code, so a line
+// `[^label]:` indented four columns or more after a paragraph starts a footnote definition there, where CommonMark and
+// GFM read a lazy line of the paragraph. The span the original pairs across that line is cut on the page, so the line is
+// joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span holds.
 
 /**
  Node types whose characters are code or math, which no backslash may be written into.
@@ -37,14 +43,16 @@ const FLOW_STARTS = '{<';
 
 /**
  Edits that join the lines of a stretch whose later line starts with a
- brace, a less-than sign or an indented fence mark.
+ brace, a less-than sign, an indented fence mark or a footnote start only the page reads.
 
  @param source - text
 
  @param range - stretch to look in, whose first character no line ending joins to
 
- @returns One edit for each line ending followed, after the container marks, by a brace, a less-than sign or an indented
- fence mark inside the stretch, replacing the ending and the marks with a space
+ @param footnoteStarts - offsets where a footnote definition starts on the page and not for a reader of the source
+
+ @returns One edit for each line ending followed, after the container marks, by a brace, a less-than sign, an indented
+ fence mark or one of the footnote starts inside the stretch, replacing the ending and the marks with a space
 
  @example
  ```ts
@@ -55,9 +63,11 @@ export function joinedLines(
   {
     source,
     range,
+    footnoteStarts = [],
   }: {
     readonly source: string;
     readonly range: TextRange;
+    readonly footnoteStarts?: readonly number[];
   },
 ): readonly TextEdit[] {
   /**
@@ -79,6 +89,7 @@ export function joinedLines(
      Whether the strict grammar starts a block at this line.
      */
     const startsBlock = FLOW_STARTS.includes(source.charAt(content.at,),)
+      || footnoteStarts.includes(content.at,)
       || (indentedFenceMarkEnd({
         source,
         at: content.at,
@@ -169,6 +180,9 @@ function joinBeforeFenceMark(
  @param definitionEnds - where each link reference definition read so far ends, none where the caller reads no
  definitions
 
+ @param footnoteStarts - offsets where a footnote definition starts on the page and not for a reader of the source, none
+ where the caller reads none
+
  @returns Edits, none for a node of another kind and none for a footnote definition
 
  @example
@@ -182,11 +196,13 @@ export function lineJoinsOf(
     node,
     range,
     definitionEnds = [],
+    footnoteStarts = [],
   }: {
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
     readonly definitionEnds?: readonly number[];
+    readonly footnoteStarts?: readonly number[];
   },
 ): readonly TextEdit[] {
   if (SPAN_TYPES.has(node.type,)) {
@@ -199,6 +215,7 @@ export function lineJoinsOf(
       ...joinedLines({
         source,
         range,
+        footnoteStarts,
       },),
     ];
   }
@@ -216,6 +233,7 @@ export function lineJoinsOf(
         },),
         end: range.end,
       },
+      footnoteStarts,
     },);
   }
   if ((node.type === 'definition') && (!hasFootnoteLabel({
@@ -232,9 +250,116 @@ export function lineJoinsOf(
         },),
         end: range.end,
       },
+      footnoteStarts,
     },);
   }
   return [];
+}
+
+/**
+ The stretches of a node in which a line ending is joined to the line after it, none for a node that has none.
+
+ @param source - text
+
+ @param node - node of the parse
+
+ @returns The whole of a code span or inline math; the destination and title of a link or an image, after its text; none
+ for a node of another kind
+
+ @example
+ ```ts
+ const stretches = joinableStretchesOf({ source, node, },);
+ ```
+ */
+function joinableStretchesOf(
+  {
+    source,
+    node,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+  },
+): readonly TextRange[] {
+  if (node.position === undefined)
+    return [];
+  /**
+   Where the node stands.
+   */
+  const range = rangeOf({ node, },);
+  if (SPAN_TYPES.has(node.type,))
+    return [range,];
+  if (((node.type === 'link') && source.startsWith(
+    '[',
+    range.start,
+  )) || (node.type === 'image')) {
+    return [
+      {
+        start: closingBracket({
+          source,
+          from: range.start + ((node.type === 'image') ? 2 : 1),
+          limit: range.end,
+        },),
+        end: range.end,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ Says which of the footnote starts only the page reads stand inside a code span, inline math, or the destination or title
+ of a link or an image of a block, where the line is joined to the one before it and the footnote does not start.
+
+ @param source - text
+
+ @param node - block of the parse, a paragraph or a heading
+
+ @param starts - offsets where a footnote definition starts on the page and not for a reader of the source
+
+ @returns The starts inside such a stretch of the block or of an inline node it holds
+
+ @example
+ ```ts
+ const joined = footnoteStartsInSpans({ source, node: paragraph, starts: [13,], },);
+ ```
+ */
+export function footnoteStartsInSpans(
+  {
+    source,
+    node,
+    starts,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly starts: readonly number[];
+  },
+): readonly number[] {
+  if (starts.length === 0)
+    return [];
+  /**
+   Nodes still to read, a work stack so that a deep tree is no deep recursion.
+   */
+  const pending: TreeNode[] = [node,];
+  /**
+   Stretches in which a line is joined.
+   */
+  const stretches: TextRange[] = [];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    stretches.push(...joinableStretchesOf({
+      source,
+      node: next,
+    },),);
+    if ('children' in next)
+      pending.push(...next.children,);
+  }
+  return starts.filter(function insideOne(start,): boolean {
+    return stretches.some(function holds({
+      start: from,
+      end,
+    },): boolean {
+      return (from < start) && (start < end);
+    },);
+  },);
 }
 
 /**

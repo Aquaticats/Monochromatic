@@ -19,7 +19,10 @@ import {
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
-import { withPageOnlyStarts, } from './source-ships-footnote-ranges.ts';
+import {
+  pageOnlyStartsOf,
+  withPageOnlyStarts,
+} from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
@@ -124,11 +127,22 @@ export function spansOf(
    */
   const pageFootnoteRanges = pageFootnoteDefinitionRangesOf({ body: readable, },);
   /**
-   Where a reader of the source reads a footnote definition, which ends where the plain reading's paragraph goes on, and
-   the definitions only the page starts.
+   Where a reader of the source reads a footnote definition, which ends where the plain reading's paragraph goes on.
+   */
+  const sourceFootnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
+  /**
+   Where a reader of the source reads a footnote definition, and the definitions only the page starts.
    */
   const footnoteRanges = withPageOnlyStarts({
-    source: footnoteDefinitionRangesOf({ body: readable, },),
+    source: sourceFootnoteRanges,
+    page: pageFootnoteRanges,
+  },);
+  /**
+   Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
+   after a paragraph.
+   */
+  const pageOnlyStarts = pageOnlyStartsOf({
+    source: sourceFootnoteRanges,
     page: pageFootnoteRanges,
   },);
   /**
@@ -264,6 +278,7 @@ export function spansOf(
       readSpans: spansOf,
       footnotes: footnoteRanges,
       pageFootnotes: pageFootnoteRanges,
+      pageOnlyStarts,
       pending,
       node,
       range,
@@ -286,6 +301,7 @@ export function spansOf(
       node,
       range,
       definitionEnds,
+      footnoteStarts: pageOnlyStarts,
     },),);
     // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {

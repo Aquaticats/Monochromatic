@@ -14,6 +14,7 @@ import {
   footnoteInParagraphSpans,
   type SpansReader,
 } from './source-ships-nested.ts';
+import { footnoteStartsInSpans, } from './source-ships-lines.ts';
 import {
   type FootnoteState,
   type Pending,
@@ -78,6 +79,10 @@ const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
  @param pageFootnotes - where the page ends a footnote definition, which the container reading follows; the footnotes
  when absent
 
+ @param pageOnlyStarts - where the page starts a footnote definition and a reader of the source does not, none when the
+ caller reads none; one inside a code span, inline math or a link's title is no place to cut the paragraph, since the
+ line is joined to the one before it (`source-ships-lines.ts`)
+
  @param pending - nodes still to read, the next one on top; the blocks the footnote reaches into are removed from it
 
  @param node - block
@@ -108,6 +113,7 @@ export function footnoteRead(
     readSpans,
     footnotes,
     pageFootnotes = footnotes,
+    pageOnlyStarts = [],
     pending,
     node,
     range,
@@ -120,6 +126,7 @@ export function footnoteRead(
     readonly readSpans: SpansReader;
     readonly footnotes: readonly BlockRange[];
     readonly pageFootnotes?: readonly BlockRange[];
+    readonly pageOnlyStarts?: readonly number[];
     readonly pending: Pending[];
     readonly node: TreeNode;
     readonly range: TextRange;
@@ -135,12 +142,24 @@ export function footnoteRead(
    */
   const ranges = isRootChild ? footnotes : pageFootnotes;
   /**
+   The starts only the page reads that stand inside a span of the block, which no footnote cuts.
+   */
+  const joined = ((node.type === 'paragraph') || (node.type === 'heading'))
+    ? footnoteStartsInSpans({
+      source,
+      node,
+      starts: pageOnlyStarts,
+    },)
+    : [];
+  /**
    Where a footnote definition starts inside the paragraph, or the heading made of its lines and a line of equals signs
-   or hyphens, when one does on a line after its first.
+   or hyphens, when one does on a line after its first, less the starts that join a span.
    */
   const split = ((node.type === 'paragraph') || (node.type === 'heading'))
     ? footnoteStartInside({
-      footnotes: ranges,
+      footnotes: ranges.filter(function cuts({ start, },): boolean {
+        return !joined.includes(start,);
+      },),
       range,
     },)
     : NO_FOOTNOTE_INSIDE;
