@@ -355,8 +355,8 @@ await describe({
     },),
 
     it({
-      name: 'SETS THE GIVE-UP ASIDE WHILE THE PROVIDERS LEFT CANNOT MEET A BENCH FLOOR, though DeepSeek reads wet: the '
-        + 'cooldown Synthetic is held for counts, and the line names the floor',
+      name: 'KEEPS THE GIVE-UP IN FORCE WHEN SYNTHETIC\'S RETURN WOULD NOT LET THE PROVIDERS MEET THE FLOOR, though '
+        + 'DeepSeek reads wet: the cooldown counts for no wait, and the line names the floor that stays unmet with it back',
       fn: async ctx => {
         const world: World = {
           now: 1_000,
@@ -380,16 +380,21 @@ await describe({
           },
           sinon: ctx.sinon,
         },);
-        expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
-        /**
-         The lines that set the give-up aside.
-         */
-        const setAside = lines.filter(function isSetAside(line,): boolean {
+        expect(budgets.holds().synthetic,).toBe(0,);
+        expect(lines.some(function isSetAside(line,): boolean {
           return line.includes('sets its give-up aside',);
+        },),).toBe(false,);
+        /**
+         The lines that keep the give-up in force.
+         */
+        const kept = lines.filter(function isKept(line,): boolean {
+          return line.includes('keeps its give-up in force',);
         },);
-        expect(setAside.length,).toBe(1,);
-        expect(setAside[0],).toContain('cannot meet every bench floor without synthetic: translators 1 of 8 reachable, floor 2',);
-        expect(setAside[0],).toContain('deepseek wet',);
+        expect(kept.length,).toBe(1,);
+        expect(kept[0],).toContain('synthetic: entry XingZ6020 keeps its give-up in force',);
+        expect(kept[0],).toContain('with synthetic back',);
+        expect(kept[0],).toContain('deepseek wet',);
+        expect(kept[0],).toContain('translators 1 of 8 reachable, floor 2',);
       },
     },),
 

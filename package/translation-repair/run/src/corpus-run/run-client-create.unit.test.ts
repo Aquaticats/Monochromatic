@@ -2,10 +2,11 @@
  Tests the run client the packages export (`run-client-create.ts`): which provider an entry's give-up of a refusing
  provider waits for, over the run client the passes build, with the seat reader's bench floors it hands the budgets.
 
- An entry gives a provider up when it refuses right after a cooldown the entry waited out. The give-up holds only while
- the providers left (not dry, not held, not given up) can still meet every bench floor the entry's stages need, the
- writing floors and the judging quorums, counted the way the seat reader counts them. Otherwise the cooldown is waited
- out as before, because reading the provider dry would cost the entry what waiting would have saved.
+ An entry gives a provider up when it refuses right after a cooldown the entry waited out. The give-up is set aside, and
+ the cooldown waited out as before, only when waiting buys something: the given-up provider is the only writing provider
+ not dry, or, with that provider back, no bench floor the entry needs would be left unmet while without it at least
+ one is (the writing floors and the judging quorums, counted the way the seat reader counts them). Otherwise the
+ give-up holds: its return would not make the entry finishable, so no further wait is taken for it.
 
  Every case builds the run client itself (`runClientFrom`) over a scripted transport on a fake clock: Synthetic
  answers its quota with a body the budgets cannot read (so the meter counts spendable) and every chat call with HTTP
@@ -110,9 +111,9 @@ const NEURALWATT_MODELS_BODY = JSON.stringify({
 },);
 
 /**
- Which provider reads wet beside the refusing Synthetic.
+ A provider that can read wet beside the refusing Synthetic.
  */
-type Alternative = 'deepseek' | 'neuralwatt' | 'hyper';
+type Alternative = 'deepseek' | 'neuralwatt' | 'hyper' | 'xiaomi';
 
 /**
  The names of the providers a case lets read wet, by the key variable that switches each on.
@@ -121,7 +122,19 @@ const KEY_VARIABLES: Readonly<Record<Alternative, string>> = {
   deepseek: 'DEEPSEEK_API_KEY',
   neuralwatt: 'TRANSLATION_REPAIR_NEURALWATT_API_KEY',
   hyper: 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY',
+  // Xiaomi has no balance endpoint: its meter is the run's own priced spend, so a key alone reads it wet.
+  xiaomi: 'TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY',
 };
+
+/**
+ The state of XingZ6020 (2026-10-23): NeuralWatt, DeepSeek and Xiaomi read wet in all 518 readings of the meters, and
+ Hyper, OpenRouter and Bedrock never did.
+ */
+const XINGZ6020_WET: readonly Alternative[] = [
+  'neuralwatt',
+  'deepseek',
+  'xiaomi',
+];
 
 /**
  What one case needs of the client, the clock and the reader.
@@ -206,24 +219,24 @@ function neuralwattReply(exchange: TransportExchange,): TransportReply {
  over a scripted transport, and the real seat reader over the client.
 
  @param sinon - case's own sandbox, which fakes the timers
- @param alternative - which provider reads wet beside Synthetic
+ @param wet - which providers read wet beside Synthetic
  @param ledgerPath - where NeuralWatt's energy ledger lives, in a throwaway directory
 
  @returns The rig, and the disposable that puts the real timers back
 
  @example
  ```ts
- using installed = rigOn({ sinon: ctx.sinon, alternative: 'deepseek', ledgerPath, });
+ using installed = rigOn({ sinon: ctx.sinon, wet: ['deepseek',], ledgerPath, });
  ```
  */
 function rigOn(
   {
     sinon,
-    alternative,
+    wet,
     ledgerPath,
   }: {
     readonly sinon: DisposableSandbox;
-    readonly alternative: Alternative;
+    readonly wet: readonly Alternative[];
     readonly ledgerPath: string;
   },
 ): Rig & Disposable {
@@ -274,7 +287,9 @@ function rigOn(
     maxHoldMs: TEST_MAX_HOLD_MS,
     env: {
       TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'tabby-not-a-real-key',
-      [KEY_VARIABLES[alternative]]: 'calico-not-a-real-key',
+      ...Object.fromEntries(wet.map(function keyOf(provider,): readonly [string, string,] {
+        return [KEY_VARIABLES[provider], 'calico-not-a-real-key',];
+      },),),
       [NEURALWATT_LEDGER_PATH_VAR]: ledgerPath,
     },
     transport: async function answer(exchange: TransportExchange,): Promise<TransportReply> {
@@ -383,50 +398,76 @@ async function runSlices({ rig, }: { readonly rig: Rig; },): Promise<void> {
 }
 
 await describe({
-  name: 'an entry gives a refusing provider up only while the providers left meet every bench floor',
+  name: 'an entry waits for a refusing provider only while its return would make the entry finishable',
   // One case at a time: each installs a fake clock and stubs the console and a built-in, which are one for the process.
   concurrency: 1,
   children: [
     it({
-      name: 'WAITS FOR SYNTHETIC EVERY TIME, AND THE ENTRY IS NOT ENDED, when the only provider beside it is DeepSeek, '
-        + 'which serves one of the eight translators where the writing floor is two',
+      name: 'WAITS FOR SYNTHETIC ONCE AND THEN STOPS in the state of XingZ6020 (NeuralWatt, DeepSeek and Xiaomi wet; '
+        + 'Synthetic refusing right after each cooldown waited out): its return would lift two benches and leave five short',
       fn: async ctx => {
         await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
-          alternative: 'deepseek',
+          wet: XINGZ6020_WET,
           ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
         },);
-        await consoleLinesDuring({
+        const lines = await consoleLinesDuring({
           run: function slices(): Promise<void> {
             return runSlices({ rig, },);
           },
           sinon: ctx.sinon,
         },);
 
-        // POSITIVE CONTROLS FIRST: the refusal set the cooldown the case's clock counts, and the later slices were asked
-        // after it ended, so the fake clock moves the budgets' clock and not only the reader's sleeps.
+        // POSITIVE CONTROL FIRST: the refusal set the cooldown the case's clock counts.
         expect(rig.holdsAfterEachAsk().slice(0, 1,),).toEqual([COOLDOWN_MS,],);
-        // The entry is not ended for want of a writing bench: DeepSeek serves one translator and the floor is two.
-        expect(
-          rig.endings.filter(function isWritingBenchStop(name,): boolean {
-            return name === 'WritingBenchUnreachableError';
-          },),
-        ).toEqual([],);
-        expect(rig.endings,).toEqual([],);
-        expect(waitsIn({ lines: rig.lines, },).length,).toBe(SLICES,);
-        expect(rig.slicesThatAskedSynthetic(),).toBe(SLICES,);
+        // The first wait is taken; the refusal right after it gives Synthetic up, and no later wait is.
+        expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
+        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+        // The line that gives it up names the floors that stay unmet with Synthetic back.
+        /**
+         The lines that keep the give-up in force.
+         */
+        const kept = lines.filter(function isKept(line,): boolean {
+          return line.includes('keeps its give-up in force',);
+        },);
+        expect(kept.length,).toBe(1,);
+        expect(kept[0],).toContain('with synthetic back',);
+        expect(kept[0],).toContain('wide 3 of 8 reachable, quorum 4',);
       },
     },),
 
     it({
-      name: 'WAITS FOR SYNTHETIC EVERY TIME when the only provider beside it is NeuralWatt, which meets the writing '
-        + 'floors and not the judging quorums: a judging bench counts too',
+      name: 'WAITS FOR SYNTHETIC ONCE AND THEN STOPS when the only provider beside it is DeepSeek: with Synthetic back '
+        + 'the editors and the refiners stay below their floor, so its return would not make the entry finishable',
       fn: async ctx => {
         await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
-          alternative: 'neuralwatt',
+          wet: ['deepseek',],
+          ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
+        },);
+        await consoleLinesDuring({
+          run: function slices(): Promise<void> {
+            return runSlices({ rig, },);
+          },
+          sinon: ctx.sinon,
+        },);
+
+        expect(rig.holdsAfterEachAsk().slice(0, 1,),).toEqual([COOLDOWN_MS,],);
+        expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
+        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'WAITS FOR SYNTHETIC ONCE AND THEN STOPS when the only provider beside it is NeuralWatt, which meets the '
+        + 'writing floors and not the judging quorums, and which Synthetic\'s return would not lift to them',
+      fn: async ctx => {
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          wet: ['neuralwatt',],
           ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
         },);
         await consoleLinesDuring({
@@ -437,8 +478,8 @@ await describe({
         },);
 
         expect(rig.endings,).toEqual([],);
-        expect(waitsIn({ lines: rig.lines, },).length,).toBe(SLICES,);
-        expect(rig.slicesThatAskedSynthetic(),).toBe(SLICES,);
+        expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
+        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
       },
     },),
 
@@ -449,7 +490,7 @@ await describe({
         await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
           sinon: ctx.sinon,
-          alternative: 'hyper',
+          wet: ['hyper',],
           ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
         },);
         await consoleLinesDuring({
