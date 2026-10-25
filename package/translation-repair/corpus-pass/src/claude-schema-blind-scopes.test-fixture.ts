@@ -174,7 +174,7 @@ function boundByScope({ scope, }: { readonly scope: TreeNode; },): readonly stri
         field: 'params',
       },)
         .flatMap(function boundByParameter(parameter,): readonly string[] {
-          return namesBoundBy({ node: (parameter.type === 'TSParameterProperty') ? parameter.parameter : parameter, },);
+          return namesBoundBy({ node: parameter, },);
         },),
       ...(scope.type === 'FunctionExpression' ? [identifierName({ node: scope.id, },),] : []),
       ...declaredWithVar({

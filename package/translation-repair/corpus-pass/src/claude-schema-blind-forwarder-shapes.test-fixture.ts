@@ -92,11 +92,7 @@ function forwarderShapesAt(
    Whether the forwarder is the callee of a call, of `new` or of a tagged template, which the listing of callers reads.
    */
   const isCalled = (isCallOrNew && (holder.callee === top)) || isTag;
-  /**
-   Whether the call is a call of a bound function, whose value is the function again.
-   */
-  const isBoundCall = isBound && (holder.type === 'CallExpression');
-  if (isCalled && isBoundCall) {
+  if (isCalled && isBound) {
     return forwarderShapesAt({
       context,
       node: holder,
