@@ -2305,6 +2305,26 @@ that is verification, not a decision for the user.
   USER CHOICE 2026-10-25: "One release, 0.2.9" (survivor fixes and the mise data directory exemption together, from
   HEAD, after the container gate). The release commit `00c4e28af4` message names only the survivor fixes, so after
   the publish post a corrective commit comment on it (GCA: never amend) saying 0.2.9 also carries `197ae38ff5`.
+  RELEASED 2026-10-25: container gate on HEAD `2cb0d0215f` passed 2107 tests, 5 skipped, 0 failed (image tag `m029`);
+  real publish run `40245672686` (`workflow_dispatch`, dry-run false, pinned mise) succeeded, crates.io shows 0.2.9;
+  `install-026.ts 0.2.9` upgraded `cargo:monochromatic-git-policy-cli` 0.2.8 to 0.2.9 and reverted `mise.lock`;
+  `mise ls --installed` shows 0.2.9 active from `~/.config/mise/config.toml`; `~/.local/bin/git` resolves to
+  `.../0.2.9/bin/cli-git-native`. The upgrade command exited 1 because the HOST mise 2026.10.19 hits the same cmake
+  resolution error as CI. Corrective commit comment posted on `00c4e28af4`
+  (`commitcomment-206607143`). User-boundary check of the exemption: the forced checkout mise ran on its cmake
+  plugin clone (`git -C ~/.local/share/mise/plugins/cmake checkout --force main`) prints "Already on 'main'" through
+  the 0.2.9 wrapper instead of the `linked-worktree-only` rejection (the printed `checkout-exit=0` was the exit of
+  `cut` in the pipeline, not of git; `mise plugins update` itself was not rerun).
+  NEW ROOT-CAUSE CLUE for the mise failure (host mise output, not yet tested): "mise WARN cmake is locked to
+  vfox:cmake, but the registry now installs it from aqua:Kitware/CMake. Run `mise backends switch cmake` to switch."
+  The failing resolution is the vfox cmake plugin for linux-arm64; `mise.lock` pins the vfox backend while mise
+  2026.10.19's registry points cmake at aqua. A repo-level fix that needs no mise pin would be switching `cmake` to
+  the aqua backend in `mise.no-env.toml` (regenerate `mise.toml`, relock). Not tested; the pin in
+  `.github/workflows/cargo-publish.yml` stays until that is tested in podman. Also unmeasured: other tools that run
+  discarding git forms in their own clones.
+  QUEUED: mutation for `effective_target.rs` (unit `cli-git-mut-m029`, logs `~/temp/agent/m029-mutation-*.log`; do not
+  edit `src/native` while it runs); source-trace the mise failure and decide upstream filing
+  (`doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`); test the cmake backend switch in podman.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
