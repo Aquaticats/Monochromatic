@@ -186,6 +186,101 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A POSITION BEFORE A "that" THAT OPENS A CLAUSE, in the two cache-version sentences that read as '
+        + 'a comparison and passed, and in a clause opened by another determiner or a pronoun',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// and the statement above that a run-off among the tied labels keeps its key holds for the',
+              '// run-off among places alone.',
+              '// The statement above that no slice-cache file had been written since 2026-09-28 holds no longer.',
+              '// The claim above that the bowl was full, and the note above that both cats napped.',
+              '// The claim above that it purred holds.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'statement above',
+          'statement above',
+          'claim above',
+          'note above',
+          'claim above',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A WORD OF THE COMPARED LIST THAT IS A VERB HERE, one for each such word, since '
+        + 'the verb read as the object of a comparison and let "the lines below zero the counter" pass',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The lines below zero the counter.',
+              '// The assertions below exact a fixed count.',
+              '// The checks below baseline the run.',
+              '// The cases below threshold the score.',
+              '// The bowls below half the set.',
+              '// The counts below total the exchanges sent.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'assertions below',
+          'checks below',
+          'cases below',
+          'bowls below',
+          'counts below',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POSITION BEFORE A QUANTIFIER THAT FLOATS AWAY FROM ITS NOUN, one for each of all, both, each '
+        + 'and some, since the quantifier read as the object of a comparison',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// The cases below all pass.',
+              '// The checks below both fail.',
+              '// The asserts below each count a whisker.',
+              '// The naps below some fail.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'cases below',
+          'checks below',
+          'asserts below',
+          'naps below',
+        ],);
+      },
+    },),
+    it({
+      name: 'LEAVES a position before a word that is a noun here: that floor, zero, baseline, total resolution, '
+        + 'a threshold, and a quantifier that names what is compared',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.unit.test.ts',
+            text: [
+              '// A roster below that floor declines, and a cat above that of the dog naps.',
+              '// A count above zero, a nap below baseline for a day, a vote below threshold.',
+              '// A rate above total resolution.',
+              '// It ranks above all else and above all others, below each of them, and above all, it naps.',
+            ].join('\n',),
+          },
+        },),).toEqual([],);
+      },
+    },),
+    it({
       name: 'FINDS A POSITION AFTER A BACKTICK RUN NOTHING CLOSES, which Markdown prints as a plain backtick '
         + 'rather than opening a code span',
       fn: async () => {
