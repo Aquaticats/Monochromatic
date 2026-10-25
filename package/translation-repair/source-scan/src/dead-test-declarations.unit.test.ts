@@ -711,6 +711,28 @@ const CAT_FILES: readonly SourceText[] = [
       'export default whiskers;',
     ],
   },),
+  fixture({
+    path: 'built-entry.test.ts',
+    lines: [
+      'import * as built from \'../dist/final/node/index.mjs\';',
+      'export const loaded = await import(\'../dist/final/node/index.mjs\');',
+      'export const sourced = await import(\'../src/nap.ts\');',
+      'export const namespaced = built;',
+    ],
+  },),
+  fixture({
+    path: 'stray-family.test.ts',
+    lines: [
+      'export const viaFamily = await import(\'@monochromatic-dev/translation-repair-test-fixture/ts/nap.test-fixture.ts\');',
+    ],
+  },),
+  fixture({
+    path: 'stray-test.test.ts',
+    lines: [
+      'import * as cats from \'./napping-cats.test.ts\';',
+      'export const namespaced = cats;',
+    ],
+  },),
 ];
 
 await describe({
@@ -729,9 +751,11 @@ await describe({
           'napping-cats.test.ts#shadowed',
           'napping-cats.test.ts#sleepsAllDay',
           'napping-cats.test.ts#unusedKibble',
+          'stray-family.test.ts#dynamic import',
           'stray-forms.test.ts#default export',
           'stray-forms.test.ts#dynamic import',
           'stray-forms.test.ts#namespace import',
+          'stray-test.test.ts#namespace import',
           'whisker-fixture.test-fixture.ts#TREAT_COUNT',
           'whisker-fixture.test-fixture.ts#secretStash',
         ],);
