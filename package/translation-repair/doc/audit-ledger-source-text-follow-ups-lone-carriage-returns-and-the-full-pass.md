@@ -415,19 +415,26 @@ with a memory peak of 746.7 MB.
 Both differ from the 535 to 559 MB of the measurements made before this round,
 whose method is not recorded here;
 these are the peaks of the unit's cgroup.
-A scan of every draw of both seeds on the code before the repeated-edit helper and the rename of `linesOf` found
-0 findings and 0 throws
+A scan of every draw of both seeds on the code with the repeated-edit filter written inline,
+before it was named `withoutRepeatedEdits` and before `linesOf` was renamed,
+found 0 findings and 0 throws
 (seed 31415926:
 40000 pairs,
 32121 with literal pages;
 seed 27182818:
 40000 pairs,
 32018 with literal pages).
-The stderr file of the unit holds 100 lines stamped 03:18Z that repeat the findings of the first failed run,
-after a logger message that a sink could not be verified within 5000 ms;
-the cause of the repeat was not found,
-the exit status is 0,
-and the PASS line is stamped 05:04Z at the end of the run.
+The stderr file of the final run holds 100 lines stamped 03:18Z that are the findings of the first failed run.
+Both runs wrote their stderr to the same path with `StandardError=file:`,
+which `systemd.exec` (the man page under `StandardOutput=`) says opens a file
+"for writing at the beginning of the file,
+but without truncating it",
+so the short stderr of the final run
+(two preamble lines and a logger message that a sink could not be verified within 5000 ms)
+overwrote only the start of the longer stderr of the first run,
+and the rest of that file is the tail of the first run's.
+The exit status is 0,
+and the PASS line is stamped 05:04Z in the stdout file of the final run.
 
 #### Limits and open findings of this round
 
