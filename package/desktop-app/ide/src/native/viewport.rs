@@ -164,8 +164,11 @@ pub(super) fn tile_edges(current: &State, bounds: TileBounds, end: usize) -> (f3
 ///  because no offset passes it.
 /// Why:
 ///  The window draws the view at the nearest offset inside this reach while the tile for the real offset has not
-///  landed, so a wheel ease that outruns the worker shows real rows of the tile it has and not a blank.
-///  `holds` asks for more room (the re-center edge); this is the raster's own edge, which the picture cannot pass.
+///  landed,
+///  so a wheel ease that outruns the worker shows real rows of the tile it has and not a blank.
+///  `holds` asks for more room (the re-center edge);
+///  this is the raster's own edge,
+///  which the picture cannot pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,9 +193,12 @@ pub(super) fn reach(current: &State) -> (f32, f32) {
 }
 
 /// What:
-///  The distance, in logical pixels, that stands for "no limit" on a side of the reach.
+///  The distance,
+///  in logical pixels,
+///  that stands for "no limit" on a side of the reach.
 /// Why:
-///  The window holds plain numbers; the text is never this tall.
+///  The window holds plain numbers;
+///  the text is never this tall.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

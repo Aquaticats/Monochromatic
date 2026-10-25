@@ -69,7 +69,8 @@ const NOTCH: f32 = 60.0;
 /// Why:
 ///  Both happen in the dispatch of one event,
 ///  so a note older than this belongs to an event the scroll did not take
-///  (a turn over the sidebar, or Shift held).
+///  (a turn over the sidebar,
+///  or Shift held).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,7 +118,9 @@ pub(super) struct Ease {
 /// ```
 #[derive(Default)]
 pub(super) struct Wheel {
-    /// The vertical distance of the last wheel event the hook saw, in logical pixels, and when.
+    /// The vertical distance of the last wheel event the hook saw,
+    ///  in logical pixels,
+    ///  and when.
     pending: Option<(f32, Instant)>,
     /// The ease the last turn started.
     ease: Option<Ease>,
@@ -130,7 +133,8 @@ pub(super) struct Wheel {
 /// Why:
 ///  The toolkit's scroll takes only the first turn of a burst into its filter before its children,
 ///  and gives the end of an ease to nobody;
-///  the event hook sees every turn, and the scroll's `flicked` report says which turns it took.
+///  the event hook sees every turn,
+///  and the scroll's `flicked` report says which turns it took.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,7 +152,8 @@ pub(super) fn note_event(state: &Rc<RefCell<State>>, event: &WindowEvent) {
     }
 }
 
-/// Remember a wheel turn of `distance` logical pixels (positive moves the text down, as the toolkit's scroll does)
+/// Remember a wheel turn of `distance` logical pixels (positive moves the text down,
+///  as the toolkit's scroll does)
 /// until the scroll reports that it took the turn.
 pub(super) fn note_turn(state: &Rc<RefCell<State>>, distance: f32) {
     if let Ok(mut current) = state.try_borrow_mut() {
@@ -188,8 +193,10 @@ pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
 ///  or by the tile already requested for an earlier turn,
 ///  request the one tile for it.
 /// Why:
-///  The ease ends at the offset it started at plus the distance, plus what an unfinished ease before it had left
-///  (`remaining_distance` in Slint's `flickable.rs`, which is the end of that ease),
+///  The ease ends at the offset it started at plus the distance,
+///  plus what an unfinished ease before it had left
+///  (`remaining_distance` in Slint's `flickable.rs`,
+///  which is the end of that ease),
 ///  limited to the text.
 ///  A tile for the end lands while the ease still runs and holds the view when the ease arrives,
 ///  where a tile for each step would arrive after the view had left it.
@@ -248,7 +255,8 @@ pub(super) fn turn(window: &AppWindow, state: &Rc<RefCell<State>>, distance: f32
     }
 }
 
-/// Wake the window at the time a followed ease should have ended, once,
+/// Wake the window at the time a followed ease should have ended,
+///  once,
 /// replacing any earlier wake-up.
 fn arm_release(window: &AppWindow, state: &Rc<RefCell<State>>, current: &State) {
     let weak_window = window.as_weak();
@@ -268,7 +276,8 @@ fn arm_release(window: &AppWindow, state: &Rc<RefCell<State>>, current: &State) 
 ///  The followed ease should have ended and the steps did not end it:
 ///  ask for the tile of the offset the view stands at.
 /// Why:
-///  Something else moved the view (a map change that kept the text still, for instance),
+///  Something else moved the view (a map change that kept the text still,
+///  for instance),
 ///  and without a last step nobody would ask for the tile the view needs.
 ///
 /// In TS you'd write (pseudocode):
@@ -300,7 +309,8 @@ fn finish(window: &AppWindow, state: &Rc<RefCell<State>>) {
 ///  so ask for the tile of the same end again unless the displayed tile holds it.
 /// Why:
 ///  The window asked for the tile of the end under the old map;
-///  the lines that tile holds keep their numbers, but their places moved with the new rows.
+///  the lines that tile holds keep their numbers,
+///  but their places moved with the new rows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -322,7 +332,8 @@ pub(super) fn refit(current: &mut State, width: f32, height: f32) {
     current.scroll_wanted = Some(tile::requested(current));
 }
 
-/// The ease the window follows, when it follows one.
+/// The ease the window follows,
+///  when it follows one.
 fn aimed_ease(current: &State) -> Option<Ease> {
     return match current.wheel.ease {
         Some(ease) if ease.aimed => Some(ease),
@@ -330,7 +341,8 @@ fn aimed_ease(current: &State) -> Option<Ease> {
     };
 }
 
-/// Stop following the ease: the steps ask for tiles again.
+/// Stop following the ease:
+///  the steps ask for tiles again.
 pub(super) fn release(current: &mut State) {
     if let Some(ease) = current.wheel.ease.as_mut() {
         ease.aimed = false;
@@ -373,7 +385,8 @@ pub(super) fn unsent(current: &State) -> bool {
 ///  Whether a finished tile at `bounds` holds the end of the ease the window follows.
 /// Why:
 ///  The tile of the end lands while the ease still runs and the view is far from it;
-///  it is the tile that was asked for, not a stale one.
+///  it is the tile that was asked for,
+///  not a stale one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -386,7 +399,8 @@ pub(super) fn holds_end(current: &State, bounds: tile::TileBounds, height: f32) 
     return holds(current, bounds, ease.dest, height);
 }
 
-/// Whether the window follows an ease to its end, for the tests.
+/// Whether the window follows an ease to its end,
+///  for the tests.
 #[cfg(test)]
 pub(super) fn is_aimed(current: &State) -> bool {
     return aimed_ease(current).is_some();

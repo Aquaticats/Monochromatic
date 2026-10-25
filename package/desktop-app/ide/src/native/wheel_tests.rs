@@ -6,8 +6,10 @@
 //!  (the hold),
 //!  and asks the worker for one tile at the end of the ease and for none at the steps on the way.
 //! The turn is delivered as the application's event hook delivers it
-//!  (`wheel::note_turn`, which the headless platform has no winit window to call)
-//!  followed by the toolkit's own wheel event, so the toolkit eases it for real.
+//!  (`wheel::note_turn`,
+//!  which the headless platform has no winit window to call)
+//!  followed by the toolkit's own wheel event,
+//!  so the toolkit eases it for real.
 
 /// The frame the window draws,
 ///  and the platform the window is drawn on.
@@ -78,7 +80,9 @@ fn eased(elapsed: Duration) -> f32 {
 ///  the event hook notes the turn,
 ///  and the scroll reports that it took it.
 /// The public window event of the toolkit carries no gesture phase and moves the scroll at once,
-///  so the ease itself is stepped here, by `step_ease`, along the curve the toolkit's constant deceleration draws.
+///  so the ease itself is stepped here,
+///  by `step_ease`,
+///  along the curve the toolkit's constant deceleration draws.
 fn begin_turn(window: &AppWindow, state: &Rc<RefCell<State>>, notches: f32) -> (f32, f32) {
     let distance = notches * NOTCH;
     let start = state.borrow().offset;
@@ -89,12 +93,16 @@ fn begin_turn(window: &AppWindow, state: &Rc<RefCell<State>>, notches: f32) -> (
 }
 
 /// Step the toolkit's ease of a turn that `begin_turn` began until it ends,
-///  as the toolkit does: one step for each pass of the loop, with the clock running.
+///  as the toolkit does:
+///  one step for each pass of the loop,
+///  with the clock running.
 fn step_ease(window: &AppWindow, started: Instant, turn: (f32, f32)) {
     step_ease_each(window, started, turn, || {});
 }
 
-/// `step_ease`, calling `after_step` after each step, with the window's frame still to be drawn.
+/// `step_ease`,
+///  calling `after_step` after each step,
+///  with the window's frame still to be drawn.
 fn step_ease_each(
     window: &AppWindow,
     started: Instant,
@@ -114,7 +122,9 @@ fn step_ease_each(
     }
 }
 
-/// How many pixels of the window's frame, between logical columns `from` and `to` of the code area, differ clearly
+/// How many pixels of the window's frame,
+///  between logical columns `from` and `to` of the code area,
+///  differ clearly
 /// from the background beside them.
 fn ink_between(window: &AppWindow, from: f32, to: f32) -> usize {
     let frame = snapshot(window.window());
@@ -140,18 +150,21 @@ fn ink_between(window: &AppWindow, from: f32, to: f32) -> usize {
     return count;
 }
 
-/// The ink of the text, and nothing for a blank code area.
+/// The ink of the text,
+///  and nothing for a blank code area.
 fn ink(window: &AppWindow) -> usize {
     return ink_between(window, TEXT_LEFT, TEXT_LEFT + 200.0);
 }
 
-/// The ink of the line numbers in the gutter, and nothing for a blank gutter.
+/// The ink of the line numbers in the gutter,
+///  and nothing for a blank gutter.
 fn gutter_ink(window: &AppWindow) -> usize {
     return ink_between(window, TEXT_LEFT - 40.0, TEXT_LEFT - 12.0);
 }
 
 /// What:
-///  The line the caret stands on, from the document.
+///  The line the caret stands on,
+///  from the document.
 /// Why:
 ///  A press puts the caret on the row under the pointer.
 ///
@@ -343,8 +356,11 @@ fn rows_that_arrive_during_a_followed_ease_move_the_tile_asked_for_with_them() {
     window.hide().expect("close the window");
 }
 
-/// A far wheel turn asks the worker for one tile, at the end of the ease, and for none at the steps on the way;
-/// the tile lands while the ease runs and is applied, and nothing is built on the window thread.
+/// A far wheel turn asks the worker for one tile,
+///  at the end of the ease,
+///  and for none at the steps on the way;
+/// the tile lands while the ease runs and is applied,
+///  and nothing is built on the window thread.
 #[test]
 fn a_far_wheel_turn_asks_for_one_tile_at_its_end() {
     let (_project, reader) = open(&numbered());
@@ -411,7 +427,9 @@ fn a_far_wheel_turn_asks_for_one_tile_at_its_end() {
     window.hide().expect("close the window");
 }
 
-/// A wheel turn the displayed tile holds, in the middle of its reach, asks for no tile and starts no follow;
+/// A wheel turn the displayed tile holds,
+///  in the middle of its reach,
+///  asks for no tile and starts no follow;
 /// a turn just past what it holds asks for one tile at its end.
 #[test]
 fn a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one() {
@@ -439,13 +457,13 @@ fn a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one() {
     );
     assert!(!window.get_held());
     // 40 notches, 2,400 px, take the view past the re-center edge of the tile.
-    let started = Instant::now();
-    let begun = begin_turn(window, state, -40.0);
+    let past_started = Instant::now();
+    let past_begun = begin_turn(window, state, -40.0);
     assert!(
         is_aimed(&state.borrow()),
         "a turn past the tile is followed"
     );
-    step_ease(window, started, begun);
+    step_ease(window, past_started, past_begun);
     settle_tile(state);
     assert_eq!(
         worker_counts(state)[0],
@@ -455,7 +473,10 @@ fn a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one() {
     window.hide().expect("close the window");
 }
 
-/// A placement ends the follow: the view is set, not eased, so the next steps ask for their own tiles again.
+/// A placement ends the follow:
+///  the view is set,
+///  not eased,
+///  so the next steps ask for their own tiles again.
 #[test]
 fn a_placement_ends_the_followed_ease() {
     let (_project, reader) = open(&numbered());
