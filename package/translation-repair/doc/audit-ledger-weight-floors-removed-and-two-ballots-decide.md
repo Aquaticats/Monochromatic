@@ -260,7 +260,7 @@ recorded on 2026-10-25 (UTC).
 
 Stay, because one judge alone never decides:
 - The lane contest skips a slice where one of seven seats is reachable against a floor of two
-  (`XingZ6021` laneSelection, `benchBelowFloor`).
+  (`XingZ6021` laneSelection, `benchBelowFloor` on 71 of 101 slices).
 - The slate skips and declines where the slate reach is under two (`consolidate/src/consolidate-slice-buy.ts`),
   so the lone DeepSeek judge that called the archive a non-translation, one ballot under the floor of two, decides nothing.
 - A leader one judge alone named is declined in the candidate selection and the gate.
