@@ -152,6 +152,18 @@ await describe({
             expect(labelled({ source: '[^1]: a b', },),).toBe(false,);
           },
         },),
+
+        it({
+          name: 'READS THE LABEL AS WRITTEN, not as the parse decodes it: a character reference for a space is no '
+            + 'space to the strict grammar, which reads the characters of the source',
+          fn: async () => {
+            /**
+             The definition node of a text and whether its label is a footnote's.
+             */
+            const source = '[^a&#32;b]: https://example.net/a';
+            expect(hasFootnoteLabel({ node: onlyBlock({ source, },), },),).toBe(true,);
+          },
+        },),
       ],
     },),
 
