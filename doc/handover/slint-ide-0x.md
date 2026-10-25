@@ -4761,7 +4761,50 @@ frames. Open from this run: 2 of 210 press-and-release events logged no pointer 
 sessions' logs had 3 or more pointer lines) and the driver did not record the compositor's reply to each command, so
 whether the compositor refused them (as it refused the early wheel) is not known: the next verification records every
 reply and counts `err`; one release at 180 ms matched neither the last nor the next frame and its record is lost.
-Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
+The `early` agent reported 2026-10-25 (branch `worktree-agent-a763037d1a881724e`, tip `8e70b5ac38`): (a) the early wheel
+is lost in the COMPOSITOR: 276 fresh sessions, 40 notches at 540,900, 50 answered `err no nested client surface at wheel
+position 540,900` (no winit line, top gutter, no `wl_pointer.enter` nor `axis` in 17 of 17 WAYLAND_DEBUG sessions), 226
+answered `ok` (all with the winit line and a scrolled gutter); the reply came before the toplevel's first buffer
+`wl_surface.attach` in 17 of 17 refused and after it in 19 of 19 accepted; `point_pointer_at` in
+`package/cli/nested-wayland-session/src/input_wheel.rs:73` bails when no surface is under the point, and the ready line
+does not wait for the first frame (a wheel at ready plus 300 ms was refused in 14 of 72 one-core and 2 of 60 unlimited
+sessions; at first frame plus 0 in 10 of 12 and 24 of 24; at plus 0.3 to 2 s in 0 of 108); `windows` listed a toplevel
+about 300 ms before it takes input; the "small first surface" idea was wrong (first configure and first buffer are
+1080x1880; 173 px is Slint's first layout width). Fix: `windows`, `focus` and `close` list only toplevels with a
+committed buffer (`is_mapped`, `mapped_windows` in `src/window_list.rs`), the refusal text says why; headless check
+"windows lists a toplevel only once it takes pointer input" fails on 0.6.1 and passes now; with the IDE as client, a
+wheel at the first listing: 0.6.1 refused 60 of 60, the branch 0 of 60. A compositor release is needed (installed copies
+are 0.6.1). (b) the `bwrap` row is the IDE's own scratch directory: bubblewrap binds `<state>/<project>-<hash>/<server>/
+tmp` and `prepare` in `src/language/launch/state.rs` did `remove_dir_all` then `create_dir_all` on a path shared by
+every IDE process of the user and project, so a second process left it missing while the first's bwrap opened it
+(wordings `Can't find source path`, `Can't open source`, `Can't bind mount`); 4 of 709 launches with three sessions at
+once on one cache folder, 0 of 300 on the fixed binary, 0 with a folder per session, 0 of 120 one at a time (not
+separable by p alone: 0.24); fix `empty_in_place` (`state.rs:199`) empties the contents and keeps the directory, a link
+or file there is replaced, never followed; the notice for a message starting `bwrap:` now says the sandbox stopped before
+mise started and the mise configuration is not the cause (`Failed::stopped_by_sandbox`,
+`src/language/mise/state.rs:64`); tests `preparation_empties_a_scratch_directory_without_replacing_it` and
+`preparation_does_not_follow_a_link_where_the_scratch_directory_belongs` failed on the old code; still open: two
+processes on one project share one private `/tmp` per server, so the second launch removes the first running server's
+temporary files (a per-process scratch with cleanup of dead ones would end it). (c) the unlimited tall map: 400 of 400
+exact (proves nothing: the earlier rate was 1 in 1,160 and there is no stalled-pass positive control); the verifier's
+stalled-launch map (36,456, one narrow rebuild, none after the real size) was NOT reproduced in 229 launches with the app
+or compositor stopped for 2.2 s at 14 places and 6 with the tile worker's futex calls delayed, and no code path that
+skips the rebuild was found; the verifier's three logs are gone, so the question 'did `left a new width to the tile
+worker` / `posted the measurement pass wrap=644` / `applied a measurement` follow 27.4159 s' is unanswered. Merged and
+gated by me (gates: IDE `lint` 0, `test:native` 350 passed and 5 skipped, `test:language` 380, `test:bin` 0, `test`
+815, `inspect:no-software-renderer` 0, `inspect:language-guards` 33 of 33 guards with the cache argument the task
+requires (`<cache>` below the agent scratch root; a bare run exits 1 on the missing argument, which is a usage error,
+not a failure); compositor `lint` 0, `lint:clippy` 0, `test` 278, `inspect:headless` 0) and pushed as `8c60a4afb3`.
+Installed: sha256 `d60a2272574c0a64…` from `8c60a4afb3`, prints 0.1.1. Release plan (standing authorization for
+releases of the IDE and the nested compositor; dry run first): dry runs dispatched from `main` at `8c60a4afb3`: IDE
+`ide-release.yml` run 40242357783 and compositor `cargo-publish.yml` run 40242360125 (`crate=monochromatic-nested-
+wayland-session`, `dry-run=true`); read both (every job green, both architectures, the expected smoke and archive
+checks), then bump `package/desktop-app/ide/Cargo.toml` 0.1.1 to 0.1.2 with `mise run //package/desktop-app/ide:fetch`
+(one changed line in `Cargo.lock`) and `package/cli/nested-wayland-session/Cargo.toml` 0.6.1 to 0.6.2 (check its lock
+too), update the README "Changes after 0.6.1 (not released)" entry to 0.6.2, push to `main` to start the real runs
+(immutable: a bad release is fixed only by a higher version), then verify the releases (`gh release view`, attestation,
+`cargo binstall --dry-run` for the compositor) and the installed binary.
+Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
 Ctrl+End and Ctrl+Home).
