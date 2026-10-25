@@ -143,17 +143,17 @@ fn observe(change: Change, place: Place) -> Seen {
     assert_eq!(center(&window), RED, "the first list is not drawn");
     take_frame_wanted();
     let make = {
-        let window = window.as_weak();
-        let list = Rc::clone(&list);
+        let weak_window = window.as_weak();
+        let shown_list = Rc::clone(&list);
         move || match change {
             Change::NewModel => {
-                if let Some(window) = window.upgrade() {
-                    window.set_shades(ModelRc::from(Rc::new(VecModel::from(vec![blue]))));
+                if let Some(held) = weak_window.upgrade() {
+                    held.set_shades(ModelRc::from(Rc::new(VecModel::from(vec![blue]))));
                 }
             }
-            Change::SetVecSameCount => list.set_vec(vec![blue]),
-            Change::SetVecOtherCount => list.set_vec(vec![blue, blue]),
-            Change::SetRowData => list.set_row_data(0, blue),
+            Change::SetVecSameCount => shown_list.set_vec(vec![blue]),
+            Change::SetVecOtherCount => shown_list.set_vec(vec![blue, blue]),
+            Change::SetRowData => shown_list.set_row_data(0, blue),
         }
     };
     match place {

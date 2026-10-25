@@ -18,13 +18,13 @@
 /// The frame that gives the window its device,
 ///  and the frame that draws a picture.
 use super::gpu_snapshot::snapshot;
+/// The window of the application's markup before any frame,
+///  and the width of the textures the tests make.
+use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
 /// The painted textures,
 ///  the window that shows them,
 ///  and the count of the pixels they are drawn in.
 use super::tile_slice_frame_tests::{filled, ink_pixels, painted_window};
-/// The window of the application's markup before any frame,
-///  and the width of the textures the tests make.
-use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
 /// The scenes of a picture's chunks.
 use ide_app::tile_scene::TileScene;
 /// The window handle and the model trait.
@@ -223,12 +223,17 @@ fn the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures() {
         gpu.forget_minimap();
         window.set_minimap_slices(ModelRc::default());
     };
-    let mut steps: Vec<(&str, Vec<u32>, bool)> = Vec::new();
-    steps.push(("the first picture", vec![40, 24], false));
-    steps.push(("the first picture of the next file", vec![30, 30, 8], true));
-    steps.push(("a picture of more textures", tall, false));
-    steps.push(("a picture of fewer textures", vec![100], false));
-    steps.push(("a picture of other heights in the same number of textures", vec![60], false));
+    let steps = vec![
+        ("the first picture", vec![40, 24], false),
+        ("the first picture of the next file", vec![30, 30, 8], true),
+        ("a picture of more textures", tall, false),
+        ("a picture of fewer textures", vec![100], false),
+        (
+            "a picture of other heights in the same number of textures",
+            vec![60],
+            false,
+        ),
+    ];
     for (name, heights, new_file) in steps {
         if new_file {
             switch();
