@@ -1186,10 +1186,81 @@ The bare adjectives `unexplained` and `unmeasured` were left out for the reason 
 mostly describe a thing ("an unexplained abnormality"), not the agent's own gap.
 The built hook blocks the 23:11 report on `"i didn't measure"`, and passes "I tried the build and it passed".
 
-Not changed: the chain gate.
-Re-running the phrase detectors inside a blocked chain would re-block text the agent has already answered for.
-A narrower rule (run them in a chain only when the matched phrase differs from the one in the last block reason) is a
-design decision for the owner.
+The chain gate is not the lever for the 10:31 stop, and the paragraph that called it an owner decision is withdrawn.
+Luna was asked inside the chain and scored `waits_on_user` at 0.59.
+A block on that label routes the agent to `AskUserQuestion`, and the owner's reply to that stop was to do it
+themselves.
+Phrases cannot reach "from the log only" either.
+
+### Purpose measured against the owner's nudges, 2026-10-25
+
+The purpose is written down, so the question of what the hook is for was not open.
+`package/claude-code-plugin/stop-reminder/README.md` says the hook "can optionally refuse a stop whenever pushing
+could plausibly help", and the measurement section of this document counts a restart nudge: a human-typed message that
+asks the agent to resume.
+I read that as: the owner should not have to type the nudge ("Continue.", "You didn't check, so check.", "Just do
+it.").
+The owner asked for research before deciding Luna's input and block rule, so I measured against that signal.
+
+Method.
+Each of the 956 Luna verdicts in the log (9 sessions, 2026-10-18 to 2026-10-25) was matched to its stop in the
+transcript, and the next record was classified.
+All 956 matched.
+The agent carried on by itself after 764 releases, a human replied after 119, a hook block followed 67 (42 Luna blocks
+and 25 releases that a phrase blocked), and the transcript ended after 6.
+The 88 verdicts before 2026-10-19 17:00 UTC have no `leaves_open_work` score and are a separate stratum.
+Luna labelled the 119 human replies in two passes.
+The first pass (four classes) called 61 of them nudges, which was too coarse: it included new instructions and
+corrections.
+The second pass (five classes) called 30 "the agent should have done it".
+I read those 30 and kept 14 with plain nudge wording as the strict set; the rest were new instructions or
+corrections.
+The strict set was chosen by me after seeing the replies, and Luna's labels are a model's reading, not a human label.
+
+Nudge rate by the reason a stop was released (strict set):
+
+- Released because a task was running: 6 of 623 (1.0%).
+- Released under the cutoff with top label `work_closed`: 3 of 66 (4.5%).
+- Released under the cutoff with top label `waits_on_user`: 3 of 44 (6.8%).
+- Released as `work_closed` at or above the cutoff: 1 of 44 (2.3%).
+- Released under the cutoff with top label `waits_on_background_work`: 1 of 85 (1.2%).
+- Under the cutoff with `announces_own_next_step`, `pauses_for_handoff` or `leaves_open_work`, and deliberate
+  pauses: 0 of 27.
+
+No release reason has a rate high enough to block on.
+Blocking both under-cutoff strata above would add 110 blocks to catch 6 nudges, and 86 of those 110 stops resumed
+without a nudge.
+
+Experiment on the 14 strict-set stops against 30 controls (stops released because a task was running, after which the
+agent carried on; every tenth of 567, in time order).
+The same input gave the same output twice, so run-to-run spread is zero and the differences below are real for this
+sample.
+
+- Final message only (today's input): mean `leaves_open_work` plus `announces_own_next_step` is 0.14 on the nudged
+  stops and 0.08 on the controls; none reaches 0.4.
+- With the assistant text of every earlier stop in the turn: 0.09 and 0.06; at 0.4 it catches 1 nudged stop and 2
+  controls.
+- With the standing instructions (`PX1`, `PXQ`, `QF1`, `ASK`) as a preamble: 0.20 and 0.15; at 0.4 it catches 2
+  nudged stops and 3 controls.
+- A direct question ("could the agent continue, or is it rightly stopped?"): AUC 0.47 on the final message and 0.26
+  with turn history, where 0.5 is chance.
+  History made the controls look more like open work, since their turns are long.
+
+No variant separated the nudged stops from the controls.
+The nudged stops read like the stops that resumed on their own, and the information that differs (whether the
+running task will actually resume the agent) is not in the text.
+Limits: 14 nudged stops is small; the controls cover one release reason only; the 764 count would be inflated if some
+human messages lack `origin.kind: human`, and I found none in three samples per session but did not check every
+record; the turn history was capped at 1,500 characters per stop and 8,000 in all.
+
+The phrase list, as it stands after `410c4eeb39`, flags 3 of the 14 nudged stops (`i haven't checked`,
+`i didn't measure`, `should be`) and 0 of the 30 controls.
+Across the whole log it flags 30 stops: 15 already blocked, 9 followed by a human reply, 6 where the agent carried on.
+It is the only instrument tested here with no hits on the controls.
+
+Decision state: Luna's input and the 0.60 cutoff are unchanged.
+Nothing measured supports sending turn history, adding the standing instructions, or lowering the cutoff.
+Turn history stays untried as a way to catch a repeated stop, which this sample cannot show.
 
 ### Not yet known
 
