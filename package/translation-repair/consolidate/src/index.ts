@@ -31,6 +31,7 @@ export {
   keepTheArchive,
   NO_VALID_WORDING_FINDING,
   nothingValidShips,
+  shipPastForfeitStanding,
   slateIncumbentFor,
   UNDECIDED_GATE_SHIPS_PROPOSAL_FINDING,
 } from './consolidate-ineligible-standing.ts';
