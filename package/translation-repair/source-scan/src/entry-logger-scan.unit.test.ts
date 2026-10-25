@@ -93,6 +93,53 @@ await describe({
       },
     },),
     it({
+      name: 'SEES a plain entry logger in each of the spellings the first scan missed, planted one at a time: a '
+        + 'template literal, an aliased import, another key order, `pair.id`, a const alias and tight spacing, '
+        + 'since the scan reads what the call does and not how it is written (ledger B963)',
+      fn: async () => {
+        /**
+         The spellings, each a file that builds one plain entry logger.
+         */
+        const planted = [
+          'const l = tagged({ tag: `${entryId}`, },);\n',
+          'import { tagged as makeLogger, } from \'@monochromatic-dev/module-logger/ts\';\n'
+          + 'const l = makeLogger({ tag: entryId, },);\n',
+          'const l = tagged({ l: parent, tag: entryId, },);\n',
+          'const l = tagged({ tag: pair.id, },);\n',
+          'const make = tagged;\nconst l = make({ tag: entryId, },);\n',
+          'const l = tagged({tag:entryId,},);\n',
+        ];
+        expect(planted.map(function found(text,): number {
+          return unwrappedEntryLoggersIn({ text, },);
+        },),).toStrictEqual(planted.map(function one(): number {
+          return 1;
+        },),);
+      },
+    },),
+    it({
+      name: 'LEAVES ALONE a logger that is wrapped by `sliceTagged` in any spelling, and a logger whose tag is no '
+        + 'entry: a string, a function name or a slice index (ledger B963)',
+      fn: async () => {
+        /**
+         Files that build loggers the scan must not find.
+         */
+        const harmless = [
+          'const l = sliceTagged({ l: tagged({ tag: `${entryId}`, },), },);\n',
+          'import { sliceTagged as sliced, } from \'@monochromatic-dev/translation-repair-typography/ts\';\n'
+          + 'const l = sliced({ l: tagged({ l: parent, tag: pair.id, },), },);\n',
+          'const make = tagged;\nconst l = sliceTagged({ l: make({ tag: entryId, },), },);\n',
+          'const l = tagged({ tag: \'pass-entry\', },);\n',
+          'const l = tagged({ tag: runCorpusPassOver.name, },);\n',
+          'const l = tagged({ l: dl, tag: `slice ${String(row.sliceIndex,)}`, },);\n',
+        ];
+        expect(harmless.map(function found(text,): number {
+          return unwrappedEntryLoggersIn({ text, },);
+        },),).toStrictEqual(harmless.map(function none(): number {
+          return 0;
+        },),);
+      },
+    },),
+    it({
       name: 'BUILDS every entry logger on the log context, so its lines name the attempt inside one (ledger B963)',
       fn: async () => {
         /**
