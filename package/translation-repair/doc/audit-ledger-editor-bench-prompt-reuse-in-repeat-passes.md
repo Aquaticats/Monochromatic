@@ -548,5 +548,10 @@ to the simulations doc.
   after the paragraph on the power of one pass against three moved to the simulations doc.
 - Nit 6:
   the commit messages named by re-check 10 are listed in the fixer report of round 14 and nothing is posted.
+- Final line feed:
+  the push hook reported `final-newline/noncanonical-final-newline` for the simulations doc,
+  which ended without a line feed.
+  It ends with exactly one now,
+  and the README and this ledger were checked and already did.
 
 [prevention]: mistake-prevention-spend-guards-and-client-retries.md
