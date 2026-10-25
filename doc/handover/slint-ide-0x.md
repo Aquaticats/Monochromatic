@@ -4475,6 +4475,16 @@ the tile cannot hold; a small window-thread tile; a tile for the end of the ease
 changes nothing) are in the troubleshooting doc and need the owner's decision. Numeric tables (`jumps.csv`, `results/`,
 `results-control-b9/`) stay in `~/temp/agent/wheel` with the scripts; frames, extra worktrees and the disposable project
 were removed.
+Owner answer (question tool, 2026-10-25) to the options "far jump places, no sweep", "small sync tile", "queue the tile"
+and "leave it": "Surely there is a better way?". Design now built by an agent (branch off `52056f6fbc`): while the tile
+for the current offset has not landed, draw the view clamped to the reach of the tile that exists (real text, not black;
+every layer positioned from the offset follows the clamped offset, pointer hits map to the drawn rows) and move to the
+real offset when the tile lands; and request ONE tile for the destination at the first wheel step (the wheel delta gives
+the end of the ease) instead of one per ease step, keeping the per-step requests for slow scrolls. No synchronous
+build and no CPU painting. Acceptance: 0 blank code frames at 150, 300 and 600 notches (baseline 29 to 30 of 30 jumps),
+nothing new at 40, with the 478-jump protocol, 88-click recording unchanged (0 blank frames, 82 px gap, 1 plus 1 skip
+then 0 plus 1 skip, first line 223 for both y=1700 presses), drags covered or stated. Its report is verified, landed and
+the IDE reinstalled; then `~/temp/agent/final` and `~/temp/agent/wheel` are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
