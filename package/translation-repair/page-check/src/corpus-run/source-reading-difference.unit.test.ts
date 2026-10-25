@@ -141,12 +141,13 @@ await describe({
       name: 'SAYS UNDECIDED FOR A BLOCK THE PAGE\'S FOOTNOTE RUNS INTO FROM A BLOCK QUOTE, which no block of the source holds',
       fn: async () => {
         /**
-         A block quote whose footnote the page goes on with over the line of raw HTML that follows the quote, so the page has
-         one block where the source has two, though the second block starts after the footnote of the source.
+         A block quote whose footnote has a lazy line, a line of raw HTML and a list marker after it: the page goes on with the
+         footnote over the line of raw HTML and the lines after it, so it has one block where the source has two, though the
+         second block starts after the footnote of the source.
          */
-        const answer = encodedDifference({ source: '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n<script>\n', },);
+        const answer = encodedDifference({ source: '> x\n[^1]: }\n<script\n- a\n', },);
         expect(answer.kind,).toBe('undecided',);
-        expect(encodedDifference({ source: '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n<details>\n', },).kind,).toBe('undecided',);
+        expect(encodedDifference({ source: '> x\n[^1]: }\n<details\n- a\n', },).kind,).toBe('undecided',);
       },
     },),
     it({
@@ -157,9 +158,9 @@ await describe({
          line where the source has two blocks, and a comment that never closes whose paragraphs the page splits where the
          source has one block of raw HTML.
          */
-        const quote = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
+        const quote = '> x\n[^1]: }\n<div\n';
         expect(encodedDifference({ source: `${quote}1. 项\n<script>\n`, },).kind,).toBe('undecided',);
-        expect(encodedDifference({ source: `${quote}\n<!-- a <!-- b\n\n[\n`, },).kind,).toBe('undecided',);
+        expect(encodedDifference({ source: `${quote}- a\n\n<!-- a <!-- b\n\n[\n`, },).kind,).toBe('undecided',);
       },
     },),
     it({
@@ -167,25 +168,25 @@ await describe({
       fn: async () => {
         // A block quote whose footnote holds the same raw HTML tag as the block after it, so the first place the tag stands on
         // the page is inside the footnote.
-        const quote = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
-        expect(encodedDifference({ source: `${quote}\n<a href="x">\n\n<script>\n`, },).kind,).toBe('undecided',);
-        expect(encodedDifference({ source: `${quote}\n<a href="x">\n\nexport to PDF\n`, },).kind,).toBe('undecided',);
+        const quote = '> x\n[^1]: }\n<div\n-\n';
+        expect(encodedDifference({ source: `${quote}\n<div\n\n<script>\n`, },).kind,).toBe('undecided',);
+        expect(encodedDifference({ source: `${quote}\n<div\n\nexport to PDF\n`, },).kind,).toBe('undecided',);
       },
     },),
     it({
       name: 'SAYS UNDECIDED FOR A LINK BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, whose target the comparison leaves out as it does for a whole text',
       fn: async () => {
         expect(
-          encodedDifference({ source: '[<https://example.net/a>](u)\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n', },).kind,
+          encodedDifference({ source: '[<https://example.net/a>](u)\n> x\n[^1]: }\n<div\n-\n', },).kind,
         ).toBe('undecided',);
       },
     },),
     it({
       name: 'SAYS DIFFERS FOR TEXT THE PAGE LACKS OR CHANGES BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, in whatever blocks the page shows it',
       fn: async () => {
-        // A label with a brace, which the page writes with a backslash in the reference and not in the definition.
+        // An image whose alternative text is an angle autolink, which the page shows with its brackets whatever stands beside it.
         expect(
-          encodedDifference({ source: '- [^1]: <b>\n  [r]: u{b}\n[^a}]: x {\n\n[^a}] y\n[^1]: 注\n', },).kind,
+          encodedDifference({ source: '> x\n[^1]: }\n<div\n-\n\n![<https://example.net/a>](u.png)\n', },).kind,
         ).toBe('differs',);
       },
     },),

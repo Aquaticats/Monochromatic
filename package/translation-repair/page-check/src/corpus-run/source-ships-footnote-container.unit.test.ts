@@ -31,6 +31,7 @@ const OPEN_IN_QUOTE = {
   endsInLiteral: false,
   prefixLength: 2,
   opensRawHtml: false,
+  opensFootnote: true,
 };
 
 /**
@@ -208,6 +209,42 @@ await describe({
               state: OPEN_IN_QUOTE,
               isRootChild: false,
             },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'IS TRUE FOR A PARAGRAPH RIGHT AFTER THE DEFINITION ITSELF, which goes on in the definition as a lazy line',
+          fn: async () => {
+            /**
+             A quote whose definition is followed right away by a line of text, by a line of text after a blank line, and by a
+             line that opens a footnote of its own.
+             */
+            const lazy = '> [^1]: x\n> abc\n>     ```\n';
+            const apart = '> [^1]: x\n>\n> abc\n';
+            const opener = '> [^1]: x\n> [^2]: y z\n';
+            expect(continuesTheFootnote({
+              source: lazy,
+              ...childOfQuote({ source: lazy, at: 1, },),
+              state: OPEN_IN_QUOTE,
+              isRootChild: false,
+            },),).toBe(true,);
+            expect(continuesTheFootnote({
+              source: lazy,
+              ...childOfQuote({ source: lazy, at: 1, },),
+              state: { ...OPEN_IN_QUOTE, opensFootnote: false, },
+              isRootChild: false,
+            },),).toBe(false,);
+            expect(continuesTheFootnote({
+              source: apart,
+              ...childOfQuote({ source: apart, at: 1, },),
+              state: OPEN_IN_QUOTE,
+              isRootChild: false,
+            },),).toBe(false,);
+            expect(continuesTheFootnote({
+              source: opener,
+              ...childOfQuote({ source: opener, at: 1, },),
+              state: OPEN_IN_QUOTE,
+              isRootChild: false,
+            },),).toBe(false,);
           },
         },),
         it({

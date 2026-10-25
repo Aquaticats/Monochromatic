@@ -3,6 +3,7 @@ import {
   FOOTNOTE_INDENT,
   indentationOf,
   isIndentedCode,
+  opensFootnote,
   linesWithoutPrefix,
   startLineOf,
   TAB_COLUMNS,
@@ -241,6 +242,7 @@ export function continuesTheFootnote(
   const {
     endLine,
     opensRawHtml,
+    opensFootnote: justOpened,
   } = state;
   /**
    The line the block starts on.
@@ -259,6 +261,25 @@ export function continuesTheFootnote(
   const inRawHtml = opensRawHtml && rightAfter;
   if ((!isRootChild) && inRawHtml)
     return false;
+  /**
+   Whether the block is a paragraph that opens no footnote definition of its own.
+   */
+  const isLazyParagraph = (node.type === 'paragraph') && (!opensFootnote({
+    source,
+    node,
+    range,
+  },));
+  /**
+   Whether the block read before is the line of the definition itself and this one starts on the line right after it.
+   */
+  const lazyStart = justOpened && rightAfter;
+  /**
+   Whether the block is a paragraph that goes on in the definition's paragraph as a lazy line, the lines of it that are
+   indented four columns among them being blocks of the footnote.
+   */
+  const lazyLine = lazyStart && isLazyParagraph;
+  if ((!isRootChild) && lazyLine)
+    return true;
   if (isIndentedCode({
     source,
     node,

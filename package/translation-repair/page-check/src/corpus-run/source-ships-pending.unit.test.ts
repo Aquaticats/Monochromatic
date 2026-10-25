@@ -34,6 +34,7 @@ const OPEN_ON_LINE_ONE = {
   endsInLiteral: false,
   prefixLength: 0,
   opensRawHtml: false,
+  opensFootnote: true,
 };
 
 /**
@@ -45,6 +46,7 @@ const NOTHING_READ = {
   endsInLiteral: false,
   prefixLength: 0,
   opensRawHtml: false,
+  opensFootnote: false,
 };
 
 /**
@@ -151,6 +153,7 @@ await describe({
               endsInLiteral: false,
               prefixLength: 0,
               opensRawHtml: false,
+              opensFootnote: false,
             },);
             expect(stateAfter({
               before: NOTHING_READ,
@@ -171,6 +174,7 @@ await describe({
               endsInLiteral: true,
               prefixLength: 0,
               opensRawHtml: false,
+              opensFootnote: false,
             },);
           },
         },),
@@ -331,6 +335,7 @@ await describe({
               endsInLiteral: false,
               prefixLength: 0,
               opensRawHtml: false,
+              opensFootnote: false,
             },);
           },
         },),

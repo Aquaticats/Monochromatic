@@ -66,6 +66,14 @@ export type FootnoteRead = InAFootnote | NotInAFootnote;
 const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
 /**
+ Types of the blocks in a container that open a footnote definition where they stand.
+ */
+const OPENS_WHERE_IT_STANDS: ReadonlySet<string> = new Set([
+  'definition',
+  'paragraph',
+],);
+
+/**
  Reads a block as part of a footnote definition when it is one.
 
  @param source - whole text
@@ -213,14 +221,23 @@ export function footnoteRead(
     };
   }
   /**
-   Whether the block is a paragraph at the top whose first line opens a footnote definition, or a link reference
-   definition that the strict grammar reads as one.
+   Whether the block's first line opens a footnote definition that the strict grammar reads.
    */
-  const opensFootnoteHere = opensFootnote({
+  const startsFootnote = opensFootnote({
     source,
     node,
     range,
-  },) && (isRootChild || (node.type === 'definition'));
+  },);
+  /**
+   Whether the block is of a kind that opens one where it stands: a paragraph, or a link reference definition, or any
+   block at the top.
+   */
+  const isBlockOfFootnote = isRootChild || OPENS_WHERE_IT_STANDS.has(node.type,);
+  /**
+   Whether the block opens one: a paragraph at the top or in a container, or a link reference definition that the strict
+   grammar reads as one.
+   */
+  const opensFootnoteHere = startsFootnote && isBlockOfFootnote;
   if (!(opensFootnoteHere || continuesFootnote))
     return NOT_IN_A_FOOTNOTE;
   /**
@@ -257,7 +274,7 @@ export function footnoteRead(
           end: reach.end,
         }
         : range,
-      prefixLength: (opensFootnoteHere || isRootChild) ? 0 : state.prefixLength,
+      prefixLength: isRootChild ? 0 : state.prefixLength,
     },),
   };
 }

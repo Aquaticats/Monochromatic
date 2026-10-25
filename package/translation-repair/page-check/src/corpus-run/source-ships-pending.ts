@@ -79,6 +79,12 @@ export type FootnoteState = {
    right after it up to the next blank line.
    */
   readonly opensRawHtml: boolean;
+
+  /**
+   Whether the block is the line that opens a footnote definition itself, which a paragraph that starts on the line right
+   after it goes on in as a lazy line.
+   */
+  readonly opensFootnote: boolean;
 };
 
 /**
@@ -90,6 +96,7 @@ const NO_BLOCK_READ: FootnoteState = {
   endsInLiteral: false,
   prefixLength: 0,
   opensRawHtml: false,
+  opensFootnote: false,
 };
 
 /**
@@ -182,6 +189,7 @@ export function stateAfter(
       source,
       range,
     },),
+    opensFootnote: opens,
   };
 }
 
@@ -431,6 +439,7 @@ export function takeFootnote(
       endsInLiteral: false,
       prefixLength: state.prefixLength,
       opensRawHtml: false,
+      opensFootnote: false,
     },
   };
 }
