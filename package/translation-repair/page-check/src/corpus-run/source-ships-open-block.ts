@@ -19,6 +19,22 @@ import { asTheParseReadsIt, } from './source-ships-readable.ts';
 // starts are the answer.
 
 /**
+ Whether a text holds nothing but white space.
+
+ @param text - text
+
+ @returns Whether every character is white space; true for an empty text
+
+ @example
+ ```ts
+ const blank = isBlank({ text: ' \t', },); // true
+ ```
+ */
+function isBlank({ text, }: { readonly text: string; },): boolean {
+  return text.trim() === '';
+}
+
+/**
  Finds the openers of a comment that never closes at which a reader of the source reads a block of raw HTML start.
 
  @param text - text with its comments that close blanked, of the length of the text the openers stand in
@@ -70,27 +86,32 @@ export function blockOpenerStarts(
     if ((node.type !== 'html') || (node.position === undefined))
       continue;
     /**
-     The block's text and where it starts, its first line's white space included.
+     Where the block starts, as a position.
      */
-    const {
-      value,
-      position: { start, },
-    } = node;
+    const { start, } = node.position;
     /**
-     The block's first line without the white space it starts with.
+     Where the block starts in the text.
      */
-    const trimmed = value.trimStart();
+    const from = start.offset ?? 0;
     /**
-     How many characters of white space that was.
+     Where the first opener at or after the start stands: the block starts at the opener or at white space before it, and a
+     tab that a list item takes in part is read as spaces the text does not hold, so the opener is looked for in the text and
+     not counted off the characters of the block's value.
      */
-    const lead = value.length - trimmed.length;
-    if (!trimmed.startsWith(COMMENT_OPEN,))
+    const opener = body.indexOf(
+      COMMENT_OPEN,
+      from,
+    );
+    if (opener === (-1))
       continue;
     /**
-     Where the opener stands.
+     What stands between the start of the block and the opener.
      */
-    const opener = (start.offset ?? 0) + lead;
-    if (starts.includes(opener,))
+    const gap = body.slice(
+      from,
+      opener,
+    );
+    if (isBlank({ text: gap, },) && starts.includes(opener,))
       found.push(opener,);
   }
   return found.toSorted(function ascending(

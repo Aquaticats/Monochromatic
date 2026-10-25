@@ -297,8 +297,11 @@ export function lineJoinsOf(
       joinsFlowStarts: false,
     },);
   }
-  // A HARD BREAK WRITTEN WITH A BACKSLASH is white space to a reader of the source, and a backslash on the page where the
-  // footnote cuts the paragraph, so the break, the line ending and the indentation are written as one space.
+  // A HARD BREAK WRITTEN WITH A BACKSLASH renders as a line break to a reader of the source and is white space to the
+  // account the comparison makes of it (`source-reading-account.ts` folds a break to white space), and the page shows a
+  // backslash where the footnote cuts the paragraph, so the break, the line ending and the indentation are written as one
+  // space: the account reads the same, and the rendered page has one line where the source has two. A break written with
+  // two spaces is not joined and keeps its break.
   /**
    Where the line after a hard break starts, when the node is one.
    */
@@ -544,11 +547,34 @@ export function contentStretches(
      */
     const lineEnd = ((ending === (-1)) || (ending >= range.end)) ? range.end : ending;
     /**
-     Where the content starts: the node's value keeps the line's carriage return only where the text has one.
+     Where the content would start if every character of the value stood in the text: the node's value keeps the line's
+     carriage return only where the text has one, and starts with spaces the text does not hold where a tab that a container
+     takes in part is read as spaces, which the line's first character stands for.
      */
-    const start = lineEnd - content.length;
-    if (start < line.start)
+    const natural = lineEnd - content.length;
+    /**
+     How many characters the value has before the line's first character.
+     */
+    const missing = line.start - natural;
+    /**
+     What the value has there.
+     */
+    const lead = content.slice(
+      0,
+      Math.max(
+        missing,
+        0,
+      ),
+    );
+    if (lead.trim() !== '')
       return [range,];
+    /**
+     Where the content starts.
+     */
+    const start = Math.max(
+      line.start,
+      natural,
+    );
     if (start < lineEnd)
       stretches.push({
         start,
