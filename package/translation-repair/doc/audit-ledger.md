@@ -566,6 +566,15 @@ named for that subject and listed here.
   the wait that judged a return against the quorum alone (B838),
   the translate lane's first-time buys on a select bench under its floor (B839),
   and the artifact's record of why such a slice was kept (B840).
+- [Audit ledger: the weight floors removed and two ballots deciding](audit-ledger-weight-floors-removed-and-two-ballots-decide.md):
+  The owner's rulings of 2026-10-25 on `XingZ6021`:
+  the panel tally that asked for a summed weight of three and decided nothing for a unanimous panel of two (B900),
+  the candidate selection's minimum weight and the exceptions that worked around it (B901),
+  the three non-translation votes (B902),
+  a gate that heard one judge and shipped a consolidation (B903),
+  the cache versions that moved (B904),
+  the replay of the recorded ballots (B905),
+  and the floors that stay with the choices not taken (B906).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,

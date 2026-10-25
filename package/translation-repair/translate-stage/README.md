@@ -47,12 +47,14 @@ The groups that follow name the main ones.
 - Candidate selection:
   run one selection round that names a winner or declines,
   record the contest that decided it,
-  and size the judges asked and the minimum weight to the seats that could answer.
+  and size the judges asked to the seats that could answer.
+  A winner needs `MIN_SELECTION_BALLOTS` ballots whatever their weight,
+  by the owner's rulings of 2026-10-25.
   Names:
   `decideBestCandidate`,
   `selectBestCandidate`,
   `selectionFanOut`,
-  `selectionMinimum`,
+  `selectionBench`,
   `MIN_SELECTION_BALLOTS`,
   `shortBenchFinding`.
   Declared in `candidate-select.ts`,

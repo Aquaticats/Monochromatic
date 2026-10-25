@@ -160,7 +160,13 @@ which lists every file of these commitments.
   the note alone,
   keeping the silent gap,
   and unbacked wording marked as unreviewed,
-  which would break the standing rule that one judge alone never decides.
+  which would break the standing rule that one judge alone never decides
+  (restated by the owner on 2026-10-25 with the removal of every weight floor:
+  "floor of 3 - don't set a floor.",
+  "Two ballots decide (Recommended)" and "Every weight floor";
+  the full record is in
+  [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md),
+  and a gate that heard one judge no longer ships a consolidation past its neither).
   The earlier rulings stand:
   a run always ships,
   and a slice with archive text and no valid wording keeps the archive.

@@ -621,15 +621,16 @@ const result = await repairTranslation({
   and counts a judge's ballot for its own candidate at half weight;
   every other ballot it casts carries full weight,
   including one for another producer's candidate.
-  A winner needs weight 2,
-  so on these rosters no candidate is selected by its own authors alone.
+  A winner needs two ballots,
+  whatever their weight (the owner's rulings of 2026-10-25 removed every weight floor),
+  so one judge alone never selects a candidate and the half weight of a self-vote only ranks candidates.
   `assertJudgeableEditorRoster` (`package/translation-repair/assembly/src/repair-contract.ts`) no longer requires judges
   outside the editor roster:
   the ruling of 2026-08-15 allows self-judging at reduced weight instead.
   It refuses a roster that repeats an editor or a judge,
   seats no editor,
-  or seats too few judges for any text the editors write to reach the minimum weight,
-  since such a roster could not decide a round however it voted.
+  or seats fewer than two judges,
+  since such a roster could not name a winner however it voted.
   `checkerModelIds` should exclude every editor,
   so nothing certifies text it wrote.
 - Judging runs at two granularities.
