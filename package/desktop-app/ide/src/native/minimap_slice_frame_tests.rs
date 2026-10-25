@@ -18,6 +18,10 @@
 /// The frame that gives the window its device,
 ///  and the frame that draws a picture.
 use super::gpu_snapshot::snapshot;
+/// The painted textures,
+///  the window that shows them,
+///  and the count of the pixels they are drawn in.
+use super::tile_slice_frame_tests::{filled, ink_pixels, painted_window};
 /// The window of the application's markup before any frame,
 ///  and the width of the textures the tests make.
 use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
@@ -151,5 +155,93 @@ fn a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame() {
         vec![(100, 700)],
         "the frame that drew the picture of the same shape did not place it"
     );
+    window.hide().expect("close tile window");
+}
+
+/// What:
+///  The chunks of a picture,
+///  `STACK_WIDTH` wide and `heights` tall,
+///  top first,
+///  each filled with the color the painted tiles use.
+/// Why:
+///  A frame that draws the picture shows pixels of that color,
+///  so the test counts what a frame drew.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function paintedChunks(heights: number[]): TileScene[];
+/// ```
+fn painted_chunks(heights: &[u32]) -> Vec<TileScene> {
+    let mut made = Vec::with_capacity(heights.len());
+    for height in heights {
+        made.push(TileScene {
+            scene: filled(STACK_WIDTH, *height),
+            width: STACK_WIDTH,
+            height: *height,
+        });
+    }
+    return made;
+}
+
+/// What:
+///  Hand `heights` to the window as a painted picture,
+///  draw the one frame that follows with nothing drawn in between,
+///  draw a second frame,
+///  and say how many pixels of the picture each drew.
+/// Why:
+///  A frame that does not show the picture draws fewer pixels of it than the frame after,
+///  which is the late or the missing picture of the minimap.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function handOverAndDraw(window: AppWindow, gpu: GpuTile, heights: number[]): [number, number];
+/// ```
+fn hand_over_and_draw(
+    window: &super::AppWindow,
+    gpu: &super::gpu_tile::GpuTile,
+    heights: &[u32],
+) -> (u32, u32) {
+    gpu.submit_minimap(window, painted_chunks(heights), 0);
+    let first = ink_pixels(window);
+    let settled = ink_pixels(window);
+    return (first, settled);
+}
+
+/// The frame that follows the hand-over of a picture shows the picture,
+///  whether it is the first of a file (the window's list was emptied for another file),
+///  or has more textures than the one before it,
+///  or fewer:
+///  the window holds the slices when the frame begins.
+/// A list the window is given inside the frame is not drawn by it (`repeater_frame_tests`),
+///  and an idle window draws no other frame by itself.
+#[test]
+fn the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures() {
+    let (window, gpu) = painted_window();
+    let tall = vec![512; 17];
+    // What the file switch does to the window.
+    let switch = || {
+        gpu.forget_minimap();
+        window.set_minimap_slices(ModelRc::default());
+    };
+    let mut steps: Vec<(&str, Vec<u32>, bool)> = Vec::new();
+    steps.push(("the first picture", vec![40, 24], false));
+    steps.push(("the first picture of the next file", vec![30, 30, 8], true));
+    steps.push(("a picture of more textures", tall, false));
+    steps.push(("a picture of fewer textures", vec![100], false));
+    steps.push(("a picture of other heights in the same number of textures", vec![60], false));
+    for (name, heights, new_file) in steps {
+        if new_file {
+            switch();
+        }
+        let (first, settled) = hand_over_and_draw(&window, &gpu, &heights);
+        assert!(
+            settled > 0,
+            "{name}: the settled frame drew none of the picture, so the test counts nothing"
+        );
+        assert_eq!(
+            first, settled,
+            "{name}: the frame that followed the hand-over drew {first} pixels of the picture and the next frame {settled}"
+        );
+    }
     window.hide().expect("close tile window");
 }

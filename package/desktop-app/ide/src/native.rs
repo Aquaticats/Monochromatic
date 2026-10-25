@@ -336,6 +336,9 @@ mod tile_pass;
 /// a frame is rendered and the tile's texture is read back.
 #[cfg(test)]
 mod tile_reads;
+/// What a frame shows of a repeater whose model the rendering notifier changed.
+#[cfg(test)]
+mod repeater_frame_tests;
 /// A tile of another size is shown by the frames that follow its hand-over.
 #[cfg(test)]
 mod tile_slice_frame_tests;
