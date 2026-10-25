@@ -11,6 +11,7 @@ import {
   PARAGRAPH_LEAD,
   spansWithoutLead,
 } from './source-ships-paragraph-lead.ts';
+import { asTheParseReadsIt, } from './source-ships-readable.ts';
 import {
   indicesOf,
   originalStretches,
@@ -113,11 +114,15 @@ export function nestedSpans(
     indices,
   },);
   /**
-   The same with its comments blanked.
+   The same with its comments blanked, and a letter in place of a byte order mark that opens it: the mark is an ordinary
+   character in the middle of the page, where a parser drops it from the start of its input and stands every offset one
+   character off.
    */
-  const bodyReadable = lead + charactersAt({
-    text: readable,
-    indices,
+  const bodyReadable = lead + asTheParseReadsIt({
+    text: charactersAt({
+      text: readable,
+      indices,
+    },),
   },);
   /**
    What the parse of the block says of it, at the offsets of the block without the lead.
