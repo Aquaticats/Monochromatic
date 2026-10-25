@@ -38,7 +38,7 @@ const FILE_PREFIX = '[info] [2026-10-23T12:00:00.000Z] ';
 /**
  Two rows of one arm, the second following a reuse line that the case gives.
 
- @param reuseLine - the line written in front of the second row
+ @param reuseLine - line written in front of second row
 
  @returns The arm's log, the fixture's hand-written reuse line replaced by the given one
 
@@ -101,6 +101,22 @@ await describe({
           expect(figures.reusedRows,).toBe(1,);
           expect(figures.rows.length,).toBe(1,);
         }
+      },
+    },),
+
+    it({
+      name: 'FINDS NO REUSE LINE IN A BODY THAT OPENS WITH A BRACKET AND NEVER CLOSES IT, since a line whose words begin '
+        + 'inside a tag that is not closed has no words to read, and counts the row after it as a row that made a call',
+      fn: async () => {
+        /**
+         The log whose second row follows a line with an unclosed tag in front of the marker.
+         */
+        const log = armWithReuseLine({
+          reuseLine: `${FILE_PREFIX}[translation-repair] [claimedReply PROMPT-REUSE source=memory model=${HIGH_CARD} digest=d`,
+        },);
+        const figures = armFiguresOf({ log, },);
+        expect(figures.reusedRows,).toBe(0,);
+        expect(figures.rows.length,).toBe(2,);
       },
     },),
 

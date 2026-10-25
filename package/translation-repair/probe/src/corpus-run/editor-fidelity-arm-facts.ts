@@ -119,7 +119,7 @@ export function isRowBody({ body, }: { readonly body: string; },): boolean {
 
  @param body - one line's body
 
- @returns Whether tags aside it opens with the reuse marker
+ @returns Whether reuse marker follows any leading tags
 
  @example
  ```ts
