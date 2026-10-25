@@ -595,10 +595,11 @@ await describe({
         const selectionPrompts = prompts.filter(function isSelection(prompt,): boolean {
           return prompt.includes('CURRENT ARCHIVE BLOCK',);
         },);
-        // One prompt per judge: four seats are a bench whose window could not
-        // carry a unanimous slate on self-votes, so the whole bench is asked
-        // (`candidate-select-fanout.ts`).
-        expect(selectionPrompts,).toHaveLength(4);
+        // One prompt per judge of the window: quorum plus one asks three of the
+        // four seats, which three answering judges carry on self-votes alone now
+        // that no summed weight is needed (`candidate-select-fanout.ts`); the
+        // whole bench of four was asked while three halves fell short of it.
+        expect(selectionPrompts,).toHaveLength(3);
         for (const prompt of selectionPrompts) {
           for (const modelId of ROSTER)
             expect(prompt.includes(modelId,),).toBe(false,);
@@ -771,7 +772,7 @@ await describe({
         },).toEqual({
           kind: 'revised',
           text: '',
-          selectors: 4,
+          selectors: 3,
           shownAsRemoval: true,
         },);
         /** The same review with every reviewer writing a replacement that shows nothing. */
