@@ -148,9 +148,9 @@ which only make a weekday window cheaper and which the run reads no calendar for
 and as to which instant decides.
 It is not bounded as to a Saturday that China makes a working day,
 which the page's wording books off peak and DeepSeek may bill at peak,
-and not as to a call that starts before a window and completes after it
+and not as to a call that spans a whole window with both instants outside it
 (three hours at least),
-which has both instants outside and books half.
+which books half.
 Figures written before 2026-10-25 are peak figures for every call,
 and over-read off-peak calls by up to twice.
 

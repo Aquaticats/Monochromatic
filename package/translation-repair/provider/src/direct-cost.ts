@@ -16,7 +16,8 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // at the card's peak rates when the request started, or the reply completed,
 // inside a weekday peak window (UTC), an instant that is not a time counting as
 // peak, and at half of them only when both instants lie outside every window,
-// even if the call spanned a whole window between them. The page (`https://api-docs.deepseek.com/quick_start/pricing`, read
+// even if the call spanned a whole window between them.
+// The page (`https://api-docs.deepseek.com/quick_start/pricing`, read
 // 2026-10-25 by the lead and by the reviewer) says:
 // `Peak hours are 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through Friday, excluding Chinese public holidays`
 // `Off-peak rates are half of the peak rates.`
@@ -47,11 +48,11 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // completion. Whichever of the two DeepSeek bills by, a call that starts or
 // completes inside a window is not booked below what it was charged.
 //
-// WHAT IS NOT BOUNDED. A call that starts before a window and completes after
-// it, three hours at least, has both instants outside and books half. A
-// Saturday that China makes a working day is off peak here, since the page says
-// weekends are off peak in full; if DeepSeek bills such a day at peak, against
-// its own page, that call is under-read by up to half.
+// WHAT IS NOT BOUNDED. A call that spans a whole window with both instants
+// outside it, three hours at least, books half. A Saturday that China makes a
+// working day is off peak here, since the page says weekends are off peak in
+// full; if DeepSeek bills such a day at peak, against its own page, that call is
+// under-read by up to half.
 //
 // A COUNT THE WIRE DID NOT SPLIT IS PRICED AT THE DEARER RATE, for the same
 // reason: a DeepSeek block with no cache fields prices the whole prompt as

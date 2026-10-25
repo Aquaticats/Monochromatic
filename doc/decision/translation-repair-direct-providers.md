@@ -493,7 +493,7 @@ and a holiday only makes a weekday window cheaper,
 so the booked figure is an upper bound as to holidays and as to which instant decides.
 It is not bounded as to a Saturday that China makes a working day,
 which the page books off peak and DeepSeek may bill at peak,
-nor as to a call that starts before a window and completes after it.
+nor as to a call that spans a whole window with both instants outside it.
 This replaced "peak always" on 2026-10-25,
 after the XingZ6021 run (Saturday 22:49 UTC to Sunday 00:55 UTC,
 off peak throughout)
