@@ -58,7 +58,8 @@ found the rule and the recomputation correct,
 and eight findings.
 The ones that changed code or tests:
 the case that pinned the clock read to the start of the call passed when the read moved after the reply;
-Tuesday and Thursday were never tested, so a change that made either off peak passed every case;
+Tuesday and Thursday were never tested,
+so a change that made either off peak passed every case;
 and the card and the decision record said a booked figure is never an under-read,
 which the start-only rule could not promise,
 since the page does not say whether the start or the end of a request decides its rate.
@@ -73,7 +74,8 @@ a call is booked at peak when its request started,
 or its reply completed,
 inside a weekday peak window,
 and at half the peak rates only when both instants lie outside every window
-(`isDeepSeekPeakDuring`, a pure function of the two instants).
+(`isDeepSeekPeakDuring`,
+a pure function of the two instants).
 The client reads the clock a second time once the retry ladder has returned,
 so a retried call is bracketed by the first attempt's start and the successful attempt's completion,
 and hands both to the route as `startedAt` and `completedAt`.

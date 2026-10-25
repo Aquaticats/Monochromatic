@@ -469,7 +469,8 @@ The card holds the peak rates:
 with the hit and miss split read from the usage block.
 The page halves every rate off peak
 (01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak,
-and every other hour is off peak, weekends and Chinese public holidays in full).
+and every other hour is off peak,
+weekends and Chinese public holidays in full).
 A call is booked at the peak rates when its request started,
 or its reply completed,
 inside one of those windows on a Monday to Friday in UTC,
