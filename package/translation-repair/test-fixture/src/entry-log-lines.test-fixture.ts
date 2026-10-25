@@ -7,7 +7,8 @@ import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
 // logger's `info` and `warn` sinks resolve, through stubs on the calling case's own sandbox (`ctx.sinon`), which
 // module-test restores when the case ends. The caller runs the work inside the log context it wants (this fixture
 // imports no production code, so it cannot set one), and the lines that name the entry in a bracket come back for the
-// case to read. `console.debug` is not read, because the logger writes debug records to the process's stderr.
+// case to read, one line each (the logger hands a run of lines of one level to the console as one call). `console.debug`
+// is not read, because the logger writes debug records to the process's stderr.
 //
 // SEQUENTIAL CASES ONLY. `console.info` is one global, and a case running beside this one would be captured.
 
@@ -57,8 +58,10 @@ export async function entryLinesWritten(
     ...informed.args,
     ...warned.args,
   ]
-    .map(function lineOf(parts,): string {
-      return format(...parts,);
+    .flatMap(function linesOf(parts,): readonly string[] {
+      // The logger hands a run of lines of one level to the console as one call, so a call can hold several lines.
+      return format(...parts,)
+        .split('\n',);
     },)
     .filter(function namesEntry(line,): boolean {
       return line.includes(`[${entryId}]`,);

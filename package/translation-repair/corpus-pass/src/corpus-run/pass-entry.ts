@@ -6,6 +6,7 @@ import {
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { repairClaimEvidenceOf, } from '@monochromatic-dev/translation-repair-archive/ts';
+import { sliceTagged, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type CorpusPair,
   entryArchiveOriginalOf,
@@ -180,6 +181,12 @@ export async function runEntryPipeline(
   const t0 = monotonicMs();
 
   /**
+   Entry logger every stage of the entry writes through, which reads the log context at each line, so a line written
+   inside the entry's attempt names the attempt (ledger B963).
+   */
+  const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
+
+  /**
    Per-entry hard-cap deadline. Disposal at return defuses the timer and
    detaches its listener; the repo bans try/finally, so cleanup rides on
    `using` instead.
@@ -204,7 +211,7 @@ export async function runEntryPipeline(
      */
     const archiveOriginal = entryArchiveOriginalOf({
       entry,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
     if (archiveOriginal.kind === 'whole-page')
       return await recordEntryDecline({
@@ -249,7 +256,7 @@ export async function runEntryPipeline(
       pin,
       cache: readingCache,
       signal: deadline.callSignal,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       pictureSources,
       ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     },);
@@ -352,7 +359,7 @@ export async function runEntryPipeline(
     } = foldPassCarried({
       paired,
       admission: admissionAsRead,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
 
     /**
@@ -397,8 +404,7 @@ export async function runEntryPipeline(
      */
     const { unfilled, } = lanes.translate;
     for (const finding of unfilledPageFindings({ unfilled, },)) {
-      tagged({ tag: entry.id, },)
-        .warn(`entry ${entry.id}: ${finding}`,);
+      el.warn(`entry ${entry.id}: ${finding}`,);
     }
 
     /**
@@ -434,7 +440,7 @@ export async function runEntryPipeline(
       pipelineDigest,
       signal: deadline.callSignal,
       overlap,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       stageSettings,
     },);
 
@@ -464,7 +470,7 @@ export async function runEntryPipeline(
       pipelineDigest,
       signal: deadline.callSignal,
       overlap,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       stageSettings,
     },);
 
@@ -487,7 +493,7 @@ export async function runEntryPipeline(
       contestSlices,
       ...settlement,
       targetText: settledArchiveText,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
 
     // This entry's TALLY line, read off the artifact BEFORE it is written.
@@ -539,7 +545,7 @@ export async function runEntryPipeline(
         entryId: entry.id,
         publishDir,
         artifactsDir,
-        l: tagged({ tag: entry.id, },),
+        l: el,
         ...((prepared.archiveOriginalSpans === undefined)
           ? {}
           : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),
