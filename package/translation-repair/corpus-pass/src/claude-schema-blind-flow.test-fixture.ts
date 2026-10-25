@@ -1,9 +1,5 @@
-import {
-  identifierName,
-  type TreeNode,
-} from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
+import type { TreeNode, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import { isSenderProperty, } from './claude-schema-blind-senders.test-fixture.ts';
 import {
   acrossFilesOf,
   type Pending,
@@ -12,15 +8,12 @@ import {
 import {
   type BlindContext,
   enclosingFunctionOf,
-  namesBoundBy,
-  outermostValueOf,
-  positionOf,
 } from './claude-schema-blind-positions.test-fixture.ts';
 import { readsOfName, } from './claude-schema-blind-reads.test-fixture.ts';
+import { stepOf, } from './claude-schema-blind-step.test-fixture.ts';
 import {
   isNoNode,
   NO_NODE,
-  nodesAt,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Where the result of a builder's call goes
@@ -36,7 +29,9 @@ import {
 //   function and parameter;
 // - a constant, a pattern, a default or a name assigned, whose every reference is followed in turn; a name bound at the
 //   top level of a file is also followed into the files that read it, through the imports, the exports from, the
-//   namespace imports and the `import()` of the file (`claude-schema-blind-constants.test-fixture.ts`).
+//   namespace imports and the `import()` of the file (`claude-schema-blind-constants.test-fixture.ts`);
+// - a parameter of the callback of an array method called on the value (`claude-schema-blind-callbacks.test-fixture.ts`),
+//   whose every reference is followed in turn; a callback the search cannot read is reported as code it cannot read.
 //
 // A place that takes the value and gives nothing the schema could travel in ends the walk without a report: the test
 // of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
@@ -46,296 +41,19 @@ import {
 // into, a class that extends it, a thrown value, a loop that iterates it.
 
 /**
- The kinds of node that put the value they hold into themselves, so the value is read on from the node that holds them.
+ A name read in a function or in a whole file.
  */
-const CONTAINER_KINDS: ReadonlySet<string> = new Set([
-  'ArrayExpression',
-  'AwaitExpression',
-  'LogicalExpression',
-  'ObjectExpression',
-  'SpreadElement',
-],);
-
-/**
- The kinds of node that read the value they hold and give back nothing the schema could travel in: a test, an operand of
- an operator, a substitution in a plain template (a tagged one is told apart before this set is asked), a statement
- that drops it.
- */
-const DROPPING_KINDS: ReadonlySet<string> = new Set([
-  'BinaryExpression',
-  'DoWhileStatement',
-  'ExpressionStatement',
-  'IfStatement',
-  'SwitchCase',
-  'SwitchStatement',
-  'TemplateLiteral',
-  'UnaryExpression',
-  'UpdateExpression',
-  'WhileStatement',
-],);
-
-/**
- Whether a node is the last of a sequence, or any other kind of node.
-
- @param holder - node that holds the value
-
- @param node - value
-
- @returns Whether the value is the one the sequence gives
-
- @example
- ```ts
- const gives = isGivenBy({ holder, node, });
- ```
- */
-function isGivenBy(
-  {
-    holder,
-    node,
-  }: {
-    readonly holder: TreeNode;
-    readonly node: TreeNode;
-  },
-): boolean {
-  return (holder.type !== 'SequenceExpression') || (nodesAt({
-    node: holder,
-    field: 'expressions',
-  },)
-    .at(-1,)
-    === node);
-}
-
-/**
- The tagged template that takes a template literal as its substitutions: the tag function is a call whose arguments
- are the substitutions, so a value put in one goes to a call, unlike a value put in a plain template.
-
- @param node - node that holds a value, of any kind
-
- @param parents - each node's parent
-
- @returns Tagged template, `NO_NODE` when the node is no template literal or a plain one
-
- @example
- ```ts
- const tagged = taggedTemplateOf({ node: holder, parents, },);
- ```
- */
-function taggedTemplateOf(
-  {
-    node,
-    parents,
-  }: {
-    readonly node: TreeNode;
-    readonly parents: ReadonlyMap<TreeNode, TreeNode>;
-  },
-): TreeNode {
+type ReadName = {
   /**
-   The node that holds the template.
+   The name.
    */
-  const parent = parents.get(node,);
-  // The quasi of a tagged template is always a template literal, so the kind of the node needs no test.
-  return ((parent?.type === 'TaggedTemplateExpression') && (parent.quasi === node)) ? parent : NO_NODE;
-}
-
-/**
- One step of the walk.
- */
-type Step = {
-  /**
-   The nodes that hold the value after this step.
-   */
-  readonly onward: readonly TreeNode[];
+  readonly name: string;
 
   /**
-   The names the value is bound to.
+   The function that binds it, or the program of the file.
    */
-  readonly names: readonly string[];
-
-  /**
-   Whether the names are read anywhere in the file.
-   */
-  readonly isFileWide: boolean;
-
-  /**
-   The function the value leaves by, `NO_NODE` when it does not.
-   */
-  readonly leaves: TreeNode;
-
-  /**
-   Where the value goes when the place is reported, empty when it is not.
-   */
-  readonly stray: string;
+  readonly scope: TreeNode;
 };
-
-/**
- The node a value is read on from, and the names it is bound to, one step on.
-
- @param context - what the file's names are read against
-
- @param node - value
-
- @returns Nodes that hold the value after this step, the names it is bound to and whether they are read anywhere in the
- file, the function it leaves by when it leaves, `NO_NODE` when it does not, and the place it goes when that place is
- reported
-
- @example
- ```ts
- const step = stepOf({ context, node, });
- ```
- */
-function stepOf(
-  {
-    context,
-    node,
-  }: {
-    readonly context: BlindContext;
-    readonly node: TreeNode;
-  },
-): Step {
-  /**
-   The value under the marks that leave it the same.
-   */
-  const top = outermostValueOf({
-    node,
-    parents: context.parents,
-  },);
-  /**
-   The node that holds the value.
-   */
-  const holder = context.parents
-    .get(top,);
-  /**
-   A step that takes the value nowhere.
-   */
-  const nothing = {
-    onward: [],
-    names: [],
-    isFileWide: false,
-    leaves: NO_NODE,
-    stray: '',
-  };
-  if (holder === undefined)
-    return nothing;
-  if ((holder.type === 'ReturnStatement') || (holder.type === 'YieldExpression')) {
-    return {
-      ...nothing,
-      leaves: enclosingFunctionOf({
-        node: holder,
-        parents: context.parents,
-      },),
-    };
-  }
-  if (holder.type === 'ArrowFunctionExpression') {
-    return {
-      ...nothing,
-      leaves: holder,
-    };
-  }
-  if (holder.type === 'Property') {
-    /**
-     The object literal that holds the property.
-     */
-    const object = context.parents
-      .get(holder,)
-      ?? holder;
-    return {
-      ...nothing,
-      onward: ((holder.value === top) && (!isSenderProperty({
-        context,
-        property: holder,
-        object,
-      },)))
-        ? [object,]
-        : [],
-    };
-  }
-  if (holder.type === 'ConditionalExpression') {
-    return {
-      ...nothing,
-      onward: (holder.test === top) ? [] : [holder,],
-    };
-  }
-  if (holder.type === 'MemberExpression') {
-    return {
-      ...nothing,
-      onward: (holder.object === top) ? [holder,] : [],
-    };
-  }
-  if ((holder.type === 'CallExpression') && (holder.callee === top)) {
-    return {
-      ...nothing,
-      onward: [holder,],
-    };
-  }
-  if (CONTAINER_KINDS.has(holder.type,) || (holder.type === 'SequenceExpression')) {
-    return {
-      ...nothing,
-      onward: isGivenBy({
-        holder,
-        node: top,
-      },) ? [holder,] : [],
-    };
-  }
-  if ((holder.type === 'VariableDeclarator') && (holder.init === top)) {
-    return {
-      ...nothing,
-      names: namesBoundBy({ node: holder.id, },),
-    };
-  }
-  if (holder.type === 'AssignmentExpression') {
-    /**
-     The name the assignment stores the value in, empty when it stores it in a member or a pattern.
-     */
-    const stored = identifierName({ node: holder.left, },);
-    if (holder.right !== top)
-      return nothing;
-    return (stored === '')
-      ? {
-        ...nothing,
-        stray: positionOf({
-          holder,
-          child: top,
-        },),
-      }
-      : {
-        ...nothing,
-        names: [stored,],
-        isFileWide: true,
-      };
-  }
-  if (holder.type === 'AssignmentPattern') {
-    return {
-      ...nothing,
-      names: namesBoundBy({ node: holder.left, },),
-    };
-  }
-  /**
-   The tagged template whose substitutions the holder is, `NO_NODE` when a plain template or another node holds the
-   value.
-   */
-  const tagged = taggedTemplateOf({
-    parents: context.parents,
-    node: holder,
-  },);
-  if (!isNoNode({ node: tagged, },)) {
-    return {
-      ...nothing,
-      stray: positionOf({
-        holder: tagged,
-        child: holder,
-      },),
-    };
-  }
-  return DROPPING_KINDS.has(holder.type,)
-    ? nothing
-    : {
-      ...nothing,
-      stray: positionOf({
-        holder,
-        child: top,
-      },),
-    };
-}
 
 /**
  Where the value of a builder's call goes.
@@ -357,6 +75,12 @@ type Destinations = {
    the place when it is not the file of the call.
    */
   readonly strays: readonly string[];
+
+  /**
+   The callbacks the value is handed to that the search cannot read, each once, with the file after the place when it is
+   not the file of the call.
+   */
+  readonly unreadable: readonly string[];
 };
 
 /**
@@ -369,11 +93,11 @@ type Destinations = {
  @param call - call of a builder, or the node that holds its value
 
  @returns First such function found and the file it sits in when that is not the file of the call, `NO_NODE` when the
- value stays in the function, and the places reported
+ value stays in the function, the places reported, and the callbacks the value is handed to that the search cannot read
 
  @example
  ```ts
- const { leaving, strays, } = destinationsOf({ context, call, });
+ const { leaving, strays, unreadable, } = destinationsOf({ context, call, });
  ```
  */
 export function destinationsOf(
@@ -393,6 +117,10 @@ export function destinationsOf(
    The places reported so far.
    */
   const strays = new Set<string>();
+  /**
+   The callbacks the search cannot read, found so far.
+   */
+  const unreadable = new Set<string>();
   /**
    Nodes whose value is still to follow.
    */
@@ -422,6 +150,7 @@ export function destinationsOf(
       isFileWide,
       leaves,
       stray,
+      callback,
     } = stepOf({
       context: here,
       node: item.node,
@@ -435,6 +164,11 @@ export function destinationsOf(
     }
     if (stray !== '')
       strays.add((here.file === context.file) ? stray : `${stray} in ${here.file}`,);
+    if (callback.unreadable !== '') {
+      unreadable.add((here.file === context.file)
+        ? callback.unreadable
+        : `${callback.unreadable} in ${here.file}`,);
+    }
     pending.push(...pendingIn({
       context: here,
       nodes: onward,
@@ -451,11 +185,33 @@ export function destinationsOf(
      assignment stores the value in.
      */
     const scope = (isFileWide || isNoNode({ node: binding, },)) ? program : binding;
-    for (const name of names) {
+    /**
+     The names to follow, each with the function or file it is read in: the names the value is bound to, and the names the
+     parameters of a callback bind.
+     */
+    const reads = [
+      ...names.map(function readInScope(name,): ReadName {
+        return {
+          name,
+          scope,
+        };
+      },),
+      ...callback.names
+        .map(function readInCallback(name,): ReadName {
+          return {
+            name,
+            scope: callback.scope,
+          };
+        },),
+    ];
+    for (const {
+      name,
+      scope: readIn,
+    } of reads) {
       /**
        The name as a place to stop when the walk comes back to it.
        */
-      const place = `${here.file}:${String(scope.start,)}:${name}`;
+      const place = `${here.file}:${String(readIn.start,)}:${name}`;
       if (!followed.has(place,)) {
         followed.add(place,);
         pending.push(...pendingIn({
@@ -463,10 +219,10 @@ export function destinationsOf(
           nodes: readsOfName({
             context: here,
             name,
-            scope,
+            scope: readIn,
           },),
         },),);
-        if (scope === program) {
+        if (readIn === program) {
           /**
            What the other files read of the name.
            */
@@ -494,6 +250,7 @@ export function destinationsOf(
     leaving: first?.node ?? NO_NODE,
     leavingIn: (leftIn.file === context.file) ? '' : leftIn.file,
     strays: [...strays,],
+    unreadable: [...unreadable,],
   };
 }
 

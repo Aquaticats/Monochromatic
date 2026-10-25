@@ -66,6 +66,7 @@ function callShapesAt(
     leaving,
     leavingIn,
     strays,
+    unreadable,
   } = destinationsOf({
     context,
     call,
@@ -87,6 +88,15 @@ function callShapesAt(
           shape: 'builder-result-outside-a-destination',
           node: call,
           position: strays.join(', ',),
+        } satisfies FoundShape,
+      ]),
+    ...((unreadable.length === 0)
+      ? []
+      : [
+        {
+          shape: 'code-the-search-cannot-read',
+          node: call,
+          position: unreadable.join(', ',),
         } satisfies FoundShape,
       ]),
   ];

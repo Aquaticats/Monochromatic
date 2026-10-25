@@ -201,7 +201,7 @@ export const CALLBACK_CASES: readonly ShapeCase[] = [
     lines: [
       'const kept: unknown[] = [];',
       'export function mk() {',
-      `  [contestResponseFormat(${ARGUMENTS},),].reduce((total, s,) => { kept.push(total,); return s; },);`,
+      `  [contestResponseFormat(${ARGUMENTS},),].reduce((total, s,) => { kept.push(total,); return 0; },);`,
       '}',
     ],
     position: CALL_ARGUMENT,
@@ -276,7 +276,7 @@ export const CALLBACK_CASES: readonly ShapeCase[] = [
       spotAt({
         file: 'imaginary/src/callback-list.ts',
         line: 2,
-        position: `${CALL_ARGUMENT}, ${CALL_ARGUMENT} in imaginary/src/callback-reader.ts`,
+        position: `${CALL_ARGUMENT} in imaginary/src/callback-reader.ts, ${CALL_ARGUMENT}`,
       },),
       spotAt({
         file: 'imaginary/src/callback-local.ts',

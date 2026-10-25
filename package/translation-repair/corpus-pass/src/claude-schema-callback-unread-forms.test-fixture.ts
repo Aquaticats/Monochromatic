@@ -149,7 +149,7 @@ export const UNREAD_CALLBACK_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'ACCEPTS A BUILDER\'S RESULT IN AN ARRAY WHOSE CALLBACK KEEPS NOTHING OF IT, one that only drops its parameter, '
-      + 'and the filter of the array by `Boolean` whose length is kept',
+      + 'the filter of the array by `Boolean` whose length is kept, and the accumulator of a reduce that has a start value',
     files: [
       stageFile({
         file: 'imaginary/src/callback-quiet.ts',
@@ -160,6 +160,10 @@ export const UNREAD_CALLBACK_CASES: readonly ShapeCase[] = [
           'export const COUNT = [',
           `  contestResponseFormat(${ARGUMENTS},),`,
           '].filter(Boolean,).length;',
+          'const kept: unknown[] = [];',
+          'export function started() {',
+          `  [contestResponseFormat(${ARGUMENTS},),].reduce((total, s,) => { kept.push(total,); return 0; }, 0,);`,
+          '}',
         ],
       },),
     ],
