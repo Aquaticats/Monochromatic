@@ -1,9 +1,34 @@
+import { containerFootnoteTexts, } from './source-live-container-footnotes.test-fixture.ts';
+
 //region Pools of source texts
 // THE PARTS THE SEEDED SAMPLES OF SOURCE TEXTS ARE BUILT FROM (`source-live-sample.test-fixture.ts`): the fragments a
 // run of a pair is drawn from, what stands between them and between the runs, and the stages of the generated footnote
 // texts.
 //
 // TEST SUPPORT, NOT PACKAGE SOURCE.
+
+/**
+ The fragments of a run that put a code span across a footnote line in a container, one for each position and indent:
+ the text of a shape without its final line ending.
+
+ @param body - what stands after the colon of the definition and before the span closes
+
+ @returns Fragments
+
+ @example
+ ```ts
+ const fragments = shapeFragments({ body: '<b>', },);
+ ```
+ */
+function shapeFragments({ body, }: { readonly body: string; },): readonly string[] {
+  return containerFootnoteTexts({ body, },)
+    .map(function fragment([, shape,],): string {
+      return shape.slice(
+        0,
+        -1,
+      );
+    },);
+}
 
 /**
  What a generated footnote text puts before its first line and before each later line.
@@ -204,6 +229,11 @@ export const RUN_FRAGMENTS: readonly string[] = [
   '- [^1]: <b>\n  [r]: u{b}',
   '> [^1]: x\n> <a href="x">\n> [r]: u{b}',
   '- > [^1]: <b>\n  > [r]: u{b}',
+  // A code span across a footnote definition line in a block quote or a list item: behind the mark of the quote, on a lazy
+  // line, or at the hanging indent of the item, indented none to three spaces, with a tag and with a brace after the
+  // colon.
+  ...shapeFragments({ body: '<b>', },),
+  ...shapeFragments({ body: '{c}', },),
   // Nesting 300 deep, in the two forms the plain reading bounds.
   '> '.repeat(NESTING_PAST_BOUND,),
   '- '.repeat(NESTING_PAST_BOUND,),

@@ -23,6 +23,7 @@ import {
 
 import { containerFootnoteTexts, } from './source-live-container-footnotes.test-fixture.ts';
 import { readPair, } from './source-live-pairs.test-fixture.ts';
+import type { RunPair, } from './source-live-sample.test-fixture.ts';
 
 /**
  A blank line and a block the strict grammar refuses, which follow a run and make it fail alone, so that the
@@ -39,6 +40,55 @@ const MIDDLE = 'She slept on the counter.\n';
  A run that parses alone, beside the first.
  */
 const SECOND_RUN = 'ok\n';
+
+/**
+ Pairs of runs the sampled check found once the pool held these shapes, each with what it stands for: the lines of a
+ paragraph in a quote cut at a footnote line that carries the marks, then at a lazy one, then at one that carries them
+ again; a heading made of a code span across a footnote line; and a page with a line of invisible characters, which the
+ package reads as blank and a parse of the raw page does not.
+ */
+const FOUND_PAIRS: readonly (readonly [string, RunPair])[] = [
+  [
+    'A PARAGRAPH IN A BLOCK QUOTE CUT AT A FOOTNOTE LINE WITH THE MARK, THEN AT A LAZY ONE, THEN AT ONE WITH THE MARK',
+    {
+      first: '> a `x\n>  [^1]: {c}` {d}\n> a `x\n  [^1]: {c}` {d}\n> a `x\n>  [^1]: <b>` {d}\n',
+      middle: MIDDLE,
+      second: SECOND_RUN,
+    },
+  ],
+  [
+    'A SETEXT HEADING WHOSE CODE SPAN RUNS ACROSS A FOOTNOTE LINE INDENTED TWO SPACES',
+    {
+      first: 'a `x\n  [^1]: <b>` {d}\nabc\n===\n',
+      middle: MIDDLE,
+      second: SECOND_RUN,
+    },
+  ],
+  [
+    'A SETEXT HEADING WHOSE CODE SPAN RUNS ACROSS A FOOTNOTE LINE AT THE FIRST COLUMN, A BRACE AFTER THE COLON',
+    {
+      first: 'a `x\n[^1]: {c}` {d}\nabc\n---\n\n<b>\n',
+      middle: MIDDLE,
+      second: SECOND_RUN,
+    },
+  ],
+  [
+    'AN ES MODULE LINE, A LINE OF A BYTE ORDER MARK ONLY, AND A BRACE, BESIDE A BRACE',
+    {
+      first: 'import a from "b"\n\uFEFF\n\\{\n',
+      middle: MIDDLE,
+      second: '{\n',
+    },
+  ],
+  [
+    'A BARE ADDRESS ENDED BY A TAG, BESIDE A BRACE, A LINE OF A BYTE ORDER MARK ONLY AND A DEFINITION WITH A BRACE',
+    {
+      first: 'www.example.net/a<b>\n',
+      middle: MIDDLE,
+      second: '}\n\uFEFF\n[r]: u{b "t {"\n',
+    },
+  ],
+];
 
 await describe({
   name: 'a code span across a footnote definition line inside a container, in a pair of runs',
@@ -59,6 +109,19 @@ await describe({
           },);
           expect(finding.found,).toEqual([],);
           expect(step,).toBe('encoded-failing-runs',);
+        },
+      },);
+    },),
+
+    ...FOUND_PAIRS.map(function foundCase([name, pair,],) {
+      return it({
+        name: `SHIPS NO LIVE CONSTRUCT AND KEEPS EVERY ORIGINAL FOR ${name}`,
+        fn: async () => {
+          /**
+           What the composition made of the pair.
+           */
+          const { finding, } = readPair({ pair, },);
+          expect(finding.found,).toEqual([],);
         },
       },);
     },),
