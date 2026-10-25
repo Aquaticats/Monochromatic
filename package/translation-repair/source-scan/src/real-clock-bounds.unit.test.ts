@@ -808,7 +808,7 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
   },
   'corpus-pass/corpus-run/corpus-pass-lines.unit.test.ts#<module>: softBudgetMs: 60_000': { count: 1, bound: 'read back', reason: PRINTED, },
   'corpus-pass/corpus-run/corpus-pass-queue.unit.test.ts#<module>: softBudgetMs: 1_000': {
-    count: 5,
+    count: 6,
     bound: 'read back',
     reason: 'a soft budget judged against the case\'s scripted clock readings, which the case lists; no timer is '
       + 'armed with it',

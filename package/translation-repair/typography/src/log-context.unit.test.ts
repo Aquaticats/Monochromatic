@@ -8,7 +8,10 @@
  */
 
 import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
@@ -59,6 +62,57 @@ async function infoLinesOf(
   };
   await run();
   return lines;
+}
+
+/**
+ Writes one line through a lane logger and one through a stage logger inside attempt 2, slice 3 of the repair lane of
+ an entry, and collects what `console.info` received.
+
+ @param laneLogger - logger that writes `kneads`
+
+ @param stageLogger - logger that writes `stretches`
+
+ @returns The printed lines one by one, since the logger hands a run of lines of one level to the console as one call
+
+ @example
+ ```ts
+ const printed = await printedInOneSlice({ laneLogger, stageLogger, },);
+ ```
+ */
+async function printedInOneSlice(
+  {
+    laneLogger,
+    stageLogger,
+  }: {
+    readonly laneLogger: Pick<Logger, 'info'>;
+    readonly stageLogger: Pick<Logger, 'info'>;
+  },
+): Promise<readonly string[]> {
+  /**
+   Lines printed inside one slice.
+   */
+  const lines = await infoLinesOf({
+    run: async () => {
+      await inEntryLogContext({
+        entry: 'Tabby',
+        generation: 'nap-3',
+        attempt: 2,
+        run: async () => {
+          await inSliceLogContext({
+            lane: 'repair',
+            sliceIndex: 3,
+            run: async () => {
+              laneLogger.info('kneads',);
+              stageLogger.info('stretches',);
+            },
+          },);
+        },
+      },);
+    },
+  },);
+  return lines.flatMap(function split(text,): readonly string[] {
+    return text.split('\n',);
+  },);
 }
 
 await describe({
@@ -276,32 +330,11 @@ await describe({
               l: entryLogger,
             },);
             /**
-             Lines printed inside one slice.
+             The printed lines one by one.
              */
-            const lines = await infoLinesOf({
-              run: async () => {
-                await inEntryLogContext({
-                  entry: 'Tabby',
-                  generation: 'nap-3',
-                  attempt: 2,
-                  run: async () => {
-                    await inSliceLogContext({
-                      lane: 'repair',
-                      sliceIndex: 3,
-                      run: async () => {
-                        laneLogger.info('kneads',);
-                        stageLogger.info('stretches',);
-                      },
-                    },);
-                  },
-                },);
-              },
-            },);
-            /**
-             The printed lines one by one, since the logger hands a run of lines of one level to the console as one call.
-             */
-            const printed = lines.flatMap(function split(text,): readonly string[] {
-              return text.split('\n',);
+            const printed = await printedInOneSlice({
+              laneLogger,
+              stageLogger,
             },);
             expect(printed.filter(function isLane(line,): boolean {
               return line.includes('[Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',);
@@ -343,32 +376,11 @@ await describe({
               l: rootLogger,
             },);
             /**
-             Lines printed inside one slice.
+             The printed lines one by one.
              */
-            const lines = await infoLinesOf({
-              run: async () => {
-                await inEntryLogContext({
-                  entry: 'Tabby',
-                  generation: 'nap-3',
-                  attempt: 2,
-                  run: async () => {
-                    await inSliceLogContext({
-                      lane: 'repair',
-                      sliceIndex: 3,
-                      run: async () => {
-                        laneLogger.info('kneads',);
-                        stageLogger.info('stretches',);
-                      },
-                    },);
-                  },
-                },);
-              },
-            },);
-            /**
-             The printed lines one by one, since the logger hands a run of lines of one level to the console as one call.
-             */
-            const printed = lines.flatMap(function split(text,): readonly string[] {
-              return text.split('\n',);
+            const printed = await printedInOneSlice({
+              laneLogger,
+              stageLogger,
             },);
             expect(printed.filter(function isLane(line,): boolean {
               return line.includes(
