@@ -19,6 +19,10 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // readings end the footnote at different places, so a stretch is compared as a whole. An anchor whose words the page does
 // not show where it comes is a difference, and so is a stretch that holds no block of the source and for which the page
 // shows words; a stretch that does not show the same, with a block of the source in it, is undecided.
+//
+// THE WORK. Each anchor is placed in one pass over the places its words stand at and the places the anchors before it can
+// end at (`placedAfter`), so the work grows with the blocks times the words of the page and not with their cube, however
+// often the same words repeat.
 
 /**
  What the blocks of a source and of a page say of each other.
@@ -246,13 +250,53 @@ function placesOf({
 type Placings = ReadonlyMap<number, number>;
 
 /**
+ Records what one way of placing a block costs, keeping the cheapest cost for the place the block ends at.
+
+ @param next - where the block can end, with the cost, which this adds to
+
+ @param end - place the block ends at
+
+ @param cost - what the way of getting there costs
+
+ @example
+ ```ts
+ keepCheapest({ next: new Map(), end: 4, cost: 1, },);
+ ```
+ */
+function keepCheapest(
+  {
+    next,
+    end,
+    cost,
+  }: {
+    readonly next: Map<number, number>;
+    readonly end: number;
+    readonly cost: number;
+  },
+): void {
+  next.set(
+    end,
+    Math.min(
+      next.get(end,) ?? Number.POSITIVE_INFINITY,
+      cost,
+    ),
+  );
+}
+
+/**
  Places the words of one block no range reaches after each place the blocks before it can end at.
+
+ The cost of a way of getting to a place is the cost of the place the blocks before ended at, and the blocks a range
+ reaches when the words of the page between the two places are not what those blocks show. Only the place that is exactly
+ as many words back as those blocks show can avoid that cost, so the cheapest way to a place is the cheaper of that one
+ and the cheapest of every place the words can start after, which is read off the places in order and not asked of each
+ pair: the work is the places the words stand at and the places the blocks before can end at, each once.
 
  @param page - words the page shows
 
  @param placings - where the blocks before can end, with their cost
 
- @param segment - the block's words, and how many blocks a range reaches stand since the last such block
+ @param segment - block's words, and how many blocks a range reaches stand since the last such block
 
  @param held - what the blocks a range reaches show since the last block no range reaches
 
@@ -281,51 +325,91 @@ function placedAfter(
   },
 ): Placings {
   /**
-   Where the block's words stand in the page.
+   Where the block's words stand in the page, the last block's only where they end the page.
    */
   const places = placesOf({
     page,
     words: segment.words,
-  },);
+  },)
+    .filter(function canEnd(place,): boolean {
+      return (!isLast) || ((place + segment.words.length) === page.length);
+    },);
   /**
    Where the block can end, with the cost.
    */
   const next = new Map<number, number>();
-  for (const [from, cost,] of placings) {
+  if (held.blocks === 0) {
+    // No block a range reaches stands between: the block starts where the blocks before it ended.
     for (const place of places) {
-      if ((place < from) || ((held.blocks === 0) && (place !== from)))
-        continue;
-      if (isLast && ((place
-        + segment.words
-          .length) !== page.length))
-        continue;
       /**
-       The words of the page between the last block and this one.
+       What the blocks before cost up to this place, absent where none ended there.
        */
-      const gap = page.slice(
-        from,
+      const cost = placings.get(place,);
+      if (cost !== undefined) {
+        keepCheapest({
+          next,
+          end: place + segment.words.length,
+          cost,
+        },);
+      }
+    }
+    return next;
+  }
+  /**
+   The places the blocks before can end at, with their cost, in the order of the page.
+   */
+  const froms = [...placings.entries(),].toSorted(function byPlace(
+    [left,],
+    [right,],
+  ): number {
+    return left - right;
+  },);
+  /**
+   How many of those places the words start after, and the cheapest of them.
+   */
+  const reading = {
+    taken: 0,
+    cheapest: Number.POSITIVE_INFINITY,
+  };
+  for (const place of places) {
+    while ((froms[reading.taken]?.[0] ?? Number.POSITIVE_INFINITY) <= place) {
+      reading.cheapest = Math.min(
+        reading.cheapest,
+        froms[reading.taken]?.[1] ?? Number.POSITIVE_INFINITY,
+      );
+      reading.taken += 1;
+    }
+    /**
+     The place the blocks before ended at if the words of the page between it and this one are what the blocks a range
+     reaches show.
+     */
+    const exact = place - held.words.length;
+    /**
+     What getting there from that place costs, absent where the words are other or no block ended there.
+     */
+    const exactCost = ((exact >= 0) && sameWords({
+      left: page.slice(
+        exact,
         place,
-      );
-      /**
-       What the gap costs: the blocks a range reaches, when they do not show what the page shows there.
-       */
-      const gapCost = ((held.blocks > 0) && (!sameWords({
-        left: gap,
-        right: held.words,
-      },))) ? held.blocks : 0;
-      /**
-       Where the block ends.
-       */
-      const end = place
-        + segment.words
-          .length;
-      next.set(
-        end,
-        Math.min(
-          next.get(end,) ?? Number.POSITIVE_INFINITY,
-          cost + gapCost,
-        ),
-      );
+      ),
+      right: held.words,
+    },))
+      ? placings.get(exact,)
+      : undefined;
+    /**
+     The cheapest way to this place: from any place before it at the cost of the blocks a range reaches, or from the exact
+     one at none.
+     */
+    const cost = Math.min(
+      reading.cheapest + held.blocks,
+      exactCost ?? Number.POSITIVE_INFINITY,
+    );
+    if (Number.isFinite(cost,)) {
+      keepCheapest({
+        next,
+        end: place + segment.words.length,
+        cost,
+      },);
     }
   }
   return next;

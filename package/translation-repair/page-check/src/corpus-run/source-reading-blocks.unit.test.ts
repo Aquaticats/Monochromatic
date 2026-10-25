@@ -263,6 +263,33 @@ await describe({
       },
     },),
     it({
+      name: 'ANSWERS FOR A PAGE OF MANY BLOCKS OF THE SAME WORDS, which the placing of each block must not set against every other',
+      fn: async () => {
+        /**
+         Eight hundred blocks of the same two words, every fourth reached by a range, and the page showing the same blocks:
+         the placing took seconds before it read the places in order and minutes at sixteen hundred blocks.
+         */
+        const sourceBlocks = Array.from({ length: 800, }, function block(
+          _,
+          at,
+        ): { account: string; start: number; end: number; } {
+          return blockAt({ account: 'tabby calico', at, },);
+        },);
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: sourceBlocks.map(function account(): string {
+            return 'tabby calico';
+          },),
+          disagreements: Array.from({ length: 200, }, function range(
+            _,
+            at,
+          ): { start: number; end: number; } {
+            return { start: (at * 40) + 1, end: (at * 40) + 2, };
+          },),
+        },),).toEqual({ differs: false, undecidedBlocks: 0, },);
+      },
+    },),
+    it({
       name: 'COUNTS EVERY BLOCK UNDECIDED WHEN A DISAGREEMENT STANDS IN NO BLOCK, since none can be set apart',
       fn: async () => {
         expect(blockDifferenceOf({
