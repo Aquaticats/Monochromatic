@@ -106,7 +106,7 @@ function exportedAs(
       node: statement,
       field: 'declaration',
     },);
-    if ((statement.type === 'ExportNamedDeclaration') && (declaration.type === 'VariableDeclaration')) {
+    if (declaration.type === 'VariableDeclaration') {
       for (const declarator of nodesAt({
         node: declaration,
         field: 'declarations',

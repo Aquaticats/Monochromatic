@@ -1,7 +1,6 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
-import { isNoNode, } from './claude-schema-tree.test-fixture.ts';
 
 //region Nodes whose value the walk of a builder's call is still to follow
 // What `claude-schema-blind-flow.test-fixture.ts` keeps while it walks: each node with what the names of its file are
@@ -100,10 +99,8 @@ export function acrossFilesOf(
     name,
   },);
   return {
+    // A reader that has no node is followed as a node: the step of that node holds nothing and takes the value nowhere.
     pending: readers
-      .filter(function holdsNode(reader,): boolean {
-        return !isNoNode({ node: reader.node, },);
-      },)
       .map(function heldIn(reader,): Pending {
         return {
           context: reader.context,
