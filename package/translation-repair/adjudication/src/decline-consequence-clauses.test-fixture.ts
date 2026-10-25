@@ -9,10 +9,10 @@
  full stop, carries one way of each slot in slot order and carries none of the clause's refused phrases. What this
  refuses: a clause lost; the fixed order with its lanes reversed; two outcomes swapped, since the stay reads only in a
  part that says no candidate was named by two or more judges and the ship only in a part that says no such thing; and
- a decline said to keep the wording, since the lead clause refuses `keeps`. A round also refuses the promises of the
- others: the first ask of a pair may not promise a ship or a stay, and a challenge may not say it asks again. What it
- does not read is any meaning no clause names, so a sentence that adds a promise elsewhere passes, and each new promise
- wants its own clause (re-check 4, F2).
+ a decline said to keep the wording, since the lead clause refuses `keeps`; and an outcome put negatively, since the
+ outcome clauses refuse `never`, `does not`, `will not`, `cannot` and `no longer` (re-check 5, N-a). A round also
+ refuses the promises of the others: the first ask may not promise a ship or a stay, and a challenge may not say a
+ decline settles nothing and asks again. What it does not read is a meaning no clause names or a negation not listed.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 

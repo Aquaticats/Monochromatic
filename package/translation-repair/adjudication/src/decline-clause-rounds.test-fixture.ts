@@ -1,7 +1,7 @@
 /**
  The clauses of the rounds of a pair that do not ship or keep, and the table of what each round must say and must not
- promise (re-check 4, F1). The clauses of the round that ships are in `decline-clause.test-fixture.ts`; the reader
- that applies them is `decline-consequence-clauses.test-fixture.ts`.
+ promise (re-check 4, F1; re-check 5, M-B and M-D). The clauses of the round that ships are in
+ `decline-clause.test-fixture.ts`; the reader that applies them is `decline-consequence-clauses.test-fixture.ts`.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -12,10 +12,16 @@ import {
   type DeclineClause,
   type DeclineMode,
   FIXED_ORDER,
+  NEGATIONS,
+  NO_NARROWER_QUESTION_LEFT,
+  NONE_NAMED_STAYS_ONCE_NARROWED,
   NONE_NAMED_WORDING_STAYS,
   NOT_A_KEEP,
   OWN_DECLINE_NAMES_NONE,
+  PANEL_ASKED_AGAIN,
+  RUNS_OFF_OVER_THE_LEADERS,
   SOME_NAMED_PREFERRED_SHIPS,
+  SOME_NAMED_SHIPS_ONCE_NARROWED,
 } from './decline-clause.test-fixture.ts';
 
 //region Decline clause rounds
@@ -45,17 +51,21 @@ const SETTLES_NOTHING: DeclineClause = {
 };
 
 /**
- The same judges are asked again.
+ A plain decline is not what asks the panel again in a challenge: only a narrowing tie does, and the part that says so
+ is the run-off's. A challenge that says a decline settles nothing and asks again has promised the first ask's round.
 
  @example
  ```ts
- const again = SAME_JUDGES_ASKED_AGAIN.meaning;
+ const again = DECLINE_ASKS_AGAIN.meaning;
  ```
  */
-const SAME_JUDGES_ASKED_AGAIN: DeclineClause = {
-  meaning: 'the same judges are asked again',
+const DECLINE_ASKS_AGAIN: DeclineClause = {
+  meaning: 'a decline settles nothing and the panel is asked again',
   inOrder: [
-    ['same judges',],
+    [
+      'settles nothing',
+      'decides nothing',
+    ],
     [
       'asked again',
       'asked once more',
@@ -89,7 +99,27 @@ const SHIPS_ONLY_ON_AN_EQUAL_TIE: DeclineClause = {
   forbidden: [
     'stays',
     'remains',
+    'not ship',
+    ...NEGATIONS,
   ],
+};
+
+/**
+ The same ship, once no narrower question is left.
+
+ @example
+ ```ts
+ const tie = SHIPS_ONLY_ON_AN_EQUAL_TIE_ONCE_NARROWED.meaning;
+ ```
+ */
+const SHIPS_ONLY_ON_AN_EQUAL_TIE_ONCE_NARROWED: DeclineClause = {
+  meaning: 'once no narrower question is left, a candidate ships only where every candidate drew equal weight '
+    + 'and two or more judges named it',
+  inOrder: [
+    NO_NARROWER_QUESTION_LEFT,
+    ...SHIPS_ONLY_ON_AN_EQUAL_TIE.inOrder,
+  ],
+  forbidden: SHIPS_ONLY_ON_AN_EQUAL_TIE.forbidden,
 };
 
 /**
@@ -138,12 +168,14 @@ export const MODES: Readonly<Record<DeclineMode, {
     required: [
       NOT_A_KEEP,
       OWN_DECLINE_NAMES_NONE,
-      NONE_NAMED_WORDING_STAYS,
-      SOME_NAMED_PREFERRED_SHIPS,
+      PANEL_ASKED_AGAIN,
+      RUNS_OFF_OVER_THE_LEADERS,
+      NONE_NAMED_STAYS_ONCE_NARROWED,
+      SOME_NAMED_SHIPS_ONCE_NARROWED,
       FIXED_ORDER,
     ],
     refused: [
-      SAME_JUDGES_ASKED_AGAIN,
+      DECLINE_ASKS_AGAIN,
       SENT_BACK_FOR_NEW_PROPOSALS,
     ],
   },
@@ -152,7 +184,8 @@ export const MODES: Readonly<Record<DeclineMode, {
       NOT_A_KEEP,
       OWN_DECLINE_NAMES_NONE,
       SETTLES_NOTHING,
-      SAME_JUDGES_ASKED_AGAIN,
+      PANEL_ASKED_AGAIN,
+      RUNS_OFF_OVER_THE_LEADERS,
     ],
     refused: [
       NONE_NAMED_WORDING_STAYS,
@@ -165,14 +198,16 @@ export const MODES: Readonly<Record<DeclineMode, {
     required: [
       NOT_A_KEEP,
       OWN_DECLINE_NAMES_NONE,
-      SHIPS_ONLY_ON_AN_EQUAL_TIE,
+      PANEL_ASKED_AGAIN,
+      RUNS_OFF_OVER_THE_LEADERS,
+      SHIPS_ONLY_ON_AN_EQUAL_TIE_ONCE_NARROWED,
       FIXED_ORDER,
       SENT_BACK_FOR_NEW_PROPOSALS,
     ],
     refused: [
       NONE_NAMED_WORDING_STAYS,
       SOME_NAMED_PREFERRED_SHIPS,
-      SAME_JUDGES_ASKED_AGAIN,
+      DECLINE_ASKS_AGAIN,
     ],
   },
 };

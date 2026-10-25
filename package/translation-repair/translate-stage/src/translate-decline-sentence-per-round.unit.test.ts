@@ -284,7 +284,7 @@ await describe({
   name: judgeSlateWithRetry.name,
   children: [
     it({
-      name: 'TELLS THE FIRST ASK THAT A DECLINE SETTLES NOTHING and the same judges are asked again, where the '
+      name: 'TELLS THE FIRST ASK THAT A DECLINE SETTLES NOTHING and the panel is asked again, where the '
         + 'caller ships past a decline in its challenge: it promises neither the ship nor the stay',
       fn: async () => {
         /**

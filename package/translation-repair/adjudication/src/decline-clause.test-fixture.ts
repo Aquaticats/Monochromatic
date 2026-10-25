@@ -1,8 +1,8 @@
 /**
  The clauses of the sentence that tells a judge what a decline does over wording that cannot ship, when the round is
- the one that ships or keeps (re-check 3, N1 and N7; re-check 4, F1 and F2). The clauses that belong to the other
- rounds of a pair are in `decline-clause-rounds.test-fixture.ts`; the reader that applies them is
- `decline-consequence-clauses.test-fixture.ts`.
+ the one that ships or keeps (re-check 3, N1 and N7; re-check 4, F1 and F2; re-check 5, M-B, M-D and N-a), and the
+ clauses all three rounds share about the run-off. The clauses that belong to the other rounds of a pair are in
+ `decline-clause-rounds.test-fixture.ts`; the reader that applies them is `decline-consequence-clauses.test-fixture.ts`.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -11,6 +11,30 @@
 
 //region Decline clause
 // One entry per thing the sentence must say, in the order a judge meets them.
+
+/**
+ Words that turn an outcome the other way, which an outcome clause refuses so that "never stays" and "does not ship"
+ are not read as the stay and the ship (re-check 5, N-a). This is the whole of the negation the reader refuses: a
+ negation put in other words ("fails to ship", "is unable to stay") is not read, and each such shape wants its own
+ refused phrase.
+ */
+export const NEGATIONS: readonly string[] = [
+  'never',
+  'does not',
+  'will not',
+  'cannot',
+  'no longer',
+];
+
+/**
+ The ways a sentence says that no narrower question is left, which the outcomes of a challenge wait on: the challenge
+ asks the panel again over the leaders while a tie narrows the question, and ships or keeps only once none does.
+ */
+export const NO_NARROWER_QUESTION_LEFT: readonly string[] = [
+  'no such question is left',
+  'no narrower question is left',
+  'nothing is left to narrow',
+];
 
 /**
  The round a sentence is told in: the first ask of a pair, a challenge whose caller ships past a decline, and a
@@ -126,6 +150,8 @@ export const NONE_NAMED_WORDING_STAYS: DeclineClause = {
   forbidden: [
     'preferred',
     'ships',
+    'not stay',
+    ...NEGATIONS,
   ],
 };
 
@@ -158,6 +184,8 @@ export const SOME_NAMED_PREFERRED_SHIPS: DeclineClause = {
     'remains',
     'only',
     'every candidate',
+    'not ship',
+    ...NEGATIONS,
   ],
 };
 
@@ -178,6 +206,100 @@ export const FIXED_ORDER: DeclineClause = {
     ['first on the slate',],
   ],
   forbidden: [],
+};
+
+/**
+ The same stay, once no narrower question is left: a challenge asks the panel again over the leaders first.
+
+ @example
+ ```ts
+ const stay = NONE_NAMED_STAYS_ONCE_NARROWED.meaning;
+ ```
+ */
+export const NONE_NAMED_STAYS_ONCE_NARROWED: DeclineClause = {
+  meaning: 'once no narrower question is left, with no candidate named by two or more judges '
+    + 'the wording in place stays',
+  inOrder: [
+    NO_NARROWER_QUESTION_LEFT,
+    ...NONE_NAMED_WORDING_STAYS.inOrder,
+  ],
+  forbidden: NONE_NAMED_WORDING_STAYS.forbidden,
+};
+
+/**
+ The same ship, once no narrower question is left.
+
+ @example
+ ```ts
+ const ship = SOME_NAMED_SHIPS_ONCE_NARROWED.meaning;
+ ```
+ */
+export const SOME_NAMED_SHIPS_ONCE_NARROWED: DeclineClause = {
+  meaning: 'once no narrower question is left, with one or more candidates named by two or more judges '
+    + 'the preferred ships',
+  inOrder: [
+    NO_NARROWER_QUESTION_LEFT,
+    ...SOME_NAMED_PREFERRED_SHIPS.inOrder,
+  ],
+  forbidden: SOME_NAMED_PREFERRED_SHIPS.forbidden,
+};
+
+/**
+ The panel is asked again, and a judge is not told it will be the same members: the window of seats a round asks
+ starts where an FNV hash of the sheet puts it (`stage-fanout-window.ts`), and the sheet of a challenge differs from
+ the sheet of the first ask (re-check 5, M-D).
+
+ @example
+ ```ts
+ const again = PANEL_ASKED_AGAIN.meaning;
+ ```
+ */
+export const PANEL_ASKED_AGAIN: DeclineClause = {
+  meaning: 'the panel is asked again, though a round may seat other members of it',
+  inOrder: [
+    ['panel',],
+    [
+      'asked again',
+      'asked once more',
+    ],
+    [
+      'other members',
+      'different members',
+    ],
+  ],
+  forbidden: [],
+};
+
+/**
+ A tie at the top that backs only some candidates, or a leader only one judge named, sends those candidates, or the
+ leader and its runner-up, to the panel first, for as long as that narrows the question (`runoffFinalists` in
+ `translate-stage/src/translate-runoff.ts`, `judgeSlateWithRetry` in `translate-stage/src/translate-retry.ts`;
+ re-check 5, M-B). The part that says it may not say an outcome.
+
+ @example
+ ```ts
+ const runoff = RUNS_OFF_OVER_THE_LEADERS.meaning;
+ ```
+ */
+export const RUNS_OFF_OVER_THE_LEADERS: DeclineClause = {
+  meaning: 'a tie at the top backing only some candidates, or a leader one judge named, narrows the question to the '
+    + 'leaders, for as long as it narrows',
+  inOrder: [
+    [
+      'tied at the top',
+      'tied for the lead',
+    ],
+    ['one judge',],
+    ['runner-up',],
+    ['for as long as',],
+    ['narrows',],
+  ],
+  forbidden: [
+    'ships',
+    'ship ',
+    'stays',
+    'remains',
+  ],
 };
 
 //endregion Decline clause

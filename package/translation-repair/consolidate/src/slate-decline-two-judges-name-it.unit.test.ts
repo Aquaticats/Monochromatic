@@ -413,7 +413,7 @@ await describe({
         expect(judgeSheets.every(function toldNoUntranslatedPassage(sheet,): boolean {
           return !sheet.includes('there is no existing translation of this passage',);
         },),).toBe(true,);
-        // THE FIRST ASK OF THE PAIR SETTLES NOTHING and the same judges are asked again; the challenge that follows is
+        // THE FIRST ASK OF THE PAIR SETTLES NOTHING and the panel is asked again; the challenge that follows is
         // the round that ships what two judges named or keeps the archive (re-check 4, F1).
         expect(unmetClausesOf({ text: judgeSheets[0] ?? '', mode: 'asked-again', },),).toEqual([],);
         expect(unmetClausesOf({ text: judgeSheets.at(-1,) ?? '', mode: 'ships', },),).toEqual([],);

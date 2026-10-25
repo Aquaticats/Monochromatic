@@ -11,9 +11,14 @@
  swapped outcome, a decline said to keep the wording and a reversed lane order fail (re-check 4, F2).
 
  THAT SENTENCE IS TOLD IN ONE ROUND OF THREE (re-check 4, F1): the challenge of a caller that ships past a decline. The
- first ask of a pair settles nothing and asks the same judges again, and the challenge of a caller that defers ships
- only a level tie and sends the passage back for new proposals, so each is told its own sentence and the function
- takes the round.
+ first ask of a pair settles nothing and asks the panel again, and the challenge of a caller that defers ships only a
+ level tie and sends the passage back for new proposals, so each is told its own sentence and the function takes the
+ round.
+
+ EVERY ONE OF THE THREE SAYS WHAT A TIE THAT BACKS ONLY SOME CANDIDATES DOES (re-check 5, M-B): the panel is asked again
+ first over the leaders, for as long as that narrows the question, and a challenge ships or keeps only once none does.
+ NONE OF THE THREE PROMISES THE SAME SEATS (re-check 5, M-D): a round asks a window of the bench that an FNV hash of the
+ sheet rotates, and a challenge sheet differs from the first ask's.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -39,6 +44,33 @@ import {
   unmetDeclineClauses,
 } from './decline-consequence-clauses.test-fixture.ts';
 
+/**
+ The lead of the sentence a judge reads, with the judge's own decline named.
+ */
+const LEAD = 'declining does not by itself keep the wording in place, and your own decline names no candidate: ';
+
+/**
+ The part of a challenge's sentence about a tie that backs only some candidates, in the words of the constant.
+ */
+const RUNS_OFF = 'when the round leaves only some candidates tied at the top, or a leader only one judge named, the '
+  + 'panel is asked again first, though a round may seat other members of it, over those candidates alone, or over '
+  + 'that leader and its runner-up, and again for as long as that narrows the question; ';
+
+/**
+ The same part in other words, for the rewording control.
+ */
+const RUNS_OFF_REWORDED = 'if the round leaves just some candidates tied for the lead, or a leader that one judge alone '
+  + 'named, the panel is asked once more first, though a round may seat different members of it, over those '
+  + 'candidates or over that leader and its runner-up, and once more for as long as that narrows the question; ';
+
+/**
+ The two outcomes in the words of the constant, the stay and then the ship, each waiting on the run-off.
+ */
+const OUTCOMES = 'when no such question is left and no candidate is named by two or more judges, the wording in place '
+  + 'stays and the page reports it, with your reason recorded; when no such question is left and one or more '
+  + 'candidates are named by two or more judges, the preferred of those ships, by a fixed order (the repair lane\'s '
+  + 'text, then the translate lane\'s, then the first on the slate) and not by your judgment';
+
 await describe({
   name: declineConsequenceFor.name,
   children: [
@@ -57,9 +89,10 @@ await describe({
         + 'out the judge\'s own decline and the fixed order is told apart from the sentence the sheet carries',
       fn: async () => {
         expect(unmetDeclineClauses(
-          'declining does not by itself keep the wording in place: when no candidate is named by two or more judges, '
-            + 'the wording in place stays and the page reports it; when one or more candidates are named by two or '
-            + 'more judges, the preferred of those ships',
+          'declining does not by itself keep the wording in place: ' + RUNS_OFF
+            + 'when no such question is left and no candidate is named by two or more judges, the wording in place '
+            + 'stays and the page reports it; when no such question is left and one or more candidates are named by '
+            + 'two or more judges, the preferred of those ships',
         ),).toEqual([
           'a judge\'s own decline names no candidate',
           'the preferred ships by a fixed order, the repair lane first, then the translate lane, then the slate',
@@ -73,14 +106,15 @@ await describe({
         + 'where none was (re-check 4, F2)',
       fn: async () => {
         expect(unmetDeclineClauses(
-          'declining does not by itself keep the wording in place, and your own decline names no candidate: '
-            + 'when a candidate is named by two or more judges, the wording in place stays and the page reports it, '
-            + 'with your reason recorded; when no candidate is named by two or more judges, the preferred of those '
-            + 'ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, then the first on the '
-            + 'slate) and not by your judgment',
+          LEAD + RUNS_OFF
+            + 'when no such question is left and a candidate is named by two or more judges, the wording in place '
+            + 'stays and the page reports it, with your reason recorded; when no such question is left and no '
+            + 'candidate is named by two or more judges, the preferred of those ships, by a fixed order (the repair '
+            + 'lane\'s text, then the translate lane\'s, then the first on the slate) and not by your judgment',
         ),).toEqual([
-          'no candidate named by two or more judges: the wording in place stays and the page reports it',
-          'one or more candidates named by two or more judges: the preferred of those ships',
+          'once no narrower question is left, with no candidate named by two or more judges the wording in place stays',
+          'once no narrower question is left, with one or more candidates named by two or more judges the preferred '
+          + 'ships',
         ],);
       },
     },),
@@ -92,10 +126,7 @@ await describe({
       fn: async () => {
         expect(unmetDeclineClauses(
           'declining is not a quiet keep, but it keeps the wording in place, and your own decline names no '
-            + 'candidate: when no candidate is named by two or more judges, the wording in place stays and the page '
-            + 'reports it, with your reason recorded; when one or more candidates are named by two or more judges, '
-            + 'the preferred of those ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, '
-            + 'then the first on the slate) and not by your judgment',
+            + 'candidate: ' + RUNS_OFF + OUTCOMES,
         ),).toEqual(['declining does not by itself keep the wording in place',],);
       },
     },),
@@ -105,11 +136,11 @@ await describe({
         + 'repair lane\'s ships a different candidate (re-check 4, F2)',
       fn: async () => {
         expect(unmetDeclineClauses(
-          'declining does not by itself keep the wording in place, and your own decline names no candidate: '
-            + 'when no candidate is named by two or more judges, the wording in place stays and the page reports it, '
-            + 'with your reason recorded; when one or more candidates are named by two or more judges, the preferred '
-            + 'of those ships, by a fixed order (the translate lane\'s text, then the repair lane\'s, then the first '
-            + 'on the slate) and not by your judgment',
+          LEAD + RUNS_OFF
+            + 'when no such question is left and no candidate is named by two or more judges, the wording in place '
+            + 'stays and the page reports it, with your reason recorded; when no such question is left and one or '
+            + 'more candidates are named by two or more judges, the preferred of those ships, by a fixed order (the '
+            + 'translate lane\'s text, then the repair lane\'s, then the first on the slate) and not by your judgment',
         ),).toEqual([
           'the preferred ships by a fixed order, the repair lane first, then the translate lane, then the slate',
         ],);
@@ -122,10 +153,80 @@ await describe({
       fn: async () => {
         expect(unmetDeclineClauses(
           'Declining will not on its own keep the wording in place, and your own decline names no candidate: '
-            + 'if no candidate is named by two or more judges, the wording in place remains and the page reports it; '
-            + 'if one or more candidates are named by two or more judges, the preferred of them ships, by a fixed '
-            + 'order (the repair lane\'s text, then the translate lane\'s, then the first on the slate)',
+            + RUNS_OFF_REWORDED
+            + 'if nothing is left to narrow and no candidate is named by two or more judges, the wording in place '
+            + 'remains and the page reports it; if nothing is left to narrow and one or more candidates are named by '
+            + 'two or more judges, the preferred of them ships, by a fixed order (the repair lane\'s text, then the '
+            + 'translate lane\'s, then the first on the slate)',
         ),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A SENTENCE THAT LOST ITS RUN-OFF: a tie that backs only some candidates sends them to the panel '
+        + 'first, and a sentence that does not say so tells a judge the round ends where it does not (re-check 5, M-B)',
+      fn: async () => {
+        expect(unmetDeclineClauses(LEAD + OUTCOMES,),).toEqual([
+          'the panel is asked again, though a round may seat other members of it',
+          'a tie at the top backing only some candidates, or a leader one judge named, narrows the question to the '
+          + 'leaders, for as long as it narrows',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES OUTCOMES THAT DO NOT WAIT ON THE RUN-OFF: the stay and the ship apply once no narrower question '
+        + 'is left, so an outcome said without that wait promises a ship or a stay the code gives only after the '
+        + 'run-off (re-check 5, M-B)',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          LEAD + RUNS_OFF
+            + 'when no candidate is named by two or more judges, the wording in place stays and the page reports it, '
+            + 'with your reason recorded; when one or more candidates are named by two or more judges, the preferred '
+            + 'of those ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, then the first '
+            + 'on the slate) and not by your judgment',
+        ),).toEqual([
+          'once no narrower question is left, with no candidate named by two or more judges the wording in place stays',
+          'once no narrower question is left, with one or more candidates named by two or more judges the preferred '
+          + 'ships',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES AN OUTCOME PUT NEGATIVELY, which the slots alone would read as the outcome: "never stays" and '
+        + '"does not ship" are the opposite of the stay and the ship (re-check 5, N-a)',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          LEAD + RUNS_OFF
+            + 'when no such question is left and no candidate is named by two or more judges, the wording in place '
+            + 'never stays and the page reports it; when no such question is left and one or more candidates are '
+            + 'named by two or more judges, the preferred of those does not ship, by a fixed order (the repair '
+            + 'lane\'s text, then the translate lane\'s, then the first on the slate) and not by your judgment',
+        ),).toEqual([
+          'once no narrower question is left, with no candidate named by two or more judges the wording in place stays',
+          'once no narrower question is left, with one or more candidates named by two or more judges the preferred '
+          + 'ships',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'PROMISES NO ROUND THE SAME SEATS: no sentence of the three says "the same judges", since a round asks a '
+        + 'window of the bench that the sheet rotates and a challenge sheet differs from the first ask\'s '
+        + '(re-check 5, M-D)',
+      fn: async () => {
+        expect([
+          SETTLES_NOTHING_AND_ASKS_AGAIN,
+          SHIPS_WHAT_TWO_JUDGES_NAMED,
+          SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
+        ].map(function promisesTheSameSeats(sentence,): boolean {
+          return sentence.includes('same judges',);
+        },),).toEqual([
+          false,
+          false,
+          false,
+        ],);
       },
     },),
 
@@ -137,7 +238,7 @@ await describe({
     },),
 
     it({
-      name: 'TELLS THE FIRST ASK OF A PAIR THAT IT SETTLES NOTHING and the same judges are asked again, and promises '
+      name: 'TELLS THE FIRST ASK OF A PAIR THAT IT SETTLES NOTHING and the panel is asked again, and promises '
         + 'it neither a ship nor a stay: a decline in that round does not end in either (re-check 4, F1)',
       fn: async () => {
         /**
