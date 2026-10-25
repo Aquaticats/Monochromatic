@@ -122,7 +122,7 @@ await describe({
               sheetChars: [1_000, 3_000,],
             },);
             expect(ceilingLine({ ceiling: nonNullishOrThrow(ceiling,), },),).toBe(
-              `ceiling ${LOW_CARD}: 2 trials, one ask each, at most 0.6480 USD; with 5 asks a trial at most 3.2400 USD; `
+              `ceiling ${LOW_CARD}: 2 units, one ask each, at most 0.6480 USD; with 5 asks a trial at most 3.2400 USD; `
                 + 'priced at 2 USD in and 10 USD out per million tokens, 32000 output tokens an ask, one input token '
                 + 'to the character of the sheet',
             );

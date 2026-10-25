@@ -125,20 +125,20 @@ await describe({
       fn: async () => {
         expect(lineOf({
           log: armWith({ stops: ['ok', 'refused+ok', 'unparseable+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'trials at the output cap or thrown',
-        },),).toBe('PASS low: trials at the output cap or thrown: 3 units, none at the cap, none threw',);
+          check: 'units at the output cap or thrown',
+        },),).toBe('PASS low: units at the output cap or thrown: 3 units, none at the cap, none threw',);
         expect(lineOf({
           log: armWith({ stops: ['ok', 'output-cap', 'ok', 'output-cap+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'trials at the output cap or thrown',
+          check: 'units at the output cap or thrown',
         },),).toBe(
-          'PASS low: trials at the output cap or thrown: 2 units ended at the output-token cap (rows 2, 4) and score '
+          'PASS low: units at the output cap or thrown: 2 units ended at the output-token cap (rows 2, 4) and score '
             + 'as unusable for this arm',
         );
         expect(lineOf({
           log: armWith({ stops: ['ok', 'threw+ok', 'output-cap',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
-          check: 'trials at the output cap or thrown',
+          check: 'units at the output cap or thrown',
         },),).toBe(
-          'PASS low: trials at the output cap or thrown: 1 unit ended at the output-token cap (row 3) and scores as '
+          'PASS low: units at the output cap or thrown: 1 unit ended at the output-token cap (row 3) and scores as '
             + 'unusable for this arm; 1 unit had an ask that threw (row 2) and is left out of every arm',
         );
       },
@@ -159,7 +159,7 @@ await describe({
           ],
         },);
         expect(report.lines.filter(function isTrialEnds(line,): boolean {
-          return line.includes('trials at the output cap or thrown',) && line.startsWith('FAIL ',);
+          return line.includes('units at the output cap or thrown',) && line.startsWith('FAIL ',);
         },),).toStrictEqual([],);
       },
     },),

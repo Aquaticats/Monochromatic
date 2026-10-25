@@ -609,7 +609,7 @@ await describe({
             expect(seen.lines[0],).toBe(`editors: ${LOW_CARD}`,);
             expect(seen.lines[1]?.startsWith('manifest: 1 specification, digest ',),).toBe(true,);
             expect(seen.lines[2],).toBe('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
-            expect(seen.lines[3]?.startsWith(`ceiling ${LOW_CARD}: 2 trials, one ask each, at most `,),).toBe(true,);
+            expect(seen.lines[3]?.startsWith(`ceiling ${LOW_CARD}: 2 units, one ask each, at most `,),).toBe(true,);
             expect(seen.lines[4],).toBe(guardLine({ maxUsd: 2, benchSpentUsd: 0, },),);
             expect(seen.lines[5],).toBe(editorDecisionRuleLine(),);
             expect(seen.lines[6],).toBe('planned: 2 of 2 trials',);
@@ -635,7 +635,7 @@ await describe({
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.lines,).toContain('pool: 2 trials over 1 entry (insertion 1, alteration 1)',);
             expect(seen.lines.some(function isCeiling(line,): boolean {
-              return line.startsWith(`ceiling ${LOW_CARD}: 1 trial, one ask each, at most `,);
+              return line.startsWith(`ceiling ${LOW_CARD}: 1 unit, one ask each, at most `,);
             },),).toBe(true,);
             expect(seen.lines,).toContain('planned: 1 of 2 trials',);
             expect(seen.lines.at(-1,),).toBe(
@@ -757,7 +757,7 @@ await describe({
               typed: [...ONE_CARD, '--max-usd', '0.5', '--bench-spent-usd', '3.25',],
             },);
             const ceilingAt = seen.lines.findIndex(function isCeiling(line,): boolean {
-              return line.startsWith(`ceiling ${LOW_CARD}: 2 trials, one ask each, at most `,);
+              return line.startsWith(`ceiling ${LOW_CARD}: 2 units, one ask each, at most `,);
             },);
             expect(ceilingAt,).toBeGreaterThanOrEqual(0,);
             expect(seen.lines[ceilingAt + 1],).toBe(guardLine({ maxUsd: 0.5, benchSpentUsd: 3.25, },),);
@@ -1194,7 +1194,7 @@ await describe({
             },);
             expect(seen.failures,).toStrictEqual([],);
             expect(seen.lines.some(function isCeiling(line,): boolean {
-              return line.startsWith(`ceiling ${LOW_CARD}: 4 trials, one ask each, at most `,);
+              return line.startsWith(`ceiling ${LOW_CARD}: 4 units, one ask each, at most `,);
             },),).toBe(true,);
             expect(seen.lines,).toContain('planned: 4 of 4 asks (2 passes over the 2 trials of the pool)',);
             expect(seen.lines.at(-1,),).toBe(

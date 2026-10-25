@@ -193,8 +193,8 @@ await describe({
         expect(lineFor({ lines, scope: 'low', check: 'earlier spend declared', },),).toBe(
           'PASS low: earlier spend declared: --bench-spent-usd 4 covers the 4.000000 USD the arms before it counted',
         );
-        expect(lineFor({ lines, scope: 'low', check: 'trials in the first arm\'s order', },),).toBe(
-          'PASS low: trials in the first arm\'s order: the 64 units it walked are the first 64 of high\'s',
+        expect(lineFor({ lines, scope: 'low', check: 'units in the first arm\'s order', },),).toBe(
+          'PASS low: units in the first arm\'s order: the 64 units it walked are the first 64 of high\'s',
         );
         expect(lineFor({ lines, scope: 'bench', check: 'shared units', },),).toBe(
           'PASS bench: shared units: 64 shared units over 32 entries, 0 left out as thrown and 0 not completed by '
@@ -358,9 +358,9 @@ await describe({
             ],
           },).lines,
           scope: 'low',
-          check: 'trials in the first arm\'s order',
+          check: 'units in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: row 3 walked cat-1-s0/alteration where high walked cat-1-s0/insertion',
+          'FAIL low: units in the first arm\'s order: row 3 walked cat-1-s0/alteration where high walked cat-1-s0/insertion',
         );
         /**
          The low arm walked past what the first arm completed.
@@ -380,9 +380,9 @@ await describe({
             ],
           },).lines,
           scope: 'low',
-          check: 'trials in the first arm\'s order',
+          check: 'units in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: it walked 66 units and high completed 64',
+          'FAIL low: units in the first arm\'s order: it walked 66 units and high completed 64',
         );
       },
     },),
@@ -411,8 +411,8 @@ await describe({
             ],
           },).lines,
           scope: 'low',
-          check: 'trials in the first arm\'s order',
-        },),).toBe('PASS low: trials in the first arm\'s order: the 128 units it walked are the first 128 of high\'s',);
+          check: 'units in the first arm\'s order',
+        },),).toBe('PASS low: units in the first arm\'s order: the 128 units it walked are the first 128 of high\'s',);
         expect(lineFor({
           lines: checkEditorBench({
             arms: [
@@ -427,9 +427,9 @@ await describe({
             ],
           },).lines,
           scope: 'low',
-          check: 'trials in the first arm\'s order',
+          check: 'units in the first arm\'s order',
         },),).toBe(
-          'FAIL low: trials in the first arm\'s order: row 65 walked cat-0-s0/insertion where high walked '
+          'FAIL low: units in the first arm\'s order: row 65 walked cat-0-s0/insertion where high walked '
             + 'cat-0-s0/insertion (pass 2)',
         );
       },
