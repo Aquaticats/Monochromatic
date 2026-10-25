@@ -4655,6 +4655,17 @@ frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 ski
 10 of 10 starts on a drawn row and ends on the row drawn at release; Ctrl+End and Ctrl+Home 0 blank code frames in 4
 recordings. A comment word under the pointer gives a correct request and `hover=false` (no popup), as the server
 answers nothing for comments. `~/temp/agent/final5` and its projects are removed.
+Two open items from the hover agent are being worked now (agent scratch `~/temp/agent/open2`; branch off `d9bbff70fa`):
+(A) the unexplained fresh-session trial after a 301-notch first scroll (no character under the pointer, the settled
+probe found none either, a finished tile left for a scroll step that never came) is a possible stuck or stale view in
+the wheel path (`src/native/wheel.rs`: the destination tile of the first far turn, the follow release, `wheel::refit`,
+the 400 ms backstop): the agent runs fresh sessions (first wheel of 5, 40, 150, 300, 301, 600 notches at 0.5, 1, 2 and 4
+s after launch, 30 trials per cell where affordable) with a positive control that deliberately disables the follow
+release or the backstop, and fixes the cause behind a failing test if it reproduces; (B) rows that are drawn late
+without a move of the offset or a change of the text height do not restart a rest (`Rest::follow` watches only those
+two): the agent decides from the code and a measurement whether a real case exists and either extends the signal (a
+tile generation or text revision stamp) behind a failing test or records the evidence that none exists. The reports are
+verified, landed and the IDE reinstalled.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
