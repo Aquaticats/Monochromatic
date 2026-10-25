@@ -32,6 +32,30 @@ import {
 import { runAttemptQueue, } from '../../dist/final/node/index.mjs';
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ The clock time every line a case prints carries.
+ */
+const AT = 'at=2026-10-22T08:10:11.123Z';
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ await runAttemptQueue({ pending, cachedCountFor, attempt, stopBeforeNext, attemptOf, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Scheduler disposition returned by scripted attempt.
  */
 type AttemptOutcome =
@@ -152,6 +176,12 @@ async function attemptOrder(
           return order.length >= runStopsAfter;
         },
       }),
+
+    attemptOf: function attemptOf({ entry, },): number {
+      return tries.get(entry.id,) ?? 0;
+    },
+
+    wallClock: fixedWallClock,
 
     attempt: async function attempt({ entry, },): Promise<AttemptOutcome> {
       order.push(entry.id,);
@@ -327,6 +357,10 @@ await describe({
           pending: [{ id: 'tabby', }, { id: 'mainecoon', },],
           cachedCountFor: async () => 0,
           stopBeforeNext: () => false,
+          attemptOf: () => events.filter(function isAttempt(event,): boolean {
+            return event !== 'wait';
+          },).length,
+          wallClock: fixedWallClock,
           beforeNext: async function beforeNext(): Promise<void> {
             if (pending.wait) {
               events.push('wait',);
@@ -366,6 +400,8 @@ await describe({
           pending: [{ id: 'tabby', },],
           cachedCountFor: async () => 0,
           stopBeforeNext: () => waited.done,
+          attemptOf: () => attempts.length,
+          wallClock: fixedWallClock,
           beforeNext: async function beforeNext(): Promise<void> {
             if (attempts.length > 0)
               waited.done = true;
@@ -378,7 +414,7 @@ await describe({
         },);
         expect(attempts,).toEqual(['tabby',],);
         expect(printed.lines,).toEqual([
-          'NOT RESUMED tabby: a pause cut its attempt short and the pass ended after the pause, so it was not '
+          `NOT RESUMED tabby ${AT} attempt=1: a pause cut its attempt short and the pass ended after the pause, so it was not `
             + 'attempted again in this invocation and stays resumable',
         ],);
       },
@@ -401,6 +437,8 @@ await describe({
           stopBeforeNext: () => attempts.length === 2,
           // The first attempt is cut short by a pause; the second is not.
           interrupted: () => attempts.length === 1,
+          attemptOf: () => attempts.length,
+          wallClock: fixedWallClock,
           attempt: async function attempt({ entry, },): Promise<AttemptOutcome> {
             attempts.push(entry.id,);
             return { kind: 'resumable-failure', };
@@ -408,7 +446,7 @@ await describe({
         },);
         expect(attempts,).toEqual(['tabby', 'tabby',],);
         expect(printed.lines,).toEqual([
-          'REATTEMPT tabby queued: 1 more cache record than it had, so the next attempt starts further along',
+          `REATTEMPT tabby queued ${AT} attempt=2: 1 more cache record than it had, so the next attempt starts further along`,
         ],);
       },
     },),
@@ -421,6 +459,8 @@ await describe({
           pending: [{ id: 'tabby', },],
           cachedCountFor: async () => 0,
           stopBeforeNext: () => true,
+          attemptOf: () => 0,
+          wallClock: fixedWallClock,
           attempt: async (): Promise<AttemptOutcome> => ({ kind: 'settled', }),
         },);
         expect(printed.lines,).toEqual([],);
@@ -446,6 +486,58 @@ await describe({
             runStopsAfter: 1,
           },),
         ).toEqual(['mainecoon',],);
+      },
+    },),
+
+    it({
+      name: 'STAMPS REATTEMPT, STALLED AND INCOMPLETE with the clock time and the attempt each closed, the attempt being '
+        + 'the number the caller counts (what attempts.json holds, here four earlier ones in, not a count this queue '
+        + 'keeps), so the line of one attempt never reads as another\'s (2026-10-22, XingZ60: REATTEMPT, then attempt 2 '
+        + 'under a fresh cap)',
+      fn: async (ctx,) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        /**
+         Attempts made, by id.
+         */
+        const made: string[] = [];
+        /**
+         Cached slices after each attempt, by the order attempts are made in.
+         */
+        const cachedAfterAttempt = [
+          310,
+          310,
+          0,
+        ];
+        /**
+         Attempts the caller counted for the entries before this invocation began.
+         */
+        const EARLIER = 4;
+        await runAttemptQueue({
+          pending: [{ id: 'siamese', }, { id: 'sphynx', },],
+          cachedCountFor: async function cachedCountFor(): Promise<number> {
+            // Before each attempt nothing beyond what the last one left; after it, the script.
+            return made.length === 0 ? 0 : (cachedAfterAttempt[made.length - 1] ?? 0);
+          },
+          stopBeforeNext: () => false,
+          attemptOf: function attemptOf({ entry, },): number {
+            return EARLIER + made.filter(function isThis(id,): boolean {
+              return id === entry.id;
+            },).length;
+          },
+          wallClock: fixedWallClock,
+          attempt: async function attempt({ entry, },): Promise<AttemptOutcome> {
+            made.push(entry.id,);
+            // The third attempt (siamese's second) stops on stage-local work; the first two fail with a resumable failure.
+            return (made.length === 3) ? { kind: 'stopped', } : { kind: 'resumable-failure', };
+          },
+        },);
+        expect(printed.lines,).toEqual([
+          `REATTEMPT siamese queued ${AT} attempt=5: 310 more cache records than it had, so the next attempt starts `
+            + 'further along',
+          `STALLED sphynx ${AT} attempt=5: its 310 cache records are what it started with, so a further attempt in `
+            + 'this invocation would repeat it',
+          `INCOMPLETE siamese ${AT} attempt=6: stage-local work remains; whole entry will not restart in this invocation`,
+        ],);
       },
     },),
   ],

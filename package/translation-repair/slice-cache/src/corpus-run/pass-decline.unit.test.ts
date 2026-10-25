@@ -40,6 +40,7 @@ import {
   recordEntryDecline,
   removeDeclinedPages,
 } from '../../dist/final/node/index.mjs';
+import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -121,6 +122,30 @@ async function runsDirectory(): Promise<{
 }
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Attempt the decline is printed for.
+ */
+const THIRD_ATTEMPT = 3;
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ await recordEntryDecline({ ..., attempt: THIRD_ATTEMPT, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Declines the entry in one runs directory.
 
  @param run - directories to write
@@ -142,6 +167,8 @@ async function decline(
     corpusSha: DECLINE_COMMIT,
     note: '原文即英文',
     startedAt: monotonicMs(),
+    attempt: THIRD_ATTEMPT,
+    wallClock: fixedWallClock,
   },);
 }
 
@@ -214,6 +241,26 @@ await describe({
             await decline({ run, },);
 
             expect(await readdir(run.declinedDir,),).toStrictEqual([`${ENTRY.id}.json`,],);
+          },
+        },),
+        it({
+          name: 'PRINTS the DECLINED tally with the clock time it was printed at and the attempt it belongs to, '
+            + 'straight after the status, so a reader windowing the log by time can place the decline',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            await using run = await runsDirectory();
+
+            await decline({ run, },);
+
+            expect(printed.lines.length,).toBe(1,);
+
+            /**
+             Text the line opens with, up to the duration.
+             */
+            const opening = `TALLY ${ENTRY.id} status=DECLINED at=2026-10-22T08:10:11.123Z attempt=3 `
+              + 'reason=archive-original ms=';
+            expect(printed.lines[0]?.startsWith(opening,),).toBe(true,);
+            expect(Number.isInteger(Number(printed.lines[0]?.slice(opening.length,),),),).toBe(true,);
           },
         },),
         it({
