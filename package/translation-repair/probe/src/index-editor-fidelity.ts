@@ -133,6 +133,10 @@ export {
   unitDraws,
 } from './corpus-run/editor-fidelity-paired.ts';
 export {
+  passScopeOf,
+  scopedToPass,
+} from './corpus-run/editor-fidelity-pass-scope.ts';
+export {
   type ArmCheckReport,
   checkEditorArms,
 } from './corpus-run/editor-fidelity-arm-check.ts';

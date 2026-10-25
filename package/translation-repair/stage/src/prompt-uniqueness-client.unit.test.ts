@@ -458,7 +458,7 @@ await describe({
     it({
       name: 'NAMES THE REUSE SCOPE IN THE PROMPT DIGEST ONLY WHEN IT IS GIVEN: a request with no scope keeps the digest '
         + 'it always had, pinned here so no stored payload of a corpus run moves, and each scope is a digest of its own',
-      fn: () => {
+      fn: async () => {
         /** Digest of the request as a corpus run sends it. */
         const unscoped = modelPromptDigest({ request: REQUEST, },);
         expect(unscoped,).toBe('5d94598d27a56145bd58cd6eb45cee47ccc3928da84613ae69cf53b6c4ab70aa',);

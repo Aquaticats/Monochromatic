@@ -74,7 +74,7 @@ await describe({
         it({
           name: 'COUNTS PASSES FROM ONE IN THE WORDS THE ROW LINE USES, the first pass being pass zero of the walk: '
             + 'zero is "pass 1", one is "pass 2", two is "pass 3"',
-          fn: () => {
+          fn: async () => {
             expect(passScopeOf({ pass: 0, },),).toBe('pass 1',);
             expect(passScopeOf({ pass: 1, },),).toBe('pass 2',);
             expect(passScopeOf({ pass: 2, },),).toBe('pass 3',);
@@ -99,8 +99,8 @@ await describe({
             },);
             await client.chatText(REQUEST,);
             await client.chatJson({ ...REQUEST, validate: (value: unknown,): value is unknown => value !== undefined, },);
-            expect(seen.map(function scopeOf({ reuseScope, },): string | undefined {
-              return reuseScope;
+            expect(seen.map(function scopeOf({ reuseScope, },): string {
+              return reuseScope ?? 'no scope';
             },),).toStrictEqual(['pass 2', 'pass 2',],);
             expect(seen.map(function modelOf({ modelId, },): string {
               return modelId;
@@ -112,7 +112,7 @@ await describe({
 
         it({
           name: 'KEEPS THE REST OF THE CLIENT it wraps, so the quota read is the wrapped client\'s own',
-          fn: () => {
+          fn: async () => {
             /**
              Client whose quota read the wrapper must keep.
              */

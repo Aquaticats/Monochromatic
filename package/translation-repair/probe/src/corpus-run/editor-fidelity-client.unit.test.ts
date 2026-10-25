@@ -217,19 +217,31 @@ await describe({
               promptPayloadDir: scratch.path,
               cardIds: [LOW_CARD,],
             },);
-            for (const reuseScope of ['pass 1', 'pass 2', 'pass 1',]) {
-              await client.chatJson({
+            /**
+             Asks the one prompt under a scope.
+             */
+            const askUnder = (reuseScope: string,): Promise<unknown> =>
+              client.chatJson({
                 modelId: LOW_CARD,
                 messages: [{ role: 'user', content: 'Where does the cat nap?', },],
                 signal: new AbortController().signal,
                 validate: (value: unknown,): value is unknown => value !== undefined,
                 reuseScope,
               },);
-            }
+            await askUnder('pass 1',);
+            await askUnder('pass 2',);
+            await askUnder('pass 1',);
             expect(exchanges.length,).toBe(2,);
-            expect(exchanges.some(function carriesScope({ bodyJson, },): boolean {
-              return bodyJson.includes('pass 1',) || bodyJson.includes('pass 2',) || bodyJson.includes('reuseScope',);
-            },),).toBe(false,);
+            /**
+             Every body the transport was handed, joined.
+             */
+            const bodies = exchanges.map(function bodyOf({ bodyJson, },): string {
+              return bodyJson ?? '';
+            },)
+              .join('\n',);
+            expect(bodies,).not.toContain('pass 1',);
+            expect(bodies,).not.toContain('pass 2',);
+            expect(bodies,).not.toContain('reuseScope',);
           },
         },),
       ],
