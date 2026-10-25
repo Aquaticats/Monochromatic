@@ -57,6 +57,68 @@ await describe({
     },),
 
     it({
+      name: 'REFUSES A SENTENCE WITH THE TWO OUTCOMES SWAPPED, which every clause as a phrase would pass: the '
+        + 'wording in place stays where a candidate was named by two or more judges, and the preferred ships '
+        + 'where none was (re-check 4, F2)',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          'declining does not by itself keep the wording in place, and your own decline names no candidate: '
+            + 'when a candidate is named by two or more judges, the wording in place stays and the page reports it, '
+            + 'with your reason recorded; when no candidate is named by two or more judges, the preferred of those '
+            + 'ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, then the first on the '
+            + 'slate) and not by your judgment',
+        ),).toEqual([
+          'no candidate named by two or more judges: the wording in place stays and the page reports it',
+          'one or more candidates named by two or more judges: the preferred of those ships',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A SENTENCE THAT SAYS DECLINING KEEPS THE WORDING, though it carries every other clause: '
+        + '"not a quiet keep, but it keeps the wording in place" tells a judge the decline is the way to the stay '
+        + '(re-check 4, F2)',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          'declining is not a quiet keep, but it keeps the wording in place, and your own decline names no '
+            + 'candidate: when no candidate is named by two or more judges, the wording in place stays and the page '
+            + 'reports it, with your reason recorded; when one or more candidates are named by two or more judges, '
+            + 'the preferred of those ships, by a fixed order (the repair lane\'s text, then the translate lane\'s, '
+            + 'then the first on the slate) and not by your judgment',
+        ),).toEqual(['declining does not by itself keep the wording in place',],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A SENTENCE WITH THE LANES REVERSED in the fixed order: the translate lane\'s text before the '
+        + 'repair lane\'s ships a different candidate (re-check 4, F2)',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          'declining does not by itself keep the wording in place, and your own decline names no candidate: '
+            + 'when no candidate is named by two or more judges, the wording in place stays and the page reports it, '
+            + 'with your reason recorded; when one or more candidates are named by two or more judges, the preferred '
+            + 'of those ships, by a fixed order (the translate lane\'s text, then the repair lane\'s, then the first '
+            + 'on the slate) and not by your judgment',
+        ),).toEqual([
+          'the preferred ships by a fixed order, the repair lane first, then the translate lane, then the slate',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'ACCEPTS A REWORDING THAT KEEPS EVERY CLAUSE, the positive control for the three refusals: the same '
+        + 'meaning in other words passes, so the refusals read the meaning and not a copy of the constant',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          'Declining will not on its own keep the wording in place, and your own decline names no candidate: '
+            + 'if no candidate is named by two or more judges, the wording in place remains and the page reports it; '
+            + 'if one or more candidates are named by two or more judges, the preferred of them ships, by a fixed '
+            + 'order (the repair lane\'s text, then the translate lane\'s, then the first on the slate)',
+        ),).toEqual([],);
+      },
+    },),
+
+    it({
       name: 'NEVER SAYS BOTH that declining does not keep the wording and that it stays',
       fn: async () => {
         expect(SHIPS_WHAT_TWO_JUDGES_NAMED.includes('does not keep it as the shipped text',),).toBe(false,);
