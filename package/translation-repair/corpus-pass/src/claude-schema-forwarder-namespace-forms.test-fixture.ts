@@ -22,7 +22,8 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 // a name and the namespace written as a whole value are reported as a module that is read where the search does not
 // look, and a call of a member written as a string is read. A module whose export assignment wraps a forwarder in a
 // call is reported where the forwarder is handed to the call, and a file that calls the module as a function is
-// reported too, as the module read where the search does not look.
+// reported too, as the module read where the search does not look, with the path of the import-equals that names the
+// module, which a module that carries a builder is reported for as well.
 
 /**
  The import of the namespace that the user file starts with.
@@ -234,6 +235,12 @@ export const FORWARDER_NAMESPACE_CASES: readonly ShapeCase[] = [
           file: 'imaginary/src/pos-stage.ts',
           name: 'mk',
         },),
+      },
+      {
+        file: USER,
+        line: 1,
+        shape: 'module-path-outside-a-load',
+        position: 'TSExternalModuleReference.expression',
       },
       moduleSpotAt({
         line: 2,
