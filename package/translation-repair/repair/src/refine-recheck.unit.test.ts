@@ -164,6 +164,12 @@ const SHORT_BENCH_FINDINGS: readonly string[] = [
 
  @param asked - sink receiving every exchange the recheck sent
 
+ @param verdictsByCall - verdict on the issue the sheet numbers first for the
+ first call, the second call and so on, in place of `verdicts`, so a case does
+ not depend on which seats the window asks: the window starts where a hash of
+ the sheet's text rotates the bench, and an edit to that text moves it. A call
+ past the end of the list is heard as a checker with no verdict on the issue
+
  @returns Client usable by the recheck
 
  @example
@@ -177,13 +183,20 @@ function checkerBench(
     secondIssueVerdicts,
     refused,
     asked,
+    verdictsByCall,
   }: {
     readonly verdicts: ReadonlyMap<RosterModelId, ResolutionVerdict>;
     readonly secondIssueVerdicts: ReadonlyMap<RosterModelId, ResolutionVerdict>;
     readonly refused: readonly RosterModelId[];
     readonly asked: AskedSheet[];
+    readonly verdictsByCall?: readonly ResolutionVerdict[];
   },
 ): ModelClient {
+  /**
+   Verdicts handed out by call, in the order they are given, absent when the
+   case keys its verdicts by seat.
+   */
+  const callOrder = verdictsByCall?.values();
   return {
     chatText(): never {
       throw new Error(NOT_A_CHECKER_EXCHANGE,);
@@ -202,7 +215,10 @@ function checkerBench(
        Verdict this checker casts on the first issue, absent for one never
        heard or one that skips it.
        */
-      const verdict = verdicts.get(request.modelId,);
+      const verdict = (callOrder === undefined)
+        ? verdicts.get(request.modelId,)
+        : callOrder.next()
+          .value;
       /**
        Verdict this checker casts on the second issue, absent for one that
        skips it.
@@ -321,6 +337,9 @@ function missingCheck(
 
  @param logger - logger the recheck writes to, `l` unless a case reads its warnings
 
+ @param verdictsByCall - verdict on the first issue by order of call, in place of `verdicts`, for a case that must not
+ depend on which seats the window asks
+
  @returns The recheck's verdict exactly as it came back: its ballots and its
  findings in the order the roster seats the checkers, which the stage
  guarantees and the cases assert
@@ -340,6 +359,7 @@ async function recheck(
     refused = [],
     asked = [],
     logger = l,
+    verdictsByCall,
   }: {
     readonly issues: readonly AdjudicatedIssue[];
     readonly resolvedIssueIds?: readonly string[];
@@ -349,6 +369,7 @@ async function recheck(
     readonly refused?: readonly RosterModelId[];
     readonly asked?: AskedSheet[];
     readonly logger?: Logger;
+    readonly verdictsByCall?: readonly ResolutionVerdict[];
   },
 ): Promise<Awaited<ReturnType<typeof retainsResolvedIssues>>> {
   /**
@@ -360,6 +381,8 @@ async function recheck(
       secondIssueVerdicts,
       refused,
       asked,
+      // Conditional spread keeps the field absent where the case keys its verdicts by seat.
+      ...((verdictsByCall === undefined) ? {} : { verdictsByCall, }),
     },),
     checkerModelIds,
     outcome: {
@@ -811,48 +834,35 @@ await describe({
         + 'weight has to strictly outweigh the rest as well as come from two checkers',
       fn: async () => {
         // THE FIVE-SEAT BENCH ASKS FOUR SEATS, quorum of three plus the spare,
-        // starting where the sheet's text rotates the bench, and all four can
-        // answer: this is the round production reaches, and the case that a
-        // rollback written as "two worse ballots" alone (`worse >= 2`) passes
-        // for the wrong reason. Every seat is scripted so whichever seat the
-        // rotation leaves out, the round hears its four; three are scripted
-        // worse and two fixed, and the rotation of this sheet leaves out one of
-        // the worse ones. Another sheet text that moves the rotation makes the
-        // tally three worse against one fixed, which fails the case rather than
-        // passing it.
+        // and all four can answer: this is the round production reaches, and
+        // the case that a rollback written as "two worse ballots" alone
+        // (`worse >= 2`) passes for the wrong reason. WHICH FOUR is decided by
+        // a hash of the checker sheet's text, so a seat-keyed script made this
+        // case fail falsely on a one-word edit to the sheet (re-check 6, M-A).
+        // The verdicts are therefore handed out by order of call: the first
+        // four calls hear worse, fixed, worse, fixed, whichever seats they
+        // are. The client reads its verdict at entry, before any await, so a
+        // reordering of the launch moves only which seat holds which verdict,
+        // and the asked count below ties the script to a window of four.
         /**
-         Verdict of each of the five seats.
+         Exchanges the recheck sent, one per seat asked.
          */
-        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
-          [
-            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-            'worse',
-          ],
-          [
-            SEAT_SYNTHETIC_VISION_WITHHELD,
-            'worse',
-          ],
-          [
-            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-            'fixed',
-          ],
-          [
-            SEAT_HYPER_ONLY,
-            'fixed',
-          ],
-          [
-            SEAT_OPENROUTER_ONLY_CHECKER,
-            'worse',
-          ],
-        ],);
+        const asked: AskedSheet[] = [];
         /**
          What the recheck returned.
          */
         const verdict = await recheck({
           issues: [SUNBATHING_ISSUE,],
-          verdicts,
           checkerModelIds: FIVE_SEATS,
+          verdictsByCall: [
+            'worse',
+            'fixed',
+            'worse',
+            'fixed',
+          ],
+          asked,
         },);
+        expect(asked.length,).toBe(4,);
         expect({
           retained: verdict.retained,
           tally: verdict.readings[SUNBATHING_ISSUE.issueId]?.tally,
