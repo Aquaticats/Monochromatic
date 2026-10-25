@@ -757,7 +757,12 @@ A call is booked at the card's peak rates when its request started,
 or its reply completed,
 inside a weekday peak window in UTC,
 and at half of them only when both instants lie outside every window;
-a call that starts outside every window and completes inside one is no longer booked by its start alone.
+a call that starts outside every window and completes inside one is no longer booked by its start alone
+(this sentence was reworded on 2026-10-25 (UTC):
+it first said a call that crosses a window edge is no longer booked at its start only,
+which also fits a call that spans a whole window,
+and that call is still booked as at its start;
+ledger B921 records the change).
 Not bounded:
 a make-up working Saturday,
 and a call that spans a whole window with both instants outside it.
