@@ -1422,19 +1422,165 @@ the time of the toolkit's report of the real view size (`viewport_width=646`) af
 negative to 0.19 s in the 4 of the cell of 301,
 negative to 0.3 s in the sessions that took the wheel),
 so it is not the discriminator.
-The likely mechanism is a hypothesis the IDE log cannot show:
-the first surface is small (a view of 173 px by 288 px),
-the pointer of the wheel command stands at 540 px by 900 px,
-and the layout report is not the commit of the fullscreen surface,
-so the pointer was over no surface of the IDE and the event reached nobody.
-The IDE never received an event,
-so the log is right to be silent,
-and it has no record to write for an event it never receives.
+The first account of this ("the pointer was over no surface of the IDE because the first surface is small")
+was a hypothesis,
+and the next section shows it wrong in its detail and right in its outcome:
+the event never reached the IDE because the compositor refused the command.
+
+### Where the early wheel is lost
+
+Measured on 2026-10-25 with the installed IDE binary and the nested compositor 0.6.1
+(`--headless`,
+1080x1880 logical px,
+scale 2,
+three sessions at a time,
+the 1-minute load average 10 to 45),
+276 fresh sessions on the generated 1,500-line `long.ts`,
+a wheel of 40 notches at 540,900 sent at a chosen time,
+2 s of waiting,
+then a screenshot read for the gutter number.
+Each session recorded the compositor's reply to the `wheel` command,
+the `the windowing system turned the wheel` record of the IDE (a winit event),
+and the gutter.
+Thirty-six sessions had the app's Wayland protocol log (`WAYLAND_DEBUG=1`).
+
+- The reply decides everything.
+  50 sessions were answered `err no nested client surface at wheel position 540,900`;
+  226 were answered `ok`.
+  Of the 50,
+  none has a winit wheel record and all 50 gutters show the top of the file.
+  Of the 226,
+  every one has exactly the winit record and every gutter is scrolled.
+  No session had an `ok` reply and no event in the IDE,
+  so nothing is lost between the compositor and winit,
+  in the toolkit,
+  or in the IDE,
+  at this count.
+- The protocol log shows the same split.
+  In the 17 debug sessions that were refused,
+  the compositor sent no `wl_pointer.enter` and no `axis` event to the client;
+  in the 19 that were answered `ok`,
+  it sent one `enter` and one `axis`,
+  and the client received them.
+- The refusal is the compositor's rule for `wheel` and `scroll`
+  (`point_pointer_at` in `package/cli/nested-wayland-session/src/input_wheel.rs`):
+  no window covers the point,
+  so the command fails and nothing is sent.
+  Until the hosted app commits its first buffer no window covers any point:
+  the reply time against the toplevel's first `wl_surface.attach` of a buffer
+  (the first line of the protocol log that attaches a buffer to the toplevel)
+  was before it in all 17 refused sessions (30 to 293 ms before)
+  and after it in all 19 accepted ones (36 to 493 ms after).
+- The surface is not small.
+  The compositor's first `xdg_toplevel.configure` is 1080x1880,
+  `wp_viewport.set_destination` is 1080x1880 before the first buffer,
+  and the first buffer covers the whole screen.
+  The 173 px view of the early layout is Slint's own layout width,
+  not the surface.
+  The pointer is therefore not outside a small surface:
+  there is no surface yet,
+  for 0.3 to 0.5 s after the toplevel is created
+  (the renderer starts after the toplevel,
+  and under load much later).
+- Why the earlier sessions lost the wheel at "300 ms after the server was ready":
+  the server's ready line does not wait for the first frame.
+  With the wheel at the ready line plus 300 ms,
+  14 of 72 sessions under the one-core limit and 2 of 60 without it were refused
+  (the first frame came 0.3 to 0.5 s after the ready line in the refused ones).
+  With the wheel at the first drawn frame plus 0.3,
+  0.6,
+  1.0 or 2.0 s,
+  0 of 108 were refused (60 with the limit,
+  48 without),
+  and at the first drawn frame plus 0 s 10 of 12 with the limit and 24 of 24 without were refused
+  (positive control:
+  the same harness loses the wheel when it is sent too early).
+- The harness of the earlier measurement sent the command and did not read the reply.
+  The `err` answer was the whole evidence of the loss.
+
+Where it is fixed:
+the compositor's `windows` answer listed a toplevel from the moment its client created it,
+so a driver that waited for `windows` and then sent `wheel` was still refused
+(in the `inspect:headless` check a wheel sent at the first listing was refused
+against 0.6.1 and is delivered now).
+With the IDE as the client and the wheel sent at once when `windows` first listed a window (60 sessions,
+three at a time,
+30 with the one-core limit and 30 without),
+0.6.1 refused 60 of 60 and the branch's compositor refused 0 of 60 and scrolled all 60.
+`windows`,
+`focus`,
+and `close` list a toplevel only once its client has committed a buffer,
+the refusal says why and what to do,
+and the README says that `click` and `move` over no window answer `ok` and reach nobody.
+A release of the compositor is needed for installed copies to have it.
+
+### A taller map after a stalled launch (reported by the verifier, not reproduced)
+
+The verifier ran the installed build with the measuring-rounds fix (`01d2c9454acda68f`) on input-free sessions:
+160 of 160 one-core sessions exact,
+and 56 of 60 unlimited sessions exact.
+Three of the four others were of one round that started at one instant and met a host stall of 2.2 s
+(the window was drawn at 24.0 s,
+the first tile built at 26.2 s):
+a map of 36,456 px (18 rows too tall),
+exactly one `row map rebuilt` (at the 173 px layout width),
+the real size (646 x 1848 px) reported at 27.4159 s,
+and no rebuild in the rest of the log (to 28.19 s;
+shutdown at 30.45 s).
+The fourth carried the `bwrap` information row (the second section above).
+
+What was tried here to reproduce it,
+with the fixed binary,
+unlimited,
+input-free,
+three sessions at a time,
+6 s of waiting after the server's ready line:
+229 launches in which the app (SIGSTOP and SIGCONT after 2.2 s),
+the compositor,
+or both were stopped at one of fourteen places of the start-up log
+(among them before the window,
+before the first tile,
+after the first tile,
+at the first report of the view's size,
+during the first measurement pass,
+at the real size,
+and at the first drawn frame),
+and 6 more in which only the tile worker's futex calls were delayed by 0.2 s each for 3 s (`strace`).
+All 229 and all 6 ended at the exact 36,024 px.
+With the compositor stopped the map passed through 50,784,
+57,624 and 55,344 px
+(the pass at the narrow width had finished) and went exact 124 ms after the real size was reported,
+by the pass at the new width (`applied a measurement count=1501 changed=true done=true`),
+not by a tile.
+
+Reading the code gives the same picture.
+The row map is rebuilt when the measured rows change (`wanted_key` in `src/native/rows.rs` carries `wrap_version`,
+not the width),
+and a new width is measured by a tile of the window thread (`measure_requested`),
+by the tile worker (`tile::apply` takes `built.measured`),
+and by the pass at the new width (`apply_pass`).
+Each of them runs after the report of the real size
+(`place_scrolled` then `render`,
+which defers or builds the tile and posts the pass),
+and a refused or discarded worker tile asks again while `scroll_wanted` is set.
+No path was found that leaves the real width unmeasured when the report arrives.
+For no rebuild to follow,
+none of the three measurements may have landed in the logged time.
+
+The records that tell the cases apart in the three logs of the round,
+after 27.4159 s:
+`left a new width to the tile worker`,
+`posted the measurement pass wrap=644`,
+`window thread applied a finished tile`,
+`applied a measurement`,
+`dropped a measurement`.
+None of them would mean a starved tile worker and pass (a scheduling stall,
+no skipped rebuild);
+a `left a new width` without a later tile would be a lost request.
+This was not available to the session that wrote this section.
 
 ### Not explained
 
-- Where such a wheel is dropped (the compositor or the toolkit's first surface),
-  and why the report of the real size does not tell.
 - Whether the pass at the narrow width is taken before the real size only under a one-core limit:
   the same symptom was seen once in 1,160 trials without a limit,
   whose logs are gone.

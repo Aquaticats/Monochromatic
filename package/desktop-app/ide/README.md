@@ -967,10 +967,30 @@ Each server writes only its private state,
 which also holds its private `/tmp`,
  caches,
  and cargo output.
-The state root is resolved through symbolic links first
-and must not contain the project.
-It may lie inside the project,
-as it does when the home folder is the project (`~/.cache` is below it).
+The private `/tmp` is emptied before every launch,
+in place (`empty_in_place` in `src/language/launch/state.rs`):
+its files go and the directory stays.
+The sandbox binds that directory by path,
+and another process on the same project (a second window of the IDE)
+prepares the same path while this one starts bubblewrap.
+A directory removed and made again is missing in between,
+and bubblewrap then stops with `bwrap: Can't find source path .../tmp: No such file or directory`
+(or `Can't open source ...`,
+`Can't bind mount ... on /tmp`).
+Measured on 2026-10-25 with three sessions at a time on one cache folder and one project:
+the old version failed in 4 of 709 launches
+(mise's run in 3,
+the server's in 1),
+the new one in 0 of 300
+(those counts alone do not separate them);
+with a cache folder for each session the old version failed in 0 of 120.
+`preparation_empties_a_scratch_directory_without_replacing_it` (`src/language/launch_tests.rs`)
+holds the directory open across a preparation and needs it still linked;
+the removing version fails it.
+Two processes still share one private `/tmp` for each server,
+so the launch of the second removes the temporary files of the first one's running server
+(its directory stays valid).
+`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md` has the account.
 After the sandbox replaces `/tmp`,
  `/run`,
  and `/dev`,
@@ -1249,6 +1269,23 @@ For any other failure it points at `mise doctor`.
 A mise that does not finish in 10 seconds is stopped and reported the same way.
 A sandbox that cannot be set up is not a mise failure:
 the servers are refused for that reason anyway.
+A run that bubblewrap itself stops
+(its message begins `bwrap:`,
+mise's begin `mise`)
+is reported as a stopped sandbox,
+not as a fault of the mise configuration.
+The notice says the sandbox stopped before mise started,
+that the project's mise configuration is not the cause,
+that the message does not say why,
+and that displaying a file again asks again (not sooner than `RETRY_AFTER`).
+It names the checks
+(`bwrap --version`,
+the private folder's existence,
+space and permission,
+another window on the project),
+then quotes bubblewrap (`Failed::stopped_by_sandbox` in `src/language/mise/state.rs`).
+Before,
+it read `Fix what mise names (mise doctor ...)` and `mise said: bwrap: ...`.
 
 #### What the servers get
 
@@ -2250,16 +2287,23 @@ and `a wheel turn began an ease` for every turn the scroll reports within 50 ms 
 A turn the window state could not note,
 and a note older than 50 ms,
 write a record of their own.
-A session whose log has no such line received no wheel event:
-13 of 210 sessions (one-core limit,
-the wheel sent 300 ms after the language server was ready) have none,
-and all 13 show the top of the file,
-while all 197 with the line show a scrolled gutter.
-The time of the toolkit's report of the real window size does not tell the two groups apart;
-the likely cause,
-which the log cannot show,
-is a wheel sent while the first,
-small surface was the only one the pointer could be over.
+A session whose log has no such line received no wheel event.
+The nested compositor refuses a `wheel` command with
+`err no nested client surface at wheel position X,Y` while the app has committed no buffer yet,
+and nothing is sent to the app:
+of 276 fresh sessions 50 were refused
+(all show the top of the file,
+none has the line)
+and 226 were accepted
+(all have the line and a scrolled gutter).
+The first surface is not small:
+it is 1080 by 1880 logical px from its first buffer,
+and the 173 px width is Slint's first layout.
+The ready line of the language server does not wait for the first frame,
+so a wheel sent 300 ms after it was refused in 14 of 72 one-core sessions and 2 of 60 unlimited ones.
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+"Where the early wheel is lost",
+has the account.
 
 Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
 the hardware GPU,
@@ -4329,6 +4373,62 @@ A selected line terminator is shown as a mark after the line's text,
 so a selected empty line stays visible.
 Mouse drags never pan the view;
 the wheel and touch scroll it.
+
+#### Which row a press names
+
+A press,
+a drag,
+and a Ctrl+click name the row of the picture the latest frame drew under the pointer.
+The markup hands the handler the pointer's place in the text as the offsets of the moment of the event give it (`drawn-y`),
+and `shown_y` in `src/native/input.rs` moves that place to the offset the latest frame was drawn at
+(`GpuTile::shown_offset`,
+which the frame notifier sets when a frame begins).
+The two offsets differ when the window thread handles the event a frame later than the person made it,
+and during a far wheel jump it does:
+in the measurement of 2026-10-25 an event waited a median of 110 to 120 ms for the thread
+(`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A press during a far wheel jump"),
+and a wheel ease moves the text 200 px per millisecond at its start.
+Before the first frame has begun nothing was shown,
+and the offset of the moment stands.
+Hover is not changed:
+it keeps the pointer's distance from the top of the view (section "Hover").
+
+#### The log of a press
+
+At debug level (`RUST_LOG=warn,monochromatic_ide=debug`) each pointer event writes one record,
+with the wall-clock stamp of the log,
+so the source line a press selected at a moment is read from the log alone.
+`source pointer press`,
+`source pointer drag start` (the first move after a press),
+`source pointer drag` (each later move),
+and `source pointer release` carry:
+`y` and `x` as the handler received them,
+`view_y` (the pointer's distance below the top of the text area,
+`y - drawn_offset`),
+`offset` (the window's real offset),
+`drawn_offset` (the offset the text is drawn at),
+`shown_offset` (the offset of the latest frame;
+absent before the first frame),
+`held` (the two offsets differ),
+`row_y` (the place the line was found for),
+`line` (counted from 0),
+`line_number` (counted from 1,
+as the gutter counts),
+and `column`.
+The press and the drag also carry the unit and the two ends of the selection.
+The frame log line `the frame's view real= drawn= held=` (target `monochromatic_ide::native::frame`)
+carries the offset each frame was drawn at,
+so the line drawn under a pointer at the pixel row `p` of the view in the frame before the press
+is `floor((p + drawn) / 24) + 1` for a text without virtual rows
+(the row map line `row map rebuilt ... blocks=` says whether there are any).
+`pointer_log.rs` builds the fields,
+and the arguments are read only when the level is enabled,
+so a build that does not log pays nothing.
+Verify a press by comparing `line_number` with that formula for the frame stamped before the press,
+and read the gutter of a screenshot to prove the formula against the picture:
+the compositor's screenshot is its last committed frame,
+which can be older than the last frame the log names.
 
 ### Tab stops
 

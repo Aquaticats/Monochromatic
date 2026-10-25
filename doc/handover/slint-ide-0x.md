@@ -4724,7 +4724,118 @@ with a doc conflict (both branches appended to the handover and the troubleshoot
 `~/temp/agent/keep-both.ts`) as `9558444611` in the scratch tree `land-press`; gates running; to be pushed, built and
 installed only after the verifier finishes with the installed `01d2c9454acda68f…` (installing under it would corrupt its
 runs), then verified on the installed binary.
-Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
+Verifier result on the installed `01d2c9454acda68f…` (row map fix; load 10 to 67, recorder 9 to 23 fps): maps taller by
+exactly 72 px: 0 of 160 one-core sessions and 0 of 60 unlimited ones (previous binary 12 and 7 of 160); Ctrl+End after
+5 s in 20 one-core sessions identical (last gutter numbers 1499 to 1501, row map 36,024, four screenshots viewed);
+far jumps 150, 300, 600: 0 blank and 0 partial code frames, tiles 1.00; five-press means as before; 88-click 832
+frames 0 blank, 82 px gap in 119 of 119; hover rest over no character at 5 and 301 notches 10 of 10 right (5 notches
+0.532 to 0.604 s, two above 0.58), reload 10 of 10, settled hover 10 of 10; Ctrl+End and Ctrl+Home 0 blank frames; drag
+after a wheel 6 of 10 starts classified (the instrument limit that the press log lines remove). NOT fixed by the row
+map fix and passed to the `early` agent: 3 of the 60 unlimited sessions (one round, started at the same instant, a
+2.2 s host stall at launch: window drawn at 24.0, first tile built at 26.2) kept a map of 36,456 px (18 rows too tall):
+a single `row map rebuilt` at the 173 px layout width at 26.22, the real size (646 x 1848 px) reported at 27.4159, no
+rebuild after it for the remaining 2 s (shutdown at 30.45): the width-change rebuild is skipped in that interleaving;
+and one unlimited session carried the `mise could not serve the project ... bwrap: Can't find source path` information
+row (+138 px). Landed 2026-10-25 as `36a91594cd` (press tip `3b7f212226` merged with a doc conflict resolved by keeping
+both sides, then with my handover commit; gates on the merged tree: `lint` 0, `test:native` 350 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0). Installed: sha256 `4a316f890696402f…` from
+`36a91594cd` (the build unit and the install task built the same file), prints 0.1.1. The verifier (scratch
+`~/temp/agent/final8`) now checks the drag press from the new log lines, 30 trials per delay at 300 notches, plus the
+regression smoke; its numbers follow, then `final8` is removed.
+Result on the installed `4a316f890696402f…` (hardware RADV, load 4.6 to 39, recorder 14 to 23 fps; scratch removed):
+drag after a 300-notch wheel, 210 trials (30 per delay of 20, 50, 80, 110, 140, 180, 250 ms), 208 with a press log
+line: the press names the line drawn in the last frame that began in 208 of 208 (`shown_offset` equals that frame's
+drawn offset in 208 of 208; "next frame" 0, neither 0); release equals the last frame in 207 of 208; selection starts on
+the pressed line and ends on the release line in 198 of 198 trials where both ends could be read (10 starts were off the
+top of the view); the press is still handled a median of 104 to 113 ms after it was sent while the ease runs (6 ms at 250
+ms), `held=true` at the press in 12 of 30 at 20 ms, 4 at 50, 3 at 80, 0 from 110; the screenshot taken at once after the
+press equals the pressed line in 4 of 30 at 20 ms, 27 of 29 at 50, 28 of 29 at 80, 30 of 30 at 110 (old build 0 of 30),
+3 of 30 at 140, 1 of 30 at 180, 29 of 30 at 250 (the compositor's last committed frame is older than the last frame
+begun at 20, 140 and 180 ms: the screenshot is late, not the log); plain click and Ctrl+click at 50, 80 and 110 ms (60
+trials): press line = last frame 60 of 60, caret on the pressed line 60 of 60, `PointerDefinition` position on the
+pressed line 30 of 30. Regression smoke: row map 36,024 in 60 of 60 one-core and 60 of 60 unlimited sessions; far jumps
+0 blank and 0 partial frames, 1 tile applied per jump in 30 of 30; five-press means as before; 88-click 823 frames 0
+blank, gap 82 px in 119 of 119, requests 1 plus 1 skip then 0 plus 1 skip twice; hover cases as before (rest over no
+character 10 of 10 at 5 and 301 notches, settled hover 10 of 10, reload 10 of 10); Ctrl+End and Ctrl+Home 0 blank
+frames. Open from this run: 2 of 210 press-and-release events logged no pointer line at all (50 ms and 80 ms; 5 other
+sessions' logs had 3 or more pointer lines) and the driver did not record the compositor's reply to each command, so
+whether the compositor refused them (as it refused the early wheel) is not known: the next verification records every
+reply and counts `err`; one release at 180 ms matched neither the last nor the next frame and its record is lost.
+The `early` agent reported 2026-10-25 (branch `worktree-agent-a763037d1a881724e`, tip `8e70b5ac38`): (a) the early wheel
+is lost in the COMPOSITOR: 276 fresh sessions, 40 notches at 540,900, 50 answered `err no nested client surface at wheel
+position 540,900` (no winit line, top gutter, no `wl_pointer.enter` nor `axis` in 17 of 17 WAYLAND_DEBUG sessions), 226
+answered `ok` (all with the winit line and a scrolled gutter); the reply came before the toplevel's first buffer
+`wl_surface.attach` in 17 of 17 refused and after it in 19 of 19 accepted; `point_pointer_at` in
+`package/cli/nested-wayland-session/src/input_wheel.rs:73` bails when no surface is under the point, and the ready line
+does not wait for the first frame (a wheel at ready plus 300 ms was refused in 14 of 72 one-core and 2 of 60 unlimited
+sessions; at first frame plus 0 in 10 of 12 and 24 of 24; at plus 0.3 to 2 s in 0 of 108); `windows` listed a toplevel
+about 300 ms before it takes input; the "small first surface" idea was wrong (first configure and first buffer are
+1080x1880; 173 px is Slint's first layout width). Fix: `windows`, `focus` and `close` list only toplevels with a
+committed buffer (`is_mapped`, `mapped_windows` in `src/window_list.rs`), the refusal text says why; headless check
+"windows lists a toplevel only once it takes pointer input" fails on 0.6.1 and passes now; with the IDE as client, a
+wheel at the first listing: 0.6.1 refused 60 of 60, the branch 0 of 60. A compositor release is needed (installed copies
+are 0.6.1). (b) the `bwrap` row is the IDE's own scratch directory: bubblewrap binds `<state>/<project>-<hash>/<server>/
+tmp` and `prepare` in `src/language/launch/state.rs` did `remove_dir_all` then `create_dir_all` on a path shared by
+every IDE process of the user and project, so a second process left it missing while the first's bwrap opened it
+(wordings `Can't find source path`, `Can't open source`, `Can't bind mount`); 4 of 709 launches with three sessions at
+once on one cache folder, 0 of 300 on the fixed binary, 0 with a folder per session, 0 of 120 one at a time (not
+separable by p alone: 0.24); fix `empty_in_place` (`state.rs:199`) empties the contents and keeps the directory, a link
+or file there is replaced, never followed; the notice for a message starting `bwrap:` now says the sandbox stopped before
+mise started and the mise configuration is not the cause (`Failed::stopped_by_sandbox`,
+`src/language/mise/state.rs:64`); tests `preparation_empties_a_scratch_directory_without_replacing_it` and
+`preparation_does_not_follow_a_link_where_the_scratch_directory_belongs` failed on the old code; still open: two
+processes on one project share one private `/tmp` per server, so the second launch removes the first running server's
+temporary files (a per-process scratch with cleanup of dead ones would end it). (c) the unlimited tall map: 400 of 400
+exact (proves nothing: the earlier rate was 1 in 1,160 and there is no stalled-pass positive control); the verifier's
+stalled-launch map (36,456, one narrow rebuild, none after the real size) was NOT reproduced in 229 launches with the app
+or compositor stopped for 2.2 s at 14 places and 6 with the tile worker's futex calls delayed, and no code path that
+skips the rebuild was found; the verifier's three logs are gone, so the question 'did `left a new width to the tile
+worker` / `posted the measurement pass wrap=644` / `applied a measurement` follow 27.4159 s' is unanswered. Merged and
+gated by me (gates: IDE `lint` 0, `test:native` 350 passed and 5 skipped, `test:language` 380, `test:bin` 0, `test`
+815, `inspect:no-software-renderer` 0, `inspect:language-guards` 33 of 33 guards with the cache argument the task
+requires (`<cache>` below the agent scratch root; a bare run exits 1 on the missing argument, which is a usage error,
+not a failure); compositor `lint` 0, `lint:clippy` 0, `test` 278, `inspect:headless` 0) and pushed as `8c60a4afb3`.
+Installed: sha256 `d60a2272574c0a64…` from `8c60a4afb3`, prints 0.1.1. Release plan (standing authorization for
+releases of the IDE and the nested compositor; dry run first): dry runs dispatched from `main` at `8c60a4afb3`: IDE
+`ide-release.yml` run 40242357783 and compositor `cargo-publish.yml` run 40242360125 (`crate=monochromatic-nested-
+wayland-session`, `dry-run=true`); read both (every job green, both architectures, the expected smoke and archive
+checks), then bump `package/desktop-app/ide/Cargo.toml` 0.1.1 to 0.1.2 with `mise run //package/desktop-app/ide:fetch`
+(one changed line in `Cargo.lock`) and `package/cli/nested-wayland-session/Cargo.toml` 0.6.1 to 0.6.2 (check its lock
+too), update the README "Changes after 0.6.1 (not released)" entry to 0.6.2, push to `main` to start the real runs
+(immutable: a bad release is fixed only by a higher version), then verify the releases (`gh release view`, attestation,
+`cargo binstall --dry-run` for the compositor) and the installed binary.
+Verifier result on the installed `d60a2272574c0a64…` (compositor 0.6.1, hardware RADV, load 20 to 40; every compositor
+reply recorded, 0 non-`ok` in about 1,200 replies): scratch directory: three IDE processes started within 20 to 90 ms of
+each other on one project and the default shared state folder, 100 rounds = 300 launches, nothing removed between
+rounds: 0 with `bwrap:` in the log, 0 information rows, 0 `typescript-native failed to start`, 300 of 300 ready and
+showing code (mean luminance 0.5097); one at a time 60 of 60 clean (0 of 300 does not separate the old 4 of 709, p
+0.24: counts only); press path 30 of 30 (50, 80, 110 ms): press line = last frame's line, release line = last frame's
+line, selection from the pressed line to the release line, every press and release had a log line (earlier 2 of 210
+did not), 120 of 120 `ok` replies per delay; row map 36,024 in 60 of 60 one-core and 60 of 60 unlimited sessions;
+far jumps 0 blank and 0 partial, 1 tile applied per jump; five-press, 88-click (82 px gap in 107 of 107), hover
+(5 notches 10 of 10 at 0.529 to 0.594 s; 301 notches 10 of 10, popup at all four times in 8 of 10 and visible from the
+second shot in the other 2: the first screenshot 0.09 to 0.11 s after the log line read 903 px; settled 10 of 10;
+reload 10 of 10), Ctrl+End and Ctrl+Home: as before. The early wheel refusal did not occur (the drivers wait for code
+on screen first), so the compositor fix is not exercised by this run.
+Dry runs of 2026-10-25 from `main` at `8c60a4afb3`: IDE `ide-release.yml` run 40242357783 green (detect, build x64,
+build arm64, checksums, release); compositor `cargo-publish.yml` run 40242360125: both `nws-build-binary` legs and
+`nws-release-state` green, `nws-publish-crate` FAILED in its first step "Install only the tools this workflow needs"
+(`mise install rust` with mise 2026.10.19, the newest release at least a day old, which `cargo-publish.yml` takes
+because it sets `minimum_release_age: 1d` and no pin): `mise ERROR failed to resolve cmake for linux-arm64: runtime
+error: crates/vfox/src/plugin.rs:375:2: module 'metadata' not found ... no file .../plugins/cmake/metadata.lua ... can't
+load C modules in safe mode`, after `mise plugin cmake ✓ https://github.com/jdx/vfox-cmake.git#4ecc1f0` and a `mise lock`
+pass over all platforms in parallel. Not our code. Failed job rerun once (is it a race or deterministic?); result below
+once read; if it fails again identically the options are the runbook's pin (`version: 2026.10.9` in the
+`jdx/mise-action` steps of `cargo-publish.yml`, comment per rule PIN, update doc/runbook/release-the-music-player.md
+"The mise version pin" and the troubleshooting doc) or removing the need of cmake in this job.
+OWNER INSTRUCTION 2026-10-25 (user message): "another session is investigating the mise issue. Don't spend effort
+yourself to investigate it, just wait." So this session does NOT investigate, pin, or edit `cargo-publish.yml` or the
+runbook for it, and does not start the real compositor release (version bump 0.6.1 to 0.6.2) until that session reports
+or the owner says otherwise. The rerun of the failed job (run 40242360125) is only read, not acted on. The IDE dry run
+(run 40242357783) is green; the IDE's own workflow pins mise 2026.10.9 and is not affected; a real IDE release
+(0.1.1 to 0.1.2) is held with the compositor's so both releases carry the same state, until the mise question is
+answered. Nothing else is waiting on this session.
+Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
 Ctrl+End and Ctrl+Home).
@@ -5244,6 +5355,190 @@ the full account with counts is the section "A row map taller than the text" of
   and the native tests that cover hover rows,
   drag starts and wrapping passed (346 of 346).
 - The harness was kept only in the session scratch (`~/temp/agent/rowmap`) and is removed with its throwaway builds.
+## A press during a far wheel jump, read from the log, 2026-10-25 (branch worktree-agent-a697d97d4b2ed8c01)
+
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A press during a far wheel jump";
+`package/desktop-app/ide/README.md`,
+subsections "Which row a press names" and "The log of a press".
+
+- Question:
+  the check "a drag that starts during the hold or the ease starts the selection on the row drawn under the pointer"
+  could not be classified in about half of 20 trials on `b951a5d005` at load 22 to 39.
+  Was it the recorder and the load?
+- Instrument (new):
+  the press,
+  the first drag move,
+  the later moves,
+  and the release (a new `pointer-release` callback) write one debug record each,
+  with the log's wall-clock stamp,
+  `y`,
+  `x`,
+  `view_y`,
+  `offset`,
+  `drawn_offset`,
+  `shown_offset`,
+  `held`,
+  `row_y`,
+  `line`,
+  `line_number` and `column`
+  (`src/native/pointer_log.rs`).
+  With the existing `the frame's view real= drawn= held=` records
+  the drawn row of a press is read from the log alone.
+- Answer,
+  580 trials,
+  three sessions at a time,
+  load 7 to 16,
+  300 notches,
+  delays 20 to 600 ms,
+  gutter numbers of the screenshot at the press read with `tesseract`:
+  the pointer mapping through `drawn-y` is right for the offsets of the moment
+  (the press's own offsets name its line in every trial without a diagnostic block),
+  and the press is handled a median 110 to 121 ms after it was sent at delays of 20 to 180 ms
+  (1 to 13 ms at 250 and 600),
+  because the window thread draws about 8 frames per second while a far jump runs;
+  the press then maps at the offset of that late moment,
+  199 of 229 presses did not name the last frame's row
+  (median 35 to 77 rows off),
+  and the screen showed the last frame's row in 29 or 30 of 30 at d=50 to 110.
+  The recorder was not the cause;
+  the load is (the earlier 10 of 10 at load 2 to 3 was not rerun).
+- Positive control:
+  a scratch build mapping with the real offset (not committed)
+  gives a `view_y` error in exactly the 8 held presses of 80 trials and no other.
+- Fix (veto-open,
+  one commit to revert):
+  `shown_y` maps the press,
+  the drag,
+  the release and the Ctrl+click through the offset of the latest frame
+  (`GpuTile::shown_offset`).
+  Fix arm:
+  press row = last frame 189 of 190 at d=20 to 180,
+  the one miss a 72 px taller row map;
+  screen = pressed row 29 or 30 of 30 at d=50 to 110 (`new` 0 to 5),
+  but 0 to 2 at d=20,
+  140,
+  150 and 180
+  where the screen shows a frame older than the last one begun
+  (no presentation feedback in the app).
+- Open:
+  why the thread draws only 8 frames per second during a far jump
+  (an 83 ms stretch with no log record after a finished frame);
+  the taller row map (seen again,
+  1 of 330 sessions);
+  the old binary at low load.
+- Tests and gates:
+  `src/native/pointer_log_tests.rs` (4 tests),
+  7 guard cases `pointer-*` in `bin/inspect-source-guards.ts`
+  (each fails on its removal and passes restored,
+  the `.slint` one included);
+  the keyboard code of `src/native/input.rs` moved to `src/native/caret_keys.rs`
+  (the file was over the 300 code line limit with the logging;
+  5 older guard cases follow it);
+  two tests of `wheel_tests.rs` draw a frame over the held view before they press,
+  as a person does.
+  `lint` 0,
+  `test:native` 349 passed and 5 skipped,
+  `test` 811 passed,
+  `test:bin` 0,
+  `inspect:no-software-renderer` 0.
+- The harness (driver,
+  analysis,
+  OCR) was kept only in the session scratch and removed.
+
+## The early wheel, the sandbox scratch race, and the unreproduced stalled-launch map, 2026-10-25 (branch worktree-agent-a763037d1a881724e)
+
+Full accounts with counts:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md` ("Where the early wheel is lost",
+"A taller map after a stalled launch"),
+`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md`,
+`doc/troubleshooting/nested-wayland-gui-test-footguns.md`.
+
+- Early wheel lost (a):
+  the compositor refused the command.
+  50 of 276 fresh sessions got `err no nested client surface at wheel position 540,900` (the app had committed no buffer),
+  and 226 got `ok`;
+  every refused one has no winit wheel line and a top gutter,
+  every accepted one has the line and a scrolled gutter,
+  and the 36 sessions with the app's protocol log show no `enter` or `axis` sent for the refused ones.
+  The surface is not small (1080x1880 from the first buffer).
+  The earlier harness did not read the reply.
+  Fix in `package/cli/nested-wayland-session`:
+  `windows`,
+  `focus` and `close` list a toplevel only once it has a buffer (`src/window_list.rs`),
+  the refusal text says why (`src/input_wheel.rs`),
+  README says that `click` and `move` over no window answer `ok` and reach nobody.
+  Check `windows lists a toplevel only once it takes pointer input` in `inspect:headless`:
+  fails against 0.6.1,
+  passes now.
+  IDE as client,
+  wheel at the first listing,
+  60 sessions:
+  0.6.1 refused 60,
+  the branch 0.
+  **A release of the nested compositor is needed** (not done here);
+  the IDE needs none for this.
+- `bwrap` row (b):
+  bubblewrap printed it;
+  the IDE emptied a launch's private `/tmp` by removing and making the directory again,
+  so another process on the same project could find the bind source missing.
+  Old binary,
+  three at a time on one cache folder:
+  4 of 709;
+  separate folders 0 of 120;
+  one at a time 0 of 120;
+  fixed binary 0 of 300
+  (the counts alone do not separate the binaries;
+  the held-directory test does).
+  `empty_in_place` (`src/language/launch/state.rs`),
+  tests in `src/language/launch_tests.rs`,
+  guards `scratch-kept-in-place` and `sandbox-stop-named`
+  (both observed failing when removed,
+  passing when restored).
+  The mise notice for a message that begins `bwrap:` no longer sends the reader to `mise doctor` (`Failed::stopped_by_sandbox`).
+  Left:
+  two processes on one project still share one private `/tmp` per server (a per-process scratch would end that).
+  **An IDE release is needed** for the installed binary.
+- Taller map (c):
+  400 of 400 input-free unlimited sessions,
+  three at a time,
+  with the fixed binary (two copies of 200) ended at 36,024 px with no
+  `the measurement found rows in the displayed tile that differ from the map` record.
+  This proves nothing about the 1 in 1,160 rate or about the stalled-launch case:
+  there is no positive control,
+  and the earlier rate is too low for 400 sessions to show a difference.
+  The verifier's three stalled sessions (36,456 px,
+  one narrow rebuild,
+  none after the real size) were NOT reproduced in 229 stalled launches
+  (app,
+  compositor or both stopped 2.2 s at fourteen start-up places) or with a delayed tile worker;
+  no code path that skips the rebuild was found.
+  Next step:
+  the records after the real size in the verifier's three logs
+  (`left a new width to the tile worker`,
+  `posted the measurement pass wrap=644`,
+  `window thread applied a finished tile`,
+  `applied a measurement`)
+  tell a starved worker from a lost request.
+- Gates (IDE):
+  lint,
+  `test:language` 380 of 380,
+  `test:native` 350 of 350,
+  `test:bin`,
+  `test` 815 of 815,
+  `inspect:no-software-renderer`,
+  `inspect:language-guards` for the two new cases.
+  Gates (compositor):
+  `test` 278 of 278,
+  `lint`,
+  `lint:clippy`,
+  `inspect:headless` 5 of 5.
+- The harness (`drive.ts`:
+  sessions,
+  stalls,
+  `windows`-gated wheel,
+  OCR of the gutter) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
