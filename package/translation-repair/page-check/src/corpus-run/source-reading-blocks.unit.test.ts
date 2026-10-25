@@ -154,6 +154,25 @@ await describe({
           sourceBlocks,
           pageBlocks: ['tabby', '[^1]: x [r]: u <script>',],
           disagreements: [{ start: 10, end: 11, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 1, },);
+      },
+    },),
+    it({
+      name: 'READS THE WORDS OF A BLOCK NO RANGE REACHES WHEREVER THE PAGE SHOWS THEM, in one block or in several',
+      fn: async () => {
+        /**
+         A block a range reaches and a block of two words, which the page shows in two blocks of one word each.
+         */
+        const sourceBlocks = [blockAt({ account: 'tabby', at: 0, },), blockAt({ account: 'x y', at: 1, },),];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby!', 'x', 'y',],
+          disagreements: [{ start: 0, end: 1, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 1, },);
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby!', 'x', 'z',],
+          disagreements: [{ start: 0, end: 1, },],
         },),).toEqual({ differs: true, undecidedBlocks: 1, },);
       },
     },),

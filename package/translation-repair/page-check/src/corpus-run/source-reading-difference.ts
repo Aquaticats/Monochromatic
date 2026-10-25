@@ -5,6 +5,7 @@ import {
   PageSyntaxError,
   readerOfPage,
   readerOfSource,
+  type SourceBlock,
   withoutLinkTargets,
 } from './source-reading-account.ts';
 import { blockDifferenceOf, } from './source-reading-blocks.ts';
@@ -123,8 +124,17 @@ export function readingDifferenceOf(
     differs,
     undecidedBlocks,
   } = blockDifferenceOf({
-    sourceBlocks: blocksOfSource({ source, },),
-    pageBlocks: blocksOfPage({ carried, },),
+    sourceBlocks: blocksOfSource({ source, },)
+      .map(function withoutTargets(block,): SourceBlock {
+        return {
+          ...block,
+          account: withoutLinkTargets({ account: block.account, },),
+        };
+      },),
+    pageBlocks: blocksOfPage({ carried, },)
+      .map(function withoutTargets(account,): string {
+        return withoutLinkTargets({ account, },);
+      },),
     disagreements,
   },);
   if (differs || (undecidedBlocks === 0)) {
