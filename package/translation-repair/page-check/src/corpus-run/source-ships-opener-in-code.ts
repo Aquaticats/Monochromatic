@@ -75,14 +75,37 @@ function delimiterRun({
 }
 
 /**
- What stands between code and a following opener without being code: white space and the marks of a block quote.
+ What a line of a container starts with before its content: white space and the marks of a block quote.
  */
-const CODE_GAP = ' \t\r\n>';
+const MARKS_AND_WHITE_SPACE = ' \t\r>';
+
+/**
+ Whether a line holds nothing but white space and the marks of a block quote.
+
+ @param line - line of text, without its line feed
+
+ @returns Whether every character is one of them; true for an empty line
+
+ @example
+ ```ts
+ const marks = holdsOnlyMarks({ line: '> > ', },); // true
+ ```
+ */
+function holdsOnlyMarks({ line, }: { readonly line: string; },): boolean {
+  for (let at = 0; at < line.length; at += 1) {
+    if (!MARKS_AND_WHITE_SPACE.includes(line.charAt(at,),))
+      return false;
+  }
+  return true;
+}
 
 /**
  The code a span keeps before an opener: what stood before the opener less the white space and the marks of containers
  between the code and the opener, which a reader of the page would take off the span with the white space at its other
  end, and which are written after the closing delimiter.
+
+ A line after the first that holds nothing but marks and white space is that gap, and the trailing white space of the last
+ line that holds code goes with it; an angle bracket that ends code on a line is code, a closed comment's among them.
 
  @param before - what stands in the span before the opener
 
@@ -90,22 +113,30 @@ const CODE_GAP = ' \t\r\n>';
 
  @example
  ```ts
- const kept = codeBefore({ before: 'x ', },); // 'x'
+ const kept = codeBefore({ before: 'x\n> ', },); // 'x'
  ```
  */
 function codeBefore({ before, }: { readonly before: string; },): string {
   /**
-   Where the gap after the code starts.
+   The lines of the stretch, the first of which starts at the span and so has no marks.
    */
-  const gap = { at: before.length, };
-  while ((gap.at > 0) && CODE_GAP.includes(before.charAt(gap.at - 1,),))
-    gap.at -= 1;
-  return (gap.at === 0)
-    ? before
-    : before.slice(
-      0,
-      gap.at,
-    );
+  const lines = before.split('\n',);
+  /**
+   How many lines hold code: a line after the first that is nothing but marks and white space is not one.
+   */
+  const code = { lines: lines.length, };
+  while ((code.lines > 1) && holdsOnlyMarks({ line: lines[code.lines - 1] ?? '', },))
+    code.lines -= 1;
+  /**
+   The code, its trailing white space cut off.
+   */
+  const kept = lines.slice(
+    0,
+    code.lines,
+  )
+    .join('\n',)
+    .trimEnd();
+  return (kept === '') ? before : kept;
 }
 
 /**
