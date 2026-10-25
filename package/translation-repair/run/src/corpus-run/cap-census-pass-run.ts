@@ -57,18 +57,20 @@ async function opensWithinHead({ path, }: { readonly path: string; },): Promise<
    */
   await using handle = await open(path,);
 
-  /**
-   Lines read so far.
-   */
-  let linesRead = 0;
-  for await (const line of handle.readLines()) {
-    if (line.startsWith(PASS_RUN_MARKER,))
-      return true;
-    linesRead += 1;
-    if (linesRead >= HEAD_LINES)
-      return false;
-  }
-  return false;
+  return await (async function searchHead(): Promise<boolean> {
+    /**
+     Lines read so far.
+     */
+    let linesRead = 0;
+    for await (const line of handle.readLines()) {
+      if (line.startsWith(PASS_RUN_MARKER,))
+        return true;
+      linesRead += 1;
+      if (linesRead >= HEAD_LINES)
+        return false;
+    }
+    return false;
+  })();
 }
 
 /**
