@@ -8,6 +8,7 @@ import {
   firstNestingExcess,
   isStackOverflow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { withoutRawHtml, } from './without-raw-html.ts';
 
 //region GFM block ranges
 // WHERE THE STRICT GRAMMAR READS A GFM BLOCK, read off a parse with GFM on. The plain reading
@@ -16,7 +17,9 @@ import {
 // the pipe stands in (a code span, the address of an autolink), so text read without GFM as one construct can be two
 // cells. A footnote definition ends at the first line that is not indented once a block of the footnote has closed the
 // paragraph the definition opened with (an unclosed fence indented under it, say), where the plain reading takes every
-// line after the label for the same paragraph.
+// line after the label for the same paragraph. The footnote definitions are read with raw HTML turned off
+// (`without-raw-html.ts`), since a line of HTML that ends the footnote's paragraph in the plain reading is a line of
+// it on the page.
 
 /**
  A stretch of a text, as offsets in UTF-16 units.
@@ -69,11 +72,18 @@ function rangesOfType(
    */
   const pending: Nodes[] = [];
   try {
-    pending.push(unified()
+    /**
+     The parser with GFM and the site's math on; for a footnote definition, with raw HTML turned off as the page has it.
+     */
+    const parser = unified()
       .use(remarkParse,)
       .use(remarkGfm,)
-      .use(remarkMath,)
-      .parse(body,),);
+      .use(remarkMath,);
+    pending.push((type === 'footnoteDefinition')
+      ? parser
+        .use(withoutRawHtml(),)
+        .parse(body,)
+      : parser.parse(body,),);
   }
   catch (error) {
     // Only the engine's stack exhaustion is the refusal the strict grammar gives such a text; any other failure is an
