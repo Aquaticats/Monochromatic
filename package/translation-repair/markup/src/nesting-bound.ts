@@ -16,6 +16,7 @@ import {
   blanksEnd,
   containerPrefixOf,
   indentationOf,
+  isDefinitionLine,
   isRuleLine,
   linesOf,
 } from './nesting-line-lexing.ts';
@@ -340,7 +341,14 @@ function readLine(
   },);
   if ((grammar === 'mdx') && rest.startsWith('$$',))
     state.mathSeen = true;
-  return scanInline({
+  /**
+   How many braces were open before the line.
+   */
+  const bracesBefore = state.braces;
+  /**
+   What the line did to the counts.
+   */
+  const reading = scanInline({
     line,
     start: prefix.end,
     lineNumber,
@@ -348,6 +356,11 @@ function readLine(
     state,
     skipDelimiters: isRuleLine({ line: rest, },),
   },);
+  // A definition takes a brace for a character of its destination or title, so none of its braces stays open past it,
+  // though they all counted against the bound on the line itself.
+  if (isDefinitionLine({ line: rest, }))
+    state.braces = bracesBefore;
+  return reading;
 }
 
 /**

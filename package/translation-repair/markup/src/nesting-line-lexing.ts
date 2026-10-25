@@ -501,4 +501,40 @@ export function linesOf({ body, }: { readonly body: string; },): readonly string
   return lines;
 }
 
+/**
+ Whether a line is a link reference definition, whose destination and title read a brace as a character.
+
+ A footnote definition is none: the text after its colon is read as inline text, braces and all.
+
+ @param line - the line's text after its container markers and indentation
+
+ @returns Whether the line opens with a label and a colon
+
+ @example
+ ```ts
+ const definition = isDefinitionLine({ line: '[r]: u{b', },); // true
+ ```
+ */
+export function isDefinitionLine({ line, }: { readonly line: string; },): boolean {
+  if ((!line.startsWith('[',)) || line.startsWith('[^',))
+    return false;
+  for (let index = 1; index < line.length; index++) {
+    /**
+     Character read.
+     */
+    const character = line.charAt(index,);
+    if (character === '\\') {
+      // A backslash takes the character after it into the label.
+      index++;
+      continue;
+    }
+    // A label holds no bracket that is not escaped.
+    if (character === '[')
+      return false;
+    if (character === ']')
+      return line.charAt(index + 1,) === ':';
+  }
+  return false;
+}
+
 //endregion Nesting line lexing
