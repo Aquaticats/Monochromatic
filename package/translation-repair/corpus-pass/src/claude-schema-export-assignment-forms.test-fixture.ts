@@ -51,6 +51,68 @@ export const EXPORT_ASSIGNMENT_CASES: readonly ShapeCase[] = [
     builders: [],
     spots: [],
   },
+  {
+    name: 'LISTS THE FILE THAT CALLS A FORWARDER A FILE EXPORTS WITH `export =` AND BRINGS IN AS ITS DEFAULT, since a '
+      + 'module with an `export =` has no other value to give a default import',
+    files: [
+      SENDER_FILE,
+      {
+        file: 'imaginary/src/assignment-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+          'export = mk;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/assignment-caller.ts',
+        text: textOf([
+          'import made from \'./assignment-stage.ts\';',
+          `export const SENT = made(${ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: [
+      'imaginary/src/assignment-caller.ts',
+      'imaginary/src/assignment-stage.ts',
+    ],
+    builders: [],
+    spots: [],
+  },
+  {
+    name: 'LISTS THE FILE THAT CALLS A FORWARDER A FILE EXPORTS WITH `export =` AND BRINGS IN AS A NAMESPACE, which a '
+      + 'module with an `export =` gives as the value itself when it is imported without the interop of a default',
+    files: [
+      SENDER_FILE,
+      {
+        file: 'imaginary/src/assignment-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+          'export = mk;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/assignment-caller.ts',
+        text: textOf([
+          'import * as made from \'./assignment-stage.ts\';',
+          `export const SENT = made(${ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: [
+      'imaginary/src/assignment-caller.ts',
+      'imaginary/src/assignment-stage.ts',
+    ],
+    builders: [],
+    spots: [],
+  },
 ];
 
 //endregion A module that exports a value with `export =` and a file that brings it in with `import x = require(path)`
