@@ -453,19 +453,23 @@ export function assertCheckerIndependence(
 }
 
 /**
- Fewest checkers a split verdict can be read from.
+ Fewest checkers a verdict can be read from: two, since one judge alone never
+ decides.
 
- DERIVED FROM THE TALLY RULE rather than chosen. `tallyResolutionChecks`
- resolves an issue on `fixed > (notFixed + worse)`, so at two checkers one
- `fixed` against one `not-fixed` decides nothing and only a unanimous two-nil
- decides anything: a roster of two that disagrees returns no verdict at all.
- Three is the smallest roster where a majority still reads as a majority.
+ THE OWNER'S ANSWER OF 2026-10-25, "Allow two checkers", moved this from
+ three. `tallyResolutionChecks` resolves an issue on
+ `fixed > (notFixed + worse)` among at least two answering checkers, so a
+ roster of two decides a unanimous two-nil and a split one against one
+ resolves nothing: it returns no verdict, never a wrong one. Three was the
+ smallest roster where a split still read as a majority; the owner chose to
+ run on two and take the split as undecided. One checker is still refused,
+ because a single answer is no ballot count.
 
  SCALE-FREE UNDER THE DISCOUNT, which is why one number covers both arms.
  Halving every weight on an issue halves both sides of that comparison, so a
- roster of three whose members all wrote the text still resolves two-to-one.
+ roster whose members all wrote the text resolves the same issues.
  */
-const MINIMUM_CHECKER_COUNT = 3;
+const MINIMUM_CHECKER_COUNT = 2;
 
 /**
  Thrown when a checker roster is too small to return a verdict.
@@ -490,27 +494,29 @@ export class CheckerQuorumError extends Error {
     super(
       `this run configures ${String(checkerModelIds.length,)} checker(s), [${
         checkerModelIds.join(', ',)
-      }], against a floor of ${String(MINIMUM_CHECKER_COUNT,)}; below that a disagreement returns no `
-        + `verdict, because resolution needs more weight behind fixed than behind not-fixed and worse `
-        + `together, so checking would run and decide nothing`,
+      }], against a floor of ${String(MINIMUM_CHECKER_COUNT,)}; below that no verdict can be read, `
+        + `because resolution needs two answering checkers and one judge alone never decides, so `
+        + `checking would run and decide nothing`,
     );
     this.name = 'CheckerQuorumError';
   }
 }
 
 /**
- Refuses a checker roster too small for a disagreement to resolve.
+ Refuses a checker roster too small to return a verdict: fewer than two
+ checkers.
 
  WHY THIS EXISTS SEPARATELY FROM THE EMPTY-ROLE FLOOR. `assertRostersConfigured`
- refuses a role with nobody in it and nothing more, so a roster of two passed
- every guard while being unable to produce a verdict any two members disagree
- about. Narrowing checking is exactly what widening the producing roles does
- to a fixed-size roster, so the guard belongs next to the one that permits it.
+ refuses a role with nobody in it and nothing more, so a roster of one passed
+ every guard while being unable to produce a verdict at all. Narrowing
+ checking is exactly what widening the producing roles does to a fixed-size
+ roster, so the guard belongs next to the one that permits it. The floor was
+ three until the owner's answer of 2026-10-25, "Allow two checkers".
 
  @param checkerModelIds - checkers proving the shipped repair
 
  @throws {@link CheckerQuorumError} when fewer checkers are configured than a
- split verdict needs
+ verdict needs
 
  @example
  ```ts

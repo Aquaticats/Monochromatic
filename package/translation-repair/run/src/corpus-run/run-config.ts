@@ -703,7 +703,8 @@ export const RUN_MODELS: RunRepairModels = {
   //
   // NEMOTRON LEFT EVERY ROLE on 2026-08-29 at the owner's instruction after it
   // contradicted its own adjacent required-correction guidance. Kimi-K3 takes
-  // that checker seat rather than shrinking below the hard floor of three. It
+  // that checker seat rather than shrinking the bench of three (the contract's
+  // floor is two since the owner's answer of 2026-10-25). It
   // was already one of the added checker voices in all 231 measured wide-arm
   // rounds, where added voices changed no resolution verdict. That evidence is
   // about ensemble effect rather than individual checker ranking; a fresh
