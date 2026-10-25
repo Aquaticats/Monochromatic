@@ -25,6 +25,7 @@ import {
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type BudgetView,
+  type ClaudeAttemptAsk,
   createRoutingClient,
   foldCredentialHolds,
   readsImages,
@@ -1062,6 +1063,9 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  @param maxHoldMs - longest a wait a refusal states for itself may hold a provider out (REQUIRED, so no client runs with
  an unbounded hold)
 
+ @param admitClaudeAttempt - told by the Claude client before each attempt it makes, with the card and the most the
+ attempt can be billed; what it throws ends that call before the attempt is sent (`configureProviders`)
+
  @returns Ready client, routed across configured providers and counted per seat
 
  @throws {@link RunConfigError} when every provider key variable is unset or empty
@@ -1083,6 +1087,7 @@ export function runClientFrom(
     passLeftMs,
     off,
     maxHoldMs,
+    admitClaudeAttempt,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
@@ -1090,6 +1095,7 @@ export function runClientFrom(
     readonly passLeftMs?: () => number;
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
+    readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
   },
 ): RunClient {
   /**
@@ -1113,6 +1119,8 @@ export function runClientFrom(
     transport,
     ...((off === undefined) ? {} : { off, }),
     maxHoldMs,
+    // Conditional spread keeps the hook absent instead of undefined.
+    ...((admitClaudeAttempt === undefined) ? {} : { admitClaudeAttempt, }),
   },);
   /**
    Each configured provider's client, absent where its key is unset.

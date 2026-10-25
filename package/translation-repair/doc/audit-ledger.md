@@ -595,6 +595,41 @@ named for that subject and listed here.
   a writing-bench floor that stopped an entry for want of a named return
   though NeuralWatt's return was 48 s away (B826),
   and five phases judged against a bench their stage does not seat (B860).
+- [Audit ledger: probes that read one editor card](audit-ledger-editor-card-probes.md):
+  An editor calibration with no flag naming a card (B870),
+  a flag that confines the editing and not the spend (B871),
+  a lone editor whose slate ships unjudged (B872),
+  a relative share that moved from 52.2 to 26.7 to 10.0 percent across identical runs (B874),
+  the absolute probe that reads one card's edit against a known fix and the pieces it stands on (B875 to B880),
+  the per-call spend guard that replaced a gate on the first-pass total (B881 and B882),
+  the end-of-section insertions it could not score (B883),
+  the process slips of two rounds (B884),
+  the guard that counts a throw and a retried attempt (B885),
+  the bench amount and the read step over the arm logs (B886 to B889),
+  the slips of a fourth round (B890),
+  the decision rule held as code with a floor from an exact enumeration (B891),
+  the dry run that prints what the arm will do (B892),
+  and the slips of a fifth round with the cache statement (B893).
+- [Audit ledger: the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md):
+  The floor of B891 replaced by a paired exact test for each effort,
+  with its false-pick chance and power (B894),
+  the pool that holds every trial the clone offers (B895),
+  the read step over three or four logs that absorbs a failed trial in the trial (B896),
+  the spend guard's one-call-at-a-time assertion (B897),
+  the retry-ladder hook with the cache statement of round 6 (B898),
+  and the bench total of 60 USD with the replicates the rule reads as units (B899).
+- [Audit ledger: the editor bench's multi-pass arms, the false-pick bound and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md):
+  The follow-ups of B899 from round 8 on:
+  the planned line of an arm that walks the pool in passes,
+  the false-pick bound under unequal repeat agreement,
+  the lines that print each arm's repeat agreement and the fix rate of the default effort,
+  and the runbook with its stop rule and pre-launch read.
+- [Audit ledger: the editor bench's exact repeat test, the high fix rate warning and the self-contained runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md):
+  The follow-ups of B899 from round 10 on:
+  the high fix rate warning that meets the rule's stated region,
+  the exact test of the repeat warning with its measured rates,
+  the lead's actions on two warnings,
+  and the runbook blocks that each set the variables they read.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,

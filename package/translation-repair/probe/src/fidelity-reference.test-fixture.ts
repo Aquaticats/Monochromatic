@@ -334,4 +334,42 @@ export function expectRefusal(
     .toBe(`FidelityReferenceError: ${message}`,);
 }
 
+/**
+ Drops the second bracketed group of a log line, which holds its timestamp.
+
+ @param line - output line read
+
+ @returns The line without its timestamp, any other line unchanged
+
+ @example
+ ```ts
+ // yields '[info] [probe] purr'
+ const plain = withoutStamp({ line: '[info] [2026-01-01T00:00:00.000Z] [probe] purr', },);
+ ```
+ */
+export function withoutStamp({ line, }: { readonly line: string; },): string {
+  if (!line.startsWith('[',))
+    return line;
+  /**
+   Where the level group closes.
+   */
+  const levelEnd = line.indexOf(']',);
+  /**
+   Where the timestamp group closes.
+   */
+  const stampEnd = line.indexOf(
+    ']',
+    levelEnd + 1,
+  );
+  if ([
+    levelEnd,
+    stampEnd,
+  ].includes(-1,))
+    return line;
+  return `${line.slice(
+    0,
+    levelEnd + 1,
+  )}${line.slice(stampEnd + 1,)}`;
+}
+
 //endregion Invented reviewed-reference fixtures

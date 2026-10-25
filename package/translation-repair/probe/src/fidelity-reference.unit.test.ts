@@ -653,6 +653,17 @@ await describe({
           },
         },),
         it({
+          name: 'KEEPS THE WHOLE PAGES the passages were cut from, which the editor probe prepares the context of its '
+            + 'sheet from: the neighbouring sections, the declared names and the whole original',
+          fn: async () => {
+            const fixture = reviewedFixture();
+            expect(buildReviewedFidelityReference(fixture,).pages,).toStrictEqual({
+              sourceFile: fixture.sourceFile,
+              archiveFile: fixture.archiveFile,
+            },);
+          },
+        },),
+        it({
           name: 'KEEPS an unedited reference exactly as its archive slice reads',
           fn: async () => {
             const { sourceFile, archiveFile, spec, } = rebound({

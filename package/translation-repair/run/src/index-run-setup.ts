@@ -26,6 +26,7 @@ export {
   readLogTexts,
   refuseRepeatedLogs,
 } from './corpus-run/report-log-read.ts';
+export { CLAUDE_KEY_VARIABLE, } from './corpus-run/direct-key-variables.ts';
 export { configureProviders, } from './corpus-run/run-providers.ts';
 export {
   isProviderOff,

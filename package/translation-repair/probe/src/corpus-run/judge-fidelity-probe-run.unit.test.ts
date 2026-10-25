@@ -183,6 +183,10 @@ function inventedReader(
         sourceText: REVIEW_SOURCE,
         referenceText: REVIEW_REFERENCE,
         damages: [DELETION,],
+        pages: {
+          sourceFile: REVIEW_SOURCE,
+          archiveFile: REVIEW_REFERENCE,
+        },
       };
     },),);
   };

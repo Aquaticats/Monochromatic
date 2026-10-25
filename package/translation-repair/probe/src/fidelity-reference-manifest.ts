@@ -4,9 +4,10 @@ import type { FidelityReferenceSpec, } from './fidelity-reference-model.ts';
 // No complete corpus passage is committed. Exact ranges and hashes pin the reviewed comparison.
 
 /**
- Immutable review pin, deliberately independent of future runtime corpus defaults.
+ Immutable review pin, deliberately independent of future runtime corpus defaults, which the editor fidelity pool's
+ drawn specifications are pinned to as well.
  */
-const REVIEWED_CORPUS_SHA = 'a41fc607ea5a70d8a7625cc67d5ed8c444f53379';
+export const REVIEWED_CORPUS_SHA = 'a41fc607ea5a70d8a7625cc67d5ed8c444f53379';
 
 /**
  References and every permitted damage reviewed before model calibration.

@@ -717,9 +717,156 @@ State after the `XingZ6018` and `XingZ6019` reads,
 - `XingZ6020` was relaunched at 19:32:29 UTC on the same frozen build,
   with a fresh runs directory,
   and is running.
+  Note of 2026-10-25 (UTC):
+  it settled at 06:05:33 UTC on 2026-10-23,
+  and its read is filed (see "State after the `XingZ6020` read is filed").
 - Next:
   read `XingZ6020` when it settles;
   land the fixes of D4 (model-level dryness,
   B822) and E2 (B826);
   rebuild,
   and launch the next rotation on the new build.
+
+State after the `XingZ6021` read,
+2026-10-25 (UTC):
+
+- The state "State after the `XingZ6018` and `XingZ6019` reads" says `XingZ6020` is running;
+  that is out of date.
+  The `XingZ6021` read quotes the lead's figures for `XingZ6020`:
+  10 h 33 min over two attempts (a 7 h deadline attempt,
+  then 3 h 33 min),
+  228 hold waits,
+  and the 30 tail slices unfilled.
+  That read was at `temp/agent/tr-fan/w312-xingz20/XingZ6020-read.md`
+  and was not filed in the records when this state was written.
+  It is filed since,
+  as checked by a second reader
+  (see "State after the `XingZ6020` read is filed").
+- The read of `XingZ6021` is filed in four files under the answers-restart record,
+  starting at `doc/planning/translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md`
+  (the run),
+  with the stages,
+  the evidence and the defects beside it.
+  A second reader checked it against the log,
+  the corpus and the source as built,
+  and the check's reading is the one filed
+  (it corrected the wire id of DeepSeek's key,
+  the split of the 225 `needs-human` adjudications,
+  three round counts and the Shinonome source lines,
+  and added slice 70,
+  the archive-dispute path and the second absolute floor to N1).
+- Its headlines:
+  `XingZ6021` ran on the frozen build `bcff23b8ce` from 22:49 UTC on 2026-10-24,
+  SETTLED on its first attempt in 2 h 5 min 45 s with all 118 slices filled,
+  no hold,
+  no HTTP error status and 0.4 min of idle wall clock.
+  Synthetic's weekly credit ran dry at 00:01:55 UTC,
+  and 225 of the 233 issue adjudications after that ended `needs-human` (9 of 108 before).
+- N1 is the defect that matters:
+  the shipped page's Shinonome section (slices 67 to 70) is byte-identical to the archive's,
+  with an invented *Metal Gear Solid 2* quotation and two paragraphs that the source lacks,
+  and it shipped with no `DEFECTS` line.
+  The chain is three absolute floors that a bench of two cannot meet
+  (tally weight 3,
+  3 non-translation votes,
+  a slate of 2 ballots).
+  The owner ruled on 2026-10-25:
+  "floor of 3 - don't set a floor.";
+  on a lone judge "Two ballots decide (Recommended)";
+  on scope "Every weight floor".
+  The change that follows is in progress and has no commit yet.
+  It is the work that answers N1.
+- Open from the read:
+  N8 (the DeepSeek cost booked at peak though the run was off peak) is an open defect candidate for the owner;
+  N2 to N10 are classed in the defects file as new,
+  known with a ledger id,
+  or by design.
+  The source text under a note and the NeuralWatt hold were not exercised by the run.
+  The re-check of the follow-ups to D and X1 (its finding R2) reports that the frozen build `bcff23b8ce` carries the
+  live-expression form for footnote lines in quotes and list items;
+  no definition line of this run was in a quote or a list item,
+  and one reference sat in a quote
+  (the stages file,
+  "The frozen build and footnote lines in quotes and list items").
+- Next:
+  land the floors change,
+  rebuild,
+  and rerun `XingZ60` to see whether the Shinonome section still ships the archive's text;
+  file the read of `XingZ6020`
+  (done,
+  see "State after the `XingZ6020` read is filed");
+  rule on N8
+  (a fix is in progress as ledger B920,
+  see the same state).
+
+State after the `XingZ6020` read is filed,
+2026-10-25 (UTC):
+
+This state supersedes two statements of "State after the `XingZ6021` read":
+that the read of `XingZ6020` is owed,
+and that N8 is an open defect candidate.
+The other statements of that state stand.
+
+- The read of `XingZ6020` is filed in four files under the answers-restart record,
+  starting at
+  `doc/planning/translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md`
+  (the run),
+  with the stages,
+  the evidence and the defects beside it.
+  A second reader checked it against the log,
+  the corpus and the source as built,
+  and the check's reading is the one filed.
+  The index entries are in the answers-restart record and in
+  `doc/planning/translation-repair-openrouter-2026-09-03.md`.
+- Its headlines:
+  `XingZ6020` ran on the frozen build `1d46232457` from 19:32:29 UTC on 2026-10-22 and SETTLED on its second attempt
+  after 10 h 32 min 51 s;
+  the first attempt ended on the 7 h hard deadline inside a wait for a hold.
+  The page lacks its last 30 of 118 slices (31.5 percent of the source,
+  every footnote definition among them) with nothing on the page to say so.
+  Synthetic renamed its weekly block between 22:20:54 UTC and 22:21:58 UTC on 2026-10-22,
+  and the build read it as unreadable.
+  From 00:28:48 UTC on 2026-10-23,
+  when the credit ran out,
+  249.0 of 336.8 min of wall clock had no model stream in flight.
+- The findings and their fixes:
+  S1 (the renamed block,
+  `0204b7c8ba`),
+  E2 (`9eea0009d1`,
+  ledger B826),
+  D1 (ledger B833,
+  B837 and B838),
+  D2 (ledger B827,
+  B834,
+  B839 and B840),
+  D3 (ledger B835),
+  D4 (ledger B829),
+  D6 (ledger B836) and
+  D7 (ledger B828) are fixed,
+  on `main` and in the build `bcff23b8ce` of `XingZ6021`,
+  by `git merge-base --is-ancestor`.
+  D5 (the post-quorum wait on Qwen) is a measurement and is open to the owner.
+  The commit of each is in the defects file.
+  The briefs' labels D4 and E2 for the work of those rounds are not the read's D4
+  (see the defects file).
+- The check corrected the read on D1 (narrowed),
+  D5 (the grace share is 81.7 percent of the repair pass's summed slice minutes and not 57),
+  D7 (the references were inherited from the archive) and on the S1 counterfactual
+  ("with no hold" is too strong).
+  A later ledger finding (B829) corrected the read on slice 4:
+  the page carries the editors' text from before the refinement,
+  so the rollback took effect.
+- N8 (the DeepSeek cost booked at peak though the run was off peak) has a fix in progress,
+  ledger B920,
+  which has not landed (`git log origin/main --grep B920` finds nothing).
+  DeepSeek is booked at peak only for a request started in a weekday UTC peak window
+  (01:00 to 04:00 UTC and 06:00 to 10:00 UTC,
+  half-open) and at half otherwise;
+  `XingZ6021` recomputes from 0.147093 to 0.073547 USD against a 0.07 balance fall.
+  Every earlier run's DeepSeek figure is a peak-rate upper bound.
+- Next:
+  land B920;
+  land the floors change for N1,
+  rebuild,
+  and rerun `XingZ60`;
+  the owner decides D5 (Qwen on the wide seats and the grace).
