@@ -45,6 +45,8 @@ const OPENING_ROW: SourceShippedRow = {
 
  @param encoded - slices written as literal text
 
+ @param compareReadings - what the runs are compared with, the real comparison when absent
+
  @returns Defects and lines the function wrote at the warn and info levels
 
  @example
@@ -56,9 +58,11 @@ function differenceFor(
   {
     rows,
     encoded,
+    compareReadings,
   }: {
     readonly rows: readonly SourceShippedRow[];
     readonly encoded: readonly number[];
+    readonly compareReadings?: () => { readonly kind: 'undecided'; readonly reason: string; };
   },
 ): {
   readonly defects: ReturnType<typeof differenceDefectsOf>;
@@ -91,6 +95,7 @@ function differenceFor(
       slices,
       entryId: 'BookshopCat',
       l,
+      ...((compareReadings === undefined) ? {} : { compareReadings, }),
     },),
     lines,
   };
@@ -215,6 +220,62 @@ await describe({
           return line.split(' ', 1,)[0] ?? '';
         },),).toEqual(['warn',],);
         expect(lines[0],).toContain('could not be compared (URIError)',);
+      },
+    },),
+    it({
+      name: 'LOGS A RUN IT CANNOT COMPARE THOUGH THE PAGE PARSES, a comparison that fails for the run it is given',
+      fn: async () => {
+        /**
+         A run with a bare brace, whose comparison is handed in and fails.
+         */
+        const { defects, lines, } = differenceFor({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '她说 { 然后走了。\n',
+            },
+          ],
+          encoded: [1,],
+          compareReadings: function refuses(): never {
+            throw new RangeError('the comparison could not be made',);
+          },
+        },);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-not-compared',],);
+        expect(defects[0]?.message,).toContain('slices [1]',);
+        expect(defects[0]?.message,).not.toContain('她说',);
+        expect(lines,).toHaveLength(1,);
+        expect(lines[0],).toContain('could not be compared (RangeError)',);
+      },
+    },),
+    it({
+      name: 'REPORTS WHAT THE COMPARISON IT IS GIVEN ANSWERS FOR A RUN, an answer of undecided',
+      fn: async () => {
+        /**
+         A run with a bare brace, whose comparison is handed in and cannot decide.
+         */
+        const { defects, lines, } = differenceFor({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '她说 { 然后走了。\n',
+            },
+          ],
+          encoded: [1,],
+          compareReadings: function cannotDecide(): { readonly kind: 'undecided'; readonly reason: string; } {
+            return {
+              kind: 'undecided',
+              reason: 'the footnote ranges differ',
+            };
+          },
+        },);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-undecided',],);
+        expect(lines[0],).toContain('the footnote ranges differ',);
       },
     },),
     it({

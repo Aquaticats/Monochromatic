@@ -42,9 +42,42 @@ const OPENING_ROW: SourceShippedRow = {
 };
 
 /**
+ A comparison that fails for any page, standing for the fault of a page that parses and cannot be compared.
+
+ @throws {@link Error} always, the way a reading that cannot be made does
+
+ @example
+ ```ts
+ const composed = composeRows({ rows: [OPENING_ROW,], compareReadings: refusesToCompare, },);
+ ```
+ */
+function refusesToCompare(): never {
+  throw new Error('the comparison could not be made',);
+}
+
+/**
+ A comparison that finds every page to differ, standing for a reading the page check reports.
+
+ @returns The answer `differs`
+
+ @example
+ ```ts
+ const composed = composeRows({ rows: [OPENING_ROW,], compareReadings: findsEveryPageDiffering, },);
+ ```
+ */
+function findsEveryPageDiffering(): { readonly kind: 'differs'; readonly reason: string; } {
+  return {
+    kind: 'differs',
+    reason: 'the page shows other text than the source',
+  };
+}
+
+/**
  Composes the page of rows with the real grammar.
 
  @param rows - slices, the anchor among them
+
+ @param compareReadings - what the page check compares the two readings with, the real comparison when absent
 
  @returns Composition of the rows
 
@@ -53,7 +86,15 @@ const OPENING_ROW: SourceShippedRow = {
  const composed = composeRows({ rows: [OPENING_ROW,], },);
  ```
  */
-function composeRows({ rows, }: { readonly rows: readonly SourceShippedRow[]; },): ComposedPage {
+function composeRows(
+  {
+    rows,
+    compareReadings,
+  }: {
+    readonly rows: readonly SourceShippedRow[];
+    readonly compareReadings?: () => { readonly kind: 'differs'; readonly reason: string; };
+  },
+): ComposedPage {
   /**
    Logger that keeps nothing.
    */
@@ -64,6 +105,7 @@ function composeRows({ rows, }: { readonly rows: readonly SourceShippedRow[]; },
     archiveText: sourceShippedArchive({ rows, },),
     entryId: 'BookshopCat',
     l,
+    ...((compareReadings === undefined) ? {} : { compareReadings, }),
   },);
 }
 
@@ -158,6 +200,87 @@ await describe({
         },),).toEqual(['source-reading-not-compared',],);
         expect(composed.defects[0]?.message,).toContain('slices [1]',);
         expect(composed.defects[0]?.message,).not.toContain('%E0',);
+      },
+    },),
+    it({
+      name: 'REPORTS A DEFECT NAMING THE SLICE FOR A PAGE THAT PARSES AND WHOSE COMPARISON FAILS, through the composition',
+      fn: async () => {
+        /**
+         The page of a run with a bare brace, which the grammar refuses as recorded and accepts as literal text, composed
+         with a comparison that fails for it.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '她说 { 然后走了。\n',
+            },
+          ],
+          compareReadings: refusesToCompare,
+        },);
+        expect(composed.step,).toBe('encoded-failing-runs',);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-not-compared',],);
+        expect(composed.defects[0]?.message,).toContain('slices [1]',);
+        expect(composed.defects[0]?.message,).not.toContain('她说',);
+      },
+    },),
+    it({
+      name: 'ASKS THE COMPARISON IT IS GIVEN, and reports what that answers',
+      fn: async () => {
+        /**
+         The same page, composed with a comparison that finds it to differ.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '她说 { 然后走了。\n',
+            },
+          ],
+          compareReadings: findsEveryPageDiffering,
+        },);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reads-differently',],);
+      },
+    },),
+    it({
+      name: 'ASKS THE COMPARISON IT IS GIVEN ALSO FOR THE RUNS THAT STAY ON A PAGE SHIPPED WITHOUT SOME ORIGINALS',
+      fn: async () => {
+        /**
+         A run nested past what the grammar admits, which no writing makes parse, and a later run with a bare brace that the
+         page keeps as literal text, composed with a comparison that fails for it.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: `${'> '.repeat(300,)}她说 {\n`,
+            },
+            {
+              incumbentText: '\nShe slept on the counter.\n',
+              sourceText: '\n她睡在柜台上。\n',
+            },
+            {
+              incumbentText: '',
+              sourceText: '她说 { 然后走了。\n',
+            },
+          ],
+          compareReadings: refusesToCompare,
+        },);
+        expect(composed.step,).toBe('dropped',);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual([
+          'page-source-unparseable',
+          'source-reading-not-compared',
+        ],);
+        expect(composed.defects[1]?.message,).toContain('slices [3]',);
       },
     },),
     it({
