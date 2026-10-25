@@ -4359,6 +4359,12 @@ minimap picture, gutter and sidebar never blank in about 1,427 frames.
 Not covered: the minimap picture also gets its slices inside a frame (not blank in those frames, so no defect seen);
 the first-tile path has no test; the 60 fps recording rate was not reached on this loaded host.
 Cleanup done: agent worktrees and branches (local and remote) removed, 14 GB of recording frames deleted.
+Owner answer (question tool, 2026-10-24): clear the captures now. Removed `~/temp/agent/mm` (1.1 GB), `mm2` (162 MB),
+`reaim` (354 MB) and `cr` (325 MB). Left on disk because a running agent reuses them:
+`~/temp/agent/verify`, `~/temp/agent/lp` and the disposable project `/tmp/ide-mm-proj-8MEEkc`; remove them when it ends.
+Started the same day at the owner's standing instruction to do open follow-ups now: an agent writes the test of the
+first-tile path (no device yet, in-frame hand-over) and measures whether the minimap picture can be blank after a
+hand-over inside a frame (fixing it the same way if so); its report is verified, landed and the IDE reinstalled.
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
