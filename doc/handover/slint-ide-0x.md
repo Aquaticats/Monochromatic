@@ -4434,6 +4434,30 @@ whether the minimap picture,
 which also gets its slices inside a frame,
 can show the same defect.
 
+First tile and minimap picture, 2026-10-24 (branch `worktree-agent-afeb07ef78b842b5a`, from `141c226c28`;
+record: `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`, section "The first tile and the
+minimap picture"):
+the first tile of a window (no device yet, slices made inside the first frame, the notifier asks for one more frame)
+now has two native tests that read the ask from the harness adapter (`take_frame_wanted`),
+shown to fail with the `request_redraw` line replaced and by four `first-tile-*` guard cases (10 runs accepted).
+The minimap picture can show the same blank:
+a file switch empties the window's list (`forget_minimap`, `ModelRc::default()`),
+so the first picture of the new file sets a new list inside the frame, which the frame does not show;
+17 of 32 recorded switches (debug build of `c1509291c8`, nested compositor, 1080x1880 at scale 2, load average 8 to
+12) kept the minimap blank more than 0.2 s after the frame that drew the first picture (0.129 to 0.466 s, median 0.22,
+against 0.07 to 0.13 s of file-time lag when one picture is handed over); a second picture follows within a few tenths of
+a second in every switch (48 of 48) and hid it from the first screenshot-based check (173 actions, 9,095 frames, all
+settled drawn).
+Fix `04935e5ede`: `GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` makes the textures and gives the
+window the slices at hand-over, outside any frame; 0 of 16 switches after it (0.062 to 0.116 s), 63 actions and 3,259
+frames on the fixed binary, 71 blank frames all before the first picture's frame.
+Two native tests and six `minimap-slices-*` guard cases (14 runs accepted).
+Not shown: a permanent blank (no switch handed over a single picture); the minimap's first picture before the first
+frame still has no frame asked (launch recordings 7 to 28 blank frames before the first drawn frame, spread larger than
+any difference).
+Scratch: `~/temp/agent/ft` (scripts, jsonl results, two debug binaries `ide-base` and `ide-fix`, a 32 GB target copy
+`gcache`), no frames kept; the owner can delete it.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
