@@ -1004,3 +1004,86 @@ and no picture differing between the two screenshots.
   `minimap-slices-made` (the call that makes the textures),
   and `minimap-slices-applied` and `minimap-slices-applied-shape` (the call that gives the window the slices).
   All fail with the line changed and pass again with it restored (14 runs accepted).
+
+## The frame after a hand-over, counted in pixels
+
+Added on 2026-10-24 by the agent that traced the cause
+(`slint-repeater-model-change-inside-rendering-notifier.md`),
+after the owner's order to close the two open items of the sections above:
+the unexplained difference between the minimap and the code tile,
+and the missing test that fails when the slices are set inside the frame again.
+
+### Cause of the open differences
+
+Slint brings a repeater up to date before the frame begins,
+so a list reset (`VecModel::set_vec`) inside the rendering notifier is drawn as no row,
+a new model as the old rows,
+and a row replaced in a list the window already holds (`set_row_data`) as the new row.
+`show_slices` (`src/native/gpu_tile/types.rs`) takes the first path when the row count changes,
+and the row count of the tile's list is the number of its textures,
+which follows the tile's height (`tile_texture_rows`).
+The minimap picture keeps its one texture almost always.
+That is the whole difference.
+The same-count half was measured in the real window too:
+in recordings of presses on a 287-line and a 1500-line plain text with the slices handed over inside the frame
+again,
+every list change was a replaced row and the picture did not change.
+The count-changing half was reproduced in the test harness only.
+The trace with Slint's source lines is in the new troubleshooting file.
+
+An earlier version of this record said that the harness shows every change of the notifier in the same snapshot.
+It does so for replaced rows only,
+and the press the first test used kept the tile's number of textures.
+
+### The tests
+
+- `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures`
+  (`src/native/tile_slice_frame_tests.rs`) hands painted stacks of two,
+  three,
+  one,
+  two,
+  and two textures of other heights to a window that holds the device,
+  and after each hand-over counts the magenta pixels of the very next frame and of the one after.
+  Without the fix (the condition of `Inner::prepare_tile` forced,
+  the in-frame step then makes the textures) the first hand-over fails with
+  `the frame that followed the hand-over of a tile of the textures [40, 24] drew 0 pixels of the tile and the next frame 4056`:
+  a list that is new in the frame draws nothing in it.
+  The 40 pixels short of the 4096 are the edge column of the first texture,
+  which sits at a fraction of a pixel,
+  and the test therefore compares the two frames and not an exact area
+  (it also requires the later frame to hold 95 percent of the area).
+- `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures`
+  (`src/native/minimap_slice_frame_tests.rs`) does the same for the minimap:
+  a first picture,
+  the first picture after a file switch (the window's list emptied and the textures forgotten),
+  a picture of two textures after one,
+  one after two,
+  and one of another height.
+- `src/native/repeater_frame_tests.rs` is the minimal repro of the rule itself,
+  without the application's markup.
+
+### Proof (GFP and the guard cases)
+
+Four `inspect:source-guards` cases remove one line each in a disposable copy:
+`tile-slices-prepared-drawn` (the condition that makes the tile's textures at the hand-over),
+`tile-slices-applied-drawn` (the call that gives the window the slices),
+`minimap-slices-prepared-drawn`,
+and `minimap-slices-applied-drawn`.
+Each case ran in three phases (baseline, line removed, line restored)
+and all four were accepted in all three phases:
+the baseline and the restored run passed (status 0), and the run with the line removed failed (status 100).
+The failures with the line removed read:
+
+- `tile-slices-prepared-drawn`:
+  `the frame that followed the hand-over of a tile of the textures [40, 24] drew 0 pixels of the tile and the next frame 4056`
+- `tile-slices-applied-drawn`:
+  `the frame after the frame of a tile of the textures [40, 24] drew 0 of its 4096 pixels, so the test counts nothing`
+  (with the call removed the window never holds the slices, so the settled frame is blank too)
+- `minimap-slices-prepared-drawn` and `minimap-slices-applied-drawn`:
+  `the first picture: the frame that followed the hand-over drew 0 pixels of the picture and the next frame 4096`
+  (with the call removed from the hand-over, the notifier's own step still gives the window the slices inside the
+  frame, which is the old behavior this test exists for)
+
+The first run of the tile case failed at its baseline because the test required an exact area:
+4056 of 4096 pixels are the colour, the rest blend at the texture edges.
+The test compares the two frames and a 95 percent floor instead.

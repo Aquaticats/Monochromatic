@@ -61,7 +61,7 @@ and builds or removes instances (`:685`).
 
 The femtovg renderer calls the notifier inside that closure,
 before it visits the items
-(`i-slint-renderer-femtovg-1.18.1/lib.rs:259` and `:301`):
+(`i-slint-renderer-femtovg-1.18.1/lib.rs:260` and `:301`):
 
 ```rust
 notifier_fn.notify(RenderingState::BeforeRendering, &api)
@@ -107,7 +107,7 @@ unsafe { *self.holder.dep_nodes.get() = Default::default() };
 
 The notifier's change is therefore made while the tracker depends on nothing,
 so it marks no tracker dirty and the window never calls `request_redraw` on the adapter
-(`WindowRedrawTracker::notify`, `window.rs:502`).
+(`WindowRedrawTracker::notify`, `window.rs:503`).
 `Repeater::visit` registers the model and dirty flag as dependencies again
 (`track_model_changes`, `model/repeater.rs:650`,
 called at `:819`),
@@ -296,8 +296,11 @@ Decision:
 do not file.
 The IDE works around the behavior by design,
 and the finding is a documentation gap,
-not a defect that the audit shows is upstream's.
-A request for a note in the `set_rendering_notifier` documentation would read:
+not a defect that the audit shows is upstream's;
+constraint 1 holds only as a documentation request and constraint 6 is not met,
+so nothing was prototyped.
+The draft below is kept for a future session that sees upstream signal change,
+and it is **do not file as-is**:
 
 ~~~md
 Title: Document that changing a model or a property inside the rendering notifier is not drawn by that frame

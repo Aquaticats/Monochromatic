@@ -2081,7 +2081,7 @@ const cases: Guard[] = [
     after: '        let _ = (outcome, window);',
     native: true,
     test: 'the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures',
-    failure: 'pixels of the tile and the next frame'
+    failure: 'so the test counts nothing'
   },
   // The very first tile of a window is handed over before the window's device is held, so its textures and slices are
   // made inside the first frame; that frame does not show a slice list it was given, so the notifier gives the window
