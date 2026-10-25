@@ -158,6 +158,21 @@ export const TEXT_CALL_CASES: readonly ShapeCase[] = [
     ],
   },),
   textCase({
+    name: 'REPORTS EACH OF TWO READS OF THE LOADER ON ONE LINE, since a report is kept once for each node and a second '
+      + 'read of the same shape on the line is a second place',
+    lines: ['export const both = [process.getBuiltinModule, process.getBuiltinModule,];',],
+    expected: [
+      {
+        line: 1,
+        position: TAKES_LOADER,
+      },
+      {
+        line: 1,
+        position: TAKES_LOADER,
+      },
+    ],
+  },),
+  textCase({
     name: 'ACCEPTS process.getBuiltinModule AND process.binding AS THE CALLEE OF A CALL, under a type mark, '
       + 'parentheses or an optional call, when the string names another module or binding',
     lines: [

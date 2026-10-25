@@ -131,10 +131,16 @@ export const FORWARDER_NAMESPACE_CASES: readonly ShapeCase[] = [
       IMPORT_NAMESPACE,
       'export const read = (key: string,) => (ns as any)[key];',
     ],
-    spots: [moduleSpotAt({
-      line: 2,
-      position: 'MemberExpression.object',
-    },),],
+    spots: [
+      moduleSpotAt({
+        line: 2,
+        position: 'member computed from a name',
+      },),
+      moduleSpotAt({
+        line: 2,
+        position: 'MemberExpression.object',
+      },),
+    ],
     isListed: false,
   },),
   userCase({

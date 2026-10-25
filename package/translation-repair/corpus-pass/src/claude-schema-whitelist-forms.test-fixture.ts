@@ -218,6 +218,12 @@ export const WHITELIST_CASES: readonly ShapeCase[] = [
       },
       {
         file: 'imaginary/src/position-stage.ts',
+        line: 31,
+        shape: 'builder-outside-a-read-position',
+        position: 'CallExpression.arguments',
+      },
+      {
+        file: 'imaginary/src/position-stage.ts',
         line: 32,
         shape: 'builder-outside-a-read-position',
         position: 'VariableDeclarator.init',
