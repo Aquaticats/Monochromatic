@@ -233,11 +233,16 @@ function referringTo(
 
  @param found - forwarders found by the rounds before
 
+ @param roundsLeft - rounds that may still add a function: a round adds a function no round added before, so the rounds
+ that add are no more than the functions the family declares
+
  @returns Forwarders found before, then those this round and the rounds after it add, in the order of the sources
+
+ @throws When a round adds functions after the rounds that may add are spent, which means a function was added twice
 
  @example
  ```ts
- const forwarders = forwardersAfter({ family, builders, usages, found: [], },);
+ const forwarders = forwardersAfter({ family, builders, usages, found: [], roundsLeft: 40, },);
  ```
  */
 function forwardersAfter(
@@ -246,11 +251,13 @@ function forwardersAfter(
     builders,
     usages,
     found,
+    roundsLeft,
   }: {
     readonly family: Family;
     readonly builders: readonly FunctionAt[];
     readonly usages: readonly Usage[];
     readonly found: readonly FunctionAt[];
+    readonly roundsLeft: number;
   },
 ): readonly FunctionAt[] {
   /**
@@ -309,17 +316,23 @@ function forwardersAfter(
           };
         },);
     },);
-  return (added.length === 0)
-    ? found
-    : forwardersAfter({
-      family,
-      builders,
-      usages,
-      found: [
-        ...found,
-        ...added,
-      ],
-    },);
+  if (added.length === 0)
+    return found;
+  if (roundsLeft <= 0) {
+    throw new Error(
+      `forwarder search did not end: a round added ${String(added.length,)} functions after every function was added`,
+    );
+  }
+  return forwardersAfter({
+    family,
+    builders,
+    usages,
+    found: [
+      ...found,
+      ...added,
+    ],
+    roundsLeft: roundsLeft - 1,
+  },);
 }
 
 /**
@@ -350,11 +363,20 @@ export function forwardersIn(
     readonly usages: readonly Usage[];
   },
 ): readonly FunctionAt[] {
+  /**
+   The functions the family declares, which no more rounds than that can add.
+   */
+  const declaredCount = [...family.values(),]
+    .flatMap(function declaredIn({ declared, },) {
+      return declared;
+    },)
+    .length;
   return forwardersAfter({
     family,
     builders,
     usages,
     found: [],
+    roundsLeft: declaredCount,
   },);
 }
 
