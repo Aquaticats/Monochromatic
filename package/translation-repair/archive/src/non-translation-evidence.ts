@@ -28,7 +28,10 @@ import type { IssueClaim, } from '@monochromatic-dev/translation-repair-shared-c
  never block. What guards the AkiraComplex shape now is the deterministic
  contradiction check ({@link NON_TRANSLATION_CONTRADICTION_MIN}) and the
  good-translation anchor that vetoes a document-wide block; the vote count is no
- longer the guard. A false block still discards a faithful translation whole.
+ longer the guard. A false per-slice block leaves that slice unrepaired, with
+ the archive's wording as it stands; the document-level dominance block is
+ report-only (`repair/src/repair-translation.ts` logs it as "reported, not
+ blocking" and adds a finding), so no block discards a translation.
  */
 export const NON_TRANSLATION_BLOCK_VOTES = 2;
 
@@ -334,7 +337,7 @@ export function sliceAnchorsTranslation(
 export type NonTranslationDominance = {
   /**
    Whether standing votes dominate the translation's characters, so the
-   whole document blocks and returns unchanged.
+   dominance block is reported (report-only: repair of the other slices goes on).
    */
   readonly blocked: boolean;
 

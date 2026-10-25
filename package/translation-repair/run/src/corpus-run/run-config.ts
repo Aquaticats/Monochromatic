@@ -495,9 +495,9 @@ export type RunRepairModels = RepairModels & {
  `voices >= ceil(modelIds.length / 2)`, so seven models need 4 voices, six
  need 3, ten need 5, eight need 4, and nine need 5.
 
- The ISSUE-acceptance gate does move, and the user accepted the move rather
- than it happening unnoticed: `DEFAULT_ADJUDICATION_CONFIG.minBallotWeight` is
- the absolute value 3, so the share of the panel that must cast a non-abstain
+ The ISSUE-acceptance gate did move, and the user accepted the move rather
+ than it happening unnoticed: the adjudication config's minimum ballot weight
+ (since removed, see below) was the absolute value 3, so the share of the panel that must cast a non-abstain
  ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
  User decision, 2026-08-06: "50% is okay here." At nine the same absolute 3
  is 3-of-9 (33 percent), inside the range already lived at ten (30 percent)
