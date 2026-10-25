@@ -86,6 +86,12 @@ export type FootnoteState = {
    after it goes on in as a lazy line.
    */
   readonly opensFootnote: boolean;
+
+  /**
+   Whether the block went on in the paragraph of the footnote definition right before it as a lazy line, which its lines
+   are read as the continuation of.
+   */
+  readonly goneOnLazily: boolean;
 };
 
 /**
@@ -98,6 +104,7 @@ const NO_BLOCK_READ: FootnoteState = {
   prefix: '',
   opensRawHtml: false,
   opensFootnote: false,
+  goneOnLazily: false,
 };
 
 /**
@@ -245,6 +252,7 @@ export function stateAfter(
       range,
     },),
     opensFootnote: opens,
+    goneOnLazily: goesOnLazily,
   };
 }
 
@@ -495,6 +503,7 @@ export function takeFootnote(
       prefix: state.prefix,
       opensRawHtml: false,
       opensFootnote: false,
+      goneOnLazily: false,
     },
   };
 }

@@ -19,7 +19,8 @@ import {
   continuesAsParagraph,
   continuesTheFootnote,
   goesOnAsLazyText,
-  holdsIndentedLine,
+  isLazyText,
+  opensFootnoteBody,
   rangeOf,
   withoutContainerAndIndentation,
 } from '../../dist/final/node/index.mjs';
@@ -34,6 +35,7 @@ const OPEN_IN_QUOTE = {
   prefix: '> ',
   opensRawHtml: false,
   opensFootnote: true,
+  goneOnLazily: false,
 };
 
 /**
@@ -90,6 +92,8 @@ await describe({
             expect(containerPrefixOf({ source: '>a', at: 0, pattern: '> ', },),).toEqual({ length: 1, marked: true, },);
             expect(containerPrefixOf({ source: '> > a', at: 0, pattern: '> > ', },),).toEqual({ length: 4, marked: true, },);
             expect(containerPrefixOf({ source: 'x\n  > a', at: 2, pattern: '- > ', },),).toEqual({ length: 4, marked: true, },);
+            expect(containerPrefixOf({ source: '   > a', at: 0, pattern: '> ', },),).toEqual({ length: 5, marked: true, },);
+            expect(containerPrefixOf({ source: '    > a', at: 0, pattern: '> ', },),).toEqual({ length: 0, marked: false, },);
           },
         },),
         it({
@@ -111,21 +115,36 @@ await describe({
       ],
     },),
     describe({
-      name: holdsIndentedLine.name,
+      name: opensFootnoteBody.name,
       children: [
         it({
-          name: 'SAYS WHETHER A LINE AFTER THE FIRST CARRIES THE MARKS AND THE FOUR COLUMNS OF THE FOOTNOTE',
+          name: 'IS TRUE FOR A PARAGRAPH OR A DEFINITION THAT OPENS A FOOTNOTE, at the top and in a container',
           fn: async () => {
-            for (const [source, expected,] of [
-              ['> [^1]: x\n>     a\n', true,],
-              ['> [^1]: x\n>\t\ta\n', true,],
-              ['> [^1]: x\n>    a\n', false,],
-              ['> [^1]: x\n    a\n', false,],
+            for (const [source, isRootChild,] of [
+              ['> [^1]: x {\n', false,],
               ['> [^1]: x\n', false,],
-              ['> [^1]: x', false,],
+              ['[^1]: x {\n', true,],
             ] as const) {
-              expect(holdsIndentedLine({ source, range: { start: 2, end: source.length, }, prefix: '> ', },),).toBe(expected,);
+              const first = nonNullishOrThrow(parseMarkdownMathBody({ body: source, },).children[0],);
+              const node = isRootChild ? first : childOfQuote({ source, at: 0, },).node;
+              expect(opensFootnoteBody({ source, node, range: rangeOf({ node, },), isRootChild, },),).toBe(true,);
             }
+          },
+        },),
+        it({
+          name: 'IS FALSE FOR A BLOCK THAT OPENS NO FOOTNOTE, and for a block of another kind in a container',
+          fn: async () => {
+            for (const source of ['> x {\n', '> [r]: x\n', '> # [^1]: x\n',]) {
+              const { node, range, } = childOfQuote({ source, at: 0, },);
+              expect(opensFootnoteBody({ source, node, range, isRootChild: false, },),).toBe(false,);
+            }
+            /**
+             A heading that opens a footnote with a number sign, in a container.
+             */
+            const heading = '> # [^1]: x\n';
+            const { node, range, } = childOfQuote({ source: heading, at: 0, },);
+            expect(node.type,).toBe('heading',);
+            expect(opensFootnoteBody({ source: heading, node, range, isRootChild: false, },),).toBe(false,);
           },
         },),
       ],
@@ -216,6 +235,34 @@ await describe({
       ],
     },),
     describe({
+      name: isLazyText.name,
+      children: [
+        it({
+          name: 'IS TRUE FOR A PARAGRAPH THAT WENT ON LAZILY WITHOUT THE MARK OF THE BLOCK QUOTE, and false in every other case',
+          fn: async () => {
+            /**
+             The state after a paragraph that went on in the definition's paragraph.
+             */
+            const gone = { ...OPEN_IN_QUOTE, opensFootnote: false, goneOnLazily: true, };
+            /**
+             A paragraph without the quote mark, one with it, and a block of another kind.
+             */
+            const unmarked = '> [^1]: x\n    abc\n';
+            const marked = '> [^1]: x\n> abc\n';
+            const other = '> [^1]: x\n> # h\n';
+            expect(isLazyText({ source: unmarked, ...childOfQuote({ source: unmarked, at: 1, },), state: gone, },),).toBe(true,);
+            expect(isLazyText({ source: marked, ...childOfQuote({ source: marked, at: 1, },), state: gone, },),).toBe(false,);
+            expect(isLazyText({ source: other, ...childOfQuote({ source: other, at: 1, },), state: gone, },),).toBe(false,);
+            expect(isLazyText({
+              source: unmarked,
+              ...childOfQuote({ source: unmarked, at: 1, },),
+              state: { ...gone, goneOnLazily: false, },
+            },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: goesOnAsLazyText.name,
       children: [
         it({
@@ -256,7 +303,7 @@ await describe({
             expect(goesOnAsLazyText({
               source: lazy,
               ...childOfQuote({ source: lazy, at: 1, },),
-              state: { ...OPEN_IN_QUOTE, opensFootnote: false, },
+              state: { ...OPEN_IN_QUOTE, opensFootnote: false, goneOnLazily: false, },
               isRootChild: false,
             },),).toBe(false,);
           },
@@ -309,7 +356,7 @@ await describe({
             expect(continuesTheFootnote({
               source: lazy,
               ...childOfQuote({ source: lazy, at: 1, },),
-              state: { ...OPEN_IN_QUOTE, opensFootnote: false, },
+              state: { ...OPEN_IN_QUOTE, opensFootnote: false, goneOnLazily: false, },
               isRootChild: false,
             },),).toBe(false,);
             expect(continuesTheFootnote({

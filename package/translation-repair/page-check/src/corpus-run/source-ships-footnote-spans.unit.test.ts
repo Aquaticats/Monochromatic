@@ -34,6 +34,7 @@ const OPEN = {
   prefix: '',
   opensRawHtml: false,
   opensFootnote: false,
+  goneOnLazily: false,
 };
 
 /**

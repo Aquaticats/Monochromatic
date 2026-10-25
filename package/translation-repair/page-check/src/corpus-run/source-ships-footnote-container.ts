@@ -34,6 +34,11 @@ export type ContainerPrefix = {
 };
 
 /**
+ The most spaces that may stand before the mark of a block quote on a line.
+ */
+const MOST_SPACES_BEFORE_MARK = 3;
+
+/**
  The prefix of a line that carries no mark of the container: a lazy line, which gives up nothing.
  */
 const UNMARKED: ContainerPrefix = {
@@ -81,7 +86,10 @@ export function containerPrefixOf(
      */
     const character = source.charAt(at + taken.count,);
     if (pattern.charAt(place,) === '>') {
-      if (character !== '>')
+      // Up to three spaces may stand before the mark of a block quote.
+      for (let spaces = 0; (spaces < MOST_SPACES_BEFORE_MARK) && (source.charAt(at + taken.count,) === ' '); spaces += 1)
+        taken.count += 1;
+      if (source.charAt(at + taken.count,) !== '>')
         return UNMARKED;
       taken.count += 1;
     }
@@ -155,83 +163,6 @@ export function withoutContainerAndIndentation(
       },);
     },
   },);
-}
-
-/**
- Whether a stretch of the text holds a line, after its first, that carries the marks of the container and is indented by the
- four columns a footnote takes: a line that starts a block of the footnote where the plain reading sees a lazy line.
-
- @param source - text
-
- @param range - where the stretch stands, from its first line
-
- @param prefix - what the container puts before the label of the footnote on its line
-
- @returns Whether such a line stands in the stretch
-
- @example
- ```ts
- const holds = holdsIndentedLine({ source: '> [^1]: x\n>     a\n', range: { start: 2, end: 17, }, prefix: '> ', },);
- ```
- */
-export function holdsIndentedLine(
-  {
-    source,
-    range,
-    prefix,
-  }: {
-    readonly source: string;
-    readonly range: TextRange;
-    readonly prefix: string;
-  },
-): boolean {
-  for (
-    let feed = source.indexOf(
-      '\n',
-      range.start,
-    );
-    (feed !== (-1)) && ((feed + 1) < range.end);
-    feed = source.indexOf(
-      '\n',
-      feed + 1,
-    )
-  ) {
-    /**
-     Where the line after the feed starts.
-     */
-    const lineStart = feed + 1;
-    /**
-     What the container takes of the line.
-     */
-    const container = containerPrefixOf({
-      source,
-      at: lineStart,
-      pattern: prefix,
-    },);
-    if (!container.marked)
-      continue;
-    /**
-     Where the indentation of the footnote would start on the line.
-     */
-    const indentAt = lineStart + container.length;
-    /**
-     Whether the line is indented by four spaces.
-     */
-    const spaced = source.startsWith(
-      '    ',
-      indentAt,
-    );
-    /**
-     Whether the line is indented by a tab.
-     */
-    const tabbed = source.startsWith(
-      '\t',
-      indentAt,
-    );
-    if (spaced || tabbed)
-      return true;
-  }
-  return false;
 }
 
 /**
@@ -318,9 +249,9 @@ export function continuesAsParagraph(
 /**
  Whether a block opens a footnote definition that is read as the body of a footnote.
 
- A paragraph at the top that opens one is, and so is a link reference definition that the strict grammar reads as one. A
- paragraph in a container is when it holds a line, after its first, that starts a block of the footnote: the plain reading
- sees a lazy line there, and any other paragraph in a container is read as it stands.
+ A paragraph that opens one is, at the top or in a container, and so is a link reference definition that the strict grammar
+ reads as one: the plain reading takes the lines of the footnote after the first for lazy lines of the paragraph, where the
+ strict grammar reads the blocks of the footnote among them.
 
  @param source - text
 
@@ -328,15 +259,13 @@ export function continuesAsParagraph(
 
  @param range - where the block stands
 
- @param state - what the block is once read, whose prefix is the one the block's own line has when the block opens one
-
  @param isRootChild - whether the block stands at the top of the text
 
  @returns Whether the block opens a footnote definition read as a body
 
  @example
  ```ts
- const opens = opensFootnoteBody({ source, node, range, state, isRootChild: false, },);
+ const opens = opensFootnoteBody({ source, node, range, isRootChild: false, },);
  ```
  */
 export function opensFootnoteBody(
@@ -344,13 +273,11 @@ export function opensFootnoteBody(
     source,
     node,
     range,
-    state,
     isRootChild,
   }: {
     readonly source: string;
     readonly node: TreeNode;
     readonly range: TextRange;
-    readonly state: FootnoteState;
     readonly isRootChild: boolean;
   },
 ): boolean {
@@ -362,13 +289,57 @@ export function opensFootnoteBody(
     return false;
   if (isRootChild || (node.type === 'definition'))
     return true;
+  return node.type === 'paragraph';
+}
+
+/**
+ Whether a block is a paragraph that went on in the paragraph of the footnote definition before it as a lazy line without
+ the marks of its container: its first line is then text, whatever its indentation.
+
+ @param source - text
+
+ @param node - block
+
+ @param range - where the block stands
+
+ @param state - the container's state once the block is read
+
+ @returns Whether the block is such a paragraph
+
+ @example
+ ```ts
+ const text = isLazyText({ source, node, range, state, },);
+ ```
+ */
+export function isLazyText(
+  {
+    source,
+    node,
+    range,
+    state,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+    readonly state: FootnoteState;
+  },
+): boolean {
+  if (!state.goneOnLazily)
+    return false;
   if (node.type !== 'paragraph')
     return false;
-  return holdsIndentedLine({
+  /**
+   What the container takes of the paragraph's first line.
+   */
+  const container = containerPrefixOf({
     source,
-    range,
-    prefix: state.prefix,
+    at: source.lastIndexOf(
+      '\n',
+      range.start - 1,
+    ) + 1,
+    pattern: state.prefix,
   },);
+  return !container.marked;
 }
 
 /**
@@ -519,15 +490,7 @@ export function continuesTheFootnote(
     state,
     isRootChild,
   },);
-  /**
-   Whether it holds such a line.
-   */
-  const indented = holdsIndentedLine({
-    source,
-    range,
-    prefix: state.prefix,
-  },);
-  if (lazy && indented)
+  if (lazy && (node.type === 'paragraph'))
     return true;
   if (isIndentedCode({
     source,

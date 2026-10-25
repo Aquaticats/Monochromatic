@@ -68,6 +68,66 @@ function charactersAt(
 }
 
 /**
+ Where an edit of a nested text ends in the whole text.
+
+ An edit that takes a line ending away (a line joined to the one before it) takes with it what the nested text gave up at
+ the start of the next line, the marks of a block quote and the indentation, which would otherwise stand in the middle of
+ the joined line as characters of the text.
+
+ @param source - whole text
+
+ @param indices - indices of the whole text that make up the nested text, in order
+
+ @param edit - edit at the offsets of the nested text
+
+ @returns Offset in the whole text after the last character the edit replaces
+
+ @example
+ ```ts
+ const end = endOfEdit({ source, indices: [4, 5, 8,], edit: { start: 1, end: 2, replacement: ' ', }, },);
+ ```
+ */
+function endOfEdit(
+  {
+    source,
+    indices,
+    edit,
+  }: {
+    readonly source: string;
+    readonly indices: readonly number[];
+    readonly edit: TextEdit;
+  },
+): number {
+  /**
+   Index of the last character the edit replaces.
+   */
+  const last = nonNullishOrThrow(indices[edit.end - 1],);
+  /**
+   Index of the first character of the nested text after it, absent at the end of the nested text.
+   */
+  const next = indices[edit.end];
+  /**
+   Whether the last character it replaces is a line ending.
+   */
+  const endsLine = source.charAt(last,) === '\n';
+  /**
+   What the edit writes in place of what it replaces.
+   */
+  const { replacement, } = edit;
+  /**
+   Whether it ends with a line ending of its own.
+   */
+  const writesBreak = replacement.endsWith('\n',);
+  /**
+   Whether the edit takes a line ending away and writes none in its place.
+   */
+  const takesBreak = endsLine && (!writesBreak);
+  if (takesBreak && (next !== undefined))
+    return next;
+  return last + 1;
+}
+
+/**
  Reads a block nested in another as a text of its own: the body of a footnote definition, or a block indented under one.
 
  @param source - whole text
@@ -158,7 +218,11 @@ export function nestedSpans(
         return {
           ...edit,
           start: nonNullishOrThrow(indices[edit.start],),
-          end: nonNullishOrThrow(indices[edit.end - 1],) + 1,
+          end: endOfEdit({
+            source,
+            indices,
+            edit,
+          },),
         };
       },),
     insideLinks: inner
@@ -264,6 +328,9 @@ export function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },)
 
  @param range - where the body stands, from the start of its first line or the first character after the label
 
+ @param asParagraph - whether the body is a paragraph that goes on in the paragraph right before it, which its first line,
+ however it is indented, is a line of
+
  @param prefix - what the container the body stands in puts before its first line, which every later line carries the marks of
  and gives up with the four columns the footnote takes; empty at the top
 
@@ -286,6 +353,7 @@ export function footnoteBodySpans(
     pageFootnotes = footnotes,
     range,
     prefix = '',
+    asParagraph = false,
   }: {
     readonly source: string;
     readonly readable: string;
@@ -294,6 +362,7 @@ export function footnoteBodySpans(
     readonly pageFootnotes?: readonly TextRange[];
     readonly range: TextRange;
     readonly prefix?: string;
+    readonly asParagraph?: boolean;
   },
 ): SourceSpans {
   /**
@@ -333,6 +402,7 @@ export function footnoteBodySpans(
       },
       prefix,
     },),
+    asParagraph,
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
     return body;

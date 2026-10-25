@@ -3,7 +3,10 @@ import type {
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { footnoteInContainerSpans, } from './source-ships-container.ts';
-import { opensFootnoteBody, } from './source-ships-footnote-container.ts';
+import {
+  isLazyText,
+  opensFootnoteBody,
+} from './source-ships-footnote-container.ts';
 import {
   footnoteBodyStart,
   footnoteStartInside,
@@ -216,18 +219,26 @@ export function footnoteRead(
   }
   /**
    Whether the block opens a footnote definition that is read as the body of a footnote: a paragraph at the top, a link
-   reference definition that the strict grammar reads as one, or a paragraph in a container that holds a line starting a
-   block of the footnote.
+   reference definition that the strict grammar reads as one, or a paragraph in a container.
    */
   const opensFootnoteHere = opensFootnoteBody({
     source,
     node,
     range,
-    state,
     isRootChild,
   },);
   if (!(opensFootnoteHere || continuesFootnote))
     return NOT_IN_A_FOOTNOTE;
+  /**
+   Whether the block is a paragraph that goes on in the definition's paragraph as a lazy line without the marks of its
+   container, so that its first line is text, whatever its indentation, and not the start of a block of the footnote.
+   */
+  const goesOnAsText = isLazyText({
+    source,
+    node,
+    range,
+    state,
+  },);
   /**
    How far the footnote reaches, when the block opens one at the top.
    */
@@ -263,6 +274,7 @@ export function footnoteRead(
         }
         : range,
       prefix: isRootChild ? '' : state.prefix,
+      asParagraph: goesOnAsText,
     },),
   };
 }

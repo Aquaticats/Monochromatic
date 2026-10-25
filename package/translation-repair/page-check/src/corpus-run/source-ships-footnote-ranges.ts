@@ -216,6 +216,7 @@ export function pageOnlyDefinitionWritten(
       prefix: '',
       opensRawHtml: false,
       opensFootnote: false,
+      goneOnLazily: false,
     },
   };
 }

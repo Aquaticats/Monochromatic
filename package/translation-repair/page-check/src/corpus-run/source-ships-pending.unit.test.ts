@@ -36,6 +36,7 @@ const OPEN_ON_LINE_ONE = {
   prefix: '',
   opensRawHtml: false,
   opensFootnote: true,
+  goneOnLazily: false,
 };
 
 /**
@@ -48,6 +49,7 @@ const NOTHING_READ = {
   prefix: '',
   opensRawHtml: false,
   opensFootnote: false,
+  goneOnLazily: false,
 };
 
 /**
@@ -164,6 +166,7 @@ await describe({
               prefix: '> ',
               opensRawHtml: true,
               opensFootnote: true,
+              goneOnLazily: false,
             },);
             const goneOn = stateAfter({
               before: opened,
@@ -174,6 +177,8 @@ await describe({
               isRootChild: false,
             },);
             expect(goneOn.open,).toBe(true,);
+            expect(goneOn.goneOnLazily,).toBe(true,);
+            expect(opened.goneOnLazily,).toBe(false,);
             expect(goneOn.prefix,).toBe('> ',);
             expect(goneOn.opensFootnote,).toBe(false,);
             expect(stateAfter({
@@ -209,6 +214,7 @@ await describe({
               prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
+              goneOnLazily: false,
             },);
             expect(stateAfter({
               before: NOTHING_READ,
@@ -232,6 +238,7 @@ await describe({
               prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
+              goneOnLazily: false,
             },);
           },
         },),
@@ -393,6 +400,7 @@ await describe({
               prefix: '',
               opensRawHtml: false,
               opensFootnote: false,
+              goneOnLazily: false,
             },);
           },
         },),

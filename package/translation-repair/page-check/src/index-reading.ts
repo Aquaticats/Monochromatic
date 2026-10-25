@@ -40,7 +40,8 @@ export {
   continuesAsParagraph,
   continuesTheFootnote,
   goesOnAsLazyText,
-  holdsIndentedLine,
+  isLazyText,
+  opensFootnoteBody,
   withoutContainerAndIndentation,
 } from './corpus-run/source-ships-footnote-container.ts';
 export {
