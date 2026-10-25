@@ -10,7 +10,7 @@
 /**
  A shape: what it is, for a case name, and the text.
  */
-export type ContainerFootnoteShape = readonly [
+type ContainerFootnoteShape = readonly [
   string,
   string,
 ];
