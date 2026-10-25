@@ -5,6 +5,8 @@ import {
   parseMdxBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { blanking, } from './source-ships-readable.ts';
+import type { TextRange, } from './source-ships-ranges.ts';
 import { UNTRANSLATED_PASSAGE_NOTE, } from './source-ships.ts';
 
 //region Reading account of a source run
@@ -221,21 +223,39 @@ export function readerOfPage({ carried, }: { readonly carried: string; },): stri
  */
 export function readerOfSource({ source, }: { readonly source: string; },): string {
   /**
+   The comments of the text.
+   */
+  const regions = commentRegionsOf({ text: source, },);
+  /**
    Whether every comment of the text closes, which the page's reading masks.
    */
-  const allClose = commentRegionsOf({ text: source, },)
-    .every(function closes({ terminated, },): boolean {
-      return terminated;
-    },);
+  const allClose = regions.every(function closes({ terminated, },): boolean {
+    return terminated;
+  },);
   /**
    The text with its comments masked.
    */
   const { masked, } = maskHtmlComments({ text: source, },);
   /**
-   The text the plain grammar is given: masked as the page's reading masks it when every comment closes, and untouched
-   when one does not, since the plain grammar reads that comment as it stands.
+   The text the plain grammar is given: masked as the page's reading masks it when every comment closes; where one does
+   not, the comments that close are blanked and that one is left as it stands, since the plain grammar reads it as raw HTML
+   to the end of the text.
    */
-  const readable = allClose ? masked : source;
+  const readable = allClose
+    ? masked
+    : blanking({
+      text: source,
+      ranges: regions
+        .filter(function closes({ terminated, },): boolean {
+          return terminated;
+        },)
+        .map(function toRange(region,): TextRange {
+          return {
+            start: region.startOffset,
+            end: region.endOffset,
+          };
+        },),
+    },);
   if (readable.startsWith(BYTE_ORDER_MARK,)) {
     /**
      The note and the text, read as the page holds them.

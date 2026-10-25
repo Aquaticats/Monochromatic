@@ -3,6 +3,11 @@
 // text after a footnote on its own, give their siblings and their own tests, split out of `index.ts` to keep that file
 // under the line bound.
 
+export {
+  blockOpenerStart,
+  openerStarts,
+  rangesWithoutOpeners,
+} from './corpus-run/source-ships-open-comment.ts';
 export { rootWithFreshTails, } from './corpus-run/source-ships-fresh-tails.ts';
 export { differenceDefectsOf, } from './corpus-run/source-ships-differences.ts';
 export {

@@ -766,11 +766,11 @@ await describe({
         },),
 
         it({
-          name: 'READS THE LINE AFTER AN OPENER OF A COMMENT THAT NEVER CLOSES AS A LINE OF ITS PARAGRAPH, since the '
-            + 'opener is written as text and a definition cannot interrupt a paragraph, so a brace in that line is '
-            + 'escaped as any other',
+          name: 'WRITES THE LINE AFTER AN OPENER OF A COMMENT THAT NEVER CLOSES AS TEXT, the label of a definition and '
+            + 'the brace in it escaped, since a reader of the source takes the rest of the text for the block of raw HTML '
+            + 'the opener starts when it starts a line, and a definition cannot interrupt a paragraph when it does not',
           fn: async () => {
-            expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n[r]: u\\{b "t \\{"\n',);
+            expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n\\[r\\]: u\\{b "t \\{"\n',);
             expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  [r]: u\\{b\n',);
           },
         },),

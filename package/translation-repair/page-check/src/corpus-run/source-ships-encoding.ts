@@ -8,6 +8,12 @@ import {
   bareAddresses,
 } from './source-ships-addresses.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import {
+  blockOpenerStart,
+  COMMENT_OPEN,
+  openerStarts,
+  rangesWithoutOpeners,
+} from './source-ships-open-comment.ts';
 import { rootWithFreshTails, } from './source-ships-fresh-tails.ts';
 import { withModuleLinesWritten, } from './source-ships-module-line.ts';
 import {
@@ -167,11 +173,6 @@ import {
 const COMMENT_OPENER = '&lt;';
 
 /**
- What opens an HTML comment.
- */
-const COMMENT_OPEN = '<!--';
-
-/**
  What the parse is given in place of an opener of a comment that never closes: the page carries `&lt;!--`, text that
  starts with an ampersand, which a line starting with it makes a paragraph and which keeps the class of the less-than
  sign among emphasis marks. Four spaces would make the line a blank one, or indented code, and a definition on the next
@@ -247,48 +248,6 @@ function standingIn(
 }
 
 /**
- Where each `<!--` of a text stands from an index on.
-
- @param text - text
-
- @param from - index to look from
-
- @returns Index of the `<` of each, in text order
-
- @example
- ```ts
- const starts = openerStarts({ text: '<!-- a <!-- b', from: 0, },);
- ```
- */
-function openerStarts(
-  {
-    text,
-    from,
-  }: {
-    readonly text: string;
-    readonly from: number;
-  },
-): readonly number[] {
-  /**
-   Indices found.
-   */
-  const starts: number[] = [];
-  for (
-    let at = text.indexOf(
-      COMMENT_OPEN,
-      from,
-    );
-    at !== (-1);
-    at = text.indexOf(
-      COMMENT_OPEN,
-      at + COMMENT_OPEN.length,
-    )
-  )
-    starts.push(at,);
-  return starts;
-}
-
-/**
  Reads what a text holds, with its comments out of the way.
 
  @param text - text
@@ -346,8 +305,21 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       };
     },);
   /**
+   Index of the `<` of each opener of a comment that never closes, in text order.
+   */
+  const openerStartsInText = openers.map(function toStart({ end, },): number {
+    return end - 1;
+  },);
+  /**
+   The opener that starts a block of raw HTML to the end of the text, which the parse is given as it stands.
+   */
+  const rawHtmlStart = blockOpenerStart({
+    text,
+    starts: openerStartsInText,
+  },);
+  /**
    The text as the parse reads it: comments that close blanked, so what stands inside them is not parsed, and the
-   openers of comments that never close written as text.
+   openers of comments that never close written as text, except the one that starts a block of raw HTML.
    */
   const readable = asTheParseReadsIt({
     text: standingIn({
@@ -355,8 +327,8 @@ function readText({ text, }: { readonly text: string; },): TextReading {
         text,
         ranges: closedComments,
       },),
-      starts: openers.map(function toStart({ end, },): number {
-        return end - 1;
+      starts: openerStartsInText.filter(function notRawHtml(start,): boolean {
+        return start !== rawHtmlStart;
       },),
     },),
   },);
@@ -397,7 +369,10 @@ function readText({ text, }: { readonly text: string; },): TextReading {
   },);
   return {
     text: spans.text,
-    literal: spans.literal,
+    literal: rangesWithoutOpeners({
+      ranges: spans.literal,
+      starts: openerStartsInText,
+    },),
     edits: [
       ...spans.edits,
       ...openers,
