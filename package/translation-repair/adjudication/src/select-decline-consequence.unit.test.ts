@@ -4,8 +4,10 @@
  WHY THIS FILE EXISTS. The sentence a judge reads about a declined round over wording that cannot ship said both that
  declining "does not keep it as the shipped text" and, in its last clause, that the archive's wording stays (re-check 2,
  finding F2, 2026-10-25). A judge told two things about the cost of declining is asked for caution by a promise that
- contradicts itself. The sentence now says what happens in order: a decline is no quiet keep, a candidate two or more
- judges named ships, and the archive's wording stays only when none was named twice.
+ contradicts itself. The sentence says what happens in order: declining does not by itself keep the wording, a judge's
+ own decline names no candidate, a candidate two or more judges named ships, and the archive's wording stays only when
+ none was named twice (re-check 3, M3). The cases read the clauses by their meaning, through
+ `decline-consequence-clauses.test-fixture.ts`, so a rewording that keeps every clause passes and a lost clause fails.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -24,25 +26,33 @@ import {
   LEAVES_PASSAGE_UNTRANSLATED,
   SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '../dist/final/node/index.mjs';
+import { unmetDeclineClauses, } from './decline-consequence-clauses.test-fixture.ts';
 
 await describe({
   name: declineConsequenceFor.name,
   children: [
     it({
-      name: 'SAYS WHAT HAPPENS IN ORDER over wording that cannot ship: declining is no quiet keep, a candidate two or '
-        + 'more judges named ships, and the archive\'s wording stays only when none was named twice',
+      name: 'SAYS EVERY CLAUSE A JUDGE MUST READ over wording that cannot ship, whatever the words (re-check 3, N1): '
+        + 'declining does not by itself keep the wording, a judge\'s own decline names no candidate, with none named '
+        + 'by two or more judges the wording in place stays and the page reports it, and with one or more named by '
+        + 'two or more judges the preferred of those ships by a fixed order',
       fn: async () => {
-        expect({
-          noQuietKeep: SHIPS_WHAT_TWO_JUDGES_NAMED.includes('declining is not a quiet keep',),
-          twoJudges: SHIPS_WHAT_TWO_JUDGES_NAMED.includes('ships a candidate only when two or more judges named it',),
-          staysWhenNone: SHIPS_WHAT_TWO_JUDGES_NAMED.includes(
-            'when no candidate was named by two judges that wording stays',
-          ),
-        },).toEqual({
-          noQuietKeep: true,
-          twoJudges: true,
-          staysWhenNone: true,
-        },);
+        expect(unmetDeclineClauses(SHIPS_WHAT_TWO_JUDGES_NAMED,),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'IS THE CONTROL FOR THE CLAUSE READER: it names every clause a sentence lacks, so a sentence that leaves '
+        + 'out the judge\'s own decline and the fixed order is told apart from the sentence the sheet carries',
+      fn: async () => {
+        expect(unmetDeclineClauses(
+          'declining does not by itself keep the wording in place: when no candidate is named by two or more judges, '
+            + 'the wording in place stays and the page reports it; when one or more candidates are named by two or '
+            + 'more judges, the preferred of those ships',
+        ),).toEqual([
+          'a judge\'s own decline names no candidate',
+          'the preferred ships by a fixed order, the repair lane first, then the translate lane, then the slate',
+        ],);
       },
     },),
 
