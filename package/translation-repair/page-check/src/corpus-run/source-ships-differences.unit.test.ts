@@ -190,6 +190,34 @@ await describe({
       },
     },),
     it({
+      name: 'LOGS A RUN IT CANNOT COMPARE THOUGH THE PAGE PARSES, a link target the reading cannot decode',
+      fn: async () => {
+        /**
+         A run with a link whose target holds a percent escape that is no text in UTF-8 and a bare brace, which the grammar
+         refuses as recorded: the page it is written as parses, and both readings decode the target before they compare.
+         */
+        const { defects, lines, } = differenceFor({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '[虎斑](%E0%A4) 她说 {\n',
+            },
+          ],
+          encoded: [1,],
+        },);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-not-compared',],);
+        expect(defects[0]?.message,).toContain('slices [1]',);
+        expect(defects[0]?.message,).not.toContain('%E0',);
+        expect(lines.map(function levelOf(line,): string {
+          return line.split(' ', 1,)[0] ?? '';
+        },),).toEqual(['warn',],);
+        expect(lines[0],).toContain('could not be compared (URIError)',);
+      },
+    },),
+    it({
       name: 'LOGS A RUN IT CANNOT DECIDE AND REPORTS IT IN A DEFECT OF ITS OWN, a footnote in a block quote that a tag ends',
       fn: async () => {
         /**

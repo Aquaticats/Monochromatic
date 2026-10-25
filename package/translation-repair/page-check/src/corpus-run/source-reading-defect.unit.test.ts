@@ -137,6 +137,30 @@ await describe({
       },
     },),
     it({
+      name: 'REPORTS A DEFECT NAMING THE SLICE FOR A RUN THE PAGE CARRIES AS TEXT AND THE COMPARISON CANNOT MAKE, a link target that is no UTF-8',
+      fn: async () => {
+        /**
+         The page of a run with a link whose target holds a percent escape that decodes to no text, and a bare brace: the page
+         parses as literal text, so it ships with its original, and both readings throw when they decode the target.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '[虎斑](%E0%A4) 她说 {\n',
+            },
+          ],
+        },);
+        expect(composed.step,).toBe('encoded-failing-runs',);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-not-compared',],);
+        expect(composed.defects[0]?.message,).toContain('slices [1]',);
+        expect(composed.defects[0]?.message,).not.toContain('%E0',);
+      },
+    },),
+    it({
       name: 'REPORTS THE DIFFERENCE OF A RUN BESIDE A RUN SHIPPED WITHOUT ITS ORIGINAL, the dropped step among them',
       fn: async () => {
         /**
