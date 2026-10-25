@@ -231,7 +231,7 @@ function unitSaid({ row, }: { readonly row: RowStops; },): string {
 }
 
 /**
- The answer of the check that a later arm walked the first arm's trials in the first arm's order.
+ The answer of the check that a later arm walked the first arm's units in the first arm's order.
 
  @param first - the first arm's name and figures
 

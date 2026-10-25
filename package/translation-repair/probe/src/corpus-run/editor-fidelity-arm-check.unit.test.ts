@@ -428,7 +428,7 @@ await describe({
           'FAIL low: ceiling line: ',
         );
         const other = openingOf({ specs: SPECS, maxUsd: 3, },).map(function cut(line,): string {
-          return line.replace(': 40 trials, one ask', ': 12 trials, one ask',);
+          return line.replace(': 40 units, one ask', ': 12 units, one ask',);
         },);
         expect(lineFor({ log: goodArm({ arm: { opening: other, }, },), check: 'ceiling line', },),).toBe(
           'FAIL low: ceiling line: 12 units, for 40 planned',
