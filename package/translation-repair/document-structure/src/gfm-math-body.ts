@@ -3,15 +3,17 @@ import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified, } from 'unified';
 
-import type { parseMarkdownMathBody, } from '../dist/final/node/index.mjs';
+import type { parseMarkdownMathBody, } from './parse-markdown-math.ts';
 
 //region GFM and math reading
-// TEST SUPPORT, NOT PACKAGE SOURCE. WHAT A READER OF PLAIN MARKDOWN SEES IN THE FLAVOUR THE PACKAGE PARSES PAGES IN
+// WHAT A READER OF PLAIN MARKDOWN SEES IN THE FLAVOUR THE PACKAGE PARSES PAGES IN
 // (CommonMark with GFM and the site's math, no MDX): the footnotes, tables and autolink literals of GFM and the math of
 // `remark-math`, and none of the MDX extensions, so no text is refused for its syntax. A suite that puts a source text
 // beside the page carrying it reads the source through this, because the page is read with footnotes and math on, and a
 // source read without them (`parseMarkdownMathBody` has no GFM, so a footnote definition made of one address is a link
-// reference definition there) would differ from the page where the two are the same text.
+// reference definition there) would differ from the page where the two are the same text. The page check reads the
+// source through this to say whether the page shows what the source shows (`source-reading-difference.ts` in
+// `page-check`).
 
 /**
  The tree the package's plain reading returns, which this reading returns too.

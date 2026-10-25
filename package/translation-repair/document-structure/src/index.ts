@@ -149,6 +149,7 @@ export {
   withMdxExhaustionRefused,
 } from './parse-mdx.ts';
 export { parseMarkdownMathBody, } from './parse-markdown-math.ts';
+export { parseGfmMathBody, } from './gfm-math-body.ts';
 export { parseSliceBody, } from './parse-slice-body.ts';
 export {
   type AtomKind,
@@ -161,6 +162,7 @@ export {
   type NamingError,
   refusalText,
 } from './refusal-text.ts';
+export { footnoteRangesDifferInContainer, } from './container-footnote-ranges.ts';
 export {
   type BlockRange,
   footnoteDefinitionRangesOf,
