@@ -4382,8 +4382,27 @@ guard cases (14 runs accepted). Gates on the merged tree: `lint` 0, `test:native
 Open: why a slice list changed in place is shown by the frame for the minimap but not for the code tile
 (not found); no regression test for the in-place minimap case (the harness cannot show the blank).
 Installed: sha256 `1c6aafb396c36604…` from `b5595e2d17`, prints 0.1.1; the check of the installed release binary
-for the code column and the minimap on file switches was started by a separate agent and its numbers follow below.
-Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp` and `ft` (34 GB).
+for the code column and the minimap on file switches was run by a separate agent (nested compositor, 1080x1880 logical,
+scale 2, RX 7600; 17.6 to 24.3 fps against 60 requested, load average 10 to 54):
+earlier checks unchanged: five-press code means 0.511073, 0.509927, 0.511073, 0.510496, 0.509927 in 3 of 3 runs,
+88-click recordings of 672 and 676 frames with 0 blank code frames and an 82 px gap in all 355 and 356 frames showing
+line 96, `first_line=223` for both y=1700 presses, minimap crops 0 px apart, requests 1 plus 1 skip then 0 plus 1 skip;
+minimap picture area never blank in those recordings.
+File switches, detector: fraction of pixels with chroma above 0.08 in the minimap column (blank below 0.002; launch
+frames before the first picture 0, drawn 0.0289, 0.0227 and 0.0051 for the three test files; the mean-grey and
+bright-pixel detectors were rejected because the viewport box hides a missing picture):
+16 of 16 tree-click switches and 9 of 9 Ctrl+digit switches showed 1 or 2 blank minimap frames (0 to 41 ms after the
+first frame of the new code, frame interval 41 ms), 12 of 12 Ctrl+End or Ctrl+Home jumps on the 3000-line file 1 blank
+frame each, 6 of 12 resizes 1 blank frame (5 in the main recording), 0 of 12 scale changes;
+54 of 2,771 frames blank in total, every one inside a transition of at most 9 frames, none 1 s after a switch.
+So a switch is not blank-free (the new file's picture is built after the switch), but the 0.1 to 0.47 s blank is gone.
+Owner answer after that report (2026-10-24): "Unexplained? Test gap? Just do it. 2 frames of blank for minimap is acceptable."
+So the 1 to 2 blank minimap frames at a file switch are accepted and need no work, and an agent now finds why a slice
+list set inside the frame that draws a tile is not shown by that frame (Slint and femtovg source, a minimal repro)
+and builds a regression test that can fail for the in-frame hand-over of the code tile and the minimap, with guards;
+its report is verified, landed and the IDE reinstalled.
+Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
+(34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.

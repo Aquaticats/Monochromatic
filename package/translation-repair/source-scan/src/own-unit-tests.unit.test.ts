@@ -725,6 +725,32 @@ const ALLOWLIST: readonly string[] = [
   'document-structure/document-node.ts',
   'repair/editor-envelope-context.ts',
   'repair/editor-selection-sheet.ts',
+  // The editor fidelity bench's splits, made at the line budget of the module each came out of, whose cases stay with
+  // that module's test file: the bench checks and the report (`editor-fidelity-arm-bench.unit.test.ts`,
+  // `editor-fidelity-arm-report.unit.test.ts`) drive the bench answers and the shared trials, the answers test
+  // (`editor-fidelity-arm-answers.unit.test.ts`) the trial answers, the decision rule (`editor-fidelity-decide.unit.test.ts`)
+  // its lines, and the probe run (`editor-fidelity-probe-run.unit.test.ts`) the walk of the pool and its guard cap.
+  // Each line goes when its module gains an own test.
+  'probe/corpus-run/editor-fidelity-arm-bench-answers.ts',
+  'probe/corpus-run/editor-fidelity-arm-shared.ts',
+  'probe/corpus-run/editor-fidelity-arm-trial-answers.ts',
+  'probe/corpus-run/editor-fidelity-decide-lines.ts',
+  'probe/corpus-run/editor-fidelity-walk.ts',
+  // The editor fidelity pool's drawn specifications are ids, offsets and hashes with no logic, written by the draw
+  // command (`editor-fidelity-pool-draw`): the pool manifest's own test holds their shape, `--check` compares them with a
+  // fresh draw, and every run replays each against the pinned clone. The parts are named by the draw, so the lines
+  // change with it; each goes when its module gains an own test.
+  'probe/editor-fidelity-pool-drawn-1.ts',
+  'probe/editor-fidelity-pool-drawn-10.ts',
+  'probe/editor-fidelity-pool-drawn-2.ts',
+  'probe/editor-fidelity-pool-drawn-3.ts',
+  'probe/editor-fidelity-pool-drawn-4.ts',
+  'probe/editor-fidelity-pool-drawn-5.ts',
+  'probe/editor-fidelity-pool-drawn-6.ts',
+  'probe/editor-fidelity-pool-drawn-7.ts',
+  'probe/editor-fidelity-pool-drawn-8.ts',
+  'probe/editor-fidelity-pool-drawn-9.ts',
+  'probe/editor-fidelity-pool-drawn.ts',
   'probe/fidelity-reference-build.ts',
   'probe/fidelity-reference-error.ts',
   'probe/fidelity-reference-manifest.ts',

@@ -160,6 +160,17 @@ and each task sets it to its own name.
   and reports the refiner standing off the same spend.
   Pass a slice count after `--` (default 6);
   `TRANSLATION_REPAIR_SLICE_OVERLAP=N` runs N slices at once (default 4).
+  `--candidates <seatable ids>` seats those cards as the editors,
+  beside the roster's writers and in place of the run's named editors,
+  so a card that holds `judge-unmeasured`,
+  such as a Sonnet 5.5 effort card,
+  can be measured;
+  `--candidates-alone` seats only those cards.
+  Every other seat stays the whole roster either way,
+  so the flag confines the editing and not the spend.
+  One editor alone has no rival to be judged against,
+  so its standing holds no round,
+  and `EDITORS SHIPPED` is the only reading.
   Spends quota.
 - `editor-width-probe`:
   runs the same slices at the production editor width and at the whole roster,

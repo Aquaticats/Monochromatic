@@ -1,3 +1,5 @@
+import { wordForCount, } from './count-word.ts';
+
 //region Fragment landing error
 // A LANDING THAT LIES OUTSIDE ITS SLICE, ENDS BEFORE IT STARTS, OR IS NO WHOLE NUMBER OF UNITS (n160, Y7; n166, Z8: `NaN` and a
 // fraction fail every comparison of the range check, so the check asks for whole numbers first). A fragment of a slice is read in the slice with the
@@ -41,7 +43,13 @@ export class FragmentLandingError extends Error {
     super(
       `unreachable: a fragment lands at ${String(start,)} to ${String(end,)} in a slice of ${
         String(slice,)
-      } units, and a landing starts and ends at whole numbers, starts at 0 or later, ends at or after its start, and ends within the slice`,
+      } ${
+        wordForCount({
+          count: slice,
+          one: 'unit',
+          many: 'units',
+        },)
+      }, and a landing starts and ends at whole numbers, starts at 0 or later, ends at or after its start, and ends within the slice`,
     );
     this.name = 'FragmentLandingError';
   }

@@ -107,6 +107,9 @@ export const EDITOR_LANE_REFINERS: readonly RosterModelId[] = editorLaneChairOf(
 
  @param client - client every slice of the run shares
 
+ @param editorModelIds - editors the slice is run with; absent seats {@link EDITOR_LANE_EDITORS}, and the entry file
+ hands in the chair `--candidates` named when a launch named one
+
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
@@ -121,10 +124,12 @@ export async function runEditorLane(
   {
     slice,
     client,
+    editorModelIds = EDITOR_LANE_EDITORS,
     stageSettings,
   }: {
     readonly slice: BenchSlice;
     readonly client: ModelClient;
+    readonly editorModelIds?: readonly RosterModelId[];
     readonly stageSettings: StageSettings;
   },
 ): Promise<SliceRounds> {
@@ -140,12 +145,13 @@ export async function runEditorLane(
 
   /**
    Every seat filled by every model, matching the module note, except the editor and refiner chairs: those are the
-   roster's writers and the run's named editors and refiners ({@link EDITOR_LANE_EDITORS}).
+   roster's writers and the run's named editors and refiners ({@link EDITOR_LANE_EDITORS}), unless the caller handed in
+   the editors to seat.
    */
   const models = {
     criticModelIds: RUN_ROSTER,
     panelModelIds: RUN_ROSTER,
-    editorModelIds: EDITOR_LANE_EDITORS,
+    editorModelIds,
     judgeModelIds: RUN_ROSTER,
     refinerModelIds: EDITOR_LANE_REFINERS,
     checkerModelIds: RUN_ROSTER,

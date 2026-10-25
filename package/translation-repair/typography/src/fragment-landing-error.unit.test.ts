@@ -58,6 +58,21 @@ await describe({
         },),
 
         it({
+          name: 'COUNTS A SLICE OF ONE UNIT IN THE SINGULAR, since the noun agrees with the count',
+          fn: async () => {
+            /**
+             The error for a landing that ends past a slice of one unit.
+             */
+            const { message, } = new FragmentLandingError({
+              slice: 1,
+              start: 0,
+              end: 2,
+            },);
+            expect(message,).toContain('lands at 0 to 2 in a slice of 1 unit, and a landing starts',);
+          },
+        },),
+
+        it({
           name: 'SAYS THAT A LANDING STARTS AND ENDS AT WHOLE NUMBERS, beside the rest of what a landing must be, so a reader of the '
             + 'message knows a fractional offset is one of the faults',
           fn: async () => {

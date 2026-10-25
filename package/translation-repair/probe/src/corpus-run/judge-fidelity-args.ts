@@ -5,6 +5,7 @@ import {
   type FidelityDamageKind,
 } from '@monochromatic-dev/translation-repair-repair/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type CommandLineOf,
   type FlagValue,
@@ -158,7 +159,13 @@ export function readFidelityArguments(
     cap: wholeNumberFlag({
       asked: line.flag('cap',),
       unwritten: DEFAULT_TRIAL_CAP,
-      leaveOffTo: `run the default of ${String(DEFAULT_TRIAL_CAP,)} trials`,
+      leaveOffTo: `run the default of ${String(DEFAULT_TRIAL_CAP,)} ${
+        wordForCount({
+          count: DEFAULT_TRIAL_CAP,
+          one: 'trial',
+          many: 'trials',
+        },)
+      }`,
     },),
   };
 }

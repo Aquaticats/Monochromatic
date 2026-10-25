@@ -84,6 +84,8 @@ export type FidelityProbeSink = {
  not the operator's: an empty checked-in manifest, or one repeating an id,
  which `selectReviewedFidelitySpecs` refuses as well and this restates too.
 
+ @internal
+
  @param request - what `reviewedFidelityRequest` checks
 
  @returns The selected reviewed specifications
@@ -96,7 +98,7 @@ export type FidelityProbeSink = {
  const specs = requestedSpecs({ request: { corpusSha, onlyEntryIds: [], damageKinds, judgeModelIds, cap: 0, withContext: false, }, },);
  ```
  */
-function requestedSpecs(
+export function requestedSpecs(
   { request, }: { readonly request: Parameters<typeof reviewedFidelityRequest>[0]; },
 ): readonly FidelityReferenceSpec[] {
   try {

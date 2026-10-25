@@ -9,7 +9,7 @@ import type { SeededErrorSpec, } from '@monochromatic-dev/translation-repair-lan
 /**
  Characters that terminate a sentence in either language of the corpus.
  */
-const SENTENCE_TERMINATORS = '。．.!?！？';
+export const SENTENCE_TERMINATORS = '。．.!?！？';
 
 /**
  Minimum sentence length worth deleting;

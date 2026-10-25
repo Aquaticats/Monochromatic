@@ -35,8 +35,13 @@ export {
 } from './derivability-wire.ts';
 export {
   deriveOmissionSeeds,
+  SENTENCE_TERMINATORS,
   splitSentences,
 } from './derive-seeds.ts';
+export {
+  type SentenceRegion,
+  sentenceRegionAround,
+} from './sentence-region.ts';
 export {
   buildEditorMessages,
   type EditorPromptPlan,
@@ -57,6 +62,10 @@ export {
   type EditorCandidateSet,
   pickFallbackCandidate,
 } from './editor-candidates.ts';
+export {
+  type EditorProposals,
+  gatherEditorProposals,
+} from './editor-gather.ts';
 export {
   applyCandidate,
   selectChunkPatch,
