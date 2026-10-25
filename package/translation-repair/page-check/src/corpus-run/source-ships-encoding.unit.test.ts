@@ -31,6 +31,7 @@ import {
   liveConstructsOf,
   liveConstructsOfCarried,
 } from './source-live-constructs.test-fixture.ts';
+import { containerFootnoteTexts, } from './source-live-container-footnotes.test-fixture.ts';
 import {
   readerOfPage,
   readerOfSource,
@@ -363,6 +364,8 @@ const READER_CASES: readonly (readonly [string, string])[] = [
     '> a ```\n[^1]: <b>\n\t```\n',
   ],
   ['a code span across a line that starts a footnote definition, at the top', 'a `x\n[^1]: <b>` y\n'],
+  ...containerFootnoteTexts({ body: '<b>', },),
+  ...containerFootnoteTexts({ body: '{c}', },),
 
   [
     'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
