@@ -2061,6 +2061,23 @@ that is verification, not a decision for the user.
   with no `cli-git.config.jsonc`. Then wire the working route on this machine. Machines the user does not control: a
   client cannot be forced, so server-side rulesets or CI running the same policies is the only enforcement there
   (needs a `doc/planning/` proposal and the user's choices; auto-push cannot run server-side).
+  Probe result 2026-10-25 (`claude -p` 2.1.310, haiku, base `PATH` without the checkout, results in
+  `~/temp/agent/probe-1796/results.json`): baseline resolves `/usr/bin/git` (the issue reproduces); `--settings`
+  `env.PATH` works (literal full `PATH`, no expansion); project `.claude/settings.json` `env.PATH` works (but `-p`
+  does not exercise the folder-trust step, so it is unproven for an interactive session); a `SessionStart` hook that
+  appends `export PATH=<dir>:"$PATH"` to `$CLAUDE_ENV_FILE` works and keeps the existing `PATH`; a mise global
+  `_.path` does NOT work (`/usr/bin/git`). The wrapper in a repo with no `cli-git.config.jsonc` still applies its
+  built-in policies (`add .` rejected with its hint; an empty commit passes).
+  Wired on this machine 2026-10-25: user-level link `~/.local/share/cli-git/bin/git` pointing through mise's
+  `latest` symlink (`.../cargo-monochromatic-git-policy-cli/latest/bin/cli-git-native`, so it follows upgrades), and a
+  `SessionStart` hook in `~/.claude/settings.json` that prepends that directory when the link is executable.
+  Verified end to end (`~/temp/agent/probe-1796-verify.ts`, real user settings, no `--settings`): a fresh `claude -p`
+  session in a clone outside the checkout resolved `git` to the link, the policy rejected a pathspec-less commit
+  (`commit-only/pathspec-required`), and a commit with a pathspec was auto-pushed (bare remote `main` equals local
+  `HEAD`, `refs%2Fheads%2Fmain.last-pushed.json` written). Not yet done: make `mise install` create the user-level link
+  on other machines the user controls (postinstall of the tool entry in `mise.toml`, source per file-enforcer), a
+  runbook with the hook snippet, `AGENTS.md` `APG`/`APQ` wording once the guarantee is settled, the server-side
+  proposal for machines the user does not control, and a regular terminal (not Claude Code) `PATH` entry if wanted.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
