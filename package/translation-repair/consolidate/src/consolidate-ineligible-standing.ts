@@ -289,11 +289,14 @@ export function keepTheArchive(
 export function slatePickBallotsOf(
   { decided, }: { readonly decided: Pick<TranslateStageResult, 'perCandidate' | 'shippedIndex'>; },
 ): number {
-  return decided.perCandidate
+  /**
+   The slate round's row for the shipped position, absent where no ballot named it.
+   */
+  const shippedRow = decided.perCandidate
     .find(function atShipped(row,): boolean {
       return row.index === decided.shippedIndex;
-    },)
-    ?.ballots ?? 0;
+    },);
+  return shippedRow?.ballots ?? 0;
 }
 
 /**
