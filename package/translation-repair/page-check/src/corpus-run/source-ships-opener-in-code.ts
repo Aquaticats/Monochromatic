@@ -1,5 +1,9 @@
-import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import type {
+  BlockRange,
+  TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
+import { openersInFootnoteFlowsOf, } from './source-ships-opener-footnote.ts';
 import {
   CARRIED,
   type OpenerInCode,
@@ -27,8 +31,10 @@ import {
 // opener as the character reference, and the block is opened again with the same mark; the info string of the opening is
 // not repeated, which no reader of the text sees. A CODE SPAN OR INLINE MATH is closed before the opener, and the rest of
 // its content is written as text, the closing mark dropped; where nothing but white space stands before the opener the
-// whole span is written as text. An opener in a fence that a footnote definition holds is not found here, since the plain
-// reading has no footnotes and reads that fence as text.
+// whole span is written as text. An opener in a fence or display math that a footnote definition holds at the top is
+// found in `source-ships-opener-footnote.ts`, since the plain reading takes the lines of that fence for indented code. An
+// opener first on a line right after a paragraph is the start of a block of raw HTML that ends the paragraph to a reader of
+// the source, and `source-ships-opener-interrupt.ts` puts a blank line before it.
 
 /**
  What a code span or inline math starts with: the run of its delimiter.
@@ -346,12 +352,14 @@ export function openersInCodeOf(
 
  @param closed - comments that close
 
+ @param footnotes - where a footnote definition stands, for a reader of the source and for the page
+
  @returns Every edit, in text order and not overlapping: the other readers' edits that fall outside what is rewritten, the
  openers not rewritten with it, and what is rewritten
 
  @example
  ```ts
- const all = editsWithOpeners({ source, root, starts: [9,], edits: [], openers, closed: [], },);
+ const all = editsWithOpeners({ source, root, starts: [9,], edits: [], openers, closed: [], footnotes: [], },);
  ```
  */
 export function editsWithOpeners(
@@ -362,6 +370,7 @@ export function editsWithOpeners(
     edits,
     openers,
     closed,
+    footnotes,
   }: {
     readonly source: string;
     readonly root: TreeNode;
@@ -369,18 +378,42 @@ export function editsWithOpeners(
     readonly edits: readonly TextEdit[];
     readonly openers: readonly TextEdit[];
     readonly closed: readonly TextRange[];
+    readonly footnotes: readonly BlockRange[];
   },
 ): readonly TextEdit[] {
   /**
    What holds an opener inside code or math, written outside it.
    */
-  const written = openersInCodeOf({
+  const atTop = openersInCodeOf({
     source,
     root,
     starts,
     edits,
     closed,
   },);
+  /**
+   What holds an opener inside a fence or display math under a footnote definition, written outside it.
+   */
+  const underFootnotes = openersInFootnoteFlowsOf({
+    source,
+    root,
+    starts,
+    closed,
+    footnotes,
+  },);
+  /**
+   Both, together.
+   */
+  const written = {
+    edits: [
+      ...atTop.edits,
+      ...underFootnotes.edits,
+    ],
+    handled: [
+      ...atTop.handled,
+      ...underFootnotes.handled,
+    ],
+  };
   return [
     ...edits.filter(function outside({ start, },): boolean {
       return !written.edits

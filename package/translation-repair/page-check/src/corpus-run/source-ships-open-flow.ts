@@ -194,7 +194,7 @@ function onlySpacesFrom(
  const closed = closesFlow({ line: '```', mark: '```', },);
  ```
  */
-function closesFlow(
+export function closesFlow(
   {
     line,
     mark,

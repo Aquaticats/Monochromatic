@@ -1,5 +1,7 @@
 import {
   commentRegionsOf,
+  footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   parseMarkdownMathBody,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { firstNestingExcess, } from '@monochromatic-dev/translation-repair-markup/ts';
@@ -22,6 +24,7 @@ import {
   NO_MARK,
 } from './source-ships-open-flow.ts';
 import { editsWithOpeners, } from './source-ships-opener-in-code.ts';
+import { interruptionEdits, } from './source-ships-opener-interrupt.ts';
 import {
   asTheParseReadsIt,
   blanking,
@@ -374,6 +377,16 @@ function readText({ text, }: { readonly text: string; },): TextReading {
     readable,
     root,
   },);
+  /**
+   Where a footnote definition stands for a reader of the source and for the page, which the openers are written around;
+   none where the text holds no opener.
+   */
+  const footnotes = (openerStartsInText.length === 0)
+    ? []
+    : [
+      ...footnoteDefinitionRangesOf({ body: readable, },),
+      ...pageFootnoteDefinitionRangesOf({ body: readable, },),
+    ];
   return {
     text: spans.text,
     literal: rangesWithoutOpeners({
@@ -384,8 +397,17 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       source: text,
       root,
       starts: openerStartsInText,
-      edits: spans.edits,
+      edits: [
+        ...spans.edits,
+        ...interruptionEdits({
+          text,
+          root,
+          start: rawHtmlStart,
+          footnotes,
+        },),
+      ],
       openers,
+      footnotes,
       closed: closedComments,
     },),
     insideLinks: spans.insideLinks,
