@@ -27,12 +27,12 @@ use crate::native::ui::MinimapSlice;
 use ide_app::minimap::{texture_rows, texture_runs};
 /// The scene of a chunk and the size of its region.
 use ide_app::tile_scene::TileScene;
-/// The runs of chunks that share a texture.
-use std::ops::Range;
 /// The image import.
 use slint::Image;
 /// Slint's own wgpu types.
 use slint::wgpu_30::wgpu;
+/// The runs of chunks that share a texture.
+use std::ops::Range;
 
 /// The scratch textures kept at most;
 /// the chunks of a picture are all one size but the last.
@@ -143,9 +143,13 @@ impl Inner {
         if self.stack_fits(width, heights) {
             return true;
         }
+        let mut before = Vec::with_capacity(self.minimap.len());
+        for kept in &self.minimap {
+            before.push(kept.target.height);
+        }
         tracing::debug!(
             width,
-            before = ?self.minimap.iter().map(|kept| return kept.target.height).collect::<Vec<_>>(),
+            ?before,
             after = ?heights,
             "replaced the textures of the minimap picture"
         );
@@ -198,7 +202,10 @@ impl Inner {
     /// function shape(chunks: TileScene[], limit: number): Shape | Misfit;
     /// ```
     fn shape(chunks: &[TileScene], limit: u32) -> Result<Shape, Misfit> {
-        let width = chunks.first().map_or(0, |first| return first.width);
+        let width = match chunks.first() {
+            Some(first) => first.width,
+            None => 0,
+        };
         let mut heights = Vec::with_capacity(chunks.len());
         let mut ragged = false;
         for chunk in chunks {

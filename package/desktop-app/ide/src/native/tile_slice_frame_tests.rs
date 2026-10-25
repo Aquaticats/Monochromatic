@@ -45,7 +45,9 @@ use ide_app::tile_scene::{TileScene, TileStack};
 use slint::{ComponentHandle, Model};
 /// The shared source state.
 use std::{cell::RefCell, rc::Rc};
-/// An empty scene: the textures are made and drawn, with nothing in them.
+/// An empty scene:
+///  the textures are made and drawn,
+///  with nothing in them.
 use vello::Scene;
 
 /// Lines of the fixture text.
@@ -207,7 +209,8 @@ pub(super) fn unframed() -> (AppWindow, GpuTile) {
 /// The first tile of a window is handed over before the device is held:
 ///  the window holds no slices until the first frame,
 ///  that frame makes the textures and gives the window their slices,
-///  and it asks for the next frame, which is the one that shows them.
+///  and it asks for the next frame,
+///  which is the one that shows them.
 #[test]
 fn the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next() {
     let (window, gpu) = unframed();
@@ -242,7 +245,9 @@ fn the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_th
 
 /// A frame that gives the window no new slices asks for nothing:
 ///  a tile of the shape the first one had is drawn without a request,
-///  and a tile of another shape, handed over once the device is held, brings its slices before the frame
+///  and a tile of another shape,
+///  handed over once the device is held,
+///  brings its slices before the frame
 ///  and asks for nothing in it.
 /// The request of the first frame is therefore the notifier's own and not something every frame makes.
 #[test]

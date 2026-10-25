@@ -805,7 +805,8 @@ so that no frame has run when the tile is handed over:
   ask for no frame in their frames,
   and the second brings its slices before its frame.
 
-Proof (GFP, then the guard script).
+Proof (GFP,
+then the guard script).
 With the `request_redraw` line replaced by `let _ = &active;` in the tree of commit `a7c840eb36`,
 both tests failed
 (`the frame that gave the window the slices of the first tile asked for no frame to show them` and
@@ -840,12 +841,17 @@ Whether that frame shows the slices it set was not known.
 
 Two debug builds:
 the tree of commit `c1509291c8` (origin/main `141c226c28` plus the tests and one `tracing::debug!` line in
-`stack_textures`, `replaced the textures of the minimap picture`,
+`stack_textures`,
+`replaced the textures of the minimap picture`,
 which counts the hand-overs that made new textures),
-and the tree of the fix (commit `04935e5ede`, see below).
+and the tree of the fix (commit `04935e5ede`,
+see below).
 Both ran in the nested compositor on the hardware Vulkan device (RX 7600),
 window 1080 by 1880 logical px at scale 2,
-on a disposable copy of the project with the TypeScript 7 server and files of 40, 286, 700, 1,700 and 6,000 lines,
+on a disposable copy of the project with the TypeScript 7 server and files of 40,
+286,
+700,
+1,700 and 6,000 lines,
 with the host loaded by other sessions (load average 8 to 12).
 Every action was recorded (`record DIR 60 png`) from before the action to after two screenshots:
 the first once no picture had been handed over for a second,
@@ -941,7 +947,8 @@ The grouping of the chunks into textures (`shape`) and the place of the textures
 hand-over and the frame.
 A picture handed over before the first frame (no device held) is still drawn in the frame,
 and no frame is asked for it:
-at launch the first picture appeared after 7, 15 and 28 blank frames of the tree before the fix and after 6,
+at launch the first picture appeared after 7,
+15 and 28 blank frames of the tree before the fix and after 6,
 9 and 17 of the fixed tree (alternating launches,
 6 runs),
 a spread of the launch timing larger than any difference,

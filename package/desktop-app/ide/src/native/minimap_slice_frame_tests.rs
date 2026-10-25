@@ -15,17 +15,18 @@
 //!  when a picture is handed over and before any frame is drawn,
 //!  the window holds slices of the new textures.
 
-/// The window of the application's markup before any frame,
-///  and the width of the textures the tests make.
-use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
 /// The frame that gives the window its device,
 ///  and the frame that draws a picture.
 use super::gpu_snapshot::snapshot;
+/// The window of the application's markup before any frame,
+///  and the width of the textures the tests make.
+use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
 /// The scenes of a picture's chunks.
 use ide_app::tile_scene::TileScene;
 /// The window handle and the model trait.
 use slint::{ComponentHandle, Model, ModelRc};
-/// An empty scene: the textures are made and drawn,
+/// An empty scene:
+///  the textures are made and drawn,
 ///  with nothing in them.
 use vello::Scene;
 
@@ -123,7 +124,11 @@ fn a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame() {
     let _setup = snapshot(window.window());
     gpu.submit_minimap(&window, chunks(&[40, 24]), 0);
     let _first = snapshot(window.window());
-    assert_eq!(slice_rows(&window), vec![(64, 0)], "the first picture is not shown");
+    assert_eq!(
+        slice_rows(&window),
+        vec![(64, 0)],
+        "the first picture is not shown"
+    );
     // Another height: new textures and a new row of the list.
     gpu.submit_minimap(&window, chunks(&[100]), 0);
     assert_eq!(
