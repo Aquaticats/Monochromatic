@@ -20,8 +20,10 @@ import {
   CUT_SHORT_RECOVERY_NUDGE,
   modelPromptDigest,
   OFF_SHAPE_RECOVERY_NUDGE,
+  promptPayloadStore,
   promptUniqueClient,
 } from '../dist/final/node/index.mjs';
+import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 
@@ -391,6 +393,81 @@ await describe({
         const later = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
         expect(later.kind,).toBe('ok',);
         expect(asked,).toHaveLength(3,);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE MODEL AGAIN FOR THE SAME PROMPT UNDER ANOTHER REUSE SCOPE, and still reuses it inside one scope: '
+        + 'two scopes are two provider calls, a third ask under the first scope is the first call\'s payload',
+      fn: async () => {
+        /** Provider calls crossing wrapper. */
+        let providerCalls = 0;
+        const inner: ModelClient = {
+          chatText: async () => {
+            providerCalls += 1;
+            return { text: `payload ${String(providerCalls,)}`, };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson unused by text fixture',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const client = promptUniqueClient({ inner, },);
+        expect(await client.chatText({ ...REQUEST, reuseScope: 'pass 1', },),).toEqual({ text: 'payload 1', },);
+        expect(await client.chatText({ ...REQUEST, reuseScope: 'pass 2', },),).toEqual({ text: 'payload 2', },);
+        expect(providerCalls,).toBe(2,);
+        expect(await client.chatText({ ...REQUEST, reuseScope: 'pass 1', },),).toEqual({ text: 'payload 1', },);
+        expect(providerCalls,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE MODEL AGAIN UNDER ANOTHER REUSE SCOPE THROUGH THE DURABLE STORE: a client sharing the first '
+        + 'client\'s payload directory replays the payload of its own scope and buys the payload of a scope the '
+        + 'store holds none for',
+      fn: async () => {
+        await using dir = await scratchDir({ prefix: 'prompt-reuse-scope-', },);
+        /** Provider calls crossing the wrappers. */
+        let providerCalls = 0;
+        const inner: ModelClient = {
+          chatText: async () => {
+            providerCalls += 1;
+            return { text: `payload ${String(providerCalls,)}`, };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson unused by text fixture',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const first = promptUniqueClient({ inner, store: promptPayloadStore({ dir: dir.path, },), },);
+        await first.chatText({ ...REQUEST, reuseScope: 'pass 1', },);
+        expect(providerCalls,).toBe(1,);
+
+        const second = promptUniqueClient({ inner, store: promptPayloadStore({ dir: dir.path, },), },);
+        expect(await second.chatText({ ...REQUEST, reuseScope: 'pass 1', },),).toEqual({ text: 'payload 1', },);
+        expect(providerCalls,).toBe(1,);
+        expect(await second.chatText({ ...REQUEST, reuseScope: 'pass 2', },),).toEqual({ text: 'payload 2', },);
+        expect(providerCalls,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE REUSE SCOPE IN THE PROMPT DIGEST ONLY WHEN IT IS GIVEN: a request with no scope keeps the digest '
+        + 'it always had, pinned here so no stored payload of a corpus run moves, and each scope is a digest of its own',
+      fn: () => {
+        /** Digest of the request as a corpus run sends it. */
+        const unscoped = modelPromptDigest({ request: REQUEST, },);
+        expect(unscoped,).toBe('5d94598d27a56145bd58cd6eb45cee47ccc3928da84613ae69cf53b6c4ab70aa',);
+        /** Digests of the same request under two scopes. */
+        const passOne = modelPromptDigest({ request: { ...REQUEST, reuseScope: 'pass 1', }, },);
+        const passTwo = modelPromptDigest({ request: { ...REQUEST, reuseScope: 'pass 2', }, },);
+        expect(passOne,).not.toBe(unscoped,);
+        expect(passTwo,).not.toBe(unscoped,);
+        expect(passTwo,).not.toBe(passOne,);
       },
     },),
   ],

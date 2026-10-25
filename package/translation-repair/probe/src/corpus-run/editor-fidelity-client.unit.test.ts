@@ -198,6 +198,40 @@ await describe({
             expect(exchanges.length,).toBe(1,);
           },
         },),
+
+        it({
+          name: 'SENDS THE SAME PROMPT AGAIN UNDER ANOTHER REUSE SCOPE, over the real route: asks of one prompt in pass 1, '
+            + 'pass 2 and pass 1 again are two requests on the wire and the scope is on none of them',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-client-', },);
+            const { transport, exchanges, } = scripted({
+              replies: [{
+                status: 200,
+                bodyText: claudeStreamOf({ text: '{"edits":[]}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+              },],
+            },);
+            const client = cardsClientFrom({
+              env: FULL_ENV,
+              transport,
+              promptPayloadDir: scratch.path,
+              cardIds: [LOW_CARD,],
+            },);
+            for (const reuseScope of ['pass 1', 'pass 2', 'pass 1',]) {
+              await client.chatJson({
+                modelId: LOW_CARD,
+                messages: [{ role: 'user', content: 'Where does the cat nap?', },],
+                signal: new AbortController().signal,
+                validate: (value: unknown,): value is unknown => value !== undefined,
+                reuseScope,
+              },);
+            }
+            expect(exchanges.length,).toBe(2,);
+            expect(exchanges.some(function carriesScope({ bodyJson, },): boolean {
+              return bodyJson.includes('pass 1',) || bodyJson.includes('pass 2',) || bodyJson.includes('reuseScope',);
+            },),).toBe(false,);
+          },
+        },),
       ],
     },),
 
