@@ -110,6 +110,8 @@ mod annotation_stability_tests;
 /// Injected hint and diagnostic snapshots through real key and pointer events.
 #[cfg(test)]
 mod annotation_tests;
+/// Keyboard caret movement and select-all.
+mod caret_keys;
 /// Real key events drive caret movement,
 ///  Shift selection,
 ///  paging,
@@ -161,7 +163,7 @@ mod gpu_tile;
 /// Tree rows that git ignores draw their name at 0.8 opacity and nothing else of the row changes.
 #[cfg(test)]
 mod ignored_row_tests;
-/// Source selection and keyboard callbacks.
+/// Source selection by pointer.
 mod input;
 /// Inspection-only hint and diagnostic injection from a JSON file;
 ///  debug builds only.
@@ -221,6 +223,17 @@ mod overscan_tile_tests;
 /// A picture asks for a frame of its own only when no frame draws it first.
 #[cfg(test)]
 mod picture_frame_tests;
+/// The offsets and the line a pointer event names,
+///  for the debug records of a press,
+///  a drag move,
+///  and a release.
+mod pointer_log;
+/// The press,
+///  drag,
+///  and release records carry the line a press selected,
+///  read from a captured log.
+#[cfg(test)]
+mod pointer_log_tests;
 /// Real pointer events select by character,
 ///  word,
 ///  and line,
@@ -426,12 +439,14 @@ mod write_wait_tests;
 /// An ignored measurement of saves that begin when the safety sweep comes due.
 #[cfg(test)]
 mod write_wait_timer_tests;
+/// Bind keyboard caret movement and select-all.
+use caret_keys::bind_keys;
 /// The handle the state holds on the GPU side of the code view.
 use gpu_tile::GpuTile;
 /// The wrap indicator's symbol.
 use ide_app::wrap_sign::Sign;
-/// Bind caret and selection callbacks.
-use input::{bind_keys, bind_pointer};
+/// Bind pointer selection.
+use input::bind_pointer;
 /// Shared rendering entry point.
 use render::{bind_appearance, render};
 /// The one entry point of the native window.

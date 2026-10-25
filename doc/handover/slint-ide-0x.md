@@ -4700,6 +4700,67 @@ ones for maps taller than 36,024 px by 72 px (the previous installed binary: 12 
 pointer, drag after a wheel, Ctrl+End and Ctrl+Home); its numbers follow here, then `final7` is removed. Running now:
 the `dragpress` agent (exact press and release log lines, drag-after-wheel check from the log) and the `early` agent
 ((a) early wheel loss, (b) the `bwrap` message row, (c) the unlimited tall map).
+The `dragpress` agent reported 2026-10-25 (branch `worktree-agent-a697d97d4b2ed8c01`, tip `3b7f212226`, gates on its own
+tree green: `test:native` 349 passed, `test` 811, `test:bin` 0): the drag-after-wheel mismatch seen on the installed
+binary was real and was the app handling input late, not the recorder (1,160 screenshots, gutter numbers read with
+tesseract, 0 unreadable; 580 trials). New log lines `source pointer press`, `drag start`, `drag`, `release`
+(`src/native/pointer_log.rs`, called from `src/native/input.rs`; fields y, x, view_y, offset, drawn_offset, shown_offset,
+held, row_y, line, line_number, column). Measured on the unfixed press path (`b951a5d005`): the window thread draws about
+8 frames per second while a far jump runs in this headless compositor (the compositor sends frame callbacks at the
+capture rate, as an earlier agent had found) and handles input once per frame, so a press is handled a median of 110
+to 121 ms after it was sent (extremes 1 and 259 ms) and is mapped through the offset of that later moment while the
+screen still shows the last frame: in 199 of 229 presses at delays 20 to 180 ms the press did not name the last frame's
+row (median 35 to 77 rows off, 2 at 180 ms); held presses agreed, as in the 2026-10-25 verification. Positive control
+(scratch build with `drawn-y` returning the pointer y): `view_y` wrong in exactly the 8 held presses. Fix `21441ae01e`
+(veto-open, revert-able): `shown_y` in `src/native/input.rs` maps press, drag, release and Ctrl+click
+(`src/native/language/actions.rs`) through the offset of the latest frame that began (`GpuTile::shown_offset`, set at
+`BeforeRendering` in `src/native/gpu_tile.rs`); press row equals the last frame's row in 189 of 190 at 20 to 180 ms and
+40 of 40 at 250 and 600 ms (the one miss was a taller row map, fixed in `ec7fe46251`); against the screenshot taken at
+once after the press the fix agrees in 29 of 30 at 50 ms, 29 of 30 at 80 ms and 30 of 30 at 110 ms (old build 5, 0, 0 of
+30), but still not at 20, 140, 150 and 180 ms, where the screen shows a frame older than the last one begun (the app
+has no presentation feedback). Limits: not a real 60 Hz compositor; why the thread draws only 8 frames per second in
+the one trial read closely (an 83 ms stretch without a log record after a finished frame) is not found. Merged by me
+with a doc conflict (both branches appended to the handover and the troubleshooting doc; resolved by keeping both,
+`~/temp/agent/keep-both.ts`) as `9558444611` in the scratch tree `land-press`; gates running; to be pushed, built and
+installed only after the verifier finishes with the installed `01d2c9454acda68f…` (installing under it would corrupt its
+runs), then verified on the installed binary.
+Verifier result on the installed `01d2c9454acda68f…` (row map fix; load 10 to 67, recorder 9 to 23 fps): maps taller by
+exactly 72 px: 0 of 160 one-core sessions and 0 of 60 unlimited ones (previous binary 12 and 7 of 160); Ctrl+End after
+5 s in 20 one-core sessions identical (last gutter numbers 1499 to 1501, row map 36,024, four screenshots viewed);
+far jumps 150, 300, 600: 0 blank and 0 partial code frames, tiles 1.00; five-press means as before; 88-click 832
+frames 0 blank, 82 px gap in 119 of 119; hover rest over no character at 5 and 301 notches 10 of 10 right (5 notches
+0.532 to 0.604 s, two above 0.58), reload 10 of 10, settled hover 10 of 10; Ctrl+End and Ctrl+Home 0 blank frames; drag
+after a wheel 6 of 10 starts classified (the instrument limit that the press log lines remove). NOT fixed by the row
+map fix and passed to the `early` agent: 3 of the 60 unlimited sessions (one round, started at the same instant, a
+2.2 s host stall at launch: window drawn at 24.0, first tile built at 26.2) kept a map of 36,456 px (18 rows too tall):
+a single `row map rebuilt` at the 173 px layout width at 26.22, the real size (646 x 1848 px) reported at 27.4159, no
+rebuild after it for the remaining 2 s (shutdown at 30.45): the width-change rebuild is skipped in that interleaving;
+and one unlimited session carried the `mise could not serve the project ... bwrap: Can't find source path` information
+row (+138 px). Landed 2026-10-25 as `36a91594cd` (press tip `3b7f212226` merged with a doc conflict resolved by keeping
+both sides, then with my handover commit; gates on the merged tree: `lint` 0, `test:native` 350 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0). Installed: sha256 `4a316f890696402f…` from
+`36a91594cd` (the build unit and the install task built the same file), prints 0.1.1. The verifier (scratch
+`~/temp/agent/final8`) now checks the drag press from the new log lines, 30 trials per delay at 300 notches, plus the
+regression smoke; its numbers follow, then `final8` is removed.
+Result on the installed `4a316f890696402f…` (hardware RADV, load 4.6 to 39, recorder 14 to 23 fps; scratch removed):
+drag after a 300-notch wheel, 210 trials (30 per delay of 20, 50, 80, 110, 140, 180, 250 ms), 208 with a press log
+line: the press names the line drawn in the last frame that began in 208 of 208 (`shown_offset` equals that frame's
+drawn offset in 208 of 208; "next frame" 0, neither 0); release equals the last frame in 207 of 208; selection starts on
+the pressed line and ends on the release line in 198 of 198 trials where both ends could be read (10 starts were off the
+top of the view); the press is still handled a median of 104 to 113 ms after it was sent while the ease runs (6 ms at 250
+ms), `held=true` at the press in 12 of 30 at 20 ms, 4 at 50, 3 at 80, 0 from 110; the screenshot taken at once after the
+press equals the pressed line in 4 of 30 at 20 ms, 27 of 29 at 50, 28 of 29 at 80, 30 of 30 at 110 (old build 0 of 30),
+3 of 30 at 140, 1 of 30 at 180, 29 of 30 at 250 (the compositor's last committed frame is older than the last frame
+begun at 20, 140 and 180 ms: the screenshot is late, not the log); plain click and Ctrl+click at 50, 80 and 110 ms (60
+trials): press line = last frame 60 of 60, caret on the pressed line 60 of 60, `PointerDefinition` position on the
+pressed line 30 of 30. Regression smoke: row map 36,024 in 60 of 60 one-core and 60 of 60 unlimited sessions; far jumps
+0 blank and 0 partial frames, 1 tile applied per jump in 30 of 30; five-press means as before; 88-click 823 frames 0
+blank, gap 82 px in 119 of 119, requests 1 plus 1 skip then 0 plus 1 skip twice; hover cases as before (rest over no
+character 10 of 10 at 5 and 301 notches, settled hover 10 of 10, reload 10 of 10); Ctrl+End and Ctrl+Home 0 blank
+frames. Open from this run: 2 of 210 press-and-release events logged no pointer line at all (50 ms and 80 ms; 5 other
+sessions' logs had 3 or more pointer lines) and the driver did not record the compositor's reply to each command, so
+whether the compositor refused them (as it refused the early wheel) is not known: the next verification records every
+reply and counts `err`; one release at 180 ms matched neither the last nor the next frame and its record is lost.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
@@ -5220,6 +5281,97 @@ the full account with counts is the section "A row map taller than the text" of
   and the native tests that cover hover rows,
   drag starts and wrapping passed (346 of 346).
 - The harness was kept only in the session scratch (`~/temp/agent/rowmap`) and is removed with its throwaway builds.
+## A press during a far wheel jump, read from the log, 2026-10-25 (branch worktree-agent-a697d97d4b2ed8c01)
+
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A press during a far wheel jump";
+`package/desktop-app/ide/README.md`,
+subsections "Which row a press names" and "The log of a press".
+
+- Question:
+  the check "a drag that starts during the hold or the ease starts the selection on the row drawn under the pointer"
+  could not be classified in about half of 20 trials on `b951a5d005` at load 22 to 39.
+  Was it the recorder and the load?
+- Instrument (new):
+  the press,
+  the first drag move,
+  the later moves,
+  and the release (a new `pointer-release` callback) write one debug record each,
+  with the log's wall-clock stamp,
+  `y`,
+  `x`,
+  `view_y`,
+  `offset`,
+  `drawn_offset`,
+  `shown_offset`,
+  `held`,
+  `row_y`,
+  `line`,
+  `line_number` and `column`
+  (`src/native/pointer_log.rs`).
+  With the existing `the frame's view real= drawn= held=` records
+  the drawn row of a press is read from the log alone.
+- Answer,
+  580 trials,
+  three sessions at a time,
+  load 7 to 16,
+  300 notches,
+  delays 20 to 600 ms,
+  gutter numbers of the screenshot at the press read with `tesseract`:
+  the pointer mapping through `drawn-y` is right for the offsets of the moment
+  (the press's own offsets name its line in every trial without a diagnostic block),
+  and the press is handled a median 110 to 121 ms after it was sent at delays of 20 to 180 ms
+  (1 to 13 ms at 250 and 600),
+  because the window thread draws about 8 frames per second while a far jump runs;
+  the press then maps at the offset of that late moment,
+  199 of 229 presses did not name the last frame's row
+  (median 35 to 77 rows off),
+  and the screen showed the last frame's row in 29 or 30 of 30 at d=50 to 110.
+  The recorder was not the cause;
+  the load is (the earlier 10 of 10 at load 2 to 3 was not rerun).
+- Positive control:
+  a scratch build mapping with the real offset (not committed)
+  gives a `view_y` error in exactly the 8 held presses of 80 trials and no other.
+- Fix (veto-open,
+  one commit to revert):
+  `shown_y` maps the press,
+  the drag,
+  the release and the Ctrl+click through the offset of the latest frame
+  (`GpuTile::shown_offset`).
+  Fix arm:
+  press row = last frame 189 of 190 at d=20 to 180,
+  the one miss a 72 px taller row map;
+  screen = pressed row 29 or 30 of 30 at d=50 to 110 (`new` 0 to 5),
+  but 0 to 2 at d=20,
+  140,
+  150 and 180
+  where the screen shows a frame older than the last one begun
+  (no presentation feedback in the app).
+- Open:
+  why the thread draws only 8 frames per second during a far jump
+  (an 83 ms stretch with no log record after a finished frame);
+  the taller row map (seen again,
+  1 of 330 sessions);
+  the old binary at low load.
+- Tests and gates:
+  `src/native/pointer_log_tests.rs` (4 tests),
+  7 guard cases `pointer-*` in `bin/inspect-source-guards.ts`
+  (each fails on its removal and passes restored,
+  the `.slint` one included);
+  the keyboard code of `src/native/input.rs` moved to `src/native/caret_keys.rs`
+  (the file was over the 300 code line limit with the logging;
+  5 older guard cases follow it);
+  two tests of `wheel_tests.rs` draw a frame over the held view before they press,
+  as a person does.
+  `lint` 0,
+  `test:native` 349 passed and 5 skipped,
+  `test` 811 passed,
+  `test:bin` 0,
+  `inspect:no-software-renderer` 0.
+- The harness (driver,
+  analysis,
+  OCR) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
