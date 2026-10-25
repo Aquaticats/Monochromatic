@@ -170,8 +170,8 @@ function lineOf(
 }
 
 /**
- The places a file's shapes are at, each place once, in the order of the lines. A shape that holds a function is
- kept once for each node, since two reports of one function on a line are two places a name may stand for.
+ The places a file's shapes are at, each place once, in the order of the lines. A shape is kept once for each node, since
+ two reports of one shape on a line are two places, and a name that stood for the first would hide the second.
 
  @param text - file's text
 
@@ -179,7 +179,7 @@ function lineOf(
 
  @param file - path of the file
 
- @returns One entry per line and shape
+ @returns One entry per node and shape
 
  @example
  ```ts
@@ -214,27 +214,30 @@ function spotsOf(
         text,
         node,
       },);
-      if (held === undefined) {
-        return [
-          `${String(line,)} ${shape}`,
+      /**
+       The place once for each node and shape.
+       */
+      const key = `${shape} ${String(node.start,)}`;
+      return (held === undefined)
+        ? [
+          key,
           {
             file,
             line,
             shape,
             position,
           },
+        ]
+        : [
+          key,
+          {
+            file,
+            line,
+            shape,
+            position,
+            held,
+          },
         ];
-      }
-      return [
-        `${String(line,)} ${shape} ${String(node.start,)}`,
-        {
-          file,
-          line,
-          shape,
-          position,
-          held,
-        },
-      ];
     },),)
       .values(),
   ].toSorted(function byLine(
