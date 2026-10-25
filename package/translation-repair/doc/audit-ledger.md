@@ -135,6 +135,10 @@ named for that subject and listed here.
   the full pass over every pair and text,
   the walk fixture's hook in the grammar,
   and the limits and mutants of the round (B832 follow-ups).
+- [Audit ledger: the source text under a note, the reading comparison and the real corpus](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md):
+  The page check's comparison of the reading of the page with the reading of the source,
+  the count of real texts per residual class,
+  the fixes of the classes and the checks of the fourth round (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

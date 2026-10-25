@@ -428,6 +428,7 @@ which lists every file of this record.
 - [B832, the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md)
 - [B832 follow-ups, parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md)
 - [B832 follow-ups, the ninth round](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md)
+- [B832 follow-ups, the reading comparison](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md)
 - [B833 to B835, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [B836, NeuralWatt replies cut at the default effort and the energy estimate][b836-neuralwatt-ledger]
 - [B837 to B840, short bench floors and the waits that cross them][b837-floors-ledger]
