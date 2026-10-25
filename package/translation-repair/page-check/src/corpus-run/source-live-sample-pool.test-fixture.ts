@@ -18,6 +18,11 @@ type Container = {
    Text before every other line.
    */
   readonly hang: string;
+
+  /**
+   What stands between the lines: a line feed, or a lone carriage return.
+   */
+  readonly join: string;
 };
 
 /**
@@ -161,6 +166,44 @@ export const RUN_FRAGMENTS: readonly string[] = [
   '- a\n  - ```\n    {\n    ```',
   '<!-- a <!-- b',
   '&lt;!--',
+  // A lone carriage return as the line ending, and a text mixing the three endings, in the shapes that read lines: a
+  // footnote then a definition, a flow that closes and one that never does, a comment before a definition.
+  '\r',
+  '[^1]: <b>\r[r]: u{b}\r',
+  '[^1]: x\r<a href="x">\r[r]: u{b}\r',
+  '$\r{a}\r$\r',
+  '```\r{a}\r```\r',
+  '~~~\r{a}\r~~~\r',
+  '$\r{x',
+  '- ```\r  {a}\r  ```\r',
+  '> $\r> {a}\r> $\r',
+  'x\r\r<!--\r[r]: u{b "t {"\r',
+  'a\r\nb\rc\n{d}',
+  // Footnote labels other than 1: a word, a space, a brace, a less-than sign, a closing brace, and a reference first.
+  '[^note]: <b>',
+  '[^a b]: x {',
+  '[^{a}]: x\n\n[^{a}] {b}',
+  '[^<b>]: x\n\n[^<b>] {c}',
+  '[^a}]: x {\n\n[^a}] y',
+  'x[^{a}] {b}\n\n[^{a}]: y',
+  // Tilde fences at the first column, open and closed, with an info string, and a longer backtick fence holding a
+  // shorter one.
+  '~~~',
+  '~~~\n{a}',
+  '~~~\n{a}\n~~~',
+  '~~~js {x}',
+  '````\n```\n{\n````',
+  // A footnote that is a tag alone, or a tag alone on the line after it, then a definition line with balanced and
+  // unbalanced braces, one after another, after indented code, alone, and in a list item and a block quote.
+  '[^1]: <b>\n[r]: u{b}',
+  '[^1]: <b>\n[r]: u{b "t {"',
+  '[^1]: x\n<a href="x">\n[r]: u{b}',
+  '[^1]: x\n<i>\n[r]: u{b}\n[s]: v{c}',
+  '[^1]: x\n\n        c\n[r]: u{b}',
+  '[r]: u{b}',
+  '- [^1]: <b>\n  [r]: u{b}',
+  '> [^1]: x\n> <a href="x">\n> [r]: u{b}',
+  '- > [^1]: <b>\n  > [r]: u{b}',
   // Nesting 300 deep, in the two forms the plain reading bounds.
   '> '.repeat(NESTING_PAST_BOUND,),
   '- '.repeat(NESTING_PAST_BOUND,),
@@ -173,6 +216,8 @@ export const RUN_SEPARATORS: readonly string[] = [
   ' ',
   '\n',
   '\n\n',
+  '\r',
+  '\r\r',
 ];
 
 /**
@@ -192,14 +237,22 @@ export const CONTAINERS: readonly Container[] = [
   {
     open: '',
     hang: '',
+    join: '\n',
   },
   {
     open: '- ',
     hang: '  ',
+    join: '\n',
   },
   {
     open: '> ',
     hang: '> ',
+    join: '\n',
+  },
+  {
+    open: '',
+    hang: '',
+    join: '\r',
   },
 ];
 
@@ -215,6 +268,8 @@ export const FOOTNOTE_STAGES: readonly (readonly string[])[] = [
     '[^1]: <b>',
     '[^1]: <b> abc',
     '[^1]: 注',
+    '[^{a}]: x',
+    '[^a b]: x',
   ],
   // Paragraph lines of the footnote.
   [
@@ -222,13 +277,14 @@ export const FOOTNOTE_STAGES: readonly (readonly string[])[] = [
     'abc',
     'abc {',
   ],
-  // A fence mark indented four spaces or more, or a tab.
+  // A fence mark indented four spaces or more, or a tab, or a tilde fence at the first column.
   [
     '    ```',
     '    ~~~',
     '    ```js',
     '     ```',
     '\t```',
+    '~~~',
   ],
   // What stands inside the indented block.
   [
@@ -244,11 +300,12 @@ export const FOOTNOTE_STAGES: readonly (readonly string[])[] = [
     '```',
     '    ~~~',
   ],
-  // What follows.
+  // What follows, a definition line among it.
   [
     '',
     '    tail {z}',
     'tail {z}',
+    '[r]: u{b}',
   ],
 ];
 

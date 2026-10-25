@@ -6,6 +6,7 @@ import {
   type ComposedPage,
   encodeAsLiteralMdx,
   holdsOpenComment,
+  type PageGrammarReading,
   readPageGrammar,
   runsUnfitForCompany,
   runTextOf,
@@ -59,6 +60,12 @@ export type Finding = {
 };
 
 /**
+ What the grammar says of a page that nests past the bound the readers keep, which no writing of the text makes it
+ accept: the one reason a page ships without the original of a run.
+ */
+const DEPTH_REFUSAL = 'nested too deeply to read';
+
+/**
  Where the text of a slice stands on a composed page.
  */
 type Placed = {
@@ -81,9 +88,9 @@ type Placed = {
 /**
  Names the slices of a composed page that were written as literal text and are still on it.
 
- @param composed - the composition
+ @param composed - composition
 
- @param artifact - the artifact it was composed from
+ @param artifact - artifact it was composed from
 
  @returns Slice indices, none for a page with every original as recorded
 
@@ -166,13 +173,14 @@ export function encodedSlicesOf(
 /**
  Composes the page of a pair of runs, with a paragraph the archive covers before them and one between.
 
- @param pair - the two runs and the English between them
+ @param pair - two runs and the English between them
 
- @returns The composition and the artifact it was composed from
+ @returns Composition, the artifact it was composed from, and what the grammar refused of the pages the
+ composition tried, as it worded each refusal
 
  @example
  ```ts
- const { composed, artifact, } = composePair({ pair: { first: '{', middle: 'Hi.\n', second: '}', }, },);
+ const { composed, artifact, refusals, } = composePair({ pair: { first: '{', middle: 'Hi.\n', second: '}', }, },);
  ```
  */
 export function composePair(
@@ -180,6 +188,7 @@ export function composePair(
 ): {
   readonly composed: ComposedPage;
   readonly artifact: WouldShipSource;
+  readonly refusals: readonly string[];
 } {
   /**
    Slices of the entry: the archive's first paragraph, the first run, the English between, the second run.
@@ -206,8 +215,13 @@ export function composePair(
    The settled artifact of the entry.
    */
   const artifact = sourceShippedArtifact({ rows, },);
+  /**
+   What the grammar refused, in the order the composition asked.
+   */
+  const refusals: string[] = [];
   return {
     artifact,
+    refusals,
     composed: composeSourcePage({
       artifact,
       slices: sourceShippedSlices({ rows, },),
@@ -215,6 +229,15 @@ export function composePair(
       entryId: 'Cat',
       // The composition writes a line for each step it takes, which a full pass takes thousands of times.
       l: capturingLogger({ messages: [], },),
+      readGrammar: function recording({ pageText, },): PageGrammarReading {
+        /**
+         What the page grammar says of the text.
+         */
+        const reading = readPageGrammar({ pageText, },);
+        if (reading.kind === 'refused')
+          refusals.push(reading.refusal,);
+        return reading;
+      },
     },),
   };
 }
@@ -264,7 +287,7 @@ function startsOf(
 /**
  Finds where the text of a slice stands on a composed page, at every place it occurs.
 
- @param composed - the composition
+ @param composed - composition
 
  @param slice - index of the slice
 
@@ -323,7 +346,7 @@ function placesOf(
 /**
  Reads the constructs of a page that stand in the text of the slices written as literal text.
 
- @param composed - the composition
+ @param composed - composition
 
  @param encoded - slices written as literal text that are still on the page
 
@@ -392,11 +415,13 @@ export function liveInEncodedSlices(
 }
 
 /**
- Reads a pair of runs: composes its page and finds the constructs in the text written as literal text.
+ Reads a pair of runs: composes its page, finds the constructs in the text written as literal text, and notes a page
+ that shipped without the original of a run though neither run nests past the bound.
 
- @param pair - the pair, with the index of its draw when it has one
+ @param pair - pair, with the index of its draw when it has one
 
- @returns How many slices were written as literal text, and what was found in them
+ @returns How many slices were written as literal text, what was found in them or in the dropping, and the step the
+ composition took
 
  @example
  ```ts
@@ -408,6 +433,7 @@ export function readPair(
 ): {
   readonly encoded: number;
   readonly finding: Finding;
+  readonly step: ComposedPage['step'];
 } {
   /**
    The page of the pair and the artifact it was composed from.
@@ -415,6 +441,7 @@ export function readPair(
   const {
     composed,
     artifact,
+    refusals,
   } = composePair({ pair, },);
   /**
    Slices written as literal text that the page still holds.
@@ -423,16 +450,42 @@ export function readPair(
     composed,
     artifact,
   },);
+  /**
+   Whether the grammar refused a page for its depth, the one refusal no writing of the text cures.
+   */
+  const refusedForDepth = refusals.some(function isDepth(refusal,): boolean {
+    return refusal.includes(DEPTH_REFUSAL,);
+  },);
+  /**
+   Whether the composition shipped the page without the original of a run.
+   */
+  const dropped = composed.step === 'dropped';
+  /**
+   The slices whose original is not on the page, as the note names them.
+   */
+  const droppedSlices = composed
+    .slices
+    .join(' ',);
+  /**
+   Whether the page lost an original for no reason a writing of the text cannot cure.
+   */
+  const droppedWithoutCause = dropped && (!refusedForDepth);
   return {
     encoded: encoded.length,
+    step: composed.step,
     finding: {
       where: `${String(pair.at ?? NOT_FOUND,)} ${JSON.stringify(pair,)} ${composed.step}`,
-      found: (encoded.length === 0)
-        ? []
-        : liveInEncodedSlices({
-          composed,
-          encoded,
-        },),
+      found: [
+        ...(droppedWithoutCause
+          ? [`shipped without the source of slices ${droppedSlices} though the grammar refused no page for its depth`,]
+          : []),
+        ...((encoded.length === 0)
+          ? []
+          : liveInEncodedSlices({
+            composed,
+            encoded,
+          },)),
+      ],
     },
   };
 }
