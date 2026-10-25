@@ -23,6 +23,10 @@ import {
   SOME_NAMED_PREFERRED_SHIPS,
   SOME_NAMED_SHIPS_ONCE_NARROWED,
 } from './decline-clause.test-fixture.ts';
+import {
+  NONE_LEFT_BEHIND_ASKS_NO_QUESTION,
+  OTHERWISE_THE_WHOLE_SLATE,
+} from './decline-clause-shapes.test-fixture.ts';
 
 //region Decline clause rounds
 // The clauses only the first ask and the deferring challenge say, then the table of each round.
@@ -170,6 +174,7 @@ export const MODES: Readonly<Record<DeclineMode, {
       OWN_DECLINE_NAMES_NONE,
       PANEL_ASKED_AGAIN,
       RUNS_OFF_OVER_THE_LEADERS,
+      NONE_LEFT_BEHIND_ASKS_NO_QUESTION,
       NONE_NAMED_STAYS_ONCE_NARROWED,
       SOME_NAMED_SHIPS_ONCE_NARROWED,
       FIXED_ORDER,
@@ -186,6 +191,7 @@ export const MODES: Readonly<Record<DeclineMode, {
       SETTLES_NOTHING,
       PANEL_ASKED_AGAIN,
       RUNS_OFF_OVER_THE_LEADERS,
+      OTHERWISE_THE_WHOLE_SLATE,
     ],
     refused: [
       NONE_NAMED_WORDING_STAYS,
@@ -200,6 +206,7 @@ export const MODES: Readonly<Record<DeclineMode, {
       OWN_DECLINE_NAMES_NONE,
       PANEL_ASKED_AGAIN,
       RUNS_OFF_OVER_THE_LEADERS,
+      NONE_LEFT_BEHIND_ASKS_NO_QUESTION,
       SHIPS_ONLY_ON_AN_EQUAL_TIE_ONCE_NARROWED,
       FIXED_ORDER,
       SENT_BACK_FOR_NEW_PROPOSALS,

@@ -12,7 +12,10 @@
  a decline said to keep the wording, since the lead clause refuses `keeps`; and an outcome put negatively, since the
  outcome clauses refuse `never`, `does not`, `will not`, `cannot` and `no longer` (re-check 5, N-a). A round also
  refuses the promises of the others: the first ask may not promise a ship or a stay, and a challenge may not say a
- decline settles nothing and asks again. What it does not read is a meaning no clause names or a negation not listed.
+ decline settles nothing and asks again. A caller can also name the shape of the declined round, and the sentence must
+ then say what is true of that shape: that the panel is asked again over the leaders where some candidates are left
+ behind, and that it asks no such question where none is (`decline-clause-shapes.test-fixture.ts`; re-check 6, M-B).
+ What it does not read is a meaning no clause names or a negation not listed.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -24,8 +27,13 @@ import type {
   DeclineMode,
 } from './decline-clause.test-fixture.ts';
 import { MODES, } from './decline-clause-rounds.test-fixture.ts';
+import {
+  type RunoffShape,
+  shapeClauseOf,
+} from './decline-clause-shapes.test-fixture.ts';
 
 export type { DeclineMode, } from './decline-clause.test-fixture.ts';
+export type { RunoffShape, } from './decline-clause-shapes.test-fixture.ts';
 
 //region Decline clauses
 // The reader: where a text is cut, whether a part says a clause, and what a round's sentence fails.
@@ -225,21 +233,26 @@ function isSaid(
 
  @param mode - the round the sentence is told in
 
+ @param shape - the shape of the declined round, when the caller knows it, whose clause the sentence must also say
+
  @returns The meanings of the clauses no part says, then `promises: ` and the meaning of each refused clause some part
  says; empty when the sentence is right for its round
 
  @example
  ```ts
  const failures = unmetClausesOf({ text: sheetText, mode: 'asked-again', },);
+ const forShape = unmetClausesOf({ text: sheetText, mode: 'ships', shape: 'slate-of-two', },);
  ```
  */
 export function unmetClausesOf(
   {
     text,
     mode,
+    shape,
   }: {
     readonly text: string;
     readonly mode: DeclineMode;
+    readonly shape?: RunoffShape;
   },
 ): readonly string[] {
   /**
@@ -250,9 +263,21 @@ export function unmetClausesOf(
    What this round must say and must not promise.
    */
   const {
-    required,
+    required: general,
     refused,
   } = MODES[mode];
+  /**
+   What this round must say, with the clause of the shape when one is named.
+   */
+  const required = (shape === undefined)
+    ? general
+    : [
+      ...general,
+      shapeClauseOf({
+        shape,
+        mode,
+      },),
+    ];
   return [
     ...required
       .filter(function isMissing(clause,): boolean {

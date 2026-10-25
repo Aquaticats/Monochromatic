@@ -271,10 +271,20 @@ export const PANEL_ASKED_AGAIN: DeclineClause = {
 };
 
 /**
- A tie at the top that backs only some candidates, or a leader only one judge named, sends those candidates, or the
- leader and its runner-up, to the panel first, for as long as that narrows the question (`runoffFinalists` in
- `translate-stage/src/translate-runoff.ts`, `judgeSlateWithRetry` in `translate-stage/src/translate-retry.ts`;
- re-check 5, M-B). The part that says it may not say an outcome.
+ The ways a sentence says a run-off leaves some candidates out of the question.
+ */
+export const LEFT_BEHIND: readonly string[] = [
+  'behind',
+  'left out',
+];
+
+/**
+ A tie at the top that leaves some candidates behind, or a leader only one judge named with a runner-up and some
+ candidates behind, sends those candidates, or the leader and its runner-up, to the panel first, for as long as that
+ narrows the question (`runoffFinalists` in `translate-stage/src/translate-runoff.ts`, `judgeSlateWithRetry` in
+ `translate-stage/src/translate-retry.ts`; re-check 5, M-B). BOTH HALVES CARRY THE QUALIFIER (re-check 6, M-B): a leader
+ with no runner-up that drew a ballot, and a leader beside a runner-up in a slate of two, narrow nothing, and a half
+ that says the panel is asked again over the leaders there is false. The part that says it may not say an outcome.
 
  @example
  ```ts
@@ -282,15 +292,17 @@ export const PANEL_ASKED_AGAIN: DeclineClause = {
  ```
  */
 export const RUNS_OFF_OVER_THE_LEADERS: DeclineClause = {
-  meaning: 'a tie at the top backing only some candidates, or a leader one judge named, narrows the question to the '
-    + 'leaders, for as long as it narrows',
+  meaning: 'a tie at the top, or a leader one judge named, narrows the question to the leaders only where that '
+    + 'leaves some candidates behind, for as long as it narrows',
   inOrder: [
     [
       'tied at the top',
       'tied for the lead',
     ],
+    LEFT_BEHIND,
     ['one judge',],
     ['runner-up',],
+    LEFT_BEHIND,
     ['for as long as',],
     ['narrows',],
   ],

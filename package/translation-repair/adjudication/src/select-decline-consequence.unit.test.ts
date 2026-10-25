@@ -40,9 +40,14 @@ import {
   SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '../dist/final/node/index.mjs';
 import {
+  type RunoffShape,
   unmetClausesOf,
   unmetDeclineClauses,
 } from './decline-consequence-clauses.test-fixture.ts';
+import {
+  NARROWING_SHAPES,
+  WHOLE_SLATE_SHAPES,
+} from './decline-clause-shapes.test-fixture.ts';
 
 /**
  The lead of the sentence a judge reads, with the judge's own decline named.
@@ -50,18 +55,41 @@ import {
 const LEAD = 'declining does not by itself keep the wording in place, and your own decline names no candidate: ';
 
 /**
- The part of a challenge's sentence about a tie that backs only some candidates, in the words of the constant.
+ The part of a challenge's sentence about a tie or a leader that leaves some candidates behind, in the words of the
+ constant.
  */
-const RUNS_OFF = 'when the round leaves only some candidates tied at the top, or a leader only one judge named, the '
-  + 'panel is asked again first, though a round may seat other members of it, over those candidates alone, or over '
-  + 'that leader and its runner-up, and again for as long as that narrows the question; ';
+const ASKS_OVER_THE_LEADERS = 'when the round leaves some candidates tied at the top with others left behind, or a '
+  + 'leader only one judge named beside a runner-up with others left behind, the panel is asked again first, though a '
+  + 'round may seat other members of it, over those candidates alone, or over that leader and its runner-up, and '
+  + 'again for as long as that narrows the question; ';
+
+/**
+ The part of a challenge's sentence about the rounds that leave no candidate behind, in the words of the constant.
+ */
+const NONE_BEHIND = 'a round that leaves no candidate behind (the whole slate tied, every judge declining, a leader '
+  + 'alone in drawing a ballot, or a slate of only two) asks no such question; ';
+
+/**
+ Both parts of a challenge's sentence about the run-off, in the words of the constant.
+ */
+const RUNS_OFF = `${ASKS_OVER_THE_LEADERS}${NONE_BEHIND}`;
+
+/**
+ The wording of the run-off part before re-check 6, whose leader half carried no qualifier, for the refusal control.
+ */
+const RUNS_OFF_UNQUALIFIED = 'when the round leaves only some candidates tied at the top, or a leader only one judge '
+  + 'named, the panel is asked again first, though a round may seat other members of it, over those candidates alone, '
+  + 'or over that leader and its runner-up, and again for as long as that narrows the question; ';
 
 /**
  The same part in other words, for the rewording control.
  */
-const RUNS_OFF_REWORDED = 'if the round leaves just some candidates tied for the lead, or a leader that one judge alone '
-  + 'named, the panel is asked once more first, though a round may seat different members of it, over those '
-  + 'candidates or over that leader and its runner-up, and once more for as long as that narrows the question; ';
+const RUNS_OFF_REWORDED = 'if the round leaves just some candidates tied for the lead with others left out, or a '
+  + 'leader that one judge alone named beside a runner-up with others left out, the panel is asked once more first, '
+  + 'though a round may seat different members of it, over those candidates or over that leader and its runner-up, '
+  + 'and once more for as long as that narrows the question; if the round leaves none behind (the whole slate tied, '
+  + 'every judge declining, a leader alone in drawing a ballot, or a slate of only two) no narrower question is '
+  + 'asked; ';
 
 /**
  The stay in the words of the constant, waiting on the run-off.
@@ -96,8 +124,35 @@ const SHIP_UNMET = 'once no narrower question is left, with one or more candidat
 /**
  What the reader says of a sentence that lost its run-off clause.
  */
-const RUNOFF_UNMET = 'a tie at the top backing only some candidates, or a leader one judge named, narrows the '
-  + 'question to the leaders, for as long as it narrows';
+const RUNOFF_UNMET = 'a tie at the top, or a leader one judge named, narrows the question to the leaders only where '
+  + 'that leaves some candidates behind, for as long as it narrows';
+
+/**
+ What the reader says of a challenge that does not say where its run-off is not asked.
+ */
+const NONE_BEHIND_UNMET = 'a round that leaves no candidate behind asks no such question';
+
+/**
+ How the sentence of the constant names each shape that narrows nothing, by shape.
+ */
+const NAMES_OF_WHOLE_SLATE_SHAPES: readonly (readonly [RunoffShape, string,])[] = [
+  [
+    'whole-slate-tied',
+    'the whole slate tied',
+  ],
+  [
+    'every-judge-declined',
+    'every judge declining',
+  ],
+  [
+    'leader-alone',
+    'a leader alone in drawing a ballot',
+  ],
+  [
+    'slate-of-two',
+    'a slate of only two',
+  ],
+];
 
 await describe({
   name: declineConsequenceFor.name,
@@ -221,7 +276,75 @@ await describe({
         expect(unmetDeclineClauses(`${LEAD}${OUTCOMES}`,),).toEqual([
           'the panel is asked again, though a round may seat other members of it',
           RUNOFF_UNMET,
+          NONE_BEHIND_UNMET,
         ],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A LEADER HALF WITH NO QUALIFIER: "a leader only one judge named ... the panel is asked again '
+        + 'first" is false where no candidate is left behind, so the wording of round 6 fails (re-check 6, M-B)',
+      fn: async () => {
+        expect(unmetDeclineClauses([
+          LEAD,
+          RUNS_OFF_UNQUALIFIED,
+          NONE_BEHIND,
+          OUTCOMES,
+        ].join('',),),).toEqual([RUNOFF_UNMET,],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A CHALLENGE THAT NEVER SAYS WHERE ITS QUESTION IS NOT ASKED: a sentence that says the panel is '
+        + 'asked again over the leaders and stops there tells a judge the question is asked in every shape '
+        + '(re-check 6, M-B)',
+      fn: async () => {
+        expect(unmetDeclineClauses([
+          LEAD,
+          ASKS_OVER_THE_LEADERS,
+          OUTCOMES,
+        ].join('',),),).toEqual([NONE_BEHIND_UNMET,],);
+      },
+    },),
+
+    it({
+      name: 'READS A SENTENCE FOR EACH SHAPE OF DECLINED ROUND: the shapes that narrow the question read from the '
+        + 'run-off clause, and each shape that narrows nothing is refused when the sentence does not name it '
+        + '(re-check 6, M-B)',
+      fn: async () => {
+        /**
+         The sentence in the words of the constant, which names every shape.
+         */
+        const sentence = `${LEAD}${RUNS_OFF}${OUTCOMES}`;
+        expect([
+          ...NARROWING_SHAPES,
+          ...WHOLE_SLATE_SHAPES,
+        ].map(function failuresOf(shape,): readonly string[] {
+          return unmetClausesOf({
+            text: sentence,
+            mode: 'ships',
+            shape,
+          },);
+        },),).toEqual([
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+        ],);
+        expect(NAMES_OF_WHOLE_SLATE_SHAPES.map(function failuresWithout([shape, names,],): readonly string[] {
+          return unmetClausesOf({
+            text: sentence.replace(
+              names,
+              'something else',
+            ),
+            mode: 'ships',
+            shape,
+          },);
+        },),).toEqual(NAMES_OF_WHOLE_SLATE_SHAPES.map(function toUnmet([shape,],): readonly string[] {
+          return [`a round that leaves no candidate behind asks no such question, naming the shape ${shape}`,];
+        },),);
       },
     },),
 
