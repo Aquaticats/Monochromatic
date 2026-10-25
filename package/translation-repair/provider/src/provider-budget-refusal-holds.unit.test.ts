@@ -91,7 +91,7 @@ await describe({
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
         expect(refusals.givenUp({ provider: 'hyper', },),).toBe(false,);
         expect(lines,).toEqual([
-          `warn synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between; `
+          `warn [hold] synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between; `
             + `entry CatEntry1 stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends`,
         ],);
       },
@@ -220,7 +220,7 @@ await describe({
         lines.length = 0;
         refusals.beginEntry({ entryId: 'CatEntry5', },);
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(false,);
-        expect(lines,).toEqual(['info entry CatEntry5 begins: synthetic no longer given up on, so asked again',],);
+        expect(lines,).toEqual(['info [beginEntry] entry CatEntry5 begins: synthetic no longer given up on, so asked again',],);
       },
     },),
   ],
