@@ -58,6 +58,7 @@ import {
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   entryLinesWritten,
+  linesRepeatingAttempt,
   linesWithoutAttempt,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 import { insertionRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts/sole-lane-comparison-row.test-fixture.ts';
@@ -1384,6 +1385,11 @@ await describe({
               return line.includes('JUDGE SEATS phase=lanes',);
             },),).toBe(true,);
             expect(linesWithoutAttempt({
+              lines,
+              attempt: LOGGED_ATTEMPT,
+            },),).toStrictEqual([],);
+            // The lanes slice-tag the logger they are handed, which names the attempt already.
+            expect(linesRepeatingAttempt({
               lines,
               attempt: LOGGED_ATTEMPT,
             },),).toStrictEqual([],);

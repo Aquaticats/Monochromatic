@@ -100,4 +100,33 @@ export function linesWithoutAttempt(
   },);
 }
 
+/**
+ The lines that name an attempt more than once, which a lane slice-tagging a logger that is slice-tagged already
+ would write if the tags were not written once per line (ledger B963).
+
+ @param lines - lines the loggers wrote
+
+ @param attempt - number of the attempt the work ran inside
+
+ @returns Those holding the `[attempt n]` bracket twice or more
+
+ @example
+ ```ts
+ expect(linesRepeatingAttempt({ lines, attempt: 2, },),).toStrictEqual([],);
+ ```
+ */
+export function linesRepeatingAttempt(
+  {
+    lines,
+    attempt,
+  }: {
+    readonly lines: readonly string[];
+    readonly attempt: number;
+  },
+): readonly string[] {
+  return lines.filter(function repeatsAttempt(line,): boolean {
+    return line.split(`[attempt ${String(attempt,)}]`,).length > 2;
+  },);
+}
+
 //endregion Entry log lines

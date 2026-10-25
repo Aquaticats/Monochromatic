@@ -57,6 +57,7 @@ import {
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   entryLinesWritten,
+  linesRepeatingAttempt,
   linesWithoutAttempt,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 
@@ -2637,6 +2638,10 @@ await describe({
 
         expect(entryLines.length,).toBeGreaterThan(0,);
         expect(linesWithoutAttempt({
+          lines: entryLines,
+          attempt: ATTEMPT,
+        },),).toStrictEqual([],);
+        expect(linesRepeatingAttempt({
           lines: entryLines,
           attempt: ATTEMPT,
         },),).toStrictEqual([],);
