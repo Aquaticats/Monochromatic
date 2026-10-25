@@ -5,6 +5,11 @@ import {
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import {
+  GLOBAL_OBJECTS,
+  globalValueShapesIn,
+  namesGlobalObject,
+} from './claude-schema-blind-global-values.test-fixture.ts';
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
@@ -21,7 +26,9 @@ import {
 // `createRequire` in any form (a call, an import of it, a member of a module), `require` anywhere but as the callee of
 // a direct call (`module.require`, an alias, `require.call`, a comma expression), `eval`, and `Function` with or
 // without `new`, also as the member of another object, and a member of `globalThis`, `window`, `self` or `global`
-// whose key is computed from anything but a string literal (`globalThis['ev' + 'al']`), since it can be either. A word
+// whose key is computed from anything but a string literal (`globalThis['ev' + 'al']`), since it can be either. The
+// global object written as a whole value, which a holder can read with such a key, is reported too
+// (`claude-schema-blind-global-values.test-fixture.ts`). A word
 // inside a string, a longer name and a type are not code. The check does not read the constructor of a function
 // (`(function () {}).constructor('...')`), the constructor of the prototype of an async function, nor `node:vm`; these
 // reach code from text without a name the search could tell, and are limits of the search that the ledger states.
@@ -68,16 +75,6 @@ const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
   require: REACHES_REQUIRE,
   [COMPUTED_GLOBAL_KEY]: COMPUTES_GLOBAL,
 },),);
-
-/**
- The names the global object is written with, in the runtimes the family runs in and in the browsers.
- */
-const GLOBAL_OBJECTS: ReadonlySet<string> = new Set([
-  'global',
-  'globalThis',
-  'self',
-  'window',
-],);
 
 /**
  The name of a member of the global object whose key is no string the search can read.
@@ -163,7 +160,7 @@ function unreadableNameOf({ node, }: { readonly node: TreeNode; },): string {
  ```
  */
 export function namesUnreadableCode({ node, }: { readonly node: TreeNode; },): boolean {
-  return unreadableNameOf({ node, },) !== '';
+  return (unreadableNameOf({ node, },) !== '') || namesGlobalObject({ node, },);
 }
 
 /**
@@ -203,7 +200,7 @@ function isRequireCall(
 }
 
 /**
- The places in a file that make code the search cannot read.
+ The places in a file that are written with a name that makes code the search cannot read.
 
  @param context - what the file's names are read against
 
@@ -213,10 +210,10 @@ function isRequireCall(
 
  @example
  ```ts
- const found = unreadableShapesIn({ context, nodes: nodesUnder({ root: program, },), },);
+ const found = namedShapesIn({ context, nodes: nodesUnder({ root: program, },), },);
  ```
  */
-export function unreadableShapesIn(
+function namedShapesIn(
   {
     context,
     nodes,
@@ -254,6 +251,39 @@ export function unreadableShapesIn(
       },
     ];
   },);
+}
+
+/**
+ The places in a file that make code the search cannot read: a name that makes it, and the global object written as a
+ whole value.
+
+ @param context - what the file's names are read against
+
+ @param nodes - every node of the file
+
+ @returns One entry per place
+
+ @example
+ ```ts
+ const found = unreadableShapesIn({ context, nodes: nodesUnder({ root: program, },), },);
+ ```
+ */
+export function unreadableShapesIn(
+  {
+    context,
+    nodes,
+  }: {
+    readonly context: BlindContext;
+    readonly nodes: readonly TreeNode[];
+  },
+): readonly FoundShape[] {
+  return [
+    ...namedShapesIn({
+      context,
+      nodes,
+    },),
+    ...globalValueShapesIn({ context, },),
+  ];
 }
 
 //endregion Code the schema search cannot read
