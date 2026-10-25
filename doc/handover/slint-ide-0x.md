@@ -4600,6 +4600,8 @@ stores `None` (`Rest::moved`, `:106-120`), `rest()` returns before the `resolved
 not a regression (the same before the fix): a pointer that rests over no character when the view moves under it never
 asks, even when an identifier arrives under it; only a pointer move restarts the rest. Not fixed, nobody asked; the
 fix would resolve a rest over `None` again at due time when the view has moved, and keep `idle` for the popup.
+(Done later on 2026-10-25 on branch worktree-agent-a9743aae63279d55b: see the section "A pointer that rests over no
+character asks when the view puts a character under it".)
 Popup screenshots were not viewed for all 14 requests (log only).
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
@@ -4882,6 +4884,80 @@ drawn under the pointer (a constant position for a resting pointer).
   The harness (nested compositor,
   OCR of the gutter,
   four builds alternating) was kept only in the session scratch and removed.
+
+## A pointer that rests over no character asks when the view puts a character under it, 2026-10-25 (branch worktree-agent-a9743aae63279d55b)
+
+The limitation noted in the block above is fixed on the branch (not merged or installed).
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A hover request after a far wheel jump",
+subsection "A pointer that rests over no character".
+
+- Cause:
+  `Rest::due` admitted only a rest that began over a character,
+  so a rest that began over a hint row,
+  the line numbers,
+  a blank line,
+  or the space past a line's end never asked,
+  whatever arrived under the pointer.
+- Fix:
+  `Rest::due` returns the place of a rest over no character after the view moved under it
+  (`shifted`),
+  `Rest::follow` watches the height of the text as well as the drawn offset,
+  `rest` resolves against the drawn rows when the request is built and calls `Rest::found_nothing`
+  (nothing asked)
+  or `Rest::asked_about`
+  (asked,
+  and the rest is now over that character).
+  `Rest::idle` is unchanged.
+- Second defect found by the popup screenshots the owner asked for:
+  the first version of the fix asked right but `Rest::idle` closed the popup 20 ms after it was shown,
+  because the rest still recorded no character;
+  the counts of the trials and the native tests did not see it.
+  `asked_about` fixes it and the tests wait twice the rest time and compare the popup.
+  Lesson:
+  a test that waits for the popup to appear does not show that it stays.
+- Measured on release builds,
+  10 trials per cell,
+  main = the installed build (code of `origin/main`),
+  fix and a second copy of it for the spread,
+  three sessions at the same time,
+  load average 3.8 to 4.3:
+  a pointer over no character past the end of a line (5,
+  11,
+  29,
+  301 notches),
+  on the hint row (5 and 301),
+  and under arriving hints:
+  main 0 of 10 requests in every cell,
+  fix 10 of 10 right in every cell,
+  fix2 10 of 10;
+  0.533 to 0.574 s after the wheel (0.783 to 0.818 s with hints);
+  the earlier cases unchanged:
+  moved onto an identifier 100 ms before a 300-notch wheel 10 of 10 right in all three,
+  rested 1.2 s then a wheel 0 requests in all three,
+  settled hover 10 of 10 at 0.350 to 0.370 s;
+  0 wrong lines,
+  no request before the wheel,
+  one `resolved=` line after the wheel in every fix trial.
+- Popups viewed (screenshots of the frame after `language popup shown`):
+  12 far-jump requests and 6 settled hovers,
+  every popup is for the identifier under the pointer,
+  below its row at the pointer's column,
+  on screen;
+  the popup of the hints trial overlaps the left 10 px of the minimap.
+- Tests:
+  `src/native/language/pointer_blank_tests.rs` (10 tests),
+  22 guard cases `hover-*` in `bin/inspect-source-guards.ts`.
+- Open:
+  one fresh-session trial under load had no character under the pointer after a 301-notch first scroll,
+  settled as well (a finished tile left for a scroll step that never came);
+  not reproduced in 3 more;
+  rows that are drawn late without a move of the offset or a change of the height are not a signal to start a rest again.
+  The harness (headless nested compositor driver,
+  generated 1,500-line `long.ts`,
+  settled probe,
+  summarizer) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
