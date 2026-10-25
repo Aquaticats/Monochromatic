@@ -11,9 +11,10 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // callers, so the files that call it are listed. The names made from a parameter are the names the parameters bind, the
 // `arguments` object, and the names a constant, an assignment, a pattern an assignment takes apart, a loop over a value
 // or a `catch` clause binds from code that reads one of them, to the end of the chain. A chain of members whose
-// member is computed starts with the same name as one whose member is not. What stays unread, and is pinned silent
-// here: a value that goes through a field of `this` or of an object (`this.a = args`), since the field is read by
-// whatever else holds the object, and a value that a called function throws.
+// member is computed starts with the same name as one whose member is not. The names a value stored in an object, a
+// list or a map is read through are read too (`claude-schema-derived-container-forms.test-fixture.ts`). What stays
+// unread, and is pinned silent here: a value that goes through a field of `this` (`this.a = args`), since the field is
+// read by whatever else holds the object, and a value that a called function throws.
 
 /**
  The arguments of a call of the function a case declares, as the file that calls it writes them.

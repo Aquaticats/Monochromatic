@@ -1,12 +1,15 @@
 import {
-  identifierName,
-  isTreeNode,
   nodesUnder,
   type TreeNode,
-  unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
+import {
+  headNameOf,
+  type Link,
+  namesStoredInto,
+  storeLinksOf,
+} from './claude-schema-blind-stores.test-fixture.ts';
 import {
   isPureTypeVisit,
   referenceVisitsUnder,
@@ -25,31 +28,8 @@ import {
 
 //region Names made from a function's parameters, and the calls that take them
 // What `claude-schema-blind-forwarders.test-fixture.ts` reads a function for: the names its own parameters bind, the
-// constants inside it that are made from them, and whether a call of a known function takes an argument that reads one
-// of those names.
-
-/**
- The first name of a chain of members, whether or not a member is computed.
-
- @param node - chain, or any expression
-
- @returns Name, empty when the chain starts with anything but a name
-
- @example
- ```ts
- const head = headNameOf({ node: reference, },);
- // => 'args' for `args[0].name`
- ```
- */
-function headNameOf({ node, }: { readonly node: unknown; },): string {
-  /**
-   The expression without the type marks and parentheses around it.
-   */
-  const { inner, } = unwrapped({ node, },);
-  if ((!isTreeNode(inner,)) || (inner.type !== 'MemberExpression'))
-    return identifierName({ node: inner, },);
-  return headNameOf({ node: inner.object, },);
-}
+// names inside it that are made from them (`claude-schema-blind-stores.test-fixture.ts` reads the objects a value is
+// stored in), and whether a call of a known function takes an argument that reads one of those names.
 
 /**
  Whether the code under a node reads a name of the set, at the head of a chain of members.
@@ -84,23 +64,8 @@ function readsOneOf(
 }
 
 /**
- A place where names become derived: the names that a statement or an expression binds, and the code whose value they
- take.
- */
-type Link = {
-  /**
-   The code whose value the names take.
-   */
-  readonly read: TreeNode;
-
-  /**
-   The names bound there.
-   */
-  readonly bound: readonly string[];
-};
-
-/**
- The names the left side of a loop head binds: the names of the declaration it makes, or the targets it assigns.
+ The names the left side of a loop head binds: the names of the declaration it makes, or the targets it assigns, a
+ member among them stored in.
 
  @param left - left side of a `for...in` or `for...of` head
 
@@ -120,12 +85,96 @@ function namesOfLoopHead({ left, }: { readonly left: TreeNode; },): readonly str
       .flatMap(function boundByDeclarator(declarator,): readonly string[] {
         return namesBoundBy({ node: declarator.id, },);
       },)
-    : namesBoundBy({ node: left, },);
+    : namesStoredInto({ node: left, },);
+}
+
+/**
+ The links a node makes where a name takes the value of other code: a constant, an assignment, the head of a loop over a
+ value, and the parameter of a `catch` clause for what the `try` block throws.
+
+ @param node - node read
+
+ @returns One link for the node, one for each throw of a `try` block with a `catch` clause, none for any other node
+
+ @example
+ ```ts
+ const links = bindingLinksOf({ node, },);
+ ```
+ */
+function bindingLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
+  if (node.type === 'VariableDeclarator') {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'init',
+        },),
+        bound: namesBoundBy({ node: node.id, },),
+      },
+    ];
+  }
+  if (node.type === 'AssignmentExpression') {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'right',
+        },),
+        bound: namesStoredInto({ node: node.left, },),
+      },
+    ];
+  }
+  if ((node.type === 'ForInStatement') || (node.type === 'ForOfStatement')) {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'right',
+        },),
+        bound: namesOfLoopHead({ left: nodeAt({
+          node,
+          field: 'left',
+        },), },),
+      },
+    ];
+  }
+  if ((node.type !== 'TryStatement') || isNoNode({ node: nodeAt({
+    node,
+    field: 'handler',
+  },), },))
+    return [];
+  /**
+   The names the `catch` clause binds.
+   */
+  const caught = namesBoundBy({ node: nodeAt({
+    node: nodeAt({
+      node,
+      field: 'handler',
+    },),
+    field: 'param',
+  },), },);
+  return nodesUnder({ root: nodeAt({
+    node,
+    field: 'block',
+  },), },)
+    .filter(function isThrow({ type, },): boolean {
+      return type === 'ThrowStatement';
+    },)
+    .map(function linkOfThrow(thrown,): Link {
+      return {
+        read: nodeAt({
+          node: thrown,
+          field: 'argument',
+        },),
+        bound: caught,
+      };
+    },);
 }
 
 /**
  The places in a function where a name takes the value of other code: a constant, an assignment, the head of a loop
- over a value, and the parameter of a `catch` clause for what the `try` block throws.
+ over a value, the parameter of a `catch` clause for what the `try` block throws, a call that stores its arguments in
+ an object, a class and the default of a pattern.
 
  @param fn - function
 
@@ -139,73 +188,10 @@ function namesOfLoopHead({ left, }: { readonly left: TreeNode; },): readonly str
 function linksIn({ fn, }: { readonly fn: TreeNode; },): readonly Link[] {
   return nodesUnder({ root: fn, },)
     .flatMap(function linksOfNode(node,): readonly Link[] {
-      if (node.type === 'VariableDeclarator') {
-        return [
-          {
-            read: nodeAt({
-              node,
-              field: 'init',
-            },),
-            bound: namesBoundBy({ node: node.id, },),
-          },
-        ];
-      }
-      if (node.type === 'AssignmentExpression') {
-        return [
-          {
-            read: nodeAt({
-              node,
-              field: 'right',
-            },),
-            bound: namesBoundBy({ node: node.left, },),
-          },
-        ];
-      }
-      if ((node.type === 'ForInStatement') || (node.type === 'ForOfStatement')) {
-        return [
-          {
-            read: nodeAt({
-              node,
-              field: 'right',
-            },),
-            bound: namesOfLoopHead({ left: nodeAt({
-              node,
-              field: 'left',
-            },), },),
-          },
-        ];
-      }
-      if ((node.type !== 'TryStatement') || isNoNode({ node: nodeAt({
-        node,
-        field: 'handler',
-      },), },))
-        return [];
-      /**
-       The names the `catch` clause binds.
-       */
-      const caught = namesBoundBy({ node: nodeAt({
-        node: nodeAt({
-          node,
-          field: 'handler',
-        },),
-        field: 'param',
-      },), },);
-      return nodesUnder({ root: nodeAt({
-        node,
-        field: 'block',
-      },), },)
-        .filter(function isThrow({ type, },): boolean {
-          return type === 'ThrowStatement';
-        },)
-        .map(function linkOfThrow(thrown,): Link {
-          return {
-            read: nodeAt({
-              node: thrown,
-              field: 'argument',
-            },),
-            bound: caught,
-          };
-        },);
+      return [
+        ...bindingLinksOf({ node, },),
+        ...storeLinksOf({ node, },),
+      ];
     },);
 }
 
