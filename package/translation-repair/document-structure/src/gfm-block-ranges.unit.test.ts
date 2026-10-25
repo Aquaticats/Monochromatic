@@ -102,6 +102,13 @@ await describe({
         },),
 
         it({
+          name: 'READS NO FOOTNOTE AT A LINE INDENTED FOUR SPACES AFTER A PARAGRAPH, which is a lazy line of the paragraph',
+          fn: async () => {
+            expect(footnoteDefinitionRangesOf({ body: 'a `x\n    [^1]: {c}` {d}\n', },),).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'ENDS A FOOTNOTE AT A LINE OF RAW HTML, as a reader of the source in GFM does',
           fn: async () => {
             // A tag alone on a line starts an HTML block, which ends the footnote's paragraph there.
@@ -143,6 +150,24 @@ await describe({
               {
                 start: 0,
                 end: 27,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'STARTS A FOOTNOTE AT A LINE INDENTED FOUR SPACES OR MORE AFTER A PARAGRAPH, since the page has no indented code',
+          fn: async () => {
+            expect(pageFootnoteDefinitionRangesOf({ body: 'a `x\n    [^1]: {c}` {d}\n', },),).toEqual([
+              {
+                start: 9,
+                end: 23,
+              },
+            ],);
+            expect(pageFootnoteDefinitionRangesOf({ body: 'a\n\t[^1]: x\n', },),).toEqual([
+              {
+                start: 3,
+                end: 10,
               },
             ],);
           },
