@@ -2445,6 +2445,15 @@ const cases: Guard[] = [
     failure: 'a settled rest over nothing is due'
   },
   {
+    name: 'hover-blank-rest-settled-resolved',
+    file: 'src/native/language/pointer.rs',
+    before: '        if character.is_none() && !self.shifted {',
+    after: '        if false {',
+    native: true,
+    test: 'a_rest_over_no_character_in_a_settled_view_asks_nothing',
+    failure: 'a settled rest over nothing was resolved again'
+  },
+  {
     name: 'hover-view-move-marks-shifted',
     file: 'src/native/language/pointer.rs',
     before: '            self.shifted = true;',
@@ -2485,13 +2494,49 @@ const cases: Guard[] = [
   {
     name: 'hover-asked-marked',
     file: 'src/native/language/rest_step.rs',
-    before: '    language.rest.asked = true;',
-    after: '    let _ = &language;',
+    before: '    language.rest.asked_about(character);',
+    after: '    let _ = (&language, character);',
     native: true,
     test: 'a_rest_that_was_asked_about_asks_once',
     // Without the mark the request is made again at every tick and each one replaces the one before it,
     // so no answer is ever shown.
     failure: 'no hover appeared for the resting pointer'
+  },
+  {
+    name: 'hover-asked-about-marks',
+    file: 'src/native/language/pointer.rs',
+    before: '        self.asked = true;',
+    after: '        self.asked = false;',
+    native: true,
+    test: 'a_rest_that_began_over_nothing_and_was_asked_about_a_character_is_not_idle',
+    failure: 'the request was not marked'
+  },
+  {
+    name: 'hover-asked-about-character',
+    file: 'src/native/language/pointer.rs',
+    before: '            self.at = Some((Some(character), since));',
+    after: '            self.at = Some((None, since));',
+    native: true,
+    test: 'a_rest_that_began_over_nothing_and_was_asked_about_a_character_is_not_idle',
+    failure: 'is idle as if over no character'
+  },
+  {
+    name: 'hover-asked-about-character-popup',
+    file: 'src/native/language/pointer.rs',
+    before: '            self.at = Some((Some(character), since));',
+    after: '            self.at = Some((None, since));',
+    native: true,
+    test: 'a_rest_over_no_character_asks_when_a_scroll_puts_a_character_under_it',
+    failure: 'the popup closed while the pointer rested on the character it was asked about'
+  },
+  {
+    name: 'hover-asked-about-character-far',
+    file: 'src/native/language/pointer.rs',
+    before: '            self.at = Some((Some(character), since));',
+    after: '            self.at = Some((None, since));',
+    native: true,
+    test: 'a_rest_over_no_character_asks_after_a_far_jump',
+    failure: 'the popup closed while the pointer rested on the character it was asked about'
   },
   {
     name: 'hover-spot-extent',

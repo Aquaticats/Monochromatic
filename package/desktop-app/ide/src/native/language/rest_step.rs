@@ -84,7 +84,7 @@ pub(super) fn rest(
         language.rest.found_nothing();
         return;
     };
-    language.rest.asked = true;
+    language.rest.asked_about(character);
     // A character outside the displayed text cannot be asked about.
     if character > source.borrow().document.text().len_chars() {
         return;

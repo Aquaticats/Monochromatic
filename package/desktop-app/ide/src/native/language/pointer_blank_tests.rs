@@ -15,7 +15,7 @@ use super::pointer_scroll_tests::{
     wait_for_popup,
 };
 /// Fixtures and real window events.
-use super::test_support::{escape, idle, move_to, point, popup, rows};
+use super::test_support::{LanguageReader, escape, idle, move_to, point, popup, rows};
 /// Which text the displayed hint answer covers.
 use crate::native::annotate::displayed;
 /// The scrolls the toolkit reports to the change handler,
@@ -31,6 +31,28 @@ use std::time::Instant;
 /// A line of `long_text` with no character:
 ///  odd lines are blank.
 const BLANK: usize = 5;
+
+/// What:
+///  The popup names the line drawn under the pointer at `y`,
+///  and stays while the pointer keeps resting there.
+/// Why:
+///  A rest that began over no character is still over that character in the rest's own record
+///  unless the request updates it,
+///  and such a rest closes the popup of its own answer as soon as it is shown.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function assertAnswerStays(reader: LanguageReader, y: number, text: string): void
+/// ```
+fn assert_answer_stays(reader: &LanguageReader, y: f32, text: &str) {
+    assert_names_line_drawn_under(reader, y, text);
+    idle(2 * REST.as_millis() as u64);
+    assert_eq!(
+        popup(reader),
+        text,
+        "the popup closed while the pointer rested on the character it was asked about"
+    );
+}
 
 /// The scripted server never answers these hint requests,
 ///  so no hint row moves the text.
@@ -52,7 +74,7 @@ fn a_rest_over_no_character_asks_when_a_scroll_puts_a_character_under_it() {
         &reader,
         "no hover for the row under the pointer appeared after the scroll",
     );
-    assert_names_line_drawn_under(&reader, place.y, &text);
+    assert_answer_stays(&reader, place.y, &text);
 }
 
 /// The same pointer while the view jumps far past the tile:
@@ -73,7 +95,7 @@ fn a_rest_over_no_character_asks_after_a_far_jump() {
         &reader,
         "no hover for the row under the pointer appeared after the jump",
     );
-    assert_names_line_drawn_under(&reader, place.y, &text);
+    assert_answer_stays(&reader, place.y, &text);
     assert!(!reader.window.get_held(), "the request came while held");
 }
 
@@ -140,7 +162,7 @@ fn a_rest_that_finds_no_character_after_a_scroll_asks_after_the_next_scroll() {
         &reader,
         "no hover appeared after the scroll that put a character under the pointer",
     );
-    assert_names_line_drawn_under(&reader, place.y, &text);
+    assert_answer_stays(&reader, place.y, &text);
 }
 
 /// A popup that is open over a character closes when the view moves and no character is under the pointer,
@@ -213,7 +235,7 @@ fn a_rest_over_no_character_asks_when_hints_arrive_under_it() {
         before,
         "the hints did not move the text under the pointer"
     );
-    assert_names_line_drawn_under(&reader, place.y, &text);
+    assert_answer_stays(&reader, place.y, &text);
 }
 
 /// A rest over no character is due only after the view moved under it,
@@ -349,4 +371,36 @@ fn a_growing_text_restarts_a_rest_that_was_not_asked_for() {
         Some(spot),
         "a taller text did not make a rest over nothing due"
     );
+}
+
+/// A rest that began over no character and was asked about the character the view put under it
+///  is a rest over that character:
+///  it is not idle,
+///  so it does not close the popup of its own answer,
+///  and a pointer that moves within the character keeps it.
+#[test]
+fn a_rest_that_began_over_nothing_and_was_asked_about_a_character_is_not_idle() {
+    let spot = Spot {
+        below_top: 100.0,
+        x: 20.0,
+        offset: 500.0,
+        extent: 9000.0,
+    };
+    let mut rest = Rest::default();
+    rest.moved(None, spot);
+    rest.follow(View {
+        offset: 620.0,
+        extent: 9000.0,
+    });
+    rest.at = Some((None, Instant::now() - REST * 2));
+    assert_eq!(rest.due(), Some(spot));
+    rest.asked_about(7);
+    assert!(rest.asked, "the request was not marked");
+    assert!(
+        !rest.idle(),
+        "a rest that was asked about a character is idle as if over no character"
+    );
+    assert_eq!(rest.due(), None, "the same rest asked twice");
+    rest.moved(Some(7), spot);
+    assert!(rest.asked, "a move within the character asked again");
 }

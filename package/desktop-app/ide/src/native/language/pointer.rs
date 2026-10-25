@@ -152,6 +152,20 @@ impl Rest {
         self.shifted = false;
     }
 
+    /// What:
+    ///  A request was made for `character`,
+    ///  which the rest resolved to when it was over.
+    /// Why:
+    ///  The rest is now a rest over that character,
+    ///  asked about once.
+    ///  Left as a rest over no character it would close the popup of the answer as soon as it is shown.
+    pub(super) fn asked_about(&mut self, character: usize) {
+        if let Some((_, since)) = self.at {
+            self.at = Some((Some(character), since));
+        }
+        self.asked = true;
+    }
+
     /// The pointer moved to `character` at `spot`;
     ///  a different character restarts the rest.
     pub(super) fn moved(&mut self, character: Option<usize>, spot: Spot) {
