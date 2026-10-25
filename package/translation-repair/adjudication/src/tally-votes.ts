@@ -4,11 +4,11 @@ import {
   type AdjudicationStatus,
   type AggregatedClaim,
   type ClaimCluster,
+  type ClaimPanelReading,
   DEFAULT_ADJUDICATION_CONFIG,
   type IssueSeverity,
   type PanelBallot,
   type ReadonlyEntry,
-  type VoteTally,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { panelReadingForClaim, } from './tally-claim.ts';
 import {
@@ -20,12 +20,28 @@ import {
 
 //region Vote tally
 // Pure aggregation of panel ballots into adjudicated issues. Decision rules,
-// in order per claim: not enough non-abstain weight lands needs-human; a
+// in order per claim: fewer than two answering panelists lands needs-human; a
 // protective source-defect minority blocks; a strict majority accepts or
 // rejects, save that an acceptance settled at neutral severity, which asserts
 // no defect, is held for a human (ledger L5); everything else needs a human.
 // Merge disposition is majority same-defect weight among opining panelists,
 // defaulting to distinct.
+//
+// THERE IS NO WEIGHT FLOOR, BY THE OWNER'S RULINGS OF 2026-10-25: "floor of 3 -
+// don't set a floor." (about the minimum ballot weight of three this tally
+// used to hold) and, on a claim only one judge answers, "Two ballots decide
+// (Recommended)". What is left is a count, not a weight: two answering
+// panelists decide, one alone never does (the older standing rule of the
+// owner), and a heavy weight does not turn one answer into two. In the corpus
+// pass XingZ6021 two panelists supported the claims on slices 67 to 69 at the
+// default weight of one each; the electorate weight 2 sat under the floor of 3
+// and a unanimous panel decided nothing.
+
+/**
+ Answering panelists a claim needs before the tally decides it: the floor of
+ two ballots, the same count every other decision in the package stops at.
+ */
+export const MIN_PANEL_BALLOTS = 2;
 
 /**
  Everything the panel decided over one chunk's clusters.
@@ -52,7 +68,7 @@ export type AdjudicationResult = {
 /**
  Status one tally decides under the config thresholds.
 
- @param tally - weighted counts for one claim
+ @param reading - ballots and the weighted counts they sum to for one claim
 
  @param config - thresholds in force
 
@@ -60,26 +76,41 @@ export type AdjudicationResult = {
 
  @example
  ```ts
- const status = decideStatus({ tally, config, },);
+ const status = decideStatus({ reading, config, },);
  ```
  */
 function decideStatus(
   {
-    tally,
+    reading,
     config,
   }: {
-    readonly tally: VoteTally;
+    readonly reading: ClaimPanelReading;
     readonly config: AdjudicationConfig;
   },
 ): AdjudicationStatus {
+  /**
+   Weighted counts for this claim.
+   */
+  const { tally, } = reading;
+  /**
+   Panelists that answered this claim with a vote that carries weight: a
+   missing verdict abstains, and a panelist configured to weigh nothing is
+   not a voice. The count, not the weight, is what one judge alone cannot
+   exceed.
+   */
+  const answering = reading.ballots
+    .filter(function answered(ballot,): boolean {
+      return (ballot.vote !== 'abstain') && (ballot.weight > 0);
+    },)
+    .length;
+  if (answering < MIN_PANEL_BALLOTS)
+    return 'needs-human';
   /**
    Non-abstain weight forming the electorate for this claim.
    */
   const electorate = tally.supported + tally.unsupported
     + tally.ambiguous
     + tally.sourceDefect;
-  if (electorate < config.minBallotWeight)
-    return 'needs-human';
   if ((tally.sourceDefect / electorate) >= config.sourceDefectThreshold)
     return 'source-defect';
   if ((tally.supported / electorate) > config.decisionThreshold)
@@ -324,7 +355,7 @@ export function tallyVotes(
           reading,
           status: heldIfNeutral({
             status: decideStatus({
-              tally: reading.tally,
+              reading,
               config,
             },),
             severity,
@@ -341,7 +372,7 @@ export function tallyVotes(
       .filter(function isHeldNeutral(entry,): boolean {
         return (entry.severity === 'neutral')
           && (decideStatus({
-            tally: entry.tally,
+            reading: entry.reading,
             config,
           },) === 'accepted');
       },)

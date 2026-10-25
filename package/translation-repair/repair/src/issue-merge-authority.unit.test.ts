@@ -111,7 +111,7 @@ await describe({
       fn: async () => {
         const result = adjudicate({
           rows: [support, ['supported', 'supported', 'supported', 'supported', 'unsupported', 'unsupported']],
-          config: { minBallotWeight: 3, decisionThreshold: 3 / 4, sourceDefectThreshold: 1 / 3 },
+          config: { decisionThreshold: 3 / 4, sourceDefectThreshold: 1 / 3 },
         });
         expect(result.issues.map(issue => issue.status)).toEqual(['accepted', 'needs-human']);
       },

@@ -183,6 +183,7 @@ export {
 } from './tally-resolution.ts';
 export {
   type AdjudicationResult,
+  MIN_PANEL_BALLOTS,
   tallyVotes,
 } from './tally-votes.ts';
 export {

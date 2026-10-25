@@ -300,8 +300,9 @@ export const RUN_TRANSLATORS: readonly RosterModelId[] = RUN_ROSTER
 /**
  Critics, adjudication panel and judges for both lanes: the roster less
  {@link WIDE_SEAT_DROPPED}. Seven since 2026-09-02 (eight from 2026-09-01)
- with Synthetic wet, so each of those stages reaches quorum at 4 voices and
- `minBallotWeight` 3 is 3 of 7; six with Synthetic dry (`run-seats.ts`
+ with Synthetic wet, so each of those stages reaches quorum at 4 voices (the
+ panel tally's minimum ballot weight of 3, once 3 of 7, was removed by the
+ owner on 2026-10-25: two answering panelists decide); six with Synthetic dry (`run-seats.ts`
  withholds the Hyper-slow judge), quorum 3 (`ceil(6 / 2)`), and five of
  those judge the slates (the select-slow judge withheld too), quorum 3.
  */
@@ -499,7 +500,9 @@ export type RunRepairModels = RepairModels & {
  ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
  User decision, 2026-08-06: "50% is okay here." At nine the same absolute 3
  is 3-of-9 (33 percent), inside the range already lived at ten (30 percent)
- and at eight (37.5 percent).
+ and at eight (37.5 percent). SUPERSEDED on 2026-10-25: the owner removed the
+ minimum ballot weight ("floor of 3 - don't set a floor."), and the tally
+ decides with two answering panelists ("Two ballots decide (Recommended)").
 
  MORE THAN ONE editor, on the user's rule that no single model should control
  any part of the pipeline. Kimi-K3 is one of them because the user reports it
