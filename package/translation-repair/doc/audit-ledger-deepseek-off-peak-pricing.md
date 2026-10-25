@@ -228,6 +228,8 @@ no test was added or removed and no cache version moved.
 The commits are `2266bb9b8a`
 (the heading and the client TSDocs, with the index line),
 `b1eea0a93d` (the card TSDoc),
-`f69dd3191c` (the suite name)
-and `1ec534cbcd` (the defects note),
-then the commit that holds this entry.
+`f69dd3191c` (the suite name),
+`1ec534cbcd` (the defects note),
+`4828385b5e` (this entry)
+and `f1577c02da` (a line break in it that the Markdown linter found);
+the branch's `git log` holds any commit after those.
