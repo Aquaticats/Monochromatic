@@ -200,6 +200,69 @@ await describe({
       },
     },),
     it({
+      name: 'PLACES THE WORDS OF TWO BLOCKS ALIKE AT TWO PLACES OF THE PAGE, with a block that shows nothing and a range reaches between them',
+      fn: async () => {
+        /**
+         Two blocks of the same word with a block between them that shows nothing and that a range reaches, the page
+         showing the word once.
+         */
+        const sourceBlocks = [
+          blockAt({ account: 'tabby', at: 0, },),
+          blockAt({ account: '', at: 1, },),
+          blockAt({ account: 'tabby', at: 2, },),
+        ];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby',],
+          disagreements: [{ start: 10, end: 11, },],
+        },),).toEqual({ differs: true, undecidedBlocks: 1, },);
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby', 'tabby',],
+          disagreements: [{ start: 10, end: 11, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 0, },);
+      },
+    },),
+    it({
+      name: 'DOES NOT SET THE BLOCKS A RANGE REACHES APART WHERE A BLOCK THAT SHOWS NOTHING AND NO RANGE REACHES STANDS BETWEEN THEM',
+      fn: async () => {
+        /**
+         A block a range reaches, a block that shows nothing and none reaches, and a block that shows nothing and one does,
+         the page showing nothing.
+         */
+        const sourceBlocks = [
+          blockAt({ account: 'tabby', at: 0, },),
+          blockAt({ account: '', at: 1, },),
+          blockAt({ account: '', at: 2, },),
+        ];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: [],
+          disagreements: [{ start: 0, end: 1, }, { start: 20, end: 21, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 2, },);
+      },
+    },),
+    it({
+      name: 'COUNTS THE FEWEST BLOCKS THE READINGS CANNOT BE ASKED ABOUT OVER EVERY WAY THE WORDS CAN BE PLACED',
+      fn: async () => {
+        /**
+         A block a range reaches, a block no range reaches that shows the same word, and a block a range reaches that shows
+         nothing, the page showing the word twice: the word of the second block stands at either place, and only the second
+         place shows the first block what it shows.
+         */
+        const sourceBlocks = [
+          blockAt({ account: 'tabby', at: 0, },),
+          blockAt({ account: 'tabby', at: 1, },),
+          blockAt({ account: '', at: 2, },),
+        ];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby', 'tabby',],
+          disagreements: [{ start: 0, end: 1, }, { start: 20, end: 21, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 0, },);
+      },
+    },),
+    it({
       name: 'COUNTS EVERY BLOCK UNDECIDED WHEN A DISAGREEMENT STANDS IN NO BLOCK, since none can be set apart',
       fn: async () => {
         expect(blockDifferenceOf({
