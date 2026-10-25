@@ -3,6 +3,7 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { callbackLinksOf, } from './claude-schema-blind-callback-links.test-fixture.ts';
 import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
 import {
   headNameOf,
@@ -29,7 +30,8 @@ import {
 //region Names made from a function's parameters, and the calls that take them
 // What `claude-schema-blind-forwarders.test-fixture.ts` reads a function for: the names its own parameters bind, the
 // names inside it that are made from them (`claude-schema-blind-stores.test-fixture.ts` reads the objects a value is
-// stored in), and whether a call of a known function takes an argument that reads one of those names.
+// stored in; `claude-schema-blind-callback-links.test-fixture.ts` reads the parameters of a function written as an
+// argument), and whether a call of a known function takes an argument that reads one of those names.
 
 /**
  Whether the code under a node reads a name of the set, at the head of a chain of members.
@@ -174,7 +176,7 @@ function bindingLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link
 /**
  The places in a function where a name takes the value of other code: a constant, an assignment, the head of a loop
  over a value, the parameter of a `catch` clause for what the `try` block throws, a call that stores its arguments in
- an object, a class and the default of a pattern.
+ an object, a class, the default of a pattern, and the parameters of a function written as an argument of a call.
 
  @param fn - function
 
@@ -191,6 +193,7 @@ function linksIn({ fn, }: { readonly fn: TreeNode; },): readonly Link[] {
       return [
         ...bindingLinksOf({ node, },),
         ...storeLinksOf({ node, },),
+        ...callbackLinksOf({ node, },),
       ];
     },);
 }

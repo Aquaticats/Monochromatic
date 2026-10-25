@@ -117,12 +117,53 @@ export const DERIVED_CALLBACK_CASES: readonly ShapeCase[] = [
     isListed: true,
   },),
   storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CALLBACK OF reduce STORES ITS SECOND PARAMETER '
+      + 'IN, a later parameter of the callback counts',
+    lines: [
+      HOLDER,
+      '  args.reduce((total: any, value: any,) => { holder.a = value; return total; }, 0,);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CALLBACK UNDER A TYPE ASSERTION STORES THE '
+      + 'ELEMENT IN',
+    lines: [
+      HOLDER,
+      '  args.forEach(((value: any,) => { holder.a = value; }) as any,);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CALLBACK OF A CONSTRUCTOR CALL STORES ITS '
+      + 'ARGUMENT IN, the call of new counts as a call',
+    lines: [
+      HOLDER,
+      '  const Runner: any = class { constructor(input: any, run: any,) { run(input,); } };',
+      '  new Runner(args, (value: any,) => { holder.a = value; },);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
     name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CALLBACK STORES THE ELEMENT OF ANOTHER '
       + 'VALUE IN, a call that reads nothing made from a parameter',
     lines: [
       HOLDER,
       '  [1,].forEach((value: any,) => { holder.a = value; },);',
       '  void args;',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CALLBACK STORES ITS OWN PARAMETER IN, '
+      + 'when the call reads nothing made from a parameter and only the body of the callback does',
+    lines: [
+      HOLDER,
+      '  [1,].forEach((value: any,) => { void args; holder.a = value; },);',
     ],
     argument: 'holder.a',
     isListed: false,
