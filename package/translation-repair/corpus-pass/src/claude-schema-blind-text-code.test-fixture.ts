@@ -1,12 +1,9 @@
 import {
-  ancestorsOf,
   identifierName,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
-import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
-import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
 import {
   moduleLoadOf,
   nodeAt,
@@ -161,7 +158,7 @@ function textCodePositionOf({ node, }: { readonly node: TreeNode; },): string {
     return LOADS_VM;
   if ((node.type === 'MemberExpression') && readsConstructor({ node, },))
     return READS_CONSTRUCTOR;
-  return ((node.type === 'CallExpression') && reflectsConstructor({ node, },)) ? READS_CONSTRUCTOR : '';
+  return reflectsConstructor({ node, },) ? READS_CONSTRUCTOR : '';
 }
 
 /**
@@ -181,9 +178,7 @@ export function namesTextCode({ node, }: { readonly node: TreeNode; },): boolean
 }
 
 /**
- The places in a file that load `vm` or read the constructor of a value, outside types.
-
- @param context - what the file's names are read against
+ The places in a file that load `vm` or read the constructor of a value. A type holds none of the nodes that do.
 
  @param nodes - every node of the file
 
@@ -191,34 +186,16 @@ export function namesTextCode({ node, }: { readonly node: TreeNode; },): boolean
 
  @example
  ```ts
- const found = textCodeShapesIn({ context, nodes: nodesUnder({ root: program, },), },);
+ const found = textCodeShapesIn({ nodes: nodesUnder({ root: program, },), },);
  ```
  */
-export function textCodeShapesIn(
-  {
-    context,
-    nodes,
-  }: {
-    readonly context: BlindContext;
-    readonly nodes: readonly TreeNode[];
-  },
-): readonly FoundShape[] {
+export function textCodeShapesIn({ nodes, }: { readonly nodes: readonly TreeNode[]; },): readonly FoundShape[] {
   return nodes.flatMap(function shapesOfNode(node,): readonly FoundShape[] {
     /**
      What the node says about code made from text, empty when nothing.
      */
     const position = textCodePositionOf({ node, },);
-    /**
-     Whether the node sits inside a type.
-     */
-    const isInType = ancestorsOf({
-      node,
-      parents: context.parents,
-    },)
-      .some(function isType(ancestor,): boolean {
-        return isTypeWithoutValue({ node: ancestor, },);
-      },);
-    return ((position === '') || isInType)
+    return (position === '')
       ? []
       : [
         {

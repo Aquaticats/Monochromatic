@@ -83,39 +83,35 @@ export function gatherImportEquals({ declaration, }: { readonly declaration: Tre
     return NOTHING;
   if (reference.type === 'TSExternalModuleReference') {
     /**
-     The module path the require writes, empty when it is no literal.
+     The module path the require writes, which the grammar of the declaration admits as a string literal only.
      */
     const specifier = stringValueOf({ node: reference.expression, },);
-    return (specifier === '')
-      ? NOTHING
-      : {
-        ...NOTHING,
-        bindings: [[
-          name,
-          {
-            kind: 'import',
-            specifier,
-            imported: REQUIRE_FORM,
-          },
-        ],],
-      };
+    return {
+      ...NOTHING,
+      bindings: [[
+        name,
+        {
+          kind: 'import',
+          specifier,
+          imported: REQUIRE_FORM,
+        },
+      ],],
+    };
   }
   /**
    The names the entity name reads through.
    */
   const path = entityPathOf({ node: reference, },);
-  return (path.length === 0)
-    ? NOTHING
-    : {
-      ...NOTHING,
-      bindings: [[
-        name,
-        {
-          kind: 'path',
-          path,
-        },
-      ],],
-    };
+  return {
+    ...NOTHING,
+    bindings: [[
+      name,
+      {
+        kind: 'path',
+        path,
+      },
+    ],],
+  };
 }
 
 /**
