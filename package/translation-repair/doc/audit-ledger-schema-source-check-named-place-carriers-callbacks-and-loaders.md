@@ -337,6 +337,10 @@ one killed by not ending (N-R3e:
 no exit within 300 s,
 as in rounds 18 to 20),
 and 8 survived.
+The whole table was then run again,
+in one capped unit,
+on the code of `fdae57969e22c55342dab6e9ee7f7d4acf65d21d` (the documents that follow it change no code),
+and every row has the verdict it has in the merged table.
 The live rows of fix round 20 (S20-16,
 S20-17,
 S20-18,
