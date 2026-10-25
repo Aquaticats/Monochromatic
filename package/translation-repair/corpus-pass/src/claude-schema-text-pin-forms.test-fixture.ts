@@ -178,8 +178,9 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'ACCEPTS A BINDING OF ANOTHER NAME AND A BINDING NAMED BY A NAME, a call of another function with the '
-      + 'string contextify, another method of process called with vm, and getBuiltinModule of a module that runs no '
-      + 'text through the global object',
+      + 'string contextify, another method of process called with vm, a binding whose name only starts like the '
+      + 'binding of Node that makes scripts, and getBuiltinModule of a module that runs no text through the global '
+      + 'object',
     files: [
       {
         file: STAGE,
@@ -189,6 +190,7 @@ export const TEXT_PIN_CASES: readonly ShapeCase[] = [
           'export const unrelated = other(\'contextify\',);',
           'export const warned = process.emitWarning(\'vm\',);',
           'export const natives = process.binding(\'natives\',);',
+          'export const near = process.binding(\'contextual\',);',
           'export const named = process.binding(name,);',
           'export const fs = globalThis.process.getBuiltinModule(\'node:fs\',);',
         ],),

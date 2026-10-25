@@ -104,6 +104,27 @@ export const DERIVED_TARGET_CASES: readonly ShapeCase[] = [
     argument: 'holder.a',
     isListed: true,
   },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `assign` OF ANOTHER OBJECT READ OFF THE '
+      + 'GLOBAL OBJECT COPIES ITS PARAMETER INTO, only `Object` has the storing statics',
+    lines: [
+      HOLDER,
+      '  (globalThis as any).Other.assign(holder, { a: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `assign` OF A MEMBER NAMED Object OF '
+      + 'ANOTHER OBJECT COPIES ITS PARAMETER INTO, only `Object` itself has the storing statics',
+    lines: [
+      HOLDER,
+      '  const other: any = {};',
+      '  other.Object.assign(holder, { a: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
   {
     name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT STORES ITS PARAMETER IN AN OBJECT OF THE MODULE THAT ANOTHER '
       + 'FUNCTION BUILDS FROM, a limit of the reading',
