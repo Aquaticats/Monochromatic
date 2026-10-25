@@ -115,8 +115,27 @@ which hold 12,
   0.036 and 0.035.
   One of the 54 readings is over 0.05:
   0.0553 at a fix rate of 0.9 with chance 0 and correlation 1 at 176 units,
-  which is 1.5 standard deviations of that many replicates (0.0036) over 0.05,
-  where the trials of one entry read as alike as the model allows.
+  where the trials of one entry read as alike as the model allows and are not independent draws.
+  It is not noise.
+  Re-check 7 (seed prefix `edrc7`) read the same cell at 0.0535 over 30000 replicates at 176 units
+  (standard error 0.0013) and 0.0488 at 264 units (0.0012),
+  and pooled with the 4000 of this run the cell at 176 units reads 0.0537 over 34000,
+  about three standard deviations over 0.05.
+  The false alarm rate of the warning is about 0.054 in that cell,
+  and below 0.05 in the three other cells re-check 7 took beside it,
+  at 176 units:
+  0.0296 (fix rate 0.9,
+  agreement 0,
+  correlation 0),
+  0.0430 (fix rate 0.7,
+  agreement 0,
+  correlation 1)
+  and 0.0379 (fix rate 0.9,
+  agreement 0.5,
+  correlation 1).
+  The frozen `RULE` line says the chance is held at or under 0.05 counting the trials of an arm as independent draws.
+  That is a statement about independent draws,
+  and the trials of this cell are not.
 - The default effort repeating itself less than high and low,
   which repeat on every trial,
   by 15 and by 30 points of repeat agreement (fix rates 0.5,
@@ -172,7 +191,9 @@ correlation 1,
   and on 3,
   0 and 0 of 6000 at 150 units at 0.91,
   0.92 and 0.93.
-- Of the 11 benches in all that printed neither warning,
+- Of the 11 benches in all that printed neither warning
+  (11 of 80000 over 16 cells,
+  four of them at the true rate 0.90 where the rule's own bound holds),
   one picked high or low,
   which is too few to state a chance.
 
@@ -182,6 +203,13 @@ and a verdict of high or low stands under the caveat whether or not a `WARN repe
 The share is observed and the true rate is not:
 at a true rate of 0.90 the line printed on 0.5208 of the benches at 264 units,
 a prompt for the caveat and not a verdict.
+
+## The smallest difference at 60 shared units
+
+At 60 shared units the smallest difference detected with chance 0.8 is about 30 points when medium fixes half
+and 24 points when it fixes seven in ten,
+against 37 and 28 points at 40 units,
+which is why 60 is the fewest the read step accepts.
 
 ## The simulation
 

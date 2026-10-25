@@ -2,6 +2,7 @@ import {
   type ArmFacts,
   countWithNoun,
   firstStarting,
+  isRowBody,
   numberAfter,
 } from './editor-fidelity-arm-facts.ts';
 import type { Answer, } from './editor-fidelity-arm-answers.ts';
@@ -221,7 +222,7 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
    */
   const numbers = facts.bodies
     .filter(function isRow(body,): boolean {
-      return body.startsWith('row ',) && body.includes(' of ',);
+      return isRowBody({ body, },);
     },)
     .map(function numberOf(body,): number {
       return numberAfter({
@@ -243,6 +244,16 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
     return {
       ok: false,
       detail: 'a row number repeats, so a row was logged twice and another not at all',
+    };
+  }
+  // A ROW THAT MADE NO CALL IS NO TRIAL. The run client logs a PROMPT-REUSE line for a reply it gives from an earlier one, and
+  // such a row measures nothing: on the billed first arm of `dd4b15b75c` it was a repeat pass compared with itself.
+  if (facts.reusedRows > 0) {
+    return {
+      ok: false,
+      detail: `${String(facts.reusedRows,)} of ${String(numbers.length,)} ${
+        (numbers.length === 1) ? 'row was' : 'rows were'
+      } answered by prompt reuse and made no call, so none of them is a trial`,
     };
   }
   /**

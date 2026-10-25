@@ -322,7 +322,7 @@ function warningsFor(
 
 /**
  The lines the read step prints for the repeat agreement of the arms: one for each arm, and a warning for each arm of the
- default effort that repeats itself less than another arm by more than the stated number of points.
+ default effort that an exact test finds repeating itself less than another arm, at the level the warning prints.
 
  @param arms - the arms in the order they ran, one or more
 

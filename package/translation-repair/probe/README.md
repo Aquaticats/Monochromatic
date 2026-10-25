@@ -296,6 +296,12 @@ and each task sets it to its own name.
   or an HTTP error status that carried no body,
   is counted nothing,
   and the arm ends with a `GUARD total=` line.
+  A reply with no request behind it is counted nothing:
+  the reuse layer of the run client logs a `PROMPT-REUSE` line and sends nothing,
+  so the guard writes no `SPEND` line and aborts the arm with `RepliedWithoutCallError`,
+  and no row is scored for it.
+  Each row names its pass to that layer (`reuseScope`),
+  so a later pass asks the model afresh.
   Only the Claude key is read.
   Spends quota.
 - `editor-fidelity-pool-draw`:
@@ -480,12 +486,8 @@ Two efforts are each tested at 0.025,
 so the chance of picking either when neither is better is under 0.05 where the test holds its level,
 which it does when every arm repeats itself alike and the true fix rate is no higher than 0.9.
 When the default effort repeats itself far less than the others the chance was 0.107 at 0.9 and higher above it.
-The committed fixture read 0.108 at 0.91,
-0.123 at 0.92,
-0.13 to 0.14 at 0.93 (0.131 pooled over its 12000 replicates) and 0.175 at 0.95.
-An independent re-implementation of the model read 0.142 at 0.93,
-0.173 at 0.95 and 0.241 at 0.97,
-and the two sources are kept apart.
+The readings above 0.90 are in the rule's text and in the simulations doc,
+which keeps the fixture's apart from the independent re-implementation's.
 The read step answers with two warnings,
 measured in round 10 by one simulation run of the committed fixture
 (seed prefix `edr10-sim`,
@@ -499,30 +501,33 @@ measured in round 10 by one simulation run of the committed fixture
   On three alike arms it fired on 0.0000 to 0.0270 of the benches at 100 shared units (12 trials asked again),
   0.0000 to 0.0553 at 176 and 0.0000 to 0.0475 at 264 (88 trials asked again),
   over 18 cells at each size,
-  and one of the 54 readings is over 0.05.
-  When the default effort repeats itself 15 points less than arms that always repeat,
-  it fired on 0.019 to 0.041 at 100 units,
-  0.984 to 0.996 at 176 and 0.992 to 0.996 at 264;
-  for 30 points on 0.272 to 0.288 at 100 units and on 1.0000 at 176 and 264.
+  and one of the 54 readings is over 0.05:
+  the cell of fix rate 0.9,
+  agreement 0 and correlation 1 at 176 units,
+  0.0537 over 34000 replicates with re-check 7 (about three standard deviations over 0.05),
+  against 0.0296,
+  0.0430 and 0.0379 in its three contrast cells.
+  The simulations doc names the cells,
+  and the detection rates when the default effort repeats itself 15 and 30 points less.
 - The high fix rate warning fires when the default effort cleanly fixes 90 percent or more of the shared units,
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
   With both warnings,
   the benches that print neither at true fix rates 0.91,
   0.92 and 0.93 were 0 of 4000 at 264 units
   and 1,
-  1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice).
+  1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice),
+  and at correlation 0.5 0 of 4000 and 3,
+  0 and 0 of 6000
+  (11 of 80000 in all,
+  four of them at the true rate 0.90).
 
 The simulations behind these figures,
 the false pick bounds and the readings above a true fix rate of 0.9,
 the exact test of the repeat warning with its measured false alarm and detection rates,
 the share of benches that print neither warning,
+the smallest difference detected at 60 shared units,
 and the model they play are in
 [the simulations behind the decision rule](doc/editor-fidelity-decision-rule-simulations.md).
-
-At 60 shared units the smallest difference detected with chance 0.8 is about 30 points when medium fixes half
-and 24 points when it fixes seven in ten,
-against 37 and 28 points at 40 units,
-which is why 60 is the fewest the read step accepts.
 
 ### Launching the arms
 
@@ -569,7 +574,7 @@ write `high`,
 The number of units n is not known before the high arm has run,
 so the dry runs of the later arms take a stand-in for it,
 any number from 60 to 264:
-the ledger entry and `dryrun-r7.txt` used 200.
+the ledger entry of round 7 used 200.
 The stand-in changes only the `planned:` and `ceiling` lines of the dry run,
 and every dry run takes the same `--passes`.
 
@@ -631,9 +636,11 @@ if [ "$ARM" = high ]; then
   TRIALS=(--passes 3)
 else
   N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+  if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
+  REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
   SPENT=$(rg --only-matching --no-filename --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH"/*.log \
     | awk '{ micro += int($1 * 1000000 + 0.5) } END { printf "%.2f\n", int((micro + 9999) / 10000) / 100 }')
-  TRIALS=(--passes 3 --trials "$N")
+  TRIALS=(--passes 3 --trials "$((N - REUSED))")
 fi
 mkdir --parents "$BENCH/$ARM"
 systemd-run --user --wait --collect "--unit=tr-edfid-$ARM" --property=MemoryMax=2G --property=CPUQuota=100% \
@@ -650,40 +657,55 @@ echo $? > "$BENCH/$ARM.exit"
 ```
 
 Read n,
-the number of units the high arm completed,
-from the `TRIALS completed n of p units` line of `$BENCH/high.log`.
-The command prints the number alone,
-and prints an empty line and exits 0 for a log with no such line,
-as the output of a dry run is,
-which has a `planned:` line and no `TRIALS` line:
+the number of units the high arm completed with a call,
+from the `TRIALS completed n of p units` line of `$BENCH/high.log`
+less the rows a reply of the reuse layer answered,
+which a `PROMPT-REUSE` line stands for each.
+A unit that made no call is no trial:
+the build of this round writes no such row,
+and the billed high log of `dd4b15b75c` says 150 where 88 made a call.
+The command prints the number alone.
+For a log with no `TRIALS` line,
+as a dry run's output is,
+it prints nothing,
+writes a message to standard error and exits 1.
+The launch block refuses such a log the same way,
+so no arm gets `--trials 0`.
+Both end the shell they run in,
+so each runs in a shell of its own:
 
 ```bash
-# README.md (editor fidelity bench): n, the units the high arm completed
+# README.md (editor fidelity bench): n, the units the high arm completed with a call
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
-echo "$N"
+if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
+echo "$((N - REUSED))"
 ```
 
 #### Stop rule
 
 When n less the rows of the high arm in which an ask threw is under 60,
 do not launch medium or low.
+Only rows that made a call count:
+a row answered by the reuse layer (a `PROMPT-REUSE` line stands for it) is no trial and is taken off n.
 A row in which an ask threw is left out of every arm,
 so it cannot be shared,
 and n counts it.
-The command counts the high arm's rows whose stop words include `threw` and prints what is left:
+The command counts the high arm's reuse lines and its rows whose stop words include `threw` and prints what is left:
 
 ```bash
-# README.md (editor fidelity bench): n less the rows of the high arm in which an ask threw, the units it can still share
+# README.md (editor fidelity bench): n less the rows without a call and the rows in which an ask threw
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
-echo "$((N - THREW))"
+echo "$((N - REUSED - THREW))"
 ```
 
-`rg` exits 1 and prints nothing when no row threw,
+`rg` exits 1 and prints nothing when no row threw or no reply was a reuse,
 `wc` then counts 0,
 and the pipeline prints the count with status 0 (do not set `pipefail` here).
 Under 60,
@@ -711,8 +733,11 @@ about 21 fewer at 0.0167 USD a unit,
 and one fewer at the margin of 60 units
 (0.25 USD a unit at 15 USD gives 59,
 where 15 / 0.25 says 60).
+The spend a unit is over the units that made a call
+and leaves out the `SPEND` lines the guard wrote at a call's ceiling (`estimated=`):
+the billed log's 62 of them would read 0.27 USD a unit where its 88 calls cost 0.0071.
 The block counts that reserve and also checks n,
-less the rows in which an ask threw,
+less the rows without a call and the rows in which an ask threw,
 against the floor of 60,
 which the cap alone does not:
 
@@ -721,9 +746,10 @@ which the cap alone does not:
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
-HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
-echo "$HIGH $N $THREW" | awk '{ per = $1 / $2; left = $2 - $3; reserve = 0.377;
+HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) { micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) } END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
+echo "$HIGH $N $THREW $REUSED" | awk '{ calls = $2 - $4; per = $1 / calls; left = calls - $3; reserve = 0.377;
   m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
   printf "units left after thrown rows %d; spend a unit %.4f USD; ", left, per;
   printf "medium completes %d units, low completes %d units; %s\n", m, l,
@@ -827,7 +853,7 @@ that the chance of a false pick may be above 0.05
 higher above it),
 quoting the warning beside the verdict.
 The lead weighs that verdict against its cost before changing the default effort.
-A verdict of medium is not under the caveat,
+A verdict of medium is not under the caveat of either warning,
 since the chance concerns choosing another effort when none is better.
 Rerunning an arm needs a bench total the owner sets,
 so it is not a step of this runbook.
@@ -838,12 +864,10 @@ On that line,
 do not read the absence of a `WARN repeat agreement` line as clearing the verdict,
 because the repeat warning can miss unequal repeats at that fix rate.
 Report a verdict of high or low as shown better under the caveat that the chance of a false pick may be 0.11 to 0.18
-(the committed fixture's readings from 0.108 at 0.91 to 0.175 at 0.95;
-the independent re-implementation read up to 0.241 at 0.97,
-and the two sources are kept apart in the section on the decision rule),
+(0.108 at 0.91 to 0.175 at 0.95 by the committed fixture,
+and up to 0.241 at 0.97 by the independent re-implementation,
+which the simulations doc keeps apart),
 and weigh it against its cost before changing the default effort.
-A verdict of medium is not under the caveat,
-since the chance concerns choosing another effort when none is better.
 
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.
@@ -855,7 +879,9 @@ the ceiling line,
 the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count against the units it completed
-(with a `CAPPED` line saying why an arm completed fewer than it planned),
+(with a `CAPPED` line saying why an arm completed fewer than it planned,
+and a failure for a row a `PROMPT-REUSE` line stands in front of,
+which made no call and is no trial),
 no `[error]` line,
 the `SEAT` line (`threw` stated,
 nothing unreachable,

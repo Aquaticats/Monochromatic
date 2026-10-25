@@ -37,6 +37,7 @@ import {
   manifestDigest,
   openingLines,
 } from './editor-fidelity-opening.ts';
+import { scopedToPass, } from './editor-fidelity-pass-scope.ts';
 import {
   guardTotalLine,
   spendGuardedClient,
@@ -365,7 +366,11 @@ export async function runEditorFidelityProbe(
        The card seated alone on the trial, asked what the editor stage asks an editor.
        */
       const reading = await runEditorTrial({
-        client: asks.client,
+        // Each pass asks the model afresh: the pass is the reuse scope of its exchanges (`editor-fidelity-pass-scope.ts`).
+        client: scopedToPass({
+          client: asks.client,
+          pass: pair.pass ?? 0,
+        },),
         cardId: pair.cardId,
         trial: pair.trial,
         signal: controller.signal,

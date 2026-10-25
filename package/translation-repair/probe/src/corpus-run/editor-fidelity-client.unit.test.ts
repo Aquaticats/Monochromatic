@@ -198,6 +198,52 @@ await describe({
             expect(exchanges.length,).toBe(1,);
           },
         },),
+
+        it({
+          name: 'SENDS THE SAME PROMPT AGAIN UNDER ANOTHER REUSE SCOPE, over the real route: asks of one prompt in pass 1, '
+            + 'pass 2 and pass 1 again are two requests on the wire and the scope is on none of them',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-client-', },);
+            const { transport, exchanges, } = scripted({
+              replies: [{
+                status: 200,
+                bodyText: claudeStreamOf({ text: '{"edits":[]}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+              },],
+            },);
+            const client = cardsClientFrom({
+              env: FULL_ENV,
+              transport,
+              promptPayloadDir: scratch.path,
+              cardIds: [LOW_CARD,],
+            },);
+            /**
+             Asks the one prompt under a scope.
+             */
+            const askUnder = (reuseScope: string,): Promise<unknown> =>
+              client.chatJson({
+                modelId: LOW_CARD,
+                messages: [{ role: 'user', content: 'Where does the cat nap?', },],
+                signal: new AbortController().signal,
+                validate: (value: unknown,): value is unknown => value !== undefined,
+                reuseScope,
+              },);
+            await askUnder('pass 1',);
+            await askUnder('pass 2',);
+            await askUnder('pass 1',);
+            expect(exchanges.length,).toBe(2,);
+            /**
+             Every body the transport was handed, joined.
+             */
+            const bodies = exchanges.map(function bodyOf({ bodyJson, },): string {
+              return bodyJson ?? '';
+            },)
+              .join('\n',);
+            expect(bodies,).not.toContain('pass 1',);
+            expect(bodies,).not.toContain('pass 2',);
+            expect(bodies,).not.toContain('reuseScope',);
+          },
+        },),
       ],
     },),
 

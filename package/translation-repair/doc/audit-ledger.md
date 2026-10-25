@@ -139,9 +139,10 @@ named for that subject and listed here.
   Findings in the provider clients,
   the router and the seating of models.
 - [Audit ledger: DeepSeek off-peak pricing](audit-ledger-deepseek-off-peak-pricing.md):
-  The cost of a DeepSeek call booked at the rate of the hours it spanned,
+  The cost of a DeepSeek call booked at the rate of the hours of its start and its completion,
   where it had been booked at peak whatever the hour,
-  and what that figure bounds (B920).
+  what that figure bounds (B920),
+  and the wording that still described a spanning rule the code does not have (B921).
 - [Audit ledger: the repair lane](audit-ledger-repair-lane.md):
   Findings in the repair lane,
   L1 to L13 and L15.
@@ -636,6 +637,12 @@ named for that subject and listed here.
   the exact test of the repeat warning with its measured rates,
   the lead's actions on two warnings,
   and the runbook blocks that each set the variables they read.
+- [Audit ledger: the editor bench's prompt reuse in repeat passes](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md):
+  The follow-up of B899 in round 11:
+  repeat passes answered by the prompt reuse layer instead of the model,
+  each reuse booked at its spend ceiling,
+  the guard and the read step that now refuse a row that made no call,
+  and the README's stop rule over rows that made a call.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,

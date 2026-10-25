@@ -178,6 +178,7 @@ const MARKED_CLASSES: readonly string[] = [
   'QuotaShapeError',
   'ReferenceLineHeadError',
   'RepairUnheardError',
+  'RepliedWithoutCallError',
   'RequiredProviderError',
   'RoundsNotRecordedError',
   'RunConfigError',

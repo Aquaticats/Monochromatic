@@ -69,6 +69,7 @@ named for that subject and listed here.
   Sections:
   - [Attempts a guard cannot see](mistake-prevention-spend-guards-and-client-retries.md#attempts-a-guard-cannot-see)
   - [A guard's assumption is asserted][spend-assumption]
+  - [A repeat measurement proves each repeat made its own call](mistake-prevention-spend-guards-and-client-retries.md#a-repeat-measurement-proves-each-repeat-made-its-own-call)
 - [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md):
   Rules for the docs themselves:
   current-state docs,
