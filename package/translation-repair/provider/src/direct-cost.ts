@@ -94,9 +94,25 @@ type PeakWindowUtcHours = {
  page, each half-open.
  */
 const PEAK_WINDOWS_UTC: readonly PeakWindowUtcHours[] = [
-  { startHour: 1, endHour: 4, },
-  { startHour: 6, endHour: 10, },
+  {
+    startHour: 1,
+    endHour: 4,
+  },
+  {
+    startHour: 6,
+    endHour: 10,
+  },
 ];
+
+/**
+ `Date.prototype.getUTCDay` reading for a Sunday.
+ */
+const SUNDAY_UTC_DAY = 0;
+
+/**
+ `Date.prototype.getUTCDay` reading for a Saturday.
+ */
+const SATURDAY_UTC_DAY = 6;
 
 /**
  Whether an instant lies in one of DeepSeek's weekday peak windows, which is
@@ -128,11 +144,11 @@ export function isDeepSeekPeakAt({ at, }: { readonly at: Date; },): boolean {
    Day of the week in UTC, 0 for Sunday and 6 for Saturday.
    */
   const weekday = at.getUTCDay();
-  if ((weekday === 0) || (weekday === 6))
+  if ((weekday === SUNDAY_UTC_DAY) || (weekday === SATURDAY_UTC_DAY))
     return false;
 
-  return PEAK_WINDOWS_UTC.some(function holdsHour({ startHour, endHour, },): boolean {
-    return (hour >= startHour) && (hour < endHour);
+  return PEAK_WINDOWS_UTC.some(function holdsHour(peakWindow,): boolean {
+    return (hour >= peakWindow.startHour) && (hour < peakWindow.endHour);
   },);
 }
 
@@ -201,12 +217,25 @@ export function deepSeekCostOf(
    */
   const rateShare = isDeepSeekPeakAt({ at: startedAt, },) ? 1 : DEEPSEEK_OFF_PEAK_MULTIPLIER;
 
+  /**
+   USD per million prompt tokens served from the cache that this call is charged.
+   */
+  const hitRate = card.promptCacheHitUsdPerMillion * rateShare;
+
+  /**
+   USD per million prompt tokens not served from the cache that this call is charged.
+   */
+  const missRate = card.promptCacheMissUsdPerMillion * rateShare;
+
+  /**
+   USD per million completion tokens that this call is charged.
+   */
+  const completionRate = card.completionUsdPerMillion * rateShare;
+
   return (
-    (
-      (hitTokens * card.promptCacheHitUsdPerMillion)
-      + (missTokens * card.promptCacheMissUsdPerMillion)
-      + (usage.completion_tokens * card.completionUsdPerMillion)
-    ) * rateShare
+    (hitTokens * hitRate)
+      + (missTokens * missRate)
+      + (usage.completion_tokens * completionRate)
   ) / PRICE_UNIT_TOKENS;
 }
 
