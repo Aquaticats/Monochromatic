@@ -902,6 +902,70 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A WRITE TO `Symbol`, where the parse-end hook of the grammar stands, unless it is set and disposed '
+        + 'synchronously under `using`: a set across an await, a set with no disposal in scope and an assignment are found '
+        + 'in a suite that runs cases beside it, and a fixture that sets and disposes in a function with no await is not',
+      fn: async () => {
+        expect(unconfinedWrites({
+          files: [
+            {
+              path: 'hook.unit.test.ts',
+              isTest: true,
+              text: [
+                'await describe({ name: \'hook\', children: [',
+                '  it({ name: \'scoped\', fn: async () => { using held = standing(); void held; }, },),',
+                '  it({ name: \'awaits\', fn: async () => { using held = standing(); await nap(); }, },),',
+                '  it({ name: \'loose\', fn: async () => { setHook(); }, },),',
+                '  it({ name: \'assigned\', fn: async () => { Symbol.cat = 1; }, },),',
+                '], },);',
+                'function standing() {',
+                '  Reflect.set(Symbol, PARSE_END_HOOK_KEY, () => {});',
+                '  return { [Symbol.dispose]() { Reflect.deleteProperty(Symbol, PARSE_END_HOOK_KEY); }, };',
+                '}',
+                'function setHook() { Reflect.set(Symbol, PARSE_END_HOOK_KEY, () => {}); }',
+              ].join('\n',),
+            },
+            {
+              path: 'seam.test-fixture.ts',
+              isTest: true,
+              text: [
+                'export function withHook(run) {',
+                '  using held = hookSet();',
+                '  run();',
+                '}',
+                'export async function withHookLater(run) {',
+                '  using held = hookSet();',
+                '  await run();',
+                '}',
+                'function hookSet() {',
+                '  Reflect.set(Symbol, PARSE_END_HOOK_KEY, 1);',
+                '  return { [Symbol.dispose]: function putBack() { Reflect.deleteProperty(Symbol, PARSE_END_HOOK_KEY); }, };',
+                '}',
+              ].join('\n',),
+            },
+            {
+              path: 'beside.unit.test.ts',
+              isTest: true,
+              text: [
+                'import { withHook, withHookLater, } from \'./seam.test-fixture.ts\';',
+                'await describe({ name: \'beside\', children: [',
+                '  it({ name: \'sync\', fn: async () => { withHook(() => {}); }, },),',
+                '  it({ name: \'later\', fn: async () => { await withHookLater(async () => {}); }, },),',
+                '], },);',
+              ].join('\n',),
+            },
+          ],
+        },),).toEqual([
+          'hook.unit.test.ts: Reflect.deleteProperty, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Reflect.set, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Reflect.set, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Symbol assigned, in a suite that runs cases beside it',
+          'seam.test-fixture.ts: Reflect.deleteProperty, in a suite that runs cases beside it',
+          'seam.test-fixture.ts: Reflect.set, in a suite that runs cases beside it',
+        ],);
+      },
+    },),
+    it({
       name: 'WRITES NO PROCESS GLOBAL in this package\'s tests outside a case run one at a time',
       fn: async () => {
         /**
