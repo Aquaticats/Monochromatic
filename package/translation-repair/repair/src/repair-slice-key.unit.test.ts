@@ -81,14 +81,13 @@ await describe({
   name: repairSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 46: the reader of a model\'s reply takes a value that differs from a listed enum or const '
-        + 'value only in capitalization as the listed value (the move to 45 on the Claude route), and the number is '
-        + '46 and not 45 because main moved the settlement a cache may hold, with `silentStages`, to 44 on a line of '
-        + 'its own, so a merge that kept either number would serve a record the other line wrote; the key hashes the '
-        + 'version, the shape of the run and the texts, not the reader, so only this number retires a record written '
-        + 'under the reader before',
+      name: 'IS AT VERSION 47: the owner\'s rulings of 2026-10-25 removed every weight floor, so a settled slice '
+        + 'may hold a decision the panel tally, the editor selection or the non-translation vote now reaches '
+        + 'differently on the same texts; the key hashes the version, the shape of the run and the texts, not the rule '
+        + 'that reads the ballots, so only this number retires a record written under the floors before (46 was the '
+        + 'reader taking a capital-only difference as the listed value, merged with the `silentStages` settlement)',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(46,);
+        expect(SLICE_CACHE_VERSION,).toBe(47,);
       },
     },),
     it({
@@ -99,7 +98,7 @@ await describe({
           + 'change to the FIXTURE INPUTS of this case moves it too, and must not, because those inputs are '
           + 'already part of the key and invalidate their own entries',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(46,);
+        expect(SLICE_CACHE_VERSION,).toBe(47,);
 
         // MOVED THREE TIMES ON 2026-08-20, FOR THREE DIFFERENT REASONS, which
         // is the whole point of keeping the note.
@@ -197,8 +196,11 @@ await describe({
         //
         // VERSION 46 ON 2026-10-23 (the merge of the silent-stage move of main with the fence-length and case-fold
         // moves of the Claude route, which no line held as one number): moved the same way.
+        //
+        // VERSION 47 ON 2026-10-25 (the owner's rulings removed every weight floor: the panel tally, the editor
+        // selection and the non-translation vote decide on two answering judges): moved the same way.
         expect(keyed({ runShape: repairRunShape({ models: MODELS, },), },),)
-          .toBe('cd4085ca1b4c02ea7b32420cf1a97c487718385a9dc6b0f44c765a59872a112f',);
+          .toBe('1defdc4210cb1511e0f7d5fdaa84d4b09d09fb79b93a68e9999cb114f8599cde',);
       },
     },),
     it({
