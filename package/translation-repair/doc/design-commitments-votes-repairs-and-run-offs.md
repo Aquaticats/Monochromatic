@@ -58,9 +58,14 @@ which lists every file of these commitments.
   1 on a worse majority):
   "Revert worse-voted,
   recheck".
-  An edit whose issue drew at least one worse ballot is stripped from the patch,
+  An edit whose issue drew at least one worse ballot was stripped from the patch,
   and the reduced patch faces one more checker round before it ships;
-  a not-fixed edit with no worse ballot stays (ledger L3).
+  a not-fixed edit with no worse ballot stayed (ledger L3).
+  Raised on 2026-10-25 by "Two ballots for undo too" (ledger B922):
+  an edit is stripped only where two or more ballots name worse
+  and the worse weight exceeds the fixed and not-fixed weight together,
+  which is when the issue's tally flags it regressed,
+  and one worse ballot strips nothing.
   Corrected after the ruling:
   the question put the stripped share at 40 of the 691 issues,
   counting only the ties and the worse majority;
@@ -79,6 +84,11 @@ which lists every file of these commitments.
   "Recheck the rewrite".
   The rewrite faces a checker round against the slice's accepted issues and the regression probe,
   and a rewrite the checkers find worse keeps the text before it (ledger L11).
+  Raised on 2026-10-25 by "Two ballots for undo too" (ledger B922):
+  the checkers find an open issue worse when two or more ballots on it name worse
+  and the worse weight exceeds the rest,
+  the same condition as the strip of L3,
+  and one worse ballot rolls nothing back.
   Decided for quality,
   2026-09-28,
   under the owner's standing directive that the quality of the end result decides:
@@ -254,5 +264,14 @@ which lists every file of these commitments.
   that the sheet sentence about a declined round says declining does not by itself keep the wording
   and that a judge's own decline names no candidate,
   and that a page title round is stored only when every title it asked is settled.
+  Asked on the fourth re-check whether the two-ballot rule also covers the strip of a patch's unconfirmed edits (L3)
+  and the rollback of a refinement (L11),
+  which acted on one worse ballot by the rulings of 2026-09-28,
+  the owner answered "Two ballots for undo too":
+  an edit is stripped,
+  and a rewrite rolled back,
+  only where the issue's tally flags it regressed
+  (two or more ballots name worse and the worse weight exceeds the fixed and not-fixed weight together),
+  by the one definition the candidate ranking reads (ledger B922).
   The stage quorum that sizes a round (a majority of the seated bench,
-  two on a short bench) was not changed (ledger B900 to B919).
+  two on a short bench) was not changed (ledger B900 to B926).

@@ -597,6 +597,13 @@ named for that subject and listed here.
   a regressed issue that needs two ballots naming `worse` (B917),
   the sheet sentence about a declined round that says a decline does not by itself keep the wording (B918),
   and a page title round stored only when every title it asked is settled (B919).
+- [Audit ledger: the weight floors removed, round 5](audit-ledger-weight-floors-removed-round-five.md):
+  The answer to the fourth re-check and the owner's "Two ballots for undo too":
+  a strip and a rollback that need two ballots naming `worse` (B922),
+  the sheet sentence about a declined round told per round (B923),
+  the clause reader that refuses swapped outcomes (B924),
+  the page title round asked again in full (B925),
+  and the cache versions that moved (B926).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,

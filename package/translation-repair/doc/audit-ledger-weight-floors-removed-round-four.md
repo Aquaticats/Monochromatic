@@ -140,6 +140,9 @@ found by searching the translation-repair packages for `regressed`:
   Both roll back or strip on one `worse` ballot by the owner's ruling of 2026-09-28 (ledger L3),
   which restores the text before the edit and ships nothing new,
   and this round leaves it as it is.
+  Superseded on 2026-10-25 (B922):
+  the owner answered "Two ballots for undo too",
+  and both now read the `regressed` flag this entry defines.
   `repair-chunk-verdict.ts` and `candidateConfirmedIssueIds` read `resolved` only.
 
 The cache versions:
