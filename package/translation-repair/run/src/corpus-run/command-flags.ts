@@ -1,5 +1,6 @@
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
+  isDecimalText,
   isNegativeWholeNumberText,
   isWholeNumberText,
   WHOLE_NUMBER_RULE,
@@ -112,6 +113,52 @@ export function wholeNumberFlag(
     },);
 
   return Number(asked.value,);
+}
+
+/**
+ Reads an amount of US dollars written after a flag.
+
+ A PLAIN DECIMAL, as an operator writes dollars, by the package's one decimal rule: a sign, a leading or trailing
+ point, an exponent, a radix, a space or a comma is refused rather than read as an amount nobody wrote that way, and a
+ digit run past the largest double, which reads as infinity, is refused with them (ledger B73).
+
+ @param asked - what the flag carried, or that nobody wrote it
+
+ @param unwritten - amount to use when the flag was not written
+
+ @returns Amount written, or `unwritten` when the flag was not
+
+ @throws StatedRefusalError when the flag was written with anything but a plain amount of dollars
+
+ @example
+ ```ts
+ const maxUsd = usdFlag({ asked: line.flag('max-usd',), unwritten: 2, },);
+ ```
+ */
+export function usdFlag(
+  {
+    asked,
+    unwritten,
+  }: {
+    readonly asked: FlagValue;
+    readonly unwritten: number;
+  },
+): number {
+  if (asked.kind === 'unwritten')
+    return unwritten;
+
+  /**
+   The text read as a number, which only a plain, finite decimal may be.
+   */
+  const usd = Number(asked.value,);
+  if ((!isDecimalText({ text: asked.value, },)) || (!Number.isFinite(usd,)))
+    throw new StatedRefusalError({
+      says: `${asked.flag} needs a plain amount of dollars written in digits with at most one decimal point, and ${
+        JSON.stringify(asked.value,)
+      } is not one`,
+    },);
+
+  return usd;
 }
 
 /**

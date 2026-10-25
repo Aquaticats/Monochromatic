@@ -31,6 +31,8 @@ use ide_app::tile_scene::TileScene;
 use slint::Image;
 /// Slint's own wgpu types.
 use slint::wgpu_30::wgpu;
+/// The runs of chunks that share a texture.
+use std::ops::Range;
 
 /// The scratch textures kept at most;
 /// the chunks of a picture are all one size but the last.
@@ -99,6 +101,25 @@ impl Inner {
     }
 
     /// What:
+    ///  Whether the picture already has textures of `width` pixels across and exactly the heights `heights`,
+    ///  top first.
+    /// Why:
+    ///  Rendering into the same textures needs no new image,
+    ///  and the picture of another shape needs new textures and a new list of slices.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function stackFits(width: number, heights: number[]): boolean;
+    /// ```
+    fn stack_fits(&self, width: u32, heights: &[u32]) -> bool {
+        let mut fits = self.minimap.len() == heights.len();
+        for (kept, height) in self.minimap.iter().zip(heights) {
+            fits &= kept.target.width == width && kept.target.height == *height;
+        }
+        return fits;
+    }
+
+    /// What:
     ///  Make the textures of a picture of `width` pixels across whose textures are `sizes` tall,
     ///  top first,
     ///  unless the picture already has textures of exactly these sizes.
@@ -119,13 +140,19 @@ impl Inner {
         outcome: &mut Outcome,
     ) -> bool {
         let (width, heights) = shape;
-        let mut reusable = self.minimap.len() == heights.len();
-        for (kept, height) in self.minimap.iter().zip(heights) {
-            reusable &= kept.target.width == width && kept.target.height == *height;
-        }
-        if reusable {
+        if self.stack_fits(width, heights) {
             return true;
         }
+        let mut before = Vec::with_capacity(self.minimap.len());
+        for kept in &self.minimap {
+            before.push(kept.target.height);
+        }
+        tracing::debug!(
+            width,
+            ?before,
+            after = ?heights,
+            "replaced the textures of the minimap picture"
+        );
         self.minimap.clear();
         for height in heights {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -163,6 +190,125 @@ impl Inner {
     }
 
     /// What:
+    ///  How the chunks of a picture are grouped into textures on a device whose side is at most `limit`,
+    ///  or why they do not fit one.
+    /// Why:
+    ///  The window is given the picture's slices when the picture is handed over and the frame draws into the textures
+    ///  they show,
+    ///  so both steps need the same grouping.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function shape(chunks: TileScene[], limit: number): Shape | Misfit;
+    /// ```
+    fn shape(chunks: &[TileScene], limit: u32) -> Result<Shape, Misfit> {
+        let width = match chunks.first() {
+            Some(first) => first.width,
+            None => 0,
+        };
+        let mut heights = Vec::with_capacity(chunks.len());
+        let mut ragged = false;
+        for chunk in chunks {
+            heights.push(chunk.height);
+            ragged |= chunk.width != width;
+        }
+        let height: u32 = heights.iter().sum();
+        // The texture limit the shaped text records is the device's, unless a test lowered it.
+        let runs = texture_runs(
+            &heights,
+            width,
+            limit.min(ide_app::shaped_text::texture_dimension()),
+        );
+        let allowed = u64::from(texture_rows(width, limit));
+        let mut oversize = false;
+        for run in &runs {
+            let mut rows: u64 = 0;
+            for chunk_height in &heights[run.clone()] {
+                rows += u64::from(*chunk_height);
+            }
+            oversize |= rows > allowed;
+        }
+        if ragged || width == 0 || height == 0 || width > limit || oversize {
+            return Err(Misfit {
+                width,
+                height,
+                ragged,
+            });
+        }
+        let mut sizes = Vec::with_capacity(runs.len());
+        for run in &runs {
+            sizes.push(heights[run.clone()].iter().sum::<u32>());
+        }
+        return Ok(Shape { width, runs, sizes });
+    }
+
+    /// What:
+    ///  Where the picture's textures stand in the whole picture,
+    ///  given that its first row is the row `top`.
+    /// Why:
+    ///  The window places the images with these numbers in the same step that shows the textures.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function placement(shape: Shape, top: number): Placement;
+    /// ```
+    fn placement(&self, shape: &Shape, top: u32) -> Placement {
+        let mut slices = Vec::with_capacity(self.minimap.len());
+        let mut start = 0;
+        for held in &self.minimap {
+            slices.push(MinimapSlice {
+                image: held.image.clone(),
+                top: (top + start) as f32,
+                height: held.target.height as f32,
+            });
+            start += held.target.height;
+        }
+        return Placement {
+            width: shape.width,
+            top,
+            slices,
+        };
+    }
+
+    /// What:
+    ///  Make the textures a picture about to be drawn needs when its shape differs from the one the window shows,
+    ///  and put where they stand in the outcome,
+    ///  so that the window holds their slices before the frame that draws the picture begins;
+    ///  the outcome is empty when the textures fit,
+    ///  when the device is not held yet (the first frame has not run),
+    ///  or when the picture does not fit the device (the frame refuses it with a message).
+    /// Why:
+    ///  A slice list the window gets inside a frame is not shown by that frame,
+    ///  and an idle window draws no other:
+    ///  the first picture of a file,
+    ///  whose list is a new one,
+    ///  stayed blank until the next picture came.
+    ///  Slices of textures made here are shown by the frame that draws the chunks into them,
+    ///  because the notifier draws before the items are drawn.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function prepareMinimap(chunks: TileScene[], top: number): Outcome;
+    /// ```
+    pub(super) fn prepare_minimap(&mut self, chunks: &[TileScene], top: u32) -> Outcome {
+        let mut outcome = Outcome::default();
+        let Some((device, _)) = self.device.clone() else {
+            return outcome;
+        };
+        let limit = device.limits().max_texture_dimension_2d;
+        let Ok(shape) = Self::shape(chunks, limit) else {
+            return outcome;
+        };
+        if self.stack_fits(shape.width, &shape.sizes) {
+            return outcome;
+        }
+        if self.stack_textures(&device, (shape.width, &shape.sizes), &mut outcome) {
+            outcome.minimap = Some(self.placement(&shape, top));
+        }
+        return outcome;
+    }
+
+    /// What:
     ///  Render the chunks of the minimap's picture,
     ///  top first,
     ///  into its textures,
@@ -183,67 +329,37 @@ impl Inner {
         let Some((device, queue)) = self.device.clone() else {
             return;
         };
-        let Some(first) = chunks.first() else {
+        if chunks.is_empty() {
             return;
-        };
-        let width = first.width;
-        let mut heights = Vec::with_capacity(chunks.len());
-        let mut ragged = false;
-        for chunk in chunks {
-            heights.push(chunk.height);
-            ragged |= chunk.width != width;
         }
-        let height: u32 = heights.iter().sum();
         let limit = device.limits().max_texture_dimension_2d;
-        // The texture limit the shaped text records is the device's, unless a test lowered it.
-        let runs = texture_runs(
-            &heights,
-            width,
-            limit.min(ide_app::shaped_text::texture_dimension()),
-        );
-        let allowed = u64::from(texture_rows(width, limit));
-        let mut oversize = false;
-        for run in &runs {
-            let mut rows: u64 = 0;
-            for chunk_height in &heights[run.clone()] {
-                rows += u64::from(*chunk_height);
+        let shape = match Self::shape(chunks, limit) {
+            Ok(shape) => shape,
+            Err(misfit) => {
+                tracing::error!(
+                    width = misfit.width,
+                    height = misfit.height,
+                    limit,
+                    ragged = misfit.ragged,
+                    "a minimap picture does not fit the textures of this device"
+                );
+                outcome.errors.push(format!(
+                    "Cannot draw source: a {}x{} minimap does not fit a texture of this device \
+                     (at most {limit} on a side)",
+                    misfit.width, misfit.height
+                ));
+                return;
             }
-            oversize |= rows > allowed;
-        }
-        if ragged || width == 0 || height == 0 || width > limit || oversize {
-            tracing::error!(
-                width,
-                height,
-                limit,
-                ragged,
-                "a minimap picture does not fit the textures of this device"
-            );
-            outcome.errors.push(format!(
-                "Cannot draw source: a {width}x{height} minimap does not fit a texture of this device \
-                 (at most {limit} on a side)"
-            ));
+        };
+        let width = shape.width;
+        if !self.stack_textures(&device, (width, &shape.sizes), outcome) {
             return;
         }
-        let mut sizes = Vec::with_capacity(runs.len());
-        for run in &runs {
-            sizes.push(heights[run.clone()].iter().sum::<u32>());
-        }
-        if !self.stack_textures(&device, (width, &sizes), outcome) {
-            return;
-        }
-        let mut shown = Vec::with_capacity(runs.len());
-        let mut start = 0;
-        for (run, texture_height) in runs.iter().zip(&sizes) {
-            let Some(held) = self.minimap.get(shown.len()) else {
+        for (index, run) in shape.runs.iter().enumerate() {
+            let Some(held) = self.minimap.get(index) else {
                 return;
             };
             let texture = held.target.texture.clone();
-            shown.push(MinimapSlice {
-                image: held.image.clone(),
-                top: (top + start) as f32,
-                height: *texture_height as f32,
-            });
-            start += texture_height;
             let mut row = 0;
             for chunk in &chunks[run.clone()] {
                 let scratch = self.scratch(&device, width, chunk.height);
@@ -280,10 +396,48 @@ impl Inner {
             }
         }
         self.minimaps_rendered += 1;
-        outcome.minimap = Some(Placement {
-            width,
-            top,
-            slices: shown,
-        });
+        outcome.minimap = Some(self.placement(&shape, top));
     }
+}
+
+/// What:
+///  How the chunks of a picture are grouped into textures:
+///  the width,
+///  the chunks each texture holds,
+///  and the textures' heights.
+/// Why:
+///  The hand-over and the frame that draws the picture agree on the textures by computing them the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Shape = { width: number; runs: [number, number][]; sizes: number[] };
+/// ```
+struct Shape {
+    /// Width of every texture in physical pixels.
+    width: u32,
+    /// The chunks of each texture,
+    /// top first.
+    runs: Vec<Range<usize>>,
+    /// The height of each texture in physical pixels,
+    /// top first.
+    sizes: Vec<u32>,
+}
+
+/// What:
+///  Why a picture does not fit the textures of a device:
+///  its size and whether its chunks differ in width.
+/// Why:
+///  The frame that refuses the picture names these in its message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Misfit = { width: number; height: number; ragged: boolean };
+/// ```
+struct Misfit {
+    /// Width of the first chunk in physical pixels.
+    width: u32,
+    /// Height of the chunks together in physical pixels.
+    height: u32,
+    /// Whether some chunk differs in width from the first.
+    ragged: bool,
 }

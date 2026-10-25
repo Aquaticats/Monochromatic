@@ -6,6 +6,7 @@ export { reportingRefusals, } from './corpus-run/cli-refusal.ts';
 export {
   askedAmong,
   idListFlag,
+  usdFlag,
   wholeNumberFlag,
   writtenOr,
 } from './corpus-run/command-flags.ts';

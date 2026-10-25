@@ -103,8 +103,9 @@ await describe({
     },),
 
     it({
-      name: 'RECORDS THE PAGES\' PRICES: DeepSeek at its peak rates, the upper bound, and Xiaomi at the '
-        + 'overseas real-time rates, with image input probed on both',
+      name: 'RECORDS THE PAGES\' PRICES: DeepSeek at its peak rates, which the provider package halves for a call '
+        + 'that started and completed outside every weekday peak window, and Xiaomi at the overseas real-time rates, '
+        + 'with image input probed on both',
       fn: async () => {
         expect(MODEL_CARDS['deepseek-v4.1-flash'].deepseek,).toEqual({
           id: 'deepseek-flash',

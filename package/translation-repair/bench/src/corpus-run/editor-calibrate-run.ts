@@ -10,13 +10,13 @@ import {
   writerGraceOverrideNote,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { sampleBenchSlices, } from './bench-sample.ts';
+import { editorChairFor, } from './editor-calibrate-chair.ts';
 import { driveEditorCalibrate, } from './editor-calibrate-drive.ts';
 import {
   printEditorCalibrateRefineReach,
   printEditorCalibrateShipped,
 } from './editor-calibrate-closing.ts';
 import {
-  EDITOR_LANE_EDITORS,
   EDITOR_LANE_REFINERS,
   runEditorLane,
 } from './editor-calibrate-lane.ts';
@@ -194,6 +194,18 @@ export async function runEditorCalibrate(
   },);
 
   /**
+   Editors this launch seats, and whether `--candidates` named them.
+
+   READ RIGHT AFTER THE COUNT, so a card the roster does not know is refused before the overlap is read, the sample is
+   drawn or anything is printed: a calibration started for a card it then ran without would print a standing over the
+   wrong editors. Only the editors move; the critics, the panel, the judges and the checkers stay the whole roster.
+   */
+  const {
+    editors: chairEditors,
+    named: chairNamed,
+  } = editorChairFor({ line, },);
+
+  /**
    How many slices may be in flight at once.
 
    FOUR BY THE OWNER'S DECISION OF 2026-08-26, read from the environment so
@@ -220,9 +232,9 @@ export async function runEditorCalibrate(
         many: 'slices',
       },)
     }, `
-      + `${String(EDITOR_LANE_EDITORS.length,)} ${
+      + `${String(chairEditors.length,)} ${
         wordForCount({
-          count: EDITOR_LANE_EDITORS.length,
+          count: chairEditors.length,
           one: 'model',
           many: 'models',
         },)
@@ -235,6 +247,21 @@ export async function runEditorCalibrate(
         },)
       } in flight`,
   );
+
+  // THE EDITORS ARE NAMED BY ID WHEN A LAUNCH NAMED THEM, because the header counts them and a count cannot say which
+  // card a log was seated with. A launch that names none prints nothing more, so its log reads as it always has.
+  if (chairNamed) {
+    console.log(`editor-calibrate: editors ${chairEditors.join(', ',)}`,);
+    // ONE EDITOR HAS NOBODY TO BE JUDGED AGAINST: a slate of one candidate ships without a vote, so the standing holds
+    // no round and the only reading left is how often the edit shipped, which the closing paragraph says is no preference.
+    if (chairEditors.length === 1) {
+      console.log(
+        'editor-calibrate: one editor is seated, so every slate holds one candidate and ships without a vote; '
+          + 'the editor standing will hold no judged round, and EDITORS SHIPPED, which is not a preference, '
+          + 'is the only reading',
+      );
+    }
+  }
 
   /**
    Straggler window this run's rounds wait under, and where it came from.
@@ -295,6 +322,7 @@ export async function runEditorCalibrate(
       return runEditorLane({
         slice,
         client,
+        editorModelIds: chairEditors,
         stageSettings: {
           grace: writerGrace,
           contestLedger,
@@ -305,7 +333,7 @@ export async function runEditorCalibrate(
   },);
 
   printEditorCalibrateStandings({
-    roster: EDITOR_LANE_EDITORS,
+    roster: chairEditors,
     refinerRoster: EDITOR_LANE_REFINERS,
     perSlice,
   },);

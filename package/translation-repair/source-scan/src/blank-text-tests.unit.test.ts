@@ -1207,6 +1207,71 @@ const HELD_TESTS: Readonly<Record<string, {
       + 'reader nothing is still where the signer belongs, the name restore writes the signer\'s rendering '
       + 'into it, and `nameAuthorities` asks `rendersAsNothing` before a page name becomes a rendering',
   },
+  'probe/corpus-run/editor-fidelity-client.ts#editorProbeEnv': {
+    tests: 1,
+    why: SETTING,
+  },
+  'probe/corpus-run/editor-fidelity-arm-trial-answers.ts#ceilingAnswer': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-trial-answers.ts#editorAnswer': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-shared.ts#classify': {
+    tests: 2,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-answers.ts#manifestAnswer': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-answers.ts#poolAnswer': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-answers.ts#seatAnswer': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-check.ts#hasDigest': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-arm-check.ts#lineOfCheck': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-pool-draw-entry.ts#checkedAttempt': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-pool-draw-run.ts#failed': {
+    tests: 1,
+    why: SENTINEL,
+  },
+  'probe/corpus-run/editor-fidelity-spend-guard.ts#deliveredNothing': {
+    tests: 1,
+    why: 'the opening of a provider\'s reply body, empty when the provider sent no body with an error status, which is '
+      + 'what shows that no billable reply was delivered',
+  },
+  'probe/editor-fidelity-pool-rule.ts#isPlainEntryId': {
+    tests: 1,
+    why: 'an entry id listed from the pinned clone, refused when empty before it becomes a path or a specification id',
+  },
+  'probe/editor-fidelity-region.ts#sayingOnLine': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'probe/editor-fidelity-score.ts#isBlank': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'repair/sentence-region.ts#isBlank': {
+    tests: 1,
+    why: SCANNER,
+  },
   'probe/corpus-run/attribution-read.ts#attributionEntryOf': {
     tests: 1,
     why: RECORD,

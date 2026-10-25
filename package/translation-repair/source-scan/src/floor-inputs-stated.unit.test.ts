@@ -639,6 +639,8 @@ const MEASUREMENT_FILES: Readonly<Record<string, string>> = {
   'bench/corpus-run/checker-sensitivity-run.ts': 'asks whether the resolution checkers can say no, on cat-themed sheets',
   'coverage-census/corpus-run/coverage-control.ts': 'asks the coverage roster about a passage before and after its anchors are cut',
   'bench/corpus-run/editor-calibrate-lane.ts': 'ranks every model on the editor\'s job over drawn slices',
+  'probe/corpus-run/editor-fidelity-probe-read.ts': 'sizes the sheet a seeded editor trial sends, which carries no declared names or cited references',
+  'probe/corpus-run/editor-fidelity-trial.ts': 'seats one editor card alone over a seeded defect, a slice that carries no declared names or cited references',
   'bench/corpus-run/editor-width-arm.ts': 'one arm of the editor-width probe',
   'bench/corpus-run/editor-width-contest.ts': 'the editor-width probe\'s head-to-head between its arms\' winners',
   'bench/corpus-run/editor-width-input.ts': 'the critic and panel findings the editor-width probe\'s arms share',
@@ -697,6 +699,12 @@ const NAMED_OMISSIONS: readonly NamedOmission[] = [
     omission: 'repair/repair-entry.ts#repairTranslation -> prepareDocumentPair: omits [attestedDetails, referenceContext]',
     why: 'the library entry takes no cited references or attestations; the corpus pass fetches and attests them '
       + '(corpus-run/pass-prepare.ts)',
+  },
+  {
+    omission: 'probe/editor-fidelity-context.ts#editorSheetContextOf -> prepareDocumentPair: omits [attestedDetails, referenceContext]',
+    why: 'the editor fidelity probe slices the pair only to read the sections either side of a seeded passage and the '
+      + 'declared names; cited references and attestations need keyed web lookups the probe does not make, and its '
+      + 'report states that limit (editor-fidelity-context.ts header)',
   },
   {
     omission: 'lane-contest/seed-detection.ts#gradeSeedDetection -> prepareDocumentPair: omits [attestedDetails, referenceContext]',

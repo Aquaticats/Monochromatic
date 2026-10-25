@@ -1776,6 +1776,16 @@ so it is skipped
 `a_view_inside_the_answered_lines_sends_no_request` and five more tests in `src/native/language/hint_skip_tests.rs`;
 `inspect:source-guards` cases `hint-skip-*`).
 
+A skipped request must not be what draws the code column.
+Before the rule,
+the answer to the second request repainted the source,
+and that repaint drew the frame that showed the code tile of a press;
+a press whose request is skipped has no answer,
+and its tile never appeared (the code column stayed blank beside the gutter numbers until another event drew a frame).
+The cause and the fix are in the bullet on `src/native/gpu_tile.rs` under "The code view on the GPU",
+and the record is in the section "A press whose hint request is skipped leaves the code column blank"
+of `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
+
 ### Placement
 
 A line with hints or messages gets a block of virtual rows directly over its code row.
@@ -5627,6 +5637,66 @@ the GPU turns outlines and paths into pixels.
   and no scene is built or drawn.
   The wrap indicator of the gutter is a second,
   small texture drawn the same way.
+  A tile whose textures differ in size from the last one's needs new textures and a new list of slices
+  (`source-slices`,
+  which the markup draws with a `for`),
+  and a `for` brings its rows up to date before the frame begins,
+  so a list reset (`VecModel::set_vec`) or replaced inside the rendering notifier is not drawn by that frame
+  (a reset list draws no row,
+  a replaced one the old rows),
+  and nothing asks for the frame that draws it.
+  A row replaced in a list the window already holds (`set_row_data`) is drawn by its own frame,
+  and `show_slices` (`src/native/gpu_tile/types.rs`) chooses between the two by the number of rows,
+  which for the tile is the number of its textures.
+  The rule is Slint's and is measured in `src/native/repeater_frame_tests.rs`;
+  the trace through Slint 1.18.1's source is in
+  `doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
+  So `GpuTile::submit_tile` makes the textures and gives the window the slices when the tile is handed over,
+  outside any frame (`Inner::prepare_tile`,
+  `src/native/gpu_tile/source.rs`),
+  and the frame that follows draws the scenes into them and shows them.
+  Only a tile handed over before the first frame,
+  when no device is held yet,
+  still gets its slices inside a frame,
+  and the notifier then asks for one more frame (`request_redraw`).
+  Without this a view placed by a press whose hint request was skipped kept a blank code column.
+  `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures` and
+  `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures` hand painted textures to the window
+  and count the pixels of the very next frame:
+  they fail when the slices are set inside the frame again,
+  and the `tile-slices-*-drawn` and `minimap-slices-*-drawn` guard cases show it.
+  The tests `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame`
+  (`src/native/tile_slice_frame_tests.rs`) and
+  `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` (`src/native/language/hint_skip_tests.rs`)
+  check,
+  before any frame is drawn,
+  that the window holds the slices of the new textures;
+  the `inspect:source-guards` cases `tile-slices-*` remove the lines that make and apply them.
+  The first tile of a window,
+  handed over before any frame,
+  has its slices made and given inside the first frame;
+  the notifier then asks for one more frame.
+  `the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next` and
+  `a_frame_that_makes_no_slices_in_it_asks_for_no_frame` (`src/native/tile_slice_frame_tests.rs`) read the ask from the
+  harness's window adapter (`take_frame_wanted`),
+  and the `first-tile-*` guard cases remove the lines that give the slices and ask for the frame.
+  The minimap's picture is handed over the same way:
+  `GpuTile::submit_minimap` makes the textures and gives the window the slices and the picture's place when the
+  textures differ in size from the last picture's (`Inner::prepare_minimap`,
+  `src/native/gpu_tile/slice.rs`).
+  Before this the first picture of a file,
+  whose list of slices is a new one after a file switch,
+  was not shown by the frame that drew it,
+  and the minimap stayed blank until the next picture's frame:
+  17 of 32 recorded switches showed it more than 0.2 s after the first picture's frame,
+  none of 16 after the fix.
+  `the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame` and
+  `a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame` (`src/native/minimap_slice_frame_tests.rs`)
+  check the slices before any frame,
+  and the `minimap-slices-*` guard cases remove the lines that make,
+  give,
+  and place them.
+  Both records are in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
 - Selection fills and the boxes of find matches are Slint rectangles behind the tile image (`ui/app.slint`),
   drawn by FemtoVG on the GPU as before.
   Their edges and the clip edges of the selected ink lie on whole pixels,

@@ -167,6 +167,21 @@ export type ReviewedFidelityReference = {
    Generated variants checked against reviewed hashes and single-delta counts.
    */
   readonly damages: readonly Extract<DamageAttempt, { readonly kind: 'damaged'; }>[];
+  /**
+   The whole pages the passages were cut from, at the same pin. The editor probe prepares the context of its sheet
+   from them (the sections either side of the passage, the declared names, the whole original), as the pipeline
+   prepares it from the page it repairs.
+   */
+  readonly pages: {
+    /**
+     Complete original page.
+     */
+    readonly sourceFile: string;
+    /**
+     Complete archive page.
+     */
+    readonly archiveFile: string;
+  };
 };
 
 //endregion Reviewed calibration references

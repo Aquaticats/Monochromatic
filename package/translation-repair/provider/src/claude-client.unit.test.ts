@@ -19,6 +19,7 @@ import {
   resetRunSpend,
   type RosterModelId,
   runSpendUsd,
+  SONNET_5_5_PRICES,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   infoLinesDuring,
@@ -602,6 +603,253 @@ await describe({
         expect(exchanges.length,).toBe(1,);
         expect(logged.filter(function isSpend(line,): boolean {
           return line.includes('SPEND ',) && line.includes(`completion=${String(COMPLETION_CAP['claude-sonnet-5-5'],)}`,);
+        },).length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'WRITES EVERY ATTEMPT THAT DELIVERED A STREAM WITHOUT ITS END AT ITS BOUND, as the Bedrock, NeuralWatt and '
+        + 'OpenRouter clients write theirs: two truncated 200 streams in one call are two SPEND lines marked '
+        + 'abandoned-bound, each (bytes x 2.5 + max_tokens x 10) / 1e6 on Sonnet, and the run meter takes both, '
+        + 'although the call itself fails',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away, which is what a dropped connection leaves.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: cut, },], },);
+        const client = createClaudeClient({ apiKey: CLAUDE_CAT_KEY, transport, retryPolicy: ONE_QUICK_RETRY, },);
+
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => await rejectionOf(() => askCat({ client, modelId: 'claude-sonnet-5-5', },),),
+            },),
+        },);
+
+        expect(exchanges.length,).toBe(2,);
+        /**
+         The SPEND lines the failed call wrote.
+         */
+        const spendLines = logged.filter(function isSpend(line,): boolean {
+          return line.includes('SPEND ',);
+        },);
+        expect(spendLines.length,).toBe(2,);
+        for (const line of spendLines)
+          expect(line,).toContain(' estimated=abandoned-bound',);
+        /**
+         What one attempt is bounded at: the body's bytes as prompt tokens at the cache-write rate and the ceiling sent
+         as completion tokens.
+         */
+        const [first,] = exchanges;
+        const bytes = Buffer.byteLength(first?.bodyJson ?? '', 'utf8',);
+        const ceiling = Number(firstBodyOf({ exchanges, },).max_tokens,);
+        const oneAttempt = ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
+          + (ceiling * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
+        expect(oneAttempt,).toBeGreaterThan(0.3,);
+        expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(2 * oneAttempt, 8,);
+      },
+    },),
+    it({
+      name: 'WRITES THE ABANDONED ATTEMPT BESIDE THE ANSWER THAT FOLLOWS IT: a truncated stream and then a whole one are '
+        + 'one abandoned-bound line and one reported line, and the meter holds their sum',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        const { transport, exchanges, } = scripted({
+          replies: [
+            { status: 200, bodyText: cut, },
+            {
+              status: 200,
+              bodyText: claudeStreamOf({ text: '{"spot":"sunbeam"}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+            },
+          ],
+        },);
+        const client = createClaudeClient({ apiKey: CLAUDE_CAT_KEY, transport, retryPolicy: ONE_QUICK_RETRY, },);
+
+        const { result: answered, logged, } = await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => await askCat({ client, modelId: 'claude-sonnet-5-5', },),
+            },),
+        },);
+
+        expect(answered.result.text,).toBe('{"spot":"sunbeam"}',);
+        expect(exchanges.length,).toBe(2,);
+        /**
+         The SPEND lines the call wrote.
+         */
+        const spendLines = logged.filter(function isSpend(line,): boolean {
+          return line.includes('SPEND ',);
+        },);
+        expect(spendLines.filter(function isBound(line,): boolean {
+          return line.includes(' estimated=abandoned-bound',);
+        },).length,).toBe(1,);
+        expect(spendLines.length,).toBe(2,);
+        /**
+         The reported attempt: 100 plain prompt tokens at 2 and 10 completion tokens at 10 USD a million.
+         */
+        const reported = ((100 * 2) + (10 * 10)) / 1_000_000;
+        const bytes = Buffer.byteLength(exchanges[0]?.bodyJson ?? '', 'utf8',);
+        const ceiling = Number(firstBodyOf({ exchanges, },).max_tokens,);
+        const bounded = ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
+          + (ceiling * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
+        expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(reported + bounded, 8,);
+      },
+    },),
+    it({
+      name: 'WRITES NOTHING FOR AN ATTEMPT THAT DELIVERED NO STREAM: a retried 529 reply is not a billed generation, so '
+        + 'the meter holds the answer\'s own cost alone',
+      fn: async () => {
+        resetRunSpend();
+        const { transport, exchanges, } = scripted({
+          replies: [
+            { status: 529, bodyText: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}', },
+            {
+              status: 200,
+              bodyText: claudeStreamOf({ text: '{"spot":"sunbeam"}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+            },
+          ],
+        },);
+        const client = createClaudeClient({ apiKey: CLAUDE_CAT_KEY, transport, retryPolicy: ONE_QUICK_RETRY, },);
+
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => await askCat({ client, modelId: 'claude-sonnet-5-5-effort-low', },),
+            },),
+        },);
+
+        expect(exchanges.length,).toBe(2,);
+        expect(logged.filter(function isBound(line,): boolean {
+          return line.includes('SPEND ',) && line.includes('estimated=',);
+        },).length,).toBe(0,);
+        expect(runSpendUsd({ provider: 'anthropic', },),).toBeCloseTo(((100 * 2) + (10 * 10)) / 1_000_000, 10,);
+      },
+    },),
+    it({
+      name: 'TELLS THE CALLER OF EVERY ATTEMPT BEFORE IT IS SENT, with the card and the most the attempt can be billed, '
+        + 'which is the figure the abandoned line writes, and sends the very request bodies a client told of '
+        + 'nothing sends',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        /**
+         The replies both clients are given: a cut stream, then a whole one.
+         */
+        const replies = [
+          { status: 200, bodyText: cut, },
+          {
+            status: 200,
+            bodyText: claudeStreamOf({ text: '{"spot":"sunbeam"}', stopReason: 'end_turn', usage: PLAIN_USAGE, }),
+          },
+        ];
+        const plain = scripted({ replies, },);
+        const plainClient = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport: plain.transport,
+          retryPolicy: ONE_QUICK_RETRY,
+        },);
+        /**
+         What the caller was told, one entry for each attempt.
+         */
+        const asks: { readonly label: string; readonly usd: number; readonly sent: number; }[] = [];
+        const told = scripted({ replies, },);
+        const toldClient = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport: told.transport,
+          retryPolicy: ONE_QUICK_RETRY,
+          admitAttempt: function noteAsk({ label, bound, },): void {
+            asks.push({ label, usd: bound.usd, sent: told.exchanges.length, },);
+          },
+        },);
+
+        await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => {
+                await askCat({ client: plainClient, modelId: 'claude-sonnet-5-5-effort-low', },);
+                await askCat({ client: toldClient, modelId: 'claude-sonnet-5-5-effort-low', },);
+              },
+            },),
+        },);
+
+        /**
+         What one attempt is bounded at, off the body the plain client sent.
+         */
+        const bytes = Buffer.byteLength(plain.exchanges[0]?.bodyJson ?? '', 'utf8',);
+        const ceiling = Number(firstBodyOf({ exchanges: plain.exchanges, },).max_tokens,);
+        const oneAttempt = ((bytes * SONNET_5_5_PRICES.cacheWriteUsdPerMillion)
+          + (ceiling * SONNET_5_5_PRICES.outputUsdPerMillion)) / 1_000_000;
+        expect(asks.length,).toBe(2,);
+        expect(asks.map(function labelOf({ label, },): string {
+          return label;
+        },),).toStrictEqual(['claude-sonnet-5-5-effort-low', 'claude-sonnet-5-5-effort-low',],);
+        expect(asks[0]?.usd,).toBeCloseTo(oneAttempt, 8,);
+        expect(asks[1]?.usd,).toBeCloseTo(oneAttempt, 8,);
+        // Told before the request: the first telling saw no request sent, the second saw one.
+        expect(asks.map(function sentOf({ sent, },): number {
+          return sent;
+        },),).toStrictEqual([0, 1,],);
+        expect(told.exchanges.map(function toldBody({ bodyJson, },): string {
+          return bodyJson ?? '';
+        },),).toStrictEqual(plain.exchanges.map(function plainBody({ bodyJson, },): string {
+          return bodyJson ?? '';
+        },),);
+      },
+    },),
+    it({
+      name: 'SENDS NOTHING FOR THE ATTEMPT THE CALLER REFUSES: a refusal thrown before the second attempt leaves the '
+        + 'first attempt\'s abandoned line on the meter, reaches the caller of the call as it was thrown, and the '
+        + 'second request is never sent',
+      fn: async () => {
+        resetRunSpend();
+        /**
+         A whole stream with its terminator frame cut away.
+         */
+        const cut = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage: PLAIN_USAGE, })
+          .replace(anthropicFrameOf({ body: { type: 'message_stop', }, },), '',);
+        const { transport, exchanges, } = scripted({ replies: [{ status: 200, bodyText: cut, },], },);
+        /**
+         The refusal the caller throws.
+         */
+        const refusal = new Error('the second attempt would pass the amount',);
+        /**
+         Attempts the caller was told of.
+         */
+        const told = { count: 0, };
+        const client = createClaudeClient({
+          apiKey: CLAUDE_CAT_KEY,
+          transport,
+          retryPolicy: ONE_QUICK_RETRY,
+          admitAttempt: function refusesSecond(): void {
+            told.count += 1;
+            if (told.count === 2)
+              throw refusal;
+          },
+        },);
+
+        const { result: raised, logged, } = await infoLinesDuring({
+          run: async () =>
+            await warnLinesDuring({
+              run: async () => await rejectionOf(() => askCat({ client, modelId: 'claude-sonnet-5-5-effort-low', },),),
+            },),
+        },);
+
+        expect(raised.result,).toBe(refusal,);
+        expect(told.count,).toBe(2,);
+        expect(exchanges.length,).toBe(1,);
+        expect(logged.filter(function isBound(line,): boolean {
+          return line.includes('SPEND ',) && line.includes(' estimated=abandoned-bound',);
         },).length,).toBe(1,);
       },
     },),
