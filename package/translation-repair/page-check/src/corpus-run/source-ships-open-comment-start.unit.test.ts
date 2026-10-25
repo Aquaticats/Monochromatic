@@ -40,6 +40,8 @@ await describe({
             expect(blockOpenerStarts({ text: '> > a\n> > <!-- b\n', starts: [10,], },),).toEqual([10,],);
             expect(blockOpenerStarts({ text: '- <!-- a\n', starts: [2,], },),).toEqual([2,],);
             expect(blockOpenerStarts({ text: '1. a\n   <!-- b\n', starts: [8,], },),).toEqual([8,],);
+            // A tab that a list item takes in part is read as spaces the text does not hold.
+            expect(blockOpenerStarts({ text: '- i\n\t<!-- a\n', starts: [5,], },),).toEqual([5,],);
           },
         },),
         it({
@@ -49,6 +51,8 @@ await describe({
             expect(blockOpenerStarts({ text: '    <!-- a\n', starts: [4,], },),).toEqual([],);
             expect(blockOpenerStarts({ text: '\t<!-- a\n', starts: [1,], },),).toEqual([],);
             expect(blockOpenerStarts({ text: '```\n<!-- a\n```\n', starts: [4,], },),).toEqual([],);
+            // An opener inside a block of raw HTML that starts on an earlier line is no start of a block.
+            expect(blockOpenerStarts({ text: '<div>\n<!-- a\n', starts: [6,], },),).toEqual([],);
           },
         },),
         it({

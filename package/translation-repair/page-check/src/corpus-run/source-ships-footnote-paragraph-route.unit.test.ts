@@ -13,8 +13,13 @@
  @module
  */
 
-import { describe, } from '@monochromatic-dev/module-test/ts';
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/module-test/ts';
 
+import { encodeAsLiteralMdx, } from '../../dist/final/node/index.mjs';
 import { readerEqualityCases, } from './source-reader-equality.test-fixture.ts';
 
 /**
@@ -53,5 +58,16 @@ const CASES: readonly (readonly [string, string])[] = [
 
 await describe({
   name: 'a footnote definition in a container read as the body of a footnote',
-  children: readerEqualityCases({ cases: CASES, },),
+  children: [
+    ...readerEqualityCases({ cases: CASES, },),
+    it({
+      name: 'KEEPS THE QUOTE MARK OF THE LINE AFTER THE BLANK LINE THE ENCODER WRITES BETWEEN A TAG AND A DEFINITION LINE',
+      fn: async () => {
+        // The blank line ends the quote on the page, and the line after it starts another with its own mark.
+        expect(encodeAsLiteralMdx({ text: '> a\n>     ```\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n', },),).toBe(
+          '> a\n>     \\`\\`\\`\n> [^1]: x\n> \\<a href="x">\n\n> [r]: u{b}\n',
+        );
+      },
+    },),
+  ],
 },);

@@ -268,7 +268,7 @@ await describe({
         it({
           name: 'IS TRUE FOR A PARAGRAPH OR A LINE OF RAW HTML RIGHT AFTER THE DEFINITION ITSELF, in a container',
           fn: async () => {
-            for (const source of ['> [^1]: x\n> abc\n', '> [^1]: x\n> <a href="x">\n',]) {
+            for (const source of ['> [^1]: x\n> abc\n', '> [^1]: x\n> <div>\n',]) {
               expect(goesOnAsLazyText({
                 source,
                 ...childOfQuote({ source, at: 1, },),
