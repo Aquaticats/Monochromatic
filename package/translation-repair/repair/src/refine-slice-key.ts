@@ -379,8 +379,20 @@ import type {
  ride inside it and the number moves. A build whose pipeline digest differs discards the namespace before it reads it
  (`openNamespacedCache`), and the number is the belt beside that brace. The account of every cache is in the
  header of `provider/src/enum-case-fold.ts`.
+
+ Version 17 covers the owner's rulings of 2026-10-25 that removed every weight floor ("floor of 3 - don't set a floor.",
+ "Two ballots decide (Recommended)" and "Every weight floor"): the refinement slate names a winner two ballots named
+ whatever their weight, where it declined against a summed weight of 2, and asks the window of quorum plus one on a
+ bench of four where it asked the whole bench (`translate-stage/src/candidate-select.ts`,
+ `translate-stage/src/candidate-select-fanout.ts`). A stored refinement may hold a rewrite the same texts now ship
+ where they were declined, or a round that heard three judges where it heard four. The key hashes the version, the shape
+ of the run and the texts, not the rule that reads the ballots, so a record written before would be served after. The
+ previous number was set in `2aceac0487`; no slice-cache directory was searched for a record written by code that holds
+ it, so records may stand at 16 and the change cannot ride inside it, and the number moves. The repair slice (47),
+ translate (28) and consolidate (35) versions move for the same rules. No record has been written at 17, which this
+ change sets first.
  */
-export const REFINE_CACHE_VERSION = 16;
+export const REFINE_CACHE_VERSION = 17;
 
 /**
  Everything about this run that changes what the voices are ASKED.
