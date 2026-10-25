@@ -113,6 +113,41 @@ await describe({
       },
     },),
     it({
+      name: 'REPORTS THE DIFFERENCE OF A RUN BESIDE A RUN SHIPPED WITHOUT ITS ORIGINAL, the dropped step among them',
+      fn: async () => {
+        /**
+         The page of a run nested past what the grammar admits, which no writing makes parse, and a later run with an image
+         whose alternative text is an angle autolink, which the page shows differently from the source.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: `${'> '.repeat(300,)}她说 {\n`,
+            },
+            {
+              incumbentText: '\nShe slept on the counter.\n',
+              sourceText: '\n她睡在柜台上。\n',
+            },
+            {
+              incumbentText: '',
+              sourceText: '![<https://example.net/a>](u.png) {x\n',
+            },
+          ],
+        },);
+        expect(composed.step,).toBe('dropped',);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual([
+          'page-source-unparseable',
+          'source-reads-differently',
+        ],);
+        expect(composed.defects[0]?.message,).toContain('slices [1]',);
+        expect(composed.defects[1]?.message,).toContain('slices [3]',);
+      },
+    },),
+    it({
       name: 'REPORTS NO DEFECT FOR A PAGE THAT SHIPS ITS ORIGINALS AS RECORDED, whatever the two readings make of them',
       fn: async () => {
         /**

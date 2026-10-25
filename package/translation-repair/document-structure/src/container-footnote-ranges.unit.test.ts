@@ -30,6 +30,14 @@ await describe({
       },
     },),
     it({
+      name: 'IS TRUE FOR A FOOTNOTE ONLY THE PAGE STARTS IN A BLOCK QUOTE, a line indented four spaces after a paragraph',
+      fn: async () => {
+        expect(footnoteRangesDifferInContainer({ body: '> a `x\n>     [^1]: <b>` {d}\n', },),).toBe(true,);
+        expect(footnoteRangesDifferInContainer({ body: '> a `x\n    [^1]: {c}` {d}\n', },),).toBe(true,);
+        expect(footnoteRangesDifferInContainer({ body: '- a `x\n      [^1]: <b>` {d}\n', },),).toBe(true,);
+      },
+    },),
+    it({
       name: 'IS FALSE FOR A FOOTNOTE AT THE TOP WHOSE READINGS DIFFER, with a block quote beside it',
       fn: async () => {
         expect(footnoteRangesDifferInContainer({ body: '[^1]: x\n<q>\ntext\n===\n\n> after\n', },),).toBe(false,);
