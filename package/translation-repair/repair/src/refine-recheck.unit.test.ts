@@ -807,6 +807,69 @@ await describe({
     },),
 
     it({
+      name: 'PASSES a round of two worse ballots level with two fixed ballots on an open issue: the worse '
+        + 'weight has to strictly outweigh the rest as well as come from two checkers',
+      fn: async () => {
+        // THE FIVE-SEAT BENCH ASKS FOUR SEATS, quorum of three plus the spare,
+        // starting where the sheet's text rotates the bench, and all four can
+        // answer: this is the round production reaches, and the case that a
+        // rollback written as "two worse ballots" alone (`worse >= 2`) passes
+        // for the wrong reason. Every seat is scripted so whichever seat the
+        // rotation leaves out, the round hears its four; three are scripted
+        // worse and two fixed, and the rotation of this sheet leaves out one of
+        // the worse ones. Another sheet text that moves the rotation makes the
+        // tally three worse against one fixed, which fails the case rather than
+        // passing it.
+        /**
+         Verdict of each of the five seats.
+         */
+        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
+          [
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_VISION_WITHHELD,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            'fixed',
+          ],
+          [
+            SEAT_HYPER_ONLY,
+            'fixed',
+          ],
+          [
+            SEAT_OPENROUTER_ONLY_CHECKER,
+            'worse',
+          ],
+        ],);
+        /**
+         What the recheck returned.
+         */
+        const verdict = await recheck({
+          issues: [SUNBATHING_ISSUE,],
+          verdicts,
+          checkerModelIds: FIVE_SEATS,
+        },);
+        expect({
+          retained: verdict.retained,
+          tally: verdict.readings[SUNBATHING_ISSUE.issueId]?.tally,
+        },).toEqual({
+          retained: true,
+          tally: {
+            fixed: 2,
+            notFixed: 0,
+            worse: 2,
+            resolved: false,
+            regressed: false,
+          },
+        },);
+      },
+    },),
+
+    it({
       name: 'WARNS ONCE when it rolls a slice back on two worse ballots, naming the slice, the refiner, the '
         + 'issue and every ballot cast on that issue',
       fn: async () => {
