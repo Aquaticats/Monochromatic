@@ -93,11 +93,21 @@
  and the roster, not the rule, so it would be served under the new one. Whether a record stands at 7 is not known (the number
  was set a few commits before and no slice-cache directory was searched), so the number moves.
 
+ Nine covers the lead's ruling of 2026-10-25 on question Q1 of re-check 3 (settled by the same rule): a page-title round is
+ stored only when every title it asked is settled (`corpus-run/pass-page-titles.ts`, `passPageTitles`), where a round that
+ heard two or more voices was stored whatever it settled, so a split of one voice apiece, or a round that settled one title of
+ two, was kept as an empty or partial list under the key of its bench and resumed on a later run instead of being asked again.
+ A record stored at eight may hold such a round, and the key hashes the version, the titles, the identity and the roster, not
+ the rule, so it would be served under the new one. Whether a record stands at 8 is not known (the number was set a few commits
+ before and no slice-cache directory was searched), and the change cannot ride inside it, so the number moves. The other
+ versions stay: this change reaches the storage of no other stage. No record has been written at 9, which this change
+ sets first.
+
  @example
  ```ts
  const material = JSON.stringify({ version: PAGE_TITLE_CACHE_VERSION, source, titles, identity, roster, },);
  ```
  */
-export const PAGE_TITLE_CACHE_VERSION = 8;
+export const PAGE_TITLE_CACHE_VERSION = 9;
 
 //endregion Page title cache version

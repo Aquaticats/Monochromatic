@@ -729,7 +729,7 @@ await describe({
           },
         },),
         it({
-          name: 'STANDS AT VERSION EIGHT since the sheet of the page title reading carries the house rule that quoted words keep '
+          name: 'STANDS AT VERSION NINE since the sheet of the page title reading carries the house rule that quoted words keep '
             + 'the speaker\'s tense (n161), which a reading cached under version one was written without, says so in the '
             + 'very sentence that puts the life in the past (n166), which a reading cached under version two was written without, '
             + 'and protects readers only from the account of how a death or an attempt happened (the XingZ6015 read), which a '
@@ -738,9 +738,10 @@ await describe({
             + 'last-seat grace of 2026-10-22 (ledger B816), which a reading cached under version five was decided without, and settles no title on fewer than two heard voices '
             + '(the lead\'s ruling of 2026-10-25), which a reading cached under version six was decided without, and '
             + 'settles a title only on a rendering two voices gave (re-check 2, finding F1), which a reading cached under '
-            + 'version seven was decided without',
+            + 'version seven was decided without, and stores a round only when every title it asked is settled (re-check 3, '
+            + 'question Q1), which a round kept under version eight was stored without',
           fn: async () => {
-            expect(PAGE_TITLE_CACHE_VERSION,).toBe(8,);
+            expect(PAGE_TITLE_CACHE_VERSION,).toBe(9,);
           },
         },),
         it({
