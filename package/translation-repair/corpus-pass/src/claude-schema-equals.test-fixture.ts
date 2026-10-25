@@ -13,10 +13,22 @@ import {
   stringValueOf,
 } from './claude-schema-tree.test-fixture.ts';
 
-//region What an import-equals declaration adds
-// `import a = require('./a.ts')` binds the module as a whole, as `import * as a from './a.ts'` does, and
-// `import a = b.c` binds a chain of names, as `const a = b.c` does. The declaration is the TypeScript form of both, and
-// the files read it as the two forms they stand for.
+//region What an import-equals declaration and an export assignment add
+// `import a = require('./a.ts')` binds the module as a whole, as `import * as a from './a.ts'` does, unless the module
+// has an `export =`, and then it binds the value that `export =` gives. `import a = b.c` binds a chain of names, as
+// `const a = b.c` does. The declaration is the TypeScript form of both, and the files read it as the forms they stand
+// for. `export = name` is an export named `export=`, which `import a = require()` binds.
+
+/**
+ The name `export = name` gives its export, which no `export` statement can write.
+ */
+export const EXPORT_ASSIGNMENT = 'export=';
+
+/**
+ What an import-equals declaration of a required module binds, in place of an imported name: the whole module, or the
+ value of its `export =` when it has one.
+ */
+export const REQUIRE_FORM = '=';
 
 /**
  The names an entity name of an import-equals declaration reads through.
@@ -83,7 +95,7 @@ export function gatherImportEquals({ declaration, }: { readonly declaration: Tre
           {
             kind: 'import',
             specifier,
-            imported: '*',
+            imported: REQUIRE_FORM,
           },
         ],],
       };
@@ -106,4 +118,38 @@ export function gatherImportEquals({ declaration, }: { readonly declaration: Tre
     };
 }
 
-//endregion What an import-equals declaration adds
+/**
+ What an export assignment adds: an export of the name it writes.
+
+ @param declaration - export assignment
+
+ @returns The export, none when the assignment writes something other than a name
+
+ @example
+ ```ts
+ const added = gatherExportAssignment({ declaration, },);
+ ```
+ */
+export function gatherExportAssignment({ declaration, }: { readonly declaration: TreeNode; },): Gathered {
+  /**
+   The name the assignment writes, empty for any other expression.
+   */
+  const name = identifierName({ node: nodeAt({
+    node: declaration,
+    field: 'expression',
+  },), },);
+  return (name === '')
+    ? NOTHING
+    : {
+      ...NOTHING,
+      exports: [[
+        EXPORT_ASSIGNMENT,
+        {
+          kind: 'local',
+          name,
+        },
+      ],],
+    };
+}
+
+//endregion What an import-equals declaration and an export assignment add

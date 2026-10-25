@@ -12,6 +12,10 @@ import {
   namesBoundBy,
 } from './claude-schema-blind-positions.test-fixture.ts';
 import { readsOfName, } from './claude-schema-blind-reads.test-fixture.ts';
+import {
+  EXPORT_ASSIGNMENT,
+  REQUIRE_FORM,
+} from './claude-schema-equals.test-fixture.ts';
 import { drained, } from './claude-schema-drain.test-fixture.ts';
 import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
@@ -292,7 +296,11 @@ function stepOfImporter(
       exports: [],
     };
   }
-  if ((importer.imported !== item.exported) && (importer.imported !== '*')) {
+  /**
+   Whether the import is the module as a whole: a namespace import, or the require form of an import-equals declaration.
+   */
+  const isWhole = (importer.imported === '*') || (importer.imported === REQUIRE_FORM);
+  if ((importer.imported !== item.exported) && (!isWhole)) {
     return {
       readers: [],
       exports: [],
@@ -303,7 +311,7 @@ function stepOfImporter(
    */
   const { program, } = context.facts;
   return {
-    readers: (importer.imported === '*')
+    readers: (isWhole && (item.exported !== EXPORT_ASSIGNMENT))
       ? namespaceReadersOf({
         context,
         local: importer.local,

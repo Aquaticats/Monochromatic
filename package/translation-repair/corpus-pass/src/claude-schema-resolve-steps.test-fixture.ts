@@ -1,3 +1,7 @@
+import {
+  EXPORT_ASSIGNMENT,
+  REQUIRE_FORM,
+} from './claude-schema-equals.test-fixture.ts';
 import type {
   Family,
   Resolved,
@@ -349,15 +353,30 @@ export function nameStep(
       whole,
       );
   }
+  /**
+   Whether the binding is the module as a whole: a namespace import, or the require form of an import-equals declaration.
+   */
+  const isWhole = (binding.imported === '*') || (binding.imported === REQUIRE_FORM);
   if (target === '') {
-    return (binding.imported === '*')
+    return isWhole
       ? { kind: 'outside', }
       : {
         kind: 'free',
         name: (binding.imported === 'default') ? name : binding.imported,
       };
   }
-  if (binding.imported === '*') {
+  /**
+   Whether the target module has an `export =`.
+   */
+  const hasAssignment = family.get(target,)
+    ?.exports
+    .has(EXPORT_ASSIGNMENT,)
+    ?? false;
+  /**
+   Whether the require form meets a module that has an `export =`, whose value is what the name stands for.
+   */
+  const isAssigned = (binding.imported === REQUIRE_FORM) && hasAssignment;
+  if (isWhole && (!isAssigned)) {
     return {
       kind: 'namespace',
       file: target,
@@ -370,7 +389,7 @@ export function nameStep(
       query: {
         kind: 'export',
         file: target,
-        name: binding.imported,
+        name: isAssigned ? EXPORT_ASSIGNMENT : binding.imported,
       },
     },),
   },);
