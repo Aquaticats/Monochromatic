@@ -16,7 +16,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import { footnoteDefinitionRangesOf, } from '@monochromatic-dev/translation-repair-document-structure';
+import { pageFootnoteDefinitionRangesOf, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
   footnoteInContainerSpans,
@@ -55,7 +55,7 @@ function readParagraph(
     source,
     readable: source,
     readSpans: spansOf,
-    footnotes: footnoteDefinitionRangesOf({ body: source, },),
+    footnotes: pageFootnoteDefinitionRangesOf({ body: source, },),
     range: {
       start,
       end,

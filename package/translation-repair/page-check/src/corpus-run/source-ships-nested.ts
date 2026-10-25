@@ -240,7 +240,10 @@ export function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },)
  @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
 
  @param footnotes - where the strict grammar reads a footnote definition in the whole text, which ends a footnote at a
- line that is not indented once a block of the footnote has closed its paragraph
+ line that is not indented once a block of the footnote has closed its paragraph, and at a line of raw HTML
+
+ @param pageFootnotes - where the page ends a footnote definition, which a line of raw HTML does not end; the footnotes
+ when absent
 
  @param range - where the body stands, from the start of its first line or the first character after the label
 
@@ -260,12 +263,14 @@ export function footnoteBodySpans(
     readable,
     readSpans,
     footnotes,
+    pageFootnotes = footnotes,
     range,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly readSpans: SpansReader;
     readonly footnotes: readonly TextRange[];
+    readonly pageFootnotes?: readonly TextRange[];
     readonly range: TextRange;
   },
 ): SourceSpans {
@@ -308,6 +313,16 @@ export function footnoteBodySpans(
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
     return body;
+  /**
+   Whether the page goes on with the footnote's paragraph past where a reader of the source ends the footnote, at a line
+   of raw HTML: the line after is then a lazy line on the page, where it starts a block of its own to that reader.
+   */
+  const pageGoesOn = pageFootnotes.some(function goesOn({
+    start,
+    end,
+  },): boolean {
+    return (start === footnote.start) && (end > bodyEnd);
+  },);
   if (bodyEnd >= range.end) {
     // The block ends where the footnote does, and the blocks after it are read on their own.
     return joinedSpans({
@@ -320,6 +335,7 @@ export function footnoteBodySpans(
             start: bodyEnd,
             end: readable.length,
           },
+          pageGoesOn,
         },),
       },),
     },);
@@ -345,6 +361,7 @@ export function footnoteBodySpans(
           source,
           readable,
           range: after,
+          pageGoesOn,
         },),
       },),
     },),
@@ -362,6 +379,8 @@ export function footnoteBodySpans(
  @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
 
  @param footnotes - where the strict grammar reads a footnote definition in the whole text
+
+ @param pageFootnotes - where the page ends a footnote definition; the footnotes when absent
 
  @param range - where the paragraph stands
 
@@ -385,6 +404,7 @@ export function footnoteInParagraphSpans(
     readable,
     readSpans,
     footnotes,
+    pageFootnotes = footnotes,
     range,
     split,
     end,
@@ -393,6 +413,7 @@ export function footnoteInParagraphSpans(
     readonly readable: string;
     readonly readSpans: SpansReader;
     readonly footnotes: readonly TextRange[];
+    readonly pageFootnotes?: readonly TextRange[];
     readonly range: TextRange;
     readonly split: number;
     readonly end: number;
@@ -415,6 +436,7 @@ export function footnoteInParagraphSpans(
       readable,
       readSpans,
       footnotes,
+      pageFootnotes,
       range: {
         start: footnoteBodyStart({
           source,

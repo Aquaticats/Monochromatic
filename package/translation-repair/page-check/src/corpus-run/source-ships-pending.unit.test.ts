@@ -364,7 +364,8 @@ await describe({
         },),
 
         it({
-          name: 'LEAVES A NODE THAT IS NOT A BLOCK OF THE ROOT, and one that starts where the footnote has ended',
+          name: 'TAKES A NODE THAT IS NOT A BLOCK OF THE ROOT when it starts inside the footnote, and leaves one that '
+            + 'starts where the footnote has ended',
           fn: async () => {
             const source = '[^1]: x\ny\n===\n\n注\n';
             const {
@@ -398,7 +399,7 @@ await describe({
               range: rangeOf({ node: definition, },),
               state: NOTHING_READ,
             },);
-            expect(pending.length,).toBe(2,);
+            expect(pending.length,).toBe(1,);
           },
         },),
       ],

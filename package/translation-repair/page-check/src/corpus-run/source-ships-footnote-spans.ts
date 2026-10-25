@@ -73,7 +73,10 @@ const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
  @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
 
- @param footnotes - where the strict grammar reads a footnote definition in the whole text
+ @param footnotes - where the strict grammar reads a footnote definition in the whole text, a line of raw HTML ending it
+
+ @param pageFootnotes - where the page ends a footnote definition, which the container reading follows; the footnotes
+ when absent
 
  @param pending - nodes still to read, the next one on top; the blocks the footnote reaches into are removed from it
 
@@ -104,6 +107,7 @@ export function footnoteRead(
     readable,
     readSpans,
     footnotes,
+    pageFootnotes = footnotes,
     pending,
     node,
     range,
@@ -115,6 +119,7 @@ export function footnoteRead(
     readonly readable: string;
     readonly readSpans: SpansReader;
     readonly footnotes: readonly BlockRange[];
+    readonly pageFootnotes?: readonly BlockRange[];
     readonly pending: Pending[];
     readonly node: TreeNode;
     readonly range: TextRange;
@@ -124,12 +129,18 @@ export function footnoteRead(
   },
 ): FootnoteRead {
   /**
+   Where the footnote definitions stand for this block: at the top they end where a GFM reader of the source ends them,
+   a line of raw HTML among the places; in a container they end where the page ends them, since a code span the plain
+   reading keeps across a footnote line is cut there.
+   */
+  const ranges = isRootChild ? footnotes : pageFootnotes;
+  /**
    Where a footnote definition starts inside the paragraph, or the heading made of its lines and a line of equals signs
    or hyphens, when one does on a line after its first.
    */
   const split = ((node.type === 'paragraph') || (node.type === 'heading'))
     ? footnoteStartInside({
-      footnotes,
+      footnotes: ranges,
       range,
     },)
     : NO_FOOTNOTE_INSIDE;
@@ -143,7 +154,7 @@ export function footnoteRead(
      */
     const reach = takeFootnote({
       pending,
-      footnotes,
+      footnotes: ranges,
       source,
       node,
       range: {
@@ -166,6 +177,7 @@ export function footnoteRead(
           readable,
           readSpans,
           footnotes,
+          pageFootnotes,
           range,
           split,
           end,
@@ -174,7 +186,7 @@ export function footnoteRead(
           source,
           readable,
           readSpans,
-          footnotes,
+          footnotes: pageFootnotes,
           range,
           split,
           end,
@@ -216,6 +228,7 @@ export function footnoteRead(
       readable,
       readSpans,
       footnotes,
+      pageFootnotes,
       range: opensFootnoteHere
         ? {
           start: footnoteBodyStart({

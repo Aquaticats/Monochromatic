@@ -444,6 +444,43 @@ function escapesNext(
 }
 
 /**
+ Drops an edit that repeats the one before it in a list in text order.
+
+ A block the readers reach twice, as the paragraph a footnote opens in is, puts its edit twice, and the second would
+ stop every edit after it from being made, as the edits must not overlap.
+
+ @param edits - edits in text order
+
+ @returns The edits with each run of identical ones cut to its first
+
+ @example
+ ```ts
+ const once = withoutRepeatedEdits({ edits: [{ start: 9, end: 10, replacement: '\n\n', }, { start: 9, end: 10, replacement: '\n\n', },], },);
+ ```
+ */
+function withoutRepeatedEdits({ edits, }: { readonly edits: readonly TextEdit[]; },): readonly TextEdit[] {
+  /**
+   The edits kept.
+   */
+  const kept: TextEdit[] = [];
+  /**
+   Start, end and replacement of the edit kept last, joined, which no two different edits share since the start and the end are numbers.
+   */
+  const lastKey = { value: '', };
+  for (const edit of edits) {
+    /**
+     Start, end and replacement of this edit, joined.
+     */
+    const key = `${edit.start}:${edit.end}:${edit.replacement}`;
+    if ((kept.length > 0) && (key === lastKey.value))
+      continue;
+    lastKey.value = key;
+    kept.push(edit,);
+  }
+  return kept;
+}
+
+/**
  Writes a backslash before each `{`, `}` and `<` of the text that a reader sees as text, and the other rewrites that
  are made in place.
 
@@ -519,9 +556,9 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
     );
   }
   /**
-   The edits, with the links that bare addresses a less-than sign ends become.
+   The edits, with the links that bare addresses a less-than sign ends become, in text order.
    */
-  const edits = [
+  const allEdits = [
     ...reading.edits,
     ...addresses
       .filter(function endsAtTag({ endsAtTag: ends, },): boolean {
@@ -539,6 +576,10 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
   ): number {
     return left.start - right.start;
   },);
+  /**
+   The same edits, each made once.
+   */
+  const edits = withoutRepeatedEdits({ edits: allEdits, },);
   /**
    Index of the next edit to make, the edits being in text order and not overlapping.
    */

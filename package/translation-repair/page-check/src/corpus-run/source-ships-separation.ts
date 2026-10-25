@@ -40,13 +40,15 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
 }
 
 /**
- The edit that puts a blank line between the end of a footnote and a definition line that follows it directly.
+ The edit that puts a blank line between the end of a footnote and a definition line, or a paragraph, that follows it
+ directly.
 
  THE FOOTNOTE ENDS WHERE A PARSE WITH GFM ENDS IT, and the line after it starts a block of the top: a link reference
- definition, whose destination and title are not touched. The page writes the last block of the footnote as text when it
- is raw HTML or indented code, so the line right after it would be a lazy line of the footnote's paragraph and its
- braces would be an expression. A blank line ends the paragraph, and the definition is one on the page as it is in the
- original.
+ definition, whose destination and title are not touched, or, where the page goes on with the footnote past that end, a
+ paragraph. The page writes the last block of the footnote as text when it is raw HTML or indented code, so the line right
+ after it would be a lazy line of the footnote's paragraph and its braces would be an expression, or the backticks of a
+ code span would pair with those of the footnote. A blank line ends the paragraph, and the block is one on the page as it
+ is in the original.
 
  @param source - whole text
 
@@ -54,12 +56,15 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
 
  @param range - lines after the end of the footnote, from the line ending of the footnote's last line
 
+ @param pageGoesOn - whether the page goes on with the footnote's paragraph past that end, which a line of raw HTML makes
+ it do
+
  @returns Edit that doubles the line ending, none when a blank line stands there already or the first line after
- it is no definition
+ it is no definition, nor a paragraph where the page goes on
 
  @example
  ```ts
- const edits = separatingEdits({ source, readable, range: { start: 20, end: 30, }, },);
+ const edits = separatingEdits({ source, readable, range: { start: 20, end: 30, }, pageGoesOn: false, },);
  ```
  */
 export function separatingEdits(
@@ -67,10 +72,12 @@ export function separatingEdits(
     source,
     readable,
     range,
+    pageGoesOn,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly range: TextRange;
+    readonly pageGoesOn: boolean;
   },
 ): readonly TextEdit[] {
   /**
@@ -130,7 +137,12 @@ export function separatingEdits(
    The first of them.
    */
   const [first,] = children;
-  if (first?.type !== 'definition')
+  /**
+   Whether the block that follows is one the footnote's end must be kept from: a definition, or a paragraph where the
+   page goes on with the footnote past that end.
+   */
+  const needsSeparation = (first?.type === 'definition') || (pageGoesOn && (first?.type === 'paragraph'));
+  if (!needsSeparation)
     return [];
   return [
     {

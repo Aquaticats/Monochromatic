@@ -1,5 +1,6 @@
 import {
   footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   tableRangesOf,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
@@ -120,6 +121,10 @@ export function spansOf(
    Where the strict grammar reads a footnote definition, which ends where the plain reading's paragraph goes on.
    */
   const footnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
+  /**
+   Where the page ends a footnote definition, which a line of raw HTML does not end: the page writes it as text.
+   */
+  const pageFootnoteRanges = pageFootnoteDefinitionRangesOf({ body: readable, },);
   /**
    Stretches read as text.
    */
@@ -252,6 +257,7 @@ export function spansOf(
       readable,
       readSpans: spansOf,
       footnotes: footnoteRanges,
+      pageFootnotes: pageFootnoteRanges,
       pending,
       node,
       range,

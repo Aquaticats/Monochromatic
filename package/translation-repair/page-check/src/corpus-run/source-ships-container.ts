@@ -461,6 +461,7 @@ export function footnoteInContainerSpans(
           start: end,
           end: readable.length,
         },
+        pageGoesOn: false,
       },),
     },),
   },);
