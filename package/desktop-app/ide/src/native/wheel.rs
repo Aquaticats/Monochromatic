@@ -170,6 +170,8 @@ pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
     let Ok(mut current) = state.try_borrow_mut() else {
         return;
     };
+    // The toolkit reports `flicked` twice for one notched turn (inside its wheel branch and again at the end of the
+    // event), so the note is taken, not read: the second report finds nothing and changes nothing.
     let pending = current.wheel.pending.take();
     drop(current);
     if let Some((distance, at)) = pending

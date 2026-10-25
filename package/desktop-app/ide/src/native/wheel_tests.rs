@@ -22,6 +22,7 @@ use super::{
     AppWindow, State,
     minimap_tests::{lift, press},
     sidebar_tests::{HEADER, TEXT_LEFT},
+    waiting_tests::Waiting,
     wheel::{is_aimed, note_turn},
     wrap_tests::{open, settled},
 };
@@ -354,7 +355,6 @@ fn a_far_wheel_turn_asks_for_one_tile_at_its_end() {
     settle_tile(state);
     reset(state);
     let end = START + 100.0 * NOTCH;
-    let started = Instant::now();
     let begun = begin_turn(window, state, -100.0);
     assert!(
         is_aimed(&state.borrow()),
@@ -364,7 +364,29 @@ fn a_far_wheel_turn_asks_for_one_tile_at_its_end() {
         state.borrow().scroll_wanted.is_some(),
         "the tile of the end is wanted at once"
     );
-    step_ease(window, started, begun);
+    // The ease is stepped to its middle and held there until the worker has answered: the tile of the end must land
+    // while the ease still runs, and the clock of the test does not decide whether it does.
+    let (first, distance) = begun;
+    for tenth in 1..=5 {
+        let elapsed = Duration::from_millis(18 * tenth);
+        window.set_scroll_y(-(first - distance * eased(elapsed)));
+        update_timers_and_animations();
+    }
+    let mut waiting = Waiting::eventually();
+    while worker_counts(state)[2] == 0 {
+        waiting.step("the tile of the end did not land while the ease was still running");
+    }
+    assert!(
+        is_aimed(&state.borrow()),
+        "the tile of the end landed while the ease still ran"
+    );
+    assert!(
+        window.get_held() || window.get_drawn_offset() == -window.get_scroll_y(),
+        "the view is drawn at the landed tile's edge or inside it"
+    );
+    // The rest of the ease resumes from the middle, whatever time the wait took.
+    let resumed = Instant::now() - Duration::from_millis(90);
+    step_ease(window, resumed, begun);
     settle_tile(state);
     let [worker_tiles, _rows, applied, discarded] = worker_counts(state);
     assert_eq!(
