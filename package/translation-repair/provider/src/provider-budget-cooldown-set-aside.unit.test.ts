@@ -106,11 +106,13 @@ function budgetsOn(
     deepseek,
     xiaomi,
     writing,
+    unmetFloors,
   }: {
     readonly world: World;
     readonly deepseek: boolean;
     readonly xiaomi: boolean;
     readonly writing?: ProviderRecord<boolean>;
+    readonly unmetFloors?: (args: { readonly dry: ProviderRecord<boolean>; },) => readonly string[];
   },
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
@@ -138,6 +140,7 @@ function budgetsOn(
       }
       : {}),
     ...((writing === undefined) ? {} : { writing, }),
+    ...((unmetFloors === undefined) ? {} : { unmetFloors, }),
     now: function now(): number {
       return world.now;
     },
@@ -318,7 +321,7 @@ await describe({
         expect(setAside.length,).toBe(1,);
         expect(setAside[0],).toContain('synthetic',);
         expect(setAside[0],).toContain('entry XingZ6020',);
-        expect(setAside[0],).toContain('no other writing provider reads wet (',);
+        expect(setAside[0],).toContain('cannot meet every bench floor without synthetic: no writing provider can be asked',);
         expect(setAside[0],).toContain('deepseek dry',);
       },
     },),
@@ -348,6 +351,78 @@ await describe({
           return line.includes('sets its give-up aside',);
         },),).toBe(false,);
         expect(wetBudgets.holds().synthetic,).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'SETS THE GIVE-UP ASIDE WHILE THE PROVIDERS LEFT CANNOT MEET A BENCH FLOOR, though DeepSeek reads wet: the '
+        + 'cooldown Synthetic is held for counts, and the line names the floor',
+      fn: async ctx => {
+        const world: World = {
+          now: 1_000,
+          deepseekAvailable: true,
+        };
+        const budgets = budgetsOn({
+          world,
+          deepseek: true,
+          xiaomi: false,
+          unmetFloors: function oneTranslatorOnly({ dry, },): readonly string[] {
+            return dry.hyper ? ['translators 1 of 8 reachable, floor 2',] : [];
+          },
+        },);
+        const lines = await consoleLinesDuring({
+          run: async function refuseBesideASmallProvider(): Promise<void> {
+            budgets.beginEntry({ entryId: 'XingZ6020', },);
+            await refuseAtOnceAfterTheCooldown({
+              budgets,
+              world,
+            },);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
+        /**
+         The lines that set the give-up aside.
+         */
+        const setAside = lines.filter(function isSetAside(line,): boolean {
+          return line.includes('sets its give-up aside',);
+        },);
+        expect(setAside.length,).toBe(1,);
+        expect(setAside[0],).toContain('cannot meet every bench floor without synthetic: translators 1 of 8 reachable, floor 2',);
+        expect(setAside[0],).toContain('deepseek wet',);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE GIVE-UP IN FORCE WHILE THE PROVIDERS LEFT MEET EVERY BENCH FLOOR: the cooldown Synthetic is held '
+        + 'for counts for no wait',
+      fn: async ctx => {
+        const world: World = {
+          now: 1_000,
+          deepseekAvailable: true,
+        };
+        const budgets = budgetsOn({
+          world,
+          deepseek: true,
+          xiaomi: false,
+          unmetFloors: function everyFloorMet(): readonly string[] {
+            return [];
+          },
+        },);
+        const lines = await consoleLinesDuring({
+          run: async function refuseBesideASufficientProvider(): Promise<void> {
+            await refuseAtOnceAfterTheCooldown({
+              budgets,
+              world,
+            },);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(budgets.holds().synthetic,).toBe(0,);
+        expect(lines.some(function isSetAside(line,): boolean {
+          return line.includes('sets its give-up aside',);
+        },),).toBe(false,);
+        expect((await budgets.read({ signal: SIGNAL, },)).synthetic,).toBe(true,);
       },
     },),
 
@@ -391,7 +466,7 @@ await describe({
           return line.includes('puts its give-up back in force',);
         },);
         expect(inForce.length,).toBe(1,);
-        expect(inForce[0],).toContain('deepseek reads wet again',);
+        expect(inForce[0],).toContain('the providers left (deepseek) meet every bench floor again',);
       },
     },),
 

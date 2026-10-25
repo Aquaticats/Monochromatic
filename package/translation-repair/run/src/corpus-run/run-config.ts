@@ -30,6 +30,7 @@ import {
   foldCredentialHolds,
   readsImages,
   type ModelClient,
+  type UnmetFloors,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { RunClient, } from './run-client-contract.ts';
 import {
@@ -1071,6 +1072,11 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  @param admitClaudeAttempt - told by the Claude client before each attempt it makes, with the card and the most the
  attempt can be billed; what it throws ends that call before the attempt is sent (`configureProviders`)
 
+ @param unmetFloors - the bench floors an entry's give-up of a provider must leave met by the providers left, which the
+ budgets read (REQUIRED, so no client runs with a floor nobody chose): `unmetBenchFloors`, the seat reader's own, which
+ `run-client-create.ts` hands over. Read here from the caller because `run-seats.ts` reads this file's roster, and a
+ module cannot import what imports it
+
  @returns Ready client, routed across configured providers and counted per seat
 
  @throws {@link RunConfigError} when every provider key variable is unset or empty
@@ -1081,6 +1087,7 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
    env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'test', },
    transport,
    maxHoldMs: 1_800_000,
+   unmetFloors: unmetBenchFloors,
  },);
  ```
  */
@@ -1093,6 +1100,7 @@ export function runClientFrom(
     off,
     maxHoldMs,
     admitClaudeAttempt,
+    unmetFloors,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
@@ -1101,6 +1109,7 @@ export function runClientFrom(
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
+    readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {
   /**
@@ -1124,8 +1133,9 @@ export function runClientFrom(
     transport,
     ...((off === undefined) ? {} : { off, }),
     maxHoldMs,
-    // The budgets set an entry's give-up of a provider aside while no other provider that keeps the run going reads wet.
-    writing: RUN_WRITING_PROVIDERS,
+    // The budgets set an entry's give-up of a provider aside while the providers left cannot meet every bench floor the
+    // seat reader holds the phases to (the writing floors and the quorums).
+    unmetFloors,
     // Conditional spread keeps the hook absent instead of undefined.
     ...((admitClaudeAttempt === undefined) ? {} : { admitClaudeAttempt, }),
   },);
@@ -1243,7 +1253,8 @@ export function runClientFrom(
  every runner, so no library function or test reaches them by default.
 
  @param options - longest hold a stated wait may set, which is required: the runner's hard cap, or the probe bound
- where its command has none; and the payload checkpoint, when the runner keeps one
+ where its command has none; the payload checkpoint, when the runner keeps one; and the bench floors an entry's give-up
+ of a provider must leave met (`unmetFloors` of {@link runClientFrom})
 
  @returns Ready client, routed across configured providers and counted per seat
 
@@ -1251,7 +1262,7 @@ export function runClientFrom(
 
  @example
  ```ts
- const client = createRunClient({ maxHoldMs: 25_200_000, },);
+ const client = createRunClient({ maxHoldMs: 25_200_000, unmetFloors: unmetBenchFloors, },);
  ```
  */
 export function createRunClient(
@@ -1259,6 +1270,7 @@ export function createRunClient(
     readonly promptPayloadDir?: string;
     readonly maxHoldMs: number;
     readonly passLeftMs?: () => number;
+    readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {
   return runClientFrom({

@@ -21,7 +21,10 @@ import {
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
-import { createRefusalHolds, } from '../dist/final/node/index.mjs';
+import {
+  createRefusalHolds,
+  writingProviderFloor,
+} from '../dist/final/node/index.mjs';
 import { dryExcept, } from './dry-except.test-fixture.ts';
 
 /**
@@ -71,7 +74,7 @@ function holdsOnAClock(
   const refusals = createRefusalHolds({
     now: () => clock.now,
     l: levelCapturingLogger({ lines, },),
-    ...((writing === undefined) ? {} : { writing, }),
+    ...((writing === undefined) ? {} : { unmetFloors: writingProviderFloor({ writing, },), }),
   },);
   refusals.noteReading({ dry: dryExcept({ wet, },), },);
   return {
@@ -118,7 +121,7 @@ await describe({
         expect(lines,).toEqual([
           `warn [hold] synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between; `
             + `entry CatEntry1 stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends, `
-            + 'unless it is the only writing provider not dry',
+            + 'unless the providers left cannot meet every bench floor without it',
         ],);
       },
     },),
@@ -352,12 +355,12 @@ await describe({
         expect(asideLines.length,).toBe(2,);
         expect(asideLines[0],).toContain('warn [reconsider] synthetic: entry CatEntry6 sets its give-up aside',);
         expect(asideLines[0],).toContain(
-          'no other writing provider reads wet (neuralwatt dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, '
-            + 'hyper dry, openrouter dry)',
+          'the providers left (neuralwatt dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, hyper dry, '
+            + 'openrouter dry) cannot meet every bench floor without synthetic: no writing provider can be asked',
         );
         expect(asideLines[1],).toBe(
-          'info [reconsider] synthetic: entry CatEntry6 puts its give-up back in force, because neuralwatt reads wet '
-            + 'again, so synthetic stays unreachable until the entry ends',
+          'info [reconsider] synthetic: entry CatEntry6 puts its give-up back in force, because the providers left '
+            + '(neuralwatt) meet every bench floor again, so synthetic stays unreachable until the entry ends',
         );
       },
     },),

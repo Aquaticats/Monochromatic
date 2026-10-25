@@ -13,6 +13,11 @@
  every provider dry and end the run for a provider that would serve again after its cooldown, so the cooldown is waited
  out as before and the run is not ended.
 
+ The budgets here are given no floor source, so any wet writing provider is an alternative: the cases pin the marks (the
+ give-up, a stated return, a served call, a second entry) and not which providers can hold a give-up in force. That is
+ the run client's, with the bench floors it hands the budgets, and its cases are in
+ `run-seats-cooldown-floors.unit.test.ts`.
+
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
  @module

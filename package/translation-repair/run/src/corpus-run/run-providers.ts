@@ -27,6 +27,7 @@ import {
   type OpenRouterClient,
   type ProviderBudgetsWithStates,
   type ModelClient,
+  type UnmetFloors,
   type XiaomiClient,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
@@ -158,7 +159,11 @@ export type ConfiguredProviders = {
  hands it here, since the client retries inside one call. Absent in a pass, whose Claude client then tells nobody
 
  @param writing - the providers whose wet reading keeps the run going, which the budgets read to decide whether an
- entry's give-up of a provider holds or is set aside (`RUN_WRITING_PROVIDERS`); every provider counts where absent
+ entry's give-up of a provider holds or is set aside where no `unmetFloors` is given; every provider counts where absent
+
+ @param unmetFloors - the bench floors the providers left must meet for an entry's give-up of a provider to hold, which
+ the budgets read to decide whether it holds or is set aside (`unmetBenchFloors`, the seat reader's own floors); absent
+ where the caller knows no roster
 
  @returns Clients present per key, plus the budgets
 
@@ -181,6 +186,7 @@ export function configureProviders(
     maxHoldMs,
     admitClaudeAttempt,
     writing,
+    unmetFloors,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
@@ -188,6 +194,7 @@ export function configureProviders(
     readonly maxHoldMs: number;
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
     readonly writing?: ProviderRecord<boolean>;
+    readonly unmetFloors?: UnmetFloors;
   },
 ): ConfiguredProviders {
   /**
@@ -452,6 +459,8 @@ export function configureProviders(
     maxHoldMs,
     // Conditional spread keeps the roster absent where the caller has none, so every provider counts.
     ...((writing === undefined) ? {} : { writing, }),
+    // Conditional spread keeps the floors absent where the caller has none, so a wet writing provider is enough.
+    ...((unmetFloors === undefined) ? {} : { unmetFloors, }),
     heldOut: function credentialRefused(provider,): boolean {
       return credentialHolds.isHeld({ provider, },);
     },

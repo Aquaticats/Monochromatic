@@ -13,39 +13,87 @@ import type { WritingReach, } from './budget-routing.ts';
 //region Provider budget give-up aside
 // WHEN AN ENTRY'S GIVE-UP OF A PROVIDER IS SET ASIDE, split out of `provider-budget-refusal-holds.ts`.
 //
-// GIVING A PROVIDER'S COOLDOWNS UP NARROWS WHERE A CALL MAY GO; IT MUST NEVER BE THE CAUSE OF A RUN ENDING (the lead's
-// ruling of 2026-10-25, open to the owner's veto; the owner's rule is that a run always ships). A given-up provider
-// reads dry for the rest of the entry, and when it was the only writing provider not dry that leaves every provider dry:
-// the router and the seat reader raise `EveryProviderDryError`, which ends the run, for a provider that would serve
-// again after its cooldown. So the give-up holds only while another provider that keeps the run going reads wet.
-// Without one, the give-up is SET ASIDE: the provider's cooldown is waited out as before and the provider is asked
+// GIVING A PROVIDER'S COOLDOWNS UP NARROWS WHERE A CALL MAY GO; IT MUST NEVER COST THE ENTRY ANYTHING THAT WAITING WOULD
+// HAVE SAVED (the lead's rulings of 2026-10-25, open to the owner's veto; the owner's rule is that a run always ships).
+// A given-up provider reads dry for the rest of the entry. When the providers left (not dry, not held, not given up)
+// cannot meet every bench floor the entry's stages need, that reading costs the entry its benches: round 2 found the
+// run ended by `EveryProviderDryError` where the given-up provider was the only one not dry, and round 3 found the
+// entry ended by `WritingBenchUnreachableError` where a wet provider was too small to lift a writing bench (DeepSeek
+// serves one of eight translators where the floor is two). So the give-up holds only while the providers left CAN meet
+// every floor. Otherwise it is SET ASIDE: the provider's cooldown is waited out as before and the provider is asked
 // again, whatever it did after the last cooldown.
 //
-// "ANOTHER PROVIDER THAT KEEPS THE RUN GOING" IS A WRITING PROVIDER (`WritingReach`) that reads wet by its meter, is not
-// held by a refusal or a refused credential or a payment refusal, and is not itself given up. A wet provider that
-// writes nothing (Xiaomi, whose one seat is a checker) is no alternative, as it is none against "every provider dry".
-// A provider given up with the first one counts as dry here, since the give-up would otherwise keep both out and leave
-// no provider to ask.
+// "EVERY BENCH FLOOR THE ENTRY NEEDS" IS THE RUN'S, NOT THIS PACKAGE'S. This package knows no roster, so the floors come
+// in as `UnmetFloors`: given the dryness a reading would have with only the providers left wet, it names each bench
+// floor that would stay unmet, the writing floors and the judging quorums, counted by the seat reader's own helpers
+// (`run-seats-give-up-floors.ts`). A caller that knows no roster gets the floor of the round-2 ruling
+// (`writingProviderFloor`): some writing provider (`WritingReach`) can still be asked. A provider given up with the
+// first one counts as unavailable here, since the give-up would otherwise keep both out and leave no provider to ask.
 //
 // THE DECISION IS THE BUDGET LAYER'S, TAKEN FROM THE LAST METER READING AND THE HOLDS AS THEY STAND NOW, so the router
 // and the seat reader, which read only the dryness and the holds, change nothing: with the give-up set aside the
 // provider reads dry while its cooldown runs and wet after it, and its hold counts for a wait. The give-up comes back
-// in force the moment another writing provider reads wet, and goes aside again if that provider goes dry or is held.
+// in force the moment the providers left meet every floor, and goes aside again if one of them goes dry or is held.
 // Before any reading nothing is known of the others, so the give-up is set aside.
 //
 // WHEN THE GIVE-UP IS SET ASIDE WHILE A CALL FOR A MODEL ONLY THE GIVEN-UP PROVIDER SERVES IS ROUTED, nothing here
 // changes the call: the provider reads dry during its cooldown, so the router ends that call as
 // `NoProviderForModelError` with no request sent, which the stage reads as that seat unreachable and not as the end of
-// the run (`attemptStageCall`). This module decides only the one question: is another writing provider wet?
+// the run (`attemptStageCall`). This module decides only the one question: do the providers left meet every floor?
+
+/**
+ Names the bench floors the entry's stages need that would stay unmet if only some providers were asked.
+
+ PURE: the same dryness gives the same clauses, since the decision may ask it again at every read of the budgets.
+
+ @param dry - per provider, whether it cannot be asked in the view under question
+
+ @returns One clause per bench floor that stays unmet, as the `JUDGE SEATS` lines word it; none when every floor is met
+
+ @example
+ ```ts
+ const unmetFloors: UnmetFloors = function unmetFloors({ dry, }) {
+   return dry.hyper ? ['translators 1 of 8 reachable, floor 2',] : [];
+ };
+ ```
+ */
+export type UnmetFloors = (args: { readonly dry: ProviderRecord<boolean>; },) => readonly string[];
+
+/**
+ The clause of a floor that no writing provider can be asked.
+ */
+const NO_WRITING_PROVIDER_LEFT = 'no writing provider can be asked';
+
+/**
+ The floor of a caller that knows no roster of benches: some writing provider can still be asked.
+
+ @param writing - the providers whose wet reading keeps the run going
+
+ @returns A floor source that finds the one floor unmet while every writing provider is dry
+
+ @example
+ ```ts
+ const unmetFloors = writingProviderFloor({ writing: EVERY_PROVIDER_COUNTS, },);
+ ```
+ */
+export function writingProviderFloor({ writing, }: { readonly writing: WritingReach; },): UnmetFloors {
+  return function noWritingProviderLeft({ dry, },): readonly string[] {
+    return PROVIDER_ORDER.some(function canWrite(provider,): boolean {
+      return writing[provider] && (!dry[provider]);
+    },)
+      ? []
+      : [NO_WRITING_PROVIDER_LEFT,];
+  };
+}
 
 /**
  What the give-up decision needs of the refusal holds around it.
  */
 type AsideInputs = {
   /**
-   The providers whose wet reading keeps the run going.
+   The bench floors the providers left must meet.
    */
-  readonly writing: WritingReach;
+  readonly unmetFloors: UnmetFloors;
 
   /**
    The providers the entry has given up.
@@ -73,7 +121,7 @@ type AsideInputs = {
 
  @example
  ```ts
- const aside: GiveUpAside = createGiveUpAside({ writing, given, left, entryWords, l, },);
+ const aside: GiveUpAside = createGiveUpAside({ unmetFloors, given, left, entryWords, l, },);
  ```
  */
 export type GiveUpAside = {
@@ -95,7 +143,7 @@ export type GiveUpAside = {
   readonly reconsider: () => void;
 
   /**
-   Whether the give-ups are set aside now: some provider is given up, and no other writing provider reads wet.
+   Whether the give-ups are set aside now: some provider is given up, and the providers left cannot meet every floor.
 
    @returns Whether a given-up provider is to be waited for and asked as before
    */
@@ -142,7 +190,7 @@ function signatureOf({ names, }: { readonly names: readonly ProviderName[]; },):
 /**
  Builds the give-up decision of one budget layer.
 
- @param writing - the providers whose wet reading keeps the run going
+ @param unmetFloors - the bench floors the providers left must meet
 
  @param given - the providers the entry has given up, read live
 
@@ -152,16 +200,16 @@ function signatureOf({ names, }: { readonly names: readonly ProviderName[]; },):
 
  @param l - logger the decision is written to
 
- @returns A decision that sets every give-up aside until a reading finds another writing provider wet
+ @returns A decision that sets every give-up aside until a reading finds the providers left meeting every floor
 
  @example
  ```ts
- const aside = createGiveUpAside({ writing, given, left, entryWords, l, },);
+ const aside = createGiveUpAside({ unmetFloors, given, left, entryWords, l, },);
  ```
  */
 export function createGiveUpAside(
   {
-    writing,
+    unmetFloors,
     given,
     left,
     entryWords,
@@ -179,51 +227,76 @@ export function createGiveUpAside(
   const logged: { names: readonly ProviderName[]; } = { names: [], };
 
   /**
-   The writing providers that read wet and that nothing else keeps out, in spending order.
+   The providers a call can still go to: not given up, not dry by the last reading, not held by a refusal.
 
-   @returns Providers a call can still go to that keep the run going
+   @returns The providers left, in spending order
    */
-  function wetAlternatives(): readonly ProviderName[] {
-    return PROVIDER_ORDER.filter(function isAlternative(provider,): boolean {
-      return writing[provider]
-        && (!given.has(provider,))
+  function providersLeft(): readonly ProviderName[] {
+    return PROVIDER_ORDER.filter(function isLeft(provider,): boolean {
+      return (!given.has(provider,))
         && (!reading.dry[provider])
         && (left({ provider, },) === 0);
     },);
   }
 
   /**
-   Whether the give-ups are set aside now.
+   The bench floors the providers left cannot meet.
 
-   @returns Whether a provider is given up and no other writing provider reads wet
+   @returns One clause per unmet floor; none when the providers left meet every floor
    */
-  function isAside(): boolean {
+  function unmet(): readonly string[] {
     /**
-     The writing providers a call can still go to.
+     The providers a call can still go to.
      */
-    const alternatives = wetAlternatives();
-    return (given.size > 0) && (alternatives.length === 0);
+    const remaining = providersLeft();
+    return unmetFloors({
+      dry: providerRecord({
+        of: function dryUnlessLeft(provider,): boolean {
+          return !remaining.includes(provider,);
+        },
+      },),
+    },);
   }
 
   /**
-   How each other writing provider reads, for the line that sets a give-up aside.
+   Whether the give-ups are set aside now.
 
-   @returns One clause per writing provider that is not given up
+   @returns Whether a provider is given up and the providers left cannot meet every floor
+   */
+  function isAside(): boolean {
+    // Nothing is weighed for an entry that has given no provider up, which is nearly always.
+    if (given.size === 0)
+      return false;
+    /**
+     The bench floors the providers left cannot meet.
+     */
+    const clauses = unmet();
+    return clauses.length > 0;
+  }
+
+  /**
+   How each provider that is not given up reads, for the line that sets a give-up aside.
+
+   @returns One clause per provider that is not given up
    */
   function othersWords(): readonly string[] {
     /**
-     The writing providers that are not given up.
+     The providers a call can still go to.
      */
-    const others = PROVIDER_ORDER.filter(function isOther(provider,): boolean {
-      return writing[provider] && (!given.has(provider,));
-    },);
-    return others.map(function wordOf(provider,): string {
-      /**
-       How long its refusal still holds it out.
-       */
-      const heldMs = left({ provider, },);
-      return (heldMs > 0) ? `${provider} held for ${String(heldMs,)}ms` : `${provider} dry`;
-    },);
+    const remaining = providersLeft();
+    return PROVIDER_ORDER
+      .filter(function isOther(provider,): boolean {
+        return !given.has(provider,);
+      },)
+      .map(function wordOf(provider,): string {
+        /**
+         How long its refusal still holds it out.
+         */
+        const heldMs = left({ provider, },);
+        if (heldMs > 0)
+          return `${provider} held for ${String(heldMs,)}ms`;
+        return remaining.includes(provider,) ? `${provider} wet` : `${provider} dry`;
+      },);
   }
 
   /**
@@ -273,24 +346,30 @@ export function createGiveUpAside(
     logged.names = names;
     if (names.length > 0) {
       /**
-       How each other writing provider reads.
+       How each provider that is not given up reads.
        */
       const others = othersWords();
+      /**
+       The bench floors the providers left cannot meet.
+       */
+      const clauses = unmet();
       rl.warn(
-        `${names.join(', ',)}: ${entry} sets its give-up aside and waits out the cooldowns of ${names.join(', ',)} `
-          + `as before, because no other writing provider reads wet (${others.join(', ',)}), and reading `
-          + `${names.join(', ',)} dry would end the run for a provider that serves again after its cooldown`,
+        `${names.join(', ',)}: ${entry} sets its give-up aside and waits out the cooldowns of ${names.join(', ',)} as `
+          + `before, because the providers left (${others.join(', ',)}) cannot meet every bench floor without `
+          + `${names.join(', ',)}: ${clauses.join('; ',)}; reading ${names.join(', ',)} dry would cost the entry what `
+          + 'waiting would have saved',
       );
       return;
     }
     if (before.length > 0) {
       /**
-       The writing providers that read wet again.
+       The providers left, which meet every floor again.
        */
-      const wet = wetAlternatives();
+      const wet = providersLeft();
       rl.info(
-        `${before.join(', ',)}: ${entry} puts its give-up back in force, because ${wet.join(', ',)} reads wet `
-          + `again, so ${before.join(', ',)} stays unreachable until the entry ends`,
+        `${before.join(', ',)}: ${entry} puts its give-up back in force, because the providers left `
+          + `(${wet.join(', ',)}) meet every bench floor again, so ${before.join(', ',)} stays `
+          + 'unreachable until the entry ends',
       );
     }
   }

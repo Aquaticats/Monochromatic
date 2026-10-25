@@ -36,12 +36,17 @@ import {
   beforeAnyReading,
   createWaitCap,
   HoldBoundError,
+  meterLevelsOf,
   meterStatesOf,
   neuralwattReturnOf,
   notHeldOut,
   systemClock,
 } from './provider-budget-defaults.ts';
 import { createPaymentMarks, } from './provider-budget-payment-marks.ts';
+import {
+  type UnmetFloors,
+  writingProviderFloor,
+} from './provider-budget-give-up-aside.ts';
 import { createRefusalHolds, } from './provider-budget-refusal-holds.ts';
 
 //region Provider budget
@@ -332,9 +337,14 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
  credential; the `METERS` line prints such a provider as dry. It changes only the printed word, never the routed view
  or the states the budgets report (default: no provider is held out)
 
- @param writing - the providers whose wet reading keeps the run going (`WritingReach`), which decide whether an entry's
- give-up of a provider is set aside: with no other such provider wet, the given-up provider is waited for and asked
- again, since reading it dry would end the run (default: every provider counts)
+ @param writing - the providers whose wet reading keeps the run going (`WritingReach`), which are the floor of an entry's
+ give-up of a provider where no `unmetFloors` is given: with no such provider left to ask, the given-up provider is
+ waited for and asked again, since reading it dry would end the run (default: every provider counts)
+
+ @param unmetFloors - the bench floors the entry's stages need, which an entry's give-up of a provider must leave met by
+ the providers left (not dry, not held, not given up): with any floor unmet, the give-up is set aside, and the
+ given-up provider is waited for and asked again, since reading it dry would cost the entry what waiting would have
+ saved (default: some writing provider of `writing` can be asked)
 
  @param now - clock, injectable so tests do not wait; `monotonicMs` by
  default, since a hold read on the system clock lasted an hour longer when
@@ -371,6 +381,7 @@ export function createProviderBudgets(
     maxHoldMs,
     heldOut = notHeldOut,
     writing = EVERY_PROVIDER_COUNTS,
+    unmetFloors = writingProviderFloor({ writing, },),
     now = monotonicMs,
     wallNow = systemClock,
     returnMarginMs = NEURALWATT_RETURN_MARGIN_MS,
@@ -389,6 +400,7 @@ export function createProviderBudgets(
     readonly maxHoldMs: number;
     readonly heldOut?: (provider: ProviderName,) => boolean;
     readonly writing?: WritingReach;
+    readonly unmetFloors?: UnmetFloors;
     readonly now?: () => number;
     readonly wallNow?: () => Date;
     readonly returnMarginMs?: number;
@@ -419,7 +431,7 @@ export function createProviderBudgets(
   const refusals = createRefusalHolds({
     now,
     l,
-    writing,
+    unmetFloors,
   },);
 
   /**
@@ -508,16 +520,7 @@ export function createProviderBudgets(
     /**
      What every meter reported, joined as `paidOut` compares it with the level at a payment refusal.
      */
-    const levelsOf = providerRecord({
-      of: function levelOf(provider,): string {
-        /**
-         This provider's meter record.
-         */
-        const meter = meters[provider];
-        return meter.fields
-          .join(' ',);
-      },
-    },);
+    const levelsOf = meterLevelsOf({ meters, },);
     /**
      Whether a refused credential or a payment refusal keeps a provider out, whatever its meter says.
 
@@ -713,7 +716,8 @@ export function createProviderBudgets(
 
       // A hold can only keep a provider OUT, never bring one back in. So can the entry's giving a provider up, which
       // ends with the entry and lets the router and the seat reader move on to the providers that answer, and which is set
-      // aside while no other writing provider reads wet, so that giving a provider up never leaves every provider dry.
+      // aside while the providers left cannot meet every bench floor, so that giving a provider up never costs the entry
+      // what waiting would have saved.
       return providerRecord({
         of: function dryOrHeld(provider,): boolean {
           return view[provider]
@@ -826,8 +830,8 @@ export function createProviderBudgets(
       );
       // A COOLDOWN IS THE HOLD THE LAYER GUESSED ALONE: a meter that did not say wet and a refusal that named no return.
       // A refusal right after one ran out, with nothing served in between, is the answer the wait bought, so the entry
-      // stops waiting for this provider's cooldowns and treats it as unreachable until the entry ends, unless no other
-      // writing provider reads wet (`provider-budget-give-up-aside.ts`).
+      // stops waiting for this provider's cooldowns and treats it as unreachable until the entry ends, unless the providers
+      // left cannot meet every bench floor without it (`provider-budget-give-up-aside.ts`).
       refusals.hold({
         provider,
         holdMs,

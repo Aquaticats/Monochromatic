@@ -1,11 +1,13 @@
 /**
- Tests that the roster of writing providers `configureProviders` is handed reaches the budgets it builds, where it
- decides whether an entry's give-up of a provider holds or is set aside.
+ Tests that the roster of writing providers and the bench floors `configureProviders` is handed reach the budgets it
+ builds, where they decide whether an entry's give-up of a provider holds or is set aside.
 
  Xiaomi's meter always reads wet and its one seat is a checker, so with the roster that leaves Xiaomi out, Synthetic
  given up beside a wet Xiaomi is still the only writing provider not dry and its cooldown is waited out; with no roster
- every provider counts, Xiaomi is an alternative, and the give-up holds. The meters of every other provider are refused
- by the transport, and the budgets run on a fake clock, so no case waits and no provider is asked.
+ every provider counts, Xiaomi is an alternative, and the give-up holds. A floor source that finds a bench floor unmet
+ by the providers left sets the give-up aside whatever the roster says, and is asked about the providers left alone.
+ The meters of every other provider are refused by the transport, and the budgets run on a fake clock, so no case
+ waits and no provider is asked.
 
  Fixtures are cat-themed invention.
 
@@ -59,9 +61,11 @@ const PAST_COOLDOWN_MS = COOLDOWN_MS + 12_000;
 async function waitedAfterTwoRefusals(
   {
     writing,
+    unmetFloors,
     sinon,
   }: {
     readonly writing?: ProviderRecord<boolean>;
+    readonly unmetFloors?: (args: { readonly dry: ProviderRecord<boolean>; },) => readonly string[];
     readonly sinon: DisposableSandbox;
   },
 ): Promise<number> {
@@ -98,6 +102,7 @@ async function waitedAfterTwoRefusals(
     },
     off: [],
     ...((writing === undefined) ? {} : { writing, }),
+    ...((unmetFloors === undefined) ? {} : { unmetFloors, }),
   },);
   await providers.budgets.markRefused({
     provider: 'synthetic',
@@ -112,7 +117,7 @@ async function waitedAfterTwoRefusals(
 }
 
 await describe({
-  name: `${configureProviders.name} writing roster`,
+  name: `${configureProviders.name} writing roster and bench floors`,
   // One case at a time: each captures the console and fakes the clock, which are one for the whole process.
   concurrency: 1,
   children: [
@@ -152,6 +157,70 @@ await describe({
         await consoleLinesDuring({
           run: async function refuseBesideAChecker(): Promise<void> {
             said.waitedMs = await waitedAfterTwoRefusals({ sinon: ctx.sinon, },);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(said.waitedMs,).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'HANDS THE FLOORS TO THE BUDGETS: with a bench floor unmet by the providers left, a wet Xiaomi does not hold '
+        + 'the give-up of Synthetic, whose cooldown is waited out, and the floor source is asked about Xiaomi alone',
+      fn: async ctx => {
+        /**
+         What the budgets said of Synthetic's hold, and the last view the floor source was asked about.
+         */
+        const said: { waitedMs: number; lastView: ProviderRecord<boolean>; } = {
+          waitedMs: -1,
+          lastView: providerRecord({
+            of: function unasked(): boolean {
+              return false;
+            },
+          },),
+        };
+        await consoleLinesDuring({
+          run: async function refuseBesideACheckerWithAFloor(): Promise<void> {
+            said.waitedMs = await waitedAfterTwoRefusals({
+              sinon: ctx.sinon,
+              unmetFloors: function aFloorStaysUnmet({ dry, },): readonly string[] {
+                said.lastView = dry;
+                return ['translators 0 of 8 reachable, floor 2',];
+              },
+            },);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(said.waitedMs,).toBe(COOLDOWN_MS,);
+        expect(said.lastView,).toEqual(providerRecord({
+          of: function dryExceptXiaomi(provider,): boolean {
+            return provider !== 'xiaomi';
+          },
+        },),);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE GIVE-UP WHEN THE FLOORS ARE MET: a floor source that finds nothing unmet leaves the cooldown of '
+        + 'the given-up Synthetic counting for no wait, whatever the roster says',
+      fn: async ctx => {
+        /**
+         What the budgets said of Synthetic's hold.
+         */
+        const said = { waitedMs: -1, };
+        await consoleLinesDuring({
+          run: async function refuseBesideACheckerWithNoFloor(): Promise<void> {
+            said.waitedMs = await waitedAfterTwoRefusals({
+              sinon: ctx.sinon,
+              writing: providerRecord({
+                of: function writesExceptXiaomi(provider,): boolean {
+                  return provider !== 'xiaomi';
+                },
+              },),
+              unmetFloors: function everyFloorMet(): readonly string[] {
+                return [];
+              },
+            },);
           },
           sinon: ctx.sinon,
         },);

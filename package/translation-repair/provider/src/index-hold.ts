@@ -58,6 +58,8 @@ export {
 export {
   createGiveUpAside,
   type GiveUpAside,
+  type UnmetFloors,
+  writingProviderFloor,
 } from './provider-budget-give-up-aside.ts';
 export {
   createRefusalHolds,

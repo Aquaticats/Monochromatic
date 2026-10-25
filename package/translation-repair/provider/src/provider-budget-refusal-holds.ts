@@ -7,11 +7,12 @@ import {
   type ProviderRecord,
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import { EVERY_PROVIDER_COUNTS, } from './budget-routing.ts';
 import {
-  EVERY_PROVIDER_COUNTS,
-  type WritingReach,
-} from './budget-routing.ts';
-import { createGiveUpAside, } from './provider-budget-give-up-aside.ts';
+  createGiveUpAside,
+  type UnmetFloors,
+  writingProviderFloor,
+} from './provider-budget-give-up-aside.ts';
 
 //region Provider budget refusal holds
 // THE HOLDS A REFUSAL SETS ON A PROVIDER, AND THE PROVIDERS AN ENTRY HAS GIVEN UP WAITING FOR, split out of
@@ -45,10 +46,11 @@ import { createGiveUpAside, } from './provider-budget-give-up-aside.ts';
 // NeuralWatt day start) and a payment refusal are statements about the provider and keep their handling, so the holds
 // of such a refusal are never marked as cooldowns and a mark never cuts them.
 //
-// A GIVE-UP NEVER ENDS THE RUN (the lead's ruling of 2026-10-25, open to the owner's veto). It holds only while another
-// writing provider reads wet; when the given-up provider is the only one not dry, the give-up is set aside and its
-// cooldown is waited out and the provider asked again, as before the give-up existed (`provider-budget-give-up-aside.ts`).
-// The decision is taken from each meter reading (`noteReading`) and from the holds as they stand.
+// A GIVE-UP NEVER COSTS THE ENTRY WHAT WAITING WOULD HAVE SAVED (the lead's rulings of 2026-10-25, open to the owner's
+// veto). It holds only while the providers left (not dry, not held, not given up) can meet every bench floor the
+// entry's stages need; otherwise the give-up is set aside and its cooldown is waited out and the provider asked again,
+// as before the give-up existed (`provider-budget-give-up-aside.ts`). The decision is taken from each meter reading
+// (`noteReading`) and from the holds as they stand.
 
 /**
  The last hold a refusal set on one provider.
@@ -111,8 +113,8 @@ export type RefusalHolds = {
 
   /**
    How much of the provider's hold a caller is to wait for: all of it, except a cooldown the entry gave up on while
-   another writing provider reads wet, whose end is no return since the provider refused at once after the last one.
-   A hold that names its own return keeps counting, and so does every hold once the give-up is set aside.
+   the providers left meet every bench floor, whose end is no return since the provider refused at once after the last
+   one. A hold that names its own return keeps counting, and so does every hold once the give-up is set aside.
 
    @param provider - provider to check
 
@@ -122,7 +124,7 @@ export type RefusalHolds = {
 
   /**
    Whether a refusal keeps a provider out of routing: a hold is running, or the entry has given the provider up and
-   another writing provider reads wet.
+   the providers left meet every bench floor.
 
    @param provider - provider to check
 
@@ -205,8 +207,8 @@ function neverServed(): number {
 
  @param l - logger the decision to give a provider up, and the end of that decision, are written to
 
- @param writing - the providers whose wet reading keeps the run going, which decide whether a give-up holds or is set
- aside (default: every provider counts)
+ @param unmetFloors - the bench floors the providers left must meet for a give-up to hold (default: some provider can
+ still be asked, whatever it writes)
 
  @returns Holds that give no provider up until a refusal right after a cooldown does
 
@@ -219,11 +221,11 @@ export function createRefusalHolds(
   {
     now,
     l,
-    writing = EVERY_PROVIDER_COUNTS,
+    unmetFloors = writingProviderFloor({ writing: EVERY_PROVIDER_COUNTS, },),
   }: {
     readonly now: () => number;
     readonly l: Logger;
-    readonly writing?: WritingReach;
+    readonly unmetFloors?: UnmetFloors;
   },
 ): RefusalHolds {
   /**
@@ -282,10 +284,10 @@ export function createRefusalHolds(
   }
 
   /**
-   The decision whether the providers given up are set aside, for want of another writing provider that reads wet.
+   The decision whether the providers given up are set aside, for want of providers left that meet every bench floor.
    */
   const aside = createGiveUpAside({
-    writing,
+    unmetFloors,
     given,
     left,
     entryWords,
@@ -344,11 +346,11 @@ export function createRefusalHolds(
       rl.warn(
         `${provider}: refused again right after its ${String(earlier.holdMs,)}ms refusal cooldown ran out, with `
           + `nothing served in between; ${entryWords()} `
-          + `stops waiting for ${provider}'s cooldowns and treats it as unreachable until the entry ends, unless it is `
-          + 'the only writing provider not dry',
+          + `stops waiting for ${provider}'s cooldowns and treats it as unreachable until the entry ends, unless the `
+          + 'providers left cannot meet every bench floor without it',
       );
-      // THE GIVE-UP IS WEIGHED AT ONCE against the last reading, so a provider given up while it is the only one not
-      // dry is set aside before the next read of the dryness.
+      // THE GIVE-UP IS WEIGHED AT ONCE against the last reading, so a provider given up while the providers left cannot
+      // meet every bench floor is set aside before the next read of the dryness.
       aside.reconsider();
     },
 

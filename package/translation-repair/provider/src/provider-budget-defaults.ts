@@ -174,6 +174,34 @@ export function meterStatesOf(
 }
 
 /**
+ Each provider's meter level in one reading, the numbers it reported joined by spaces: what a payment refusal compares a
+ later reading against.
+
+ @param meters - every meter's record, keyed by provider
+
+ @returns The joined numbers of each meter
+
+ @example
+ ```ts
+ const levels = meterLevelsOf({ meters, },);
+ ```
+ */
+export function meterLevelsOf(
+  { meters, }: { readonly meters: ProviderRecord<{ readonly fields: readonly string[]; }>; },
+): ProviderRecord<string> {
+  return providerRecord({
+    of: function levelOf(provider,): string {
+      /**
+       This provider's meter record.
+       */
+      const meter = meters[provider];
+      return meter.fields
+        .join(' ',);
+    },
+  },);
+}
+
+/**
  What the run knows of NeuralWatt's day, without asking the client to decide it.
 
  @param neuralwatt - the NeuralWatt meter, absent where the run has no NeuralWatt key
