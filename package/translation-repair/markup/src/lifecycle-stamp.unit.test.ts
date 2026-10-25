@@ -48,7 +48,10 @@ function fixedWallClock(): Date {
   return PRINTED_AT;
 }
 
-await describe({
+/**
+ Cases of the clock time alone.
+ */
+const clockStampSuite = describe({
   name: lifecycleClockStamp.name,
   children: [
     it({
@@ -77,7 +80,10 @@ await describe({
   ],
 },);
 
-await describe({
+/**
+ Cases of the clock time and the attempt.
+ */
+const stampSuite = describe({
   name: lifecycleStamp.name,
   children: [
     it({
@@ -181,5 +187,13 @@ await describe({
         }
       },
     },),
+  ],
+},);
+
+await describe({
+  name: '',
+  children: [
+    clockStampSuite,
+    stampSuite,
   ],
 },);

@@ -183,12 +183,12 @@ await describe({
         resetRunSpend();
         using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
         expect(stopBeforeNextEntry({
-          elapsedMs: 1_000,
-          softBudgetMs: 1_000,
+          elapsedMs: ROOMY_BUDGET_MS,
+          softBudgetMs: ROOMY_BUDGET_MS,
           ceilingUsd: 20,
           wallClock: fixedWallClock,
         },),).toBe(true,);
-        expect(printed.lines,).toEqual([`SOFT budget reached after 1000ms; not starting new entries ${AT}`,],);
+        expect(printed.lines,).toEqual([`SOFT budget reached after 1000000ms; not starting new entries ${AT}`,],);
       },
     },),
     it({

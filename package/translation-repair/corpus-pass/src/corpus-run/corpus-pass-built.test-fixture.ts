@@ -164,7 +164,7 @@ function splitClockTimes({ text, }: { readonly text: string; },): {
  const times = clockTimesIn({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
  ```
  */
-export function clockTimesIn({ text, }: { readonly text: string; },): readonly string[] {
+function clockTimesIn({ text, }: { readonly text: string; },): readonly string[] {
   /**
    The instants the text carries.
    */
@@ -185,7 +185,7 @@ export function clockTimesIn({ text, }: { readonly text: string; },): readonly s
  const rest = withoutClockTimes({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
  ```
  */
-export function withoutClockTimes({ text, }: { readonly text: string; },): string {
+function withoutClockTimes({ text, }: { readonly text: string; },): string {
   /**
    The text around the fields.
    */

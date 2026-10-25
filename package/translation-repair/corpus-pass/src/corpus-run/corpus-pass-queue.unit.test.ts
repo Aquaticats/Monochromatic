@@ -312,7 +312,7 @@ await describe({
           ),
           pipelineDigest: GENERATION,
           dryStop: createPassDryStop(),
-          softBudgetMs: 1_000,
+          softBudgetMs: HANG_STOP_MS,
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),

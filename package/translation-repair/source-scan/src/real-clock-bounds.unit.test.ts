@@ -948,7 +948,7 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: CALL_CONFIG,
   },
   'slice-cache/corpus-run/pass-stop-before-next.unit.test.ts#<module>: softBudgetMs: ROOMY_BUDGET_MS': {
-    count: 9,
+    count: 12,
     bound: 'read back',
     reason: 'a budget handed to a pure decision beside the elapsed time the case gives it; no clock is read',
   },
