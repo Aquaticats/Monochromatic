@@ -28,6 +28,11 @@ export {
   type BlockDifference,
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
+export { splitFlow, } from './corpus-run/source-ships-opener-flow.ts';
+export {
+  endingAt,
+  writtenAsText,
+} from './corpus-run/source-ships-opener-text.ts';
 export {
   type ReadingDifference,
   readingDifferenceOf,

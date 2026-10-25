@@ -65,12 +65,17 @@ export function withPageOnlyStarts(
     readonly page: readonly BlockRange[];
   },
 ): readonly BlockRange[] {
+  /**
+   Starts of the page's ranges that stand outside every range of the source.
+   */
+  const outside = pageOnlyStartsOf({
+    source,
+    page,
+  },);
   return [
     ...source,
-    ...page.filter(function startsOutsideTheSource({ start, },): boolean {
-      return !source.some(function holds(range,): boolean {
-        return (start >= range.start) && (start < range.end);
-      },);
+    ...page.filter(function startsOutside({ start, },): boolean {
+      return outside.includes(start,);
     },),
   ].toSorted(function byStart(
     left,

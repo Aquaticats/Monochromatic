@@ -14,9 +14,9 @@ import { parseMarkdownMathBody, } from './parse-markdown-math.ts';
 // WHERE THE TWO READINGS OF A FOOTNOTE DISAGREE INSIDE A BLOCK QUOTE OR A LIST ITEM. The owner's two-readings ruling takes
 // the source's ranges at the top of a text and the page's inside a container and after a footnote's last block
 // (`gfm-block-ranges.ts`). A reader of plain Markdown gives only the source's reading, so a comparison of what the page
-// shows with what the source shows cannot say which is right where the ruling takes the page's. This says whether the
-// two readings differ at a place a container holds, and where each such place starts, so that a caller can tell which
-// block of the text it is in.
+// shows with what the source shows cannot say which is right where the ruling takes the page's. This says where the
+// two readings differ at a place a container holds, with the range each reading gives, so that a caller can tell which
+// blocks of the text the footnote reaches.
 
 /**
  Stretches of a text that a block quote or a list holds.
@@ -140,7 +140,10 @@ export function containerFootnoteDisagreementsOf({ body, }: { readonly body: str
     },);
   },);
   return held
-    .filter(function firstOfItsKind(range, at,): boolean {
+    .filter(function firstOfItsKind(
+      range,
+      at,
+    ): boolean {
       return held.findIndex(function alike(other,): boolean {
         return (other.start === range.start) && (other.end === range.end);
       },) === at;
@@ -151,26 +154,6 @@ export function containerFootnoteDisagreementsOf({ body, }: { readonly body: str
     ): number {
       return (left.start - right.start) || (left.end - right.end);
     },);
-}
-
-/**
- Whether the source's and the page's footnote ranges differ at a place a block quote or a list holds.
-
- @param body - text of a run, as the artifact records it
-
- @returns Whether a range one reading has and the other lacks starts inside a block quote or a list
-
- @example
- ```ts
- const undecided = footnoteRangesDifferInContainer({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
- ```
- */
-export function footnoteRangesDifferInContainer({ body, }: { readonly body: string; },): boolean {
-  /**
-   Where the two readings disagree inside a container.
-   */
-  const ranges = containerFootnoteDisagreementsOf({ body, },);
-  return ranges.length > 0;
 }
 
 //endregion Container footnote ranges

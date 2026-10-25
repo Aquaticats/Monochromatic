@@ -1573,6 +1573,10 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
+  'page-check/corpus-run/source-reading-blocks.ts#isWord': {
+    tests: 1,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-addresses.ts#addressEnd': {
     tests: 1,
     why: SCANNER,
@@ -1584,6 +1588,10 @@ const HELD_TESTS: Readonly<Record<string, {
   'page-check/corpus-run/source-ships-links.ts#destinationCharacter': {
     tests: 1,
     why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-in-code.ts#splitSpan': {
+    tests: 1,
+    why: PARSED,
   },
   'probe/corpus-run/rendering-audit-settled-buy.ts#readPage': {
     tests: 1,

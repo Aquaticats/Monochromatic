@@ -37,26 +37,6 @@ export type BlockDifference = {
 };
 
 /**
- Joins what blocks show into one account, as one block would show it.
-
- @param accounts - what each block shows
-
- @returns Accounts that show something, joined with a single space
-
- @example
- ```ts
- const joined = joinedAccounts({ accounts: ['a', '', 'b',], },); // 'a b'
- ```
- */
-function joinedAccounts({ accounts, }: { readonly accounts: readonly string[]; },): string {
-  return accounts
-    .filter(function shows(account,): boolean {
-      return account !== '';
-    },)
-    .join(' ',);
-}
-
-/**
  Whether two stretches of a text share a character.
 
  @param left - one stretch

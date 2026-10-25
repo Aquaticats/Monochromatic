@@ -148,10 +148,8 @@ await describe({
     it({
       name: 'PLACES THE WORDS OF A BLOCK WHERE THE PAGE SHOWS THEM AFTER THE QUOTE, not at the first place the same words stand',
       fn: async () => {
-        /**
-         A block quote whose footnote holds the same raw HTML tag as the block after it, so the first place the tag stands on
-         the page is inside the footnote.
-         */
+        // A block quote whose footnote holds the same raw HTML tag as the block after it, so the first place the tag stands on
+        // the page is inside the footnote.
         const quote = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
         expect(encodedDifference({ source: `${quote}\n<a href="x">\n\n<script>\n`, },).kind,).toBe('undecided',);
         expect(encodedDifference({ source: `${quote}\n<a href="x">\n\nexport to PDF\n`, },).kind,).toBe('undecided',);
@@ -168,9 +166,7 @@ await describe({
     it({
       name: 'SAYS DIFFERS FOR TEXT THE PAGE LACKS OR CHANGES BESIDE A BLOCK QUOTE IT CANNOT ASK ABOUT, in whatever blocks the page shows it',
       fn: async () => {
-        /**
-         A label with a brace, which the page writes with a backslash in the reference and not in the definition.
-         */
+        // A label with a brace, which the page writes with a backslash in the reference and not in the definition.
         expect(
           encodedDifference({ source: '- [^1]: <b>\n  [r]: u{b}\n[^a}]: x {\n\n[^a}] y\n[^1]: 注\n', },).kind,
         ).toBe('differs',);

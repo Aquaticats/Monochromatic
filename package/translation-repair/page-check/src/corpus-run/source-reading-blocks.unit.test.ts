@@ -45,7 +45,7 @@ function blockAt({ account, at, }: { readonly account: string; readonly at: numb
 }
 
 await describe({
-  name: blockDifferenceOf.name,
+  name: 'the block by block comparison of a page with its source',
   children: [
     it({
       name: 'SAYS NOTHING DIFFERS WHERE EVERY BLOCK OF THE SOURCE HAS A BLOCK OF THE PAGE THAT SHOWS THE SAME',
@@ -209,12 +209,6 @@ await describe({
         },),).toEqual({ differs: false, undecidedBlocks: 2, },);
       },
     },),
-  ],
-},);
-
-await describe({
-  name: blocksOfSource.name,
-  children: [
     it({
       name: 'GIVES WHAT EACH TOP-LEVEL BLOCK SHOWS AND WHERE IT STANDS IN THE TEXT',
       fn: async () => {
@@ -244,12 +238,6 @@ await describe({
         },),).toEqual([0, 6,],);
       },
     },),
-  ],
-},);
-
-await describe({
-  name: blocksOfPage.name,
-  children: [
     it({
       name: 'GIVES WHAT EACH TOP-LEVEL BLOCK OF THE PAGE SHOWS AFTER THE NOTE',
       fn: async () => {

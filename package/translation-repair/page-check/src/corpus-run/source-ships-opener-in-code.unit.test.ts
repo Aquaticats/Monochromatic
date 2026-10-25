@@ -76,7 +76,7 @@ const CASES: readonly (readonly [string, string])[] = [
   ],
   [
     'AN OPENER INSIDE A FENCE THAT FOLLOWS A BYTE ORDER MARK AND A FENCE LINE',
-    '﻿```\n{\n```\n<!-- a\n[a]: u\n',
+    '\uFEFF```\n{\n```\n<!-- a\n[a]: u\n',
   ],
   [
     'AN OPENER INSIDE A FENCE IN A TEXT OF WINDOWS LINE ENDINGS',
