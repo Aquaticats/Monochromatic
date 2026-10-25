@@ -544,8 +544,11 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  `translate-stage/src/translate-runoff-tie.ts`). A gate that heard fewer than two usable ballots over a standing the
  deterministic rule refused ships the slate's pick when two or more slate ballots chose it, with the finding
  `unheard-gate-ships-slate-pick`, where version 35 kept the archive
- (`consolidate/src/consolidate-ineligible-standing.ts`). A stored settlement may hold a shipped candidate where the same
- texts now keep the archive, or the archive where the same texts now ship the slate's pick. The key hashes the version,
+ (`consolidate/src/consolidate-ineligible-standing.ts`). A stored settlement may hold a candidate the fixed order shipped
+ where the same texts now keep the archive. The unheard-gate half of this version stands on no stored record: a
+ settlement made over a gate that heard fewer than two usable ballots is never stored (`consolidate/src/consolidate-persistence.ts`
+ refuses an archive-kept settlement and stores a gated one only when the gate heard `CONSOLIDATE_GATE_QUORUM` usable
+ ballots), so the bump stands on the decline rule alone (re-check 2, finding F4). The key hashes the version,
  the shape of the run and the texts, not the rule that reads the ballots, so a record written before would be served
  after. The previous number was set in the round 1 commits of the weight-floor branch; whether a record stands at 35 is
  not known, and the change cannot ride inside it, so the number moves. The translate slice version (29) moves for the
@@ -558,14 +561,22 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  version 36 kept the standing (`consolidate/src/consolidate-ineligible-standing.ts`). The lead's ruling settled by
  "Two judges must name it": a slate tied across every offered candidate (class 174) ships by preference only among
  the tied candidates two or more judges named, and otherwise the archive text stays
- (`translate-stage/src/translate-runoff-tie.ts`). A stored settlement may hold the standing where the same texts now
- ship the slate's pick, or a candidate shipped by the order where the same texts now keep the archive. The key hashes
+ (`translate-stage/src/translate-runoff-tie.ts`). A stored settlement may hold a candidate shipped by the order where the
+ same texts now keep the archive. The flawed-majority gate answer stands on no stored record, for the reason given with
+ version 36 (a settlement over an unheard gate is never stored), so the bump stands on the tie rule. The key hashes
  the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written before
  would be served after. Whether a record stands at 36 is not known (the number was set a few commits before and no
  search of a slice-cache directory was made), and the change cannot ride inside it, so the number moves. The
  translate slice version (30) moves for the tie rule; the repair slice (47) and refine (17) versions stay.
+
+ Version 38 covers the reworded sheet text a judge reads about a declined round over wording that cannot ship
+ (`adjudication/src/select-decline-consequence.ts`, re-check 2 finding F2): it contradicted itself, saying that
+ declining does not keep the wording and, in its last clause, that the wording stays. By the repository's convention a
+ change to a sheet's wording moves the version, since a stored settlement holds ballots cast under the old sentence and
+ the key hashes the version, the shape of the run and the texts, not the sheet. The translate slice version (31) moves
+ for the same sheet; the repair slice (47) and refine (17) versions stay, since neither reads this sentence.
  */
-export const CONSOLIDATE_CACHE_VERSION = 37;
+export const CONSOLIDATE_CACHE_VERSION = 38;
 
 /**
  What a line-structured slice appends to its key material.
