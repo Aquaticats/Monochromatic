@@ -60,6 +60,13 @@ const PLACE_WITHOUT_FUNCTION: NamedPlace = {
 };
 
 /**
+ Whether the type of the key a named place holds refuses a bare name: `true` where the name `mk` is no key. A place
+ that held a bare name would stand for a free name by convention alone, since a free name has no module; the type
+ holds it, so a bare name written as the key of a place is an error of the type check.
+ */
+export const BARE_NAME_IS_NO_KEY: 'mk' extends NonNullable<NamedPlace['held']> ? false : true = true;
+
+/**
  One case of the comparison between the reports and the names.
  */
 export type NamedPlaceCase = {

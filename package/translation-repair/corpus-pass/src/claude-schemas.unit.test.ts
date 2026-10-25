@@ -60,6 +60,7 @@ import {
   type NamedFlowCase,
 } from './claude-schema-named-flow-forms.test-fixture.ts';
 import {
+  BARE_NAME_IS_NO_KEY,
   NAMED_PLACE_CASES,
   type NamedPlaceCase,
 } from './claude-schema-named-place-forms.test-fixture.ts';
@@ -1079,6 +1080,14 @@ await describe({
           },);
         },
       },);
+    },),
+
+    it({
+      name: 'REFUSES A BARE NAME AS THE KEY OF A NAMED PLACE, by the type of the key, so a place stands for the report '
+        + 'of a forwarder some module declares and for no free name',
+      fn: async () => {
+        expect(BARE_NAME_IS_NO_KEY,).toBe(true,);
+      },
     },),
 
     ...NAMED_FLOW_CASES.map(function caseOfFlow(flowCase: NamedFlowCase,) {
