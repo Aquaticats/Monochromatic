@@ -40,10 +40,15 @@ import {
   passPageTitles,
 } from '../../dist/final/node/index.mjs';
 import {
+  SEAT_BEDROCK_ONLY_TEXT,
   SEAT_HYPER_ONLY,
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_HYPER_VISION,
   SEAT_OPENROUTER_ONLY,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
@@ -60,6 +65,18 @@ const l = tagged({ tag: 'pass-page-titles-test', },);
 const ROSTER: readonly RosterModelId[] = [
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+];
+
+/**
+ A bench of seven, the size of the real one, whose first two seats are the two-seat roster.
+ */
+const SEVEN_SEATS: readonly RosterModelId[] = [
+  ...ROSTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+  SEAT_HYPER_VISION,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_BEDROCK_ONLY_TEXT,
 ];
 
 /**
@@ -212,6 +229,7 @@ async function lexiconRun(
     reseat,
     answering,
     renderingsBySeat,
+    roster,
   }: {
     readonly sourceText: string;
     readonly usable: boolean;
@@ -219,6 +237,11 @@ async function lexiconRun(
     readonly reseat: boolean;
     readonly answering?: readonly RosterModelId[];
     readonly renderingsBySeat?: Readonly<Partial<Record<RosterModelId, readonly string[]>>>;
+
+    /**
+     The bench the round starts on, the two-seat roster when absent.
+     */
+    readonly roster?: readonly RosterModelId[];
   },
 ) {
   /**
@@ -244,7 +267,7 @@ async function lexiconRun(
       ...((answering === undefined) ? {} : { answering, }),
       ...((renderingsBySeat === undefined) ? {} : { renderingsBySeat, }),
     },),
-    modelIds: ROSTER,
+    modelIds: roster ?? ROSTER,
     beforeItem: async (): Promise<BenchSeating> => {
       hook.reads += 1;
       return reseat ? { modelIds: RESEATED, } : await keepBench();
@@ -457,6 +480,46 @@ await describe({
               nextAsksAgain: next.asked.length > 0,
             },).toEqual({
               askedAny: true,
+              lines: [],
+              stored: 0,
+              nextAsksAgain: true,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when two seats of seven answered and split one against one (the 2-of-7 round of '
+            + 're-check 3, Q1): no title settled, and the fuller bench the next run may have is asked again',
+          fn: async () => {
+            /**
+             Round on the bench of seven where only the first two seats' replies read, each its own rendering.
+             */
+            const thin = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              roster: SEVEN_SEATS,
+              answering: ROSTER,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: ['Song of the Cat',],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: ['The Cat Song',],
+              },
+            },);
+            /**
+             The next run on the same bench, resuming whatever the thin round stored.
+             */
+            const next = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: readBack({ persisted: thin.persisted, },),
+              reseat: false,
+              roster: SEVEN_SEATS,
+            },);
+            expect({
+              lines: thin.added.lines,
+              stored: thin.persisted.size,
+              nextAsksAgain: next.asked.length > 0,
+            },).toEqual({
               lines: [],
               stored: 0,
               nextAsksAgain: true,
