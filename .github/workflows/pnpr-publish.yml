@@ -34,9 +34,6 @@ on:
 permissions: {}
 
 env:
-  # Same reason as npm-release.yml: the root mise config would otherwise try to
-  # build every heavy dev tool on the runner.
-  MISE_AUTO_INSTALL: 'false'
   # pnpm pack fails with ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL when a direct
   # workspace dependency is deduplicated to the root
   # (doc/troubleshooting/pnpm-pack-dedupe-direct-deps.md). On pnpm 12.3.4 only this
@@ -61,26 +58,21 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up mise (skip auto-install of all tools)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm, uv and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          # Resolve "latest" through the GitHub releases API, published releases only,
-          # one day old like pnpm's minimumReleaseAge:
-          # doc/troubleshooting/mise-action-version-ahead-of-release.md
-          minimum_release_age: 1d
-          install: false
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
 
       # uv runs fonttools for typeface-aquaticat's WOFF2 build (#535).
-      - name: Install node, pnpm, and uv
-        run: mise install node pnpm uv
-
-      - name: Expose node, pnpm, and uv to later steps
-        run: printf '%s\n' "$(dirname "$(mise which node)")" "$(dirname "$(mise which pnpm)")" "$(dirname "$(mise which uv)")" >> "$GITHUB_PATH"
-
-      - name: Install dependencies with every direct dependency linked per package
-        run: mise exec node pnpm -- pnpm install --frozen-lockfile
+      - name: Install uv
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://astral.sh/uv/install.sh | sh
+          printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Publish missing versions to pnpr
         env:
           PNPR_PUBLISH_ONLY: ${{ inputs.only }}
-        run: mise run //package/config/pnpr:publish
+        run: task-run //package/config/pnpr:publish

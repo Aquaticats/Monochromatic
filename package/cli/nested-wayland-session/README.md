@@ -2056,7 +2056,7 @@ and why.
   and change events:
   `a11y` reads the tree only.
 
-## Changes after 0.6.1 (not released)
+## Changes in 0.6.2
 
 - `windows`,
   `focus`,

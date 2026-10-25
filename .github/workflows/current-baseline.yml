@@ -3,9 +3,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-env:
-  MISE_AUTO_INSTALL: 'false'
-  MISE_JOBS: '4'
 jobs:
   baseline:
     runs-on: depot-ubuntu-24.04-8
@@ -20,29 +17,26 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends pkg-config
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          version: 2026.10.9
-          install: false
-          cache: false
-      - name: Install repository tools
-        continue-on-error: true
-        run: mise install
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
       - name: Prepare dependencies
-        run: mise run prepare:pnpm
+        run: task-run prepare:pnpm
       - name: Build fast subset
         id: build
         run: |
-          mise run //package/module/logger:build
-          mise run //package/module/p-map-fork:build
-          mise run //package/module/toml-edit:build
-          mise run //package/cli/forbidden-strings:build
-          mise run //package/linter/monochromatic-lint:build
+          task-run //package/module/logger:build
+          task-run //package/module/p-map-fork:build
+          task-run //package/module/toml-edit:build
+          task-run //package/cli/forbidden-strings:build
+          task-run //package/linter/monochromatic-lint:build
       - name: Unit fast subset
         if: steps.build.outcome == 'success'
         run: |
-          mise run //package/module/logger:test:unit
-          mise run //package/module/p-map-fork:test:unit
-          mise run //package/module/toml-edit:test:unit
-          mise run //package/cli/forbidden-strings:test
-          mise run //package/linter/monochromatic-lint:test
+          task-run //package/module/logger:test:unit
+          task-run //package/module/p-map-fork:test:unit
+          task-run //package/module/toml-edit:test:unit
+          task-run //package/cli/forbidden-strings:test
+          task-run //package/linter/monochromatic-lint:test

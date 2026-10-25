@@ -4804,6 +4804,58 @@ checks), then bump `package/desktop-app/ide/Cargo.toml` 0.1.1 to 0.1.2 with `mis
 too), update the README "Changes after 0.6.1 (not released)" entry to 0.6.2, push to `main` to start the real runs
 (immutable: a bad release is fixed only by a higher version), then verify the releases (`gh release view`, attestation,
 `cargo binstall --dry-run` for the compositor) and the installed binary.
+Verifier result on the installed `d60a2272574c0a64…` (compositor 0.6.1, hardware RADV, load 20 to 40; every compositor
+reply recorded, 0 non-`ok` in about 1,200 replies): scratch directory: three IDE processes started within 20 to 90 ms of
+each other on one project and the default shared state folder, 100 rounds = 300 launches, nothing removed between
+rounds: 0 with `bwrap:` in the log, 0 information rows, 0 `typescript-native failed to start`, 300 of 300 ready and
+showing code (mean luminance 0.5097); one at a time 60 of 60 clean (0 of 300 does not separate the old 4 of 709, p
+0.24: counts only); press path 30 of 30 (50, 80, 110 ms): press line = last frame's line, release line = last frame's
+line, selection from the pressed line to the release line, every press and release had a log line (earlier 2 of 210
+did not), 120 of 120 `ok` replies per delay; row map 36,024 in 60 of 60 one-core and 60 of 60 unlimited sessions;
+far jumps 0 blank and 0 partial, 1 tile applied per jump; five-press, 88-click (82 px gap in 107 of 107), hover
+(5 notches 10 of 10 at 0.529 to 0.594 s; 301 notches 10 of 10, popup at all four times in 8 of 10 and visible from the
+second shot in the other 2: the first screenshot 0.09 to 0.11 s after the log line read 903 px; settled 10 of 10;
+reload 10 of 10), Ctrl+End and Ctrl+Home: as before. The early wheel refusal did not occur (the drivers wait for code
+on screen first), so the compositor fix is not exercised by this run.
+Dry runs of 2026-10-25 from `main` at `8c60a4afb3`: IDE `ide-release.yml` run 40242357783 green (detect, build x64,
+build arm64, checksums, release); compositor `cargo-publish.yml` run 40242360125: both `nws-build-binary` legs and
+`nws-release-state` green, `nws-publish-crate` FAILED in its first step "Install only the tools this workflow needs"
+(`mise install rust` with mise 2026.10.19, the newest release at least a day old, which `cargo-publish.yml` takes
+because it sets `minimum_release_age: 1d` and no pin): `mise ERROR failed to resolve cmake for linux-arm64: runtime
+error: crates/vfox/src/plugin.rs:375:2: module 'metadata' not found ... no file .../plugins/cmake/metadata.lua ... can't
+load C modules in safe mode`, after `mise plugin cmake ✓ https://github.com/jdx/vfox-cmake.git#4ecc1f0` and a `mise lock`
+pass over all platforms in parallel. Not our code. Failed job rerun once (is it a race or deterministic?); result below
+once read; if it fails again identically the options are the runbook's pin (`version: 2026.10.9` in the
+`jdx/mise-action` steps of `cargo-publish.yml`, comment per rule PIN, update doc/runbook/release-the-music-player.md
+"The mise version pin" and the troubleshooting doc) or removing the need of cmake in this job.
+OWNER INSTRUCTION 2026-10-25 (user message): "another session is investigating the mise issue. Don't spend effort
+yourself to investigate it, just wait." So this session does NOT investigate, pin, or edit `cargo-publish.yml` or the
+runbook for it, and does not start the real compositor release (version bump 0.6.1 to 0.6.2) until that session reports
+or the owner says otherwise. The rerun of the failed job (run 40242360125) is only read, not acted on. The IDE dry run
+(run 40242357783) is green; the IDE's own workflow pins mise 2026.10.9 and is not affected; a real IDE release
+(0.1.1 to 0.1.2) is held with the compositor's so both releases carry the same state, until the mise question is
+answered. Nothing else is waiting on this session.
+OWNER ANSWER 2026-10-25 (question tool, to "should the IDE release wait for the compositor release or go now"): "I got
+the other session to pin mise to 2026.10.17 in CIs as a stopgap measure. Release everything you own now." So the hold
+above is lifted. Main has `3e16deb852` (pin mise 2026.10.17 in all six `jdx/mise-action` steps of `cargo-publish.yml`,
+because 2026.10.19 cannot resolve cmake for linux-arm64, Refs #1791); `ide-release.yml` keeps its own pin 2026.10.9.
+Dry runs before the releases: IDE `ide-release.yml` run 40242357783 green at `8c60a4afb3` (IDE sources unchanged since);
+compositor `cargo-publish.yml` run 40244877203 green at `3e16deb852` (`nws-publish-crate` and both `nws-build-binary`
+legs green, `nws-create-release` skipped as in a dry run). Version bumps in the scratch tree `release-prep`: IDE 0.1.1
+to 0.1.2 (`mise run //package/desktop-app/ide:fetch`, exactly one changed line in `Cargo.lock`), compositor 0.6.1 to
+0.6.2 (the compositor has no `fetch` task and its tasks do not use `--locked`, so `mise run //package/cli/nested-wayland-
+session:build` refreshed `Cargo.lock`: exactly one changed line; the README heading "Changes after 0.6.1 (not
+released)" became "Changes in 0.6.2"). Commits `f5e1a3f44c` `chore(ide): release 0.1.2` and `eb60defb1d`
+`chore(nested-wayland-session): release 0.6.2` (explicit pathspecs), pushed with a merge as `5750e0b9c3` at ancestry 0.
+The real runs started by that push: `ide-release.yml` run 40245539422 and `cargo-publish.yml` run 40245539506. Next
+(runbooks: `doc/runbook/release-the-ide.md` "Cut a release" steps 5 to 7 and "Verifying attestations";
+`doc/runbook/publish-crate-first-time.md` "Cut the release" steps 2 to 4): read both runs to the end; the IDE release
+`ide-v0.1.2` must hold four files (both archives, the notices, `SHA256SUMS`) and be a pre-release; the compositor release
+`monochromatic-nested-wayland-session-v0.6.2` must hold two archives and the checksums file, the crate must be on
+crates.io; verify with `gh release view`, `gh attestation verify`, `sha256sum --check` and `cargo binstall --dry-run`
+for the compositor. A failed release job after publishing cannot be repaired (immutable): release the next patch
+version and say in its notes that the previous is broken. Then install the released IDE archive? No: the installed
+binary is the local build `d60a2272574c0a64…` from `8c60a4afb3`, whose IDE sources equal the release's.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,

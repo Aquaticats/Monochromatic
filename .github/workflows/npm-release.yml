@@ -33,12 +33,6 @@ on:
 
 permissions: {}
 
-env:
-  # The root mise config lists heavy dev tools (slint from a git rev, cmake, and
-  # more) with auto_install on; every mise run or mise exec would try to build
-  # them on the runner. Off, each job uses only the tools it installs below.
-  # Same pattern as toml-edit-fuzz.yml.
-  MISE_AUTO_INSTALL: 'false'
 
 concurrency:
   group: release
@@ -58,27 +52,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up mise (skip auto-install of all tools)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          # Resolve "latest" through the GitHub releases API, published releases only,
-          # one day old like pnpm's minimumReleaseAge. Without it the action installs
-          # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-          # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-          minimum_release_age: 1d
-          install: false
-
-      - name: Install node and pnpm
-        run: mise install node pnpm
-
-      # Tools installed inside a step are not on PATH for later steps
-      # (mise-action exports PATH only at its own setup), and the changesets
-      # sub-actions spawn node and pnpm from PATH.
-      - name: Expose node and pnpm to later steps
-        run: printf '%s\n' "$(dirname "$(mise which node)")" "$(dirname "$(mise which pnpm)")" >> "$GITHUB_PATH"
-
-      - name: Install dependencies
-        run: mise exec node pnpm -- pnpm install --frozen-lockfile
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
 
       - name: Select mode
         id: select-mode
@@ -97,27 +75,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up mise (skip auto-install of all tools)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          # Resolve "latest" through the GitHub releases API, published releases only,
-          # one day old like pnpm's minimumReleaseAge. Without it the action installs
-          # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-          # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-          minimum_release_age: 1d
-          install: false
-
-      - name: Install node and pnpm
-        run: mise install node pnpm
-
-      # Tools installed inside a step are not on PATH for later steps
-      # (mise-action exports PATH only at its own setup), and the changesets
-      # sub-actions spawn node and pnpm from PATH.
-      - name: Expose node and pnpm to later steps
-        run: printf '%s\n' "$(dirname "$(mise which node)")" "$(dirname "$(mise which pnpm)")" >> "$GITHUB_PATH"
-
-      - name: Install dependencies
-        run: mise exec node pnpm -- pnpm install --frozen-lockfile
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
 
       # The push to main that runs this job seeds the cache. Key shape and size budget: doc/decision/ci-caching.md
       - name: Identify the Rust toolchain for the cache key
@@ -147,7 +109,7 @@ jobs:
       - name: Open or update the version pull request
         uses: changesets/action/version@8488615a623b1b9c987934bb89eae8af6a946ac1
         with:
-          script: mise run changeset:version
+          script: task-run changeset:version
           commit-message: 'chore(*): version packages'
           pr-title: 'chore(*): version packages'
 
@@ -169,37 +131,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up mise (skip auto-install of all tools)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          # Resolve "latest" through the GitHub releases API, published releases only,
-          # one day old like pnpm's minimumReleaseAge. Without it the action installs
-          # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-          # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-          minimum_release_age: 1d
-          install: false
-
-      - name: Install node and pnpm
-        run: mise install node pnpm
-
-      # Tools installed inside a step are not on PATH for later steps
-      # (mise-action exports PATH only at its own setup), and the changesets
-      # sub-actions spawn node and pnpm from PATH.
-      - name: Expose node and pnpm to later steps
-        run: printf '%s\n' "$(dirname "$(mise which node)")" "$(dirname "$(mise which pnpm)")" >> "$GITHUB_PATH"
-
-      # dedupe-direct-deps=false: with the workspace default (true), a direct
-      # workspace dependency also declared at the root is linked only at the root,
-      # and pnpm pack then fails with ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL
-      # (pnpm/pnpm#9566, doc/troubleshooting/pnpm-pack-dedupe-direct-deps.md).
-      # The override changes node_modules layout only, never the lockfile.
-      # pnpm 12.3.4 ignores --config.dedupe-direct-deps=false; only the
-      # pnpm_config_dedupe_direct_deps environment variable set on this job takes effect.
-      - name: Install dependencies with every direct dependency linked per package
-        run: mise exec node pnpm -- pnpm install --frozen-lockfile
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
 
       - name: Build the packages in the publish plan
-        run: mise run changeset:build
+        run: task-run changeset:build
 
       - name: Pack
         id: pack
@@ -222,27 +161,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up mise (skip auto-install of all tools)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          # Resolve "latest" through the GitHub releases API, published releases only,
-          # one day old like pnpm's minimumReleaseAge. Without it the action installs
-          # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-          # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-          minimum_release_age: 1d
-          install: false
-
-      - name: Install node and pnpm
-        run: mise install node pnpm
-
-      # Tools installed inside a step are not on PATH for later steps
-      # (mise-action exports PATH only at its own setup), and the changesets
-      # sub-actions spawn node and pnpm from PATH.
-      - name: Expose node and pnpm to later steps
-        run: printf '%s\n' "$(dirname "$(mise which node)")" "$(dirname "$(mise which pnpm)")" >> "$GITHUB_PATH"
-
-      - name: Install dependencies
-        run: mise exec node pnpm -- pnpm install --frozen-lockfile
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
 
       - name: Publish with trusted publishing
         uses: changesets/action/publish@8488615a623b1b9c987934bb89eae8af6a946ac1

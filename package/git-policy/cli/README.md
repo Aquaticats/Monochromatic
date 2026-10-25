@@ -195,7 +195,9 @@ The rule is:
 - A form that only moves `HEAD` (`git checkout <branch>`, `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
 - A status Git cannot read stops the command instead of reading as clean.
-- Repositories under an allowlisted tool cache are exempt.
+- Repositories under an allowlisted tool directory are exempt: uv's cache (`UV_CACHE_DIR`, else
+   `XDG_CACHE_HOME/uv`, else `~/.cache/uv`) and mise's data directory (`MISE_DATA_DIR`, else `XDG_DATA_HOME/mise`,
+   else `~/.local/share/mise`), where mise keeps its plugin clones and updates them with a forced checkout.
 
 Every rejection names the form,
  what it would destroy,

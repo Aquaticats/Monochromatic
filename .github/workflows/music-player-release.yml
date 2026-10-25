@@ -28,7 +28,7 @@ name: music-player-release
 #   cold, and the decision document says why. The Windows GNU job caches only the MSYS2 package downloads.
 # - Windows: the MSVC executables are linked by Visual Studio's link.exe, the GNU one by MinGW-w64 GNU ld
 #   (doc/decision/music-player-windows-linkers.md). The build prints the linker rustc ran and fails on lld.
-# - mise: every jdx/mise-action step pins the mise version; the runbook says how to update the pin.
+# - tools: the task CLI setup pins the node version; the runbook says how to update the pin.
 # - License notices: the notices job writes the desktop notices once with cargo-about and fails on a crate whose
 #   license is not on the allow-list; every desktop job embeds that file (music-player --licenses prints it) and ships
 #   it beside the program, and it is a release file of its own. The Android job writes the APK's notices itself (licensee
@@ -52,10 +52,6 @@ on:
 permissions: {}
 
 env:
-  # The root mise config lists heavy dev tools with auto_install on; every mise run or mise exec
-  # would try to build them on the runner. Off, each job uses only the tools it installs itself.
-  # Same pattern as npm-release.yml and toml-edit-fuzz.yml.
-  MISE_AUTO_INSTALL: 'false'
   # Android release certificate (public) that a real release must be signed with. A real release
   # fails if the APK carries any other certificate, so a debug-signed or throwaway-signed APK can
   # never be published. Changes only when the key is rotated: doc/runbook/release-the-music-player.md.
@@ -246,29 +242,25 @@ jobs:
         restore-keys: |
           music-player-notices-v1-${{ runner.os }}-${{ runner.arch }}-
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up node, Rust and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Pinned for the reason given at the step "Install node (runs the repository's bundle:macos task)" (a 403
-        # from the releases API lookup that minimum_release_age needs); the runbook section "The mise version pin"
-        # says who updates it and how.
-        version: 2026.10.9
-        install: false
-        cache: false
-
-    # The versions come from mise.lock: the repository's pinned Rust (its standard library notice goes into the file,
-    # and it is the toolchain the desktop jobs build with), node for the task, and cargo-about, which the cargo backend
-    # installs from its prebuilt release archive through cargo-binstall.
-    - name: Install cargo-about and the Rust toolchain
+        node-version: '26.12.0'
+        install-dependencies: 'false'
+    - name: Install Rust toolchain and cargo-about
+      shell: bash
       run: |
-        mise install rust cargo-binstall node
-        mise install cargo:cargo-about
-        mise exec cargo:cargo-about -- cargo-about --version
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+        cargo install cargo-binstall --locked
+        cargo binstall --no-confirm cargo-about
+        cargo about --version
 
     - name: Write the desktop license notices
       run: |
         set -euo pipefail
-        mise run //package/music-player/desktop-app:notices
+        task-run //package/music-player/desktop-app:notices
         mkdir -p dist
         cp package/music-player/desktop-app/target/THIRD-PARTY-LICENSES.txt \
           "dist/music-player-${VERSION}-desktop-third-party-licenses.txt"
@@ -657,20 +649,12 @@ jobs:
         echo "asset=dist/${asset}" >> "$GITHUB_OUTPUT"
         ls -la dist
 
-    - name: Install node (runs the repository's bundle:macos task)
+    - name: Set up node and the task CLI (macOS disk image)
       if: ${{ matrix.os == 'macos' }}
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Pinned: with no version, minimum_release_age makes the action list mise releases through the GitHub API
-        # with the workflow token on every run, and one 403 from that call fails the job without a retry (run
-        # 38688512043, attempt 1, here and in the Android job). An explicit version skips that call, and the action
-        # then ignores minimum_release_age, so it is not set. The release must be published, not a draft; the
-        # version file mise.jdx.dev/VERSION runs ahead of it: doc/troubleshooting/mise-action-version-ahead-of-release.md
-        # Owner and update steps: doc/runbook/release-the-music-player.md, section "The mise version pin".
-        version: 2026.10.9
-        install: false
-        # Only node is installed here, which takes seconds; the cargo and target caches carry the real cost.
-        cache: false
+        node-version: '26.12.0'
+        install-dependencies: 'false'
 
     - name: Package (macOS disk image)
       if: ${{ matrix.os == 'macos' }}
@@ -679,11 +663,10 @@ jobs:
       run: |
         set -euo pipefail
         app='package/music-player/desktop-app'
-        mise install node
         # The repository's own task builds Music Player.app from macos/Info.plist, the icon and the binary.
         mkdir -p "${app}/dist"
         cp "${app}/target/${TARGET}/release/music-player" "${app}/dist/music-player"
-        MP_MACOS_BINARY=dist/music-player mise run //package/music-player/desktop-app:bundle:macos
+        MP_MACOS_BINARY=dist/music-player task-run //package/music-player/desktop-app:bundle:macos
         # The license notices go inside the bundle before it is sealed, and beside it on the disk image.
         cp "notices/music-player-${VERSION}-desktop-third-party-licenses.txt" \
           "${app}/dist/Music Player.app/Contents/Resources/THIRD-PARTY-LICENSES.txt"
@@ -985,14 +968,14 @@ jobs:
         persist-credentials: false
 
     # Cache key parts that are read from the repository, never copied into this file: the pinned Rust version
-    # from mise.lock, and the Android SDK component versions from the lines of the prepare:android task in
-    # mise.toml, so the native cache key changes exactly when the NDK does.
+    # from mise.lock (kept as the pinned version source), and the Android SDK component versions from the lines of the prepare:android task in
+    # task.ts, so the native cache key changes exactly when the NDK does.
     - name: Read the cache key parts
       id: parts
       run: |
         set -euo pipefail
         toolchain=$(awk -F'"' '/^\[\[tools\.rust\]\]$/ { in_rust = 1; next } in_rust && /^version = / { print $2; exit }' mise.lock)
-        components=$(grep -E '^const want(Platform|BuildTools|Ndk) = ' mise.toml | sha256sum | cut -c1-16)
+        components=$(grep -E '^const want(Platform|BuildTools|Ndk) = ' package/music-player/android-app/mise.toml | sha256sum | cut -c1-16)
         if [ -z "$toolchain" ] || [ -z "$components" ]; then
           echo '::error::Could not read the Rust version or the Android components.'
           exit 1
@@ -1034,34 +1017,33 @@ jobs:
         echo "::notice title=cache::gradle exact_hit=${GRADLE_HIT:-false} matched='${GRADLE_MATCH}'"
         echo "::notice title=cache::cargo and native target exact_hit=${NATIVE_HIT:-false} matched='${NATIVE_MATCH}'"
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up node, Java and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Pinned for the reason given at the step "Install node (runs the repository's bundle:macos task)" (a 403
-        # from the releases API lookup that minimum_release_age needs); the runbook section "The mise version pin"
-        # says who updates it and how.
-        version: 2026.10.9
-        install: false
-        # The tools that cost time are cached by the steps above (Gradle, cargo); the rest install in
-        # seconds, and mise's own whole-directory cache would store the toolchains untrimmed.
-        cache: false
-
-    # The versions come from mise.lock: the repository's pinned Rust (with the two Android targets that
-    # mise.toml lists), Temurin 21 (AGP 9 and Gradle 9 need 17 to 21), the Android command-line tools,
-    # cargo-ndk, cargo-about (the native crates' license notices), and node, which runs the repository's mise tasks.
-    # mise installs Rust before the cargo tools because the cargo backend needs it.
-    - name: Install the Android toolchain
+        node-version: '26.12.0'
+        install-dependencies: 'false'
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Install Rust, cargo tools and the Android SDK
+      shell: bash
       run: |
-        mise install rust cargo-binstall
-        mise install cargo:cargo-ndk cargo:cargo-about node java android-sdk
-        mise exec rust -- rustc -Vv
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+        rustup target add aarch64-linux-android x86_64-linux-android
+        cargo install cargo-binstall --locked
+        cargo binstall --no-confirm cargo-ndk cargo-about
+        rustc -Vv
 
     # The repository task installs exactly the SDK components the app builds against (platform 37.0,
-    # build-tools 37.0.0, NDK 29.0.13846066, platform-tools) into the mise-managed SDK.
+    # build-tools 37.0.0, NDK 29.0.13846066, platform-tools) into the provisioned SDK.
     # Not cached: the components download in about 25 seconds, and restoring a cache of them (1.0 GB compressed)
     # took 17 seconds (dry runs 2026-10-15), so it saved 8 seconds for a fifth of the repository's cache budget.
     - name: Install the Android SDK components
-      run: mise run prepare:android
+      run: task-run prepare:android
 
     - name: Restore the project release key
       if: ${{ needs.detect.outputs.use_release_key == 'true' }}
@@ -1091,7 +1073,7 @@ jobs:
         umask 077
         password=$(openssl rand -base64 24 | tr -d '/+=\n')
         echo "::add-mask::$password"
-        mise exec java -- keytool -genkeypair -alias throwaway -keyalg RSA -keysize 2048 -validity 2 \
+        keytool -genkeypair -alias throwaway -keyalg RSA -keysize 2048 -validity 2 \
           -dname 'CN=Music Player throwaway, O=Monochromatic dry run' \
           -keystore "$RUNNER_TEMP/throwaway.p12" -storetype PKCS12 \
           -storepass "$password" -keypass "$password"
@@ -1105,7 +1087,7 @@ jobs:
     # licensee fails here when an Android library is under a license outside the allow-list in app/build.gradle.kts,
     # and cargo-about when a native crate is outside rust/about.toml; either stops the release.
     - name: Write the APK's license notices
-      run: mise run //package/music-player/android-app:notices
+      run: task-run //package/music-player/android-app:notices
 
     - name: Build the signed release APK
       env:
@@ -1114,7 +1096,7 @@ jobs:
         MUSIC_PLAYER_REQUIRE_RELEASE_SIGNING: 'true'
         # A release APK without assets/THIRD-PARTY-LICENSES.txt fails the build instead of carrying the placeholder.
         MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES: 'true'
-      run: mise run //package/music-player/android-app:build:release
+      run: task-run //package/music-player/android-app:build:release
 
     - name: Verify and package the APK
       id: pkg
@@ -1122,11 +1104,11 @@ jobs:
         EXPECTED_PACKAGE: dev.monochromatic.musicplayer
       run: |
         set -euo pipefail
-        sdk=$(mise where android-sdk)
-        # One owner of the version: the same mise.toml constant that drives the SDK install and the cache key.
-        build_tools=$(sed --quiet 's/^const wantBuildTools = "\([^"]*\)";$/\1/p' mise.toml)
+        sdk="${ANDROID_HOME:-$HOME/Android/Sdk}"
+        # One owner of the version: the same constant that drives the SDK install and the cache key.
+        build_tools=$(sed --quiet 's/^const wantBuildTools = "\([^"]*\)";$/\1/p' package/music-player/android-app/mise.toml)
         if [ -z "$build_tools" ]; then
-          echo '::error::Could not read wantBuildTools from mise.toml.'
+          echo '::error::Could not read wantBuildTools from the android-app task source.'
           exit 1
         fi
         tools="${sdk}/build-tools/${build_tools}"
@@ -1190,7 +1172,7 @@ jobs:
           fi
 
           # Signature and certificate.
-          certs=$(mise exec java -- "${tools}/apksigner" verify --verbose --print-certs "dist/${asset}")
+          certs=$("${tools}/apksigner" verify --verbose --print-certs "dist/${asset}")
           echo "$certs"
           fingerprint=$(awk -F': ' '/certificate SHA-256 digest/ { print $NF; exit }' <<< "$certs")
           if [ "$USE_RELEASE_KEY" = 'true' ]; then
@@ -1229,7 +1211,7 @@ jobs:
             done
           fi
         done
-        du -sh "$root" ~/.cargo/registry/index ~/.cargo/registry/cache ~/.cargo/git/db ~/.gradle/caches ~/.gradle/wrapper/dists ~/.local/share/mise/installs/android-sdk 2>/dev/null || true
+        du -sh "$root" ~/.cargo/registry/index ~/.cargo/registry/cache ~/.cargo/git/db ~/.gradle/caches ~/.gradle/wrapper/dists 2>/dev/null || true
 
     - name: Save the cargo and native target caches
       if: ${{ needs.detect.outputs.save_cache == 'true' && steps.cache-native.outputs.cache-hit != 'true' }}
@@ -1376,7 +1358,7 @@ jobs:
         run: |
           set -euo pipefail
           # The source is mounted read-only; nextest writes its store under the crate's target directory, so that one
-          # path gets a scratch directory. The Slint variables are the ones mise sets for local runs.
+          # path gets a scratch directory. The Slint variables are the ones the task bodies set for local runs.
           podman run --rm \
             --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
             --volume "$GITHUB_WORKSPACE/package/music-player:/src:ro" \
@@ -1551,8 +1533,8 @@ jobs:
     permissions:
       contents: read
     env:
-      # The Slint UI uses experimental builtins (FlexboxLayout); the package mise.toml sets this for its tasks.
-      # SLINT_EMIT_DEBUG_INFO makes the ElementHandle UI tests find their elements (the mise test task sets it too).
+      # The Slint UI uses experimental builtins (FlexboxLayout); the package task.ts sets this for its tasks.
+      # SLINT_EMIT_DEBUG_INFO makes the ElementHandle UI tests find their elements (the test task sets it too).
       SLINT_ENABLE_EXPERIMENTAL_FEATURES: '1'
       SLINT_EMIT_DEBUG_INFO: '1'
       # Lean cache entries and fast cold builds: no incremental directories, no debug info in dependencies.

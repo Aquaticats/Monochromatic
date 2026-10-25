@@ -2231,6 +2231,105 @@ that is verification, not a decision for the user.
   commit the README and handover, `node ~/temp/agent/release.ts 0.2.8 0.2.9 "<note>"` (cargo check, lock members,
   publish dry run, release commit), the push triggers `cargo-publish.yml`, then `node ~/temp/agent/install-026.ts 0.2.9`
   and verify the installed `git --version` plus the global link at `~/.local/bin/git`.
+  Progress 2026-10-25: README commit `3cee80e2a6`; release commit `00c4e28af4` ("release 0.2.9", Cargo.toml, both
+  Cargo.lock files) after `cargo check` and `cargo publish --dry-run --locked` passed (566 files packaged); both
+  pushed, so `cargo-publish.yml` is publishing. Waiting on crates.io via `install-026.ts 0.2.9` (20 minute bound),
+  then verify the installed version and the global link.
+  0.2.9 PUBLISH BLOCKED 2026-10-25 (not by the crate): `install-026.ts` timed out (crates.io never showed 0.2.9). The
+  `cargo-publish` workflow run `40242133604` on `00c4e28af4` failed in the step "Install only the tools this workflow
+  needs" (`mise install rust`), before any publish step. Error (log `~/temp/agent/publish-run-40242133604.log`): mise
+  2026.10.19 (released 2026-10-24) locks every tool for every platform, removes and reinstalls the `cmake` vfox
+  plugin (`plugin:cmake uninstall`, `remove ~/.local/share/mise/plugins/cmake`), then warns "failed to load vfox
+  plugin metadata deps for cmake ... no file util.lua" and fails with `failed to resolve cmake for linux-arm64: error
+  converting Lua table to PreInstall (no version returned from vfox plugin)`. A second `cargo-publish` run `40242360125`
+  (another session's push `8c60a4afb3`) failed too; other workflows on the same commits passed. The last passing
+  publish run (`39829260282`, 2026-10-22) used mise 2026.10.17. So the break coincides with the mise version change
+  (observation, not proven: the repo's mise config also changed in between). No troubleshooting doc exists for this
+  message. Rerun requested with `gh run rerun 40242133604 --failed` to test determinism. Options if it fails again
+  (to bring to the user with evidence, not decide alone): pin mise in `.github/workflows/cargo-publish.yml` via the
+  mise-action `version` input with an explanatory comment (the repo allows pins with a comment), or fix the cmake
+  lock resolution; manual publish from the host is not available because the crate publishes through Trusted
+  Publishing. The rerun (attempt 2 of `40242133604`) failed at the same step, so the CI failure is deterministic
+  (3 failing runs on 2 commits; `gpc-detect` and the other detect jobs pass, `gpc-publish-crate` fails, release and
+  later jobs are skipped).
+  HOST REGRESSION found 2026-10-25 from a paste by the user ("Might be relevant"): `mise self-update` on the host
+  prints `mise ERROR [cmake] plugin update` because mise runs `git -C ~/.local/share/mise/plugins/cmake checkout
+  --force main`, `git` now resolves to the wrapper through the global `~/.local/bin/git` link made for issue 1796,
+  and `linked-worktree-only` rejects it ("git checkout with paths, --force ... is rejected in the main git
+  worktree"); `mise plugins update` exits 1. This is the unmeasured risk recorded earlier (every `git` call by every
+  tool now goes through the wrapper), now observed. Cause in code: the wrapper exempts only repositories under an
+  allowlisted tool cache (`src/native/effective_target.rs`, `classify_effective_target`; the README says so under
+  "Discarding commands"), and that allowlist is uv's cache (`UV_CACHE_DIR`, `XDG_CACHE_HOME/uv`, `~/.cache/uv`);
+  mise's data directory (default `~/.local/share/mise`, plugin clones in `plugins/`) is not on it. The only other
+  control is the per-invocation `--no-enforce-linked-worktree-only` / `--no-enforce-worktree` flag, which tools cannot
+  pass; the `CLI_GIT_*` environment variables found in `src/native` include no bypass. Unmeasured: other tools that
+  run discarding forms in their own clones (Homebrew at `/home/linuxbrew/.linuxbrew` is on the user's login `PATH`;
+  cargo git checkouts; pnpm git dependencies). The two failures are separate: CI has no wrapper installed.
+  USER DECISIONS 2026-10-25 on that regression: (1) keep the global `~/.local/bin/git` link while the fix is built
+  (mise plugin updates stay broken until then); (2) allowlist mise's data directory ONLY (`MISE_DATA_DIR`, else
+  `XDG_DATA_HOME/mise`, else `~/.local/share/mise`) next to uv's cache in `effective_target.rs`, with tests and a
+  README update, released as 0.2.10; other tool roots (Homebrew, `~/.cargo/git`, pnpm) are NOT added without a
+  measured failure. Dependency: the CI `cargo-publish` failure blocks publishing both 0.2.9 and 0.2.10, so it is on
+  the critical path; research first (reproduce `mise install rust` in podman with mise 2026.10.17 and 2026.10.19 in a
+  fresh container, `~/temp/agent/podman-ci-mise.ts`), then bring the CI choice (pin the mise version in
+  `.github/workflows/cargo-publish.yml` with a comment, versus other fixes) to the user with that evidence. Order after
+  CI is fixed: rerun the 0.2.9 publish, then land the allowlist change, gate, release 0.2.10, install, and verify
+  `mise plugins update` on the host.
+  PROGRESS 2026-10-25 (user asked "How long do we need to wait? Can we unblock CI right now?"): CI reproduction in
+  podman, first attempts: mise 2026.10.17 exit 0 in 150 s (reached the Rust install, no cmake error); mise 2026.10.19
+  exit 1 in 171 s with `failed to resolve cmake for linux-arm64`; second attempts were still running (results in
+  `~/temp/agent/podman-ci-mise/summary.final.json`). Allowlist change committed as `197ae38ff5` (`mise_data_dir`,
+  README, unit test `mise_data_directory_follows_mise_precedence`, binary test
+  `a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule`); clippy exit 0, host 1949 of 1950 and binary 155 of
+  156 with only the two known real-linter failures. CI unblock: pinned `version: 2026.10.17` in all six
+  `jdx/mise-action` steps of `.github/workflows/cargo-publish.yml` (the action docs say an explicit version wins over
+  `minimum_release_age`); the workflow publishes only on a push that changes the crate `Cargo.toml` version or on
+  `workflow_dispatch`, so 0.2.9 is published by dispatching the workflow, a dry run first. Troubleshooting doc
+  `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md` written; its root cause is NOT source-traced (mise's
+  vfox plugin loader and lock resolver unread) and its upstream filing decision is not made. QUEUED: read the mise
+  source for the plugin removal during lock resolution, search the mise tracker for a duplicate, run the
+  six-constraint check, and remove the pin when a newer mise installs cleanly. Still to do for the host fix:
+  container gate and mutation for `effective_target.rs`, release 0.2.10 (after 0.2.9), install, and verify
+  `mise plugins update` on the host.
+  DRY RUN PASSED 2026-10-25 (run `40244857970`, `workflow_dispatch` crate `monochromatic-git-policy-cli` dry-run
+  true, with the mise pin): `gpc-publish-crate` "Publish (dry run)" succeeded, real publish steps skipped. CI repro
+  final: mise 2026.10.17 passed both attempts (150 s, 124 s), 2026.10.19 failed both (171 s, 194 s). VERSION
+  CONSOLIDATION: the workflow publishes the tree at `main` HEAD, which now holds the mise data directory exemption
+  (`197ae38ff5`) after the 0.2.9 release commit (`00c4e28af4`), and 0.2.9 was never published, so 0.2.9 will be
+  published from HEAD carrying BOTH the survivor fixes and the exemption instead of a separate 0.2.10 (to be told to
+  the user; the user had chosen "release 0.2.10" for the exemption). Gate first: container gate on HEAD, tag `m029`,
+  unit `cli-git-gate-m029`, log `~/temp/agent/m029-container.log` (the earlier 2105 passed was before the
+  exemption). Then dispatch the real publish (`gh workflow run cargo-publish.yml -f crate=monochromatic-git-policy-cli
+  -f dry-run=false`), `install-026.ts 0.2.9`, verify `mise plugins update` on the host and the global link, and run
+  mutation for `effective_target.rs` in the background afterwards (never blocks a release).
+  USER CHOICE 2026-10-25: "One release, 0.2.9" (survivor fixes and the mise data directory exemption together, from
+  HEAD, after the container gate). The release commit `00c4e28af4` message names only the survivor fixes, so after
+  the publish post a corrective commit comment on it (GCA: never amend) saying 0.2.9 also carries `197ae38ff5`.
+  RELEASED 2026-10-25: container gate on HEAD `2cb0d0215f` passed 2107 tests, 5 skipped, 0 failed (image tag `m029`);
+  real publish run `40245672686` (`workflow_dispatch`, dry-run false, pinned mise) succeeded, crates.io shows 0.2.9;
+  `install-026.ts 0.2.9` upgraded `cargo:monochromatic-git-policy-cli` 0.2.8 to 0.2.9 and reverted `mise.lock`;
+  `mise ls --installed` shows 0.2.9 active from `~/.config/mise/config.toml`; `~/.local/bin/git` resolves to
+  `.../0.2.9/bin/cli-git-native`. The upgrade command exited 1 because the HOST mise 2026.10.19 hits the same cmake
+  resolution error as CI. Corrective commit comment posted on `00c4e28af4`
+  (`commitcomment-206607143`). User-boundary check of the exemption: the forced checkout mise ran on its cmake
+  plugin clone (`git -C ~/.local/share/mise/plugins/cmake checkout --force main`) prints "Already on 'main'" through
+  the 0.2.9 wrapper instead of the `linked-worktree-only` rejection (the printed `checkout-exit=0` was the exit of
+  `cut` in the pipeline, not of git; `mise plugins update` itself was not rerun).
+  NEW ROOT-CAUSE CLUE for the mise failure (host mise output, not yet tested): "mise WARN cmake is locked to
+  vfox:cmake, but the registry now installs it from aqua:Kitware/CMake. Run `mise backends switch cmake` to switch."
+  The failing resolution is the vfox cmake plugin for linux-arm64; `mise.lock` pins the vfox backend while mise
+  2026.10.19's registry points cmake at aqua. A repo-level fix that needs no mise pin would be switching `cmake` to
+  the aqua backend in `mise.no-env.toml` (regenerate `mise.toml`, relock). Not tested; the pin in
+  `.github/workflows/cargo-publish.yml` stays until that is tested in podman. Also unmeasured: other tools that run
+  discarding git forms in their own clones.
+  QUEUED: mutation for `effective_target.rs` (unit `cli-git-mut-m029`, logs `~/temp/agent/m029-mutation-*.log`; do not
+  edit `src/native` while it runs); source-trace the mise failure and decide upstream filing
+  (`doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`); test the cmake backend switch in podman.
+  USER ANSWER 2026-10-25 on the CI pin: "Test the cmake backend switch in podman first, and I'm eliminating mise in
+  CI in another session." So: run the podman test (control versus `mise backends switch cmake`, mise 2026.10.19,
+  `~/temp/agent/podman-ci-cmake.ts`), record the result, and make NO further edits to `.github/workflows` (another
+  session is removing mise from CI; the pin stays until that lands and is expected to disappear with it). The result
+  still matters for the host's own mise 2026.10.19, whose upgrades print the same cmake error.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
