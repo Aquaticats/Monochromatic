@@ -43,8 +43,11 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 // bench of seven that lost six seats for the round used to settle, and cache,
 // the one voice's rendering as a line the translators and judges read. A
 // round that heard one voice settles nothing and every repeated title keeps its
-// current rendering. A tie among three heard voices is still broken by the
-// earliest seat (the ledger records that path as outside this ruling).
+// current rendering. A TITLE SETTLES ONLY ON A RENDERING TWO OR MORE VOICES
+// GAVE (the lead's ruling of 2026-10-25, on the same rule, re-check 2 finding
+// F1): a title one voice alone rendered, or that tied at one voice apiece,
+// stays unsettled with a finding, however many voices were heard. A tie of two
+// voices apiece or more is still broken by the earliest seat.
 
 /**
  Heading of the sheet block.
@@ -206,6 +209,7 @@ function comparisonKey({ rendering, }: { readonly rendering: string; },): string
 
 /**
  The rendering most voices gave one title, the earliest seat breaking a tie.
+ The count it returns can be one, which the caller does not settle on.
 
  A RENDERING THAT SHOWS A READER NOTHING IS NONE, asked of `rendersAsNothing`
  (ledger B40): asked of an empty-string comparison after the trim, two seats
@@ -283,7 +287,8 @@ function mostGiven(
 
 /**
  Settles one English rendering for each title a page repeats, asking the bench once.
- A round that heard fewer than two voices settles nothing.
+ A round that heard fewer than two voices settles nothing, and a title settles
+ only on a rendering two or more voices gave.
 
  @param client - provider client
 
@@ -427,10 +432,10 @@ export async function settlePageTitles(
     );
   }
   /**
-   Each title's settled rendering, where some voice gave one and enough voices
+   Each title's leading rendering, where some voice gave one and enough voices
    were heard.
    */
-  const titles = tooFewVoices ? [] : spans.flatMap(function settle(
+  const leaders = tooFewVoices ? [] : spans.flatMap(function settle(
     span,
     at,
   ): readonly SettledPageTitle[] {
@@ -457,6 +462,18 @@ export async function settlePageTitles(
         };
       },);
   },);
+  /**
+   Titles a rendering two or more voices gave settles: the leader of a title
+   that only one voice rendered, or that tied at one voice apiece, is no
+   decision, since one judge alone never decides.
+   */
+  const titles = leaders.filter(function namedByTwoVoices(title,): boolean {
+    return title.voices >= MIN_STAGE_VOICES;
+  },);
+  /**
+   Titles some voice rendered that no two voices agreed on.
+   */
+  const unsettled = leaders.length - titles.length;
   tl.info(
     `PAGE TITLES heard=${String(heard,)} asked=${String(spans.length,)} settled=${String(titles.length,)}`,
   );
@@ -487,6 +504,23 @@ export async function settlePageTitles(
           many: 'voices',
         },)
       }`,
+      ...((unsettled === 0)
+        ? []
+        : [
+          `page title lexicon left ${String(unsettled,)} repeated ${
+            wordForCount({
+              count: unsettled,
+              one: 'title',
+              many: 'titles',
+            },)
+          } unsettled, since no rendering was given by ${String(MIN_STAGE_VOICES,)} ${
+            wordForCount({
+              count: MIN_STAGE_VOICES,
+              one: 'voice',
+              many: 'voices',
+            },)
+          }`,
+        ]),
       ...(tooFewVoices
         ? [
           `page title lexicon heard fewer than ${
