@@ -6,7 +6,10 @@
  @module
  */
 
-import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
+import {
+  parseMarkdownMathBody,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure';
 import {
   describe,
   expect,
@@ -14,6 +17,24 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import { rootWithFreshTails, } from '../../dist/final/node/index.mjs';
+
+/**
+ The type, first line and first offset of each block of a root.
+
+ @param root - tree whose children are described
+
+ @returns One note a block, such as `html@2:10`
+
+ @example
+ ```ts
+ const notes = blockNotes({ root: parseMarkdownMathBody({ body: 'a\n', },), },);
+ ```
+ */
+function blockNotes({ root, }: { readonly root: Extract<TreeNode, { readonly type: 'root'; }>; },): readonly string[] {
+  return root.children.map(function noteOf(block,): string {
+    return `${block.type}@${String(block.position?.start.line,)}:${String(block.position?.start.offset,)}`;
+  },);
+}
 
 /**
  Reads the blocks of a text with the tails after its footnotes read on their own.
@@ -28,11 +49,11 @@ import { rootWithFreshTails, } from '../../dist/final/node/index.mjs';
  ```
  */
 function freshBlocks({ body, }: { readonly body: string; },): readonly string[] {
-  return rootWithFreshTails({
-    readable: body,
-    root: parseMarkdownMathBody({ body, },),
-  },).children.map(function describeBlock(block,): string {
-    return `${block.type}@${String(block.position?.start.line,)}:${String(block.position?.start.offset,)}`;
+  return blockNotes({
+    root: rootWithFreshTails({
+      readable: body,
+      root: parseMarkdownMathBody({ body, },),
+    },),
   },);
 }
 
@@ -48,13 +69,9 @@ await describe({
     it({
       name: 'LEAVES A TEXT WHOSE FOOTNOTE ENDS WHERE THE PLAIN PARSE ENDS ITS BLOCK',
       fn: async () => {
-        /**
-         The plain parse of the text.
-         */
-        const plain = parseMarkdownMathBody({ body: '[^1]: x\n\ntail `y`\n', },).children.map(function describeBlock(block,): string {
-          return `${block.type}@${String(block.position?.start.line,)}:${String(block.position?.start.offset,)}`;
-        },);
-        expect(freshBlocks({ body: '[^1]: x\n\ntail `y`\n', },),).toEqual(plain,);
+        expect(freshBlocks({ body: '[^1]: x\n\ntail `y`\n', },),).toEqual(blockNotes({
+          root: parseMarkdownMathBody({ body: '[^1]: x\n\ntail `y`\n', },),
+        },),);
       },
     },),
     it({

@@ -37,6 +37,11 @@ export type ReadingDifference = {
 };
 
 /**
+ Why a page that holds syntax is a difference.
+ */
+const SYNTAX_REASON = 'the page holds a construct the strict grammar reads as syntax, which shows a reader other than the text';
+
+/**
  Why a difference in a container is not reported.
  */
 const CONTAINER_REASON = 'the footnote ranges of the two readings differ inside a block quote or a list item, where the '
@@ -79,7 +84,7 @@ export function readingDifferenceOf(
     if (error instanceof PageSyntaxError) {
       return {
         kind: 'differs',
-        reason: error.message,
+        reason: SYNTAX_REASON,
       };
     }
     throw error;

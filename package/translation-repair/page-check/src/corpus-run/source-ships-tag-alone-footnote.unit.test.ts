@@ -13,18 +13,9 @@
  @module
  */
 
-import {
-  describe,
-  expect,
-  it,
-} from '@monochromatic-dev/module-test/ts';
+import { describe, } from '@monochromatic-dev/module-test/ts';
 
-import {
-  encodeAsLiteralMdx,
-  readerOfPage,
-  readerOfSource,
-  withoutLinkTargets,
-} from '../../dist/final/node/index.mjs';
+import { readerEqualityCases, } from './source-reader-equality.test-fixture.ts';
 
 /**
  Texts a reader must see as the source shows them: what the case is, and the text.
@@ -62,17 +53,5 @@ const CASES: readonly (readonly [string, string])[] = [
 
 await describe({
   name: 'the page after a footnote opened with a tag alone',
-  children: CASES.map(function readerCase([name, text,],) {
-    return it({
-      name: `SHOWS THE SOURCE TEXT FOR ${name}`,
-      fn: async () => {
-        /**
-         The text as the encoder writes it.
-         */
-        const written = encodeAsLiteralMdx({ text, },);
-        expect(withoutLinkTargets({ account: readerOfPage({ carried: written, },), },),)
-          .toBe(withoutLinkTargets({ account: readerOfSource({ source: text, },), },),);
-      },
-    },);
-  },),
+  children: readerEqualityCases({ cases: CASES, },),
 },);

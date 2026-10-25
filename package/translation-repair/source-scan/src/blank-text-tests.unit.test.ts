@@ -1565,6 +1565,14 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SENTINEL,
   },
+  'page-check/corpus-run/source-reading-account.ts#isWord': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-reading-account.ts#spaced': {
+    tests: 1,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-addresses.ts#addressEnd': {
     tests: 1,
     why: SCANNER,
