@@ -8,13 +8,13 @@
 
 import type { Word, } from './position-references-text.test-fixture.ts';
 import {
-  COMPARED_NOT_BEFORE_BARE_VERB,
+  COMPARED_ONLY_BEFORE_KNOWN_NOUN,
   COMPARED_ONLY_BEFORE_NAMED_THING,
   COMPARED_UNLESS_OBJECT_FOLLOWS,
   JOIN_GAP,
+  NOUNS_AFTER_THAT,
   OBJECT_OPENERS,
   QUANTIFIED_NAMES,
-  VERBS_AFTER_THAT,
 } from './position-references-vocabulary.test-fixture.ts';
 
 //region Compared words
@@ -145,12 +145,12 @@ function joinedWordIn(
  Whether a word of the compared list, standing right after a position, is the thing compared, judged with the word
  after it.
 
- TWO KINDS OF WORD ARE READ WITH THE WORD AFTER THEM (re-check 8, nit A). A word that is a verb or opens a clause
- (`zero`, `that`) compares unless a determiner, a quantifier or a pronoun follows, since a verb takes an object and a
- clause begins with one; `that` followed by a verb of `VERBS_AFTER_THAT` is a pointer too ("the lines below that write
- it"). A quantifier that floats away from its noun (`all`, `both`) compares only when a determiner, a word of
- `QUANTIFIED_NAMES` follows or no word joins it, since "the cases below all pass" names no thing. Any other word
- of the list compares.
+ THREE KINDS OF WORD ARE READ WITH THE WORD AFTER THEM (re-check 8, nit A; ledger B952). A word that is a verb
+ (`zero`) compares unless a determiner, a quantifier or a pronoun follows, since a verb takes an object. `that`
+ compares only when a word of `NOUNS_AFTER_THAT` follows it, since a list of the verbs and clauses that make it a
+ pointer could never be complete ("the line below that writes it"). A quantifier that floats away from its noun
+ (`all`, `each`) compares only when a determiner, a word of `QUANTIFIED_NAMES` follows or no word joins it, since
+ "the cases below all pass" names no thing. Any other word of the list compares.
 
  @param flat - joined text
 
@@ -191,16 +191,13 @@ export function readsAsComparedObject(
     at,
     set: OBJECT_OPENERS,
   },);
-  if (
-    COMPARED_NOT_BEFORE_BARE_VERB.has(compared.text,)
-      && joinedWordIn({
-        flat,
-        words,
-        at,
-        set: VERBS_AFTER_THAT,
-      },)
-  )
-    return false;
+  if (COMPARED_ONLY_BEFORE_KNOWN_NOUN.has(compared.text,))
+    return joinedWordIn({
+      flat,
+      words,
+      at,
+      set: NOUNS_AFTER_THAT,
+    },);
   if (COMPARED_UNLESS_OBJECT_FOLLOWS.has(compared.text,))
     return !opens;
   if (COMPARED_ONLY_BEFORE_NAMED_THING.has(compared.text,))

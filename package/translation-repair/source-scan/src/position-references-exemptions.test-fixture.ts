@@ -80,6 +80,11 @@ export const PACKAGE_EXEMPTIONS: readonly PositionExemption[] = [
     reason: 'a blank line of the stub being built, an element of the data',
   },
   {
+    path: 'page-check/corpus-run/archive-stub.ts',
+    holds: 'ORIGINAL below that and',
+    reason: 'the part of the archive page that follows the stub marker, a position in the page\'s own text',
+  },
+  {
     path: 'artifact/corpus-run/artifact-two-lane-read-pairing.ts',
     holds: 'Section before this one, absent at the first position',
     reason: 'the section the loop read before this one, an element of the data',

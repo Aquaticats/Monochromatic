@@ -33,14 +33,13 @@
  none.
 
  A COMPARED WORD THAT IS ALSO SOMETHING ELSE IS READ WITH THE WORD AFTER IT (re-check 8, nit A). A verb of the list
- ("the lines below zero the counter", with baseline, threshold and total) and "that" opening a clause
- ("the statement above that a run-off keeps its key holds") compare unless a determiner, a quantifier or a pronoun
- follows, and "that" followed by a verb it names ("the lines below that write it", "the paragraphs above that explain")
- is a pointer too; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
- only when a determiner, "of", "else", "other" or "others" follows. Thirteen words that no text needed left the list
- (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan still
- lets through, a verb after "that" that the scan does not name and a quantifier before "of", is stated in the TSDoc of
- `COMPARED_OBJECTS` and in ledger B938.
+ ("the lines below zero the counter", with baseline, threshold and total) compares unless a determiner, a quantifier or
+ a pronoun follows; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
+ only when a determiner, "of", "else", "other" or "others" follows; and "that" compares only before a noun it knows
+ (floor, speed, size, opening, calibration, percentile, and "of" for "that of"), so "the lines below that write it"
+ and every other verb or clause after "that" is a pointer (ledger B952). Thirteen words that no text needed left the
+ list (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan
+ still lets through, a quantifier before "of", is stated in the TSDoc of `COMPARED_OBJECTS` and in ledger B938.
 
  WHAT IS LEFT is a phrase inside double quotes, which quotes the words rather
  than using them, a position inside a Markdown code span, which quotes data,

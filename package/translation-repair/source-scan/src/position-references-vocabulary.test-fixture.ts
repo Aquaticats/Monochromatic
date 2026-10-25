@@ -67,13 +67,13 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
  above ties", and let "the asked count below ties the script" pass, the verb read as the object. It left the list, and
  the one comparison in the texts that used the noun is in the exemptions, with its reason.
 
- WHAT THE SCAN READS BEYOND THE WORD (re-check 8, nit A). Two groups of words in this list are something else as well,
- and each is read with the word after it, joined to it by spaces alone:
- `COMPARED_UNLESS_OBJECT_FOLLOWS` holds the words that are verbs or open a clause ("the lines below zero the counter",
- "the statement above that a run-off keeps its key holds"), which compare unless a determiner, a quantifier or a
- pronoun follows; `COMPARED_ONLY_BEFORE_NAMED_THING` holds the quantifiers that float away from their noun ("the cases
- below all pass", "the checks below each assert a whisker"), which compare only when a determiner, "of", "else",
- "other" or "others" follows or nothing joins them to a next word ("above all, it naps").
+ WHAT THE SCAN READS BEYOND THE WORD (re-check 8, nit A). Three groups of words in this list are something else as
+ well, and each is read with the word after it, joined to it by spaces alone:
+ `COMPARED_UNLESS_OBJECT_FOLLOWS` holds the words that are verbs ("the lines below zero the counter"), which compare
+ unless a determiner, a quantifier or a pronoun follows; `COMPARED_ONLY_BEFORE_NAMED_THING` holds the quantifiers that
+ float away from their noun ("the cases below all pass", "the checks below each assert a whisker"), which compare only
+ when a determiner, "of", "else", "other" or "others" follows or nothing joins them to a next word ("above all, it
+ naps"); `COMPARED_ONLY_BEFORE_KNOWN_NOUN` holds "that", which compares only before a noun of `NOUNS_AFTER_THAT`.
 
  THIRTEEN WORDS LEFT THE LIST because no text the guard reads needed them: an, his, her, some, half, exact, both and the
  numbers four, six, seven, eight, nine and ten. The count is of raw findings, with no exemption applied, that appear
@@ -81,14 +81,17 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
  left is a pointer: "the lines below exact a fixed count", "the bowls below half the set" and "the checks below both
  fail" are found, and so is a comparison such as "a rate above four", which then needs an exemption with its reason.
 
- A BARE VERB AFTER "that" IS READ NOW (ledger B951). "that" followed by a word of `VERBS_AFTER_THAT` reads the position
- as a pointer: "the lines below that write it" and "the paragraphs above that explain", which passed, are found.
+ "that" AFTER A POSITION COMPARES ONLY BEFORE A NOUN THE SCAN KNOWS (ledger B952). A list of verbs ledger B951 had
+ named read the verb after "that" in one form, so "the line below that writes it" and "the paragraph above that
+ explained" passed. The reading is now the inverse: "that" compares only when a word of `NOUNS_AFTER_THAT` follows it
+ ("a roster below that floor", "a cat above that of the dog"), and anything else, a verb in any form, a clause, a
+ punctuation mark or the end of the phrase, reads the position as a pointer. The cost is that a new comparison such as
+ "a rate above that <noun>" is found until the noun joins `NOUNS_AFTER_THAT` or the sentence gets an exemption with
+ its reason.
 
- WHAT IT STILL DOES NOT READ. A word of the list that is a verb or opens a clause and is followed by a word outside
- `OBJECT_OPENERS` reads as a comparison, so a verb that `VERBS_AFTER_THAT` does not hold ("the lines below that
- enumerate it") passes, since the scan cannot tell a verb from a noun. A quantifier followed by "of" reads as a
- comparison too ("the persist below each of them"), which hides "the cases below all of which fail". Any other word
- that is both a noun and a verb, added to the list later, lets a pointer through unless it joins a group.
+ WHAT IT STILL DOES NOT READ. A quantifier followed by "of" reads as a comparison ("the persist below each of them"),
+ which hides "the cases below all of which fail". Any other word that is both a noun and a verb, added to the list
+ later, lets a pointer through unless it joins a group.
  */
 export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
   words: 'the a its their one zero it that this what any every each all which baseline threshold quorum twice hard '
@@ -96,12 +99,11 @@ export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
 },);
 
 /**
- Words in the compared list that are also verbs, or that open a clause: "the lines below zero the counter", "the
- statement above that a run-off keeps its key holds". After a position, one of these compares only when no word that
- opens an object or a clause follows it.
+ Words in the compared list that are also verbs: "the lines below zero the counter". After a position, one of these
+ compares only when no word that opens an object or a clause follows it.
  */
 export const COMPARED_UNLESS_OBJECT_FOLLOWS: ReadonlySet<string> = wordSet({
-  words: 'baseline zero threshold total that',
+  words: 'baseline zero threshold total',
 },);
 
 /**
@@ -111,21 +113,20 @@ export const COMPARED_UNLESS_OBJECT_FOLLOWS: ReadonlySet<string> = wordSet({
 export const COMPARED_ONLY_BEFORE_NAMED_THING: ReadonlySet<string> = wordSet({ words: 'all each', },);
 
 /**
- Words in the compared list that open a clause, which a bare verb after them makes a pointer: "the lines below that
- write it", "the paragraphs above that explain". A bare verb cannot follow "that" as a demonstrative ("below that
- floor"), so a word of `VERBS_AFTER_THAT` right after one of these reads the position as a pointer.
+ Words in the compared list that open a clause or point at a thing: "the lines below that write it" and "the statement
+ above that a run-off keeps its key holds" point, and "a roster below that floor" compares. After a position, one of
+ these compares only when a word of `NOUNS_AFTER_THAT` follows it, since a list of the words that make it a pointer
+ could never be complete (verbs take many forms).
  */
-export const COMPARED_NOT_BEFORE_BARE_VERB: ReadonlySet<string> = wordSet({ words: 'that', },);
+export const COMPARED_ONLY_BEFORE_KNOWN_NOUN: ReadonlySet<string> = wordSet({ words: 'that', },);
 
 /**
- Verbs, in the form a plural subject takes, that a pointer puts after "that": the lines below that write it, the
- paragraphs above that explain. A list, since the scan cannot tell a verb from a noun. A word that is also a noun stays
- in only when no text the guard reads compares with it ("name", "list", "record", "note", "check", "hold"); "count",
- "use", "run", "set", "test", "call" and "return" stay out as a precaution, because "above that count" could compare.
+ Words that, after a position and "that", show it compares: "a roster below that floor", "a cap below that speed",
+ "a nap below that size", "a gap above that opening", "a cat above that of the dog". The six nouns are the ones the
+ texts the guard reads put there (floor, speed, size, opening, calibration, percentile); "of" opens "that of".
  */
-export const VERBS_AFTER_THAT: ReadonlySet<string> = wordSet({
-  words: 'write explain say state describe define show give mention cite quote argue discuss introduce establish '
-    + 'document assert prove make need take cover name list record note check read hold',
+export const NOUNS_AFTER_THAT: ReadonlySet<string> = wordSet({
+  words: 'floor speed size opening calibration percentile of',
 },);
 
 /**
