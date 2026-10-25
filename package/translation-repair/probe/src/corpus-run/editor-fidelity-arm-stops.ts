@@ -178,7 +178,8 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 
  @param figures - the arm's figures
 
- @returns The line alone, or nothing when unusable plus refused are no more than the warned share of the arm's units
+ @returns The line alone when unusable plus refused pass the warned share of the arm's units, or when any are unusable
+ or refused and the log states no count of units (the line then names that count as unknown); nothing otherwise
 
  @example
  ```ts
@@ -202,17 +203,18 @@ export function unusableWarning({
     0,
     figures.refused,
   );
+  if (together === 0)
+    return [];
   /**
-   Units the arm completed. A log that states none (a dry run's output) reads as minus one unit, which would put every
-   arm over the share.
+   The start of the line, which names the arm and the units that yielded no edit.
    */
-  const units = Math.max(
-    0,
-    figures.trials,
-  );
-  return ((together * PERCENT) > (units * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
+  const start = `WARN ${arm}: unusable plus refused is ${String(together,)} of`;
+  // A log that states no count of units reads as minus one unit: nothing is known of the share.
+  if (figures.trials < 0)
+    return [`${start} an unknown number of units (the log states none)`,];
+  return ((together * PERCENT) > (figures.trials * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
     ? [
-      `WARN ${arm}: unusable plus refused is ${String(together,)} of ${
+      `${start} ${
         countWithNoun({
           count: figures.trials,
           one: 'unit',
