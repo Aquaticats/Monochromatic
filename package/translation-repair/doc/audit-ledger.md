@@ -614,6 +614,12 @@ named for that subject and listed here.
   the spend guard's one-call-at-a-time assertion (B897),
   the retry-ladder hook with the cache statement of round 6 (B898),
   and the bench total of 60 USD with the replicates the rule reads as units (B899).
+- [Audit ledger: the editor bench's multi-pass arms, the false-pick bound and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md):
+  The follow-ups of B899 from round 8 on:
+  the planned line of an arm that walks the pool in passes,
+  the false-pick bound under unequal repeat agreement,
+  the lines that print each arm's repeat agreement and the fix rate of the default effort,
+  and the runbook with its stop rule and pre-launch read.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,

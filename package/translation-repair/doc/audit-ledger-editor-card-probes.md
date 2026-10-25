@@ -14,7 +14,7 @@ and the dry run that prints what the arm will do before it calls anything.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
-Entries from B894 on are in [the paired rule and shared trials file][paired-rule],
+Entries from B894 on are in [the paired rule and shared trials file][paired-rule] and [its multi-pass arms follow-up](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md),
 because this file stood at 982 lines.
 
 ## B870: the editor calibration had no flag naming a card, so an unmeasured card could not be benched as an editor
