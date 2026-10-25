@@ -45,7 +45,8 @@ const LINES: usize = 1500;
 /// The offset the view stands at before a turn.
 const START: f32 = 12_000.0;
 
-/// The ease of a wheel turn, in the toolkit's own time.
+/// The ease of a wheel turn,
+/// in the toolkit's own time.
 const EASE: Duration = Duration::from_millis(180);
 
 /// Logical pixels of one wheel notch.
