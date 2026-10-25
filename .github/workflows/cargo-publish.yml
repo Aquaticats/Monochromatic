@@ -122,6 +122,11 @@ jobs:
         # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
         # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false
@@ -434,6 +439,11 @@ jobs:
         # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
         # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false
@@ -808,6 +818,11 @@ jobs:
         # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
         # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false
@@ -930,6 +945,11 @@ jobs:
         # Same pinning rationale as the other jobs in this workflow:
         # doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false
@@ -1070,6 +1090,11 @@ jobs:
         # Same pinning rationale as the other jobs in this workflow:
         # doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false
@@ -1364,6 +1389,11 @@ jobs:
         # Same pinning rationale as the other jobs in this workflow:
         # doc/troubleshooting/mise-action-version-ahead-of-release.md
         minimum_release_age: 1d
+        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
+        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
+        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
+        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
+        version: 2026.10.17
         install: false
         # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
         cache: false

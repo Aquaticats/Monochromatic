@@ -2275,6 +2275,22 @@ that is verification, not a decision for the user.
   `.github/workflows/cargo-publish.yml` with a comment, versus other fixes) to the user with that evidence. Order after
   CI is fixed: rerun the 0.2.9 publish, then land the allowlist change, gate, release 0.2.10, install, and verify
   `mise plugins update` on the host.
+  PROGRESS 2026-10-25 (user asked "How long do we need to wait? Can we unblock CI right now?"): CI reproduction in
+  podman, first attempts: mise 2026.10.17 exit 0 in 150 s (reached the Rust install, no cmake error); mise 2026.10.19
+  exit 1 in 171 s with `failed to resolve cmake for linux-arm64`; second attempts were still running (results in
+  `~/temp/agent/podman-ci-mise/summary.final.json`). Allowlist change committed as `197ae38ff5` (`mise_data_dir`,
+  README, unit test `mise_data_directory_follows_mise_precedence`, binary test
+  `a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule`); clippy exit 0, host 1949 of 1950 and binary 155 of
+  156 with only the two known real-linter failures. CI unblock: pinned `version: 2026.10.17` in all six
+  `jdx/mise-action` steps of `.github/workflows/cargo-publish.yml` (the action docs say an explicit version wins over
+  `minimum_release_age`); the workflow publishes only on a push that changes the crate `Cargo.toml` version or on
+  `workflow_dispatch`, so 0.2.9 is published by dispatching the workflow, a dry run first. Troubleshooting doc
+  `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md` written; its root cause is NOT source-traced (mise's
+  vfox plugin loader and lock resolver unread) and its upstream filing decision is not made. QUEUED: read the mise
+  source for the plugin removal during lock resolution, search the mise tracker for a duplicate, run the
+  six-constraint check, and remove the pin when a newer mise installs cleanly. Still to do for the host fix:
+  container gate and mutation for `effective_target.rs`, release 0.2.10 (after 0.2.9), install, and verify
+  `mise plugins update` on the host.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
