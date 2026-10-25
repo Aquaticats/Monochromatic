@@ -52,10 +52,15 @@ import type {
  miss) and 1.2 (output) USD per million tokens at peak and half of each off peak.
  Peak is 01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday to Friday, excluding
  Chinese public holidays. The provider package prices a call at these rates when
- its request started inside a weekday peak window (UTC) and at half of them
- otherwise (`provider/src/direct-cost.ts`); it reads no holiday calendar, so a
- holiday inside a window can only make that call cheaper than booked, and the
- booked figure is never an under-read of what the owner's balance spent.
+ its request started, or its reply completed, inside a weekday peak window (UTC)
+ and at half of them only when both instants lie outside every window
+ (`provider/src/direct-cost.ts`). It reads no holiday calendar, so a holiday
+ inside a window can only make that call cheaper than booked, and the page does
+ not say whether the start or the end of a request decides its rate, so a call
+ that crosses a window edge is booked at peak: the booked figure is an upper
+ bound as to holidays and as to which instant decides. It is not bounded as to a
+ Saturday that China makes a working day, which the page's wording books off
+ peak and which DeepSeek may bill at peak.
 
  @example
  ```ts
