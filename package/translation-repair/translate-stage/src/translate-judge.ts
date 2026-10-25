@@ -425,11 +425,13 @@ export async function judgeTranslateSlate(
     // buys a missing passage with it.
     // Wording that exists and cannot ship is neither, and what a decline does
     // there depends on the round (re-check 4, F1): the first ask of a pair
-    // settles nothing and asks the same judges again; a challenge that ships
+    // settles nothing and asks the panel again; a challenge that ships
     // past a decline ships a candidate two judges named and otherwise keeps
     // the archive wording (owner, 2026-09-27 and 2026-10-25); a challenge that
     // does not ship past one ships only a level tie and otherwise raises the
-    // absence its caller answers with a follow-up round.
+    // absence its caller answers with a follow-up round. A tie that backs only
+    // some candidates sends the panel to a run-off first in all three (re-check
+    // 5, M-B), and no sentence promises the same seats (re-check 5, M-D).
     declineConsequence: declineConsequenceFor({
       incumbentKind,
       withheldStanding,
