@@ -108,10 +108,14 @@ import {
 // reported (`code-the-search-cannot-read`), in `claude-schema-blind-unreadable.test-fixture.ts`: `createRequire` in any
 // form, `require` anywhere but as the callee of a direct call (`module.require`, an alias, `require.call`), `eval`,
 // `Function` with or without `new`, and a member of `globalThis`, `window`, `self` or `global` whose key is not a
-// string literal (`globalThis['ev' + 'al']`); the constructor of a function, the constructor of the async function
-// prototype and `node:vm` make code from text too and are not read, a limit the ledger states. A specifier that is no
-// built-in module, no package the lockfile holds for the
-// family and no file is reported (`unresolved-module-specifier`), in `claude-schema-blind-specifiers.test-fixture.ts`:
+// string literal (`globalThis['ev' + 'al']`) or that is the global object under another name (`const g = globalThis`,
+// a pattern, a conditional, an array, a default); the `vm` and `node:vm` modules in any form of import, export from,
+// `require` or `import()`, a member named `constructor` (also written as the string `'constructor'`), and
+// `Reflect.get` with that string as its key, make code from text too and are reported
+// (`claude-schema-blind-text-code.test-fixture.ts`). A key that is no string literal, and a pattern that takes
+// `constructor` out of a value, reach code with no name the search could tell, and a `Reflect.get` with a key that is
+// no literal does too; these are limits of the search that the ledger states. A specifier that is no built-in module,
+// no package the lockfile holds for the family and no file is reported (`unresolved-module-specifier`), in `claude-schema-blind-specifiers.test-fixture.ts`:
 // an alias that begins with `#`, a package nothing holds, a relative path to a file that does not exist; a type-only
 // import or export and a type are left out. The lockfile gives the packages of every package of the family together,
 // and the check reads it from the root of the repository.
@@ -134,12 +138,15 @@ import {
 //
 // The third total is where the value of a builder's call goes, read by `claude-schema-blind-flow.test-fixture.ts`.
 // The value is followed through objects, arrays, spreads, fallbacks, conditionals, sequences, awaits, members,
-// methods, locals, patterns, defaults and names assigned, and it must end in one of three places. The first is a
+// methods, locals, patterns, defaults and names assigned, and into the parameters of the callback of an array method
+// called on it, and it must end in one of three places. The first is a
 // `return`, an arrow function's body or a `yield` of a function the search lists as a builder; in any other function
 // the value leaves it, and the function is reported (`builder-result-returned-outside-a-wrapper`). The second is the
 // property of the object argument of a sender, a function named by module and by parameter in
-// `claude-schema-blind-senders.test-fixture.ts`. The third is a constant, a pattern, a default or a name assigned,
-// whose every reference ends in one of the three in turn, also at the top level of a file, and for a constant a file
+// `claude-schema-blind-senders.test-fixture.ts`; a name that the file assigns again anywhere is no sender, whatever
+// it was first bound to. The third is a constant, a pattern, a default, a name assigned, or a parameter of the callback
+// of `every`, `filter`, `find`, `flatMap`, `forEach`, `map`, `reduce` or `some` called on the value
+// (`claude-schema-blind-callbacks.test-fixture.ts`), whose every reference ends in one of the three in turn, also at the top level of a file, and for a constant a file
 // exports also in every other file of the family that reads it, by its name, by an alias, through a module that
 // exports it again (by name or by `export *`), through a member of a namespace import, or through an `import()` or a
 // `require` of the file (`claude-schema-blind-constants.test-fixture.ts`). A namespace import read as a whole, a
@@ -152,7 +159,9 @@ import {
 // value, a loop that iterates it. A place that reads the value and gives back nothing the schema could travel in ends
 // the walk without a report: the test of a conditional or a loop, a computed key, an operand of an operator, a
 // substitution in a plain template, a statement that drops it, an element of a sequence that is not the last, and the
-// target of an assignment.
+// target of an assignment. A callback the search cannot read (one that is a parameter, a name from another file, or a
+// computed member) is reported as code it cannot read. A method that takes a callback and is none of the eight ends the
+// walk without a report, a limit the ledger states.
 //
 // The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
 // hides there, and a place it reports is answered by reading the place in the search or by naming the place in the

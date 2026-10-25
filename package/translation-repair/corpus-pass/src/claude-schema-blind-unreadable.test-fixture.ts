@@ -32,11 +32,11 @@ import {
 // without `new`, also as the member of another object, and a member of `globalThis`, `window`, `self` or `global`
 // whose key is computed from anything but a string literal (`globalThis['ev' + 'al']`), since it can be either. The
 // global object written as a whole value, which a holder can read with such a key, is reported too
-// (`claude-schema-blind-global-values.test-fixture.ts`). A word
-// inside a string, a longer name and a type are not code. The `vm` module and the constructor of a function, which
-// make code from text as well, are told by their text and reported in `claude-schema-blind-text-code.test-fixture.ts`;
-// a key that is no literal and a pattern that takes `constructor` out of a value reach them without a name the search
-// could tell, and are limits of the search that the ledger states.
+// (`claude-schema-blind-global-values.test-fixture.ts`). A word inside a string, a longer name and a type are not
+// code. The `vm` module and the constructor of a function, which make code from text as well, are told by their text
+// and reported in `claude-schema-blind-text-code.test-fixture.ts`. Three limits stay, held by no report and stated in
+// the ledger: a computed key that is no string literal, a pattern that takes `constructor` out of a value, and a
+// `Reflect.get` with a key that is no literal reach them without a name the search could tell.
 
 /**
  What a report says of a place that builds a loader.
