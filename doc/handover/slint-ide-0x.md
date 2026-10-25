@@ -4485,6 +4485,35 @@ build and no CPU painting. Acceptance: 0 blank code frames at 150, 300 and 600 n
 nothing new at 40, with the 478-jump protocol, 88-click recording unchanged (0 blank frames, 82 px gap, 1 plus 1 skip
 then 0 plus 1 skip, first line 223 for both y=1700 presses), drags covered or stated. Its report is verified, landed and
 the IDE reinstalled; then `~/temp/agent/final` and `~/temp/agent/wheel` are removed.
+Landed 2026-10-25 as `83af48b117` (agent tip `37b212448c`, plus my commit that breaks one doc-comment line in
+`wheel_tests.rs`: the agent's branch passed its lint, the merged tree failed `markdown/semantic-line-breaks`).
+Design as built: `ui/app.slint` has `hold-top`, `hold-bottom` (set in `show()` from `viewport::reach`) and
+`drawn-offset` = clamp(real offset, reach); slices, selection and find rectangles, gutter rows and caret ride in one
+`Rectangle { y: hold-shift }`; the pointer maps through `drawn-y(mouse-y)`; placements and drags build the tile first so
+the hold never engages for them; minimap box, slide and offset stay on the toolkit's real offset (the box runs ahead
+of the held text for 1 to 3 frames, by design). `src/native/wheel.rs`: Slint 1.18.1 exposes no ease end (`flicked` has
+no arguments, a `TouchArea` `scroll-event` sees only the first turn of a burst, `SCROLL_FILTER_DURATION` 800 ms), so
+the winit event hook (`frame_trace::bind`) notes a `LineDelta` turn, the source `Flickable`'s `flicked` takes the note,
+the end is last placed offset minus notches times 60 (or the end of a running ease) clamped to the text, and if the
+shown or requested tile does not hold it `request_window` asks for ONE tile for it; per-step asks stop while steps lie
+on the way; a placement releases the follow; rows arriving mid-ease re-ask for the same end (`wheel::refit`); a 400 ms
+timer is the backstop. Touchpad `PixelDelta`, near turns the tile holds, and wheels over the tree stay on the old path.
+Measured by the builder on 239 of 240 jumps (two release binaries alternating, 3 batches of 10, recorder median 21.2 fps,
+load median 8.9): fix 0 blank code frames, 0 partial frames and 0 edge-gap jumps at 40, 150, 300 and 600 notches;
+`main` blanked 0, 29, 29 and 30 of 30 jumps (partial frames 0, 20, 16, 17); tiles applied per jump 1.00 against
+1.03, 2.70, 3.48 and 3.90; no extra window-thread build; held frames per jump 0, 1.0, 1.7 and 2.6 (content not at the
+wheel's offset at that instant, largest distance 2,335, 6,549 and 16,620 px at 150, 300 and 600 notches); first changed
+frame to final lines 183 to 186 ms against 181 to 189 ms. 8 tests in `src/native/wheel_tests.rs`, 14 guard cases
+(`hold-*`, `wheel-*`) removed and restored, 28 of 28 accepted; the new tests cannot compile on the baseline tree.
+Gates on the merged tree: `lint` 0 after the one-line fix, `test:native` 326 passed and 5 skipped, `test` 811 passed,
+`test:bin` 0, `inspect:no-software-renderer` 0.
+Imperfect: 1 to 3 frames per far jump show text that is not at the wheel's offset; the first full frame lacks the new
+place's hint rows (about 0.5 s later); the 180 ms constant and the add-remainder rule are copied from Slint, so a Slint
+change would make the predicted end wrong (the placement and the hold would still cover it, untested); the 223 first-line
+check was not reproduced on the builder's project. Installed: sha256 `e96cdd88596d32e9…` from `83af48b117`, prints
+0.1.1. The installed binary is being checked by the earlier verifier agent (far jumps against `wheel2/bin/main`,
+held-frame look, selection, caret and find marks while held, pointer mapping while held, drags, keys, the earlier
+regression checks); its numbers follow in this block, and `~/temp/agent/final`, `final2` and `wheel2` are removed after.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
