@@ -146,19 +146,28 @@ The class was added to the marked classes of `source-scan/src/message-names-only
 - The row check fails an arm that has any:
   `N of M rows were answered by prompt reuse and made no call, so none of them is a trial`.
   The billed log now fails it with 62 of 150 rows,
-  shares 88 units
-  and reads no repeat of its replays.
+  its stop and unit figures count the 88 rows that made a call,
+  and it prints no repeat reading of its replays.
+  The command prints no `SHARED` line for it,
+  since a log whose checks fail prints no figures,
+  and says on the unit check that 0 shared units remain of the 88 the first arm completed.
 - The README's launch block,
   `n` block,
   stop rule and pre-launch block take the `PROMPT-REUSE source=` lines of the high log
   off the number the `TRIALS` line gives.
   The build of this round writes none (an arm that gets one ends),
   so the number taken off is 0 for its logs and exact for a log of an earlier build.
+  The pre-launch block takes the spend of the arm from the `SPEND` lines without `estimated=`,
+  because the guard total of the billed log holds 23.314928 USD of ceilings that were never spent:
+  it reads 0.0071 USD a unit there,
+  where the guard total gives 0.27 and the block said not to launch.
+  The `n` block and the launch block refuse a log with no `TRIALS` line,
+  where the arithmetic had read the missing number as 0 and the launch block would have passed `--trials 0`.
   Each changed block was run in a fresh `bash --noprofile --norc` shell on constructed logs.
 
 ### The six nits of re-check 7
 
-1. The 0.0553 reading has the next section.
+1. The 0.0553 reading is in the section "The 0.0553 reading corrected".
 2. The TSDoc of `repeatLinesOf` says an exact test finds the arm under another,
    at the level the warning prints.
 3. `REPEAT_ALPHA` and its denominator in whole numbers state one fact twice:
@@ -171,7 +180,7 @@ The class was added to the marked classes of `source-scan/src/message-names-only
    and says that the 11 benches are 11 of 80000,
    four of them at the true rate 0.90.
 
-### The 0.0553 reading, corrected
+### The 0.0553 reading corrected
 
 Round 10 called the cell 1.5 standard deviations over 0.05 and within noise.
 The cell is a fix rate of 0.9,
@@ -240,8 +249,20 @@ and the failing lines of each are in the round's scratch directory
 - Lines broken for the Markdown linter,
   and the README brought back under its bound of 1000 lines:
   `1dba616f89e67b71c1ba18e054caed921021188b`,
-  `fe66608549b2c300e0c9067fb108988d23541bff`
-  and the commit that follows them.
+  `fe66608549b2c300e0c9067fb108988d23541bff`,
+  `34587581a2c4a7c493cff2d1caf6e18add6df006`
+  and `55510ed7bea2df768a4faf038b36bbc06becbb50`.
+- The suite of the meter pin run one case at a time:
+  `564d165033e61cab8d136fbf774eabfb4efd86f9`.
+
+The process globals scan (ledger B79) failed from `baef63bf1cc4df5981994e33fe0bd0afd77b9dee`
+to `55510ed7bea2df768a4faf038b36bbc06becbb50`.
+The meter pin put a case that diverts `console.info` into a suite that runs its cases beside each other,
+and `564d165033e61cab8d136fbf774eabfb4efd86f9` fixed it with `concurrency: 1` on that suite.
+The eleven commits between them fail that scan,
+so a bisect through them meets a failure that is not the one searched for.
+The message of `1dba616f89e67b71c1ba18e054caed921021188b` called that failure one the round did not touch,
+and that was wrong.
 
 ### The round 11 cache statement
 
@@ -256,6 +277,60 @@ run and read step,
 and changes no reply,
 key or cache record.
 No cache version moves.
+
+### The limit of the reuse check at the guard
+
+The guard can end an arm on a reply with no request behind it only for a client built over its admit,
+since only that client tells it of each attempt.
+A client given as itself tells the guard nothing,
+and a reply of the reuse layer then looks like a reply whose provider wrote no line on the meter,
+so the guard counts it at the ceiling as an unreported cost.
+Every construction in production passes a builder (`probe-run.ts`),
+so the case does not arise in a run,
+and the TSDoc of `spendGuardedClient` and the comment at the branch say so.
+
+## Round 12: the findings of re-check 8
+
+The independent re-check of round 11 (`editor-recheck8.md`) found no major,
+two minor and seven nit,
+and each was ruled a fix.
+
+- Minor 1:
+  the `n` block printed 0 for a log with no `TRIALS` line,
+  not the empty line the README said,
+  and the launch block would have passed `--trials 0`.
+  Both blocks now print a message on standard error and exit 1.
+  Each was run in a fresh shell on a dry run's log and on the billed `high.log`
+  (`n` gives 88 on the billed log and refuses the dry run;
+  the medium launch got `--trials 88` and `--bench-spent-usd 23.94` on the billed log through a stub of `systemd-run`,
+  and no launch on the dry run).
+- Minor 2:
+  the pre-launch block read 0.2720 USD a unit from the billed log;
+  it reads 0.0071 now,
+  from the `SPEND` lines without `estimated=`.
+- Nit 1:
+  the text of the read step no longer says it shares 88 units.
+- Nit 2:
+  the corrective comment on `1dba616f89e67b71c1ba18e054caed921021188b` is posted by the lead.
+- Nit 3:
+  the commit list and the break of the scan B79 are above.
+- Nit 4:
+  the pointer by position names its heading.
+- Nit 5:
+  `isReuseBody` finds the reuse line behind any number of tags.
+  The red commit is `7854e18682b5d8c71f9f3d182e78a887b11a3c90` with 2 failing lines for its case of tags,
+  the fix `c3f7f4a6343ef7399494071156524929588f9d09`.
+  Its second case takes the line from the stage's own writer and passes at the parent.
+- Nit 6:
+  the articles of the `@param`,
+  `@returns` and `@throws` text this work wrote are gone
+  (`d1372493f7369a1efb5c3ef5c00d70ed71398e81`).
+- Nit 7:
+  see the section on the limit of the reuse check.
+
+The README went back under its bound by moving its paragraph on the smallest difference at 60 shared units to the simulations doc
+and by cutting its restatement of the readings above 0.90,
+which the rule's text and the doc hold.
 
 ### Prevention
 

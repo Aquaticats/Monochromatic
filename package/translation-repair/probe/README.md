@@ -486,12 +486,8 @@ Two efforts are each tested at 0.025,
 so the chance of picking either when neither is better is under 0.05 where the test holds its level,
 which it does when every arm repeats itself alike and the true fix rate is no higher than 0.9.
 When the default effort repeats itself far less than the others the chance was 0.107 at 0.9 and higher above it.
-The committed fixture read 0.108 at 0.91,
-0.123 at 0.92,
-0.13 to 0.14 at 0.93 (0.131 pooled over its 12000 replicates) and 0.175 at 0.95.
-An independent re-implementation of the model read 0.142 at 0.93,
-0.173 at 0.95 and 0.241 at 0.97,
-and the two sources are kept apart.
+The readings above 0.90 are in the rule's text and in the simulations doc,
+which keeps the fixture's apart from the independent re-implementation's.
 The read step answers with two warnings,
 measured in round 10 by one simulation run of the committed fixture
 (seed prefix `edr10-sim`,
@@ -529,13 +525,9 @@ The simulations behind these figures,
 the false pick bounds and the readings above a true fix rate of 0.9,
 the exact test of the repeat warning with its measured false alarm and detection rates,
 the share of benches that print neither warning,
+the smallest difference detected at 60 shared units,
 and the model they play are in
 [the simulations behind the decision rule](doc/editor-fidelity-decision-rule-simulations.md).
-
-At 60 shared units the smallest difference detected with chance 0.8 is about 30 points when medium fixes half
-and 24 points when it fixes seven in ten,
-against 37 and 28 points at 40 units,
-which is why 60 is the fewest the read step accepts.
 
 ### Launching the arms
 
@@ -644,6 +636,7 @@ if [ "$ARM" = high ]; then
   TRIALS=(--passes 3)
 else
   N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+  if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
   REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
   SPENT=$(rg --only-matching --no-filename --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH"/*.log \
     | awk '{ micro += int($1 * 1000000 + 0.5) } END { printf "%.2f\n", int((micro + 9999) / 10000) / 100 }')
@@ -671,16 +664,21 @@ which a `PROMPT-REUSE` line stands for each.
 A unit that made no call is no trial:
 the build of this round writes no such row,
 and the billed high log of `dd4b15b75c` says 150 where 88 made a call.
-The command prints the number alone,
-and prints an empty line and exits 0 for a log with no `TRIALS` line,
-as the output of a dry run is,
-which has a `planned:` line and no `TRIALS` line:
+The command prints the number alone.
+For a log with no `TRIALS` line,
+as a dry run's output is,
+it prints nothing,
+writes a message to standard error and exits 1.
+The launch block refuses such a log the same way,
+so no arm gets `--trials 0`.
+Both end the shell they run in, so each runs in a shell of its own:
 
 ```bash
 # README.md (editor fidelity bench): n, the units the high arm completed with a call
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+if [ -z "$N" ]; then echo "no TRIALS line in $BENCH/high.log, so the high arm has no n" >&2; exit 1; fi
 REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 echo "$((N - REUSED))"
 ```
@@ -734,7 +732,9 @@ about 21 fewer at 0.0167 USD a unit,
 and one fewer at the margin of 60 units
 (0.25 USD a unit at 15 USD gives 59,
 where 15 / 0.25 says 60).
-The spend a unit is over the units that made a call.
+The spend a unit is over the units that made a call
+and leaves out the `SPEND` lines the guard wrote at a call's ceiling (`estimated=`):
+the billed log's 62 of them would read 0.27 USD a unit where its 88 calls cost 0.0071.
 The block counts that reserve and also checks n,
 less the rows without a call and the rows in which an ask threw,
 against the floor of 60,
@@ -747,7 +747,7 @@ BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
 REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
-HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
+HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) { micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) } END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
 echo "$HIGH $N $THREW $REUSED" | awk '{ calls = $2 - $4; per = $1 / calls; left = calls - $3; reserve = 0.377;
   m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
   printf "units left after thrown rows %d; spend a unit %.4f USD; ", left, per;
@@ -852,7 +852,7 @@ that the chance of a false pick may be above 0.05
 higher above it),
 quoting the warning beside the verdict.
 The lead weighs that verdict against its cost before changing the default effort.
-A verdict of medium is not under the caveat,
+A verdict of medium is not under the caveat of either warning,
 since the chance concerns choosing another effort when none is better.
 Rerunning an arm needs a bench total the owner sets,
 so it is not a step of this runbook.
@@ -863,12 +863,10 @@ On that line,
 do not read the absence of a `WARN repeat agreement` line as clearing the verdict,
 because the repeat warning can miss unequal repeats at that fix rate.
 Report a verdict of high or low as shown better under the caveat that the chance of a false pick may be 0.11 to 0.18
-(the committed fixture's readings from 0.108 at 0.91 to 0.175 at 0.95;
-the independent re-implementation read up to 0.241 at 0.97,
-and the two sources are kept apart in the section on the decision rule),
+(0.108 at 0.91 to 0.175 at 0.95 by the committed fixture,
+and up to 0.241 at 0.97 by the independent re-implementation,
+which the simulations doc keeps apart),
 and weigh it against its cost before changing the default effort.
-A verdict of medium is not under the caveat,
-since the chance concerns choosing another effort when none is better.
 
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.

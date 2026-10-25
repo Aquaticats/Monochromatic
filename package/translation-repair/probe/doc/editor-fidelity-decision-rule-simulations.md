@@ -204,6 +204,13 @@ The share is observed and the true rate is not:
 at a true rate of 0.90 the line printed on 0.5208 of the benches at 264 units,
 a prompt for the caveat and not a verdict.
 
+## The smallest difference at 60 shared units
+
+At 60 shared units the smallest difference detected with chance 0.8 is about 30 points when medium fixes half
+and 24 points when it fixes seven in ten,
+against 37 and 28 points at 40 units,
+which is why 60 is the fewest the read step accepts.
+
 ## The simulation
 
 The simulation plays the bench over the committed pool in its order,
