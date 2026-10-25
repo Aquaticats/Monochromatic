@@ -233,16 +233,14 @@ function referringTo(
 
  @param found - forwarders found by the rounds before
 
- @param roundsLeft - rounds that may still add a function: a round adds a function no round added before, so the rounds
- that add are no more than the functions the family declares
-
  @returns Forwarders found before, then those this round and the rounds after it add, in the order of the sources
 
- @throws When a round adds functions after the rounds that may add are spent, which means a function was added twice
+ @throws When a round adds a function that an earlier round added, which no round may do and which would keep the
+ search from ending
 
  @example
  ```ts
- const forwarders = forwardersAfter({ family, builders, usages, found: [], roundsLeft: 40, },);
+ const forwarders = forwardersAfter({ family, builders, usages, found: [], },);
  ```
  */
 function forwardersAfter(
@@ -251,13 +249,11 @@ function forwardersAfter(
     builders,
     usages,
     found,
-    roundsLeft,
   }: {
     readonly family: Family;
     readonly builders: readonly FunctionAt[];
     readonly usages: readonly Usage[];
     readonly found: readonly FunctionAt[];
-    readonly roundsLeft: number;
   },
 ): readonly FunctionAt[] {
   /**
@@ -318,9 +314,17 @@ function forwardersAfter(
     },);
   if (added.length === 0)
     return found;
-  if (roundsLeft <= 0) {
+  /**
+   The functions this round adds that an earlier round added.
+   */
+  const repeated = added.filter(function wasFound(candidate,): boolean {
+    return known.forwarders
+      .keys
+      .has(keyOf(candidate,),);
+  },);
+  if (repeated.length > 0) {
     throw new Error(
-      `forwarder search did not end: a round added ${String(added.length,)} functions after every function was added`,
+      `forwarder search did not end: a round added ${String(repeated.length,)} functions an earlier round added`,
     );
   }
   return forwardersAfter({
@@ -331,7 +335,6 @@ function forwardersAfter(
       ...found,
       ...added,
     ],
-    roundsLeft: roundsLeft - 1,
   },);
 }
 
@@ -363,20 +366,11 @@ export function forwardersIn(
     readonly usages: readonly Usage[];
   },
 ): readonly FunctionAt[] {
-  /**
-   The functions the family declares, which no more rounds than that can add.
-   */
-  const declaredCount = [...family.values(),]
-    .flatMap(function declaredIn({ declared, },) {
-      return declared;
-    },)
-    .length;
   return forwardersAfter({
     family,
     builders,
     usages,
     found: [],
-    roundsLeft: declaredCount,
   },);
 }
 
