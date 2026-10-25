@@ -4742,6 +4742,25 @@ both sides, then with my handover commit; gates on the merged tree: `lint` 0, `t
 `36a91594cd` (the build unit and the install task built the same file), prints 0.1.1. The verifier (scratch
 `~/temp/agent/final8`) now checks the drag press from the new log lines, 30 trials per delay at 300 notches, plus the
 regression smoke; its numbers follow, then `final8` is removed.
+Result on the installed `4a316f890696402f…` (hardware RADV, load 4.6 to 39, recorder 14 to 23 fps; scratch removed):
+drag after a 300-notch wheel, 210 trials (30 per delay of 20, 50, 80, 110, 140, 180, 250 ms), 208 with a press log
+line: the press names the line drawn in the last frame that began in 208 of 208 (`shown_offset` equals that frame's
+drawn offset in 208 of 208; "next frame" 0, neither 0); release equals the last frame in 207 of 208; selection starts on
+the pressed line and ends on the release line in 198 of 198 trials where both ends could be read (10 starts were off the
+top of the view); the press is still handled a median of 104 to 113 ms after it was sent while the ease runs (6 ms at 250
+ms), `held=true` at the press in 12 of 30 at 20 ms, 4 at 50, 3 at 80, 0 from 110; the screenshot taken at once after the
+press equals the pressed line in 4 of 30 at 20 ms, 27 of 29 at 50, 28 of 29 at 80, 30 of 30 at 110 (old build 0 of 30),
+3 of 30 at 140, 1 of 30 at 180, 29 of 30 at 250 (the compositor's last committed frame is older than the last frame
+begun at 20, 140 and 180 ms: the screenshot is late, not the log); plain click and Ctrl+click at 50, 80 and 110 ms (60
+trials): press line = last frame 60 of 60, caret on the pressed line 60 of 60, `PointerDefinition` position on the
+pressed line 30 of 30. Regression smoke: row map 36,024 in 60 of 60 one-core and 60 of 60 unlimited sessions; far jumps
+0 blank and 0 partial frames, 1 tile applied per jump in 30 of 30; five-press means as before; 88-click 823 frames 0
+blank, gap 82 px in 119 of 119, requests 1 plus 1 skip then 0 plus 1 skip twice; hover cases as before (rest over no
+character 10 of 10 at 5 and 301 notches, settled hover 10 of 10, reload 10 of 10); Ctrl+End and Ctrl+Home 0 blank
+frames. Open from this run: 2 of 210 press-and-release events logged no pointer line at all (50 ms and 80 ms; 5 other
+sessions' logs had 3 or more pointer lines) and the driver did not record the compositor's reply to each command, so
+whether the compositor refused them (as it refused the early wheel) is not known: the next verification records every
+reply and counts `err`; one release at 180 ms matched neither the last nor the next frame and its record is lost.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
