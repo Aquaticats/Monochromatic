@@ -143,11 +143,17 @@ await describe({
              Whether the only block of a text is a definition with the label of a footnote.
              */
             function labelled({ source, }: { readonly source: string; },): boolean {
-              return hasFootnoteLabel({ node: onlyBlock({ source, },), },);
+              return hasFootnoteLabel({
+                source,
+                node: onlyBlock({ source, },),
+              },);
             }
             expect(labelled({ source: '[^1]: https://example.net/a', },),).toBe(true,);
             expect(labelled({ source: String.raw`[^a\[b]: https://example.net/a`, },),).toBe(true,);
             expect(labelled({ source: '[^a b]: https://example.net/a', },),).toBe(false,);
+            // The identifier of the parse is trimmed, so a space last in the label shows in the source only.
+            expect(labelled({ source: '[^a ]: https://example.net/a', },),).toBe(false,);
+            expect(labelled({ source: '  [^1]: https://example.net/a', },),).toBe(true,);
             expect(labelled({ source: '[r]: https://example.net/a', },),).toBe(false,);
             expect(labelled({ source: '[^1]: a b', },),).toBe(false,);
           },
@@ -161,7 +167,10 @@ await describe({
              The definition node of a text and whether its label is a footnote's.
              */
             const source = '[^a&#32;b]: https://example.net/a';
-            expect(hasFootnoteLabel({ node: onlyBlock({ source, },), },),).toBe(true,);
+            expect(hasFootnoteLabel({
+              source,
+              node: onlyBlock({ source, },),
+            },),).toBe(true,);
           },
         },),
       ],
@@ -290,6 +299,7 @@ await describe({
               if (previousEndLine === undefined)
                 throw new Error('the first block carries no position',);
               return isLazyDefinition({
+                source,
                 node: second,
                 footnoteOpen,
                 previousEndLine,

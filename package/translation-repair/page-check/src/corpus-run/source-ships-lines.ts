@@ -218,7 +218,10 @@ export function lineJoinsOf(
       },
     },);
   }
-  if ((node.type === 'definition') && (!hasFootnoteLabel({ node, },))) {
+  if ((node.type === 'definition') && (!hasFootnoteLabel({
+    source,
+    node,
+  },))) {
     return joinedLines({
       source,
       range: {

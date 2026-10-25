@@ -1,7 +1,9 @@
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import type {
   BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { isGfmFootnoteLabel, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -23,18 +25,11 @@ import {
 const FOOTNOTE_GAP = ' \t\r\n';
 
 /**
- Each white space character of a footnote label's forbidden set, one by one.
- */
-const FOOTNOTE_GAPS: readonly string[] = [
-  ' ',
-  '\t',
-  '\r',
-  '\n',
-];
-
-/**
- Whether a label is spelled as the label of a footnote definition: a caret and at least one more character, none of
- them white space.
+ Whether a label, as written between the brackets, is the label of a footnote definition: a caret, then a name GFM
+ reads as a footnote label (`isGfmFootnoteLabel` in `translation-repair-markup`, which follows `labelInside` of
+ `micromark-extension-gfm-footnote@2.1.0`, `lib/syntax.js:354-381`). The scan of markup atoms asks the same question of
+ the text between `[^` and `]` of a reference, so the two share the rules and differ only in the caret, which this
+ predicate takes with the label and that one takes off.
 
  @param label - text between the brackets
 
@@ -46,11 +41,7 @@ const FOOTNOTE_GAPS: readonly string[] = [
  ```
  */
 export function isFootnoteLabel({ label, }: { readonly label: string; },): boolean {
-  if ((label.length < 2) || (!label.startsWith('^',)))
-    return false;
-  return FOOTNOTE_GAPS.every(function absent(gap,): boolean {
-    return !label.includes(gap,);
-  },);
+  return label.startsWith('^',) && isGfmFootnoteLabel({ label: label.slice(1,), },);
 }
 
 /**
@@ -59,20 +50,55 @@ export function isFootnoteLabel({ label, }: { readonly label: string; },): boole
  (`micromark-extension-gfm-footnote@2.1.0`, `lib/syntax.js`, `labelInside`), so a definition with such a label is no
  footnote definition to the strict grammar.
 
+ @param source - text the node was parsed from, whose characters the strict grammar reads: the label of the node is
+ decoded (a character reference or an escape is resolved in it) and its identifier is trimmed
+
  @param node - node of the parse
 
  @returns Whether the node is a link reference definition the strict grammar reads as a footnote definition
 
+ @throws {@link Error} when a definition has no position, which the parse used never builds
+
  @example
  ```ts
- const footnote = hasFootnoteLabel({ node, },);
+ const footnote = hasFootnoteLabel({ source, node, },);
  ```
  */
-export function hasFootnoteLabel({ node, }: { readonly node: TreeNode; },): boolean {
+export function hasFootnoteLabel(
+  {
+    source,
+    node,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+  },
+): boolean {
   if (node.type !== 'definition')
     return false;
-  // The label as written, or its identifier where the parse kept no label.
-  return isFootnoteLabel({ label: node.label ?? node.identifier, },);
+  /**
+   Where the definition starts and ends.
+   */
+  const {
+    start,
+    end,
+  } = nonNullishOrThrow(node.position,);
+  /**
+   Where the label opens, behind any indentation.
+   */
+  const open = source.indexOf(
+    '[',
+    nonNullishOrThrow(start.offset,),
+  );
+  return isFootnoteLabel({
+    label: source.slice(
+      open + 1,
+      closingBracket({
+        source,
+        from: open + 1,
+        limit: nonNullishOrThrow(end.offset,),
+      },),
+    ),
+  },);
 }
 
 /**
@@ -191,7 +217,10 @@ export function opensFootnote(
   },
 ): boolean {
   if (node.type === 'definition')
-    return hasFootnoteLabel({ node, },);
+    return hasFootnoteLabel({
+      source,
+      node,
+    },);
   if ((node.type !== 'paragraph') && (node.type !== 'heading'))
     return false;
   if (!source.startsWith(
@@ -283,6 +312,8 @@ export function endLineOf(
  Whether a node is a link reference definition on the line right after a footnote definition, which the strict grammar
  reads as a line of the footnote's paragraph and not as a definition.
 
+ @param source - text the node was parsed from
+
  @param node - node of the parse
 
  @param footnoteOpen - whether the block read just before is part of a footnote definition
@@ -293,15 +324,17 @@ export function endLineOf(
 
  @example
  ```ts
- const lazy = isLazyDefinition({ node, footnoteOpen: true, previousEndLine: 3, },);
+ const lazy = isLazyDefinition({ source, node, footnoteOpen: true, previousEndLine: 3, },);
  ```
  */
 export function isLazyDefinition(
   {
+    source,
     node,
     footnoteOpen,
     previousEndLine,
   }: {
+    readonly source: string;
     readonly node: TreeNode;
     readonly footnoteOpen: boolean;
     readonly previousEndLine: number;
@@ -311,7 +344,10 @@ export function isLazyDefinition(
     return false;
   if (node.type !== 'definition')
     return false;
-  if (hasFootnoteLabel({ node, },))
+  if (hasFootnoteLabel({
+    source,
+    node,
+  },))
     return false;
   return node.position
     ?.start

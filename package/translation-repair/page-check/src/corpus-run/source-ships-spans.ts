@@ -197,6 +197,7 @@ export function spansOf(
     // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a
     // paragraph to the strict grammar, and a text, at the top and in a block quote or a list item.
     if (BLOCK_PARENTS.has(parentType,) && isLazyDefinition({
+      source,
       node,
       footnoteOpen: footnote.open || footnote.endsInLiteral,
       previousEndLine: footnote.endLine,

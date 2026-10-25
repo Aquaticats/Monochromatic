@@ -1910,10 +1910,6 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SETTING,
   },
-  'markup/markup-atom-scan.ts#isFootnoteLabel': {
-    tests: 2,
-    why: SCANNER,
-  },
   'markup/markup-atom-scan.ts#tagEnd': {
     tests: 1,
     why: SCANNER,
