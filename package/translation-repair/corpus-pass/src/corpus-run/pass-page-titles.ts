@@ -31,7 +31,10 @@ import {
   openNamespacedCache,
   PAGE_TITLES_NAMESPACE,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
-import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  MIN_STAGE_VOICES,
+  type StageSettings,
+} from '@monochromatic-dev/translation-repair-stage/ts';
 
 //region Pass page titles
 // THE PREPARATION'S TITLE LEXICON (ledger H16, 2026-09-28): the titles a page
@@ -336,10 +339,11 @@ export async function passPageTitles(
     l,
     stageSettings,
   },);
-  // A ROUND NOBODY ANSWERED IS NOT AN ANSWER and is not stored: the bench was
-  // unreachable, not undecided, and storing that would keep the page unsettled
-  // on every resume.
-  if (lexicon.heard > 0) {
+  // A ROUND THAT HEARD FEWER THAN TWO VOICES IS NOT AN ANSWER and is not
+  // stored: the bench was unreachable, not undecided (one judge alone never
+  // decides, the lead's ruling of 2026-10-25), and storing that would keep the
+  // page unsettled on every resume.
+  if (lexicon.heard >= MIN_STAGE_VOICES) {
     await cache.persist({
       key,
       serialized: JSON.stringify({

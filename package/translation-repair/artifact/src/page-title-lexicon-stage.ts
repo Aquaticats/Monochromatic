@@ -25,6 +25,7 @@ import {
 import {
   type FanOutMode,
   gatherStageVoices,
+  MIN_STAGE_VOICES,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -36,6 +37,14 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 // B24), the earliest seat on the
 // roster breaking a tie so a resumed page reads the same answer. The lines
 // are evidence beside the page-name block: the judges still decide.
+//
+// NO TITLE SETTLES ON FEWER THAN TWO HEARD VOICES (the lead's ruling of
+// 2026-10-25, on the owner's rule that one judge alone never decides): a
+// bench of seven that lost six seats for the round used to settle, and cache,
+// the one voice's rendering as a line the translators and judges read. A
+// round that heard one voice settles nothing and every repeated title keeps its
+// current rendering. A tie among three heard voices is still broken by the
+// earliest seat (the ledger records that path as outside this ruling).
 
 /**
  Heading of the sheet block.
@@ -274,6 +283,7 @@ function mostGiven(
 
 /**
  Settles one English rendering for each title a page repeats, asking the bench once.
+ A round that heard fewer than two voices settles nothing.
 
  @param client - provider client
 
@@ -400,9 +410,22 @@ export async function settlePageTitles(
     };
   },);
   /**
-   Each title's settled rendering, where some voice gave one.
+   Whether the round heard too few voices for any title to settle on: one judge
+   alone never decides (the lead's ruling of 2026-10-25), so a thin round
+   settles nothing and every repeated title keeps its current rendering.
    */
-  const titles = spans.flatMap(function settle(
+  const tooFewVoices = heard < MIN_STAGE_VOICES;
+  if (tooFewVoices) {
+    tl.warn(
+      `PAGE TITLES heard=${String(heard,)}, below the ${String(MIN_STAGE_VOICES,)} voices a title settles on; `
+        + 'nothing settles',
+    );
+  }
+  /**
+   Each title's settled rendering, where some voice gave one and enough voices
+   were heard.
+   */
+  const titles = tooFewVoices ? [] : spans.flatMap(function settle(
     span,
     at,
   ): readonly SettledPageTitle[] {
@@ -459,6 +482,13 @@ export async function settlePageTitles(
           many: 'voices',
         },)
       }`,
+      ...(tooFewVoices
+        ? [
+          `page title lexicon heard fewer than ${
+            String(MIN_STAGE_VOICES,)
+          } voices, so no title settles and every repeated title keeps its current rendering`,
+        ]
+        : []),
     ],
   };
 }
