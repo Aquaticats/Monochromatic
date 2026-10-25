@@ -48,11 +48,14 @@ import type {
  `reader-unmeasured` hold
  still keeps pictures off this model, as on its NeuralWatt side.
 
- PRICED AT PEAK, ALWAYS. The page lists 0.006 (cache hit), 0.3 (cache miss) and
- 1.2 (output) USD per million tokens at peak and half of each off peak. Peak is
- 01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday to Friday, excluding Chinese
- public holidays. The run cannot know the holidays, so every call is priced at
- peak: the upper bound, never an under-read of what the owner's balance spent.
+ THE CARD HOLDS THE PEAK RATES. The page lists 0.006 (cache hit), 0.3 (cache
+ miss) and 1.2 (output) USD per million tokens at peak and half of each off peak.
+ Peak is 01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday to Friday, excluding
+ Chinese public holidays. The provider package prices a call at these rates when
+ its request started inside a weekday peak window (UTC) and at half of them
+ otherwise (`provider/src/direct-cost.ts`); it reads no holiday calendar, so a
+ holiday inside a window can only make that call cheaper than booked, and the
+ booked figure is never an under-read of what the owner's balance spent.
 
  @example
  ```ts
