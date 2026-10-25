@@ -61,9 +61,9 @@ import {
   guardLine,
   guardTotalLine,
   pricesOf,
+  RepliedWithoutCallError,
   spendGuardedClient,
 } from '../../dist/final/node/index.mjs';
-import * as built from '../../dist/final/node/index.mjs';
 import {
   HAIKU_CARD,
   LOW_CARD,
@@ -1170,7 +1170,7 @@ await describe({
             },),).toStrictEqual([],);
             expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
             expect(runSpendUsd({ provider: 'anthropic', },),).toBe(0,);
-            expect(first.result,).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect(first.result,).toBeInstanceOf(RepliedWithoutCallError,);
             expect(controller.signal.aborted,).toBe(true,);
             expect(controller.signal.reason,).toBe(first.result,);
 
@@ -1199,7 +1199,7 @@ await describe({
             },);
             const raised = await raisedBy({ ask: chatTextAsker({ client, controller, },), },);
             expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
-            expect(raised,).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect(raised,).toBeInstanceOf(RepliedWithoutCallError,);
             expect((raised as Error).message,).toContain('answered from reuse',);
             expect((raised as Error).message,).toContain('PROMPT-REUSE',);
           },

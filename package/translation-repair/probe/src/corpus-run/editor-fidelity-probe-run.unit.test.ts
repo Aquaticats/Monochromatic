@@ -55,11 +55,11 @@ import {
   editorFidelityTrials,
   type FidelityReferenceSpec,
   guardLine,
+  RepliedWithoutCallError,
   REVIEWED_FIDELITY_REFERENCES,
   type ReviewedFidelityReference,
   runEditorFidelityProbe,
 } from '../../dist/final/node/index.mjs';
-import * as built from '../../dist/final/node/index.mjs';
 import { capturingLoggerPair, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/command-line.test-fixture.ts';
@@ -1260,7 +1260,7 @@ await describe({
               return line.startsWith('TRIALS completed ',);
             },),).toBe(false,);
             expect(seen.failures.length,).toBe(1,);
-            expect(seen.failures[0],).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect(seen.failures[0],).toBeInstanceOf(RepliedWithoutCallError,);
             expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD,],);
             expect(seen.lines.filter(function isRow(line,): boolean {
               return line.startsWith('row ',);

@@ -195,6 +195,7 @@ export {
   guardLine,
   type GuardTotal,
   guardTotalLine,
+  RepliedWithoutCallError,
   spendGuardedClient,
 } from './corpus-run/editor-fidelity-spend-guard.ts';
 export {
