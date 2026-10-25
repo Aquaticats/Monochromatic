@@ -79,6 +79,49 @@ function readFirst({ source, continuesFootnote, }: { readonly source: string; re
   };
 }
 
+/**
+ Reads the paragraph of the first block quote or list item of a text as the spans reader does below the top.
+
+ @param source - text, whose first block is a block quote or a list item holding a paragraph
+
+ @returns What the reading answers
+
+ @example
+ ```ts
+ const read = readInContainer({ source: '> a \`b\n> [^1]: c\` d\n', },);
+ ```
+ */
+function readInContainer({ source, }: { readonly source: string; },) {
+  /**
+   The root of the parse.
+   */
+  const root = parseMarkdownMathBody({ body: source, },);
+  const [container,] = root.children;
+  if ((container === undefined) || (!('children' in container)))
+    throw new Error('the text holds no container',);
+  /**
+   The container's first child: a paragraph, or a list item that holds one.
+   */
+  const [child,] = container.children;
+  const paragraph = (child !== undefined) && ('children' in child) && (child.type === 'listItem')
+    ? child.children[0]
+    : child;
+  if (paragraph === undefined)
+    throw new Error('the container holds no block',);
+  return footnoteRead({
+    source,
+    readable: source,
+    readSpans: spansOf,
+    footnotes: footnoteDefinitionRangesOf({ body: source, },),
+    pending: [],
+    node: paragraph,
+    range: rangeOf({ node: paragraph, },),
+    isRootChild: false,
+    continuesFootnote: false,
+    state: OPEN,
+  },);
+}
+
 await describe({
   name: footnoteRead.name,
   children: [
@@ -142,6 +185,39 @@ await describe({
         },): boolean {
           return (start <= source.indexOf('{d}',)) && (source.indexOf('{d}',) < end);
         },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'READS A PARAGRAPH OF A BLOCK QUOTE OR A LIST ITEM AS TWO TEXTS AT A FOOTNOTE LINE THAT CARRIES THE MARKS OR '
+        + 'THE INDENT OF THE CONTAINER, however far the line is indented, so a code span across it holds nothing past '
+        + 'it and the braces on both sides are text',
+      fn: async () => {
+        for (
+          const source of [
+            '> a `x\n> [^1]: {c}` {d}\n',
+            '> a `x\n>   [^1]: {c}` {d}\n',
+            '> a `x\n   [^1]: {c}` {d}\n',
+            '- a `x\n  [^1]: {c}` {d}\n',
+            '- a `x\n [^1]: {c}` {d}\n',
+          ]
+        ) {
+          /**
+           What the reading answers for the paragraph.
+           */
+          const read = readInContainer({ source, },);
+          if (read.kind !== 'read')
+            throw new Error('the paragraph is part of a footnote',);
+          for (const brace of ['{c}', '{d}',]) {
+            expect(read.spans.text.some(function holdsBrace({
+              start,
+              end,
+            },): boolean {
+              return (start <= source.indexOf(brace,)) && (source.indexOf(brace,) < end);
+            },),).toBe(true,);
+          }
+          expect(read.state.open,).toBe(false,);
+        }
       },
     },),
 

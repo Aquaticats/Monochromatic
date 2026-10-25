@@ -270,6 +270,37 @@ await describe({
             expect(literal,).toEqual([],);
           },
         },),
+
+        it({
+          name: 'READS A FOOTNOTE IN A CONTAINER TO THE END OF ITS PARAGRAPH, a definition line the plain reading keeps as '
+            + 'a line of the paragraph being one the strict grammar does too, so its brace is text and no blank line is '
+            + 'written between the lines',
+          fn: async () => {
+            /**
+             A footnote in a block quote, a tag alone, then a line that CommonMark would take for a definition.
+             */
+            const source = '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n';
+            /**
+             Where the footnote ends in the strict parse of a text with no container: after the tag.
+             */
+            const end = source.indexOf('\n> [r]',);
+            const { text, edits, } = footnoteBodySpans({
+              source,
+              readable: source,
+              readSpans: spansOf,
+              footnotes: [{ start: 2, end, },],
+              range: { start: 8, end: source.length - 1, },
+              inContainer: true,
+            },);
+            expect(edits,).toEqual([],);
+            expect(text.some(function holdsBrace({
+              start,
+              end: stop,
+            },): boolean {
+              return (start <= source.indexOf('{b}',)) && (source.indexOf('{b}',) < stop);
+            },),).toBe(true,);
+          },
+        },),
       ],
     },),
 
@@ -315,6 +346,49 @@ await describe({
               return (start <= source.indexOf('{d}',)) && (source.indexOf('{d}',) < end);
             },);
             expect(holdsBrace,).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'LEAVES THE MARKS OF A BLOCK QUOTE OUT OF BOTH PARTS WHEN THE PARAGRAPH IS IN A CONTAINER: a code span '
+            + 'over two lines before the definition keeps its text, and the definition line with its mark belongs to '
+            + 'neither part',
+          fn: async () => {
+            /**
+             A paragraph in a block quote whose code span would run across the definition's line.
+             */
+            const source = '> a `b\n> c` d\n> [^1]: e {f}\n> g` h\n';
+            /**
+             Where the definition starts.
+             */
+            const split = source.indexOf('[^1]',);
+            const { text, } = footnoteInParagraphSpans({
+              source,
+              readable: source,
+              readSpans: spansOf,
+              footnotes: [],
+              range: {
+                start: 2,
+                end: source.length - 1,
+              },
+              split,
+              end: source.length - 1,
+              inContainer: true,
+            },);
+            /**
+             The characters of the source that a stretch read as text holds.
+             */
+            const covered = text.map(function characters({
+              start,
+              end,
+            },): string {
+              return source.slice(
+                start,
+                end,
+              );
+            },);
+            expect(covered.join('',).includes('>',),).toBe(false,);
+            expect(covered.join('',).includes('{f}',),).toBe(true,);
           },
         },),
       ],

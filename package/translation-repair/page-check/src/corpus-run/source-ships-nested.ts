@@ -6,6 +6,7 @@ import {
 import {
   footnoteBodyStart,
   withoutIndentation,
+  withoutQuoteMarks,
 } from './source-ships-footnote.ts';
 import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
@@ -15,6 +16,7 @@ import {
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
+import { separatingEdits, } from './source-ships-separation.ts';
 
 //region Source ships nested
 // A BLOCK NESTED IN ANOTHER, READ AS A TEXT OF ITS OWN: the body of a footnote definition and the blocks indented under
@@ -207,36 +209,6 @@ function joinedSpans(
 }
 
 /**
- What `findIndex` answers when no line is blank.
- */
-const NO_BLANK_LINE = -1;
-
-/**
- The characters a blank line may hold.
- */
-const BLANK_CHARACTERS = ' \t\r';
-
-/**
- Whether a line holds nothing but spaces, tabs and a carriage return.
-
- @param line - line, without its line ending
-
- @returns Whether every character of the line is a space, a tab or a carriage return
-
- @example
- ```ts
- const blank = isBlankLine({ line: '  ', },);
- ```
- */
-function isBlankLine({ line, }: { readonly line: string; },): boolean {
-  for (let at = 0; at < line.length; at += 1) {
-    if (!BLANK_CHARACTERS.includes(line.charAt(at,),))
-      return false;
-  }
-  return true;
-}
-
-/**
  Spans that hold edits and nothing else.
 
  @param edits - edits to carry
@@ -259,108 +231,6 @@ function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): Sourc
 }
 
 /**
- The edit that puts a blank line between the end of a footnote and a definition line that follows it directly.
-
- THE FOOTNOTE ENDS WHERE A PARSE WITH GFM ENDS IT, and the line after it starts a block of the top: a link reference
- definition, whose destination and title are not touched. The page writes the last block of the footnote as text when it
- is raw HTML or indented code, so the line right after it would be a lazy line of the footnote's paragraph and its
- braces would be an expression. A blank line ends the paragraph, and the definition is one on the page as it is in the
- original.
-
- @param source - whole text
-
- @param readable - whole text with its comments blanked, the parse's own input
-
- @param range - lines after the end of the footnote, from the line ending of the footnote's last line
-
- @returns Edit that doubles the line ending, none when a blank line stands there already or the first line after
- it is no definition
-
- @example
- ```ts
- const edits = separatingEdits({ source, readable, range: { start: 20, end: 30, }, },);
- ```
- */
-function separatingEdits(
-  {
-    source,
-    readable,
-    range,
-  }: {
-    readonly source: string;
-    readonly readable: string;
-    readonly range: TextRange;
-  },
-): readonly TextEdit[] {
-  /**
-   The line ending that ends the footnote's last line, absent where the text ends.
-   */
-  const ending = [
-    '\r\n',
-    '\n',
-  ].find(function endsHere(candidate,): boolean {
-    return source.startsWith(
-      candidate,
-      range.start,
-    );
-  },);
-  if (ending === undefined)
-    return [];
-  /**
-   Where the next line starts.
-   */
-  const lineStart = range.start + ending.length;
-  /**
-   The lines after the footnote up to the first blank one, as the parse reads them: a definition does not cross a blank
-   line.
-   */
-  const lines = readable
-    .slice(
-    lineStart,
-    range.end,
-    )
-    .split('\n',);
-  /**
-   The line right after the footnote.
-   */
-  const [nextLine = '',] = lines;
-  if (isBlankLine({ line: nextLine, },))
-    return [];
-  /**
-   Which line is the first blank one, negative where none is.
-   */
-  const blankAt = lines.findIndex(function isBlank(line,): boolean {
-    return isBlankLine({ line, },);
-  },);
-  /**
-   The lines up to the first blank one, joined.
-   */
-  const rest = lines
-    .slice(
-    0,
-    (blankAt === NO_BLANK_LINE) ? lines.length : blankAt,
-    )
-    .join('\n',);
-  /**
-   The blocks of those lines, as the parse reads them.
-   */
-  const { children, } = parseMarkdownMathBody({ body: rest, },);
-  /**
-   The first of them.
-   */
-  const [first,] = children;
-  if (first?.type !== 'definition')
-    return [];
-  return [
-    {
-      start: range.start,
-      end: lineStart,
-      replacement: `${ending}${ending}`,
-    },
-  ];
-}
-
-/**
  Reads the blocks of a footnote definition as a text of their own, each line giving up the four columns of indentation
  the footnote takes, and the lines after the end of the footnote as a text of their own beside it.
 
@@ -374,6 +244,9 @@ function separatingEdits(
  line that is not indented once a block of the footnote has closed its paragraph
 
  @param range - where the body stands, from the start of its first line or the first character after the label
+
+ @param inContainer - whether the footnote stands in a block quote or a list item, whose quote marks each later line
+ gives up before its indentation
 
  @returns Spans of the body at the offsets of the whole text
 
@@ -392,23 +265,29 @@ export function footnoteBodySpans(
     readSpans,
     footnotes,
     range,
+    inContainer = false,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly readSpans: SpansReader;
     readonly footnotes: readonly TextRange[];
     readonly range: TextRange;
+    readonly inContainer?: boolean;
   },
 ): SourceSpans {
   /**
-   The footnote the body belongs to, absent where the strict reading found none there.
+   The footnote the body belongs to, absent where the strict reading found none there and for a footnote in a container,
+   whose paragraph the plain reading keeps whole as the strict grammar does: it ends where the paragraph does, the
+   lines after it are lines of the paragraph and not a block that starts there.
    */
-  const footnote = footnotes.find(function holds({
-    start,
-    end,
-  },): boolean {
-    return (start <= range.start) && (range.start < end);
-  },);
+  const footnote = inContainer
+    ? undefined
+    : footnotes.find(function holds({
+      start,
+      end,
+    },): boolean {
+      return (start <= range.start) && (range.start < end);
+    },);
   /**
    Where the footnote's body ends: the end of the footnote, when the plain reading goes on past it.
    */
@@ -435,6 +314,7 @@ export function footnoteBodySpans(
         start: range.start,
         end: bodyEnd,
       },
+      marks: inContainer,
     },),
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
@@ -469,7 +349,12 @@ export function footnoteBodySpans(
         source,
         readable,
         readSpans,
-        indices: indicesOf({ range: after, },),
+        indices: inContainer
+          ? withoutQuoteMarks({
+            source,
+            range: after,
+          },)
+          : indicesOf({ range: after, },),
       },),
       second: editsOnly({
         edits: separatingEdits({
@@ -500,6 +385,10 @@ export function footnoteBodySpans(
 
  @param end - where the lines of the footnote end, the end of the paragraph or beyond it
 
+ @param inContainer - whether the paragraph stands in a block quote or a list item: the lines before the definition lose
+ their quote marks, the line of the definition belongs to no part before its label, and each later line of the
+ footnote loses them before its indentation
+
  @returns Spans of both parts at the offsets of the whole text
 
  @throws {@link Error} when a node of either part has no position, which the reading used never builds
@@ -519,6 +408,7 @@ export function footnoteInParagraphSpans(
     range,
     split,
     end,
+    inContainer = false,
   }: {
     readonly source: string;
     readonly readable: string;
@@ -527,6 +417,7 @@ export function footnoteInParagraphSpans(
     readonly range: TextRange;
     readonly split: number;
     readonly end: number;
+    readonly inContainer?: boolean;
   },
 ): SourceSpans {
   return joinedSpans({
@@ -534,18 +425,30 @@ export function footnoteInParagraphSpans(
       source,
       readable,
       readSpans,
-      indices: indicesOf({
-        range: {
-          start: range.start,
-          end: split,
-        },
-      },),
+      indices: inContainer
+        ? withoutQuoteMarks({
+          source,
+          range: {
+            start: range.start,
+            end: source.lastIndexOf(
+              '\n',
+              split - 1,
+            ) + 1,
+          },
+        },)
+        : indicesOf({
+          range: {
+            start: range.start,
+            end: split,
+          },
+        },),
     },),
     second: footnoteBodySpans({
       source,
       readable,
       readSpans,
       footnotes,
+      inContainer,
       range: {
         start: footnoteBodyStart({
           source,

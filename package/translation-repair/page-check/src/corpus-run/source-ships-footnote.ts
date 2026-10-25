@@ -398,27 +398,47 @@ function lineEndAfter(
 }
 
 /**
- The indices of the characters of an indented block that remain once each line gives up its indentation of up to four
- spaces or one tab, which is how a footnote definition reads the blocks indented under it.
+ Where a line starts or goes on after a prefix it gives up.
+ */
+type LinePrefix = {
+  /**
+   Index of the line's first character.
+   */
+  readonly start: number;
+
+  /**
+   Index after the line, its ending included.
+   */
+  readonly end: number;
+};
+
+/**
+ The indices of the characters of a stretch that remain once each line gives up a prefix.
 
  @param source - text
 
- @param range - where the block stands, from the start of its first line
+ @param range - where the stretch stands, from the start of its first line
+
+ @param prefixLength - how many characters of the prefix the line gives up, from the line's first character
 
  @returns Indices in text order
 
  @example
  ```ts
- const kept = withoutIndentation({ source, range, },);
+ const kept = linesWithoutPrefix({ source, range, prefixLength: function none(): number {
+   return 0;
+ }, },);
  ```
  */
-export function withoutIndentation(
+function linesWithoutPrefix(
   {
     source,
     range,
+    prefixLength,
   }: {
     readonly source: string;
     readonly range: TextRange;
+    readonly prefixLength: (line: LinePrefix,) => number;
   },
 ): readonly number[] {
   /**
@@ -434,18 +454,13 @@ export function withoutIndentation(
       from: lineStart,
       limit: range.end,
     },);
-    /**
-     How many characters of indentation the line gives up.
-     */
-    const skipped = { count: 0, };
-    while ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(lineStart + skipped.count,) === ' '))
-      skipped.count += 1;
-    if ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(lineStart + skipped.count,) === '\t'))
-      skipped.count += 1;
     kept.push(...indicesOf({
       range: {
         start: Math.min(
-          lineStart + skipped.count,
+          lineStart + prefixLength({
+            start: lineStart,
+            end: lineEnd,
+          },),
           lineEnd,
         ),
         end: lineEnd,
@@ -454,6 +469,195 @@ export function withoutIndentation(
     lineStart = lineEnd;
   }
   return kept;
+}
+
+/**
+ How many characters of indentation a line gives up: up to four spaces or one tab.
+
+ @param source - text
+
+ @param line - where the line stands
+
+ @returns Count of characters
+
+ @example
+ ```ts
+ const count = indentationOf({ source: '  a', line: { start: 0, end: 3, }, },);
+ ```
+ */
+function indentationOf(
+  {
+    source,
+    line,
+  }: {
+    readonly source: string;
+    readonly line: LinePrefix;
+  },
+): number {
+  /**
+   How many characters of indentation the line gives up.
+   */
+  const skipped = { count: 0, };
+  while ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(line.start + skipped.count,) === ' '))
+    skipped.count += 1;
+  if ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(line.start + skipped.count,) === '\t'))
+    skipped.count += 1;
+  return skipped.count;
+}
+
+/**
+ The most columns of white space that may stand before the mark of a block quote.
+ */
+const MOST_COLUMNS_BEFORE_MARK = 3;
+
+/**
+ Columns a tab counts for before the mark of a block quote.
+ */
+const TAB_COLUMNS = 4;
+
+/**
+ How many characters of block quote marks a line starts with: each mark with up to three columns of white space before
+ it and one space or tab after it, as many marks as follow one another.
+
+ @param source - text
+
+ @param line - where the line stands, whose first character must be the first character of a line of the text
+
+ @returns Count of characters, none for a line that starts with no mark
+
+ @example
+ ```ts
+ const count = quoteMarksOf({ source: '> > a', line: { start: 0, end: 5, }, },);
+ ```
+ */
+function quoteMarksOf(
+  {
+    source,
+    line,
+  }: {
+    readonly source: string;
+    readonly line: LinePrefix;
+  },
+): number {
+  if ((line.start > 0) && (source.charAt(line.start - 1,) !== '\n'))
+    return 0;
+  /**
+   The reading position, the end of the last mark with its space, and the columns of white space since the last mark.
+   */
+  const scan = {
+    at: line.start,
+    marked: line.start,
+    columns: 0,
+  };
+  while (scan.at < line.end) {
+    /**
+     The character at the reading position.
+     */
+    const character = source.charAt(scan.at,);
+    if ((character === ' ') || (character === '\t')) {
+      scan.columns += (character === '\t') ? TAB_COLUMNS : 1;
+      scan.at += 1;
+      continue;
+    }
+    if ((character !== '>') || (scan.columns > MOST_COLUMNS_BEFORE_MARK))
+      break;
+    scan.at += 1;
+    if ((source.charAt(scan.at,) === ' ') || (source.charAt(scan.at,) === '\t'))
+      scan.at += 1;
+    scan.marked = scan.at;
+    scan.columns = 0;
+  }
+  return scan.marked - line.start;
+}
+
+/**
+ The indices of the characters of an indented block that remain once each line gives up its indentation of up to four
+ spaces or one tab, which is how a footnote definition reads the blocks indented under it.
+
+ @param source - text
+
+ @param range - where the block stands, from the start of its first line
+
+ @param marks - whether each line that starts a line of the text gives up the marks of a block quote it stands in first,
+ which the lines of a footnote definition in a block quote carry
+
+ @returns Indices in text order
+
+ @example
+ ```ts
+ const kept = withoutIndentation({ source, range, marks: true, },);
+ ```
+ */
+export function withoutIndentation(
+  {
+    source,
+    range,
+    marks = false,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+    readonly marks?: boolean;
+  },
+): readonly number[] {
+  return linesWithoutPrefix({
+    source,
+    range,
+    prefixLength: function indentationAfterMarks(line,): number {
+      /**
+       The marks of a block quote the line starts with.
+       */
+      const quoted = marks
+        ? quoteMarksOf({
+          source,
+          line,
+        },)
+        : 0;
+      return quoted + indentationOf({
+        source,
+        line: {
+          start: line.start + quoted,
+          end: line.end,
+        },
+      },);
+    },
+  },);
+}
+
+/**
+ The indices of the characters of a stretch that remain once each line that starts a line of the text gives up the marks
+ of the block quote it stands in, which the lines of a paragraph in a block quote carry and a paragraph read as a text
+ of its own does not have.
+
+ @param source - text
+
+ @param range - where the stretch stands
+
+ @returns Indices in text order
+
+ @example
+ ```ts
+ const kept = withoutQuoteMarks({ source: '> a\n> b', range: { start: 2, end: 7, }, },);
+ ```
+ */
+export function withoutQuoteMarks(
+  {
+    source,
+    range,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+  },
+): readonly number[] {
+  return linesWithoutPrefix({
+    source,
+    range,
+    prefixLength: function marks(line,): number {
+      return quoteMarksOf({
+        source,
+        line,
+      },);
+    },
+  },);
 }
 
 //endregion Source ships footnote

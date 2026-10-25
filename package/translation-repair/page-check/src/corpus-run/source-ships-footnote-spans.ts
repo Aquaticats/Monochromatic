@@ -29,6 +29,13 @@ import type {
 // blocks indented under a definition, and a paragraph in which a definition starts on a later line are read as the body
 // of the footnote is (`source-ships-nested.ts`), each line giving up the four columns the footnote takes, and the
 // blocks the footnote reaches into are taken off the nodes still to read.
+//
+// A FOOTNOTE LINE IN A BLOCK QUOTE OR A LIST ITEM is cut where the strict grammar starts the footnote, whatever stands
+// before it on its line: the marks of the quote, the hanging indent of the item, or a lazy line indented up to three
+// spaces. The lines before it are read as a text of their own and the footnote as the body, to the end of the
+// paragraph, with the quote marks of each line taken off before its indentation. The paragraph is the plain
+// reading's, which is one to the strict grammar too, so a definition line after the footnote is a line of it and not a
+// definition, and what follows the paragraph in the container is read on its own.
 
 /**
  The answer for a block that is no part of a footnote definition.
@@ -117,25 +124,19 @@ export function footnoteRead(
   },
 ): FootnoteRead {
   /**
-   The footnote definitions a paragraph can be cut at: any for a paragraph at the top, and for a paragraph in a
-   container only those that start a line, since the strict grammar ends a container at such a line and a definition
-   behind the marks of the container belongs to the container.
-   */
-  const cuttingFootnotes = isRootChild
-    ? footnotes
-    : footnotes.filter(function startsLine({ start, },): boolean {
-      return (start === 0) || (source.charAt(start - 1,) === '\n');
-    },);
-  /**
    Where a footnote definition starts inside the paragraph, when one does on a line after its first.
    */
   const split = (node.type === 'paragraph')
     ? footnoteStartInside({
-      footnotes: cuttingFootnotes,
+      footnotes,
       range,
     },)
     : NO_FOOTNOTE_INSIDE;
   if (split !== NO_FOOTNOTE_INSIDE) {
+    /**
+     How many blocks are still to read, which falls when the footnote reaches blocks of the top.
+     */
+    const stillToRead = pending.length;
     /**
      How far the footnote reaches.
      */
@@ -150,6 +151,11 @@ export function footnoteRead(
       },
       state,
     },);
+    /**
+     Where the lines of the footnote end: a footnote in a container ends with the paragraph, unless it took blocks of the
+     top, since the blocks after the paragraph in the container are read on their own.
+     */
+    const end = (isRootChild || (pending.length < stillToRead)) ? reach.end : range.end;
     return {
       kind: 'read',
       state: reach.state,
@@ -160,7 +166,8 @@ export function footnoteRead(
         footnotes,
         range,
         split,
-        end: reach.end,
+        end,
+        inContainer: !isRootChild,
       },),
     };
   }

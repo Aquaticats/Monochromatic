@@ -28,6 +28,7 @@ import {
   opensFootnote,
   rangeOf,
   withoutIndentation,
+  withoutQuoteMarks,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -66,6 +67,22 @@ function onlyBlock({ source, }: { readonly source: string; },): TreeNode {
     throw new Error('the text does not read as one block',);
   return block;
 }
+
+/**
+ Cases of the marks of a block quote a line gives up: what it is, the text, where the stretch starts, and the
+ characters kept.
+ */
+const MARK_CASES: readonly (readonly [string, string, number, string])[] = [
+  ['A MARK AND THE SPACE AFTER IT', '> a\n> b', 0, 'a\nb',],
+  ['A MARK WITH NO SPACE AFTER IT', '>a\n>b', 0, 'a\nb',],
+  ['A MARK AND THE TAB AFTER IT', '>\ta', 0, 'a',],
+  ['MARKS ONE AFTER THE OTHER, A NESTED QUOTE', '> > a\n>> b', 0, 'a\nb',],
+  ['UP TO THREE SPACES BEFORE A MARK', '   > a\n > b', 0, 'a\nb',],
+  ['NO MARK IN FOUR SPACES BEFORE A SIGN, the indentation of a line of a paragraph', '    > a', 0, '    > a',],
+  ['NO MARK ON A LINE WITH NONE, a lazy line of the quote', '> a\nb\n  c', 0, 'a\nb\n  c',],
+  ['NO MARK BEFORE THE FIRST LINE OF A STRETCH THAT STARTS INSIDE A LINE', '> a\n> b', 2, 'a\nb',],
+  ['THE MARK AND ONE SPACE ONLY, the extra spaces being indentation', '>    a', 0, '   a',],
+];
 
 await describe({
   name: 'source ships footnote',
@@ -359,7 +376,59 @@ await describe({
             expect(kept({ source: '  x', },),).toBe('x',);
           },
         },),
+
+        it({
+          name: 'GIVES UP THE MARKS OF A BLOCK QUOTE BEFORE THE INDENTATION WHEN ASKED, so a footnote in a quote is read '
+            + 'without them and a line with no mark is kept from behind its indentation alone',
+          fn: async () => {
+            /**
+             Characters kept from a block, as text.
+
+             @param source - text, of which the whole is the block
+
+             @returns Kept characters joined
+             */
+            function kept({ source, }: { readonly source: string; },): string {
+              return withoutIndentation({
+                source,
+                range: {
+                  start: 0,
+                  end: source.length,
+                },
+                marks: true,
+              },)
+                .map(function characterAt(at,): string {
+                  return source.charAt(at,);
+                },)
+                .join('',);
+            }
+            expect(kept({ source: '> x\n>    y\n  z', },),).toBe('x\ny\nz',);
+            expect(kept({ source: '> x\n>      y', },),).toBe('x\n y',);
+          },
+        },),
       ],
+    },),
+
+    describe({
+      name: withoutQuoteMarks.name,
+      children: MARK_CASES.map(function markCase([name, source, start, expected,],) {
+        return it({
+          name: `KEEPS EACH LINE FROM BEHIND ${name}`,
+          fn: async () => {
+            expect(withoutQuoteMarks({
+              source,
+              range: {
+                start,
+                end: source.length,
+              },
+            },)
+              .map(function characterAt(at,): string {
+                return source.charAt(at,);
+              },)
+              .join('',),).toBe(expected,);
+          },
+        },);
+      },),
     },),
   ],
 },);

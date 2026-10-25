@@ -198,6 +198,7 @@ export {
   NO_FOOTNOTE_INSIDE,
   opensFootnote,
   withoutIndentation,
+  withoutQuoteMarks,
 } from './corpus-run/source-ships-footnote.ts';
 export {
   footnoteRead,
