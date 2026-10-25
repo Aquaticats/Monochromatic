@@ -43,12 +43,36 @@ const l = contextRoot({ tag: 'translation-repair', },);
 export type AttemptMap = Map<string, number>;
 
 /**
+ Whether a value read from the attempts file can stand as an entry's attempt count.
+
+ A COUNT IS A NON-NEGATIVE WHOLE NUMBER THE PASS CAN ADD ONE TO. The pass adds one to the count it reads and the
+ lifecycle stamp of the lines it prints for the attempt refuses anything that is not a whole number from 1 (ledger B960),
+ so a hand-edited 1.5, -3, 1e999 (which parses to Infinity) or 1e20 passed through would end the pass at its first
+ entry, outside any `try`, and again at every launch since the file keeps it.
+
+ @param value - what the file holds for one entry
+
+ @returns Whether it is a safe integer of at least zero
+
+ @example
+ ```ts
+ const usable = isAttemptCount(1.5,); // => false
+ ```
+ */
+function isAttemptCount(value: unknown,): value is number {
+  if ((typeof value) !== 'number')
+    return false;
+  return Number.isSafeInteger(value,) && (value >= 0);
+}
+
+/**
  Reads the persisted attempt map, tolerating a missing or malformed file so a
  corrupt cache never aborts a run.
 
  @param attemptsPath - location of the attempts JSON
 
- @returns Entry-id to attempt-count map, empty when absent or unreadable
+ @returns Entry-id to attempt-count map, empty when absent or unreadable, each count that is no non-negative whole
+ number read as 0 beside a warning naming the entry, the file and the value
 
  @throws {@link Error} when the file exists and is readable but fails for any
  reason other than absence or malformed JSON
@@ -93,12 +117,16 @@ export async function readAttemptMap(attemptsPath: string,): Promise<AttemptMap>
           string,
           number,
         ] {
-          if ((typeof value) === 'number')
+          if (isAttemptCount(value,))
             return [
               id,
               value,
             ];
-          rl.warn(`attempts file counts ${id} as no number; read as 0, so ${id} sorts first`,);
+          rl.warn(
+            `attempts file ${attemptsPath} counts ${id} as ${
+              (typeof value) === 'number' ? String(value,) : JSON.stringify(value,)
+            }, which is no non-negative whole number; read as 0, so ${id} sorts first`,
+          );
           return [
             id,
             0,
