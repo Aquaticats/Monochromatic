@@ -4724,6 +4724,24 @@ with a doc conflict (both branches appended to the handover and the troubleshoot
 `~/temp/agent/keep-both.ts`) as `9558444611` in the scratch tree `land-press`; gates running; to be pushed, built and
 installed only after the verifier finishes with the installed `01d2c9454acda68f…` (installing under it would corrupt its
 runs), then verified on the installed binary.
+Verifier result on the installed `01d2c9454acda68f…` (row map fix; load 10 to 67, recorder 9 to 23 fps): maps taller by
+exactly 72 px: 0 of 160 one-core sessions and 0 of 60 unlimited ones (previous binary 12 and 7 of 160); Ctrl+End after
+5 s in 20 one-core sessions identical (last gutter numbers 1499 to 1501, row map 36,024, four screenshots viewed);
+far jumps 150, 300, 600: 0 blank and 0 partial code frames, tiles 1.00; five-press means as before; 88-click 832
+frames 0 blank, 82 px gap in 119 of 119; hover rest over no character at 5 and 301 notches 10 of 10 right (5 notches
+0.532 to 0.604 s, two above 0.58), reload 10 of 10, settled hover 10 of 10; Ctrl+End and Ctrl+Home 0 blank frames; drag
+after a wheel 6 of 10 starts classified (the instrument limit that the press log lines remove). NOT fixed by the row
+map fix and passed to the `early` agent: 3 of the 60 unlimited sessions (one round, started at the same instant, a
+2.2 s host stall at launch: window drawn at 24.0, first tile built at 26.2) kept a map of 36,456 px (18 rows too tall):
+a single `row map rebuilt` at the 173 px layout width at 26.22, the real size (646 x 1848 px) reported at 27.4159, no
+rebuild after it for the remaining 2 s (shutdown at 30.45): the width-change rebuild is skipped in that interleaving;
+and one unlimited session carried the `mise could not serve the project ... bwrap: Can't find source path` information
+row (+138 px). Landed 2026-10-25 as `36a91594cd` (press tip `3b7f212226` merged with a doc conflict resolved by keeping
+both sides, then with my handover commit; gates on the merged tree: `lint` 0, `test:native` 350 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0). Installed: sha256 `4a316f890696402f…` from
+`36a91594cd` (the build unit and the install task built the same file), prints 0.1.1. The verifier (scratch
+`~/temp/agent/final8`) now checks the drag press from the new log lines, 30 trials per delay at 300 notches, plus the
+regression smoke; its numbers follow, then `final8` is removed.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
