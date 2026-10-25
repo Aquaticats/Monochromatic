@@ -133,7 +133,8 @@ The second fix round of this record corrects both figures:
 the sampled case now reads both seeds,
 and the full task is timed across the runs made before the second fix round (see the heading "The second fix round").
 
-The invariant for step 3 of the composition read the nesting of the pair texts with a function that splits lines on the line feed
+The invariant for step 3 of the composition read the nesting of the pair texts
+with a function that splits lines on the line feed
 and gave false alarms.
 It now reads what the grammar refused of each page the composition tried,
 and a page that ships without the original of a run is reported unless one refusal says the page nests too deeply.
@@ -253,7 +254,8 @@ each fix names the red commit it answers.
   which cut at the character before the footnote and was replaced;
   red `dee820cf6613af0044e77af28d353284d5715d3b` (the pool of runs and the pairs it finds as cases),
   fix `3ef2fd61ccf622655f1e7d70d30f2ea11b02a9ff`,
-  which cuts a container paragraph at every footnote line and reads each part by whether its line stays in the container.
+  which cuts a container paragraph at every footnote line
+  and reads each part by whether its line stays in the container.
 - R4,
   the label rules of `micromark-extension-gfm-footnote@2.1.0`:
   red `e9a4920bcf28952fcd47ecf86d3a4032c58d2821` (`red-r4`) and `84c1bec06825a7f60580a65595b92376295d6803` (`red-r4b`),

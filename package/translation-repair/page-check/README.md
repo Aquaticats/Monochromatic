@@ -105,6 +105,45 @@ The groups that follow name the main ones.
   `corpus-run/source-ships-footnote.ts`,
   `corpus-run/source-ships-module-line.ts`
   and `corpus-run/source-ships-ranges.ts` hold the helpers of the reading and are exported for their own tests.
+  `corpus-run/source-ships-opener-in-code.ts` takes a comment that never closes out of the fence,
+  display math,
+  code span or inline math it is opened in,
+  and `corpus-run/source-ships-lines.ts` joins the lines of a span
+  that a footnote start indented four columns would cut.
+- Reading comparison:
+  say whether a reader of the page sees what a reader of the source sees,
+  for each run the composition writes as literal text
+  (a run that ships as recorded is not compared).
+  The page is read by the strict grammar,
+  the source as plain Markdown with GFM,
+  math and raw HTML,
+  and both are reduced to the text of their leaves.
+  The answer is `same`,
+  `differs` or `undecided`,
+  decided for each top-level block:
+  the two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
+  which a reader of plain Markdown cannot give,
+  so a block that a footnote range the two readings disagree on reaches is `undecided`
+  and every other block is compared on its own.
+  A run always ships,
+  so the answers are reported and never stop a page,
+  in three defects that name slices and no text of the page:
+  `source-reads-differently` for a block that shows other text than the source,
+  `source-reading-undecided` for a block the comparison cannot decide,
+  and `source-reading-not-compared` for a run the comparison could not be made for
+  (a page that parses and cannot be read against its source).
+  Names:
+  `readingDifferenceOf`,
+  `differenceDefectsOf`,
+  `blockDifferenceOf`,
+  `blocksOfPage`,
+  `blocksOfSource`,
+  `readerOfPage`,
+  `readerOfSource`.
+  Declared in `corpus-run/source-reading-difference.ts`,
+  `corpus-run/source-ships-differences.ts`,
+  `corpus-run/source-reading-blocks.ts`
+  and `corpus-run/source-reading-account.ts`.
 - Shippable replacements:
   turn a settled entry's per-slice readings into the replacements that assemble its page.
   The original of a slice that ships it is left out unless the caller passes `includeSource: true`,
@@ -265,8 +304,11 @@ It must be run before landing any change under
 `src/corpus-run/page-grammar.ts`,
 `src/corpus-run/source-live-*`,
 `src/corpus-run/source-shipped*`,
-`../document-structure/src`
-or `../markup/src/footnote-label.ts`,
+`../document-structure/src`,
+`../markup/src/footnote-label.ts`
+or `../markup/src/nesting-*.ts`
+(the nesting measure behind the page grammar's depth refusal,
+`firstNestingExcess`),
 and before a launch whose build differs from the last green full run in those paths.
 The difference is `git diff --stat <head> HEAD -- <paths>`,
 where `<head>` is the commit the last green full run was made on:

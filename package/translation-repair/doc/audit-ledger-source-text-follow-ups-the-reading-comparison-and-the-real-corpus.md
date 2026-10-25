@@ -22,7 +22,9 @@ That is the owner's decision and no longer a ruling open to a veto.
 It answers the question the third round left to the owner,
 whether to add a reader comparison to the page check.
 
-THE COMPARISON is `readingDifferenceOf` (`page-check/src/corpus-run/source-reading-difference.ts`).
+#### The comparison
+
+The comparison is `readingDifferenceOf` (`page-check/src/corpus-run/source-reading-difference.ts`).
 It reduces the page,
 read by the strict grammar,
 and the source,
@@ -47,7 +49,9 @@ to `document-structure/src/gfm-math-body.ts`
 (the fixture is named in the ledger of the parser gaps,
 which keeps its old text).
 
-THE TWO-READINGS RULE decides what the source's reading is.
+#### The two-readings rule
+
+The rule decides what the source's reading is.
 At the top of a text the footnote reading comes from the source,
 so a difference there is reported.
 Inside a block quote or a list item,
@@ -60,19 +64,24 @@ source's footnote ranges and the page's differ at a place a block quote or a lis
 After a footnote the page is made to read as the source does (the blank line of `separatingEdits`),
 so no difference is left there.
 
-THE CASES IT CANNOT DECIDE,
+#### The cases it cannot decide
+
+The cases,
 with the reason of each:
 
 - A footnote in a block quote or a list item whose ranges the two readings disagree on,
   and whose accounts differ:
   `undecided`,
   because the ruling takes the page's reading and a reader of plain Markdown cannot give it.
-  The function logs the run at the info level and reports nothing.
+  The function logs the run at the info level and reported nothing in the fourth round;
+  since the fifth round it is decided for each top-level block and the blocks left undecided ship the defect
+  `source-reading-undecided`.
 - A run the page does not carry as text:
   a text nested past the bound of the plain reading,
   which the strict grammar refuses.
   The comparison throws,
-  the composition logs the run at the warn level and reports nothing,
+  the composition logged the run at the warn level and reported nothing in the fourth round
+  (since the fifth round it ships the defect `source-reading-not-compared`),
   and such a run is left off the page by the third step of the composition,
   where `page-source-unparseable` names it.
 - A run that ships as recorded:
@@ -82,22 +91,26 @@ with the reason of each:
   is not compared in production,
   although the search put every one of them through `readingDifferenceOf` on its encoded form.
 
-THREE LIMITS OF WHAT IS REPORTED.
+#### Three limits of what is reported
+
 The defect names the slices and no text of the page,
 because `PublishDefect.message` carries ids,
 counts and slice indices only,
 so "the affected text named" is the slices.
-`undecided` is keyed on whether a footnote range disagreement exists inside a container of the text,
+In the fourth round `undecided` was keyed on whether a footnote range disagreement exists inside a container of the text,
 not on whether it caused the difference,
-so a difference of another kind in a text that also holds such a disagreement is withheld too.
+so a difference of another kind in a text that also holds such a disagreement was withheld too
+(57 of the 1174 undecided texts still differed without the footnote caret).
+The fifth round decides for each top-level block.
 Only runs written as literal text are compared.
 
-THE SEARCH,
-repeated on the final code with the same texts as the third round (132260,
+#### The search
+
+The search was repeated on the final code with the same texts as the third round (132260,
 both seeds,
 the footnote product texts,
 the shapes),
-and with every text now put to the production comparison:
+and every text was put to the production comparison:
 116341 texts read the same by the oracle and by the comparison,
 and 0 of them is reported (the false-positive rate is 0 of 116341),
 9442 read differently and are reported as `differs`,
@@ -113,7 +126,8 @@ read 36 and 1371).
 The search over the generated texts ran in a capped unit,
 `dx1f2-topdiff8`.
 
-THE COMMITS:
+#### The commits
+
 `76d1c2e53a` is the red cases (`red-r21-failing-lines.txt`),
 `dedb7886c0` moves `parseGfmMathBody` into `document-structure` and adds `footnoteRangesDifferInContainer`,
 `9d0d9d5dc7` adds the comparison and the defect,
@@ -123,8 +137,9 @@ and `6ef07ed14a`,
 `9f062811da` and `ad67735c42` are the two later fixes with their red cases.
 The residual classes after them are in the section on the residual classes.
 The two cases of `source-shipped-page.unit.test.ts` that hold a comment which never closes now expect the defect.
-The unit tests of `dedb7886c0` were written with the code and not before it;
-the comparison's behaviour was red first.
+The unit tests of `dedb7886c0` were written with the code and not before it.
+What was red first in the commits of the comparison is set out in the section on the tests of the fifth round,
+in [its own file](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md).
 
 ### The real corpus
 
@@ -183,8 +198,8 @@ and ran in the capped unit `dx1f2-corpus1`.
 
 ### The residual classes
 
-FIXED,
-red first.
+#### Fixed, red first
+
 A footnote that opens with a tag alone (`d887680218` red,
 7 cases in `red-r22-failing-lines.txt`;
 `bdbbd2b0a3` fix):
@@ -227,38 +242,51 @@ opens with an indented fence mark read as a fence that never closes
 and the page showed the rest of the text as its code.
 `nestedSpans` reads such a piece behind the lead `x ` and moves the spans back (`source-ships-paragraph-lead.ts`).
 All 7 texts of the class read the same now.
-The earlier text of this section,
-in `2725c1280f`,
+The text of `2725c1280f` on these classes
 called the comment class intrinsic to the owner's ruling and the fence class
 a matter of context the cutting module does not keep;
 both were wrong,
 and both are fixed by the commits named in this section.
 
-REPORTED,
-NOT CHANGED,
-each reported by the comparison:
+#### Reported, not changed
+
+Each is reported by the comparison:
 
 - An indent-4 footnote start that cuts a code span (384 of the 1407).
   The strict grammar starts the footnote at the indented line and the page shows the backticks as characters;
   the source pairs them across the lazy line.
-  No writing keeps both:
-  a backslash before the label shows inside a code span,
-  and no character can be added.
-  The encoder makes the page safe (no live construct),
-  and the comparison reports it.
+  The statement of this round that no writing keeps both was wrong,
+  and the class is fixed in the fifth round
+  (`audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md`):
+  a line ending and the indentation after it are one space in a code span,
+  in inline math and in a link title on any render,
+  so the encoder writes the line joined to the one before it,
+  and the page shows the span the source shows.
+  The encoder made the page safe (no live construct) in this round,
+  and the comparison reported it.
 - An image whose alternative text is an angle autolink (55):
   a known finding,
   recorded in `audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md`
   ("An angle autolink in the alternative text of an image"),
   left reported.
 - A comment that never closes and does not start a block,
-  or sits where the plain parse reads no raw HTML block (12):
-  an opener inside a display math that is open,
-  a fence that a byte order mark hides from the source's reader,
-  and the like.
-  The page shows the character reference as characters there.
-  Not attempted;
-  the count in the real corpus is 0.
+  or sits where the plain parse reads no raw HTML block.
+  This round counted 12 of them inside the 1407 texts of its scope,
+  and called them an opener inside a display math that is open
+  and a fence a byte order mark hides from the source's reader.
+  The size of the class was not 12:
+  the final search of this round holds 236 texts whose difference the opener causes
+  (replacing its four characters makes the reading equal),
+  of which 147 stand inside a fence at the top of the text
+  (115 plain,
+  19 behind a byte order mark,
+  9 after text on the line,
+  4 of another shape),
+  78 inside a display math,
+  7 inside a fence in a list item,
+  and 4 inside a code span that only the nested reading of a footnote in a block quote pairs.
+  The count in the real corpus is 0.
+  The fifth round fixed 232 of the 236 and records the 4 that remain.
 - A line indented four columns or more right after a link reference definition that begins with a heading mark,
   a list marker or a
   quote mark.
@@ -273,7 +301,9 @@ each reported by the comparison:
 Of the 1407,
 956 now read the same and 451 are reported (384 indent-4 footnote starts,
 55 images,
-12 openers).
+12 openers);
+the 12 were the part of the opener class inside the scope of the 1407,
+and the fifth round fixed the code span class and 232 of the 236 openers.
 
 ### The full task, the merge, the checks and the slips
 
@@ -349,7 +379,9 @@ A page published before this round and compared with the page expected now may d
 which a later pass republishes.
 No new B id was taken.
 
-COMMIT-MESSAGE SLIPS of the third and fourth rounds,
+#### Commit-message slips
+
+The slips of the third and fourth rounds,
 none corrected on the remote and nothing posted:
 
 - Positional words in the body:

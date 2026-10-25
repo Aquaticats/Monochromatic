@@ -531,6 +531,19 @@ the publisher writes the runs that do not parse as literal text,
 then every run,
 and last ships the page without the original under the defect `page-source-unparseable`,
 with a warn line for each step (ledger B832).
+A run written as literal text is compared with its source,
+block by block,
+and the page ships a defect that names the slices and no text:
+`source-reads-differently` for a block that shows other text than the source,
+`source-reading-undecided` for a block the comparison cannot decide (a footnote in a block quote or a list item
+that the two readings end at different places),
+and `source-reading-not-compared` for a run the comparison could not be made for.
+A run always ships,
+so none of them stops a page
+(the owner,
+2026-10-25,
+"Add the comparison";
+`page-check/README.md`).
 A later run replaces the text once a wording is backed.
 Under the no-loop design of 2026-09-01 an insertion is recovered supplementary content,
 so the entry still ships rather than failing for want of it.

@@ -236,6 +236,38 @@ which lists every file of these commitments.
   The corpus reader folds CRLF to LF at the read (`slice-reading/src/line-endings.ts`)
   and leaves a lone carriage return alone,
   so the fold changes no page that the corpus brings today.
+  A page that shows the original of a run differently from the source ships reported and is never refused
+  (the owner,
+  2026-10-25,
+  "Add the comparison",
+  after a search found texts the encoder wrote so that a reader sees other text).
+  `readingDifferenceOf` (`page-check/src/corpus-run/source-reading-difference.ts`) reduces the page,
+  read by the strict grammar,
+  and the source,
+  read as plain Markdown with GFM,
+  math and raw HTML,
+  to the text of their leaves,
+  and the composition runs it over every run it writes as literal text (`source-ships-differences.ts`).
+  A run that ships as recorded is not compared,
+  since what the site compiles is what the original is upstream.
+  The answer is `same`,
+  `differs` or `undecided`,
+  decided for each top-level block (`source-reading-blocks.ts`).
+  The two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
+  which a reader of plain Markdown cannot give,
+  so a block that a footnote range the two readings disagree on reaches is `undecided`,
+  and every other block is compared on its own.
+  Three defects carry the answers,
+  each naming slices and no text of the page:
+  `source-reads-differently` for a block that shows other text than the source,
+  `source-reading-undecided` for a block the comparison cannot decide,
+  and `source-reading-not-compared` for a run the comparison could not be made for,
+  a page that parses and cannot be read against its source.
+  The composition reports them,
+  not a publish check that throws:
+  a run always ships,
+  and every reading difference is reported,
+  so a throw of the comparison is a defect of the run and never stops the entry.
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,

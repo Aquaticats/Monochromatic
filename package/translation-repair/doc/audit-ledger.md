@@ -152,6 +152,14 @@ named for that subject and listed here.
   The page check's comparison of the reading of the page with the reading of the source,
   the count of real texts per residual class,
   the fixes of the classes and the checks of the fourth round (B832 follow-ups).
+- [Audit ledger: the source text under a note, the block comparison and the openers in code](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md):
+  The comparison decided for each top-level block,
+  the defects for a block it cannot decide and a run it cannot compare,
+  the comments that never close taken out of code and math,
+  the code spans an indent-four footnote start cuts,
+  and the pins,
+  mutants,
+  search and real-corpus counts of the fifth round (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.
