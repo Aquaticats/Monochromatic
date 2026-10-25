@@ -81,13 +81,14 @@ await describe({
   name: repairSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 47: the owner\'s rulings of 2026-10-25 removed every weight floor, so a settled slice '
+      name: 'IS AT VERSION 48: the owner\'s rulings of 2026-10-25 removed every weight floor, so a settled slice '
         + 'may hold a decision the panel tally, the editor selection or the non-translation vote now reaches '
-        + 'differently on the same texts; the key hashes the version, the shape of the run and the texts, not the rule '
-        + 'that reads the ballots, so only this number retires a record written under the floors before (46 was the '
-        + 'reader taking a capital-only difference as the listed value, merged with the `silentStages` settlement)',
+        + 'differently on the same texts, and an issue regresses only on two worse ballots (re-check 3, M1), which '
+        + 'candidate selection ranks third; the key hashes the version, the shape of the run and the texts, not the '
+        + 'rule that reads the ballots, so only this number retires a record written under the floors before (46 was '
+        + 'the reader taking a capital-only difference as the listed value, merged with the `silentStages` settlement)',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(47,);
+        expect(SLICE_CACHE_VERSION,).toBe(48,);
       },
     },),
     it({
@@ -98,7 +99,7 @@ await describe({
           + 'change to the FIXTURE INPUTS of this case moves it too, and must not, because those inputs are '
           + 'already part of the key and invalidate their own entries',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(47,);
+        expect(SLICE_CACHE_VERSION,).toBe(48,);
 
         // MOVED THREE TIMES ON 2026-08-20, FOR THREE DIFFERENT REASONS, which
         // is the whole point of keeping the note.
@@ -199,8 +200,11 @@ await describe({
         //
         // VERSION 47 ON 2026-10-25 (the owner's rulings removed every weight floor: the panel tally, the editor
         // selection and the non-translation vote decide on two answering judges): moved the same way.
+        //
+        // VERSION 48 ON 2026-10-25 (an issue regresses only when two or more checker ballots name worse, re-check 3 M1,
+        // which candidate selection ranks third): moved the same way.
         expect(keyed({ runShape: repairRunShape({ models: MODELS, },), },),)
-          .toBe('1defdc4210cb1511e0f7d5fdaa84d4b09d09fb79b93a68e9999cb114f8599cde',);
+          .toBe('b62e48e9281341270a1eae8be06adcfced05098a55c3723b403216e15a6cd33e',);
       },
     },),
     it({

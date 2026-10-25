@@ -720,8 +720,22 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  selection and gate rules, each beside its own account. The lane-contest, consistency, pairing and page-title versions
  stay: their ballots are counted by their own rules of two, which this change leaves as they were. No record has been
  written at 47, which this change sets first.
+
+ Version 48 covers the lead's ruling on re-check 3 (M1, 2026-10-25), by the owner rules that two ballots decide and
+ that one judge alone never decides: an accepted issue counts as regressed only when two or more checker ballots name
+ `worse` and the weight behind `worse` exceeds the rest (`adjudication/src/tally-resolution.ts`). Candidate selection
+ ranks that count third (`adjudication/src/select-candidate.ts`, `compareCandidates`), so for the same texts a slice
+ whose checker round held one `worse` ballot now ranks its candidates by the other measurements and can ship another
+ candidate; the stored outcome also holds each issue's tally, whose `regressed` field changes for that round. The key
+ hashes the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written
+ before would be served after. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 47 and the change cannot ride inside
+ it; the number moves. The refine version moves for the same reason (18), because a refinement record embeds the
+ readings of its recheck round. The translate, consolidate, lane-contest, consistency, pairing and page-title
+ versions stay: none of them runs the resolution checkers. No record has been written at 48, which this change sets
+ first.
  */
-export const SLICE_CACHE_VERSION = 47;
+export const SLICE_CACHE_VERSION = 48;
 /**
  Everything about a repair run that changes what the models are ASKED, folded
  into every cache key.
