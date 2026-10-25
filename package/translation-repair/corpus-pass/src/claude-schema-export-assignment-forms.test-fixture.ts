@@ -113,6 +113,34 @@ export const EXPORT_ASSIGNMENT_CASES: readonly ShapeCase[] = [
     builders: [],
     spots: [],
   },
+  {
+    name: 'ACCEPTS A CALL OF A NAME THAT A FILE WITH AN `export =` DOES NOT EXPORT, since only its default is the value '
+      + 'the `export =` gives',
+    files: [
+      SENDER_FILE,
+      {
+        file: 'imaginary/src/assignment-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+          'export = mk;',
+        ],),
+      },
+      {
+        file: 'imaginary/src/assignment-caller.ts',
+        text: textOf([
+          'import { other, } from \'./assignment-stage.ts\';',
+          `export const SENT = other(${ARGUMENTS},);`,
+        ],),
+      },
+    ],
+    found: ['imaginary/src/assignment-stage.ts',],
+    builders: [],
+    spots: [],
+  },
 ];
 
 //endregion A module that exports a value with `export =` and a file that brings it in with `import x = require(path)`
