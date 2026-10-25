@@ -4365,6 +4365,25 @@ Owner answer (question tool, 2026-10-24): clear the captures now. Removed `~/tem
 Started the same day at the owner's standing instruction to do open follow-ups now: an agent writes the test of the
 first-tile path (no device yet, in-frame hand-over) and measures whether the minimap picture can be blank after a
 hand-over inside a frame (fixing it the same way if so); its report is verified, landed and the IDE reinstalled.
+Result, landed 2026-10-24 as merge `b5595e2d17` (agent tip `4e67aafcb1`, fix commit `04935e5ede`):
+(A) the first-tile path has two native tests (`src/native/tile_slice_frame_tests.rs`, observable: the window's
+`request_redraw`, recorded by `take_frame_wanted` in `src/native/gpu_snapshot.rs`) and 4 `first-tile-*` guard cases.
+(B) the minimap picture can be blank for 0.1 to 0.35 s after a file switch: a switch empties the slice list
+(`forget_minimap`, `ModelRc::default()`), the first picture of the new file sets a new list inside a frame, and that
+frame does not show it; every switch hands over a second picture soon after, so the blank was never permanent.
+Before the fix 304 of 2,126 frames of 48 file switches were blank, 46 of 1,317 frames of 30 key actions
+(all in 12 Ctrl+End or Ctrl+Home), 9 of 2,343 frames of 45 resizes; none in 32 minimap clicks, 12 wheel actions,
+6 scale changes; the last blank frame came 0.129 to 0.466 s after the first picture's frame (median 0.22 s,
+17 of 32 over 0.2 s) and 0.062 to 0.116 s after the fix (16 switches, none over 0.2 s).
+Fix: `GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` gives it the slices and the picture's
+place at hand-over, outside any frame. 2 native tests (`src/native/minimap_slice_frame_tests.rs`), 6 `minimap-slices-*`
+guard cases (14 runs accepted). Gates on the merged tree: `lint` 0, `test:native` 312 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0.
+Open: why a slice list changed in place is shown by the frame for the minimap but not for the code tile
+(not found); no regression test for the in-place minimap case (the harness cannot show the blank).
+Installed: sha256 `1c6aafb396c36604…` from `b5595e2d17`, prints 0.1.1; the check of the installed release binary
+for the code column and the minimap on file switches was started by a separate agent and its numbers follow below.
+Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp` and `ft` (34 GB).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
