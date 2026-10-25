@@ -1,5 +1,10 @@
 # Answers to the translation-repair decision sheet
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+the minimum weight of two a selection needs is gone,
+and two answering judges decide whatever their weight (a half-weight self-vote still counts as one judge).
+
 Decided 2026-08-16 by the repository owner,
 on the seven questions drafted in
 `doc/planning/translation-repair-open-decisions.md`.

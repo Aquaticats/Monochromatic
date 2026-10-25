@@ -1,5 +1,10 @@
 # Four translation-repair decisions, taken on the best-quality guideline, 2026-08-16
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+`MIN_SELECTION_WEIGHT` and the weights it was compared with are gone,
+and two answering judges decide whatever their weight.
+
 ## How these were decided, and why an earlier version of this file is wrong
 
 These four were first put to the owner as option sets.
