@@ -85,7 +85,7 @@ const ASKS_AGAIN_OVER_THE_LEADERS: string = [
 ].join(' ',);
 
 /**
- The part of a challenge's sentence about the rounds that leave no candidate behind, which both challenge sentences
+ The part of a challenge's sentence about the rounds that leave nothing to narrow, which both challenge sentences
  carry beside the run-off part (re-check 6, M-B).
 
  `runoffFinalists` returns the whole slate, and `settleAbsentDecline` does not narrow, for a round in which every
@@ -93,9 +93,14 @@ const ASKS_AGAIN_OVER_THE_LEADERS: string = [
  candidates to offer are the whole slate (`every-candidate-backed`): the whole slate tied, or a slate of only two, whose
  leader and runner-up are both candidates. Those are the shapes this part names, so that the run-off part is not read as
  a promise in them. How often each occurred in the recorded XingZ6021 run is in the round seven ledger entries.
+
+ The part says "nothing to narrow" and not "no candidate behind" (re-check 7, nit 1): the run-off part says "left
+ behind" for the candidates a narrowing would drop, which counts a candidate that drew no ballot, and a lone leader of
+ a wide slate leaves such candidates yet narrows nothing, since a run-off needs two candidates to offer. The word
+ behind has the one meaning in the sheet, the candidates a narrowing would drop.
  */
-const ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND: string = [
-  'a round that leaves no candidate behind (the whole slate tied, every judge declining, a leader alone in drawing a',
+const ASKS_NO_QUESTION_WHERE_NOTHING_NARROWS: string = [
+  'a round that leaves nothing to narrow (the whole slate tied, every judge declining, a leader alone in drawing a',
   'ballot, or a slate of only two) asks no such question',
 ].join(' ',);
 
@@ -116,7 +121,7 @@ const ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND: string = [
  level tie and otherwise sends the passage back (re-check 4, F1; corrected in re-check 5). The sheet says it in order:
  declining does not by itself keep the wording, and a judge's own decline
  names no candidate; a tie or a leader that leaves candidates behind sends the panel to a run-off, and a round that
- leaves none behind asks no such question (re-check 6, M-B); once none is left,
+ leaves nothing to narrow asks no such question (re-check 6, M-B; reworded in re-check 7, nit 1); once none is left,
  the wording in place stays only when no candidate was
  named by two or more judges; and when one or more were, the preferred of
  those ships by a fixed order (re-check 2, finding F2; reworded in re-check 3,
@@ -134,7 +139,7 @@ const ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND: string = [
 export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
   'declining does not by itself keep the wording in place, and your own decline names no candidate:',
   `${ASKS_AGAIN_OVER_THE_LEADERS};`,
-  `${ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND};`,
+  `${ASKS_NO_QUESTION_WHERE_NOTHING_NARROWS};`,
   'when no such question is left and no candidate is named by two or more judges, the wording in place stays and the',
   'page reports it, with your reason recorded; when no such question is left and one or more candidates are named by',
   'two or more judges, the preferred of those ships, by a fixed order (the repair lane\'s text, then the translate',
@@ -165,7 +170,8 @@ export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
 /**
  What a decline does in a challenge whose caller defers to a later production (the translate lane's first call, whose
  follow-up round ships past a decline): a tie or a leader that leaves candidates behind sends the panel to a run-off
- first, and a round that leaves none behind asks no such question (re-check 6, M-B); once none is left, a
+ first, and a round that leaves nothing to narrow asks no such question (re-check 6, M-B; re-check 7, nit 1); once
+ none is left, a
  candidate ships only where every candidate drew equal weight and two or more judges named it (`breakRunoffTie`), the
  preferred of those by the fixed order; otherwise the round raises its absence and the lane produces again, shown the
  rejected renderings and the findings, and judges again. It names no stay, since the wording in place stays only in
@@ -179,7 +185,7 @@ export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
 export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
   'declining does not by itself keep the wording in place, and your own decline names no candidate:',
   `${ASKS_AGAIN_OVER_THE_LEADERS};`,
-  `${ASKS_NO_QUESTION_WHERE_NONE_IS_LEFT_BEHIND};`,
+  `${ASKS_NO_QUESTION_WHERE_NOTHING_NARROWS};`,
   'when the judges decline this round and no such question is left, a candidate ships only where every candidate drew',
   'equal weight and two or more judges named it, the preferred of those by a fixed order (the repair lane\'s text,',
   'then the translate lane\'s, then the first on the slate) and not by your judgment;',
@@ -194,8 +200,8 @@ export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
  ask of a pair settles nothing and the panel is asked again; the challenge of a caller that ships past a decline
  ships the preferred candidate two or more judges named, or keeps the wording; the challenge of a caller that defers
  ships only a level tie and otherwise sends the passage back for new proposals. A tie or a leader that leaves some
- candidates behind sends the panel to a run-off first in all three, and a round that leaves none behind is told it asks
- no such question (the first ask: that it is asked again over the whole slate).
+ candidates behind sends the panel to a run-off first in all three, and a round that leaves nothing to narrow is told it
+ asks no such question (the first ask: that it is asked again over the whole slate).
 
  @param incumbentKind - whether there is wording to keep
 
