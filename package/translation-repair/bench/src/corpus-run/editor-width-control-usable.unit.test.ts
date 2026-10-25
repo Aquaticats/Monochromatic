@@ -241,7 +241,7 @@ await describe({
               TWO_SENTENCES,
             ],
             // THREE JUDGES, since the selection stage keeps its fallback under a
-            // winning weight of two and one ballot carries one.
+            // winning count of two ballots and one judge casts one.
             judgeModelIds: [
               SEAT_HYPER_OPENROUTER_VISION_EDITOR,
               SEAT_SYNTHETIC_TEXT_EVERYWHERE,

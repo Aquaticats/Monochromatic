@@ -85,7 +85,7 @@ const RENDERINGS: readonly string[] = [
 
 /**
  Needle each judge looks for in a split round: two candidates named once
- each and one judge declining, which no candidate can win at weight two.
+ each and one judge declining, which no candidate can win with two ballots.
  */
 const FIRST_ROUND_NEEDLES: Readonly<Record<string, string>> = {
   'hf:cat/Judge-A': 'dozes',

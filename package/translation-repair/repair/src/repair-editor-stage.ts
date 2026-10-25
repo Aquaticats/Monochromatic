@@ -154,8 +154,8 @@ export type EditorStageResult = {
  @returns Winning patch plus findings
 
  @throws {@link ProducerRosterError} when either
- roster repeats a model, no editor is seated, or too few judges are seated to
- reach the minimum vote weight
+ roster repeats a model, no editor is seated, or fewer than two judges are
+ seated, so no winner could ever be named by two ballots
 
  @example
  ```ts

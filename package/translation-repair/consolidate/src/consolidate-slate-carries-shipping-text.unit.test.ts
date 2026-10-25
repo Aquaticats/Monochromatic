@@ -257,9 +257,10 @@ function positionOfText(
  ONE PRODUCER IS THE USUAL SHAPE, not three, and the reason is the vote
  weighting rather than brevity. Judges are drawn from the same roster as
  producers, and a judge weighing its own roster-mate's proposal is discounted
- to half a vote. With all three seats producing, three half votes fall short of
- the minimum weight and every slate declines, so a case meaning to reach the
- gate never gets there. Cases that buy no round at all may use all three.
+ to half a vote, which ranks candidates and counts as one answering judge. With
+ all three seats producing, every vote is such a self-vote, so a case meaning to
+ reach the gate through a plain full vote never gets there. Cases that buy no
+ round at all may use all three.
 
  @param proposals - what each producing voice offered, in roster order
 
