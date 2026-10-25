@@ -462,13 +462,26 @@ so both are covered there without a list.
 
 ## Prices
 
-DeepSeek is priced at peak always:
+DeepSeek is priced at the rate of the hour the request started in.
+The card holds the peak rates:
 0.006 (cache hit),
 0.3 (cache miss) and 1.2 (output) USD per million tokens,
 with the hit and miss split read from the usage block.
 The page halves every rate off peak (01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak),
-and a run cannot know the holidays,
-so a peak price is an upper bound and never an under-read of the balance.
+and a call is booked at the peak rates when its request started inside one of those windows on a Monday to Friday in UTC,
+and at half of them otherwise.
+Each window is read as half-open
+(01:00:00 and 06:00:00 are peak, 04:00:00 and 10:00:00 are off peak),
+because the page does not say whether its last instant belongs to a window.
+The run reads no holiday calendar,
+and a holiday only makes a weekday window cheaper,
+so the booked figure stays an upper bound and never an under-read of the balance.
+The instant is read once before the first attempt from the clock the client is given
+(`now` of `createDeepSeekClient`, the system clock by default),
+so a call that spans an edge is booked at the rate of its start.
+This replaced "peak always" on 2026-10-25,
+after the XingZ6021 run (Saturday 22:49 UTC to Sunday 00:55 UTC, off peak throughout)
+booked 0.147093 USD while the balance fell 0.07.
 Xiaomi is 0.0028 (cached),
 0.14 and 0.28 USD per million tokens,
 with the cached count read from the usage block.
