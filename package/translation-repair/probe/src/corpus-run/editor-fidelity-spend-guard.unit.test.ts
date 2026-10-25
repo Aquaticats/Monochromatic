@@ -63,6 +63,7 @@ import {
   pricesOf,
   spendGuardedClient,
 } from '../../dist/final/node/index.mjs';
+import * as built from '../../dist/final/node/index.mjs';
 import {
   HAIKU_CARD,
   LOW_CARD,
@@ -1141,6 +1142,66 @@ await describe({
             expect((raised as Error).message,).toBe('the retained claim was rejected again',);
             expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
             expect(runSpendUsd({ provider: 'anthropic', },),).toBe(0,);
+          },
+        },),
+
+        it({
+          name: 'ENDS THE ARM WHEN A REPLY COMES WITH NO REQUEST BEHIND IT, and books nothing for it: a client that tells '
+            + 'the guard of no attempt and still answers with usage is a prompt answered from reuse, which cost nothing, '
+            + 'so no SPEND line is written at the ceiling, the total stays at zero, the arm\'s signal carries the ending, '
+            + 'and a later call is refused with it before the client is reached',
+          fn: async () => {
+            resetRunSpend();
+            /**
+             Model ids the scripted client was asked.
+             */
+            const asked: string[] = [];
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: function replays(): ModelClient {
+                return scriptedClient({ script: { asked, reportsUsage: true, }, },);
+              },
+              maxUsd: 5,
+              controller,
+            },);
+            const first = await askLogged({ client, controller, },);
+            expect(first.logged.filter(function isSpend(line,): boolean {
+              return line.includes('SPEND provider=',);
+            },),).toStrictEqual([],);
+            expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
+            expect(runSpendUsd({ provider: 'anthropic', },),).toBe(0,);
+            expect(first.result,).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect(controller.signal.aborted,).toBe(true,);
+            expect(controller.signal.reason,).toBe(first.result,);
+
+            const later = await raisedBy({
+              ask: function askAgain(): Promise<unknown> {
+                return askJson({ client, modelId: LOW_CARD, signal: controller.signal, },);
+              },
+            },);
+            expect(later,).toBe(first.result,);
+            expect(asked.length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'ENDS THE ARM ON A TEXT REPLY WITH NO REQUEST BEHIND IT as it does on a JSON one, and the ending names '
+            + 'the reuse and the log line that holds its digest',
+          fn: async () => {
+            resetRunSpend();
+            const controller = new AbortController();
+            const client = spendGuardedClient({
+              inner: function replays(): ModelClient {
+                return scriptedClient({ script: { asked: [], reportsUsage: true, }, },);
+              },
+              maxUsd: 5,
+              controller,
+            },);
+            const raised = await raisedBy({ ask: chatTextAsker({ client, controller, },), },);
+            expect(client.guardTotal(),).toStrictEqual({ usd: 0, calls: 1, atCeiling: 0, },);
+            expect(raised,).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect((raised as Error).message,).toContain('answered from reuse',);
+            expect((raised as Error).message,).toContain('PROMPT-REUSE',);
           },
         },),
 

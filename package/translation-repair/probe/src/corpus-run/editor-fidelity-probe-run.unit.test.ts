@@ -59,6 +59,7 @@ import {
   type ReviewedFidelityReference,
   runEditorFidelityProbe,
 } from '../../dist/final/node/index.mjs';
+import * as built from '../../dist/final/node/index.mjs';
 import { capturingLoggerPair, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { lineOf, } from '@monochromatic-dev/translation-repair-run/ts/corpus-run/command-line.test-fixture.ts';
@@ -345,6 +346,9 @@ function fixingClient(
  @param reusing - whether the scripted client sits under the prompt reuse layer the run client has, with its payload
  store in the directory the run hands the builder, as the real client builder does
 
+ @param unscoped - whether the exchanges reach that layer without the reuse scope the row names, which is a reuse the
+ pass scope did not prevent
+
  @returns What the run did, once it settles, including what it threw
 
  @example
@@ -360,6 +364,7 @@ async function probeIn(
     attemptUsd,
     exactly = false,
     reusing = false,
+    unscoped = false,
   }: {
     readonly runsDir: string;
     readonly typed: readonly string[];
@@ -367,6 +372,7 @@ async function probeIn(
     readonly attemptUsd?: number;
     readonly exactly?: boolean;
     readonly reusing?: boolean;
+    readonly unscoped?: boolean;
   },
 ): Promise<ProbeRunSeen> {
   // The guard reads the process-wide run meter, so every run starts from a clean one.
@@ -445,12 +451,28 @@ async function probeIn(
           ...((admitClaudeAttempt === undefined) ? {} : { admit: admitClaudeAttempt, }),
           ...((attemptUsd === undefined) ? {} : { attemptUsd, }),
         },);
-        return reusing
-          ? promptUniqueClient({
-            inner: scripted,
-            store: promptPayloadStore({ dir: promptPayloadDir, },),
-          },)
-          : scripted;
+        if (!reusing)
+          return scripted;
+        /**
+         The reuse layer over the scripted editor, with its payload store.
+         */
+        const layer = promptUniqueClient({
+          inner: scripted,
+          store: promptPayloadStore({ dir: promptPayloadDir, },),
+        },);
+        return unscoped
+          ? {
+            ...layer,
+            chatText: function withoutScopeText(request,) {
+              const { reuseScope: _scope, ...rest } = request;
+              return layer.chatText(rest,);
+            },
+            chatJson: function withoutScopeJson(request,) {
+              const { reuseScope: _scope, ...rest } = request;
+              return layer.chatJson(rest,);
+            },
+          }
+          : layer;
       },
       now: function nextInstant(): string {
         return nonNullishOrThrow(instants.shift(),);
@@ -1217,6 +1239,42 @@ await describe({
             expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD, LOW_CARD, LOW_CARD,],);
             expect(seen.lines,).toContain('TRIALS completed 4 of 4 units',);
             expect(seen.lines,).toContain('GUARD total=0.820000 calls=4 atCeiling=0',);
+          },
+        },),
+
+        it({
+          name: 'REFUSES TO SCORE A ROW THAT MADE NO CALL, and fails loud: a reply from the reuse layer reaches the arm in '
+            + 'pass 2 although the pass scope should have prevented it, the run throws and does not count a trial, writes '
+            + 'no row for it, books no SPEND line at the ceiling and prints no TRIALS line, while the rows that made a call '
+            + 'stay and the guard line says what it counted',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'editor-fidelity-run-', },);
+            const seen = await probeIn({
+              runsDir: scratch.path,
+              typed: [...ONE_CARD, '--passes', '2',],
+              reusing: true,
+              unscoped: true,
+            },);
+            expect(seen.lines,).toContain('GUARD total=0.410000 calls=3 atCeiling=0',);
+            expect(seen.lines.some(function isTrials(line,): boolean {
+              return line.startsWith('TRIALS completed ',);
+            },),).toBe(false,);
+            expect(seen.failures.length,).toBe(1,);
+            expect(seen.failures[0],).toBeInstanceOf(built.RepliedWithoutCallError,);
+            expect(seen.asked,).toStrictEqual([LOW_CARD, LOW_CARD,],);
+            expect(seen.lines.filter(function isRow(line,): boolean {
+              return line.startsWith('row ',);
+            },).length,).toBe(2,);
+            const [runName,] = (await readdir(scratch.path,)).filter(function isRun(name,): boolean {
+              return name.startsWith('editor-fidelity-',);
+            },);
+            const rowFiles = (await readdir(join(
+              scratch.path,
+              nonNullishOrThrow(runName,),
+            ),)).filter(function isRow(name,): boolean {
+              return name.startsWith('row-',);
+            },);
+            expect(rowFiles.length,).toBe(2,);
           },
         },),
 
