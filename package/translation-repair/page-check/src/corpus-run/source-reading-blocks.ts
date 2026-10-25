@@ -1,32 +1,36 @@
 import type { SourceBlock, } from './source-reading-account.ts';
+import type { TextRange, } from './source-ships-ranges.ts';
 
 //region Source reading blocks
 // THE COMPARISON OF A PAGE WITH ITS SOURCE, BLOCK BY BLOCK. The two-readings ruling takes the page's reading of a footnote
 // inside a block quote or a list item, which a reader of plain Markdown cannot give, so a difference in a block that
-// holds such a footnote may be the ruling's own choice. That is a property of the blocks that hold the footnote and not of
+// holds such a footnote may be the ruling's own choice. That is a property of the blocks the footnote reaches and not of
 // the whole text: every other top-level block of the source has a block of the page that must show the same, and a block
 // that does not is a difference whatever stands beside it.
 //
-// HOW THE BLOCKS ARE PAIRED. The blocks of the source that hold no such footnote are anchors: each is looked for among the
-// blocks of the page, in order, by what it shows. The blocks between two anchors are a stretch: the source's blocks that
-// hold the footnote against the page's blocks, which differ in number where the two readings end the footnote at
-// different places, so a stretch is compared as a whole. An anchor the page has no block for is a difference, and so is a
-// stretch with no block of the source that the page has blocks in; a stretch that does not show the same, with a block of
-// the source in it, is undecided.
+// WHICH BLOCKS THE FOOTNOTE REACHES. A range one reading has and the other lacks may run over blocks after the container
+// that holds its start (the page goes on with a footnote over a line of raw HTML where the source ends it), so a block is
+// reached when it overlaps the range, not only when it holds its first character.
+//
+// HOW THE BLOCKS ARE PAIRED. The blocks of the source that no such range reaches are anchors: each is looked for among the
+// blocks of the page, in order, by what it shows. The blocks between two anchors are a stretch: the source's blocks the
+// ranges reach against the page's blocks, which differ in number where the two readings end the footnote at different
+// places, so a stretch is compared as a whole. An anchor the page has no block for is a difference, and so is a stretch
+// that holds no block of the source and for which the page has blocks; a stretch that does not show the same, with a block
+// of the source in it, is undecided.
 
 /**
  What the blocks of a source and of a page say of each other.
  */
 export type BlockDifference = {
   /**
-   Whether a block that holds no footnote the readings disagree on has no block of the page to match, or the page has
-   blocks the source has none for.
+   Whether a block that no disagreeing range reaches has no block of the page to match, or the page has blocks the source
+   has none for.
    */
   readonly differs: boolean;
 
   /**
-   How many blocks of the source hold a footnote the readings disagree on and show other text than the page's blocks in
-   their stretch.
+   How many blocks of the source a disagreeing range reaches and show other text than the page's blocks in their stretch.
    */
   readonly undecidedBlocks: number;
 };
@@ -52,14 +56,38 @@ function joinedAccounts({ accounts, }: { readonly accounts: readonly string[]; }
 }
 
 /**
+ Whether two stretches of a text share a character.
+
+ @param left - one stretch
+
+ @param right - other stretch
+
+ @returns Whether they overlap
+
+ @example
+ ```ts
+ const overlap = overlaps({ left: { start: 0, end: 5, }, right: { start: 4, end: 9, }, },); // true
+ ```
+ */
+function overlaps({
+  left,
+  right,
+}: {
+  readonly left: TextRange;
+  readonly right: TextRange
+},): boolean {
+  return (left.start < right.end) && (right.start < left.end);
+}
+
+/**
  Compares the blocks of a source with the blocks of the page that carries it.
 
  @param sourceBlocks - what each top-level block of the source shows and where it stands
 
  @param pageBlocks - what each top-level block of the page shows
 
- @param disagreements - offsets in the source where a footnote range one reading has and the other lacks starts inside a
- block quote or a list item
+ @param disagreements - the footnote ranges one reading has and the other lacks that start inside a block quote or a list
+ item, as offsets in the source
 
  @returns Whether a block differs on its own, and how many blocks the readings cannot be asked about
 
@@ -80,38 +108,40 @@ export function blockDifferenceOf(
   }: {
     readonly sourceBlocks: readonly SourceBlock[];
     readonly pageBlocks: readonly string[];
-    readonly disagreements: readonly number[];
+    readonly disagreements: readonly TextRange[];
   },
 ): BlockDifference {
   /**
-   Whether a disagreement stands in no block of the source, so that no block can be set apart as the one it is in.
+   Whether a range reaches no block of the source, so that no block can be set apart as the one it is in.
    */
-  const unplaced = disagreements.some(function inNoBlock(at,): boolean {
-    return !sourceBlocks.some(function holds({
-      start,
-      end,
-    },): boolean {
-      return (start <= at) && (at < end);
+  const unplaced = disagreements.some(function reachesNone(range,): boolean {
+    return !sourceBlocks.some(function reaches(block,): boolean {
+      return overlaps({
+        left: range,
+        right: block,
+      },);
     },);
   },);
   /**
-   For each block of the source, whether it holds a footnote the readings disagree on.
+   For each block of the source, whether a range reaches it.
    */
-  const holdsDisagreement = sourceBlocks.map(function holdsOne({
-    start,
-    end,
-  },): boolean {
-    return unplaced || disagreements.some(function inside(at,): boolean {
-      return (start <= at) && (at < end);
+  const reached = sourceBlocks.map(function reachedOne(block,): boolean {
+    return unplaced || disagreements.some(function reaches(range,): boolean {
+      return overlaps({
+        left: range,
+        right: block,
+      },);
     },);
   },);
   /**
-   Where the reading is: the next block of the page to look at, what the stretch since the last anchor holds, and what
-   has been found.
+   What the blocks of the source that are reached show, since the last anchor.
    */
-  const state = {
+  const stretch: string[] = [];
+  /**
+   Where the reading is: the next block of the page to look at, and what has been found.
+   */
+  const found = {
     page: 0,
-    stretch: [] as string[],
     differs: false,
     undecidedBlocks: 0,
   };
@@ -130,49 +160,47 @@ export function blockDifferenceOf(
     /**
      What the page's blocks of the stretch show.
      */
-    const page = joinedAccounts({ accounts: pageBlocks.slice(
-      state.page,
-      upTo,
-    ), },);
-    if (joinedAccounts({ accounts: state.stretch, },) !== page) {
-      if (state.stretch
-        .length
-        === 0)
-        state.differs = true;
+    const page = joinedAccounts({
+      accounts: pageBlocks.slice(
+        found.page,
+        upTo,
+      ),
+    },);
+    if (joinedAccounts({ accounts: stretch, },) !== page) {
+      if (stretch.length === 0)
+        found.differs = true;
       else
-        state.undecidedBlocks += state.stretch
-          .length;
+        found.undecidedBlocks += stretch.length;
     }
-    state.stretch = [];
-    state.page = upTo;
+    stretch.length = 0;
+    found.page = upTo;
   }
 
   for (const [at, block,] of sourceBlocks.entries()) {
-    if (holdsDisagreement[at] === true) {
-      state.stretch
-        .push(block.account,);
+    if (reached[at] === true) {
+      stretch.push(block.account,);
       continue;
     }
     /**
      Index of the block of the page that shows what this anchor shows, none before the stretch's end being taken.
      */
-    const found = pageBlocks.findIndex(function showsIt(
+    const anchor = pageBlocks.findIndex(function showsIt(
       account,
       index,
     ): boolean {
-      return (index >= state.page) && (account === block.account);
+      return (index >= found.page) && (account === block.account);
     },);
-    if (found === (-1)) {
-      state.differs = true;
+    if (anchor === (-1)) {
+      found.differs = true;
       continue;
     }
-    settle({ upTo: found, },);
-    state.page = found + 1;
+    settle({ upTo: anchor, },);
+    found.page = anchor + 1;
   }
   settle({ upTo: pageBlocks.length, },);
   return {
-    differs: state.differs,
-    undecidedBlocks: state.undecidedBlocks,
+    differs: found.differs,
+    undecidedBlocks: found.undecidedBlocks,
   };
 }
 

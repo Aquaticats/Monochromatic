@@ -60,26 +60,62 @@ await describe({
   name: containerFootnoteDisagreementsOf.name,
   children: [
     it({
-      name: 'GIVES THE START OF THE FOOTNOTE ONCE WHEN THE TWO READINGS START IT AT THE SAME PLACE AND END IT AT DIFFERENT ONES',
+      name: 'GIVES THE RANGE OF EACH READING WHEN THE TWO READINGS START THE FOOTNOTE AT THE SAME PLACE AND END IT AT DIFFERENT ONES',
       fn: async () => {
-        expect(containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },),).toEqual([2,],);
-        expect(containerFootnoteDisagreementsOf({ body: '- a\n  [^1]: x\n  <q>\n  text\n  ===\n  ', },),).toEqual([6,],);
+        expect(containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },),).toEqual([
+          {
+            start: 2,
+            end: 15,
+          },
+          {
+            start: 2,
+            end: 28,
+          },
+        ],);
+        expect(containerFootnoteDisagreementsOf({ body: '- a\n  [^1]: x\n  <q>\n  text\n  ===\n  ', },),).toEqual([
+          {
+            start: 6,
+            end: 19,
+          },
+          {
+            start: 6,
+            end: 32,
+          },
+        ],);
       },
     },),
     it({
-      name: 'GIVES THE START OF A FOOTNOTE ONLY THE PAGE STARTS, a line indented four spaces after a paragraph',
+      name: 'GIVES THE RANGE OF A FOOTNOTE ONLY THE PAGE STARTS, a line indented four spaces after a paragraph',
       fn: async () => {
-        expect(containerFootnoteDisagreementsOf({ body: '> a `x\n>     [^1]: <b>` {d}\n', },),).toEqual([13,],);
+        expect(containerFootnoteDisagreementsOf({ body: '> a `x\n>     [^1]: <b>` {d}\n', },),).toEqual([
+          {
+            start: 13,
+            end: 27,
+          },
+        ],);
       },
     },),
     it({
-      name: 'GIVES THE STARTS OF EVERY DISAGREEMENT IN TEXT ORDER, each of two blocks apart having one',
+      name: 'GIVES THE RANGES OF EVERY DISAGREEMENT IN TEXT ORDER, each of two blocks apart having its own',
       fn: async () => {
         expect(
           containerFootnoteDisagreementsOf({
             body: 'a\n\n> [^1]: x\n> <q>\n> text\n> ===\n\n- b `y\n      [^2]: <b>` {d}\n',
           },),
-        ).toEqual([5, 46,],);
+        ).toEqual([
+          {
+            start: 5,
+            end: 18,
+          },
+          {
+            start: 5,
+            end: 31,
+          },
+          {
+            start: 46,
+            end: 60,
+          },
+        ],);
       },
     },),
     it({

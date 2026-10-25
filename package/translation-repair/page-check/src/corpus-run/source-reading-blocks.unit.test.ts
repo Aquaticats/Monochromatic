@@ -67,12 +67,12 @@ await describe({
         expect(blockDifferenceOf({
           sourceBlocks,
           pageBlocks: ['tabby!', 'calico',],
-          disagreements: [10,],
+          disagreements: [{ start: 10, end: 11, },],
         },),).toEqual({ differs: true, undecidedBlocks: 1, },);
         expect(blockDifferenceOf({
           sourceBlocks,
           pageBlocks: ['tabby', 'calico!',],
-          disagreements: [10,],
+          disagreements: [{ start: 10, end: 11, },],
         },),).toEqual({ differs: false, undecidedBlocks: 1, },);
       },
     },),
@@ -90,12 +90,12 @@ await describe({
         expect(blockDifferenceOf({
           sourceBlocks,
           pageBlocks: ['tabby', '[^1]: x', 'other', 'calico',],
-          disagreements: [10,],
+          disagreements: [{ start: 10, end: 11, },],
         },),).toEqual({ differs: false, undecidedBlocks: 1, },);
         expect(blockDifferenceOf({
           sourceBlocks,
           pageBlocks: ['tabby', '[^1]: x', 'other', 'calico',],
-          disagreements: [12,],
+          disagreements: [{ start: 12, end: 13, },],
         },),).toEqual({ differs: false, undecidedBlocks: 1, },);
       },
     },),
@@ -105,7 +105,7 @@ await describe({
         expect(blockDifferenceOf({
           sourceBlocks: [blockAt({ account: 'tabby', at: 0, },), blockAt({ account: 'a b', at: 1, },)],
           pageBlocks: ['tabby', 'a', 'b',],
-          disagreements: [10,],
+          disagreements: [{ start: 10, end: 11, },],
         },),).toEqual({ differs: false, undecidedBlocks: 0, },);
       },
     },),
@@ -135,12 +135,35 @@ await describe({
       },
     },),
     it({
+      name: 'SETS EVERY BLOCK A DISAGREEING RANGE RUNS OVER AGAINST THE PAGE, not only the block that holds its start',
+      fn: async () => {
+        /**
+         A range that starts in the second block and runs over the third, the page having one block for the two.
+         */
+        const sourceBlocks = [
+          blockAt({ account: 'tabby', at: 0, },),
+          blockAt({ account: '[^1]: x', at: 1, },),
+          blockAt({ account: '<script>', at: 2, },),
+        ];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby', '[^1]: x [r]: u <script>',],
+          disagreements: [{ start: 10, end: 22, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 2, },);
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['tabby', '[^1]: x [r]: u <script>',],
+          disagreements: [{ start: 10, end: 11, },],
+        },),).toEqual({ differs: true, undecidedBlocks: 1, },);
+      },
+    },),
+    it({
       name: 'COUNTS EVERY BLOCK UNDECIDED WHEN A DISAGREEMENT STANDS IN NO BLOCK, since none can be set apart',
       fn: async () => {
         expect(blockDifferenceOf({
           sourceBlocks: [blockAt({ account: 'tabby', at: 0, },), blockAt({ account: 'calico', at: 1, },),],
           pageBlocks: ['tabby', 'calico!',],
-          disagreements: [7,],
+          disagreements: [{ start: 6, end: 9, },],
         },),).toEqual({ differs: false, undecidedBlocks: 2, },);
       },
     },),

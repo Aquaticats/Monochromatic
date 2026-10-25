@@ -94,15 +94,16 @@ function rangesLacking(
 
  @param body - text of a run, as the artifact records it
 
- @returns Offsets, in text order and each once, of the start of each range one reading has and the other lacks that starts
- inside a block quote or a list; none where the two readings agree there
+ @returns Each range one reading has and the other lacks that starts inside a block quote or a list, in text order and each
+ once; none where the two readings agree there. A range of the page may run over blocks after the container, so a caller
+ that sets blocks apart reads the whole range and not its start.
 
  @example
  ```ts
- const starts = containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
+ const ranges = containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
  ```
  */
-export function containerFootnoteDisagreementsOf({ body, }: { readonly body: string; },): readonly number[] {
+export function containerFootnoteDisagreementsOf({ body, }: { readonly body: string; },): readonly BlockRange[] {
   /**
    The source's ranges.
    */
@@ -131,25 +132,25 @@ export function containerFootnoteDisagreementsOf({ body, }: { readonly body: str
    */
   const containers = containerSpansOf({ root: parseMarkdownMathBody({ body, },), },);
   /**
-   Where the differing ranges that a container holds start, a start both readings have counted once.
+   The differing ranges that start inside a container.
    */
-  const starts = new Set(
-    differing
-      .filter(function inContainer(range,): boolean {
-        return containers.some(function holds(container,): boolean {
-          return (container.start <= range.start) && (range.start < container.end);
-        },);
-      },)
-      .map(function startOf({ start, },): number {
-        return start;
-      },),
-  );
-  return [...starts,].toSorted(function ascending(
-    left,
-    right,
-  ): number {
-    return left - right;
+  const held = differing.filter(function inContainer(range,): boolean {
+    return containers.some(function holds(container,): boolean {
+      return (container.start <= range.start) && (range.start < container.end);
+    },);
   },);
+  return held
+    .filter(function firstOfItsKind(range, at,): boolean {
+      return held.findIndex(function alike(other,): boolean {
+        return (other.start === range.start) && (other.end === range.end);
+      },) === at;
+    },)
+    .toSorted(function ascending(
+      left,
+      right,
+    ): number {
+      return (left.start - right.start) || (left.end - right.end);
+    },);
 }
 
 /**
@@ -168,8 +169,8 @@ export function footnoteRangesDifferInContainer({ body, }: { readonly body: stri
   /**
    Where the two readings disagree inside a container.
    */
-  const starts = containerFootnoteDisagreementsOf({ body, },);
-  return starts.length > 0;
+  const ranges = containerFootnoteDisagreementsOf({ body, },);
+  return ranges.length > 0;
 }
 
 //endregion Container footnote ranges
