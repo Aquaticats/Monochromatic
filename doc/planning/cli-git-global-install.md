@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposal, awaiting the user's acceptance.
-Nothing has been changed on the host for this proposal.
+Accepted by the user on 2026-10-25, then amended the same day: review found that a link to one version directory goes
+stale when an upgrade runs inside the repository, and the user approved linking through the `latest` symlink instead.
 Every experiment ran either read-only on the host or inside podman with a throwaway `HOME`.
+The host global mise config is edited only after the amended block passes the podman check again.
 
 ## Problem
 
@@ -62,6 +63,19 @@ A `git` link in `~/.local/bin` therefore wins in terminals and in any Claude Cod
   That is about 0.6 ms per call plain, 1.3 ms through the link and 5.6 ms through the shim.
 - Limits: `git --version` is the lightest path, three rounds, container rather than host.
 
+### Upgrades from a project context (podman)
+
+- With the global entry and a repository-style entry for the same tool key, installing the newest version from the
+  project directory ran only the project entry's `postinstall`.
+- A link to one version directory (the first form of this proposal) still resolved to 0.2.7 afterwards.
+- A link through the `latest` symlink resolved to 0.2.8 afterwards, because mise moves `latest` on every install.
+- The atomic form from a fresh home: installing 0.2.7 pointed the link at 0.2.7, a plain `mise install` installed 0.2.8
+  and repointed it, and with the link deleted `mise install` reported "already installed" and still recreated it.
+  The directory listing showed no leftover temporary file.
+- A first run of the same check failed with `cargo-binstall` finding no prebuilt binary and `cargo install` not finding
+  the crate; a standalone binstall dry run and a verbose `mise install` succeeded right after, so the cause is unproven
+  and looks like a transient network failure.
+
 ### How the wrapper finds real Git
 
 `resolve_real_git` (`package/git-policy/cli/src/native/real_git.rs`) walks `PATH` and skips a candidate that is the
@@ -76,11 +90,15 @@ Add the wrapper to the user's own global mise config, with a `postinstall` that 
 ```toml
 # ~/.config/mise/config.toml (user-level, outside the repository)
 [tools]
-"cargo:monochromatic-git-policy-cli" = { version = "latest", os = ["linux"], postinstall = { run = "mkdir --parents \"$HOME/.local/bin\" && ln --symbolic \"$MISE_TOOL_INSTALL_PATH/bin/cli-git-native\" \"$HOME/.local/bin/.git.$$\" && mv --no-target-directory \"$HOME/.local/bin/.git.$$\" \"$HOME/.local/bin/git\"", when = "always" } }
+"cargo:monochromatic-git-policy-cli" = { version = "latest", os = ["linux"], postinstall = { run = "mkdir --parents \"$HOME/.local/bin\" && ln --symbolic \"$(dirname \"$MISE_TOOL_INSTALL_PATH\")/latest/bin/cli-git-native\" \"$HOME/.local/bin/.git.$$\" && mv --no-target-directory \"$HOME/.local/bin/.git.$$\" \"$HOME/.local/bin/git\"", when = "always" } }
 ```
 
 The temporary-name-then-move form copies the atomic relink used by the repository's own entry.
-The podman run used a plain `ln --symbolic --force`, so the atomic form is verified in the steps after acceptance.
+The link targets mise's `latest` symlink in the tool's install directory, not one version directory.
+Inside this repository the repository's own entry for the same tool wins over the global entry,
+so an upgrade run there runs only the repository's `postinstall`;
+a link to one version directory would then keep pointing at the old version, while the `latest` symlink moves with
+every install (see `Upgrades from a project context`).
 
 No Claude Code hook is needed, because `~/.local/bin` is already on the `PATH` that Claude Code sessions inherit.
 
@@ -111,7 +129,8 @@ No Claude Code hook is needed, because `~/.local/bin` is already on the `PATH` t
 - The latency numbers are from the lightest command in a container; real commands add the wrapper's own work, which the
   `native:perf` harness bounds.
 - A running shell may have hashed the old `git` path; `hash -r` or a new shell picks up the link.
-- Whether `mise upgrade` or `auto_update` re-runs the `postinstall` and repoints the link is unverified.
+- The link follows `latest`, so no `postinstall` run is needed after an upgrade; `mise upgrade` itself was not tested,
+  only installs of a newer version.
 
 ## Steps after acceptance
 
