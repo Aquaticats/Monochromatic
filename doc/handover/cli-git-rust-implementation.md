@@ -2302,6 +2302,9 @@ that is verification, not a decision for the user.
   exemption). Then dispatch the real publish (`gh workflow run cargo-publish.yml -f crate=monochromatic-git-policy-cli
   -f dry-run=false`), `install-026.ts 0.2.9`, verify `mise plugins update` on the host and the global link, and run
   mutation for `effective_target.rs` in the background afterwards (never blocks a release).
+  USER CHOICE 2026-10-25: "One release, 0.2.9" (survivor fixes and the mise data directory exemption together, from
+  HEAD, after the container gate). The release commit `00c4e28af4` message names only the survivor fixes, so after
+  the publish post a corrective commit comment on it (GCA: never amend) saying 0.2.9 also carries `197ae38ff5`.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
