@@ -249,7 +249,7 @@ function writeOf({ node, }: { readonly node: TreeNode; },): string {
 
  @param node - node read
 
- @returns The global's name, empty for a node that writes none
+ @returns Global's name, empty for a node that writes none
 
  @example
  ```ts
