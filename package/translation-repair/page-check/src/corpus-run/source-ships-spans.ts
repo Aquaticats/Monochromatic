@@ -18,6 +18,7 @@ import {
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
+import { afterHtmlBlockEdits, } from './source-ships-separation.ts';
 import { withPageOnlyStarts, } from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
@@ -299,6 +300,12 @@ export function spansOf(
         node,
         range,
       },),);
+      if (isRootChild) {
+        edits.push(...afterHtmlBlockEdits({
+          readable,
+          range,
+        },),);
+      }
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.

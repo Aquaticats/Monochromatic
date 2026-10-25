@@ -40,15 +40,14 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
 }
 
 /**
- The edit that puts a blank line between the end of a footnote and a definition line, or a paragraph, that follows it
- directly.
+ The edit that puts a blank line between the end of a footnote and the block that follows it directly.
 
  THE FOOTNOTE ENDS WHERE A PARSE WITH GFM ENDS IT, and the line after it starts a block of the top: a link reference
- definition, whose destination and title are not touched, or, where the page goes on with the footnote past that end, a
- paragraph. The page writes the last block of the footnote as text when it is raw HTML or indented code, so the line right
- after it would be a lazy line of the footnote's paragraph and its braces would be an expression, or the backticks of a
- code span would pair with those of the footnote. A blank line ends the paragraph, and the block is one on the page as it
- is in the original.
+ definition, whose destination and title are not touched, or, where the page goes on with the footnote past that end, any
+ block. The page writes the last block of the footnote as text when it is raw HTML or indented code, so the line right
+ after it would be a lazy line of the footnote's paragraph and its braces would be an expression, the backticks of a
+ code span would pair with those of the footnote, a definition would show as text and the underline of a heading as a row
+ of equals signs. A blank line ends the paragraph, and the block is one on the page as it is in the original.
 
  @param source - whole text
 
@@ -59,8 +58,8 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
  @param pageGoesOn - whether the page goes on with the footnote's paragraph past that end, which a line of raw HTML makes
  it do
 
- @returns Edit that doubles the line ending, none when a blank line stands there already or the first line after
- it is no definition, nor a paragraph where the page goes on
+ @returns Edit that doubles the line ending, none when a blank line stands there already, or when the page does not go
+ on and the first line after it is no definition
 
  @example
  ```ts
@@ -138,16 +137,75 @@ export function separatingEdits(
    */
   const [first,] = children;
   /**
-   Whether the block that follows is one the footnote's end must be kept from: a definition, or a paragraph where the
-   page goes on with the footnote past that end.
+   Whether the block that follows is one the footnote's end must be kept from: a definition, or any block where the page
+   goes on with the footnote past that end.
    */
-  const needsSeparation = (first?.type === 'definition') || (pageGoesOn && (first?.type === 'paragraph'));
+  const needsSeparation = pageGoesOn || (first?.type === 'definition');
   if (!needsSeparation)
     return [];
   return [
     {
       start: range.start,
       end: lineStart,
+      replacement: `${ending}${ending}`,
+    },
+  ];
+}
+
+/**
+ The edit that puts a blank line after a raw HTML block of the top that ends at a line of its own.
+
+ A block of the kinds that end at a line of their own (a processing instruction, a declaration, a CDATA section, a script,
+ a pre or a style element) is followed by a new block on the very next line. The page writes the lines of the block as a
+ paragraph, so the next line would be a lazy line of it: a definition would show as text and the underline of a heading as
+ a row of equals signs. A block of the other kinds ends at a blank line and needs nothing.
+
+ @param readable - whole text with its comments blanked, the parse's own input
+
+ @param range - where the raw HTML block stands
+
+ @returns Edit that doubles the line ending after the block, none when the text ends there or a blank line stands there
+
+ @example
+ ```ts
+ const edits = afterHtmlBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },);
+ ```
+ */
+export function afterHtmlBlockEdits(
+  {
+    readable,
+    range,
+  }: {
+    readonly readable: string;
+    readonly range: TextRange;
+  },
+): readonly TextEdit[] {
+  /**
+   The line ending that ends the block's last line, absent where the text ends.
+   */
+  const ending = [
+    '\r\n',
+    '\n',
+  ].find(function endsHere(candidate,): boolean {
+    return readable.startsWith(
+      candidate,
+      range.end,
+    );
+  },);
+  if (ending === undefined)
+    return [];
+  /**
+   The line after the block, without its line ending.
+   */
+  const [nextLine = '',] = readable
+    .slice(range.end + ending.length,)
+    .split('\n',);
+  if (isBlankLine({ line: nextLine, },))
+    return [];
+  return [
+    {
+      start: range.end,
+      end: range.end + ending.length,
       replacement: `${ending}${ending}`,
     },
   ];

@@ -12,7 +12,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { separatingEdits, } from '../../dist/final/node/index.mjs';
+import {
+  afterHtmlBlockEdits,
+  separatingEdits,
+} from '../../dist/final/node/index.mjs';
 
 /**
  The edits for a text whose footnote ends at a given line ending and whose rest is read to the end.
@@ -127,6 +130,45 @@ await describe({
         expect(editsFor({ source: '[^1]: x\n\n[r]: u\n', footnoteEnd: 7, pageGoesOn: true, },),).toEqual([],);
         expect(editsFor({ source: '[^1]: x\n \t\n[r]: u\n', footnoteEnd: 7, pageGoesOn: true, },),).toEqual([],);
         expect(editsFor({ source: '[^1]: x', footnoteEnd: 7, pageGoesOn: true, },),).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: afterHtmlBlockEdits.name,
+  children: [
+    it({
+      name: 'DOUBLES THE LINE ENDING AFTER AN HTML BLOCK WHEN THE NEXT LINE HOLDS TEXT',
+      fn: async () => {
+        expect(afterHtmlBlockEdits({ readable: '<?x?>\n[r]: u\n', range: { start: 0, end: 5, }, },),).toEqual([
+          {
+            start: 5,
+            end: 6,
+            replacement: '\n\n',
+          },
+        ],);
+      },
+    },),
+    it({
+      name: 'DOUBLES A CARRIAGE RETURN AND LINE FEED AS ONE ENDING',
+      fn: async () => {
+        expect(afterHtmlBlockEdits({ readable: '<?x?>\r\ncat\r\n', range: { start: 0, end: 5, }, },),).toEqual([
+          {
+            start: 5,
+            end: 7,
+            replacement: '\r\n\r\n',
+          },
+        ],);
+      },
+    },),
+    it({
+      name: 'LEAVES A BLANK LINE THAT STANDS THERE ALREADY, and the end of the text',
+      fn: async () => {
+        expect(afterHtmlBlockEdits({ readable: '<?x?>\n\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterHtmlBlockEdits({ readable: '<?x?>\n \t\ncat\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterHtmlBlockEdits({ readable: '<?x?>\n', range: { start: 0, end: 5, }, },),).toEqual([],);
+        expect(afterHtmlBlockEdits({ readable: '<?x?>', range: { start: 0, end: 5, }, },),).toEqual([],);
       },
     },),
   ],
