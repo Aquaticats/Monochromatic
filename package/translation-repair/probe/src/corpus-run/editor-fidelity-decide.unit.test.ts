@@ -159,7 +159,9 @@ await describe({
             expect(rule,).toContain('Both figures hold for fix rates up to 0.90 and no higher.',);
             expect(rule,).toContain('Above 0.90 the chance when the default effort repeats itself far less than the others was higher: 0.142 at 0.93, 0.173 at 0.95 and 0.241 at 0.97 by an independent re-implementation of the model (reviewer seed edrc5, 4000 replicates, 264 units), and 0.130 at 0.93 and 0.175 at 0.95 by the committed fixture (seed edr9-fx, 4000 replicates, three passes of 264 units, correlation 1).',);
             expect(rule,).toContain('prints WARN high fix rate when the default effort fixes 93 percent or more of the shared units, since the repeat warning cannot see unequal repeats there and a verdict of high or low then stands under the caveat',);
-            expect(rule,).toContain('prints each arm\'s repeat agreement over the units every arm holds and warns when the default effort repeats itself more than 15 points less than another arm',);
+            expect(rule,).toContain('prints each arm\'s repeat agreement over the units every arm holds and warns when an exact one-sided test of the default effort\'s count of trials that read alike in every pass against that of the other arm with the highest share is at or under 0.05 divided by the number of other arms',);
+            expect(rule,).toContain('which holds the chance of that warning at or under 0.05 when every arm repeats itself alike, counting the trials of an arm as independent draws',);
+            expect(rule.includes('15 points',),).toBe(false,);
             expect(rule.includes('at most 0.055',),).toBe(false,);
             expect(rule,).toContain('about 26 points when medium fixes half',);
             expect(rule,).toContain('over 176 units (two passes) 25, 21 and 14 points where a repeat always gives the arm\'s first answer again',);

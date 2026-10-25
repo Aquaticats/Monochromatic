@@ -1,9 +1,11 @@
 /**
  Tests for the repeat agreement the read step prints for each arm and the warning it gives when the arms differ: the share
  of the trials an arm was asked in more than one pass whose passes all read the same way (a clean fix in every pass or in
- none), what counts as a repeat, and the difference between the arms, in points, above which the exact test's bound on a
- false pick is not assured. The lines are read off the arm logs, and the built command prints them even for one log, since
- the runbook reads the high arm's agreement before the other arms exist.
+ none), what counts as a repeat, and the exact test of the default effort's count against another arm's, at a level of 0.05
+ divided by the number of other arms, above which the paired test's bound on a false pick is not assured. The warning
+ prints the counts it tests, so a small number of trials asked again shows as one. The lines are read off the arm logs,
+ and the built command prints them even for one log, since the runbook reads the high arm's agreement before the other
+ arms exist.
 
  The logs are the arm-log fixture's, written by the probe's own writers. Fixtures are cat-themed invention.
 
@@ -192,7 +194,7 @@ await describe({
       children: [
         it({
           name: 'PRINTS EACH ARM\'S REPEAT AGREEMENT, the trials asked twice whose passes read alike over all the trials asked '
-            + 'twice, and says nothing of a difference of 14 points',
+            + 'twice, and says nothing of 40 of 44 against 44 of 44, whose p-value of 0.0582 is over the level',
           fn: async () => {
             const arms = benchOf({ trials: 44, high: 0, medium: 4, low: 6, },);
             expect(linesStarting({ arms, word: 'REPEAT', },),).toStrictEqual([
@@ -205,25 +207,47 @@ await describe({
         },),
 
         it({
-          name: 'WARNS WHEN THE DEFAULT EFFORT REPEATS ITSELF MORE THAN 15 POINTS LESS THAN ANOTHER ARM, naming the default '
-            + 'effort\'s figure, the arm it is under, the difference and the bound the exact test holds only for arms that '
-            + 'repeat themselves alike',
+          name: 'WARNS WHEN THE EXACT TEST OF THE DEFAULT EFFORT\'S COUNT AGAINST ANOTHER ARM\'S IS AT THE LEVEL, naming the '
+            + 'default effort\'s counts, the arm it is under and its counts, the p-value, the level, and the bound the '
+            + 'paired test holds only for arms that repeat themselves alike',
           fn: async () => {
             expect(linesStarting({ arms: benchOf({ trials: 44, high: 0, medium: 11, low: 0, },), word: 'WARN', },),)
               .toStrictEqual([
-                `WARN repeat agreement: medium gave the same reading in every pass on 75 percent of the trials it was asked again, 25 points under high at 100 percent, over 15; ${WARNING_END}`,
+                `WARN repeat agreement: medium gave the same reading in every pass on 33 of 44 trials it was asked again (75 percent), against 44 of 44 (100 percent) for high; an exact one-sided test of the two counts gives p 0.0002, at or under 0.05 divided by 2, the number of other arms; ${WARNING_END}`,
               ],);
           },
         },),
 
         it({
-          name: 'WARNS ABOVE 15 POINTS AND NOT AT 15, counting exactly: 17 of 20 trials against 20 of 20 is 15 points, which a '
-            + 'float difference of 0.15000000000000002 would pass over, and 16 of 20 is 20 points',
+          name: 'WARNS AT THE LEVEL AND NOT OVER IT, counting exactly: 15 of 20 trials against 20 of 20 (p 0.0236) is at 0.025 '
+            + 'and 16 of 20 (p 0.0530) is over it, and 0 of 3 against 3 of 3 (p exactly one in twenty) is at the level of 0.05 '
+            + 'when one other arm is read and over 0.05 divided by two when two are',
           fn: async () => {
-            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 3, low: 0, },), word: 'WARN', },),)
+            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 5, low: 0, },), word: 'WARN', },)[0],)
+              .toContain('medium gave the same reading in every pass on 15 of 20 trials it was asked again (75 percent), against 20 of 20 (100 percent) for high; an exact one-sided test of the two counts gives p 0.0236, at or under 0.05 divided by 2, the number of other arms; ',);
+            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 4, low: 0, },), word: 'WARN', },),)
               .toStrictEqual([],);
-            expect(linesStarting({ arms: benchOf({ trials: 20, high: 0, medium: 4, low: 0, },), word: 'WARN', },)[0],)
-              .toContain('medium gave the same reading in every pass on 80 percent of the trials it was asked again, 20 points under high at 100 percent, over 15',);
+            /**
+             Three trials asked twice, the medium arm disagreeing with itself on all of them.
+             */
+            const [high, medium, low,] = benchOf({ trials: 3, high: 0, medium: 3, low: 0, },);
+            expect(linesStarting({ arms: [high as ArmLog, medium as ArmLog,], word: 'WARN', },)[0],)
+              .toContain('medium gave the same reading in every pass on 0 of 3 trials it was asked again (0 percent), against 3 of 3 (100 percent) for high; an exact one-sided test of the two counts gives p 0.0500, at or under 0.05; ',);
+            expect(linesStarting({ arms: [high as ArmLog, medium as ArmLog, low as ArmLog,], word: 'WARN', },),)
+              .toStrictEqual([],);
+          },
+        },),
+
+        it({
+          name: 'NEEDS A LARGER DIFFERENCE WHEN FEW TRIALS WERE ASKED AGAIN, and has no floor on them: 12 trials asked twice, as a '
+            + 'bench of 100 shared units holds, do not warn at 9 of 12 against 12 of 12 (p 0.1087) and warn at 7 of 12 (p 0.0186)',
+          fn: async () => {
+            expect(linesStarting({ arms: benchOf({ trials: 12, high: 0, medium: 3, low: 0, },), word: 'WARN', },),)
+              .toStrictEqual([],);
+            expect(linesStarting({ arms: benchOf({ trials: 12, high: 0, medium: 3, low: 0, },), word: 'REPEAT', },)[1],)
+              .toBe('REPEAT medium: 9 of 12 trials gave the same reading in every pass (75 percent)',);
+            expect(linesStarting({ arms: benchOf({ trials: 12, high: 0, medium: 5, low: 0, },), word: 'WARN', },)[0],)
+              .toContain('on 7 of 12 trials it was asked again (58 percent), against 12 of 12 (100 percent) for high; an exact one-sided test of the two counts gives p 0.0186,',);
           },
         },),
 
@@ -253,7 +277,7 @@ await describe({
              */
             const mediumOdd = linesStarting({ arms: benchOf({ trials: 44, high: 0, medium: 44, low: 0, },), word: 'WARN', },);
             expect(mediumOdd.length,).toBe(1,);
-            expect(mediumOdd[0],).toContain('medium gave the same reading in every pass on 0 percent of the trials it was asked again, 100 points under high at 100 percent, over 15',);
+            expect(mediumOdd[0],).toContain('medium gave the same reading in every pass on 0 of 44 trials it was asked again (0 percent), against 44 of 44 (100 percent) for high; an exact one-sided test of the two counts gives p under 0.0001, at or under 0.05 divided by 2, the number of other arms; ',);
             expect(linesStarting({ arms: benchOf({ trials: 44, high: 0, medium: 0, low: 44, },), word: 'WARN', },),)
               .toStrictEqual([],);
             expect(linesStarting({ arms: benchOf({ trials: 44, high: 44, medium: 0, low: 0, },), word: 'WARN', },),)
@@ -304,7 +328,7 @@ await describe({
               'REPEAT high: 44 of 44 trials gave the same reading in every pass (100 percent)',
               'REPEAT medium: 33 of 44 trials gave the same reading in every pass (75 percent)',
             ],);
-            expect(linesStarting({ arms, word: 'WARN', },)[0],).toContain('medium gave the same reading in every pass on 75 percent',);
+            expect(linesStarting({ arms, word: 'WARN', },)[0],).toContain('medium gave the same reading in every pass on 33 of 44 trials it was asked again (75 percent), against 44 of 44 (100 percent) for high; an exact one-sided test of the two counts gives p 0.0002, at or under 0.05; ',);
           },
         },),
 
@@ -446,7 +470,7 @@ await describe({
               return line.slice(0, line.indexOf(':',),);
             },),).toStrictEqual(['REPEAT high', 'REPEAT medium', 'REPEAT medium-b', 'REPEAT low',],);
             expect(linesStarting({ arms, word: 'WARN', },),).toStrictEqual([
-              `WARN repeat agreement: medium-b gave the same reading in every pass on 50 percent of the trials it was asked again, 50 points under high at 100 percent, over 15; ${WARNING_END}`,
+              `WARN repeat agreement: medium-b gave the same reading in every pass on 22 of 44 trials it was asked again (50 percent), against 44 of 44 (100 percent) for high; an exact one-sided test of the two counts gives p under 0.0001, at or under 0.05 divided by 3, the number of other arms; ${WARNING_END}`,
             ],);
           },
         },),
@@ -477,7 +501,7 @@ await describe({
             },);
             expect(run.stdout[repeatAt],).toBe('REPEAT high: 88 of 88 trials gave the same reading in every pass (100 percent)',);
             expect(run.stdout[repeatAt + 1],).toBe('REPEAT medium: 68 of 88 trials gave the same reading in every pass (77 percent)',);
-            expect(run.stdout[repeatAt + 3]?.startsWith('WARN repeat agreement: medium gave the same reading in every pass on 77 percent of the trials it was asked again, 23 points under high at 100 percent, over 15;',),).toBe(true,);
+            expect(run.stdout[repeatAt + 3]?.startsWith('WARN repeat agreement: medium gave the same reading in every pass on 68 of 88 trials it was asked again (77 percent), against 88 of 88 (100 percent) for high; an exact one-sided test of the two counts gives p under 0.0001, at or under 0.05 divided by 2, the number of other arms;',),).toBe(true,);
             expect(run.stdout[repeatAt + 4]?.startsWith('CHECKS ',),).toBe(true,);
             expect(run.stdout.at(-1,)?.startsWith('VERDICT ',),).toBe(true,);
           },
