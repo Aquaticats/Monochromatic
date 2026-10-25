@@ -3,6 +3,7 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { builtinNameOf, } from './claude-schema-blind-global-values.test-fixture.ts';
 import {
   loaderReadPositionOf,
   namesLoaderMember,
@@ -11,6 +12,7 @@ import {
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import {
   keyNameOf,
+  memberNameOf,
   moduleLoadOf,
   nodeAt,
   nodesAt,
@@ -31,9 +33,11 @@ import {
 // `contextify` is reported too, the binding of Node that makes scripts, which is a route to `vm.Script` without the
 // module. The constructor is told by a member named `constructor` written with a dot or with a string literal in
 // brackets, also through `?.`, and by `Reflect.get`, `Reflect.getOwnPropertyDescriptor` and
-// `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A key that is no literal, a pattern that
-// takes `constructor` or `binding` out of a value, and a method that is written through an alias
-// (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger states.
+// `Object.getOwnPropertyDescriptor` with the string `constructor` as the key, whether the method is written with a dot,
+// a string or a template, and whether the object is under a type mark or read off the global object. A key that is no
+// literal, a pattern that takes `constructor` or `binding` out of a value, a method that returns every member of a
+// value, and a method that is written through an alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and
+// are limits of the search that the ledger states.
 
 /**
  What a report says of a place that loads the `vm` module.
@@ -189,17 +193,15 @@ function reflectsConstructor({ node, }: { readonly node: TreeNode; },): boolean 
     .at(1,);
   if ((callee.type !== 'MemberExpression') || (node.type !== 'CallExpression'))
     return false;
-  if (callee.computed === true)
-    return false;
+  /**
+   The method the callee reads off the object, empty when it is computed from anything but a string.
+   */
+  const method = memberNameOf({ node: callee, },);
   /**
    The methods of the object the callee reads from that read a member by a key.
    */
-  const readers = KEY_READERS.get(identifierName({ node: callee.object, },),);
-  /**
-   Whether the callee is a method that reads a member by a key.
-   */
-  const isKeyReader = readers?.has(identifierName({ node: callee.property, },),) ?? false;
-  if (!isKeyReader)
+  const readers = KEY_READERS.get(builtinNameOf({ node: callee.object, },),);
+  if (!(readers?.has(method,) ?? false))
     return false;
   return (key !== undefined) && (stringValueOf({ node: key, },) === 'constructor');
 }

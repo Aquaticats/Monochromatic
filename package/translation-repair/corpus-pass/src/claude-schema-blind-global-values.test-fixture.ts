@@ -13,6 +13,7 @@ import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import {
   nodeAt,
   nodesAt,
+  pathOf,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region The global object written as a whole value
@@ -40,6 +41,32 @@ export const GLOBAL_OBJECTS: ReadonlySet<string> = new Set([
   'self',
   'window',
 ],);
+
+/**
+ The name of the built-in object a method is read off, whatever marks the object is written under and whether or not it
+ is read off the global object.
+
+ @param node - object the method is read off, of any kind
+
+ @returns Name, empty when the object is neither a name nor a name read off the global object
+
+ @example
+ ```ts
+ const name = builtinNameOf({ node: callee.object, },);
+ // => 'Object' for `Object`, `(Object as any)` and `globalThis.Object`
+ ```
+ */
+export function builtinNameOf({ node, }: { readonly node: unknown; },): string {
+  /**
+   The names the object is written with.
+   */
+  const path = pathOf({ node, },);
+  if (path.length === 1)
+    return path[0] ?? '';
+  return ((path.length === 2) && GLOBAL_OBJECTS.has(path[0] ?? '',))
+    ? (path[1] ?? '')
+    : '';
+}
 
 /**
  Whether a node is written with the name of the global object.
