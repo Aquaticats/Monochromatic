@@ -7,6 +7,11 @@
 
 /// The production window that receives the pointer events.
 use super::AppWindow;
+/// A rendered window frame,
+///  which is what the toolkit's frame notifier sees begin.
+use super::annotation_paint_tests::frame;
+/// Anchor and head of the reading selection.
+use super::caret_tests::position;
 /// The complete reader fixture shared with the find tests.
 use super::find_tests::{Reader, reader};
 /// Where source text starts in the window,
@@ -225,7 +230,13 @@ fn the_logged_line_is_the_line_the_logged_offset_and_point_name() {
         130.0 * ROW + ROW / 2.0 - 120.0 * ROW,
         "{pressed}"
     );
-    let named = ((field(pressed, "view_y") + field(pressed, "drawn_offset")) / ROW).floor();
+    // The rows are those of the latest frame, when one has been drawn, and those of the moment otherwise.
+    let shown = if pressed.contains(" shown_offset=") {
+        field(pressed, "shown_offset")
+    } else {
+        field(pressed, "drawn_offset")
+    };
+    let named = ((field(pressed, "view_y") + shown) / ROW).floor();
     assert_eq!(field(pressed, "line"), named, "{pressed}");
     assert_eq!(field(pressed, "line_number"), named + 1.0, "{pressed}");
     assert_eq!(
@@ -238,6 +249,69 @@ fn the_logged_line_is_the_line_the_logged_offset_and_point_name() {
         field(released, "line_number"),
         field(pressed, "line_number"),
         "{released}"
+    );
+    window.hide().expect("close pointer log window");
+}
+
+/// A press is handled after the frame it was made over,
+///  and the window keeps animating in between:
+///  the row it names is the row of that frame,
+///  not the row the offset of the moment of the handling would give.
+#[test]
+fn a_press_names_the_row_of_the_frame_that_was_shown() {
+    let (_fixture, source) = numbered(400);
+    let window = &source.window;
+    let pointer = LogicalPosition::new(TEXT_LEFT + 20.0, TEXT_TOP + 100.0);
+    // A frame is drawn at offset 0, so that is what the person sees.
+    let _shown = frame(window);
+    // The offset moves on by five rows with no frame drawn yet, as a wheel ease does while the thread is busy.
+    window.set_scroll_y(-5.0 * ROW);
+    let before = logged(|| {
+        press(window, pointer);
+        release(window, pointer);
+    });
+    let pressed = record(&before, "source pointer press");
+    assert_eq!(
+        field(pressed, "shown_offset"),
+        0.0,
+        "a frame was drawn at offset 0: {pressed}"
+    );
+    assert_eq!(
+        field(pressed, "drawn_offset"),
+        5.0 * ROW,
+        "the offset of the moment is five rows on: {pressed}"
+    );
+    let shown_line = (100.0 / ROW).floor();
+    assert_eq!(
+        field(pressed, "line"),
+        shown_line,
+        "the press named the row the shown frame has 100 px below the top, not the row of the later offset: {pressed}"
+    );
+    let caret = position(&source).1;
+    assert_eq!(
+        source.source.borrow().document.text().char_to_line(caret),
+        shown_line as usize,
+        "the caret is on the line of the shown frame"
+    );
+    let released = record(&before, "source pointer release");
+    assert_eq!(
+        field(released, "line"),
+        field(pressed, "line"),
+        "{released}"
+    );
+    // Positive control: once a frame is drawn at the new offset, that offset is what the person sees.
+    let _next = frame(window);
+    let after = logged(|| press(window, pointer));
+    let later = record(&after, "source pointer press");
+    assert_eq!(
+        field(later, "shown_offset"),
+        5.0 * ROW,
+        "the next frame was drawn at the new offset: {later}"
+    );
+    assert_eq!(
+        field(later, "line"),
+        ((100.0 + 5.0 * ROW) / ROW).floor(),
+        "{later}"
     );
     window.hide().expect("close pointer log window");
 }

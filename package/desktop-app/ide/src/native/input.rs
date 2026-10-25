@@ -122,6 +122,29 @@ pub(super) fn pointer_position(
     return (hit, shaped_line.click_affinity(hit, within, scale));
 }
 
+/// What:
+///  The pointer's vertical place in the text as the latest frame drew it,
+///  given the place `y` the markup computed from the offsets of the moment the event is handled.
+/// Why:
+///  A press is handled after the frame it was made over,
+///  and a busy window thread can handle it a hundred milliseconds later,
+///  when a wheel ease has moved the toolkit's offset on by thousands of pixels.
+///  The person pressed on the rows of the picture that was shown,
+///  so the offset of that frame stands in for the offset of the moment.
+///  Before any frame has begun nothing was shown,
+///  and the moment's own place stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function shownY(window: AppWindow, current: State, y: number): number;
+/// ```
+pub(super) fn shown_y(window: &AppWindow, current: &State, y: f32) -> f32 {
+    let Some(shown) = current.gpu.shown_offset() else {
+        return y;
+    };
+    return y - window.get_drawn_offset() + shown;
+}
+
 /// Bind pointer selection without letting the UI mutate source text.
 pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
     // What: `Rc::new(RefCell::new(...))` creates the shared owner of the pointer state.
@@ -167,6 +190,9 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
         };
         let mut current = press_state.borrow_mut();
         // A press on a line's virtual rows acts on that line: the rows belong to the code row beneath them.
+        // The row under the pointer is the row of the picture the person sees: the one the latest frame drew.
+        let received = y;
+        let y = shown_y(&window, &current, received);
         let line = current.row_map.line_at(y);
         let (hit, side) =
             pointer_position(&mut current, line, (x, y), window.window().scale_factor());
@@ -204,7 +230,8 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
                 current: &current,
                 line,
                 hit,
-                y,
+                y: received,
+                row_y: y,
                 x,
             },
             extend,
@@ -234,6 +261,9 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
         };
         let mut current = state.borrow_mut();
         // A drag over virtual rows extends to the line they belong to, like a press there.
+        // The row under the pointer is the row of the picture the person sees: the one the latest frame drew.
+        let received = y;
+        let y = shown_y(&window, &current, received);
         let line = current.row_map.line_at(y);
         let (hit, side) =
             pointer_position(&mut current, line, (x, y), window.window().scale_factor());
@@ -272,7 +302,8 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
                 current: &current,
                 line,
                 hit,
-                y,
+                y: received,
+                row_y: y,
                 x,
             },
             first,
@@ -305,6 +336,9 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
             return;
         };
         let mut current = release_state.borrow_mut();
+        // The row under the pointer is the row of the picture the person sees: the one the latest frame drew.
+        let received = y;
+        let y = shown_y(&window, &current, received);
         let line = current.row_map.line_at(y);
         let (hit, _side) =
             pointer_position(&mut current, line, (x, y), window.window().scale_factor());
@@ -313,7 +347,8 @@ pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
             current: &current,
             line,
             hit,
-            y,
+            y: received,
+            row_y: y,
             x,
         });
     });

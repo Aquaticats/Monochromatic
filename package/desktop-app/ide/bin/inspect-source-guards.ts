@@ -2621,6 +2621,24 @@ const cases: Guard[] = [
     failure: 'a press on a held view named the line of the real offset, not the line drawn under the pointer'
   },
   {
+    name: 'pointer-maps-through-moment-offset',
+    file: 'src/native/input.rs',
+    before: '    return y - window.get_drawn_offset() + shown;',
+    after: '    return y;',
+    native: true,
+    test: 'a_press_names_the_row_of_the_frame_that_was_shown',
+    failure: 'a press named the row of the offset of the moment it was handled, not the row of the frame the person saw'
+  },
+  {
+    name: 'pointer-shown-offset-unset',
+    file: 'src/native/gpu_tile.rs',
+    before: '                shown.set(Some(active.get_drawn_offset()));',
+    after: '                shown.set(None);',
+    native: true,
+    test: 'a_press_names_the_row_of_the_frame_that_was_shown',
+    failure: 'the frame did not record the offset it was drawn at'
+  },
+  {
     name: 'pointer-log-drag-start-never',
     file: 'src/native/input.rs',
     before: '        let first = !pressed.dragged;',

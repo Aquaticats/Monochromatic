@@ -38,8 +38,12 @@ pub(super) struct Pointer<'a> {
     pub(super) line: usize,
     /// The document character offset the point names.
     pub(super) hit: usize,
-    /// Logical pixels from the top of the text, as the drawn rows stand.
+    /// Logical pixels from the top of the text, as the markup computed them from the offsets of the moment the
+    /// event was handled.
     pub(super) y: f32,
+    /// The same place as the latest frame drew the rows,
+    ///  which is the place the line was found for.
+    pub(super) row_y: f32,
     /// Logical pixels from the start of the line's text.
     pub(super) x: f32,
 }
@@ -117,6 +121,8 @@ pub(super) fn log_press(point: &Pointer, extend: bool, selection: Selection) {
         y = point.y,
         x = point.x,
         view_y = point.y - point.window.get_drawn_offset(),
+        row_y = point.row_y,
+        shown_offset = point.current.gpu.shown_offset(),
         offset = -point.window.get_scroll_y(),
         drawn_offset = point.window.get_drawn_offset(),
         held = point.window.get_held(),
@@ -156,6 +162,8 @@ pub(super) fn log_drag(point: &Pointer, first: bool, selection: Selection) {
         y = point.y,
         x = point.x,
         view_y = point.y - point.window.get_drawn_offset(),
+        row_y = point.row_y,
+        shown_offset = point.current.gpu.shown_offset(),
         offset = -point.window.get_scroll_y(),
         drawn_offset = point.window.get_drawn_offset(),
         held = point.window.get_held(),
@@ -188,6 +196,8 @@ pub(super) fn log_release(point: &Pointer) {
         y = point.y,
         x = point.x,
         view_y = point.y - point.window.get_drawn_offset(),
+        row_y = point.row_y,
+        shown_offset = point.current.gpu.shown_offset(),
         offset = -point.window.get_scroll_y(),
         drawn_offset = point.window.get_drawn_offset(),
         held = point.window.get_held(),
