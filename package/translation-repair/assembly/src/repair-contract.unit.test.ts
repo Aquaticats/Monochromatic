@@ -5,8 +5,9 @@
  round however its judges voted, and NOTHING ELSE. By the user ruling of
  2026-08-15 self-judging is allowed at reduced weight, so a roster where every
  model both produces and judges is legal; what is not legal is a roster too
- small to reach the minimum selection weight, since one judge contributes at
- most one full-weight ballot.
+ small to draw the ballots a winner needs, since one judge contributes at
+ most one ballot. No weight is compared since the owner's rulings of
+ 2026-10-25 ("floor of 3 - don't set a floor.", "Every weight floor").
 
  The cases that used to assert an independence requirement are inverted here
  on purpose: they now assert that the same rosters are ACCEPTED. An earlier
@@ -34,10 +35,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import {
-  FULL_VOTE_WEIGHT,
-  MIN_SELECTION_WEIGHT,
-} from '@monochromatic-dev/translation-repair-house-rule';
+import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-house-rule';
 import {
   assertJudgeableEditorRoster,
   assertJudgeableProducerRoster,
@@ -78,23 +76,39 @@ const JUDGE_THREE = SEAT_HYPER_VISION;
 
 /**
  Attempts a one-producer roster judged by that producer and one disinterested
- judge, which tops out at half a vote from the author plus one full vote and
- can never reach a minimum of two.
-
- @throws ProducerRosterError naming the capacity the roster falls short of
+ judge, which draws one full ballot and one half ballot: two answering judges.
 
  @example
  ```ts
- expect(refuseUnwinnableBench,).toThrow(ProducerRosterError,);
+ expect(acceptAuthorAndOne,).not.toThrow();
  ```
  */
-function refuseUnwinnableBench(): void {
+function acceptAuthorAndOne(): void {
   assertJudgeableProducerRoster({
     producerModelIds: [PRODUCER_ONE,],
     judgeModelIds: [
       PRODUCER_ONE,
       JUDGE_ONE,
     ],
+    role: 'editor',
+  },);
+}
+
+/**
+ Attempts a one-producer roster judged by one model alone, which can never
+ draw the two ballots a winner needs.
+
+ @throws ProducerRosterError naming the judges the roster seats and the ballots it falls short of
+
+ @example
+ ```ts
+ expect(refuseOneJudge,).toThrow(ProducerRosterError,);
+ ```
+ */
+function refuseOneJudge(): void {
+  assertJudgeableProducerRoster({
+    producerModelIds: [PRODUCER_TWO,],
+    judgeModelIds: [JUDGE_ONE,],
     role: 'editor',
   },);
 }
@@ -204,12 +218,11 @@ await describe({
         },),
 
         it({
-          name: 'REFUSES two authors judging only each other, which is where full '
-            + 'overlap actually stops working: whichever of them wrote a candidate '
-            + 'is discounted on it, so the best any candidate can draw is one and a '
-            + 'half votes and no round can ever reach the minimum',
+          name: 'ACCEPTS two authors judging only each other, which the weight arithmetic refused '
+            + 'until 2026-10-25: whichever of them wrote a candidate is discounted on it, '
+            + 'but its text still draws two answering judges and two ballots decide',
           fn: async () => {
-            expect(function refuseTwoAuthors() {
+            expect(function acceptTwoAuthorsJudgingEachOther() {
               assertJudgeableProducerRoster({
                 producerModelIds: [
                   PRODUCER_ONE,
@@ -221,13 +234,13 @@ await describe({
                 ],
                 role: 'editor',
               },);
-            },).toThrow(ProducerRosterError,);
+            },).not.toThrow();
           },
         },),
 
         it({
           name: 'counts DISTINCT judges, so one model listed twice is one voice: '
-            + 'a duplicated judge id would otherwise reach the minimum weight with '
+            + 'a duplicated judge id would otherwise count as two answering judges with '
             + 'a single model deciding the stage, which is the exact outcome this '
             + 'guard exists to prevent',
           fn: async () => {
@@ -321,15 +334,15 @@ await describe({
         },),
 
         it({
-          name: 'seats judges by the MINIMUM WEIGHT rather than by a written '
+          name: 'seats judges by the BALLOTS A WINNER NEEDS rather than by a written '
             + 'count, and refuses one seat below it. One judge can contribute at '
-            + 'most one full-weight ballot, so a roster below that floor declines '
+            + 'most one ballot, so a roster below that floor declines '
             + 'every round while looking like a pipeline that simply found '
             + 'nothing to change',
           fn: async () => {
             /**
-             Judges available to draw from, sliced against the constants so this
-             case follows the floor if either weight ever moves.
+             Judges available to draw from, sliced against the constant so this
+             case follows the floor if it ever moves.
              */
             const pool = [
               JUDGE_ONE,
@@ -338,9 +351,9 @@ await describe({
             ] as const;
 
             /**
-             Seats the weights require, derived exactly as the guard derives them.
+             Seats the rule requires: one per ballot a winner needs.
              */
-            const seats = Math.ceil(MIN_SELECTION_WEIGHT / FULL_VOTE_WEIGHT,);
+            const seats = MIN_SELECTION_BALLOTS;
 
             expect(function refuseBelowSeats() {
               assertJudgeableProducerRoster({
@@ -367,29 +380,27 @@ await describe({
         },),
 
         it({
-          name: 'REFUSES one producer judged by itself and one other model, which '
-            + 'counting seats would have passed. That bench tops out at half a '
-            + 'vote from the author plus one from the other judge, so nothing can '
-            + 'ever reach a minimum of two and every round would decline while '
-            + 'reading as a stage that found nothing worth changing',
+          name: 'ACCEPTS one producer judged by itself and one other model, which '
+            + 'the weight arithmetic refused until 2026-10-25: its text can draw two '
+            + 'answering judges, the other in full and the author at half',
           fn: async () => {
-            expect(refuseUnwinnableBench,).toThrow(ProducerRosterError,);
+            expect(acceptAuthorAndOne,).not.toThrow();
           },
         },),
 
         it({
-          name: 'names the CAPACITY in that refusal, since the remedy differs by '
-            + 'fault: a roster short of weight needs another judge, while a '
+          name: 'names the COUNT in the refusal of one judge alone, since the remedy differs by '
+            + 'fault: a roster short of judges needs another judge, while a '
             + 'repeated id needs one removed, and a message covering both sends '
             + 'whoever reads it to the wrong configuration',
           fn: async () => {
             /**
-             What refuseUnwinnableBench raised, read for its class as well as its wording.
+             What refuseOneJudge raised, read for its class as well as its wording.
              */
-            const refusalOfRefuseUnwinnableBench = caught(refuseUnwinnableBench,);
+            const refusalOfRefuseOneJudge = caught(refuseOneJudge,);
 
-            expect(refusalOfRefuseUnwinnableBench,).toBeInstanceOf(ProducerRosterError,);
-            expect((refusalOfRefuseUnwinnableBench as Error).message,).toContain('at most 1.5',);
+            expect(refusalOfRefuseOneJudge,).toBeInstanceOf(ProducerRosterError,);
+            expect((refusalOfRefuseOneJudge as Error).message,).toContain('judges seated: 1; ballots a winner needs: 2',);
           },
         },),
       ],

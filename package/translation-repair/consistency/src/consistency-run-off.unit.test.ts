@@ -332,6 +332,30 @@ await describe({
           },
         },),
         it({
+          name: 'LEAVES THE PAGE AS IT STANDS ON ONE USABLE CHOICE though the run-off closed on a quorum of one, since one '
+            + 'judge alone never decides (the lead\'s ruling of 2026-10-25); two usable choices decide, the positive control',
+          fn: async () => {
+            const one = runOffWinnerOf({
+              voices: [voiceOf({ seat: 'a', choice: 'OCCURRENCE 4', },),],
+              finalists: ['OCCURRENCE 3', 'OCCURRENCE 4',],
+              quorum: 1,
+              labels: LABELS,
+              renderings: RENDERINGS,
+            },);
+            const two = runOffWinnerOf({
+              voices: [voiceOf({ seat: 'a', choice: 'OCCURRENCE 4', },), voiceOf({ seat: 'b', choice: 'OCCURRENCE 4', },),],
+              finalists: ['OCCURRENCE 3', 'OCCURRENCE 4',],
+              quorum: 1,
+              labels: LABELS,
+              renderings: RENDERINGS,
+            },);
+            expect([one, two,],).toEqual([
+              { usable: 1, winner: { kind: 'none', reason: 'run-off-no-quorum', }, },
+              { usable: 2, winner: { kind: 'chosen', label: 'OCCURRENCE 4', }, },
+            ],);
+          },
+        },),
+        it({
           name: 'DOES NOT COUNT A CHOICE OF A PLACE THAT DID NOT TIE or a blank reason, and keeps the first round\'s reason '
             + 'when the winner\'s own rendering was not located',
           fn: async () => {
@@ -341,6 +365,7 @@ await describe({
                 voiceOf({ seat: 'b', choice: 'OCCURRENCE 1', },),
                 { seat: 'c', reason: ' ', choice: 'OCCURRENCE 4', },
                 voiceOf({ seat: 'd', choice: 'OCCURRENCE 3', },),
+                voiceOf({ seat: 'e', choice: 'OCCURRENCE 3', },),
               ],
               finalists: ['OCCURRENCE 3', 'OCCURRENCE 4',],
               quorum: 1,
@@ -355,7 +380,7 @@ await describe({
               renderings: RENDERINGS,
             },);
             expect([outsider, unlocated,],).toEqual([
-              { usable: 1, winner: { kind: 'chosen', label: 'OCCURRENCE 3', }, },
+              { usable: 2, winner: { kind: 'chosen', label: 'OCCURRENCE 3', }, },
               { usable: 2, winner: { kind: 'none', reason: 'chosen-unlocated', }, },
             ],);
           },

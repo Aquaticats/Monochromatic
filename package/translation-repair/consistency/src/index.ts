@@ -86,6 +86,7 @@ export {
   countConsistency,
   winnerOf,
 } from './consistency-count.ts';
+export { decidingQuorumOf, } from './consistency-deciding-quorum.ts';
 export { edgeFreeWordsOf, } from './consistency-edge-marks.ts';
 export { edgeUnitsOf, } from './consistency-edge-units.ts';
 export {

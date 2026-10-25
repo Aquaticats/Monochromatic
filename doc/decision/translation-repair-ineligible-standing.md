@@ -1,5 +1,14 @@
 # Consolidation refuses to ship a standing the deterministic gate rejected
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+the fifteenth addendum ("Preference + polish") no longer ships a declined slate's preferred candidate;
+a candidate ships only when two or more judges named it,
+and otherwise the archive stays.
+The tenth addendum's tie across every finalist (class 174) follows the same rule by the lead's ruling of 2026-10-25:
+the fixed order ranks only the tied candidates two or more judges named,
+and otherwise the wording in place stays.
+
 Decided by the owner on 2026-09-04 ("Yes:
 prefer the best valid proposal,
 else fail the slice at once"),

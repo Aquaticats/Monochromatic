@@ -29,8 +29,9 @@ import type {
 // it says.
 //
 // READING IS ITS OWN STAGE, which is what makes sending pictures workable at all. The
-// cross-provider vision sub-roster is four models, selection needs a minimum weight of
-// two, and a producer's ballot for its own work counts half. Combining image
+// cross-provider vision sub-roster is four models, selection needed a summed weight of
+// two until 2026-10-25 and now needs two ballots, and a producer's ballot for its own work
+// counts half. Combining image
 // transcription with translation would entangle reading provenance with candidate
 // authorship and its weights. Asking them only to READ turns the picture into text, and the
 // ordinary six-model roster then translates and judges from that text with its

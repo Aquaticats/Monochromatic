@@ -77,11 +77,22 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 34: the reader of a model\'s reply takes a value that differs from a listed enum or const '
-        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
-        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      name: 'IS AT VERSION 43: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+        + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
+        + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
+        + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
+        + '(38) and then said that declining does not by itself keep the wording and that a judge\'s own decline names '
+        + 'no candidate (39, re-check 3, M3) and was then told per round, the first ask settling nothing (40, '
+        + 're-check 4, F1) and then said what a tie backing only some candidates does and that the panel, not the '
+        + 'same judges, is asked again (41, re-check 5, M-B and M-D) and then said that the run-off is asked only '
+        + 'where it leaves some candidates behind (42, re-check 6, M-B) and then said that a round with nothing to '
+        + 'narrow asks no such question, in place of a round that leaves no candidate behind (43, re-check 7, nit 1), '
+        + 'so a stored settlement may hold ballots cast under the old sentence, and '
+        + 'the key hashes the version, the shape of the run and the texts, not the sheet, so only this number '
+        + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
+        + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(34,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(43,);
       },
     },),
     it({
@@ -441,8 +452,28 @@ await describe({
         // Version 34 (2026-10-23) reads a reply value that differs from a listed
         // enum or const value only in capitalization as the listed value, which
         // moved this literal.
+        // Version 35 (2026-10-25) removes every weight floor and ships nothing
+        // past a gate that heard one judge, which moved this literal.
+        // Version 36 (2026-10-25) ships a declined slate's candidate only when
+        // two judges named it and ships the slate's two-ballot pick past an
+        // unheard gate over a refused archive, which moved this literal.
+        // Version 39 (2026-10-25) rewords the sentence the judges read about a
+        // declined round over wording that cannot ship (re-check 3, M3), which
+        // moved this literal.
+        // Version 40 (2026-10-25) tells the judges that sentence per round, the
+        // first ask of the pair settling nothing (re-check 4, F1), which moved
+        // this literal.
+        // Version 41 (2026-10-25) tells the judges what a tie backing only some
+        // candidates does and drops "the same judges" (re-check 5, M-B and M-D),
+        // which moved this literal.
+        // Version 42 (2026-10-25) tells the judges the run-off is asked only where
+        // it leaves some candidates behind (re-check 6, M-B), which moved this
+        // literal.
+        // Version 43 (2026-10-25) tells the judges a round that leaves nothing to
+        // narrow asks no such question, in place of a round that leaves no
+        // candidate behind (re-check 7, nit 1), which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '6a36b56a69f8c798de956690d4e43fa32cb443dff77f8bad9922e57de394b1d1',
+          '20703993fb84bf425d445d9758dd8ca12509e2bda339ca5bed96d78c26181b22',
         );
       },
     },),

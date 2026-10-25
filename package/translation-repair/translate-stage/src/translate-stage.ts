@@ -127,7 +127,7 @@ import type {
 
  @throws {@link ProducerRosterError} when the
  roster could not select anything: repeats on either side, no translator, or
- judges too few to reach the minimum weight
+ fewer than two judges
 
  @throws {@link import('./translation-repair-interrupted-error.ts').TranslationRepairInterruptedError}
  when absent-passage correction repeats exact task or providers remain unavailable
@@ -277,8 +277,9 @@ export async function runTranslateStage(
     incumbentKind: effectiveIncumbentKind,
     incumbentEligible,
     // Wording that exists and fails the floor is withheld, not absent: its
-    // slice ships by preference past a declined follow-up round (owner,
-    // 2026-09-27).
+    // slice ships a candidate two judges named past a declined follow-up
+    // round, and keeps its wording where none did (owner, 2026-09-27 and
+    // 2026-10-25).
     incumbentWithheld: (incumbentKind === 'present') && (!incumbentEligible),
     ...((identityContext === undefined) ? {} : { identityContext, }),
     ...((lifeEnded === undefined) ? {} : { lifeEnded, }),

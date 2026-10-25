@@ -13,10 +13,11 @@ import type { ReadonlyEntry, } from '@monochromatic-dev/translation-repair-share
 //region Resolution tally
 // Checker replies resolve through the prompt plan exactly like panel
 // ballots, and a strict majority of the WEIGHT behind `fixed` verdicts marks
-// an issue resolved. `worse` majorities flag the repair as damaging, which
-// candidate measurement counts as a regression. Weight rather than a count,
-// because a checker that helped write the text it is judging is heard at
-// `SELF_VOTE_WEIGHT`, matching the discount selection already applies.
+// an issue resolved. `worse` majorities from two or more checkers flag the
+// repair as damaging, which candidate measurement counts as a regression.
+// Weight rather than a count, because a checker that helped write the text it
+// is judging is heard at `SELF_VOTE_WEIGHT`, matching the discount selection
+// already applies.
 
 /**
  Cast ballots an issue needs before it can read as resolved: two, so one
@@ -24,6 +25,16 @@ import type { ReadonlyEntry, } from '@monochromatic-dev/translation-repair-share
  than weight, as `MIN_SELECTION_BALLOTS` is for a slate winner.
  */
 export const MIN_RESOLUTION_BALLOTS = 2;
+
+/**
+ Ballots naming `worse` an issue needs before it can read as regressed: two,
+ so one checker never sets the flag that reorders shippable candidates, strips
+ an edit from a patch or rolls a rewrite back (the three readers of the flag
+ since 2026-10-25, "Two ballots for undo too"). Counted
+ in ballots naming `worse`, not in cast ballots and not in weight, so a
+ `worse` against a text author's own half-weight `fixed` is still one voice.
+ */
+const MIN_REGRESSION_BALLOTS = 2;
 
 /**
  One checker's resolved verdicts over one sheet.
@@ -176,7 +187,8 @@ export type IssueResolutionTally = {
   readonly resolved: boolean;
 
   /**
-   Whether worse verdicts strictly outweigh the rest of the cast votes.
+   Whether worse verdicts strictly outweigh the rest of the cast votes, with
+   at least `MIN_REGRESSION_BALLOTS` ballots naming `worse`.
    */
   readonly regressed: boolean;
 };
@@ -266,10 +278,25 @@ function weightBehind(
  bench had one voice left. The owner's rule of 2026-08-12 is that no single
  model decides.
 
- `regressed` KEEPS NO FLOOR. It only ranks a candidate below one that
- regressed nothing and never ships text, and on a two-voice bench a lone
- `worse` already ties rather than regresses: the checkers voted `worse` 55
- times over the recent runs and `regressed` never fired (ledger L1).
+ `regressed` NEEDS TWO VOICES, since 2026-10-25 (lead ruling on re-check 3,
+ by the owner rule that one judge alone never decides). Candidate selection
+ ranks it third (`compareCandidates`), above total resolution and
+ preservation, so it can choose which of two shippable candidates ships; one
+ `worse` ballot, with the other checker silent or against a text author's own
+ half-weight `fixed`, therefore leaves it unset. It holds when two or more
+ ballots name `worse` and the weight behind `worse` exceeds the weight behind
+ `fixed` and `not-fixed` together (`MIN_REGRESSION_BALLOTS`). Level weights do
+ not regress, as before.
+
+ THE FLAG IS THE ONE DEFINITION OF A WORSE VERDICT THAT ACTS, read at three
+ sites since the owner's answer of 2026-10-25, "Two ballots for undo too": the
+ candidate ranking (`regressedKnownIssues`, `repair/src/chunk-measure.ts`), the
+ strip of a patch's unconfirmed edits (ledger L3,
+ `repair/src/repair-worse-strip.ts`) and the rollback of a rewrite on an open
+ issue (ledger L11, `repair/src/refine-recheck.ts`). The last two restore
+ earlier text and ship nothing new, but they change what ships, so they read
+ this flag and not a count of their own. They acted on one `worse` ballot
+ before that answer.
 
  @param issueIds - issue ids under check
 
@@ -347,6 +374,16 @@ export function tallyResolutionChecks(
       answer: 'worse',
     },);
 
+    /**
+     Ballots that named the revision damaging, however much weight each
+     carries.
+     */
+    const worseBallots = cast
+      .filter(function namesWorse(one,) {
+        return one.verdict === 'worse';
+      },)
+      .length;
+
     return [
       issueId,
       {
@@ -354,7 +391,7 @@ export function tallyResolutionChecks(
         notFixed,
         worse,
         resolved: (fixed > (notFixed + worse)) && (cast.length >= MIN_RESOLUTION_BALLOTS),
-        regressed: worse > (fixed + notFixed),
+        regressed: (worse > (fixed + notFixed)) && (worseBallots >= MIN_REGRESSION_BALLOTS),
       },
     ];
   },),);

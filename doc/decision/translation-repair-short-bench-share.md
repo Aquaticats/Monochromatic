@@ -1,5 +1,10 @@
 # A deciding bench short of quorum seats a winner by a share of the reachable weight
 
+Superseded in part on 2026-10-25 by
+`package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
+the minimum weight a winner needs (`MIN_SELECTION_WEIGHT`) and its scaling by reachable seats over quorum are gone,
+and two ballots naming the winner decide whatever their weight.
+
 Decided by the owner on 2026-09-09 ("Share of reachable weight"),
 asked with three options after the second `noname` and the sixth `Mio` ran on Bedrock alone
 (2026-09-09,

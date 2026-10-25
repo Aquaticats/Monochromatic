@@ -17,7 +17,7 @@ import { KEEPS_TRUSTED_TEXT, } from './select-decline-consequence.ts';
 export {
   KEEPS_TRUSTED_TEXT,
   LEAVES_PASSAGE_UNTRANSLATED,
-  SHIPS_BY_PREFERENCE,
+  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from './select-decline-consequence.ts';
 
 //region Candidate selection wire format

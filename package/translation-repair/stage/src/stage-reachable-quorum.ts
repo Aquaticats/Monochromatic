@@ -4,7 +4,7 @@ import { rosterQuorumSize, } from './roster-quorum-size.ts';
 // A QUORUM IS SIZED ON THE SEATS THAT COULD ANSWER, not on the seats the phase
 // seated. The owner's decision of 2026-09-09 (a deciding bench short of quorum
 // decides by a share of the reachable weight, with a two-ballot floor) reached
-// the select minimum first (`candidate-select-minimum.ts`); this is the same
+// the select bench first (`candidate-select-bench.ts`); this is the same
 // rule for the gather itself, so a stage whose bench lost seats to a provider
 // drying mid-phase closes on the seats a wet provider serves instead of
 // chasing a quorum those seats cannot reach.

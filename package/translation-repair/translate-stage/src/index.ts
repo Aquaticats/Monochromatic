@@ -7,14 +7,12 @@ export {
   assertDistinctJudges,
   stakesByIndexOf,
 } from './candidate-select-roster.ts';
+export { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 export {
-  CONDEMNED_FALLBACK_UNDER_MINIMUM_FINDING,
-  condemnedFallbackLoses,
-  MIN_SELECTION_BALLOTS,
-  type SelectionMinimum,
-  selectionMinimum,
+  type SelectionBench,
+  selectionBench,
   shortBenchFinding,
-} from './candidate-select-minimum.ts';
+} from './candidate-select-bench.ts';
 export { selectBestCandidate, } from './candidate-select-record.ts';
 export { decideBestCandidate, } from './candidate-select.ts';
 export {
@@ -66,6 +64,7 @@ export {
   type Runoff,
   runoffFinalists,
 } from './translate-runoff.ts';
+export { settleAbsentDecline, } from './translate-runoff-tie.ts';
 export { translateSlateEvidence, } from './translate-slate-evidence.ts';
 export {
   type TranslateDecision,

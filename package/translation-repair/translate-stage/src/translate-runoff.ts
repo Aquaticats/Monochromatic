@@ -21,8 +21,9 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 // challenge round is therefore a run-off over the candidates that drew a
 // ballot, when that is fewer than the whole slate: the judges are asked a
 // narrower question rather than the identical one. A second tie across every
-// finalist ships one of them by preference where nothing stands to keep
-// (class one hundred seventy-four, `translate-runoff-tie.ts`).
+// finalist ships by preference one of the finalists that two or more judges
+// named, where nothing stands to keep (class one hundred seventy-four,
+// `translate-runoff-tie.ts`); with none named twice, nothing ships by it.
 //
 // NARROWED TO THE LEADERS ON XINGZ613 (2026-09-19, class sixty-three): slice
 // 84's standing was ineligible, four valid proposals went to a bench at
@@ -32,9 +33,16 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 // way; the entry stopped over a heading whose every rendering was valid.
 // The candidates below the leaders have lost the ranking as surely as the
 // unnamed ones, so the run-off offers the leaders alone: the tied leaders
-// on a tie, the leader and its runner-up on a plurality under the minimum.
-// Two candidates is a question a bench of whole and half ballots settles
-// unless it abstains, which is a decline this should keep.
+// on a tie, the leader and its runner-up on a plurality the leader drew from one
+// judge alone. Two candidates is a question a bench of whole and half ballots
+// settles unless it abstains, which is a decline this should keep.
+//
+// SINCE 2026-10-25 THERE IS NO WEIGHT MINIMUM (the owner's rulings "floor of 3 -
+// don't set a floor." and "Every weight floor"). The two measured cases of
+// XingZ602 and XingZ613 were told in weights: 1.5, 1 and 1 against a minimum of 2 is now a decision, the
+// leader named by two judges. A round declines when the judges tie or when the
+// leader was named by one judge alone, and a run-off is still the narrower
+// question for both.
 
 /**
  Whether a declined round's challenge is a run-off, and over which candidates.
@@ -58,8 +66,8 @@ export type Runoff<ValueT,> =
 
     /**
      Why these are the finalists: the candidates tied at the top, or the
-     leader and its runner-up where one candidate led and fell short of the
-     minimum (ledger B806).
+     leader and its runner-up where one candidate led and one judge alone
+     named it (ledger B806).
      */
     readonly basis: RunoffBasis;
   }
@@ -206,7 +214,7 @@ export function runoffFinalistsPhrase(
   },
 ): string {
   if (basis === 'leader-and-runner-up')
-    return 'leader and its runner-up (the leader fell short of the minimum weight)';
+    return 'leader and its runner-up (the leader was named by one judge alone)';
   return `${String(count,)} tied ${
     wordForCount({
       count,

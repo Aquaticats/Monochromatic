@@ -37,7 +37,7 @@ import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-
 import {
   type Candidate,
   FULL_VOTE_WEIGHT,
-  MIN_SELECTION_WEIGHT,
+  MIN_SELECTION_BALLOTS,
   SELF_VOTE_WEIGHT,
 } from '@monochromatic-dev/translation-repair-house-rule';
 import { CANDIDATE_NONE, } from '@monochromatic-dev/translation-repair-adjudication';
@@ -300,8 +300,6 @@ const THREE_JUDGES: readonly RosterModelId[] = JUDGES.slice(0, 3,);
 
  @param candidates - slate to judge; defaults to the two fixture proposals
 
- @param fallbackCondemned - whether the contest majority called the fallback flawed
-
  @returns Outcome plus how many judge calls it took
 
  @example
@@ -314,17 +312,13 @@ async function runSelection(
     ballots,
     judgeModelIds = JUDGES,
     fanOut = 'whole-bench',
-    runoff = false,
     candidates = STRING_CANDIDATES,
-    fallbackCondemned = false,
     logger = l,
   }: {
     readonly ballots: BallotScript;
     readonly judgeModelIds?: readonly RosterModelId[];
     readonly fanOut?: FanOutMode;
-    readonly runoff?: boolean;
     readonly candidates?: readonly Candidate<string>[];
-    readonly fallbackCondemned?: boolean;
     readonly logger?: Logger;
   },
 ) {
@@ -348,8 +342,6 @@ async function runSelection(
     // window of quorum plus one (`stage-fanout-window.ts`), pinned by the
     // "ASKS a window of quorum plus one judges in production" case.
     fanOut,
-    runoff,
-    fallbackCondemned,
     task: 'Pick one.',
     criteria: ['Faithful.',],
     evidence: [
@@ -606,10 +598,10 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'SEATS A WINNER BY A SHARE OF THE REACHABLE WEIGHT where the router refused most '
-            + 'of the bench, the owner\'s decision of 2026-09-09: three of eight reachable against a '
-            + 'quorum of four puts the minimum at three halves, so a producer and one disinterested '
-            + 'judge agreeing ship what the absolute 2 kept unfilled, and the finding names the bench',
+          name: 'SEATS A WINNER TWO JUDGES NAMED where the router refused most of the bench: three of eight '
+            + 'reachable against a quorum of four, a producer and one disinterested judge agreeing ship, '
+            + 'and the finding names the bench (the owner\'s decision of 2026-09-09 scaled a weight '
+            + 'minimum here, which the owner removed on 2026-10-25)',
           fn: async () => {
             /** Quorum over the seated bench. */
             const quorum = rosterQuorumSize({ rosterSize: WIDE_BENCH.length, },);
@@ -630,9 +622,9 @@ await describe({
             expect(outcome.tally.judgesAvailable,).toBe(WIDE_BENCH.length,);
             expect(outcome.tally.ballots,).toBe(reachable,);
             expect(outcome.findings,).toContain(
-              `select-short-bench (reachable ${String(reachable,)} of ${String(WIDE_BENCH.length,)}, minimum ${
-            ((MIN_SELECTION_WEIGHT * reachable) / quorum).toFixed(2,)
-          })`,
+              `select-short-bench (reachable ${String(reachable,)} of ${String(WIDE_BENCH.length,)}, quorum ${
+                String(quorum,)
+              })`,
             );
             // Every dry seat is reported lost, as before; the `select-short-bench`
             // finding is what says the losses were the bench and not the weather.
@@ -642,8 +634,8 @@ await describe({
         },),
 
         it({
-          name: 'KEEPS TWO BALLOTS AS THE FLOOR whatever the scaled weight, so one judge never '
-            + 'decides: two of eight reachable puts the minimum at one full ballot, and a lone full '
+          name: 'KEEPS TWO BALLOTS AS THE FLOOR on a short bench, so one judge never '
+            + 'decides: two of eight reachable, and a lone full '
             + 'ballot is declined as one judge alone rather than seated',
           fn: async () => {
             /** Quorum over the seated bench. */
@@ -663,25 +655,24 @@ await describe({
               },
               unreachable,
             },);
-            // The scaled minimum is one full ballot, so only the two-ballot floor declines it.
-            expect((MIN_SELECTION_WEIGHT * reachable) / quorum,).toBe(FULL_VOTE_WEIGHT,);
+            // Only the two-ballot floor declines it.
             expect(outcome.kind,).toBe('declined',);
             if (outcome.kind !== 'declined')
               throw new Error('unreachable',);
             expect(outcome.reason,).toBe('winner named by one judge alone',);
             expect(outcome.disposition,).toBe('indecision',);
             expect(outcome.findings,).toContain(
-              `select-short-bench (reachable ${String(reachable,)} of ${String(WIDE_BENCH.length,)}, minimum ${
-            ((MIN_SELECTION_WEIGHT * reachable) / quorum).toFixed(2,)
-          })`,
+              `select-short-bench (reachable ${String(reachable,)} of ${String(WIDE_BENCH.length,)}, quorum ${
+                String(quorum,)
+              })`,
             );
           },
         },),
 
         it({
-          name: 'LEAVES A BENCH AT QUORUM UNDER THE ABSOLUTE MINIMUM: with the dry seats served '
-            + 'again, the same producer-plus-one agreement at three halves is short of 2 and declines '
-            + 'exactly as it did before the decision',
+          name: 'DECIDES THE SAME AGREEMENT ON A BENCH AT QUORUM: with the dry seats served again, the same '
+            + 'producer-plus-one agreement at three halves ships and no short-bench finding is made, '
+            + 'where it declined against the absolute weight minimum of 2 until 2026-10-25',
           fn: async () => {
             /** The same ballots on a bench every provider serves. */
             const outcome = await runShortBench({
@@ -691,10 +682,9 @@ await describe({
               },
               unreachable: [],
             },);
-            expect(outcome.kind,).toBe('declined',);
-            if (outcome.kind !== 'declined')
+            expect(outcome.kind,).toBe('selected',);
+            if (outcome.kind !== 'selected')
               throw new Error('unreachable',);
-            expect(outcome.reason,).toBe('winner short of the minimum vote weight',);
             expect(outcome.findings.some(function isShortBench(finding,): boolean {
               return finding.startsWith('select-short-bench',);
             },),).toBe(false,);
@@ -751,12 +741,12 @@ await describe({
 
         it({
           name: 'SHIPS a collapsed candidate backed only by the models that wrote '
-            + 'it, once enough of them wrote it. Four models returning '
+            + 'it, once two of them wrote it. Four models returning '
             + 'byte-identical text merge into one candidate, so four ballots for '
-            + 'it are four SELF votes, and four halves reach the minimum with no '
+            + 'it are four SELF votes, and they are four answering judges with no '
             + 'disinterested judge involved. That is deliberate: independent '
             + 'models agreeing to the byte IS the corroboration, and it is the one '
-            + 'case where the weights do not require an outside voice',
+            + 'case where the ballots do not require an outside voice',
           fn: async () => {
             /** Models that wrote the one collapsed candidate. */
             const contributors = [
@@ -766,8 +756,8 @@ await describe({
               SEAT_HYPER_OPENROUTER_UNMEASURED,
             ];
             const { outcome, } = await runCollapsedSelection({ contributors, },);
-            // Enough self votes to reach the minimum, which this case needs to mean anything.
-            expect(contributors.length * SELF_VOTE_WEIGHT,).toBeGreaterThanOrEqual(MIN_SELECTION_WEIGHT,);
+            // Enough self votes to count as the ballots a winner needs, which this case needs to mean anything.
+            expect(contributors.length,).toBeGreaterThanOrEqual(MIN_SELECTION_BALLOTS,);
             expect(outcome.kind,).toBe('selected',);
             expect(outcome.kind === 'selected' ? outcome.value : '',).toBe('collapsed',);
             expect(outcome.kind === 'selected' ? outcome.voteWeight : 0,).toBe(contributors.length * SELF_VOTE_WEIGHT,);
@@ -776,10 +766,8 @@ await describe({
         },),
 
         it({
-          name: 'DECLINES the same shape one contributor short, which is what '
-            + 'keeps the four-model collapsed case from being a hole: three halves fall below '
-            + 'the minimum, so a candidate three models wrote and nobody else '
-            + 'endorsed does not ship',
+          name: 'SHIPS the same shape with three contributors, which three halves left unshipped until 2026-10-25: '
+            + 'three models wrote it and each backed it, which is three answering judges',
           fn: async () => {
             const { outcome, } = await runCollapsedSelection({
               contributors: [
@@ -788,8 +776,21 @@ await describe({
                 SEAT_SYNTHETIC_VISION_WITHHELD,
               ],
             },);
-            expect(outcome.kind,).toBe('declined',);
+            expect(outcome.kind,).toBe('selected',);
             expect(outcome.tally.selfVotes,).toBe(3,);
+          },
+        },),
+
+        it({
+          name: 'DECLINES the same shape with one contributor, which is what keeps the collapsed case from being '
+            + 'a hole: a candidate one model wrote and nobody else endorsed is one judge alone',
+          fn: async () => {
+            const { outcome, } = await runCollapsedSelection({
+              contributors: [SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+            },);
+            expect(outcome.kind,).toBe('declined',);
+            expect(outcome.kind === 'declined' ? outcome.reason : '',).toBe('winner named by one judge alone',);
+            expect(outcome.tally.selfVotes,).toBe(1,);
           },
         },),
 
@@ -830,9 +831,7 @@ await describe({
               },
             },);
             expect(outcome.kind,).toBe('declined',);
-            expect(outcome.kind === 'declined' ? outcome.reason : '',).toBe(
-              'winner short of the minimum vote weight',
-            );
+            expect(outcome.kind === 'declined' ? outcome.reason : '',).toBe('winner named by one judge alone',);
             expect(outcome.kind === 'declined' ? outcome.disposition : '',).toBe('indecision',);
             expect(outcome.tally.abstentions,).toBe(4,);
           },
@@ -892,7 +891,7 @@ await describe({
         it({
           name: 'REFUSES a roster naming one judge twice, before spending a single '
             + 'call. Two exchanges to one model are two ballots from one opinion, '
-            + 'which reaches the minimum weight alone, and the stage guard cannot '
+            + 'which counts as two answering judges alone, and the stage guard cannot '
             + 'catch it because selectPerEnvelope and selectChunkPatch are '
             + 'reachable without one',
           fn: async () => {
@@ -1207,18 +1206,18 @@ await describe({
     },),
 
     describe({
-      name: 'a run-off over valid finalists (class seventy-three, mikaela4, 2026-09-19)',
+      name: 'a plurality of two ballots over valid finalists (class seventy-three, mikaela4, 2026-09-19)',
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'SEATS the run-off leader named by two ballots under the weight minimum, since the finalists '
-            + 'were valid and abstentions answer neither; the same ballots decline outside a run-off',
+          name: 'SEATS the leader named by two ballots in the first round, since abstentions answer neither; '
+            + 'it needed a run-off to do so while the weight minimum stood (removed 2026-10-25)',
           fn: async () => {
             // GLM-5.3-Flash wrote candidate 1 and names it at half weight, one
             // disinterested judge names it at full weight, one names candidate 2,
-            // two abstain: 1.5 against 1 with two ballots behind the leader, under
-            // the absolute minimum of 2. That is mikaela4's slice 28 run-off.
-            /** Ballots the run-off heard. */
+            // two abstain: 1.5 against 1 with two ballots behind the leader.
+            // That is mikaela4's slice 28 run-off.
+            /** Ballots the round heard. */
             const ballots = {
               [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: 1,
               [SEAT_SYNTHETIC_VISION_WITHHELD]: 1,
@@ -1226,18 +1225,11 @@ await describe({
               [SEAT_SYNTHETIC_TEXT_EVERYWHERE]: 0,
               [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: 0,
             };
-            const { outcome: first, } = await runSelection({ ballots, },);
-            expect(first.kind,).toBe('declined',);
-            expect(first.kind === 'declined' ? first.reason : '',).toBe('winner short of the minimum vote weight',);
-            const { outcome, } = await runSelection({
-              ballots,
-              runoff: true,
-            },);
+            const { outcome, } = await runSelection({ ballots, },);
             expect(outcome.kind,).toBe('selected',);
             expect(outcome.kind === 'selected' ? outcome.value : '',).toBe('first',);
             expect(outcome.kind === 'selected' ? outcome.voteWeight : 0,).toBe(SELF_VOTE_WEIGHT + FULL_VOTE_WEIGHT,);
             expect(outcome.tally.abstentions,).toBe(2,);
-            expect(outcome.findings,).toContain('select-runoff-under-minimum',);
           },
         },),
         it({
@@ -1265,7 +1257,7 @@ await describe({
           },
         },),
         it({
-          name: 'still DECLINES a run-off whose leader one judge alone named, so the ballot floor holds',
+          name: 'still DECLINES a round whose leader one judge alone named, so the ballot floor holds',
           fn: async () => {
             const { outcome, } = await runSelection({
               ballots: {
@@ -1275,7 +1267,6 @@ await describe({
                 [SEAT_SYNTHETIC_TEXT_EVERYWHERE]: 0,
                 [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: 0,
               },
-              runoff: true,
             },);
             expect(outcome.kind,).toBe('declined',);
             expect(outcome.kind === 'declined' ? outcome.disposition : '',).toBe('indecision',);
@@ -1285,51 +1276,38 @@ await describe({
     },),
 
     describe({
-      name: 'a fallback the contest majority called flawed (one entry\'s slice 45, 2026-10-19)',
+      name: 'a fallback the contest majority called flawed (one entry\'s slice 45, 2026-10-19), which no longer '
+        + 'changes how a round is decided since the owner removed the weight minimum on 2026-10-25',
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'SEATS the leader two ballots named under the weight minimum when the fallback was called flawed, '
-            + 'though every ballot fell on one candidate and so no run-off could narrow it; the same ballots '
-            + 'keep the fallback where nobody condemned it',
+          name: 'SEATS the leader two ballots named, though every ballot fell on one candidate and so no run-off '
+            + 'could narrow it, whether or not the fallback was called flawed',
           fn: async () => {
             // Three judges are heard. The model that wrote candidate 1 names it at half weight, a
             // disinterested one names it at full weight and the third declines everything: 1.5
-            // against 0 with two ballots behind the leader, under the absolute minimum of 2. The
-            // only candidate that drew anything is the leader, so `runoffFinalists` finds fewer
-            // than two backed and the challenge round asks the whole slate again, not a run-off.
+            // against 0 with two ballots behind the leader. It was declined against the absolute
+            // weight minimum of 2 until 2026-10-25, which a flag for a condemned fallback got around.
             /** Ballots the round heard, in the shape of the live slice. */
             const ballots = {
               [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: 1,
               [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: 1,
               [SEAT_SYNTHETIC_VISION_WITHHELD]: 0,
             };
-            const kept = await runSelection({
-              ballots,
-              judgeModelIds: THREE_JUDGES,
-              candidates: PROPOSAL_AGAINST_ARCHIVE,
-            },);
-            expect(kept.outcome.kind,).toBe('declined',);
-            expect(kept.outcome.kind === 'declined' ? kept.outcome.reason : '',).toBe(
-              'winner short of the minimum vote weight',
-            );
-
             const { outcome, } = await runSelection({
               ballots,
               judgeModelIds: THREE_JUDGES,
               candidates: PROPOSAL_AGAINST_ARCHIVE,
-              fallbackCondemned: true,
             },);
             expect(outcome.kind,).toBe('selected',);
             expect(outcome.kind === 'selected' ? outcome.value : '',).toBe('proposal',);
             expect(outcome.kind === 'selected' ? outcome.voteWeight : 0,).toBe(SELF_VOTE_WEIGHT + FULL_VOTE_WEIGHT,);
             expect(outcome.tally.abstentions,).toBe(1,);
-            expect(outcome.findings,).toContain('select-condemned-fallback-under-minimum',);
+            expect(outcome.findings.includes('select-condemned-fallback-under-minimum',),).toBe(false,);
           },
         },),
         it({
-          name: 'still DECLINES a leader one judge alone named, however the fallback was judged, so one model '
-            + 'never decides (owner, 2026-09-09)',
+          name: 'still DECLINES a leader one judge alone named, so one model never decides (owner, 2026-09-09)',
           fn: async () => {
             const { outcome, } = await runSelection({
               ballots: {
@@ -1339,18 +1317,15 @@ await describe({
               },
               judgeModelIds: THREE_JUDGES,
               candidates: PROPOSAL_AGAINST_ARCHIVE,
-              fallbackCondemned: true,
             },);
             expect(outcome.kind,).toBe('declined',);
             expect(outcome.kind === 'declined' ? outcome.disposition : '',).toBe('indecision',);
-            expect(outcome.kind === 'declined' ? outcome.reason : '',).toBe(
-              'winner short of the minimum vote weight',
-            );
+            expect(outcome.kind === 'declined' ? outcome.reason : '',).toBe('winner named by one judge alone',);
           },
         },),
         it({
-          name: 'still KEEPS the fallback when two ballots lead with it under the minimum, since a condemned '
-            + 'fallback is no endorsement and the ballots must not seat it as a judged choice',
+          name: 'SEATS the standing text when two ballots lead with it, as it was at a weight of 2: the ballots '
+            + 'decide the round and a fallback with two judges behind it is a judged choice',
           fn: async () => {
             const { outcome, } = await runSelection({
               ballots: {
@@ -1360,13 +1335,13 @@ await describe({
               },
               judgeModelIds: THREE_JUDGES,
               candidates: PROPOSAL_AGAINST_ARCHIVE,
-              fallbackCondemned: true,
             },);
-            expect(outcome.kind,).toBe('declined',);
+            expect(outcome.kind,).toBe('selected',);
+            expect(outcome.kind === 'selected' ? outcome.value : '',).toBe('archive',);
           },
         },),
         it({
-          name: 'still RUNS OFF a tie and declines a round every judge refused, with the fallback condemned',
+          name: 'still RUNS OFF a tie and declines a round every judge refused',
           fn: async () => {
             // Each writer names its own text at half weight: 0.5 against 0.5.
             const tied = await runSelection({
@@ -1377,7 +1352,6 @@ await describe({
               },
               judgeModelIds: THREE_JUDGES,
               candidates: PROPOSAL_AGAINST_ARCHIVE,
-              fallbackCondemned: true,
             },);
             expect(tied.outcome.kind,).toBe('declined',);
             expect(tied.outcome.kind === 'declined' ? tied.outcome.reason : '',).toBe('judges tied',);
@@ -1390,7 +1364,6 @@ await describe({
               },
               judgeModelIds: THREE_JUDGES,
               candidates: PROPOSAL_AGAINST_ARCHIVE,
-              fallbackCondemned: true,
             },);
             expect(refused.outcome.kind,).toBe('declined',);
             expect(refused.outcome.kind === 'declined' ? refused.outcome.disposition : '',).toBe('rejection',);

@@ -180,18 +180,17 @@ await describe({
   name: runEditorStage.name,
   children: [
     it({
-      name: 'REFUSES AN UNJUDGEABLE ROSTER BEFORE CALLING ANYTHING. Selection '
-        + 'removes producers from the judge roster, so a roster that looks '
-        + 'large enough can leave too few disinterested judges; discovering '
-        + 'that after the fan-out would mean paying for a whole editor round '
-        + 'whose output could never be judged',
+      name: 'REFUSES AN UNJUDGEABLE ROSTER BEFORE CALLING ANYTHING. A roster '
+        + 'seating one judge can draw one ballot, and a winner needs two; '
+        + 'discovering that after the fan-out would mean paying for a whole '
+        + 'editor round whose output could never be judged',
       fn: async () => {
         await expect(
           runEditorStage({
             client: neverCalledClient(),
             editorModelIds: EDITORS,
-            // Every judge also edits, so nobody is disinterested.
-            judgeModelIds: EDITORS,
+            // One judge alone never decides, whoever wrote the text.
+            judgeModelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
             sourceText: SOURCE_TEXT,
             targetText: TARGET_TEXT,
             envelopes: ENVELOPES,

@@ -555,8 +555,7 @@ await describe({
 
         it({
           name: 'ACCEPTS two editors judged by themselves and one other, which the '
-            + 'old rule refused: two discounted ballots and one full one reach the '
-            + 'minimum weight, so a decision is possible and the ruling of '
+            + 'old rule refused: three answering judges can decide, and the ruling of '
             + '2026-08-15 says a stake discounts an opinion rather than voiding it',
           fn: async () => {
             expect(function twoEditorsOneOutsider() {
@@ -576,9 +575,9 @@ await describe({
         },),
 
         it({
-          name: 'refuses a roster that could never reach the minimum weight, which '
-            + 'would decline every round in silence: one editor grading itself '
-            + 'draws half a vote, and a lone judge cannot decide a stage anyway',
+          name: 'refuses a roster that could never draw two ballots, which '
+            + 'would decline every round in silence: a lone judge cannot decide a stage, '
+            + 'whoever wrote the text',
           fn: async () => {
             expect(function everyJudgeEdits() {
               assertJudgeableEditorRoster({
@@ -586,7 +585,13 @@ await describe({
                 judgeModelIds: [SEAT_SYNTHETIC_VISION_WITHHELD,],
               },);
             },).toThrow(ProducerRosterError,);
+          },
+        },),
 
+        it({
+          name: 'ACCEPTS two editors judging only each other, which refused until 2026-10-25 because the best '
+            + 'candidate could draw a weight of 1.5: it draws two ballots, and two ballots decide',
+          fn: async () => {
             expect(function twoEditorsJudgingThemselves() {
               assertJudgeableEditorRoster({
                 editorModelIds: [
@@ -598,7 +603,7 @@ await describe({
                   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
                 ],
               },);
-            },).toThrow(ProducerRosterError,);
+            },).not.toThrow();
           },
         },),
 

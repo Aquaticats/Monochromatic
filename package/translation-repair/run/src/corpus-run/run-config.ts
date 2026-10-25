@@ -301,8 +301,9 @@ export const RUN_TRANSLATORS: readonly RosterModelId[] = RUN_ROSTER
 /**
  Critics, adjudication panel and judges for both lanes: the roster less
  {@link WIDE_SEAT_DROPPED}. Seven since 2026-09-02 (eight from 2026-09-01)
- with Synthetic wet, so each of those stages reaches quorum at 4 voices and
- `minBallotWeight` 3 is 3 of 7; six with Synthetic dry (`run-seats.ts`
+ with Synthetic wet, so each of those stages reaches quorum at 4 voices (the
+ panel tally's minimum ballot weight of 3, once 3 of 7, was removed by the
+ owner on 2026-10-25: two answering panelists decide); six with Synthetic dry (`run-seats.ts`
  withholds the Hyper-slow judge), quorum 3 (`ceil(6 / 2)`), and five of
  those judge the slates (the select-slow judge withheld too), quorum 3.
  */
@@ -494,13 +495,15 @@ export type RunRepairModels = RepairModels & {
  `voices >= ceil(modelIds.length / 2)`, so seven models need 4 voices, six
  need 3, ten need 5, eight need 4, and nine need 5.
 
- The ISSUE-acceptance gate does move, and the user accepted the move rather
- than it happening unnoticed: `DEFAULT_ADJUDICATION_CONFIG.minBallotWeight` is
- the absolute value 3, so the share of the panel that must cast a non-abstain
- ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
+ The ISSUE-acceptance gate did move, and the user accepted the move rather
+ than it happening unnoticed: the adjudication config's minimum ballot weight
+ (since removed, see the SUPERSEDED note of 2026-10-25) was the absolute value 3, so the share of the panel that
+ must cast a non-abstain ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
  User decision, 2026-08-06: "50% is okay here." At nine the same absolute 3
  is 3-of-9 (33 percent), inside the range already lived at ten (30 percent)
- and at eight (37.5 percent).
+ and at eight (37.5 percent). SUPERSEDED on 2026-10-25: the owner removed the
+ minimum ballot weight ("floor of 3 - don't set a floor."), and the tally
+ decides with two answering panelists ("Two ballots decide (Recommended)").
 
  MORE THAN ONE editor, on the user's rule that no single model should control
  any part of the pipeline. Kimi-K3 is one of them because the user reports it
@@ -700,7 +703,8 @@ export const RUN_MODELS: RunRepairModels = {
   //
   // NEMOTRON LEFT EVERY ROLE on 2026-08-29 at the owner's instruction after it
   // contradicted its own adjacent required-correction guidance. Kimi-K3 takes
-  // that checker seat rather than shrinking below the hard floor of three. It
+  // that checker seat rather than shrinking the bench of three (the contract's
+  // floor is two since the owner's answer of 2026-10-25). It
   // was already one of the added checker voices in all 231 measured wide-arm
   // rounds, where added voices changed no resolution verdict. That evidence is
   // about ensemble effect rather than individual checker ranking; a fresh
@@ -804,7 +808,8 @@ const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-un
 
  READING IS ITS OWN STAGE, and the roster's narrowness when the stage was
  built is why. Exactly two models read images while the roster was one
- provider's six; selection needs a minimum weight of two, and a producer's
+ provider's six; selection needed a summed weight of two (removed on
+ 2026-10-25), and a producer's
  ballot for its own work counts half, so if those two also translated then no
  disinterested judge would remain on any slice carrying a picture. Asking them
  only to READ turns the picture into text, and the whole roster translates

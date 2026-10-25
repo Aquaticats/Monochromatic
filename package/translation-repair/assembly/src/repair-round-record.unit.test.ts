@@ -172,7 +172,7 @@ await describe({
           fn: async () => {
             /**
              Round where the one judge named the shorter wording and the panel
-             still could not reach the minimum weight.
+             still could not reach the two ballots a winner needs.
              */
             const round = describeJudgedRound({
               stage: 'refine',

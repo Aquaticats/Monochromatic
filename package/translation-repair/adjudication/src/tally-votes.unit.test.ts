@@ -180,13 +180,35 @@ await describe({
         },),
 
         it({
-          name: 'needs a human below the minimum electorate, counting missing verdicts as abstentions',
+          name: 'needs a human when only one panelist answers, counting missing verdicts as abstentions',
           fn: async () => {
             /** Claim under vote. */
             const claimMember = member({ suffix: 'blanket', },);
             /** Cluster wrapping it. */
             const clusters = [soloCluster({ claimMember, },),];
-            /** Only two panelists actually vote; the third ballot is empty. */
+            /** Only one panelist actually votes; the other two ballots are empty. */
+            const result = tallyVotes({
+              configuredPanelists: 3,
+              clusters,
+              ballots: {
+                a: uniformBallot({ claimIds: [claimMember.claimId,], vote: 'supported', },),
+                b: uniformBallot({ claimIds: [], vote: 'supported', },),
+                c: uniformBallot({ claimIds: [], vote: 'supported', },),
+              },
+            },);
+            expect(result.issues[0]?.status,).toBe('needs-human',);
+            expect(result.issues[0]?.tallies[claimMember.claimId]?.abstain,).toBe(2,);
+          },
+        },),
+
+        it({
+          name: 'decides with two answering panelists, counting missing verdicts as abstentions',
+          fn: async () => {
+            /** Claim under vote. */
+            const claimMember = member({ suffix: 'quilt', },);
+            /** Cluster wrapping it. */
+            const clusters = [soloCluster({ claimMember, },),];
+            /** Two panelists actually vote; the third ballot is empty. */
             const result = tallyVotes({
               configuredPanelists: 3,
               clusters,
@@ -196,7 +218,7 @@ await describe({
                 c: uniformBallot({ claimIds: [], vote: 'supported', },),
               },
             },);
-            expect(result.issues[0]?.status,).toBe('needs-human',);
+            expect(result.issues[0]?.status,).toBe('accepted',);
             expect(result.issues[0]?.tallies[claimMember.claimId]?.abstain,).toBe(1,);
           },
         },),
@@ -246,7 +268,6 @@ await describe({
                 d2: uniformBallot({ claimIds, vote: 'unsupported', },),
               },
               config: {
-                minBallotWeight: 3,
                 decisionThreshold: 1 / 2,
                 sourceDefectThreshold: 1 / 3,
                 weights: { heavy: 3, },
@@ -294,7 +315,6 @@ await describe({
                 },),
               },
               config: {
-                minBallotWeight: 3,
                 decisionThreshold: 1 / 2,
                 sourceDefectThreshold: 1 / 3,
                 weights: { heavy: 3, },
@@ -544,7 +564,6 @@ await describe({
               },
               configuredPanelists: 2,
               config: {
-                minBallotWeight: 3,
                 decisionThreshold: 1 / 2,
                 sourceDefectThreshold: 1 / 3,
                 weights: { heavy: 4, },

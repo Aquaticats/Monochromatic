@@ -5,17 +5,24 @@ import {
   type Candidate,
   type CandidateWeight,
   describeProducer,
+  MIN_SELECTION_BALLOTS,
   type SelectionOutcome,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import { isDecisionSeat, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  rendersAsNothing,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type RunoffBasis,
   TranslateAbsenceError,
   type TranslateAbsenceReason,
   type TranslateCandidateValue,
 } from '@monochromatic-dev/translation-repair-translate-floor/ts';
-import type { TranslateStageResult, } from './translate-stage-result.ts';
+import type {
+  TranslateDecision,
+  TranslateStageResult,
+} from './translate-stage-result.ts';
 
 //region Translate run-off tie
 // CLASS ONE HUNDRED SEVENTY-FOUR (TianqiChen6669 slice 4, 2026-09-26): the
@@ -49,6 +56,22 @@ import type { TranslateStageResult, } from './translate-stage-result.ts';
 // record for the consolidation's polish to check against the ORIGINAL; a
 // decision seat's distribution is no such reason (ledger B125). A passage
 // with no wording at all still raises.
+//
+// ONLY A CANDIDATE TWO JUDGES NAMED SHIPS THAT WAY SINCE 2026-10-25 (owner
+// answer "Two judges must name it"; one judge alone never decides). The order
+// had no judge behind it: in XingZ6021 five slices (13, 14, 33, 44 and 84)
+// were judged by one reachable seat of seven, which named one candidate or
+// none, and the order shipped another. The order now ranks only the
+// candidates that drew two ballots, and a round that drew none keeps the
+// wording the archive has, which the consolidation's settlement answers by
+// keeping the archive (owner, 2026-09-27, "Keep archive, ship"), and the
+// translate lane carries to the same end. A tie across every finalist
+// (class one hundred seventy-four) is broken by the same fixed order of repair
+// lane, translate lane and slate order only among the tied candidates two
+// judges named (the lead's ruling of 2026-10-25, settled by the same answer);
+// where none of them drew two ballots nothing ships by the order, and the
+// caller keeps the wording in place by the path of a declined round, or raises
+// the absence where the passage has none.
 
 /**
  How a run-off tie was broken, as the finding names it.
@@ -91,7 +114,8 @@ export type RunoffTie<ValueT,> =
     | {
     /**
      Fewer than two drew weight, or some candidate drew less than the
-     leaders, which a further run-off narrows instead.
+     leaders, which a further run-off narrows instead, or no tied candidate
+     drew two ballots, which nothing ships by preference.
      */
       readonly kind: 'unbroken';
     };
@@ -112,11 +136,19 @@ type RankedFinalist<ValueT,> = {
 export const RUNOFF_TIE_BROKEN_FINDING = 'translate-runoff-tie-broken';
 
 /**
- Finding a slate declined in its challenge round records where it ships by
- preference over wording that cannot ship, followed by its basis in
- parentheses (owner, 2026-09-27, "Preference + polish").
+ Finding a slate declined in its challenge round records where it ships a
+ candidate two or more judges named, by preference among those, over wording
+ that cannot ship, followed by its basis in parentheses (owner, 2026-09-27,
+ "Preference + polish", narrowed on 2026-10-25 by "Two judges must name it").
  */
 export const SHIPPED_PAST_DECLINE_FINDING = 'translate-slate-declined-shipped-by-preference';
+
+/**
+ Finding a slate declined in its challenge round records where no candidate
+ drew two judges, so nothing ships past the decline and the wording the
+ archive has stays (owner, 2026-10-25, "Two judges must name it").
+ */
+export const DECLINE_KEEPS_ARCHIVE_FINDING = 'translate-slate-declined-archive-kept';
 
 /**
  Preference of a finalist: the repair lane's text first, the translate
@@ -205,8 +237,9 @@ function rankedByPreference<ValueT,>(
 
  @param perCandidate - what each position drew
 
- @returns The preferred finalist, or `unbroken` where fewer than two drew
- weight or some candidate drew less than the leaders
+ @returns The preferred of the tied finalists two or more judges named, or
+ `unbroken` where fewer than two drew weight, some candidate drew less than the
+ leaders, or no tied finalist drew two ballots
 
  @example
  ```ts
@@ -242,23 +275,29 @@ export function breakRunoffTie<ValueT,>(
     return { kind: 'unbroken', };
 
   /**
-   Tied finalists with their preference, best first, slate order breaking
-   equal preference.
+   Tied finalists two or more judges named, with their preference, best first,
+   slate order breaking equal preference: the preference ranks only what a
+   judge pair backed (owner, 2026-10-25, "Two judges must name it").
    */
-  const [first,] = rankedByPreference({
-    finalists: tied.map(function withCandidate(drawn,): PlacedCandidate<ValueT> {
-      return {
-        index: drawn.index,
-        // The round counts one row per candidate on the slate, so every
-        // tied row names a position the slate has.
-        candidate: nonNullishOrThrow(candidates[drawn.index - 1],),
-      };
-    },),
+  const [chosen,] = rankedByPreference({
+    finalists: tied
+      .filter(function namedByTwoJudges(drawn,): boolean {
+        return drawn.ballots >= MIN_SELECTION_BALLOTS;
+      },)
+      .map(function withCandidate(drawn,): PlacedCandidate<ValueT> {
+        return {
+          index: drawn.index,
+          // The round counts one row per candidate on the slate, so every
+          // tied row names a position the slate has.
+          candidate: nonNullishOrThrow(candidates[drawn.index - 1],),
+        };
+      },),
   },);
-  /**
-   The preferred finalist; at least two tied, so there is one.
-   */
-  const chosen = nonNullishOrThrow(first,);
+  // No tied candidate drew two ballots: the order would ship a candidate no
+  // judge pair backed, so nothing ships by it and the caller keeps the wording
+  // in place, or raises the absence where there is none.
+  if (chosen === undefined)
+    return { kind: 'unbroken', };
   return {
     kind: 'broken',
     index: chosen.index,
@@ -269,29 +308,37 @@ export function breakRunoffTie<ValueT,>(
 }
 
 /**
- Ships the preferred candidate of a challenge round the judges declined over
- wording that cannot ship (owner, 2026-09-27, "Preference + polish"), with
- the reasons of every written ballot that did not back it as objections,
- which the final polish reads where the round was the consolidation slate's
- (`TranslateStageResult`'s `shippedPastDecline` says which reads them). A
- decision seat's ballot objects to nothing: its reason is a distribution.
+ Ships the preferred of the candidates two or more judges named, in a
+ challenge round the judges declined over wording that cannot ship (owner,
+ 2026-09-27, "Preference + polish", narrowed on 2026-10-25 by "Two judges must
+ name it"), with the reasons of every written ballot that did not back it as
+ objections, which the final polish reads where the round was the
+ consolidation slate's (`TranslateStageResult`'s `shippedPastDecline` says
+ which reads them). A decision seat's ballot objects to nothing: its reason is
+ a distribution. Where no candidate drew two ballots nothing ships past the
+ decline: the wording the archive has stays, with
+ {@link DECLINE_KEEPS_ARCHIVE_FINDING}.
 
  @param outcome - the declined challenge round
 
  @param rotated - candidates in the order the judges saw them
 
  @param keepIncumbent - the stage's record shape, whose slate and counts the
- shipped candidate keeps
+ shipped candidate keeps, and whose text stays where none ships
 
  @param declineFindings - findings the decline reports
 
+ @param declined - the decline in the stage's vocabulary, the decision of a
+ round that keeps the archive wording
+
  @param l - logger of the judging stage
 
- @returns The shipped candidate's record
+ @returns The shipped candidate's record, or the record of the archive
+ wording staying
 
  @example
  ```ts
- return shipPreferredPastDecline({ outcome, rotated, keepIncumbent, declineFindings, l, },);
+ return shipPreferredPastDecline({ outcome, rotated, keepIncumbent, declineFindings, declined, l, },);
  ```
  */
 function shipPreferredPastDecline(
@@ -300,34 +347,62 @@ function shipPreferredPastDecline(
     rotated,
     keepIncumbent,
     declineFindings,
+    declined,
     l,
   }: {
     readonly outcome: Extract<SelectionOutcome<TranslateCandidateValue>, { readonly kind: 'declined'; }>;
     readonly rotated: readonly Candidate<TranslateCandidateValue>[];
     readonly keepIncumbent: Omit<TranslateStageResult, 'decision' | 'findings'>;
     readonly declineFindings: readonly string[];
+    readonly declined: TranslateDecision;
     readonly l: Logger;
   },
 ): TranslateStageResult {
   /**
-   The round's candidates by preference, best first.
+   The preferred of the round's candidates two or more judges named, absent
+   where none drew two ballots.
    */
-  const [first,] = rankedByPreference({
-    finalists: rotated.map(function placed(
-      candidate,
-      position,
-    ): PlacedCandidate<TranslateCandidateValue> {
-      return {
-        index: position + 1,
+  const [chosen,] = rankedByPreference({
+    finalists: rotated
+      .map(function placed(
         candidate,
-      };
-    },),
+        position,
+      ): PlacedCandidate<TranslateCandidateValue> {
+        return {
+          index: position + 1,
+          candidate,
+        };
+      },)
+      .filter(function namedByTwoJudges(finalist,): boolean {
+        return outcome.perCandidate
+          .some(function drewTwoBallots(drawn,): boolean {
+            return (drawn.index === finalist.index) && (drawn.ballots >= MIN_SELECTION_BALLOTS);
+          },);
+      },),
   },);
-  /**
-   The preferred candidate. The judge stage returns before judging an empty
-   slate (`translate-judge.ts`), so a declined round offered at least one.
-   */
-  const chosen = nonNullishOrThrow(first,);
+  if (chosen === undefined) {
+    l.warn(
+      `translate stage: challenge round declined (${outcome.disposition}) over wording that cannot ship, and no `
+        + `candidate drew ${String(MIN_SELECTION_BALLOTS,)} ${
+          wordForCount({
+            count: MIN_SELECTION_BALLOTS,
+            one: 'ballot',
+            many: 'ballots',
+          },)
+        }; nothing ships past the decline and the wording the archive has stays`,
+    );
+    return {
+      ...keepIncumbent,
+      decision: declined,
+      tally: outcome.tally,
+      ballots: outcome.ballots,
+      findings: [
+        ...declineFindings,
+        DECLINE_KEEPS_ARCHIVE_FINDING,
+      ],
+      perCandidate: outcome.perCandidate,
+    };
+  }
   /**
    What the written ballots that did not back the shipped candidate said,
    once each.
@@ -404,10 +479,12 @@ function shipPreferredPastDecline(
 
 /**
  What a declined round ships where the slice has no incumbent: the preferred
- finalist where a challenge round tied across every candidate; the preferred
- candidate where the passage has wording that cannot ship and the challenge
- round leaves nothing to narrow (owner, 2026-09-27); else the absence error
- the retry reads.
+ finalist two or more judges named where a challenge round tied across every
+ candidate; the preferred
+ of the candidates two or more judges named where the passage has wording that
+ cannot ship and the challenge round leaves nothing to narrow (owner,
+ 2026-09-27, narrowed on 2026-10-25), or the wording the archive has where no
+ candidate drew two ballots; else the absence error the retry reads.
 
  @param challenged - whether this round challenges an earlier decline
 
@@ -427,9 +504,10 @@ function shipPreferredPastDecline(
  @param basis - why those are the finalists, given with them
 
  @param shipPastDecline - whether a challenge round declined with nothing
- left to narrow ships its preferred candidate: the passage has wording that
- cannot ship, as opposed to none at all, and the caller has no further round
- to ask
+ left to narrow ships its preferred candidate among those two judges named,
+ or keeps the archive wording where none drew two ballots: the passage has
+ wording that cannot ship, as opposed to none at all, and the caller has no
+ further round to ask
 
  @param l - logger of the judging stage
 
@@ -496,6 +574,7 @@ export function settleAbsentDecline(
       rotated,
       keepIncumbent,
       declineFindings,
+      declined,
       l,
     },);
   }

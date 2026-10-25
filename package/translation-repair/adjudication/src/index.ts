@@ -172,7 +172,9 @@ export {
   declineConsequenceFor,
   KEEPS_TRUSTED_TEXT,
   LEAVES_PASSAGE_UNTRANSLATED,
-  SHIPS_BY_PREFERENCE,
+  SETTLES_NOTHING_AND_ASKS_AGAIN,
+  SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
+  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from './select-decline-consequence.ts';
 export { declaredSubjectNames, } from './subject-names.ts';
 export {
@@ -183,6 +185,7 @@ export {
 } from './tally-resolution.ts';
 export {
   type AdjudicationResult,
+  MIN_PANEL_BALLOTS,
   tallyVotes,
 } from './tally-votes.ts';
 export {

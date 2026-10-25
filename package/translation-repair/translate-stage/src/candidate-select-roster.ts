@@ -13,7 +13,7 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  Refuses a judge listed twice, before any model call.
 
  A repeated id is one model given two exchanges and two ballots, which is
- enough to reach the minimum weight alone: exactly the single-model
+ enough to count as two answering judges alone: exactly the single-model
  control the ensemble exists to prevent, arriving as a roster typo rather
  than as a policy change.
 
@@ -60,7 +60,7 @@ export function assertDistinctJudges<ValueT,>(
     },),
     judgeModelIds: judges,
     role: 'producer',
-    fault: 'a judge is listed more than once, which would let one model reach the minimum weight alone',
+    fault: 'a judge is listed more than once, which would let one model count as two answering judges',
   },);
 }
 

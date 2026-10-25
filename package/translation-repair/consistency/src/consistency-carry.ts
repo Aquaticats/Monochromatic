@@ -3,6 +3,7 @@ import {
   type ConsistencyChoiceVoice,
   runOffChoiceFinalistsOf,
 } from './consistency-choice.ts';
+import { decidingQuorumOf, } from './consistency-deciding-quorum.ts';
 import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { wordingKey, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
@@ -226,7 +227,8 @@ export type CarryChoice =
 
  @param labels - labels the sheet showed
 
- @param quorum - voices the gather closed on, which the usable choices must reach
+ @param quorum - voices the gather closed on, which the usable choices must reach and never fewer than two (a quorum of
+ one is raised to two)
 
  @returns How many choices counted and what they decided
 
@@ -259,7 +261,8 @@ export function carryChoiceOf(
     voices,
     labels,
   },);
-  if ((usable === 0) || (usable < quorum)) {
+  // A quorum of one (a seated bench of one or two seats) is raised to two: one judge alone never decides.
+  if ((usable === 0) || (usable < decidingQuorumOf({ quorum, },))) {
     return {
       usable,
       choice: {

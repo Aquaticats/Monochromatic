@@ -143,15 +143,17 @@ export type TranslateStageResult = {
   /**
    Why those are the finalists, present exactly when `runoffFinalists` is:
    the candidates tied at the top, or the leader and its runner-up where one
-   candidate led and fell short of the minimum weight (ledger B806).
+   candidate led and one judge alone named it (ledger B806).
    */
   readonly runoffBasis?: RunoffBasis;
 
   /**
    How a slate declined in its challenge round shipped anyway over wording
    that cannot ship (owner, 2026-09-27, "Preference + polish"): the
-   preference that chose the candidate, and the reasons of the ballots that
-   did not back it. Absent wherever the judges chose or a tie was broken.
+   preference that chose among the candidates two or more judges named (owner,
+   2026-10-25, "Two judges must name it"), and the reasons of the ballots that
+   did not back it. Absent wherever the judges chose, a tie was broken, or no
+   candidate drew two ballots and the archive wording stayed.
 
    READ ONLY FOR THE CONSOLIDATION SLATE, whose reasons the final polish
    checks against the ORIGINAL (`consolidate-settle-gate.ts`). The translate

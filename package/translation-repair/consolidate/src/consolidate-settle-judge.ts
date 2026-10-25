@@ -28,16 +28,18 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
 /**
  Raised when the slate judging raises an absence over a withheld standing,
- whose slate the judging was told ships by preference.
+ whose slate the judging was told ships a candidate two judges named or keeps
+ the archive wording.
 
  A FAULT IN THIS CODE rather than a fact about any text (ledger B51, as
  ledger B43 set out for the floor): a withheld slate reaches the judges only
  with a candidate on it, since the settlement keeps the archive first where
  no proposal survived the floor and no lane text is offered, and the lane
- offer drops blank texts; and on a slate with a candidate the judging ships
- its preference past every decline (owner, 2026-09-27, "Preference +
- polish"). An absence here means one of those rules changed without the
- other.
+ offer drops blank texts; and on a slate with a candidate the judging returns
+ a decision past every decline, the candidate two or more judges named or the
+ archive wording staying where none drew two ballots (owner, 2026-09-27,
+ "Preference + polish", narrowed on 2026-10-25 by "Two judges must name it").
+ An absence here means one of those rules changed without the other.
 
  @example
  ```ts
@@ -78,8 +80,9 @@ export class WithheldSlateAbsenceError extends Error {
     },
   ) {
     super(
-      'the slate judging raised an absence over a withheld standing, whose slate ships by preference, '
-        + 'so the settlement and the judging disagree about what a withheld slate can reach',
+      'the slate judging raised an absence over a withheld standing, whose slate ships a candidate two judges '
+        + 'named or keeps the archive wording, so the settlement and the judging disagree about what a withheld '
+        + 'slate can reach',
       { cause, },
     );
     this.name = 'WithheldSlateAbsenceError';
@@ -238,10 +241,12 @@ async function judgeSingleRoundOverStanding(
  A WITHHELD SLATE IS ALWAYS DECIDED (ledger B51). It used to return the
  absence the judging raised over a withheld standing, which the settlement
  answered by keeping the archive (owner, 2026-09-27, "Keep archive, ship");
- since the judging ships its preference past every decline over a withheld
- standing, and the settlement keeps the archive before judging a slate with
- nothing on it, no judging reaches that absence, and it is now the fault
- `WithheldSlateAbsenceError` names.
+ since the judging returns a decision past every decline over a withheld
+ standing (a candidate two judges named, else the archive wording staying,
+ which the settlement answers by keeping the archive), and the settlement
+ keeps the archive before judging a slate with nothing on it, no judging
+ reaches that absence, and it is now the fault `WithheldSlateAbsenceError`
+ names.
 
  A TIE WITH THE STANDING WITHHELD IS CHALLENGED ONCE (class fifty-five,
  XingZ605 slice 13, 2026-09-18): four valid proposals, the judges 2 to 2
@@ -250,8 +255,9 @@ async function judgeSingleRoundOverStanding(
  declined slate under `decline-challenge` since class fifty-three, with a
  run-off over the candidates the tie backed; the consolidation gets the
  same second round wherever the standing is withheld, and a challenge that
- declines with nothing left to narrow ships the judges' preference (owner,
- 2026-09-27, "Preference + polish"). An eligible standing keeps the single
+ declines with nothing left to narrow ships the candidate two or more judges
+ named, and keeps the archive where none did (owner, 2026-09-27, "Preference +
+ polish", narrowed on 2026-10-25 by "Two judges must name it"). An eligible standing keeps the single
  round, because there a decline keeps text the contest already endorsed,
  except where a strict majority of the contest ballots called the archive
  flawed (`runoffOverStanding`, class one hundred six, owner answer
@@ -285,12 +291,6 @@ async function judgeSingleRoundOverStanding(
 
  @param challenged - whether a tie is run off once
 
- @param standingFlawedByMajority - whether a strict majority of the contest
- ballots called the archive flawed; over an eligible standing, a leader that
- at least two ballots named then wins the challenge round although it drew
- less than the minimum weight and no run-off could narrow the question,
- because every cast ballot fell on it (one entry's slice 45, 2026-10-19)
-
  @param signal - cancellation for the whole round
 
  @param perCallTimeoutMs - ceiling on each call
@@ -309,7 +309,7 @@ async function judgeSingleRoundOverStanding(
 
  @example
  ```ts
- const decided = await judgeConsolidationSlate({ client, judgeModelIds, subject, built, survivors, producedFindings, standingEligible, incumbent, identity, evidence, lineStructured, challenged, standingFlawedByMajority, signal, perCallTimeoutMs, l, stageSettings, },);
+ const decided = await judgeConsolidationSlate({ client, judgeModelIds, subject, built, survivors, producedFindings, standingEligible, incumbent, identity, evidence, lineStructured, challenged, signal, perCallTimeoutMs, l, stageSettings, },);
  ```
  */
 export async function judgeConsolidationSlate(
@@ -326,7 +326,6 @@ export async function judgeConsolidationSlate(
     evidence,
     lineStructured,
     challenged,
-    standingFlawedByMajority,
     signal,
     perCallTimeoutMs,
     l,
@@ -351,7 +350,6 @@ export async function judgeConsolidationSlate(
     }>;
     readonly lineStructured: boolean;
     readonly challenged: boolean;
-    readonly standingFlawedByMajority: boolean;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -409,12 +407,10 @@ export async function judgeConsolidationSlate(
     lineStructured,
     // WORDING THAT CANNOT SHIP IS WITHHELD, NOT ABSENT (owner answer
     // 2026-09-27, "Preference + polish"): the judges are told a declined
-    // slate still ships by preference, and a challenge round declined
-    // with nothing left to narrow does, where it stopped the entry.
+    // slate still ships a candidate two judges named, or keeps the archive,
+    // where a challenge round declined with nothing left to narrow stopped
+    // the entry (owner, 2026-09-27 and 2026-10-25).
     withheldStanding: !standingEligible,
-    // A WITHHELD STANDING IS NOT ON THE SLATE, so there is no fallback to
-    // condemn there; its slate ships by preference instead.
-    fallbackCondemned: standingEligible && standingFlawedByMajority,
     signal,
     perCallTimeoutMs,
     l,

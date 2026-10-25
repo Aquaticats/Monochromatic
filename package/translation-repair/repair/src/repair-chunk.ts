@@ -394,8 +394,9 @@ export async function repairChunk(
   /**
    Checker proof and the shadow probe over the patched candidate, on the
    bench as seated at the stage (class one hundred nine); an edit the
-   checkers did not confirm and one voted worse is stripped, and the reduced
-   patch proved once more (ledger L3, the owner's ruling of 2026-09-28).
+   checkers did not confirm and two or more voted worse is stripped, and the
+   reduced patch proved once more (ledger L3, the owner's ruling of
+   2026-09-28, raised from one worse ballot on 2026-10-25).
    */
   const {
     editor: shipped,

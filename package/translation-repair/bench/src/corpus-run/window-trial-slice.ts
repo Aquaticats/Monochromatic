@@ -272,6 +272,11 @@ export async function runSliceArms(
       ...sheetFacts,
       ...((arm === TRIAL_ARMS.wide) ? { neighbouringSourceText, } : {}),
       lineStructured: TRIAL_TREATS_ITS_SLICES_AS_PROSE,
+      // EVERY SEAT, because the report drops a triple whose arm heard fewer judges than it seated and the window
+      // check counts every judge of the first wide arm. The production default asks a window of quorum plus one on
+      // a bench of four since the weight minimum that sized it was removed (2026-10-25); the trial compares arms
+      // on whole panels, as it did when that window fell short and the whole bench was asked.
+      fanOut: 'whole-bench',
       signal,
       perCallTimeoutMs,
       l,

@@ -52,6 +52,28 @@ function sheetNamed({ name, }: { readonly name: string; },): string {
   },)?.text ?? '';
 }
 
+/**
+ The sheets that measure a text against the original, which carry the measuring block of the house policy.
+ */
+const MEASURING_SHEETS: readonly string[] = [
+  'naturalness review',
+  'rendering audit',
+  'resolution',
+  'restoration judge',
+  'introduced defect',
+];
+
+/**
+ The words that open the paragraph of the measuring block that holds the reader-protection sentence.
+ */
+const MEASURING_PARAGRAPH = 'SUPPORTED BY THE ORIGINAL IS NOT ENOUGH TO MAKE SOMETHING MISSING A DEFECT';
+
+/**
+ The reader-protection sentence every measuring sheet carries.
+ */
+const MEASURING_SENTENCE = 'about how a death or an attempt happened, where it happened when the place was the means, '
+  + 'or about a medication';
+
 await describe({
   name: 'the house policy says what the corpus and the owner ask (audit of 2026-09-27)',
   children: [
@@ -128,12 +150,36 @@ await describe({
       },
     },),
     it({
-      name: 'TELLS THE MEASURING SHEETS reader protection covers attempts and a place that was the means',
+      name: 'TELLS EVERY MEASURING SHEET reader protection covers attempts and a place that was the means, and no '
+        + 'other sheet carries the paragraph (re-check 7, nit 4)',
       fn: async () => {
-        expect(sheetNamed({ name: 'resolution', },),).toContain(
-          'about how a death or an attempt happened, where it happened when the place was the means, or about a '
-            + 'medication',
-        );
+        // The five sheets splice MEASUREMENT_POLICY_BLOCK each in its own file, so
+        // a fault planted at one splice leaves the others whole; the case reads all.
+        /**
+         Names of the sheets that carry the paragraph of the measuring block, read from the rendered sheets.
+         */
+        const carrying = renderedSheets()
+          .filter(function carriesParagraph({ text, },): boolean {
+            return text.includes(MEASURING_PARAGRAPH,);
+          },)
+          .map(function nameOf({ name, },): string {
+            return name;
+          },);
+        expect({
+          unlisted: carrying.filter(function isUnlisted(name,): boolean {
+            return !MEASURING_SHEETS.includes(name,);
+          },),
+          missing: MEASURING_SHEETS.filter(function isMissing(name,): boolean {
+            return !carrying.includes(name,);
+          },),
+          lacking: MEASURING_SHEETS.filter(function lacksSentence(name,): boolean {
+            return !sheetNamed({ name, },).includes(MEASURING_SENTENCE,);
+          },),
+        },).toEqual({
+          unlisted: [],
+          missing: [],
+          lacking: [],
+        },);
       },
     },),
     it({

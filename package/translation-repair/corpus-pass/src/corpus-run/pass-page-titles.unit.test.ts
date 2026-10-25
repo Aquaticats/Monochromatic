@@ -40,10 +40,15 @@ import {
   passPageTitles,
 } from '../../dist/final/node/index.mjs';
 import {
+  SEAT_BEDROCK_ONLY_TEXT,
   SEAT_HYPER_ONLY,
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_HYPER_VISION,
   SEAT_OPENROUTER_ONLY,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
@@ -63,6 +68,18 @@ const ROSTER: readonly RosterModelId[] = [
 ];
 
 /**
+ A bench of seven, the size of the real one, whose first two seats are the two-seat roster.
+ */
+const SEVEN_SEATS: readonly RosterModelId[] = [
+  ...ROSTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+  SEAT_HYPER_VISION,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_BEDROCK_ONLY_TEXT,
+];
+
+/**
  Roster a hook hands back after a dry-out, none of it the fixture's own.
  */
 const RESEATED: readonly RosterModelId[] = [
@@ -74,6 +91,11 @@ const RESEATED: readonly RosterModelId[] = [
  Original repeating one title the archive does not pair.
  */
 const REPEATING = '## 猫之歌\n\n小猫唱了《猫之歌》。\n';
+
+/**
+ Original repeating two titles the archive does not pair.
+ */
+const REPEATING_TWO = `${REPEATING}\n## 鱼之舞\n\n小猫跳了《鱼之舞》。\n`;
 
 /**
  Original naming a title once.
@@ -104,9 +126,22 @@ function titleClient(
   {
     asked,
     usable,
+    answering,
+    renderingsBySeat,
   }: {
     readonly asked: RosterModelId[];
     readonly usable: boolean;
+
+    /**
+     The only seats whose replies read, every seat when absent.
+     */
+    readonly answering?: readonly RosterModelId[];
+
+    /**
+     The renderings a seat gives, by title number from one, for a seat that
+     names its own; every other seat renders the first title alike.
+     */
+    readonly renderingsBySeat?: Readonly<Record<string, readonly string[]>>;
   },
 ): ModelClient {
   return {
@@ -116,10 +151,18 @@ function titleClient(
     chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
       asked.push(request.modelId,);
       /**
-       Every seat's reply.
+       This seat's reply: its own renderings where it names them, the one title alike otherwise.
        */
-      const value: unknown = { titles: [{ title: 1, rendering: 'Song of the Cat', },], };
-      return (usable && request.validate(value,))
+      const value: unknown = {
+        titles: (renderingsBySeat?.[request.modelId] ?? ['Song of the Cat',])
+          .map(function titled(
+            rendering,
+            at,
+          ) {
+            return { title: at + 1, rendering, };
+          },),
+      };
+      return (usable && ((answering === undefined) || answering.includes(request.modelId,)) && request.validate(value,))
         ? { kind: 'ok', value, rawText: JSON.stringify(value,), }
         : { kind: 'schema-mismatch', rawText: '{}', detail: 'fixture refuses the sheet', };
     },
@@ -184,11 +227,21 @@ async function lexiconRun(
     usable,
     resumed,
     reseat,
+    answering,
+    renderingsBySeat,
+    roster,
   }: {
     readonly sourceText: string;
     readonly usable: boolean;
     readonly resumed: ReadonlyMap<string, PageTitleLexiconRecord>;
     readonly reseat: boolean;
+    readonly answering?: readonly RosterModelId[];
+    readonly renderingsBySeat?: Readonly<Record<string, readonly string[]>>;
+
+    /**
+     The bench the round starts on, the two-seat roster when absent.
+     */
+    readonly roster?: readonly RosterModelId[];
   },
 ) {
   /**
@@ -207,8 +260,14 @@ async function lexiconRun(
    What the lexicon added.
    */
   const added = await passPageTitles({
-    client: titleClient({ asked, usable, },),
-    modelIds: ROSTER,
+    client: titleClient({
+      asked,
+      usable,
+      // Conditional spread keeps the field absent where every seat answers.
+      ...((answering === undefined) ? {} : { answering, }),
+      ...((renderingsBySeat === undefined) ? {} : { renderingsBySeat, }),
+    },),
+    modelIds: roster ?? ROSTER,
     beforeItem: async (): Promise<BenchSeating> => {
       hook.reads += 1;
       return reseat ? { modelIds: RESEATED, } : await keepBench();
@@ -361,6 +420,187 @@ await describe({
             },);
           },
         },),
+        it({
+          name: 'SETTLES AND STORES NOTHING when one seat of two answered, since one judge alone never decides (the '
+            + 'lead\'s ruling of 2026-10-25): the page keeps its current titles, and a later run with a healthier '
+            + 'bench asks again rather than resuming a thin round',
+          fn: async () => {
+            /**
+             Round where only the first seat's reply read.
+             */
+            const thin = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              answering: [ROSTER[0] ?? SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+            },);
+            expect({
+              askedAny: thin.asked.length > 0,
+              lines: thin.added.lines,
+              stored: thin.persisted.size,
+            },).toEqual({
+              askedAny: true,
+              lines: [],
+              stored: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when both seats answered and split one against one, since no title settled and a '
+            + 'round that leaves a title unsettled is no answer (the lead\'s ruling on re-check 3, Q1): a later run '
+            + 'on a fuller bench asks again instead of resuming the split',
+          fn: async () => {
+            /**
+             Round where the two seats render the one title differently.
+             */
+            const split = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: ['Song of the Cat',],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: ['The Cat Song',],
+              },
+            },);
+            /**
+             The next run, resuming whatever the split round stored.
+             */
+            const next = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: readBack({ persisted: split.persisted, },),
+              reseat: false,
+            },);
+            expect({
+              askedAny: split.asked.length > 0,
+              lines: split.added.lines,
+              stored: split.persisted.size,
+              nextAsksAgain: next.asked.length > 0,
+            },).toEqual({
+              askedAny: true,
+              lines: [],
+              stored: 0,
+              nextAsksAgain: true,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when two seats of seven answered and split one against one (the 2-of-7 round of '
+            + 're-check 3, Q1): no title settled, and the fuller bench the next run may have is asked again',
+          fn: async () => {
+            /**
+             Round on the bench of seven where only the first two seats' replies read, each its own rendering.
+             */
+            const thin = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              roster: SEVEN_SEATS,
+              answering: ROSTER,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: ['Song of the Cat',],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: ['The Cat Song',],
+              },
+            },);
+            /**
+             The next run on the same bench, resuming whatever the thin round stored.
+             */
+            const next = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: readBack({ persisted: thin.persisted, },),
+              reseat: false,
+              roster: SEVEN_SEATS,
+            },);
+            expect({
+              lines: thin.added.lines,
+              stored: thin.persisted.size,
+              nextAsksAgain: next.asked.length > 0,
+            },).toEqual({
+              lines: [],
+              stored: 0,
+              nextAsksAgain: true,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when one title of two settled and the other split, but still carries the settled '
+            + 'title in this run\'s lines: a round is stored only when every title it asked is settled',
+          fn: async () => {
+            /**
+             Round where both seats agree on the first title and split on the second.
+             */
+            const partial = await lexiconRun({
+              sourceText: REPEATING_TWO,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: [
+                  'Song of the Cat',
+                  'The Fish Dance',
+                ],
+              },
+            },);
+            expect({
+              carriesSettled: partial.added.lines.some(function names(line,): boolean {
+                return line.startsWith('- 猫之歌',) && line.includes('"Song of the Cat"',);
+              },),
+              carriesSplit: partial.added.lines.some(function names(line,): boolean {
+                return line.startsWith('- 鱼之舞',);
+              },),
+              stored: partial.persisted.size,
+            },).toEqual({
+              carriesSettled: true,
+              carriesSplit: false,
+              stored: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES THE ROUND when both titles settled on two voices apiece, which is the control for the '
+            + 'cases that expect nothing stored: the assertion has to be reading whether every title settled and not whether the '
+            + 'round heard enough voices',
+          fn: async () => {
+            /**
+             Round where both seats agree on both titles.
+             */
+            const agreed = await lexiconRun({
+              sourceText: REPEATING_TWO,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+              },
+            },);
+            expect({
+              titleLines: agreed.added.lines
+                .filter(function isTitleLine(line,): boolean {
+                  return line.startsWith('- ',);
+                },)
+                .length,
+              stored: agreed.persisted.size,
+            },).toEqual({
+              titleLines: 2,
+              stored: 1,
+            },);
+          },
+        },),
       ],
     },),
 
@@ -489,15 +729,19 @@ await describe({
           },
         },),
         it({
-          name: 'STANDS AT VERSION SIX since the sheet of the page title reading carries the house rule that quoted words keep '
+          name: 'STANDS AT VERSION NINE since the sheet of the page title reading carries the house rule that quoted words keep '
             + 'the speaker\'s tense (n161), which a reading cached under version one was written without, says so in the '
             + 'very sentence that puts the life in the past (n166), which a reading cached under version two was written without, '
             + 'and protects readers only from the account of how a death or an attempt happened (the XingZ6015 read), which a '
             + 'reading cached under version three was written without, and asks for the rendering before the title '
             + '(ledger B762), which a reading cached under version four was written without, and closes its rounds under the '
-            + 'last-seat grace of 2026-10-22 (ledger B816), which a reading cached under version five was decided without',
+            + 'last-seat grace of 2026-10-22 (ledger B816), which a reading cached under version five was decided without, and settles no title on fewer than two heard voices '
+            + '(the lead\'s ruling of 2026-10-25), which a reading cached under version six was decided without, and '
+            + 'settles a title only on a rendering two voices gave (re-check 2, finding F1), which a reading cached under '
+            + 'version seven was decided without, and stores a round only when every title it asked is settled (re-check 3, '
+            + 'question Q1), which a round kept under version eight was stored without',
           fn: async () => {
-            expect(PAGE_TITLE_CACHE_VERSION,).toBe(6,);
+            expect(PAGE_TITLE_CACHE_VERSION,).toBe(9,);
           },
         },),
         it({

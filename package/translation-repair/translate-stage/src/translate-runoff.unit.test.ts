@@ -31,6 +31,7 @@ import {
   produceTranslateSlate,
   type TranslateStageResult,
 } from '../dist/final/node/index.mjs';
+import { TranslateAbsenceError, } from '@monochromatic-dev/translation-repair-translate-floor';
 import { candidateCarrying, } from '@monochromatic-dev/translation-repair-test-fixture/ts/translate-ballot.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
@@ -85,7 +86,7 @@ const RENDERINGS: readonly string[] = [
 
 /**
  Needle each judge looks for in a split round: two candidates named once
- each and one judge declining, which no candidate can win at weight two.
+ each and one judge declining, which no candidate can win with two ballots.
  */
 const FIRST_ROUND_NEEDLES: Readonly<Record<string, string>> = {
   'hf:cat/Judge-A': 'dozes',
@@ -328,14 +329,23 @@ await describe({
     },),
 
     it({
-      name: 'SHIPS a finalist by slate order when the run-off ties across both finalists, carrying the run-off '
-        + 'finding (class one hundred seventy-four: a tie between valid finalists is a failure to rank, not a '
-        + 'rejection)',
+      name: 'RAISES the absence, shipping no finalist by slate order, when the run-off ties across both finalists '
+        + 'one ballot each (class one hundred seventy-four, settled by "Two judges must name it": no judge pair '
+        + 'backed either finalist, so the order ships neither)',
       fn: async () => {
-        const { result, } = await judgedUnder({ secondRound: 'split', },);
-        expect(result.origin,).toBe('fresh',);
-        expect(result.findings.includes(RUNOFF_FINDING,),).toBe(true,);
-        expect(result.findings.includes('translate-runoff-tie-broken (slate order)',),).toBe(true,);
+        /**
+         What the retry raised, if anything.
+         */
+        const raised = await (async function attempt(): Promise<unknown> {
+          try {
+            await judgedUnder({ secondRound: 'split', },);
+            return 'settled';
+          }
+          catch (error) {
+            return error;
+          }
+        })();
+        expect(raised,).toBeInstanceOf(TranslateAbsenceError,);
       },
     },),
   ],

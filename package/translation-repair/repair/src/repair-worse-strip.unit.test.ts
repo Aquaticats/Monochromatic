@@ -5,9 +5,14 @@
  recheck"): a selected repair patch carried edits whose issues the checkers
  did not confirm, 18 of 51 TianqiChen666 patches; TianqiChen66616 slice 3
  shipped such an edit that one checker had voted worse. An edit whose issue
- the checkers did not confirm and which drew at least one worse ballot is
- stripped, and the reduced patch faces one more checker round before it
- ships; an unconfirmed edit with no worse ballot stays.
+ the checkers did not confirm and which drew a worse verdict is stripped, and
+ the reduced patch faces one more checker round before it ships.
+
+ TWO BALLOTS FOR UNDO TOO (owner, 2026-10-25, "Two ballots for undo too"): the
+ worse verdict that strips is the one that sets `regressed` on the issue's
+ tally, two or more ballots naming worse with the worse weight above the
+ fixed and not-fixed weight together. One worse ballot strips nothing,
+ whatever sits beside it; an unconfirmed edit without that verdict stays.
 
  Cat-themed invention throughout; no corpus content appears here.
 
@@ -271,8 +276,8 @@ await describe({
   name: 'stripping worse-voted edits from a winning patch (ledger L3)',
   children: [
     it({
-      name: 'STRIPS AN UNCONFIRMED EDIT A CHECKER VOTED WORSE and rechecks the reduced patch, which ships the '
-        + 'confirmed repair alone',
+      name: 'STRIPS AN UNCONFIRMED EDIT TWO CHECKERS VOTED WORSE against one fixed and rechecks the reduced '
+        + 'patch, which ships the confirmed repair alone',
       fn: async () => {
         /**
          Checker calls, counted.
@@ -282,7 +287,7 @@ await describe({
           client: scriptedClient({
             flyVerdicts: [
               'fixed',
-              'not-fixed',
+              'worse',
               'worse',
             ],
             resolutionCalls,
@@ -318,6 +323,42 @@ await describe({
               'fixed',
               'not-fixed',
               'not-fixed',
+            ],
+            resolutionCalls,
+          },),
+          sourceText: SOURCE_TEXT,
+          targetText: TARGET_TEXT,
+          models: MODELS,
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        expect({
+          sunRepaired: result.repairedText.includes(SUN_REPAIR,),
+          flyKept: result.repairedText.includes(FLY_REPAIR,),
+          checkerRounds: resolutionCalls.count / CHECKERS.length,
+        },).toEqual({
+          sunRepaired: true,
+          flyKept: true,
+          checkerRounds: 1,
+        },);
+      },
+    },),
+    it({
+      name: 'KEEPS AN UNCONFIRMED EDIT ONE CHECKER VOTED WORSE beside one fixed and one not-fixed, on one checker '
+        + 'round: one worse ballot is one voice, and one voice strips nothing (owner, 2026-10-25, '
+        + '"Two ballots for undo too")',
+      fn: async () => {
+        /**
+         Checker calls, counted.
+         */
+        const resolutionCalls = { count: 0, };
+        const result = await repairTranslation({
+          client: scriptedClient({
+            flyVerdicts: [
+              'fixed',
+              'not-fixed',
+              'worse',
             ],
             resolutionCalls,
           },),
