@@ -26,7 +26,10 @@ import {
   LEAVES_PASSAGE_UNTRANSLATED,
   SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '../dist/final/node/index.mjs';
-import { unmetDeclineClauses, } from './decline-consequence-clauses.test-fixture.ts';
+import {
+  unmetClausesOf,
+  unmetDeclineClauses,
+} from './decline-consequence-clauses.test-fixture.ts';
 
 await describe({
   name: declineConsequenceFor.name,
@@ -126,13 +129,85 @@ await describe({
     },),
 
     it({
+      name: 'TELLS THE FIRST ASK OF A PAIR THAT IT SETTLES NOTHING and the same judges are asked again, and promises '
+        + 'it neither a ship nor a stay: a decline in that round does not end in either (re-check 4, F1)',
+      fn: async () => {
+        /**
+         What a judge of the first ask over withheld wording reads.
+         */
+        const sentence = declineConsequenceFor({
+          incumbentKind: 'absent',
+          withheldStanding: true,
+          responsibility: 'initial-selection',
+          shipPastDecline: true,
+        },);
+        expect(unmetClausesOf({ text: sentence, mode: 'asked-again', },),).toEqual([],);
+        expect(unmetClausesOf({ text: sentence, mode: 'ships', },).length,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
+      name: 'TELLS A CHALLENGE WHOSE CALLER DEFERS THAT NOTHING SHIPS BUT A LEVEL TIE two or more judges named, and '
+        + 'that the passage goes back for new proposals: the translate lane\'s first call re-produces instead of '
+        + 'shipping or keeping the wording (re-check 4, F1)',
+      fn: async () => {
+        /**
+         What a judge of the challenge of the translate lane's first call reads.
+         */
+        const sentence = declineConsequenceFor({
+          incumbentKind: 'absent',
+          withheldStanding: true,
+          responsibility: 'decline-challenge',
+          shipPastDecline: false,
+        },);
+        expect(unmetClausesOf({ text: sentence, mode: 'defers', },),).toEqual([],);
+        expect(unmetClausesOf({ text: sentence, mode: 'ships', },).length,).toBeGreaterThan(0,);
+        expect(unmetClausesOf({ text: sentence, mode: 'asked-again', },).length,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
+      name: 'TELLS A CHALLENGE WHOSE CALLER SHIPS PAST A DECLINE the two outcomes, the control for the other two '
+        + 'rounds: the sentence of the challenge round is the one that ships or stays (re-check 4, F1)',
+      fn: async () => {
+        /**
+         What a judge of the challenge that ships past a decline reads.
+         */
+        const sentence = declineConsequenceFor({
+          incumbentKind: 'absent',
+          withheldStanding: true,
+          responsibility: 'decline-challenge',
+          shipPastDecline: true,
+        },);
+        expect(unmetClausesOf({ text: sentence, mode: 'ships', },),).toEqual([],);
+        expect(unmetClausesOf({ text: sentence, mode: 'asked-again', },).length,).toBeGreaterThan(0,);
+        expect(unmetClausesOf({ text: sentence, mode: 'defers', },).length,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
       name: 'GIVES EACH CALLER ITS OWN CONSEQUENCE: trusted text kept where there is an incumbent, the two-judge rule '
         + 'over withheld wording, and an untranslated passage where nothing ever existed',
       fn: async () => {
         expect([
-          declineConsequenceFor({ incumbentKind: 'present', withheldStanding: false, },),
-          declineConsequenceFor({ incumbentKind: 'absent', withheldStanding: true, },),
-          declineConsequenceFor({ incumbentKind: 'absent', withheldStanding: false, },),
+          declineConsequenceFor({
+            incumbentKind: 'present',
+            withheldStanding: false,
+            responsibility: 'initial-selection',
+            shipPastDecline: false,
+          },),
+          declineConsequenceFor({
+            incumbentKind: 'absent',
+            withheldStanding: true,
+            responsibility: 'decline-challenge',
+            shipPastDecline: true,
+          },),
+          declineConsequenceFor({
+            incumbentKind: 'absent',
+            withheldStanding: false,
+            responsibility: 'decline-challenge',
+            shipPastDecline: true,
+          },),
         ],).toEqual([
           KEEPS_TRUSTED_TEXT,
           SHIPS_WHAT_TWO_JUDGES_NAMED,

@@ -47,7 +47,7 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
-import { unmetDeclineClauses, } from '@monochromatic-dev/translation-repair-adjudication/ts/decline-consequence-clauses.test-fixture.ts';
+import { unmetClausesOf, } from '@monochromatic-dev/translation-repair-adjudication/ts/decline-consequence-clauses.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 
@@ -410,10 +410,13 @@ await describe({
         },);
         expect(result.text === REPAIR_LANE.text,).toBe(false,);
         expect(judgeSheets.length,).toBeGreaterThan(0,);
-        expect(judgeSheets.every(function toldTwoJudges(sheet,): boolean {
-          return (unmetDeclineClauses(sheet,).length === 0)
-            && (!sheet.includes('there is no existing translation of this passage',));
+        expect(judgeSheets.every(function toldNoUntranslatedPassage(sheet,): boolean {
+          return !sheet.includes('there is no existing translation of this passage',);
         },),).toBe(true,);
+        // THE FIRST ASK OF THE PAIR SETTLES NOTHING and the same judges are asked again; the challenge that follows is
+        // the round that ships what two judges named or keeps the archive (re-check 4, F1).
+        expect(unmetClausesOf({ text: judgeSheets[0] ?? '', mode: 'asked-again', },),).toEqual([],);
+        expect(unmetClausesOf({ text: judgeSheets.at(-1,) ?? '', mode: 'ships', },),).toEqual([],);
       },
     },),
     it({
@@ -491,6 +494,53 @@ await describe({
           origin: 'incumbent',
           kept: true,
         },);
+      },
+    },),
+    it({
+      name: 'TELLS EACH ROUND OF THE TRANSLATE LANE ITS OWN SENTENCE over wording the floor refuses: the first ask '
+        + 'of each call settles nothing, the challenge of the first call ships nothing but a level tie and sends the '
+        + 'passage back for new proposals, and only the challenge of the follow-up call ships or keeps (re-check 4, F1)',
+      fn: async () => {
+        /**
+         Every judge sheet the lane sent, in the order asked.
+         */
+        const judgeSheets: string[] = [];
+        await runTranslateStage({
+          client: rejectingClient({
+            judgeSheets,
+            refinerSheets: [],
+          },),
+          translatorModelIds: TRANSLATORS,
+          judgeModelIds: JUDGES,
+          sourceText: SOURCE,
+          // The original left in Han, which the untranslated floor refuses.
+          incumbentText: SOURCE,
+          incumbentKind: 'present',
+          lineStructured: false,
+          signal: AbortSignal.timeout(HANG_STOP_MS,),
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        /**
+         The round each sheet is told in, one entry per run of sheets that name the same one.
+         */
+        const rounds = judgeSheets
+          .map(function roundOf(sheet,): string {
+            return (['asked-again', 'ships', 'defers',] as const)
+              .filter(function isTold(mode,): boolean {
+                return unmetClausesOf({ text: sheet, mode, },).length === 0;
+              },)
+              .join('+',) || 'none';
+          },)
+          .filter(function startsRun(
+            round,
+            at,
+            all,
+          ): boolean {
+            return round !== all[at - 1];
+          },);
+        expect(rounds,).toEqual(['asked-again', 'defers', 'asked-again', 'ships',],);
       },
     },),
     it({
