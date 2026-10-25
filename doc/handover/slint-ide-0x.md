@@ -5107,6 +5107,78 @@ subsections "The first far scroll of a fresh session with no character under the
   OCR of the gutter,
   CPU-limited sessions) was kept only in the session scratch and removed.
 
+## A press during a far wheel jump, read from the log, 2026-10-25 (branch worktree-agent-a697d97d4b2ed8c01)
+
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A press during a far wheel jump";
+`package/desktop-app/ide/README.md`,
+subsections "Which row a press names" and "The log of a press".
+
+- Question:
+  the check "a drag that starts during the hold or the ease starts the selection on the row drawn under the pointer"
+  could not be classified in about half of 20 trials on `b951a5d005` at load 22 to 39.
+  Was it the recorder and the load?
+- Instrument (new):
+  the press,
+  the first drag move,
+  the later moves,
+  and the release (a new `pointer-release` callback) write one debug record each,
+  with the log's wall-clock stamp,
+  `y`,
+  `x`,
+  `view_y`,
+  `offset`,
+  `drawn_offset`,
+  `shown_offset`,
+  `held`,
+  `row_y`,
+  `line`,
+  `line_number` and `column`
+  (`src/native/pointer_log.rs`).
+  With the existing `the frame's view real= drawn= held=` records the drawn row of a press is read from the log alone.
+- Answer, 580 trials,
+  three sessions at a time,
+  load 7 to 16,
+  300 notches,
+  delays 20 to 600 ms,
+  gutter numbers of the screenshot at the press read with `tesseract`:
+  the pointer mapping through `drawn-y` is right for the offsets of the moment (the press's own offsets name its line in every trial without a diagnostic block),
+  and the press is handled a median 110 to 121 ms after it was sent at delays of 20 to 180 ms
+  (1 to 13 ms at 250 and 600),
+  because the window thread draws about 8 frames per second while a far jump runs;
+  the press then maps at the offset of that late moment,
+  199 of 229 presses did not name the last frame's row (median 35 to 77 rows off),
+  and the screen showed the last frame's row in 29 or 30 of 30 at d=50 to 110.
+  The recorder was not the cause;
+  the load is (the earlier 10 of 10 at load 2 to 3 was not rerun).
+- Positive control:
+  a scratch build mapping with the real offset (not committed) gives a `view_y` error in exactly the 8 held presses of 80 trials and no other.
+- Fix (veto-open, one commit to revert):
+  `shown_y` maps the press,
+  the drag,
+  the release and the Ctrl+click through the offset of the latest frame
+  (`GpuTile::shown_offset`).
+  Fix arm:
+  press row = last frame 189 of 190 at d=20 to 180,
+  the one miss a 72 px taller row map;
+  screen = pressed row 29 or 30 of 30 at d=50 to 110 (`new` 0 to 5),
+  but 0 to 2 at d=20,
+  140,
+  150 and 180
+  where the screen shows a frame older than the last one begun
+  (no presentation feedback in the app).
+- Open:
+  why the thread draws only 8 frames per second during a far jump (an 83 ms stretch with no log record after a finished frame);
+  the taller row map (seen again, 1 of 330 sessions);
+  the old binary at low load.
+- Tests and gates:
+  `src/native/pointer_log_tests.rs` (4 tests),
+  7 guard cases `pointer-*` in `bin/inspect-source-guards.ts`.
+- The harness (driver,
+  analysis,
+  OCR) was kept only in the session scratch and removed.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

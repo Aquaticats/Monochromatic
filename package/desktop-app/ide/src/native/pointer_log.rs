@@ -17,7 +17,8 @@ use ide_app::pointer_selection::Granularity;
 /// Why:
 ///  `y` is already in the text space of the drawn rows (`drawn-y` in the markup),
 ///  so it is the pointer's place in the view plus the drawn offset (`view_y + drawn_offset`),
-///  and the line the selection used must be the line drawn there, `y / row height`.
+///  and the line the selection used must be the line drawn there,
+///  `y / row height`.
 ///  The record carries `view_y` (the pointer's distance below the top of the text area),
 ///  both offsets,
 ///  and the line,
@@ -34,11 +35,13 @@ pub(super) struct Pointer<'a> {
     pub(super) window: &'a AppWindow,
     /// The document and row map the point was found in.
     pub(super) current: &'a State,
-    /// The line the point names, counted from 0.
+    /// The line the point names,
+    ///  counted from 0.
     pub(super) line: usize,
     /// The document character offset the point names.
     pub(super) hit: usize,
-    /// Logical pixels from the top of the text, as the markup computed them from the offsets of the moment the
+    /// Logical pixels from the top of the text,
+    ///  as the markup computed them from the offsets of the moment the
     /// event was handled.
     pub(super) y: f32,
     /// The same place as the latest frame drew the rows,

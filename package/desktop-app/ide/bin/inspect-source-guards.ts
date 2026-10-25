@@ -561,7 +561,7 @@ const cases: Guard[] = [
   // Native bindings: key filters, the column reset, caret room, drag selection, and focus stops.
   {
     name: 'alt-is-not-a-caret-key',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        if alt {\n            return;\n        }',
     after: '',
     native: true,
@@ -570,7 +570,7 @@ const cases: Guard[] = [
   },
   {
     name: 'control-vertical-unbound',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '            && !control\n',
     after: '',
     native: true,
@@ -579,7 +579,7 @@ const cases: Guard[] = [
   },
   {
     name: 'horizontal-resets-column',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '            column = None;\n',
     after: '',
     native: true,
@@ -588,7 +588,7 @@ const cases: Guard[] = [
   },
   {
     name: 'selection-collapse-left',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: 'if !shift && start != end && motion == Motion::Left {',
     after: 'if false {',
     native: true,
@@ -597,7 +597,7 @@ const cases: Guard[] = [
   },
   {
     name: 'selection-collapse-right',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '} else if !shift && start != end && motion == Motion::Right {',
     after: '} else if false {',
     native: true,
@@ -606,7 +606,7 @@ const cases: Guard[] = [
   },
   {
     name: 'page-keys-move-view',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '                scrolled = down_pixels;\n',
     after: '',
     native: true,
@@ -624,7 +624,7 @@ const cases: Guard[] = [
   },
   {
     name: 'caret-follow',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        follow(&window, &state, scrolled);',
     after: '        render(&window, &state);',
     native: true,
@@ -1008,7 +1008,7 @@ const cases: Guard[] = [
   // Soft wrap keys and pointer in the window.
   {
     name: 'key-end-follows-rows',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        return Some(Edge::End);\n',
     after: '        return None;\n',
     native: true,
@@ -1017,7 +1017,7 @@ const cases: Guard[] = [
   },
   {
     name: 'page-by-visual-rows',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '(up as isize, down as isize)',
     after: '(up as isize, 1)',
     native: true,
@@ -1026,7 +1026,7 @@ const cases: Guard[] = [
   },
   {
     name: 'word-keys-by-offset',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: 'modified = Some(Motion::WordRight);',
     after: 'modified = Some(Motion::Right);',
     native: true,

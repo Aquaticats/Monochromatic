@@ -96,7 +96,7 @@ fn field(record: &str, name: &str) -> f32 {
 fn record<'a>(lines: &'a [String], message: &str) -> &'a str {
     let found: Vec<&String> = lines
         .iter()
-        .filter(|line| line.contains(&format!("{message} y=")))
+        .filter(|line| return line.contains(&format!("{message} y=")))
         .collect();
     assert_eq!(
         found.len(),
@@ -106,7 +106,8 @@ fn record<'a>(lines: &'a [String], message: &str) -> &'a str {
     return found[0];
 }
 
-/// A reader over a file of `lines` lines, `line N` on line N.
+/// A reader over a file of `lines` lines,
+///  `line N` on line N.
 fn numbered(lines: usize) -> (tempfile::TempDir, Reader) {
     let fixture = tempfile::tempdir().expect("disposable pointer log project");
     let mut text = String::new();
@@ -144,8 +145,11 @@ fn release(window: &AppWindow, position: LogicalPosition) {
         });
 }
 
-/// A press on source row 7 writes a record that names line 8, with the point and the offsets of the view;
-///  the first drag move is the drag start, a later one is not, and the release names the line it went up on.
+/// A press on source row 7 writes a record that names line 8,
+///  with the point and the offsets of the view;
+///  the first drag move is the drag start,
+///  a later one is not,
+///  and the release names the line it went up on.
 #[test]
 fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
     let (_fixture, source) = numbered(200);
@@ -181,7 +185,7 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
     assert_eq!(field(started, "line_number"), 13.0, "{started}");
     let dragged = lines
         .iter()
-        .filter(|line| line.contains("source pointer drag y="))
+        .filter(|line| return line.contains("source pointer drag y="))
         .count();
     assert_eq!(
         dragged, 1,
@@ -192,10 +196,10 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
     assert_eq!(field(released, "line"), 12.0, "{released}");
     // The records come in the order of the events.
     let order = |message: &str| {
-        lines
+        return lines
             .iter()
-            .position(|line| line.contains(&format!("{message} y=")))
-            .expect("record")
+            .position(|line| return line.contains(&format!("{message} y=")))
+            .expect("record");
     };
     assert!(order("source pointer press") < order("source pointer drag start"));
     assert!(order("source pointer drag") < order("source pointer release"));
@@ -316,7 +320,9 @@ fn a_press_names_the_row_of_the_frame_that_was_shown() {
     window.hide().expect("close pointer log window");
 }
 
-/// No record is written, and no point is looked up for one, when the debug level is off.
+/// No record is written,
+///  and no point is looked up for one,
+///  when the debug level is off.
 #[test]
 fn nothing_is_written_when_debug_logging_is_off() {
     let (_fixture, source) = numbered(50);

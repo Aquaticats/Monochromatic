@@ -4281,6 +4281,62 @@ so a selected empty line stays visible.
 Mouse drags never pan the view;
 the wheel and touch scroll it.
 
+#### Which row a press names
+
+A press,
+a drag,
+and a Ctrl+click name the row of the picture the latest frame drew under the pointer.
+The markup hands the handler the pointer's place in the text as the offsets of the moment of the event give it (`drawn-y`),
+and `shown_y` in `src/native/input.rs` moves that place to the offset the latest frame was drawn at
+(`GpuTile::shown_offset`,
+which the frame notifier sets when a frame begins).
+The two offsets differ when the window thread handles the event a frame later than the person made it,
+and during a far wheel jump it does:
+in the measurement of 2026-10-25 an event waited a median of 110 to 120 ms for the thread
+(`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A press during a far wheel jump"),
+and a wheel ease moves the text 200 px per millisecond at its start.
+Before the first frame has begun nothing was shown,
+and the offset of the moment stands.
+Hover is not changed:
+it keeps the pointer's distance from the top of the view (section "Hover").
+
+#### The log of a press
+
+At debug level (`RUST_LOG=warn,monochromatic_ide=debug`) each pointer event writes one record,
+with the wall-clock stamp of the log,
+so the source line a press selected at a moment is read from the log alone.
+`source pointer press`,
+`source pointer drag start` (the first move after a press),
+`source pointer drag` (each later move),
+and `source pointer release` carry:
+`y` and `x` as the handler received them,
+`view_y` (the pointer's distance below the top of the text area,
+`y - drawn_offset`),
+`offset` (the window's real offset),
+`drawn_offset` (the offset the text is drawn at),
+`shown_offset` (the offset of the latest frame;
+absent before the first frame),
+`held` (the two offsets differ),
+`row_y` (the place the line was found for),
+`line` (counted from 0),
+`line_number` (counted from 1,
+as the gutter counts),
+and `column`.
+The press and the drag also carry the unit and the two ends of the selection.
+The frame log line `the frame's view real= drawn= held=` (target `monochromatic_ide::native::frame`)
+carries the offset each frame was drawn at,
+so the line drawn under a pointer at the pixel row `p` of the view in the frame before the press
+is `floor((p + drawn) / 24) + 1` for a text without virtual rows
+(the row map line `row map rebuilt ... blocks=` says whether there are any).
+`pointer_log.rs` builds the fields,
+and the arguments are read only when the level is enabled,
+so a build that does not log pays nothing.
+Verify a press by comparing `line_number` with that formula for the frame stamped before the press,
+and read the gutter of a screenshot to prove the formula against the picture:
+the compositor's screenshot is its last committed frame,
+which can be older than the last frame the log names.
+
 ### Tab stops
 
 A tab ends at the next tab stop.
