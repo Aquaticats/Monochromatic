@@ -588,8 +588,20 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  was made), and the change cannot ride inside it, so the number moves. The translate slice version (32) moves for the
  same sheet; the repair slice (48) and refine (18) versions move for the regressed flag (re-check 3, M1) and not for
  this sentence.
+
+ Version 40 covers the sheet sentence told per round (`adjudication/src/select-decline-consequence.ts`,
+ `declineConsequenceFor`, re-check 4 finding F1): the sentence of version 39 promised the ship or the stay in every
+ round, but over a withheld standing the slate is asked twice, and the first ask settles nothing and asks the same
+ judges again. The first ask now reads `SETTLES_NOTHING_AND_ASKS_AGAIN` and the challenge keeps the sentence of
+ version 39. The rule the code applies is the same; the judges are told it differently, and a stored settlement holds
+ ballots cast under the old sentence. The key hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 39 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The translate slice version (33) moves for the same sheet;
+ the repair slice (49) and refine (19) versions move for the strip and the rollback (owner, 2026-10-25, "Two ballots
+ for undo too") and not for this sentence.
  */
-export const CONSOLIDATE_CACHE_VERSION = 39;
+export const CONSOLIDATE_CACHE_VERSION = 40;
 
 /**
  What a line-structured slice appends to its key material.

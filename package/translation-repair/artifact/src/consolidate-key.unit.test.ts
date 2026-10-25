@@ -77,17 +77,18 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 39: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 40: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
         + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
         + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
         + '(38) and then said that declining does not by itself keep the wording and that a judge\'s own decline names '
-        + 'no candidate (39, re-check 3, M3), so a stored settlement may hold ballots cast under the old sentence, and '
+        + 'no candidate (39, re-check 3, M3) and was then told per round, the first ask settling nothing (40, '
+        + 're-check 4, F1), so a stored settlement may hold ballots cast under the old sentence, and '
         + 'the key hashes the version, the shape of the run and the texts, not the sheet, so only this number '
         + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
         + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(39,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(40,);
       },
     },),
     it({
@@ -455,8 +456,11 @@ await describe({
         // Version 39 (2026-10-25) rewords the sentence the judges read about a
         // declined round over wording that cannot ship (re-check 3, M3), which
         // moved this literal.
+        // Version 40 (2026-10-25) tells the judges that sentence per round, the
+        // first ask of the pair settling nothing (re-check 4, F1), which moved
+        // this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          'eebb28f9829e48f804a93ff20f55025fba6aecee199d11a6e6f974d550bb8562',
+          'a5be335384547c99b0227f0c4fa55bdda9a53ab59ef07eccefe4f60dd07a65c9',
         );
       },
     },),
