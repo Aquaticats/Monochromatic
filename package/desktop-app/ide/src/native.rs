@@ -367,6 +367,9 @@ mod watch_scope_tests;
 ///  faster than polling could.
 #[cfg(test)]
 mod watch_tests;
+/// A wheel turn the toolkit eases over a fixed time,
+///  and the one tile for the place the ease ends at.
+mod wheel;
 /// Hints and message rows on wrapped lines:
 ///  their place above the first visual row,
 ///  their width,
@@ -664,6 +667,8 @@ struct State {
     ///  The wake-up runs the same function as the poll,
     ///  and every poll stops it.
     tile_wake: Timer,
+    /// The wheel turns the window has noted and the ease the last one started.
+    wheel: wheel::Wheel,
     /// The minimap beside the source text:
     /// its size,
     /// worker,

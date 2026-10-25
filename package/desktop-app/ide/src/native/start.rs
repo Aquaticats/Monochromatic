@@ -182,7 +182,7 @@ pub fn run(options: Options) -> anyhow::Result<()> {
     bind_pointer(&window, &state);
     bind_viewport(&window, &state);
     minimap::bind(&window, &state);
-    frame_trace::bind(&window);
+    frame_trace::bind(&window, &state);
     bind_keys(&window, &state);
     // Retain the timer until window shutdown; its Drop also closes and joins the worker.
     let _reload_timer = reload::bind(&window, &state)?;

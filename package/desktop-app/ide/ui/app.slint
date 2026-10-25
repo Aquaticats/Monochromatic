@@ -161,6 +161,8 @@ export component AppWindow inherits Window {
     // native code maps the vertical one to a source line.
     callback definition-at-pointer(float, float);
     callback pointer-moved(float, float);
+    // The source view's own scroll took a wheel turn or a pan; native code reads the wheel's distance it noted.
+    callback source-flicked;
     callback pointer-exited;
     callback language-dismiss;
     callback references-choose(int);
@@ -222,6 +224,22 @@ export component AppWindow inherits Window {
     in property <int> selection-anchor;
     in property <int> selection-head;
     in-out property <length> scroll-y: 0px;
+    // The reach of the displayed tile, in logical pixels from the top of the text: the offsets at which the view's top
+    // edge lies on the tile's first row and its bottom edge on the tile's last. A side of the tile that is the text's
+    // own first or last row has no limit, so it is a huge number there. Native code sets both with the tile.
+    in property <float> hold-top: -10000000;
+    in property <float> hold-bottom: 10000000;
+    // The offset the toolkit's scroll has reached, and the offset the text is drawn at: the same while the displayed tile
+    // holds the view, and the nearest offset the tile does hold while it does not (a wheel ease that has outrun the tile
+    // worker), so the code area shows real rows of the tile and never a blank. Everything that rides with the tile
+    // is moved by the difference.
+    private property <float> real-offset: -scroll.content-y / 1px;
+    private property <float> reach-least: root.hold-top;
+    private property <float> reach-most: root.hold-bottom - scroll.height / 1px;
+    out property <float> drawn-offset: root.reach-most < root.reach-least ? root.real-offset
+        : max(root.reach-least, min(root.reach-most, root.real-offset));
+    private property <length> hold-shift: (root.real-offset - root.drawn-offset) * 1px;
+    out property <bool> held: root.real-offset != root.drawn-offset;
     out property <float> viewport-height: scroll.height / 1px;
     // The text area is what the view leaves beside the gutter and the minimap; every report of the view's size and the
     // wrap width native code derives from it use this one width.
@@ -458,13 +476,14 @@ export component AppWindow inherits Window {
                     accessible-value: self.content-y / 1px;
 
                     // Retain native Flickable physics, including easing for notched wheels.
+                    flicked => { root.source-flicked(); }
                     changed content-y => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
                     changed height => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
                     changed width => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
 
                     for selection in root.source-selections: Rectangle {
                         x: root.gutter-width + selection.x * 1px;
-                        y: selection.y * 1px;
+                        y: selection.y * 1px + root.hold-shift;
                         width: selection.width * 1px;
                         height: selection.height * 1px;
                         background: Palette.selection-background;
@@ -483,7 +502,7 @@ export component AppWindow inherits Window {
                     // Other matches: a translucent fill and a thin boundary, drawn over any selection beneath.
                     for found in root.source-matches: Rectangle {
                         x: root.gutter-width + found.x * 1px - 1px;
-                        y: found.y * 1px + 1px;
+                        y: found.y * 1px + 1px + root.hold-shift;
                         width: found.width * 1px + 2px;
                         height: found.height * 1px - 2px;
                         background: Palette.foreground.with-alpha(0.14);
@@ -495,7 +514,7 @@ export component AppWindow inherits Window {
                     // meet without a gap or an overlap and nothing is resampled.
                     for slice in root.source-slices: Image {
                         x: root.gutter-width;
-                        y: root.image-y * 1px + slice.top * 1phx;
+                        y: root.image-y * 1px + slice.top * 1phx + root.hold-shift;
                         width: root.image-width * 1px;
                         height: slice.height * 1phx;
                         source: slice.image;
@@ -524,7 +543,7 @@ export component AppWindow inherits Window {
                     // diagnostic; a missing entry reads as 0.
                     for top[index] in root.row-tops: Rectangle {
                         x: 0px;
-                        y: top * 1px;
+                        y: top * 1px + root.hold-shift;
                         width: root.gutter-width - root.number-gap;
                         height: root.code-row;
                         number := Text {
@@ -567,7 +586,7 @@ export component AppWindow inherits Window {
                     Rectangle {
                         visible: code-focus.has-focus && root.selection-anchor == root.selection-head;
                         x: root.gutter-width + root.caret-x * 1px;
-                        y: root.caret-y * 1px;
+                        y: root.caret-y * 1px + root.hold-shift;
                         width: 2px;
                         height: root.code-row - 4px;
                         background: Palette.foreground;
@@ -580,17 +599,17 @@ export component AppWindow inherits Window {
                         pointer-event(event) => {
                             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
                                 code-focus.focus();
-                                root.pointer-press(self.mouse-y / 1px,
+                                root.pointer-press((self.mouse-y - root.hold-shift) / 1px,
                                     max(0, (self.mouse-x - root.gutter-width) / 1px),
                                     event.modifiers.shift);
                                 // Ctrl+click asks for the definition of the character under the pointer.
                                 if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt {
-                                    root.definition-at-pointer(self.mouse-y / 1px,
+                                    root.definition-at-pointer((self.mouse-y - root.hold-shift) / 1px,
                                         (self.mouse-x - root.gutter-width) / 1px);
                                 }
                             } else if event.kind == PointerEventKind.move && !self.pressed {
                                 // A resting pointer asks for hover information; x is negative over the line numbers.
-                                root.pointer-moved(self.mouse-y / 1px,
+                                root.pointer-moved((self.mouse-y - root.hold-shift) / 1px,
                                     (self.mouse-x - root.gutter-width) / 1px);
                             }
                         }
@@ -600,7 +619,7 @@ export component AppWindow inherits Window {
                         moved => {
                             // Only a drag with the left button extends; other buttons never started a selection.
                             if !self.pressed { return; }
-                            root.pointer-hit(self.mouse-y / 1px,
+                            root.pointer-hit((self.mouse-y - root.hold-shift) / 1px,
                                 max(0, (self.mouse-x - root.gutter-width) / 1px), true);
                         }
                     }
