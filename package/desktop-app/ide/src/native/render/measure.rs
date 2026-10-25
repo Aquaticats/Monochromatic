@@ -16,6 +16,21 @@ use crate::native::{
 use ide_app::wrap::has_wrap_width;
 
 /// What:
+///  Most rounds of measuring the lines of one tile.
+/// Why:
+///  A round measures the lines the tile asked for covers and the map follows the heights it found, so the tile asked
+///  for next can reach further down the text; each round brings in the lines that tile gained, so the rounds end
+///  when no height changes.
+///  The bound keeps a pathological text from holding the window thread,
+///  and a tile still changing after it is logged at warn level.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ROUNDS = 64;
+/// ```
+const ROUNDS: usize = 64;
+
+/// What:
 ///  What measuring the requested tile found:
 /// the tile that holds only lines whose heights the map has,
 /// the offset the
@@ -77,9 +92,12 @@ pub(super) fn measure_requested(
             complete: true,
         };
     }
-    // Each round can move the view and so the tile; three rounds settle any text whose lines above the view
-    // are measured by the pass already, which is every text but one that was just jumped into.
-    for _ in 0..3 {
+    // What: Each round measures the lines of the tile asked for, and the map follows what the round taught.
+    // Why: Heights the table holds for another width stand inside the tile too, not only above the view. A corrected
+    //      height moves the lines after it, so the tile asked for reaches further down the text, and its new last lines
+    //      still hold the old heights. The rounds go on until one changes nothing: then the table agrees with the
+    //      measurement for every line of the tile that is built next.
+    for round in 0..ROUNDS {
         let found = match allowance.as_deref_mut() {
             Some(spending) => spending.measure(current, factor, requested),
             None => {
@@ -118,11 +136,25 @@ pub(super) fn measure_requested(
             scrolled = Some(moved);
         }
         requested = tile::requested(current);
+        if round + 1 == ROUNDS {
+            tracing::warn!(
+                rounds = ROUNDS,
+                first = requested.first,
+                count = requested.count,
+                "the heights of the tile were still changing after the last round of measuring"
+            );
+        }
     }
     // The tile the last round asked for is built next, so its lines must be paid for too; those the cache holds
-    // at the width cost nothing.
+    // at the width cost nothing, and after a round that changed nothing that is every one of them.
     let paid = match allowance.as_deref_mut() {
-        Some(spending) => spending.measure(current, factor, requested).is_some(),
+        Some(spending) => match spending.measure(current, factor, requested) {
+            Some(measured) => {
+                rows::absorb(current, measured.lines);
+                true
+            }
+            None => false,
+        },
         None => true,
     };
     return Measure {

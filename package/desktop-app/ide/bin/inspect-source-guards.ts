@@ -2556,6 +2556,20 @@ const cases: Guard[] = [
     test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
     failure: 'a tick of a view that stood still started the rest again'
   },
+  {
+    name: 'measure-rounds-capped',
+    file: 'src/native/render/measure.rs',
+    before: 'const ROUNDS: usize = 64;',
+    after: 'const ROUNDS: usize = 3;',
+    also: [{
+      file: 'src/native/render/measure.rs',
+      before: '                rows::absorb(current, measured.lines);\n                true',
+      after: '                let _ = measured;\n                true'
+    }],
+    native: true,
+    test: 'a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines',
+    failure: 'lines of the tile keep a stale height'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env
