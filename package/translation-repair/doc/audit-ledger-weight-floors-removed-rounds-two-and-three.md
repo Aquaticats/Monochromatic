@@ -10,6 +10,8 @@ the owner's answers of 2026-10-25 ("Allow two checkers",
 "Ship the slate's pick (Recommended)"),
 the lead's rulings on the findings of the independent re-checks,
 the cache versions and the replays of `XingZ6021`.
+Round 4 (B917 to B919) is in
+[the weight floors removed, round 4](audit-ledger-weight-floors-removed-round-four.md).
 The rulings are quoted in
 [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md)
 and referenced from
@@ -509,7 +511,8 @@ A tie of two voices apiece or more is still broken by the earliest seat,
 which is a tie of two judges or more.
 `corpus-pass/src/corpus-run/pass-page-titles.ts` needed no change:
 it stores the titles the stage returns.
-`PAGE_TITLE_CACHE_VERSION` is 8 (B912).
+(Round 4 changed that: a round is stored only when every title it asked is settled, B919.)
+`PAGE_TITLE_CACHE_VERSION` is 8 (B912; 9 since B919).
 
 The tests:
 the pins of `page-title-lexicon.unit.test.ts` at the lines of "BREAKS A TIE BY THE EARLIEST SEAT"
@@ -566,3 +569,7 @@ The rendered-sheets fixtures of `repair` import the constant and follow it witho
 By the repository's convention a change to a sheet's wording moves the cache versions of the keys whose records
 hold ballots cast under it,
 so the translate slice version is 31 and the consolidate version is 38 (B912).
+Round 4 reworded the sentence again,
+because "cannot ship unreported" beside "not a quiet keep" and "stays" left a judge able to read its own decline
+as the way to the stay,
+and moved the versions to 32 and 39 (B918).

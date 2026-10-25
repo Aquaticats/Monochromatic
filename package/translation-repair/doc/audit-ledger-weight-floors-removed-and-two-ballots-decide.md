@@ -17,6 +17,8 @@ the lead's rulings on the findings of the independent re-checks,
 the tie of a challenge round across every offered candidate,
 and the page title.
 Notes for round 3 also stand in B902 and B906 of this file.
+Round 4 (B917 to B919) is in
+[the weight floors removed, round 4](audit-ledger-weight-floors-removed-round-four.md).
 The rulings are quoted in
 [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md)
 and referenced from
@@ -64,7 +66,7 @@ a floor on a summed weight is a floor on how many judges must agree dressed as a
 and it fails silently whenever the default weight is one and the bench is short;
 a rule about how many judges decide is written as a count.
 
-## B901: the candidate selection's minimum weight, its scaled short-bench minimum and the exceptions that worked around it
+## B901: the candidate selection's minimum weight, its scaled short-bench minimum and the exceptions around it
 
 Status:
 fixed on 2026-10-25 (UTC),
@@ -509,18 +511,20 @@ Counts the first census omitted (finding F8):
 Single-voice effects that remain,
 accepted (finding F8 of re-check 2),
 each with its reason:
-- `regressed` in `adjudication/src/tally-resolution.ts` keeps no ballot floor:
-  a lone `worse` ballot,
-  where the other checker cast no verdict on the issue,
-  marks a patched candidate regressed
-  (`worse > fixed + notFixed`),
-  and `adjudication/src/select-candidate.ts` then ranks it below a candidate that regressed nothing.
-  Accepted because it only demotes and never ships text,
-  with one checker `worse` against one `fixed` or `notFixed` it ties and does not regress,
-  and the checkers voted `worse` 55 times over the recent runs without `regressed` firing (ledger L1).
-  It is more reachable at two checkers (B907) than at three.
+- `regressed` in `adjudication/src/tally-resolution.ts` was accepted here with no ballot floor,
+  on three reasons:
+  it only demotes and ships no text,
+  one checker `worse` against one `fixed` or `notFixed` ties,
+  and the checkers voted `worse` 55 times without it firing (ledger L1).
+  Re-check 3 showed two of the reasons false:
+  the `fixed` voice may be the text author's own half-weight vote,
+  and the count ranks third in `compareCandidates`,
+  so it can choose which shippable candidate ships.
+  The acceptance is withdrawn.
+  The flag needs two or more ballots naming `worse` (B917).
 - The derivability probe (`repair/src/derivability-probe.ts`) decides a seed on one cast verdict once its quorum is met.
-  Accepted because its verdicts feed the benchmark scorecard only (`repair/src/repair-scorecard.ts`) and no page changes.
+  Accepted because its verdicts feed the benchmark scorecard only
+  (`repair/src/repair-scorecard.ts`) and no page changes.
 - The restoration judge (`repair/src/restoration-judge.ts`) reads its verdict the same way.
   Accepted for the same reason.
 - A `source-defect` vote decides at a share of one third,

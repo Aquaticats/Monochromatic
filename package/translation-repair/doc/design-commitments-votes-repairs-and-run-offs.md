@@ -246,5 +246,12 @@ which lists every file of these commitments.
   that a challenge round tied across every offered candidate ships by the fixed preference
   only among the candidates two or more judges named,
   and otherwise the wording in place stays by the path of the declined round.
+  On the third re-check the lead ruled,
+  by the same rules,
+  that an issue counts as regressed only when two or more checker ballots name `worse`
+  (the count ranks third in the candidate selection, so it can choose which candidate ships),
+  that the sheet sentence about a declined round says declining does not by itself keep the wording
+  and that a judge's own decline names no candidate,
+  and that a page title round is stored only when every title it asked is settled.
   The stage quorum that sizes a round (a majority of the seated bench,
-  two on a short bench) was not changed (ledger B900 to B916).
+  two on a short bench) was not changed (ledger B900 to B919).

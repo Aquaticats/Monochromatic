@@ -591,6 +591,11 @@ named for that subject and listed here.
   and round 3:
   a page title that settles only on a rendering two voices gave (B915)
   and the sheet text about a declined round that no longer contradicts itself (B916).
+- [Audit ledger: the weight floors removed, round 4](audit-ledger-weight-floors-removed-round-four.md):
+  The lead's rulings on the third re-check:
+  a regressed issue that needs two ballots naming `worse` (B917),
+  the sheet sentence about a declined round that says a decline does not by itself keep the wording (B918),
+  and a page title round stored only when every title it asked is settled (B919).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,

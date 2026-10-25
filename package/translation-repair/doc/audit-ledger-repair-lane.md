@@ -36,8 +36,11 @@ one cast ballot resolves nothing (`MIN_RESOLUTION_BALLOTS`,
 `REFINE_CACHE_VERSION` 5),
 and the bench is the first three of `RUN_CHECKER_ORDER` a wet provider serves,
 padded with unserved ranked seats only while fewer than three are served.
-`regressed` keeps no floor:
+`regressed` kept no floor when this was written:
 it only ranks a candidate and never ships text.
+Superseded on 2026-10-25 (B917):
+it ranks third in the candidate selection,
+so it needs two or more ballots naming `worse`.
 
 ## L2: the archive-dispute stand-in is the archive's own wording whenever the repair lost
 
