@@ -20,13 +20,15 @@
 // test: the test needs a larger difference then, and the warning prints both counts.
 
 /**
- The level of the test for one comparison, as a fraction: the chance of a warning when every arm repeats itself alike, over
- all the comparisons the default effort is set to.
+ The level of the warning as a fraction: the most the chance of it is, over all the comparisons the default effort is set to,
+ when every arm repeats itself alike. A test against one other arm is made at this level, and against several, each at this
+ level divided by their number. The warning line prints it.
  */
 export const REPEAT_ALPHA = 0.05;
 
 /**
- The level as an exact fraction of the tables: the denominator of one in twenty.
+ The same level as an exact fraction of the tables, the denominator of one in twenty, which the decision uses so that no float
+ moves it. It and `REPEAT_ALPHA` say one thing twice; a case of the unit test holds them together.
  */
 const REPEAT_ALPHA_DENOMINATOR = 20n;
 
