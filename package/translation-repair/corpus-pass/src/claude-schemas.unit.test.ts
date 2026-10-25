@@ -84,7 +84,10 @@ import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-expor
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
-import { FORWARDER_CASES, } from './claude-schema-forwarder-forms.test-fixture.ts';
+import {
+  FORWARDER_CASES,
+  WRAPPER_THAT_SENDS_CASE,
+} from './claude-schema-forwarder-forms.test-fixture.ts';
 import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts';
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
 import { SENDER_PIN_CASES, } from './claude-schema-sender-pin-forms.test-fixture.ts';
@@ -744,6 +747,7 @@ await describe({
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
+      WRAPPER_THAT_SENDS_CASE,
       ...CONSTANT_PIN_CASES,
       ...SENDER_PIN_CASES,
       ...PINNED_CASES,
@@ -800,6 +804,7 @@ await describe({
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
+      WRAPPER_THAT_SENDS_CASE,
       ...CONSTANT_PIN_CASES,
       ...SENDER_PIN_CASES,
       ...PINNED_CASES,
@@ -1028,6 +1033,17 @@ await describe({
           return [forwarder.forwarder, forwarder,];
         },),);
         expect(found,).toEqual(listed,);
+      },
+    },),
+
+    it({
+      name: 'LISTS NO WRAPPER AS A FORWARDER, since the callers of a wrapper are listed already as the users of a '
+        + 'builder',
+      fn: async () => {
+        expect(forwardersOf({
+          sources: [CONTEST_BUILDER_SOURCE, ...WRAPPER_THAT_SENDS_CASE.files,],
+          notStageSchemas: NOT_STAGE_SCHEMAS,
+        },),).toEqual([],);
       },
     },),
 

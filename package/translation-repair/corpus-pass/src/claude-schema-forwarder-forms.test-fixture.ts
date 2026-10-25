@@ -186,4 +186,40 @@ export const FORWARDER_CASES: readonly ShapeCase[] = [
   },
 ];
 
+/**
+ The case of a wrapper that also hands a sender a builder call made from its own parameter. The callers of a wrapper
+ are listed already, as the users of a builder, so the function is a builder and no forwarder.
+ */
+export const WRAPPER_THAT_SENDS_CASE: ShapeCase = {
+  name: 'LISTS THE FILE THAT CALLS A WRAPPER THAT ALSO HANDS A SENDER A CALL MADE FROM ITS PARAMETER, as the user of a '
+    + 'builder, and the wrapper is no forwarder',
+  files: [
+    SENDER_FILE,
+    {
+      file: 'imaginary/src/wrapper-stage.ts',
+      text: textOf([
+        CONTEST_IMPORT,
+        SENDER_IMPORT,
+        'export async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+        '  await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+        '  return contestResponseFormat(args,);',
+        '}',
+      ],),
+    },
+    {
+      file: 'imaginary/src/wrapper-caller.ts',
+      text: textOf([
+        'import { mk, } from \'./wrapper-stage.ts\';',
+        'export const SENT = mk({ schemaName: \'mine\', verdicts: [], asksArchive: false, },);',
+      ],),
+    },
+  ],
+  found: [
+    'imaginary/src/wrapper-caller.ts',
+    'imaginary/src/wrapper-stage.ts',
+  ],
+  builders: ['mk',],
+  spots: [],
+};
+
 //endregion A function that hands a sender a builder call made from its own parameters
