@@ -1389,6 +1389,26 @@ on a blank line,
 or over the line numbers.
 Resting over no character asks the server nothing.
 
+A resting pointer is a pointer and a view that both stood still for 350 ms.
+The toolkit sends no pointer event for text that scrolls under a still pointer,
+so the request does not name the character found at the last move.
+The pointer's distance from the top of the view is kept (`Spot` in `src/native/language/pointer.rs`),
+a rest that was not asked for yet starts again whenever the drawn offset moves (`Rest::follow`),
+and when the rest is over,
+the character is found again from that distance and the offset that is drawn then
+(`rest` in `src/native/language/rest_step.rs`).
+A request after a wheel turn,
+a jump,
+or rows arriving therefore names the row drawn under the pointer in the frame it is built for,
+or none when the pointer is over no character there.
+Before 2026-10-25 the request named the character under the pointer at its last move.
+On a generated 1,500-line file,
+a pointer that moved onto a word and then saw a wheel turn of 300 notches
+asked about the word it had rested on before the turn,
+with the rows drawn under the pointer far away
+(`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+"A hover request after a far wheel jump").
+
 ### Notes
 
 When an action the user asked for cannot be done,
@@ -2146,9 +2166,12 @@ Two changes since 2026-10-25 remove the blank.
   and the caret.
   The pointer maps through the same difference (`drawn-y` in `ui/app.slint`),
   so a press,
-  a hover,
   a Ctrl+click,
-  and a drag that begins on a held view act on the rows that are drawn.
+  and a drag that begins on a held view act on the rows that are drawn,
+  and so does the point of a pointer move.
+  A hover request is made for the pointer's distance from the top of the view
+  and the offset that is drawn when it is built,
+  not for the character at the move (section "Hover").
   The hold is a presentation only:
   the offset the window reports,
   the document position's viewport line,

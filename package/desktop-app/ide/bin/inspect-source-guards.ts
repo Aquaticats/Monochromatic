@@ -2335,7 +2335,7 @@ const cases: Guard[] = [
   // pointer's place in the view when the rest is over, and a view that is still moving is not a rest.
   {
     name: 'hover-resolve-at-due',
-    file: 'src/native/language/poll.rs',
+    file: 'src/native/language/rest_step.rs',
     before: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + offset, spot.x);',
     after: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + spot.offset, spot.x);',
     native: true,
@@ -2344,7 +2344,7 @@ const cases: Guard[] = [
   },
   {
     name: 'hover-resolve-at-due-far',
-    file: 'src/native/language/poll.rs',
+    file: 'src/native/language/rest_step.rs',
     before: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + offset, spot.x);',
     after: '    let resolved = pointer::character_at(&source.borrow(), spot.below_top + spot.offset, spot.x);',
     native: true,

@@ -91,6 +91,8 @@ mod pointer;
 ///  snapshots,
 ///  and due requests.
 mod poll;
+/// The step that asks for hover information where the pointer has rested.
+mod rest_step;
 /// The popup and the location list:
 ///  showing and dismissing.
 mod surface;
