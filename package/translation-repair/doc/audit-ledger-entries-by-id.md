@@ -439,7 +439,7 @@ which lists every file of this record.
 - [B894 to B899, the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md)
 - [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement][l26]
 - [B899 follow-ups of round 10, the exact repeat test, the high fix rate warning and the runbook][l27]
-- [B899 follow-ups of round 11, the prompt reuse in repeat passes and the spend it booked][l28]
+- [B899 follow-ups of rounds 11 to 15, the prompt reuse, the re-check fixes and the bench outcome][l28]
 - [B920, every DeepSeek call booked at peak rates](audit-ledger-deepseek-off-peak-pricing.md)
 - [B921, a heading and a card paragraph that described a spanning rule the code does not have][l29]
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
