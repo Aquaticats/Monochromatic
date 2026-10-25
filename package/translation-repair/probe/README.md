@@ -397,6 +397,9 @@ and a trial asked again joins the cluster of its entry in the test.
 The read step can also read a second medium arm,
 given as a fourth log between the medium and the low,
 as one more control (it joins the labels the test permutes).
+The bench has run at `85e21653a2`,
+and [its outcome](doc/editor-fidelity-bench-outcome.md) is that no effort was shown better than medium,
+which stays the editor's effort.
 
 ### Decision rule
 
@@ -503,15 +506,6 @@ measured in round 10 by one simulation run of the committed fixture
   0.0430 and 0.0379 in its three contrast cells.
 - The high fix rate warning fires when the default effort cleanly fixes 90 percent or more of the shared units,
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
-  With both warnings,
-  the benches that print neither at true fix rates 0.91,
-  0.92 and 0.93 were 0 of 4000 at 264 units
-  and 1,
-  1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice),
-  and at correlation 0.5 0 of 4000 and 3,
-  0 and 0 of 6000
-  (11 of 80000 in all,
-  four of them at the true rate 0.90).
 
 The simulations behind these figures,
 the false pick bounds and the readings above a true fix rate of 0.9
@@ -794,7 +788,8 @@ which the filter does not read.
 When the line says `(100 percent)`,
 the high arm gave every trial it was asked again the same reading in each pass,
 and the later arms may take one pass,
-which costs a third:
+which costs a third,
+since a repeat that gives the first answer again adds no power:
 `--passes 3 --trials 88` in place of `--passes 3 --trials "$N"` on the `TRIALS=` line of the launch block,
 the first 88 units being the pool once.
 That assumes the later arms repeat themselves as the high arm does,

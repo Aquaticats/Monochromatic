@@ -1,9 +1,13 @@
-# Audit ledger: the editor bench's prompt reuse in repeat passes
+# Audit ledger: the editor bench's prompt reuse, the re-check fixes and the bench outcome
 
-The follow-up of B899 in round 11:
+The follow-ups of B899 in rounds 11 to 15:
 repeat passes of the editor fidelity bench were answered from the prompt reuse layer,
 each reuse was booked at its spend ceiling,
-and the read step scored the reuses as trials.
+and the read step scored the reuses as trials;
+the findings of the re-checks of rounds 12 to 14;
+and,
+in round 15,
+the outcome of the bench itself.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -472,14 +476,19 @@ oldest first:
 - `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`:
   the lines over 120 characters wrapped in the two TypeScript files this round touches.
 
-The commits after those change Markdown only.
-The first of them,
-`88b731cd2a5f321014c12f921fd894596d7816d3`,
-joined short lists onto fewer lines
-to keep the README at its bound,
-and the Markdown lint scan of the source scans fails on a line that holds a comma before its end.
-The next commit puts those lists back and moves the paragraph on the power of one pass against three
-to the simulations doc.
+Four commits change Markdown only:
+
+- `88b731cd2a5f321014c12f921fd894596d7816d3`:
+  joined short lists onto fewer lines
+  to keep the README at its bound,
+  and the Markdown lint scan of the source scans fails on a line that holds a comma before its end.
+- `1ae50a58edbaf09c2d4e73a40d9878c53a0a9f15`:
+  puts those lists back and moves the paragraph on the power of one pass against three
+  to the simulations doc.
+- `e71f5eb30bc8bcb50fa135bd8650a49aa43e8112`:
+  ends the simulations doc with exactly one line feed.
+- `eae31928ff0aff8b0d25c19b21505edfef47d7c2`:
+  records that line feed in this ledger.
 
 - Nit 1:
   the claim that the changed code is not reachable from the entry is withdrawn.
@@ -493,7 +502,11 @@ to the simulations doc.
   one from the source of `85e21653a2ebb055ee807a6edc2fdf1248073abc`
   and one from `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`
   (the source of this round's code,
-  since the commits after it change Markdown only).
+  since `88b731cd2a5f321014c12f921fd894596d7816d3`,
+  `1ae50a58edbaf09c2d4e73a40d9878c53a0a9f15`,
+  `e71f5eb30bc8bcb50fa135bd8650a49aa43e8112`
+  and `eae31928ff0aff8b0d25c19b21505edfef47d7c2`
+  change Markdown only).
   The import closure of the built entry `editor-fidelity-probe.mjs` is nine files in each,
   with the same names,
   and all nine are byte for byte the same.
@@ -530,10 +543,18 @@ to the simulations doc.
   It now writes `unusable plus refused is 3 of an unknown number of units (the log states none)`,
   says nothing when none are unusable or refused,
   and keeps the share rule for a known count.
-  The case that the fix commit of round 13 (`b84403bb13fa1c0de816558491dbafa21f6fa8d1`) came with
+  The case that the red commit of round 13 (`5fa864ffbdfdf99cdaf41747f7b506e1e8d9f12b`) added
   asserts no warning when nothing is unusable or refused,
   and was named for warning of no units;
   it is renamed to what it asserts.
+  The message of `c91ba55fac66b02d5e8c4acbe2d29a2163bcd086` says the fix commit of round 13,
+  `b84403bb13fa1c0de816558491dbafa21f6fa8d1`,
+  added that case,
+  and the round 14 section of this ledger said it came with that commit.
+  Both are wrong:
+  `git log -S` on the test file lists `5fa864ffbdfdf99cdaf41747f7b506e1e8d9f12b`
+  and `c91ba55fac66b02d5e8c4acbe2d29a2163bcd086` only,
+  and `b84403bb13fa1c0de816558491dbafa21f6fa8d1` changed the source file alone.
   The new case failed at its parent after a rebuild (the tests read `dist`),
   with the actual line `is 5 of -1 units, over 10 percent`
   and 2 failing lines (the case and its suite),
@@ -551,7 +572,185 @@ to the simulations doc.
 - Final line feed:
   the push hook reported `final-newline/noncanonical-final-newline` for the simulations doc,
   which ended without a line feed.
-  It ends with exactly one now,
+  It ends with exactly one since `e71f5eb30bc8bcb50fa135bd8650a49aa43e8112`,
   and the README and this ledger were checked and already did.
+
+## Round 15: the findings of re-check 11 and the outcome of the bench
+
+The independent re-check of round 14 (`editor-recheck11.md`) found no major,
+no minor and five nit,
+and each was ruled a fix.
+The bench had finished,
+so this round also records what it found.
+The branch merged `origin/main` at `62bcd1593bea80895a5fdd03d19d30a5cb22e52e`
+in `39e06b9367ca18a929660b6bbbde3fd4f1788d78`,
+with no conflict.
+The commits of this round other than the one that holds this section,
+oldest first:
+
+- `b27c7bb93dc6d450086be48c8942a8058a3b8f0e`:
+  the long lines from `main` wrapped.
+- `18f6a3f7e44ea3831c94aaea195f2d681bd71008`:
+  the `@returns` of `unusableWarning`.
+- `b3d7e293b1f95652e3c6f5b851b75842fd5cf06e`:
+  one clause of the decision record broken after its comma.
+- `2e3a508520060aa38117d7d7e886b765bd4d86b3`:
+  the inline links of `audit-ledger.md` and the retitled index entries.
+
+### The outcome of the bench
+
+The bench ran at `85e21653a2`,
+and the read step over its three logs printed these figures.
+[The outcome file](../probe/doc/editor-fidelity-bench-outcome.md) holds the same figures for a reader of the probe.
+
+- The arms,
+  each over 264 units of 88 trials in 3 passes:
+  - High:
+    clean fix 125 of 264 (insertion 52 of 150,
+    alteration 73 of 114),
+    defect only 133 (insertion 92,
+    alteration 41).
+  - Medium:
+    clean fix 112 of 264 (insertion 42 of 150,
+    alteration 70 of 114),
+    defect only 143 (insertion 99,
+    alteration 44).
+  - Low:
+    clean fix 112 of 264 (insertion 41 of 150,
+    alteration 71 of 114),
+    defect only 144 (insertion 101,
+    alteration 43).
+  - Every clean fix was exact (equivalent 0),
+    and no arm had a unit unusable,
+    refused,
+    thrown or abandoned.
+- Shared units:
+  264 over 53 entries,
+  none left out,
+  none not completed by every arm.
+- High against medium:
+  +4.9 points (95 percent interval +0.7 to +9.8,
+  seeded bootstrap over 53 entries),
+  p 0.0288,
+  shown better at 0.025:
+  no.
+  By kind (secondary,
+  no veto):
+  insertion +6.7 points over 150 units,
+  alteration +2.6 over 114.
+- Low against medium:
+  +0.0 points (interval -2.8 to +2.7),
+  p 0.6016,
+  shown better at 0.025:
+  no.
+  By kind:
+  insertion -0.7 points over 150 units,
+  alteration +0.9 over 114.
+- Repeat agreement,
+  trials that gave the same reading in every pass:
+  high 80 of 88 (91 percent),
+  medium 81 of 88 (92 percent),
+  low 83 of 88 (94 percent).
+  The read step printed no warning line.
+- Spend:
+  high 1.860067 USD,
+  medium 1.634552 USD,
+  low 1.619022 USD,
+  5.113641 USD in all,
+  under the 60 USD allowance (the caps add to 57).
+- Checks:
+  49 pass,
+  0 fail.
+- The verdict line,
+  broken here at its punctuation:
+  > VERDICT medium (none-shown):
+  > no effort was shown better than medium at 0.025,
+  > so the default effort stays;
+  > that does not show the others are as good
+
+What it means:
+medium stays the editor's effort,
+and no code changes.
+The high arm's +4.9 points came with p 0.0288 and missed the level of 0.025,
+so high was not shown better,
+and that does not show it is not better.
+The low arm was not shown better either.
+
+No second medium arm was run.
+The rule places one between the medium arm and the low arm in run order,
+and the low arm had run when the logs were read,
+so a run after the read would have been chosen after seeing the results.
+
+### The five nits
+
+- Nit A:
+  the ledger credited `b84403bb13fa1c0de816558491dbafa21f6fa8d1` with adding the case of round 13.
+  `5fa864ffbdfdf99cdaf41747f7b506e1e8d9f12b` added it,
+  and the section for round 14 now says so.
+  The message of `c91ba55fac66b02d5e8c4acbe2d29a2163bcd086` carries the same slip and stands.
+- Nit B:
+  the section for round 14 named its Markdown commits as "the commits after those" and "the next commit".
+  It now names `88b731cd2a5f321014c12f921fd894596d7816d3`,
+  `1ae50a58edbaf09c2d4e73a40d9878c53a0a9f15`,
+  `e71f5eb30bc8bcb50fa135bd8650a49aa43e8112`
+  and `eae31928ff0aff8b0d25c19b21505edfef47d7c2`.
+- Nit C:
+  the `@returns` of `unusableWarning` carried articles and said what the function returns.
+  It now says why the lines exist,
+  without articles
+  (`18f6a3f7e44ea3831c94aaea195f2d681bd71008`,
+  TSDoc only).
+- Nit D:
+  `1ae50a58edbaf09c2d4e73a40d9878c53a0a9f15` moved the reason for taking one pass to the simulations doc
+  and left the README with the recommendation alone.
+  The README now gives the reason in a clause
+  (a repeat that gives the first answer again adds no power),
+  and still points at the section of the simulations doc that holds the figures.
+- Nit E:
+  the index entries for this file still called it the follow-up of round 11.
+  Both indexes now say it holds rounds 11 to 15
+  (`2e3a508520060aa38117d7d7e886b765bd4d86b3`).
+
+### Room in the README
+
+The README was at its bound of 1000 lines,
+and it needed a pointer to the outcome file.
+The bullet on the high fix rate warning ended with the benches that print neither warning,
+which the simulations doc holds in full in its section on that warning:
+0 of 4000 at 264 units,
+1,
+1 and 2 of 6000 at 150 units,
+0 of 4000 and 3,
+0 and 0 of 6000 at correlation 0.5,
+and 11 of 80000 in all,
+four of them at the true rate 0.90.
+The README dropped that duplicate and keeps the pointer paragraph that names it.
+No line was joined.
+
+### The long lines from main
+
+The DeepSeek work that landed on `main` left lines over 120 characters in three files:
+
+- `doc/decision/translation-repair-direct-providers.md`:
+  4 lines.
+- `package/translation-repair/doc/audit-ledger-entries-by-id.md`:
+  75 lines.
+- `package/translation-repair/doc/audit-ledger.md`:
+  54 lines.
+
+They were wrapped in `b27c7bb93dc6d450086be48c8942a8058a3b8f0e` with no change of wording,
+apart from one sentence that says how the two JSON result lines were broken.
+Of the 133 lines,
+129 were index link lines,
+2 were prose and 2 were JSON.
+That commit turned every long index link into a reference link.
+The source scan of the doc line limit then failed on the index `audit-ledger.md`,
+because it looks for `](` followed by each ledger file's name in that index's text,
+so `2e3a508520060aa38117d7d7e886b765bd4d86b3` gives that file inline links again,
+with the link text broken at a comma or a space and the target kept whole on the last line.
+`audit-ledger-entries-by-id.md` keeps its reference links,
+with the definitions at the end of the file.
+`b3d7e293b1f95652e3c6f5b851b75842fd5cf06e` breaks a clause that `b27c7bb93dc6d450086be48c8942a8058a3b8f0e`
+left running on past a comma in the decision record.
 
 [prevention]: mistake-prevention-spend-guards-and-client-retries.md
