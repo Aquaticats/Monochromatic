@@ -4,8 +4,14 @@ import {
 } from '@monochromatic-dev/module-logger/ts';
 import {
   type ProviderName,
+  type ProviderRecord,
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import {
+  EVERY_PROVIDER_COUNTS,
+  type WritingReach,
+} from './budget-routing.ts';
+import { createGiveUpAside, } from './provider-budget-give-up-aside.ts';
 
 //region Provider budget refusal holds
 // THE HOLDS A REFUSAL SETS ON A PROVIDER, AND THE PROVIDERS AN ENTRY HAS GIVEN UP WAITING FOR, split out of
@@ -15,8 +21,9 @@ import {
 // provider out for the refusal cooldown (`REFUSAL_COOLDOWN_MS`, 300 s), and the seat reader waits that hold out when the
 // provider's return would lift a short bench. XingZ6020 (2026-10-23) seated Synthetic while its meter read "unreadable,
 // treating as spendable": every call was refused at once, each refusal set a fresh 300 s cooldown, and the reader
-// waited it out for every slice, about 25 waits of 240 to 300 s after 00:34 UTC. The meter half was fixed (S1); the loop
-// was not, and any provider that refuses right after a cooldown ran out would cost one full cooldown for every slice.
+// waited it out for every slice: 58 distinct minutes between 00:34 and 06:05 UTC carry a seat-reader wait of 240 to
+// 300 s, and 395 lines record a refusal (B965 has the command). The meter half was fixed (S1); the loop was not, and
+// any provider that refuses right after a cooldown ran out would cost one full cooldown for every slice.
 //
 // THE EVIDENCE THAT THE GUESS WAS WRONG is the budget layer's own: the provider was held out for a cooldown, the hold
 // ended, nothing it served came back after the end, and it refused again. That refusal is the first answer the provider
@@ -37,6 +44,11 @@ import {
 // ONLY A COOLDOWN IS GIVEN UP. A hold that names its own return (a `Retry-After` header, a daily limit in the body, a
 // NeuralWatt day start) and a payment refusal are statements about the provider and keep their handling, so the holds
 // of such a refusal are never marked as cooldowns and a mark never cuts them.
+//
+// A GIVE-UP NEVER ENDS THE RUN (the lead's ruling of 2026-10-25, open to the owner's veto). It holds only while another
+// writing provider reads wet; when the given-up provider is the only one not dry, the give-up is set aside and its
+// cooldown is waited out and the provider asked again, as before the give-up existed (`provider-budget-give-up-aside.ts`).
+// The decision is taken from each meter reading (`noteReading`) and from the holds as they stand.
 
 /**
  The last hold a refusal set on one provider.
@@ -98,8 +110,9 @@ export type RefusalHolds = {
   readonly left: (args: { readonly provider: ProviderName; },) => number;
 
   /**
-   How much of the provider's hold a caller is to wait for: all of it, except a cooldown the entry gave up on, whose end
-   is no return since the provider refused at once after the last one. A hold that names its own return keeps counting.
+   How much of the provider's hold a caller is to wait for: all of it, except a cooldown the entry gave up on while
+   another writing provider reads wet, whose end is no return since the provider refused at once after the last one.
+   A hold that names its own return keeps counting, and so does every hold once the give-up is set aside.
 
    @param provider - provider to check
 
@@ -108,7 +121,8 @@ export type RefusalHolds = {
   readonly waitedLeft: (args: { readonly provider: ProviderName; },) => number;
 
   /**
-   Whether a refusal keeps a provider out of routing: a hold is running, or the entry has given the provider up.
+   Whether a refusal keeps a provider out of routing: a hold is running, or the entry has given the provider up and
+   another writing provider reads wet.
 
    @param provider - provider to check
 
@@ -117,13 +131,23 @@ export type RefusalHolds = {
   readonly keepsOut: (args: { readonly provider: ProviderName; },) => boolean;
 
   /**
-   Whether the entry has given up waiting for a provider's cooldowns.
+   Whether the entry has given up waiting for a provider's cooldowns, whether or not the give-up is set aside.
 
    @param provider - provider to check
 
    @returns Whether it refused right after a cooldown ran out and the entry has not ended since
    */
   readonly givenUp: (args: { readonly provider: ProviderName; },) => boolean;
+
+  /**
+   Records which providers the last meter reading found dry apart from refusal holds and give-ups, and decides again
+   whether the give-ups are set aside.
+
+   @param dry - per provider, whether its meter, a refused credential or a payment refusal keeps it dry
+
+   @mutates refusals - replaces the reading the give-up decision is taken from
+   */
+  readonly noteReading: (args: { readonly dry: ProviderRecord<boolean>; },) => void;
 
   /**
    Records that a provider served a call, which ends the question whether its cooldown was a recovery.
@@ -181,6 +205,9 @@ function neverServed(): number {
 
  @param l - logger the decision to give a provider up, and the end of that decision, are written to
 
+ @param writing - the providers whose wet reading keeps the run going, which decide whether a give-up holds or is set
+ aside (default: every provider counts)
+
  @returns Holds that give no provider up until a refusal right after a cooldown does
 
  @example
@@ -192,9 +219,11 @@ export function createRefusalHolds(
   {
     now,
     l,
+    writing = EVERY_PROVIDER_COUNTS,
   }: {
     readonly now: () => number;
     readonly l: Logger;
+    readonly writing?: WritingReach;
   },
 ): RefusalHolds {
   /**
@@ -243,8 +272,30 @@ export function createRefusalHolds(
     );
   }
 
+  /**
+   The entry the holds are for, worded for a log line.
+
+   @returns "entry" and its name, or "the run" where no entry was named
+   */
+  function entryWords(): string {
+    return (entry.id === undefined) ? 'the run' : `entry ${entry.id}`;
+  }
+
+  /**
+   The decision whether the providers given up are set aside, for want of another writing provider that reads wet.
+   */
+  const aside = createGiveUpAside({
+    writing,
+    given,
+    left,
+    entryWords,
+    l,
+  },);
+
   return {
     left,
+
+    noteReading: aside.noteReading,
 
     hold: function hold(
       {
@@ -292,9 +343,13 @@ export function createRefusalHolds(
       },);
       rl.warn(
         `${provider}: refused again right after its ${String(earlier.holdMs,)}ms refusal cooldown ran out, with `
-          + `nothing served in between; ${(entry.id === undefined) ? 'the run' : `entry ${entry.id}`} `
-          + `stops waiting for ${provider}'s cooldowns and treats it as unreachable until the entry ends`,
+          + `nothing served in between; ${entryWords()} `
+          + `stops waiting for ${provider}'s cooldowns and treats it as unreachable until the entry ends, unless it is `
+          + 'the only writing provider not dry',
       );
+      // THE GIVE-UP IS WEIGHED AT ONCE against the last reading, so a provider given up while it is the only one not
+      // dry is set aside before the next read of the dryness.
+      aside.reconsider();
     },
 
     waitedLeft: function waitedLeft({ provider, },): number {
@@ -302,13 +357,15 @@ export function createRefusalHolds(
        Whether the hold in force is a refusal cooldown.
        */
       const { cooldown, } = lastHold[provider];
-      if (given.has(provider,) && cooldown)
+      if (given.has(provider,)
+        && cooldown
+        && (!aside.isAside()))
         return 0;
       return left({ provider, },);
     },
 
     keepsOut: function keepsOut({ provider, },): boolean {
-      return (left({ provider, },) > 0) || given.has(provider,);
+      return (left({ provider, },) > 0) || (given.has(provider,) && (!aside.isAside()));
     },
 
     givenUp: function givenUp({ provider, },): boolean {
@@ -327,6 +384,7 @@ export function createRefusalHolds(
       entry.id = entryId;
       entry.startedAt = now();
       given.clear();
+      aside.forget();
       if (forgotten.length > 0) {
         tagged({
           tag: beginEntry.name,

@@ -17,7 +17,11 @@ import {
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { ModelClient, } from './chat-contract.ts';
-import type { NeuralWattReturn, } from './budget-routing.ts';
+import {
+  EVERY_PROVIDER_COUNTS,
+  type NeuralWattReturn,
+  type WritingReach,
+} from './budget-routing.ts';
 import {
   NEURALWATT_RETURN_MARGIN_MS,
   type NeuralWattCause,
@@ -32,6 +36,8 @@ import {
   beforeAnyReading,
   createWaitCap,
   HoldBoundError,
+  meterStatesOf,
+  neuralwattReturnOf,
   notHeldOut,
   systemClock,
 } from './provider-budget-defaults.ts';
@@ -326,6 +332,10 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
  credential; the `METERS` line prints such a provider as dry. It changes only the printed word, never the routed view
  or the states the budgets report (default: no provider is held out)
 
+ @param writing - the providers whose wet reading keeps the run going (`WritingReach`), which decide whether an entry's
+ give-up of a provider is set aside: with no other such provider wet, the given-up provider is waited for and asked
+ again, since reading it dry would end the run (default: every provider counts)
+
  @param now - clock, injectable so tests do not wait; `monotonicMs` by
  default, since a hold read on the system clock lasted an hour longer when
  it was set back (ledger B78)
@@ -360,6 +370,7 @@ export function createProviderBudgets(
     rateLimitBackoffMs = RATE_LIMIT_BACKOFF_MS,
     maxHoldMs,
     heldOut = notHeldOut,
+    writing = EVERY_PROVIDER_COUNTS,
     now = monotonicMs,
     wallNow = systemClock,
     returnMarginMs = NEURALWATT_RETURN_MARGIN_MS,
@@ -377,6 +388,7 @@ export function createProviderBudgets(
     readonly rateLimitBackoffMs?: number;
     readonly maxHoldMs: number;
     readonly heldOut?: (provider: ProviderName,) => boolean;
+    readonly writing?: WritingReach;
     readonly now?: () => number;
     readonly wallNow?: () => Date;
     readonly returnMarginMs?: number;
@@ -407,6 +419,7 @@ export function createProviderBudgets(
   const refusals = createRefusalHolds({
     now,
     l,
+    writing,
   },);
 
   /**
@@ -506,6 +519,40 @@ export function createProviderBudgets(
       },
     },);
     /**
+     Whether a refused credential or a payment refusal keeps a provider out, whatever its meter says.
+
+     @param provider - provider to check
+
+     @returns Whether the provider is held out for a reason its meter cannot show
+     */
+    function heldApart(provider: ProviderName,): boolean {
+      return heldOut(provider,) || paidOut({
+        provider,
+        levels: levelsOf,
+      },);
+    }
+    /**
+     Each meter's state, as the reading keeps it.
+     */
+    const states = meterStatesOf({ meters, },);
+    /**
+     What the meters alone say is dry, as the routed view starts from it.
+     */
+    const view = providerRecord({
+      of: function dryOf(provider,): boolean {
+        return routesAsDry({ state: states[provider], },);
+      },
+    },);
+    // THE GIVE-UP DECISION IS TAKEN FROM EVERY READING: which providers the meters, a refused credential or a payment
+    // refusal keep dry, apart from the holds and the give-ups, decides whether a given-up provider is set aside.
+    refusals.noteReading({
+      dry: providerRecord({
+        of: function dryApartFromRefusals(provider,): boolean {
+          return view[provider] || heldApart(provider,);
+        },
+      },),
+    },);
+    /**
      Each provider's state, as `name=state`.
      */
     const stateFields = PROVIDER_ORDER.map(function stateOf(provider,): string {
@@ -527,11 +574,7 @@ export function createProviderBudgets(
       // meter said, because `markRefused` judges a refusal against it (a wet
       // meter makes it a rate limit). `readStates` folds the payment refusal
       // in on the way out and nothing else.
-      if (heldOut(provider,) || refusals.keepsOut({ provider, },)
-        || paidOut({
-          provider,
-          levels: levelsOf,
-        },))
+      if (heldApart(provider,) || refusals.keepsOut({ provider, },))
         return `${provider}=dry`;
       return `${provider}=${meter.state}`;
     },);
@@ -550,24 +593,8 @@ export function createProviderBudgets(
       ...levelFields,
     ].join(' ',)}`,);
     return {
-      view: providerRecord({
-        of: function dryOf(provider,): boolean {
-          /**
-           This provider's meter record.
-           */
-          const meter = meters[provider];
-          return routesAsDry({ state: meter.state, },);
-        },
-      },),
-      states: providerRecord({
-        of: function stateOf(provider,): MeterState {
-          /**
-           This provider's meter record.
-           */
-          const meter = meters[provider];
-          return meter.state;
-        },
-      },),
+      view,
+      states,
       levels: levelsOf,
     };
   }
@@ -649,19 +676,7 @@ export function createProviderBudgets(
 
   return {
     neuralwattReturn: function neuralwattReturn(): NeuralWattReturn {
-      if (neuralwatt === undefined)
-        return { kind: 'off', };
-      // A stub client that carries no anchor decided none.
-      /**
-       What the client has decided, without asking it to decide.
-       */
-      const anchor = neuralwatt.dayAnchor?.() ?? { known: false, };
-      if (!anchor.known)
-        return { kind: 'unanchored', };
-      return {
-        kind: 'at',
-        msOfDay: anchor.msOfDay,
-      };
+      return neuralwattReturnOf((neuralwatt === undefined) ? {} : { neuralwatt, },);
     },
 
     readStates: async function readStates({ signal, },): Promise<ProviderRecord<MeterState>> {
@@ -697,7 +712,8 @@ export function createProviderBudgets(
       } = await currentReading({ signal, },);
 
       // A hold can only keep a provider OUT, never bring one back in. So can the entry's giving a provider up, which
-      // ends with the entry and lets the router and the seat reader move on to the providers that answer.
+      // ends with the entry and lets the router and the seat reader move on to the providers that answer, and which is set
+      // aside while no other writing provider reads wet, so that giving a provider up never leaves every provider dry.
       return providerRecord({
         of: function dryOrHeld(provider,): boolean {
           return view[provider]
@@ -810,7 +826,8 @@ export function createProviderBudgets(
       );
       // A COOLDOWN IS THE HOLD THE LAYER GUESSED ALONE: a meter that did not say wet and a refusal that named no return.
       // A refusal right after one ran out, with nothing served in between, is the answer the wait bought, so the entry
-      // stops waiting for this provider's cooldowns and treats it as unreachable until the entry ends.
+      // stops waiting for this provider's cooldowns and treats it as unreachable until the entry ends, unless no other
+      // writing provider reads wet (`provider-budget-give-up-aside.ts`).
       refusals.hold({
         provider,
         holdMs,

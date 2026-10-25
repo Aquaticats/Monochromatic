@@ -1124,6 +1124,8 @@ export function runClientFrom(
     transport,
     ...((off === undefined) ? {} : { off, }),
     maxHoldMs,
+    // The budgets set an entry's give-up of a provider aside while no other provider that keeps the run going reads wet.
+    writing: RUN_WRITING_PROVIDERS,
     // Conditional spread keeps the hook absent instead of undefined.
     ...((admitClaudeAttempt === undefined) ? {} : { admitClaudeAttempt, }),
   },);

@@ -213,7 +213,7 @@ function rigOn(
     try {
       await reading;
     } catch (error) {
-      endings.push((error instanceof Error) ? error.name : String(error,),);
+      endings.push(Error.isError(error,) ? error.name : String(error,),);
     }
   }
 

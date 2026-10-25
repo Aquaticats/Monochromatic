@@ -15,6 +15,11 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
+import {
+  type ProviderName,
+  type ProviderRecord,
+  providerRecord,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { createRefusalHolds, } from '../dist/final/node/index.mjs';
 
@@ -24,16 +29,49 @@ import { createRefusalHolds, } from '../dist/final/node/index.mjs';
 const COOLDOWN_MS = 300_000;
 
 /**
- Holds on a clock the case moves, and the lines they write.
+ What a meter reading finds when only the named providers read wet.
+
+ @param wet - providers that read wet
+
+ @returns Dryness per provider, dry for every provider not named
+
+ @example
+ ```ts
+ const dry = dryExcept({ wet: ['neuralwatt',], },);
+ ```
+ */
+function dryExcept({ wet, }: { readonly wet: readonly ProviderName[]; },): ProviderRecord<boolean> {
+  return providerRecord({
+    of: function isDry(provider,): boolean {
+      return !wet.includes(provider,);
+    },
+  },);
+}
+
+/**
+ Holds on a clock the case moves, and the lines they write. NeuralWatt reads wet unless the case says otherwise, so a
+ provider given up has a live alternative and the give-up holds.
+
+ @param wet - providers the meter reading found wet (default: NeuralWatt)
+
+ @param writing - the providers whose wet reading keeps the run going (default: every provider)
 
  @returns The holds, the clock that stamps them and the lines written
 
  @example
  ```ts
- const { refusals, clock, lines, } = holdsOnAClock();
+ const { refusals, clock, lines, } = holdsOnAClock({},);
  ```
  */
-function holdsOnAClock(): {
+function holdsOnAClock(
+  {
+    wet = ['neuralwatt',],
+    writing,
+  }: {
+    readonly wet?: readonly ProviderName[];
+    readonly writing?: ProviderRecord<boolean>;
+  },
+): {
   readonly refusals: ReturnType<typeof createRefusalHolds>;
   readonly clock: { now: number; };
   readonly lines: string[];
@@ -46,13 +84,19 @@ function holdsOnAClock(): {
    Lines the holds write.
    */
   const lines: string[] = [];
+  /**
+   The holds under test.
+   */
+  const refusals = createRefusalHolds({
+    now: () => clock.now,
+    l: levelCapturingLogger({ lines, },),
+    ...((writing === undefined) ? {} : { writing, }),
+  },);
+  refusals.noteReading({ dry: dryExcept({ wet, },), },);
   return {
     clock,
     lines,
-    refusals: createRefusalHolds({
-      now: () => clock.now,
-      l: levelCapturingLogger({ lines, },),
-    },),
+    refusals,
   };
 }
 
@@ -63,7 +107,7 @@ await describe({
     it({
       name: 'HOLDS NO PROVIDER BEFORE A REFUSAL, and counts down the hold a refusal sets until it has run out',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         expect(refusals.left({ provider: 'synthetic', },),).toBe(0,);
         expect(refusals.keepsOut({ provider: 'synthetic', },),).toBe(false,);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -83,7 +127,7 @@ await describe({
       name: 'GIVES A PROVIDER UP when it refuses after its cooldown ran out and nothing it served came after the end, '
         + 'writing one line that names the provider, the entry and the cooldown that ran out',
       fn: async () => {
-        const { refusals, clock, lines, } = holdsOnAClock();
+        const { refusals, clock, lines, } = holdsOnAClock({},);
         refusals.beginEntry({ entryId: 'CatEntry1', },);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS + 12_000;
@@ -92,7 +136,8 @@ await describe({
         expect(refusals.givenUp({ provider: 'hyper', },),).toBe(false,);
         expect(lines,).toEqual([
           `warn [hold] synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between; `
-            + `entry CatEntry1 stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends`,
+            + `entry CatEntry1 stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends, `
+            + 'unless it is the only writing provider not dry',
         ],);
       },
     },),
@@ -101,7 +146,7 @@ await describe({
       name: 'KEEPS A GIVEN-UP PROVIDER OUT BUT WAITS FOR NOTHING: its cooldown stays a hold, the provider reads out '
         + 'for as long as the entry lasts, and a caller is told to wait for none of it',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -116,7 +161,7 @@ await describe({
     it({
       name: 'SAYS IT ONCE: a provider already given up on is not reported again by the refusals that follow',
       fn: async () => {
-        const { refusals, clock, lines, } = holdsOnAClock();
+        const { refusals, clock, lines, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -130,7 +175,7 @@ await describe({
     it({
       name: 'NAMES THE RUN for a caller that never began an entry, and gives the provider up all the same',
       fn: async () => {
-        const { refusals, clock, lines, } = holdsOnAClock();
+        const { refusals, clock, lines, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -142,7 +187,7 @@ await describe({
     it({
       name: 'DOES NOT COUNT A REFUSAL INSIDE THE HOLD, which came from a call in flight when the hold was set',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS - 1;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -154,7 +199,7 @@ await describe({
       name: 'DOES NOT COUNT A REFUSAL AFTER A CALL WAS SERVED once the hold ended, since the provider came back, but '
         + 'counts one after a call that was served only while the hold ran',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         // A call in flight when the hold was set, served inside it.
         clock.now += 1_000;
@@ -176,7 +221,7 @@ await describe({
       name: 'DOES NOT JUDGE A HOLD THAT NAMES ITS OWN RETURN: neither the refusal that set it nor a cooldown that '
         + 'follows it is a repeat, and a given-up provider is still waited for through such a hold',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: 120_000, cooldown: false, },);
         clock.now += 120_000;
         refusals.hold({ provider: 'synthetic', holdMs: 120_000, cooldown: false, },);
@@ -195,7 +240,7 @@ await describe({
       name: 'DOES NOT COUNT A COOLDOWN THAT RAN OUT BEFORE THE ENTRY BEGAN, which the entry did not wait out, and '
         + 'counts one that ended after it began',
       fn: async () => {
-        const { refusals, clock, } = holdsOnAClock();
+        const { refusals, clock, } = holdsOnAClock({},);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS + 60_000;
         refusals.beginEntry({ entryId: 'CatEntry3', },);
@@ -210,7 +255,7 @@ await describe({
     it({
       name: 'FORGETS EVERY PROVIDER WHEN AN ENTRY BEGINS and says which it forgot, saying nothing when none was given up on',
       fn: async () => {
-        const { refusals, clock, lines, } = holdsOnAClock();
+        const { refusals, clock, lines, } = holdsOnAClock({},);
         refusals.beginEntry({ entryId: 'CatEntry4', },);
         expect(lines,).toEqual([],);
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
@@ -221,6 +266,92 @@ await describe({
         refusals.beginEntry({ entryId: 'CatEntry5', },);
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(false,);
         expect(lines,).toEqual(['info [beginEntry] entry CatEntry5 begins: synthetic no longer given up on, so asked again',],);
+      },
+    },),
+
+    it({
+      name: 'SETS A GIVE-UP ASIDE WHILE NO OTHER WRITING PROVIDER READS WET: the cooldown counts for a wait and the '
+        + 'provider reads wet once it has ended, and the give-up is back in force the moment another provider reads wet',
+      fn: async () => {
+        const { refusals, clock, } = holdsOnAClock({ wet: [], },);
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        clock.now += COOLDOWN_MS;
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
+        expect(refusals.waitedLeft({ provider: 'synthetic', },),).toBe(COOLDOWN_MS,);
+        clock.now += COOLDOWN_MS;
+        expect(refusals.keepsOut({ provider: 'synthetic', },),).toBe(false,);
+
+        refusals.noteReading({ dry: dryExcept({ wet: ['neuralwatt',], },), },);
+        expect(refusals.keepsOut({ provider: 'synthetic', },),).toBe(true,);
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        expect(refusals.waitedLeft({ provider: 'synthetic', },),).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'COUNTS NO PROVIDER AS AN ALTERNATIVE THAT IS HELD, GIVEN UP, OR KEEPS NO RUN GOING: NeuralWatt reads wet '
+        + 'but is held, Hyper is given up too, and Xiaomi writes nothing, so Synthetic is set aside',
+      fn: async () => {
+        const { refusals, clock, } = holdsOnAClock({
+          wet: [
+            'neuralwatt',
+            'xiaomi',
+            'hyper',
+          ],
+          writing: providerRecord({
+            of: function writesExceptXiaomi(provider,): boolean {
+              return provider !== 'xiaomi';
+            },
+          },),
+        },);
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.hold({ provider: 'hyper', holdMs: COOLDOWN_MS, cooldown: true, },);
+        clock.now += COOLDOWN_MS;
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.hold({ provider: 'hyper', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.hold({ provider: 'neuralwatt', holdMs: COOLDOWN_MS, cooldown: false, },);
+        expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
+        expect(refusals.givenUp({ provider: 'hyper', },),).toBe(true,);
+        expect(refusals.waitedLeft({ provider: 'synthetic', },),).toBe(COOLDOWN_MS,);
+        expect(refusals.waitedLeft({ provider: 'hyper', },),).toBe(COOLDOWN_MS,);
+
+        // Once NeuralWatt's hold has ended it reads wet and nothing else keeps it out, so it is an alternative again.
+        clock.now += COOLDOWN_MS;
+        expect(refusals.keepsOut({ provider: 'synthetic', },),).toBe(true,);
+        expect(refusals.keepsOut({ provider: 'hyper', },),).toBe(true,);
+        expect(refusals.waitedLeft({ provider: 'synthetic', },),).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'SAYS WHEN A GIVE-UP IS SET ASIDE, once, with the entry and how the other writing providers read, and '
+        + 'when it is back in force',
+      fn: async () => {
+        const { refusals, clock, lines, } = holdsOnAClock({ wet: [], },);
+        refusals.beginEntry({ entryId: 'CatEntry6', },);
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        clock.now += COOLDOWN_MS;
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.noteReading({ dry: dryExcept({ wet: [], },), },);
+        refusals.noteReading({ dry: dryExcept({ wet: ['neuralwatt',], },), },);
+
+        /**
+         The lines about the set-aside.
+         */
+        const asideLines = lines.filter(function isAboutAside(line,): boolean {
+          return line.includes('give-up',);
+        },);
+        expect(asideLines.length,).toBe(2,);
+        expect(asideLines[0],).toContain('warn [reconsider] synthetic: entry CatEntry6 sets its give-up aside',);
+        expect(asideLines[0],).toContain(
+          'no other writing provider reads wet (neuralwatt dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, '
+            + 'hyper dry, openrouter dry)',
+        );
+        expect(asideLines[1],).toBe(
+          'info [reconsider] synthetic: entry CatEntry6 puts its give-up back in force, because neuralwatt reads wet '
+            + 'again, so synthetic stays unreachable until the entry ends',
+        );
       },
     },),
   ],

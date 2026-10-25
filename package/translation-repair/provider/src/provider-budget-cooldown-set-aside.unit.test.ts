@@ -132,7 +132,7 @@ function budgetsOn(
       ? {
         xiaomi: {
           spend: function spend() {
-            return { spentUsd: 0, };
+            return Promise.resolve({ spentUsd: 0, },);
           },
         },
       }
@@ -283,8 +283,7 @@ await describe({
     },),
 
     it({
-      name: 'LOGS THE SET-ASIDE ONCE with the provider, the entry and how the other writing providers read, and says '
-        + 'nothing when another provider is wet',
+      name: 'LOGS THE SET-ASIDE ONCE with the provider, the entry and how the other writing providers read',
       fn: async ctx => {
         const dry: World = {
           now: 1_000,
@@ -321,7 +320,12 @@ await describe({
         expect(setAside[0],).toContain('entry XingZ6020',);
         expect(setAside[0],).toContain('no other writing provider reads wet (',);
         expect(setAside[0],).toContain('deepseek dry',);
+      },
+    },),
 
+    it({
+      name: 'SAYS NOTHING OF A SET-ASIDE WHILE ANOTHER PROVIDER IS WET, and keeps the give-up in force',
+      fn: async ctx => {
         const wet: World = {
           now: 1_000,
           deepseekAvailable: true,
@@ -343,6 +347,51 @@ await describe({
         expect(quiet.some(function isSetAside(line,): boolean {
           return line.includes('sets its give-up aside',);
         },),).toBe(false,);
+        expect(wetBudgets.holds().synthetic,).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'PUTS THE GIVE-UP BACK IN FORCE, saying so once, when the alternative that went dry reads wet again',
+      fn: async ctx => {
+        const wet: World = {
+          now: 1_000,
+          deepseekAvailable: true,
+        };
+        const wetBudgets = budgetsOn({
+          world: wet,
+          deepseek: true,
+          xiaomi: false,
+        },);
+        const later = await consoleLinesDuring({
+          run: async function goDryThenWetAgain(): Promise<void> {
+            await refuseAtOnceAfterTheCooldown({
+              budgets: wetBudgets,
+              world: wet,
+            },);
+            wet.deepseekAvailable = false;
+            wet.now += PAST_FRESHNESS_MS;
+            await wetBudgets.read({ signal: SIGNAL, },);
+            expect(wetBudgets.holds().synthetic,).toBe(COOLDOWN_MS - PAST_FRESHNESS_MS,);
+
+            wet.deepseekAvailable = true;
+            wet.now += PAST_FRESHNESS_MS;
+            await wetBudgets.read({ signal: SIGNAL, },);
+            expect(wetBudgets.holds().synthetic,).toBe(0,);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(later.filter(function isSetAside(line,): boolean {
+          return line.includes('sets its give-up aside',);
+        },).length,).toBe(1,);
+        /**
+         The lines that put the give-up back in force.
+         */
+        const inForce = later.filter(function isBack(line,): boolean {
+          return line.includes('puts its give-up back in force',);
+        },);
+        expect(inForce.length,).toBe(1,);
+        expect(inForce[0],).toContain('deepseek reads wet again',);
       },
     },),
 

@@ -5,11 +5,14 @@ import {
   type ProviderRecord,
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { NeuralWattReturn, } from './budget-routing.ts';
+import type { NeuralWattClient, } from './neuralwatt-client.ts';
 import type { MeterState, } from './provider-meters.ts';
 
 //region Provider budget starting values
 // SPLIT OUT OF `provider-budget.ts` at its line budget: the values a budgets instance holds before any meter has
-// answered, the clock it reads by default, and the error for a hold bound that cannot bound a hold.
+// answered, the clock it reads by default, the error for a hold bound that cannot bound a hold, and what the budgets
+// know of NeuralWatt's day without asking its client to decide it.
 
 /**
  The reading before any meter has answered: nothing is dry.
@@ -141,6 +144,64 @@ export function beforeAnyReading(): ReadingCache {
       states: providerRecord({ of: unreadBeforeReading, },),
       levels: providerRecord({ of: noLevelBeforeReading, },),
     },),
+  };
+}
+
+/**
+ Each provider's meter state in one reading.
+
+ @param meters - every meter's record, keyed by provider
+
+ @returns The state of each meter
+
+ @example
+ ```ts
+ const states = meterStatesOf({ meters, },);
+ ```
+ */
+export function meterStatesOf(
+  { meters, }: { readonly meters: ProviderRecord<{ readonly state: MeterState; }>; },
+): ProviderRecord<MeterState> {
+  return providerRecord({
+    of: function stateOf(provider,): MeterState {
+      /**
+       This provider's meter record.
+       */
+      const meter = meters[provider];
+      return meter.state;
+    },
+  },);
+}
+
+/**
+ What the run knows of NeuralWatt's day, without asking the client to decide it.
+
+ @param neuralwatt - the NeuralWatt meter, absent where the run has no NeuralWatt key
+
+ @returns Off without a meter, unanchored where the client has decided no day start, else the day start as a time of day
+
+ @example
+ ```ts
+ const day = neuralwattReturnOf({ neuralwatt, },);
+ ```
+ */
+export function neuralwattReturnOf(
+  { neuralwatt, }: {
+    readonly neuralwatt?: Pick<NeuralWattClient, 'energy'> & { readonly dayAnchor?: NeuralWattClient['dayAnchor']; };
+  },
+): NeuralWattReturn {
+  if (neuralwatt === undefined)
+    return { kind: 'off', };
+  // A stub client that carries no anchor decided none.
+  /**
+   What the client has decided, without asking it to decide.
+   */
+  const anchor = neuralwatt.dayAnchor?.() ?? { known: false, };
+  if (!anchor.known)
+    return { kind: 'unanchored', };
+  return {
+    kind: 'at',
+    msOfDay: anchor.msOfDay,
   };
 }
 
