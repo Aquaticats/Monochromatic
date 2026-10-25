@@ -17,8 +17,9 @@ import {
 // stored in an object, a list or a map is read through the first name of that object, so the first name of the object
 // is a name made from the parameter. The places that store are an assignment to a member or an index, a pattern whose
 // target is a member, a call of a method that stores its arguments in the object it is called on (`push`, `set`), a
-// call of `Object.assign` or of a method that defines a property, which store in the first argument, a class whose
-// body reads the parameter, and the default of a pattern, which is a value the pattern takes. A call of any other
+// call of `Object.assign` or of a method that defines a property, which store in the first argument, a class or a
+// function declared inside whose code reads the parameter, and the default of a pattern, which is a value the pattern
+// takes. A call of any other
 // function or method may store its arguments in an object it receives, and is not read; so is a field of `this`.
 
 /**
@@ -189,7 +190,7 @@ function namesStoredByCall({ call, }: { readonly call: TreeNode; },): readonly s
 
 /**
  The links a node makes besides a constant, an assignment, a loop head or a catch clause: a call that stores its
- arguments in an object, a class declaration, which holds what its body reads, and the default of a pattern.
+ arguments in an object, a class or a function declaration, which holds what it reads, and the default of a pattern.
 
  @param node - node read
 
@@ -215,13 +216,10 @@ export function storeLinksOf({ node, }: { readonly node: TreeNode; },): readonly
         },
       ];
   }
-  if (node.type === 'ClassDeclaration') {
+  if ((node.type === 'ClassDeclaration') || (node.type === 'FunctionDeclaration')) {
     return [
       {
-        read: nodeAt({
-          node,
-          field: 'body',
-        },),
+        read: node,
         bound: namesBoundBy({ node: nodeAt({
           node,
           field: 'id',
