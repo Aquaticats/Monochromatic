@@ -3,6 +3,11 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import {
+  loaderReadPositionOf,
+  namesLoaderMember,
+  TAKES_LOADER,
+} from './claude-schema-blind-loader-reads.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import {
   keyNameOf,
@@ -19,26 +24,21 @@ import {
 // text. The module is told by its specifier, `vm` or `node:vm`, in an import, an export from, a call of `require`, an
 // `import()`, a call of `process.getBuiltinModule` (also read off the global object) or the module of an import-equals
 // declaration; an import, an export or an import-equals declaration that names types only (`import type`) loads
-// nothing and names no module. A
-// pattern that takes `getBuiltinModule` out of a value is reported, since the function is then called by a free name,
-// and so is a call of `binding` or `internalBinding` with the string `contextify`, the binding of Node that makes
-// scripts, which is a route to `vm.Script` without the module. The constructor is told by a member
-// named `constructor` written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get`,
-// `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A
-// key that is no literal, a pattern that takes `constructor` out of a value, and a method that is written through an
-// alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger
-// states, and so is a loader that `process.getBuiltinModule` was assigned to and is called by another name.
+// nothing and names no module. A pattern that takes `getBuiltinModule` out of a value is reported, since the function
+// is then called by a free name, and so is every read of `process.getBuiltinModule` and of `process.binding` that is no
+// direct call (`claude-schema-blind-loader-reads.test-fixture.ts`): through `call`, `apply` or `bind`, as an operand of
+// a comma, as an arm of a conditional, or kept by a constant. A call of `binding` or `internalBinding` with the string
+// `contextify` is reported too, the binding of Node that makes scripts, which is a route to `vm.Script` without the
+// module. The constructor is told by a member named `constructor` written with a dot or with a string literal in
+// brackets, also through `?.`, and by `Reflect.get`, `Reflect.getOwnPropertyDescriptor` and
+// `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A key that is no literal, a pattern that
+// takes `constructor` or `binding` out of a value, and a method that is written through an alias
+// (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger states.
 
 /**
  What a report says of a place that loads the `vm` module.
  */
 const LOADS_VM = 'vm runs text the search cannot read';
-
-/**
- What a report says of a pattern that takes `getBuiltinModule` out of a value, since the function it names can load
- `vm` under any name.
- */
-const TAKES_LOADER = 'getBuiltinModule taken out of a value loads modules the search cannot read';
 
 /**
  What a report says of a call of the binding of Node that makes scripts.
@@ -343,7 +343,8 @@ function textCodePositionOf({ node, }: { readonly node: TreeNode; },): string {
 
  @param node - node read, of any kind
 
- @returns Whether the node is such a place
+ @returns Whether the node is such a place, or a member of `process` that is a loader of code and may be read where it
+ is no call, which the file must be read further for
 
  @example
  ```ts
@@ -351,7 +352,7 @@ function textCodePositionOf({ node, }: { readonly node: TreeNode; },): string {
  ```
  */
 export function namesTextCode({ node, }: { readonly node: TreeNode; },): boolean {
-  return textCodePositionOf({ node, },) !== '';
+  return (textCodePositionOf({ node, },) !== '') || namesLoaderMember({ node, },);
 }
 
 /**
@@ -359,19 +360,32 @@ export function namesTextCode({ node, }: { readonly node: TreeNode; },): boolean
 
  @param nodes - every node of the file
 
+ @param parents - each node's parent
+
  @returns One entry per place
 
  @example
  ```ts
- const found = textCodeShapesIn({ nodes: nodesUnder({ root: program, },), },);
+ const found = textCodeShapesIn({ nodes: nodesUnder({ root: program, },), parents, },);
  ```
  */
-export function textCodeShapesIn({ nodes, }: { readonly nodes: readonly TreeNode[]; },): readonly FoundShape[] {
+export function textCodeShapesIn(
+  {
+    nodes,
+    parents,
+  }: {
+    readonly nodes: readonly TreeNode[];
+    readonly parents: ReadonlyMap<TreeNode, TreeNode>;
+  },
+): readonly FoundShape[] {
   return nodes.flatMap(function shapesOfNode(node,): readonly FoundShape[] {
     /**
      What the node says about code made from text, empty when nothing.
      */
-    const position = textCodePositionOf({ node, },);
+    const position = textCodePositionOf({ node, },) || loaderReadPositionOf({
+      node,
+      parents,
+    },);
     return (position === '')
       ? []
       : [

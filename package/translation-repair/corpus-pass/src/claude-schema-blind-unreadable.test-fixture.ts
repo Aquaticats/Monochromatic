@@ -293,7 +293,10 @@ export function unreadableShapesIn(
       nodes,
     },),
     ...globalValueShapesIn({ context, },),
-    ...textCodeShapesIn({ nodes, },),
+    ...textCodeShapesIn({
+      nodes,
+      parents: context.parents,
+    },),
   ];
 }
 
