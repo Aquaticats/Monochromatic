@@ -36,6 +36,7 @@ export {
   writtenAsText,
 } from './corpus-run/source-ships-opener-text.ts';
 export {
+  type ReadingComparison,
   type ReadingDifference,
   readingDifferenceOf,
 } from './corpus-run/source-reading-difference.ts';

@@ -51,6 +51,15 @@ export type ReadingDifference = {
 };
 
 /**
+ What compares a page with the source it carries: the comparison of this file, or one a caller hands in to stand for
+ another.
+ */
+export type ReadingComparison = (input: {
+  readonly source: string;
+  readonly carried: string;
+}) => ReadingDifference;
+
+/**
  Why a page that holds syntax is a difference.
  */
 const SYNTAX_REASON = 'the page holds a construct the strict grammar reads as syntax, which shows a reader other than the text';

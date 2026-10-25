@@ -4,6 +4,7 @@ import {
 } from '@monochromatic-dev/module-logger/ts';
 import type { PublishDefect, } from './publish-defects.ts';
 import {
+  type ReadingComparison,
   type ReadingDifference,
   readingDifferenceOf,
 } from './source-reading-difference.ts';
@@ -53,6 +54,9 @@ type ComparedRun = {
 
  @param l - logger, tagged by the caller with this entry
 
+ @param compareReadings - what compares the page of a run with its source, the comparison of the page check by default; a
+ caller hands in another to reach the state of a page that parses and whose comparison fails
+
  @returns Defect naming the slices of the differing runs, one naming those of the runs with a block the comparison
  could not decide, and one naming those of the runs that could not be compared, each only when it has a run to name
 
@@ -68,12 +72,14 @@ export function differenceDefectsOf(
     slices,
     entryId,
     l,
+    compareReadings = readingDifferenceOf,
   }: {
     readonly runs: readonly (readonly number[])[];
     readonly encoded: readonly number[];
     readonly slices: readonly WouldShipSlice[];
     readonly entryId: string;
     readonly l: Logger;
+    readonly compareReadings?: ReadingComparison;
   },
 ): readonly PublishDefect[] {
   /**
@@ -97,7 +103,7 @@ export function differenceDefectsOf(
         /**
          What the comparison says of the run.
          */
-        const answer = readingDifferenceOf({
+        const answer = compareReadings({
           source: runBodyOf({
             run,
             slices,
