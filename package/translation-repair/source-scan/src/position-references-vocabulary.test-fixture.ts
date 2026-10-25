@@ -63,16 +63,58 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
  "ranks the house rules above its own", "a rate above one", "the threshold
  below which", "a voice below half".
 
- A WORD THAT IS ALSO A VERB DOES NOT BELONG HERE (re-check 7, nit 2). "ties" stood in this list for "preservation above
- ties", and let "the asked count below ties the script" pass, the verb read as the object. The one comparison in the
- texts that used the noun is in the exemptions, with its reason. "total" can be a verb as well, but no sentence of the
- texts reads it as one after a position, and the list keeps it until one does.
+ A WORD THAT IS ALSO A VERB DOES NOT BELONG HERE ALONE (re-check 7, nit 2). "ties" stood in this list for "preservation
+ above ties", and let "the asked count below ties the script" pass, the verb read as the object. It left the list, and
+ the one comparison in the texts that used the noun is in the exemptions, with its reason.
+
+ WHAT THE SCAN READS BEYOND THE WORD (re-check 8, nit A). Three groups of words in this list are something else as
+ well, and each is read with the word after it, joined to it by spaces alone:
+ `COMPARED_UNLESS_OBJECT_FOLLOWS` holds the words that are verbs or open a clause ("the lines below zero the counter",
+ "the statement above that a run-off keeps its key holds"), which compare unless a determiner, a quantifier or a
+ pronoun follows; `COMPARED_ONLY_BEFORE_NAMED_THING` holds the quantifiers that float away from their noun ("the cases
+ below all pass", "the checks below both fail"), which compare only when a determiner, "of", "else", "other" or
+ "others" follows or nothing joins them to a next word ("above all, it naps").
+
+ WHAT IT STILL DOES NOT READ. A word of the list that is a verb or opens a clause and is followed by a word outside
+ `OBJECT_OPENERS` reads as a comparison: "the lines below that write it" and "the paragraphs above that explain" pass,
+ since the scan cannot tell a verb from a noun. A quantifier followed by "of" reads as a comparison too ("the cases
+ below some of which fail", "the persist below each of them"). A comparison that the groups send to a pointer ("votes
+ below half the bowl", "a cat above both reference rules") needs an exemption with its reason. Any other word that is
+ both a noun and a verb, added to the list later, lets a pointer through unless it joins a group.
  */
 export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
   words: 'the a an its their his her one zero it that this what any every each some all which baseline threshold '
     + 'quorum half twice hard exact total regression both anything two three four five six seven eight nine ten '
     + 'sixteen',
 },);
+
+/**
+ Words in the compared list that are also verbs, or that open a clause: "the lines below zero the counter", "the
+ statement above that a run-off keeps its key holds". After a position, one of these compares only when no word that
+ opens an object or a clause follows it.
+ */
+export const COMPARED_UNLESS_OBJECT_FOLLOWS: ReadonlySet<string> = wordSet({
+  words: 'exact baseline zero threshold half total that',
+},);
+
+/**
+ Words in the compared list that float away from the noun they count: "the cases below all pass", "the checks below
+ both fail". After a position, one of these compares only when what follows names the thing compared.
+ */
+export const COMPARED_ONLY_BEFORE_NAMED_THING: ReadonlySet<string> = wordSet({ words: 'all both each some', },);
+
+/**
+ Words that open an object or a clause after a word of the compared list: a determiner, a quantifier or a pronoun.
+ */
+export const OBJECT_OPENERS: ReadonlySet<string> = wordSet({
+  words: 'a an the no both every all some any its their his her this these those it they we',
+},);
+
+/**
+ Words that, after a quantifier of the compared list, show it names what is compared: "above all else", "below each of
+ them", "above all others".
+ */
+export const QUANTIFIED_NAMES: ReadonlySet<string> = wordSet({ words: 'of else other others', },);
 
 /**
  Characters that, one space or more after a position, name its target or make

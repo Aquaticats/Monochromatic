@@ -730,7 +730,7 @@ so no cache version moved.
 
 Later,
 fix round 8:
-the statement above that both relative-root cases fail at the parent of the fix holds for the pair and not for the
+the statement of fix round 7 that both relative-root cases fail at the parent of the fix holds for the pair and not for the
 commit as run.
 At `4d0cb07e58` one case fails;
 the other sits in a later top-level suite of the file,

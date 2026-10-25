@@ -3,13 +3,17 @@
  functions that find a reference by position in a file and match it against
  the guard's exemptions. Split out of the guard so a probe can print every
  reference the guard would name, whole, where a failing assertion shows a
- truncated list; its vocabulary, its reading of a text and where a phrase
- stands (quotes, paragraphs, code spans) sit in the three sibling fixtures.
+ truncated list; its vocabulary, its reading of a text, how it reads a compared word and where a phrase
+ stands (quotes, paragraphs, code spans) sit in the four sibling fixtures.
 
  @module
  */
 
 import { isAsciiDigit, } from '@monochromatic-dev/translation-repair-markup';
+import {
+  adjoins,
+  readsAsComparedObject,
+} from './position-references-compared.test-fixture.ts';
 import {
   insideCodeSpan,
   insideQuotes,
@@ -22,7 +26,6 @@ import {
 } from './position-references-text.test-fixture.ts';
 import {
   COMPARED_OBJECTS,
-  JOIN_GAP,
   NAMING_OPENERS,
   POSITION_MARKERS,
   POSITIONS,
@@ -93,43 +96,6 @@ export type PositionExemption = {
    */
   readonly reason: string;
 };
-
-/**
- Whether two words stand next to each other with nothing but a joining gap
- between them.
-
- @param flat - joined text
-
- @param left - earlier word
-
- @param right - later word
-
- @returns Whether they join
-
- @example
- ```ts
- adjoins({ flat, left, right, },);
- ```
- */
-function adjoins(
-  {
-    flat,
-    left,
-    right,
-  }: {
-    readonly flat: string;
-    readonly left: Word;
-    readonly right: Word;
-  },
-): boolean {
-  if (right.start <= left.end)
-    return false;
-  for (let at = left.end; at < right.start; at += 1) {
-    if (!JOIN_GAP.has(flat.charAt(at,),))
-      return false;
-  }
-  return true;
-}
 
 /**
  Whether the words from an index on spell a sequence, each from its set and
@@ -256,7 +222,12 @@ function comparesOrNames(
       left: position,
       right: next,
     },)
-    && COMPARED_OBJECTS.has(next.text,);
+    && COMPARED_OBJECTS.has(next.text,)
+    && readsAsComparedObject({
+      flat,
+      words,
+      at: at + 1,
+    },);
 }
 
 /**

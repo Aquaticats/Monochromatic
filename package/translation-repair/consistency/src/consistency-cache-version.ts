@@ -37,7 +37,7 @@
  byte for byte, and a client that answers a repeated model and prompt from its first payload replayed the first round's ballots.
  The paragraph goes into the rules of every carry run-off, whichever labels are its finalists (the `runOff` flag of
  `buildCarryChoiceMessages` adds it, and the run-off is asked for a lone leader with the labels behind it as well as for a tie),
- so every `choice-run-off` key moved, and the statement above that a run-off among the tied labels keeps its key holds for the
+ so every `choice-run-off` key moved, and the statement of the finalists paragraph, that a run-off among the tied labels keeps its key, holds for the
  run-off among places alone. The `choice` stage is not affected: the sheet of the first ask is byte for byte what version five has,
  so the key of every first ask is unchanged, and a carry run-off stored under its earlier key is asked afresh under the new one.
 

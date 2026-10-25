@@ -32,6 +32,14 @@
  too; outside page text, which is exempt, the texts this guard reads hold
  none.
 
+ A COMPARED WORD THAT IS ALSO SOMETHING ELSE IS READ WITH THE WORD AFTER IT (re-check 8, nit A). A verb of the list
+ ("the lines below zero the counter", with exact, baseline, threshold, half and total) and "that" opening a clause
+ ("the statement above that a run-off keeps its key holds") compare unless a determiner, a quantifier or a pronoun
+ follows; a quantifier that floats away from its noun ("the cases below all pass", with both, each and some) compares
+ only when a determiner, "of", "else", "other" or "others" follows. What the scan still lets through, a bare verb
+ after "that" ("the lines below that write it") and a quantifier before "of", is stated in the TSDoc of
+ `COMPARED_OBJECTS` and in ledger B938.
+
  WHAT IS LEFT is a phrase inside double quotes, which quotes the words rather
  than using them, a position inside a Markdown code span, which quotes data,
  and the exemptions, each named with its reason: positions in a page's own

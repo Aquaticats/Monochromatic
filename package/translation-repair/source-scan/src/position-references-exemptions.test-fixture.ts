@@ -140,6 +140,21 @@ export const PACKAGE_EXEMPTIONS: readonly PositionExemption[] = [
     reason: 'a ranking of two selection criteria, a comparison; "ties" is the noun',
   },
   {
+    path: 'archive/reference-precedence.unit.test.ts',
+    holds: 'protection above both reference rules',
+    reason: 'a ranking of one rule over two others, a comparison; "both" names the rules compared',
+  },
+  {
+    path: 'run/corpus-run/cap-override.ts',
+    holds: 'entries above some slice count',
+    reason: 'entries past a count of slices, a comparison; "some" is the count',
+  },
+  {
+    path: 'stage/stage-quorum.unit.test.ts',
+    holds: 'voice below half an even roster',
+    reason: 'a count under a fraction of the roster, a comparison; "half" is the fraction',
+  },
+  {
     path: 'page-check/consolidation-polish.unit.test.ts',
     holds: 'SHORT BODY PROSE below repair-lane',
     reason: 'prose shorter than a window, a comparison',

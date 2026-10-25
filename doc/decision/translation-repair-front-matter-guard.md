@@ -205,7 +205,7 @@ What stays refused is a page whose visible name is the folder and whose front ma
 on both sides,
 carries no Latin rendering but the folder itself:
 the directory-id shape as it was literally described.
-The seven handles above all carry a Latin rendering in the archive alias (Sakuya,
+All seven handles carry a Latin rendering in the archive alias (Sakuya,
 Lan Gou,
 Qian Yu Mao Tou,
 Danpian,
