@@ -511,7 +511,7 @@ measured in round 10 by one simulation run of the committed fixture
   0.0537 over 34000 replicates with re-check 7 (about three standard deviations over 0.05),
   against 0.0296,
   0.0430 and 0.0379 in its three contrast cells.
-  The doc linked below names the cells,
+  The simulations doc names the cells,
   and the detection rates when the default effort repeats itself 15 and 30 points less.
 - The high fix rate warning fires when the default effort cleanly fixes 90 percent or more of the shared units,
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
