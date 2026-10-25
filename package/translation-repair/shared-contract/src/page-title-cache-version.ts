@@ -79,11 +79,18 @@
  the pairing version stays, by its own account of 2026-10-18 (`slice-reading/src/pairing-cache-version.ts`). No record
  has been written at 6, which this change sets first.
 
+ Seven covers the rule of 2026-10-25 (the lead's ruling on the owner's "Two ballots decide"): a round that heard fewer than two
+ voices settles no title and stores nothing (`artifact/src/page-title-lexicon-stage.ts`,
+ `corpus-pass/src/corpus-run/pass-page-titles.ts`), where one heard voice used to settle every title it rendered and the round was
+ stored. A record stored at six from a round of one voice holds a title no two voices settled, and the key hashes the version, the
+ titles, the identity and the roster, not the rule, so such a record would be served under the new one. The number moves so that
+ no stored record stands under a number whose rule differs. No record has been written at 7, which this change sets first.
+
  @example
  ```ts
  const material = JSON.stringify({ version: PAGE_TITLE_CACHE_VERSION, source, titles, identity, roster, },);
  ```
  */
-export const PAGE_TITLE_CACHE_VERSION = 6;
+export const PAGE_TITLE_CACHE_VERSION = 7;
 
 //endregion Page title cache version
