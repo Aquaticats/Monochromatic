@@ -446,6 +446,7 @@ which lists every file of this record.
 - [B920, every DeepSeek call booked at peak rates](audit-ledger-deepseek-off-peak-pricing.md)
 - [B921, a heading and a card paragraph that described a spanning rule the code does not have][l29]
 - [B922 to B926, the weight floors removed, round 5](audit-ledger-weight-floors-removed-round-five.md)
+- [B927 to B932, the weight floors removed, round 6](audit-ledger-weight-floors-removed-round-six.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

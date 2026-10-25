@@ -93,7 +93,7 @@ which counts against reverting unconfirmed envelopes with no recheck of the comp
 Superseded on 2026-10-25 (B922),
 owner answer "Two ballots for undo too":
 an edit is stripped only where its issue's tally flags it `regressed`,
-two or more ballots naming `worse` with the `worse` weight above the `fixed` and `not-fixed` weight together,
+two or more ballots naming `worse` with the `worse` weight exceeding the `fixed` and `not-fixed` weight together,
 and one `worse` ballot strips nothing.
 Repair slice version 49 retires the records written before.
 
@@ -621,7 +621,7 @@ rides inside refine version 5 with an account in `refine-slice-key.ts`.
 Superseded on 2026-10-25 (B922),
 owner answer "Two ballots for undo too":
 the rollback on an open issue reads the same `regressed` flag as the strip of L3,
-two or more ballots naming `worse` with the `worse` weight above the rest,
+two or more ballots naming `worse` with the `worse` weight exceeding the rest,
 and one `worse` ballot rolls nothing back.
 Refine version 19 retires the records written before.
 

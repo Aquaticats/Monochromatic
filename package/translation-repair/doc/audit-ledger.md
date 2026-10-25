@@ -647,6 +647,14 @@ named for that subject and listed here.
   the clause reader that refuses swapped outcomes (B924),
   the page title round asked again in full (B925),
   and the cache versions that moved (B926).
+- [Audit ledger: the weight floors removed, round 6](audit-ledger-weight-floors-removed-round-six.md):
+  The answer to the fifth re-check:
+  the rollback's level case that is reachable and tested (B927),
+  the run-off the challenge sentences omitted (B928),
+  the same judges that a round does not promise (B929),
+  the two sentences the sheet-wide scans never read (B930),
+  the nits and the clause reader's negations (B931),
+  and the cache versions that moved (B932).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

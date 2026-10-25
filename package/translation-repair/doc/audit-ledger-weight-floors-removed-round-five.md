@@ -63,7 +63,8 @@ and three sites read it:
 the candidate ranking (`regressedKnownIssues` in `repair/src/chunk-measure.ts`),
 the strip,
 and the rollback.
-`regressed` excludes `resolved` (worse above the rest cannot sit with fixed above the rest),
+`regressed` excludes `resolved`
+(a `worse` weight that exceeds the rest cannot sit with a `fixed` weight that exceeds the rest),
 so the strip no longer asks `resolved` as well.
 The finding of a strip now says two or more worse ballots outweighing the rest.
 A confirmed issue the rewrite broke still rolls the slice back on `resolved` alone,
@@ -94,7 +95,8 @@ The tests:
   a lone `worse` beside a `fixed` and a `not-fixed` on an open issue (the recheck),
   the same beside two `not-fixed` (the recheck and the phase that runs it),
   two `worse` level with two `fixed` on the recheck
-  (a case the fix removed because the replay reaches it instead),
+  (a case the fix removed on a reason that did not hold,
+  restored in round 6 with a verdict for the fifth seat (B927)),
   and for the strip:
   a lone `worse` beside one `fixed`,
   beside two `not-fixed`,
@@ -110,19 +112,20 @@ The tests:
   in `refine-recheck.unit.test.ts`,
   `refine-slice-settle.unit.test.ts` and `refine-phase.unit.test.ts`.
 - Two `worse` level with two `fixed` is tested at the strip and at the tally (`tally-resolution.unit.test.ts`).
-  A case of it for the recheck was written and removed:
-  on a bench of five seats the recheck asks the window of quorum plus one,
-  which the sheet text rotates,
-  so the scripted verdicts reached only three ballots.
-  The recheck reads the same flag,
-  and the replay of this entry reaches the level case by answering in arrival order.
+  A case of it for the recheck was written and removed in this round,
+  on the reason that the scripted verdicts reached only three ballots.
+  That reason did not hold (finding M-A of the fifth re-check):
+  the window of quorum plus one rotated past one scripted seat and asked the fifth,
+  which had no verdict,
+  and a verdict for the fifth seat reaches the level case.
+  The case is restored in round 6 (B927).
 
 The replay (`fix5/replay-undo-real.ts`,
 output `fix5/replay-undo-real.out`)
 runs the real functions of this worktree with a scripted client that reaches no provider.
 The 99 recorded checker readings of `XingZ6021` hold no `worse` ballot,
 so neither rule acts on any of them:
-0 under the old rule (not resolved and `worse` above 0) and 0 under the new,
+0 under the old rule (not resolved and `worse` greater than 0) and 0 under the new,
 and the real-data null cannot move by construction.
 The controls move as ruled.
 For the strip:
@@ -203,12 +206,14 @@ and the control,
 the challenge that ships,
 passes on both commits.
 
-Known limit.
+Known limit,
+closed in round 6 (B928).
 A tie that narrows the question asks the panel again over the candidates it backed,
 before anything ships.
-The first ask's sentence says so,
-and the challenge sentences state what the round ships or keeps when no run-off is left.
-They do not mention a run-off.
+The first ask's sentence said so,
+and the challenge sentences stated what the round ships or keeps when no run-off is left
+without mentioning a run-off.
+They now say that a tie backing only some candidates sends the panel to a run-off first.
 
 ## B924: the clause reader refuses swapped outcomes and a decline said to keep the wording (round 5)
 
@@ -236,9 +241,11 @@ or that the ship waits on an equal weight,
 and the lead may not say `keeps`.
 A round also refuses the promises of the others
 (the first ask may not promise a ship or a stay;
-a challenge may not say it asks again).
+a challenge may not say a decline settles nothing and asks again,
+as reworded in round 6 (B928)).
 The header states what it refuses and what it does not read:
-a promise no clause names.
+a promise no clause names,
+and a negation outside a short list since round 6 (B931).
 
 The tests of the red commit:
 the swapped sentence and the "keeps" sentence fail on that commit and pass the refusal on the fix;
