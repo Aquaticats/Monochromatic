@@ -671,7 +671,8 @@ it prints nothing,
 writes a message to standard error and exits 1.
 The launch block refuses such a log the same way,
 so no arm gets `--trials 0`.
-Both end the shell they run in, so each runs in a shell of its own:
+Both end the shell they run in,
+so each runs in a shell of its own:
 
 ```bash
 # README.md (editor fidelity bench): n, the units the high arm completed with a call

@@ -81,6 +81,8 @@ function armWithReuseLine({ reuseLine, }: { readonly reuseLine: string; },): Arm
 
 await describe({
   name: 'the reuse line the read step finds',
+  // SEQUENTIAL: the second case diverts console.info to take the line from the stage's writer, so cases must not overlap.
+  concurrency: 1,
   children: [
     it({
       name: 'FINDS THE REUSE LINE THROUGH ANY NUMBER OF TAGS: none, one function tag and two, each in front of the words '

@@ -689,9 +689,10 @@ export function spendGuardedClient(
       }
       throw attempt.error;
     }
-    // A REPLY WITH NO ATTEMPT TOLD was not asked of the model (only a gated client tells, see the limit in the TSDoc of
-    // spendGuardedClient: an ungated client's reuse is booked below as an unreported cost). Nothing is booked, the arm's signal carries the ending so the
-    // stage cannot take it for a lost voice and ask again, and the walk throws it out of the run without scoring the row.
+    // A REPLY WITH NO ATTEMPT TOLD was not asked of the model. Only a gated client tells, so an ungated client's reuse is
+    // counted at the ceiling as an unreported cost (the limit in the TSDoc of spendGuardedClient). Nothing is booked here,
+    // the arm's signal carries the ending so the stage cannot take it for a lost voice and ask again, and the walk throws
+    // it out of the run without scoring the row.
     if (gated && (told.attempts === 0)) {
       /**
        The ending the arm gets.

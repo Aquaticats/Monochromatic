@@ -313,7 +313,7 @@ and each was ruled a fix.
 - Nit 2:
   the corrective comment on `1dba616f89e67b71c1ba18e054caed921021188b` is posted by the lead.
 - Nit 3:
-  the commit list and the break of the scan B79 are above.
+  the commit list and the break of the scan B79 are in the section on the round 11 commits.
 - Nit 4:
   the pointer by position names its heading.
 - Nit 5:
