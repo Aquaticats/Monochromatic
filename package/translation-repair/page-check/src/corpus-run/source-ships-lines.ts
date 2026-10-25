@@ -21,8 +21,8 @@ import {
 // A FOOTNOTE START ONLY THE PAGE READS is the same case. The strict grammar disables indented code, so a line
 // `[^label]:` indented four columns or more after a paragraph starts a footnote definition there, where CommonMark and
 // GFM read a lazy line of the paragraph. The span the original pairs across that line (a code span, inline math, emphasis,
-// strong emphasis, the text of a link or the alternative text of an image, the title of a link) is cut on the page, so the
-// line is joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span
+// strong emphasis, the text of a link or the alternative text of an image, the title of a link, a hard break written with a
+// backslash) is cut on the page, so the line is joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span
 // holds. A footnote start on the line after a row of a table is no start of this kind (`source-ships-footnote-ranges.ts`,
 // `startsOffTables`): a reader of the source takes that line for a block of its own, and joining it writes it into the row.
 
@@ -47,6 +47,11 @@ const FOOTNOTE_ONLY_TYPES: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ What a search for the start of a line answers when there is none.
+ */
+const NO_START = -1;
+
+/**
  Characters that stand before the content of a line inside a container: the indentation and the mark of a block quote.
  */
 const CONTAINER_PREFIX = ' \t>';
@@ -55,6 +60,45 @@ const CONTAINER_PREFIX = ' \t>';
  Characters that start a flow expression or a flow tag.
  */
 const FLOW_STARTS = '{<';
+
+/**
+ Where the content of the line after a hard break written with a backslash starts.
+
+ @param source - text
+
+ @param node - node of the parse
+
+ @param range - where the node stands
+
+ @returns Index of the first character after the container marks that follow the break when the node is a hard break
+ written with a backslash; -1 otherwise
+
+ @example
+ ```ts
+ const at = contentAfterBreak({ source: 'a\\\n    [^1]: y', node, range: { start: 1, end: 3, }, },); // 7
+ ```
+ */
+function contentAfterBreak(
+  {
+    source,
+    node,
+    range,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly range: TextRange;
+  },
+): number {
+  if ((node.type !== 'break') || (source.charAt(range.start,) !== '\\'))
+    return NO_START;
+  /**
+   Index of the first character after the container marks.
+   */
+  const content = { at: range.end, };
+  while ((content.at < source.length) && CONTAINER_PREFIX.includes(source.charAt(content.at,),))
+    content.at += 1;
+  return content.at;
+}
 
 /**
  Edits that join the lines of a stretch whose later line starts with a
@@ -193,7 +237,7 @@ function joinBeforeFenceMark(
  Edits that join the lines of a node whose characters the plain reading keeps whole and the strict grammar cuts: a code
  span, inline math, and the destination and title of a link, an image or a definition, at a brace, a less-than sign, an
  indented fence mark or a footnote start only the page reads; and emphasis, strong emphasis, the text of a link or an
- image and a reference, at a footnote start only the page reads.
+ image and a reference, and a hard break written with a backslash, at a footnote start only the page reads.
 
  @param source - text
 
@@ -250,6 +294,27 @@ export function lineJoinsOf(
       footnoteStarts,
       joinsFlowStarts: false,
     },);
+  }
+  // A HARD BREAK WRITTEN WITH A BACKSLASH is white space to a reader of the source, and a backslash on the page where the
+  // footnote cuts the paragraph, so the break, the line ending and the indentation are written as one space.
+  /**
+   Where the line after a hard break starts, when the node is one.
+   */
+  const afterBreak = contentAfterBreak({
+    source,
+    node,
+    range,
+  },);
+  if (afterBreak !== NO_START) {
+    return footnoteStarts.includes(afterBreak,)
+      ? [
+        {
+          start: range.start,
+          end: afterBreak,
+          replacement: ' ',
+        },
+      ]
+      : [];
   }
   if (((node.type === 'link') && source.startsWith(
     '[',
@@ -310,8 +375,8 @@ export function lineJoinsOf(
 
  @param node - node of the parse
 
- @returns Whole code span, inline math, emphasis, strong emphasis, link, image or reference; none for a node of another
- kind
+ @returns Whole code span, inline math, emphasis, strong emphasis, link, image or reference; a hard break written with a
+ backslash, through the first character of the next line; none for a node of another kind
 
  @example
  ```ts
@@ -335,6 +400,23 @@ function joinableStretchesOf(
   const range = rangeOf({ node, },);
   if (SPAN_TYPES.has(node.type,) || FOOTNOTE_ONLY_TYPES.has(node.type,))
     return [range,];
+  /**
+   Where the line after a hard break starts, when the node is one written with a backslash.
+   */
+  const afterBreak = contentAfterBreak({
+    source,
+    node,
+    range,
+  },);
+  if (afterBreak !== NO_START) {
+    // The stretch runs one character past the start, since a start inside a stretch must be before its end.
+    return [
+      {
+        start: range.start,
+        end: afterBreak + 1,
+      },
+    ];
+  }
   if (((node.type === 'link') && source.startsWith(
     '[',
     range.start,
