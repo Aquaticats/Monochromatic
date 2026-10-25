@@ -95,7 +95,12 @@ export async function routedDecide(
     },);
   }
   try {
-    return await decider.decide(request,);
+    /**
+     What the decisions endpoint answered.
+     */
+    const reply = await decider.decide(request,);
+    budgets.markServed?.({ provider: 'openrouter', },);
+    return reply;
   }
   catch (error) {
     if (isCredentialRefusal({ error, },) && credentialHolds.hold({ provider: 'openrouter', },)) {

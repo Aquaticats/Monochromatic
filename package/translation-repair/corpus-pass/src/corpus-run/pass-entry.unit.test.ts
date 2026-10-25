@@ -1443,6 +1443,54 @@ await describe({
     },),
 
     it({
+      name: 'STARTS THE ENTRY ON THE CLIENT before any exchange, naming the entry, so a provider the budgets gave up on '
+        + 'in one entry is waited for and asked again in the next',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        /** Schemas reached before the entry stops. */
+        const served: string[] = [];
+        /** Entries the client was told began, with the exchanges served when it was told. */
+        const begun: { readonly entryId: string; readonly servedBefore: number; }[] = [];
+        await capturedLines({
+          body: async () => {
+            await settleEntry({
+              client: {
+                ...entryClient({ served, },),
+                beginEntry: function beginEntry({ entryId, },): void {
+                  begun.push({
+                    entryId,
+                    servedBefore: served.length,
+                  },);
+                },
+              },
+              entry: MISSING_VISUAL_ENTRY,
+              artifactsDir: dirs.artifactsDir,
+              publishDir: dirs.publishDir,
+              declinedDir: dirs.declinedDir,
+              sliceCacheDir: dirs.sliceCacheDir,
+              tip: 'a'.repeat(40,),
+              pipelineDigest: DIGEST,
+              pin: ENTRY_PIN,
+              outsideReads: NO_OUTSIDE_READS,
+              pictureSources: {
+                ...NO_PICTURE_SOURCES,
+                gather: async function gatherNothing(): Promise<Map<string, Uint8Array>> {
+                  return new Map();
+                },
+              },
+              hardCapMs: HANG_STOP_MS,
+              baseSignal: new AbortController().signal,
+              overlap: PASS_FALLBACK_OVERLAP,
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+          },
+          method: 'log',
+        },);
+        expect(begun,).toEqual([{ entryId: MISSING_VISUAL_ENTRY.id, servedBefore: 0, },],);
+      },
+    },),
+
+    it({
       name: 'SHARES picture evidence from archive review through lanes without asking the reader twice',
       fn: async () => {
         await using dirs = await throwawayDirs();

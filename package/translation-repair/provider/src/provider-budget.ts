@@ -39,6 +39,7 @@ import {
   unreadBeforeReading,
 } from './provider-budget-defaults.ts';
 import { createPaymentMarks, } from './provider-budget-payment-marks.ts';
+import { createCooldownMarks, } from './provider-budget-cooldown-marks.ts';
 
 //region Provider budget
 // ASKS FOR METERS, NOT CLIENTS. Every parameter is narrowed to the one method
@@ -205,6 +206,20 @@ export type ProviderBudgets = {
   readonly holds: (args?: { readonly returnBoundMs?: number; },) => ProviderRecord<number>;
 
   /**
+   Records that a provider served a call, which is what tells a refusal right after a cooldown ran out (the provider
+   did not come back) from one long after a provider that came back. ABSENT ON A VIEW THAT SEES NO SERVICE, whose
+   providers are then never given up on.
+   */
+  readonly markServed?: (args: { readonly provider: ProviderName; },) => void;
+
+  /**
+   Starts an entry with no provider given up on, so a provider an entry that ended had stopped waiting for is waited for
+   and asked again, and writes the entry's name where a provider is given up on. ABSENT ON A VIEW THAT HAS NO ENTRIES,
+   which keeps one mark set for its whole life.
+   */
+  readonly beginEntry?: (args: { readonly entryId: string; },) => void;
+
+  /**
    What the run knows of NeuralWatt's day, which the refusal that ends the run states when the free energy returns
    from: the time of day the run decided its day starts at, that the client never learned one, or that NeuralWatt is
    off. ABSENT ON A VIEW THAT KNOWS NOTHING OF NEURALWATT, which the refusal then words as "not decided".
@@ -266,6 +281,16 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
    day start, and the decided time of day once it has. READ OFF THE CLIENT'S DECISION, not off the `METERS` text.
    */
   readonly neuralwattReturn: () => NeuralWattReturn;
+
+  /**
+   The layer the run builds sees the service and the entries, which the narrower view leaves absent.
+   */
+  readonly markServed: NonNullable<ProviderBudgets['markServed']>;
+
+  /**
+   Starts an entry (`ProviderBudgets`).
+   */
+  readonly beginEntry: NonNullable<ProviderBudgets['beginEntry']>;
 };
 
 /**
@@ -405,6 +430,12 @@ export function createProviderBudgets(
   } = createPaymentMarks();
 
   /**
+   The providers the entry in flight has given up waiting for, because each refused right after a refusal cooldown ran
+   out with nothing served in between (`provider-budget-cooldown-marks.ts`).
+   */
+  const cooldowns = createCooldownMarks({ now, },);
+
+  /**
    Until when each provider is held out by a refusal, zero for never.
    */
   const heldUntil: Record<ProviderName, number> = providerRecord({ of: holdEndsNever, },);
@@ -440,6 +471,27 @@ export function createProviderBudgets(
       0,
       until - now(),
     );
+  }
+
+  /**
+   How much of a provider's hold a caller is to wait for: all of it, except a cooldown the entry gave up on, whose end
+   is no return since the provider refused at once after the last one. A hold that names its own return keeps counting.
+
+   @param provider - provider to check
+
+   @returns Milliseconds of hold left that are worth waiting for
+
+   @example
+   ```ts
+   const left = waitedHoldLeft({ provider: 'synthetic', },);
+   ```
+   */
+  function waitedHoldLeft(
+    { provider, }: { readonly provider: ProviderName; },
+  ): number {
+    if (cooldowns.givenUp({ provider, },) && cooldowns.heldByCooldown({ provider, },))
+      return 0;
+    return holdLeft({ provider, },);
   }
 
   /**
@@ -563,14 +615,16 @@ export function createProviderBudgets(
       // lines while its `JUDGE SEATS` lines read `bedrock=dry` from the second:
       // the key was refused on the first call, the meter is the configured
       // credit less the package's own ledger, and a refused key cannot move
-      // it. Three things hold a provider out beyond its meter, and the router
-      // and the seat readers fold all three in: a refused credential, a timed
-      // hold after a refusal and a refusal for payment. ONLY THE PRINTED WORD
-      // MOVES in the reading: the state it keeps stays what the meter said,
-      // because `markRefused` judges a refusal against it (a wet meter makes
-      // it a rate limit). `readStates` folds the payment refusal in on the way
-      // out and nothing else.
+      // it. Four things hold a provider out beyond its meter, and the router
+      // and the seat readers fold all four in: a refused credential, a timed
+      // hold after a refusal, a refusal for payment and a provider the entry
+      // gave up on after it refused right after a cooldown ran out. ONLY THE
+      // PRINTED WORD MOVES in the reading: the state it keeps stays what the
+      // meter said, because `markRefused` judges a refusal against it (a wet
+      // meter makes it a rate limit). `readStates` folds the payment refusal
+      // in on the way out and nothing else.
       if (heldOut(provider,) || (holdLeft({ provider, },) > 0)
+        || cooldowns.givenUp({ provider, },)
         || paidOut({
           provider,
           levels: levelsOf,
@@ -754,11 +808,13 @@ export function createProviderBudgets(
         levels,
       } = await currentReading({ signal, },);
 
-      // A hold can only keep a provider OUT, never bring one back in.
+      // A hold can only keep a provider OUT, never bring one back in. So can the entry's giving a provider up, which
+      // ends with the entry and lets the router and the seat reader move on to the providers that answer.
       return providerRecord({
         of: function dryOrHeld(provider,): boolean {
           return view[provider]
             || (holdLeft({ provider, },) > 0)
+            || cooldowns.givenUp({ provider, },)
             || paidOut({
               provider,
               levels,
@@ -811,6 +867,12 @@ export function createProviderBudgets(
           level: levels[provider],
         },);
         heldUntil[provider] = now() + statedWaitMs;
+        // A PAYMENT REFUSAL IS NOT A COOLDOWN, so a cooldown after it is not judged against one before it.
+        cooldowns.noteHold({
+          provider,
+          holdMs: statedWaitMs,
+          cooldown: false,
+        },);
         rl.info(
           `${provider}: refused us for payment while its meter reads ${state} (${levels[provider]}); `
             + `reads dry until that meter moves`,
@@ -861,6 +923,24 @@ export function createProviderBudgets(
         statedWaitMs,
       );
       heldUntil[provider] = now() + holdMs;
+      // A COOLDOWN IS THE HOLD THE LAYER GUESSED ALONE: a meter that did not say wet and a refusal that named no return.
+      // A refusal right after one ran out, with nothing served in between, is the answer the wait bought, so the entry
+      // stops waiting for this provider's cooldowns and treats it as unreachable until the entry ends.
+      /**
+       Whether the provider, refused again right after a cooldown ran out, is given up for the entry.
+       */
+      const repeat = cooldowns.noteHold({
+        provider,
+        holdMs,
+        cooldown: (state !== 'wet') && (statedWaitMs === 0),
+      },);
+      if (repeat !== undefined) {
+        rl.warn(
+          `${provider}: refused again right after its ${String(repeat.waitedOutMs,)}ms refusal cooldown ran out, with `
+            + `nothing served in between; ${(repeat.entryId === undefined) ? 'the run' : `entry ${repeat.entryId}`} `
+            + `stops waiting for ${provider}'s cooldowns and treats it as unreachable until the entry ends`,
+        );
+      }
       /**
        The other meters' states, for the line.
        */
@@ -886,11 +966,29 @@ export function createProviderBudgets(
       return providerRecord({
         of: function holdOrReturn(provider: ProviderName,): number {
           return Math.max(
-            holdLeft({ provider, },),
+            waitedHoldLeft({ provider, },),
             (provider === 'neuralwatt') ? returns.leftWithinMs({ boundMs: returnBoundMs, },) : 0,
           );
         },
       },);
+    },
+
+    markServed: function markServed({ provider, },): void {
+      cooldowns.noteServed({ provider, },);
+    },
+
+    beginEntry: function beginEntry({ entryId, },): void {
+      /**
+       Providers the entry before this one had given up on.
+       */
+      const forgotten = cooldowns.beginEntry({ entryId, },);
+      if (forgotten.length > 0) {
+        tagged({
+          tag: beginEntry.name,
+          l,
+        },)
+          .info(`entry ${entryId} begins: ${forgotten.join(', ',)} no longer given up on, so asked again`,);
+      }
     },
 
     neuralwattDryness: returns.dryness,
@@ -902,7 +1000,7 @@ export function createProviderBudgets(
        The day start's hold, and the longest hold on NeuralWatt of either kind.
        */
       const byReturn = returns.leftWithinMs({ boundMs: returnBoundMs, },);
-      return (byReturn > 0) && (byReturn >= holdLeft({ provider: 'neuralwatt', },));
+      return (byReturn > 0) && (byReturn >= waitedHoldLeft({ provider: 'neuralwatt', },));
     },
   };
 }

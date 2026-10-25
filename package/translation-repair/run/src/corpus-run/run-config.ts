@@ -1225,6 +1225,7 @@ export function runClientFrom(
     },
     providerMeterStates: budgets.readStates,
     providerHolds: budgets.holds,
+    beginEntry: budgets.beginEntry,
     neuralwattReturn: budgets.neuralwattReturn,
     neuralwattDryness: budgets.neuralwattDryness,
     neuralwattHeldByReturn: budgets.neuralwattHeldByReturn,
