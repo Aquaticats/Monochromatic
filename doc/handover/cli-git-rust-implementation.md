@@ -2164,6 +2164,11 @@ that is verification, not a decision for the user.
   shell `type -a git`, and a `claude -p` commit in a scratch clone reaching a bare remote); (4) a short runbook for
   other machines and the `AGENTS.md` `APG`/`APQ` wording; (5) update or close issue 1796. Host edit happens only
   after step (1) passes.
+  User instruction 2026-10-25: "No pinning because we control the wrapper." The wrapper entry in any mise config
+  (the user's global config included) uses `version = "latest"`, never a pinned version, consistent with the
+  repository rule against pinning tools it publishes. The `@0.2.7` install in `podman-proof-1796-d.ts` is a test
+  fixture inside the throwaway container only (it makes an older install exist so the relink to the newest version
+  can be observed), and the proposal's TOML block already says `latest`.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
