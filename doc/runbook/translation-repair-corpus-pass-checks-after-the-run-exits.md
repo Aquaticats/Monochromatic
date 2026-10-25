@@ -120,7 +120,8 @@ which lists every file of this record.
 
     Expected:
     one line per settled entry,
-    `DESTINATIONS <id> source=<n> page=<n> dropped=<n>`,
+    `DESTINATIONS <id> at=<time> attempt=<n> source=<n> page=<n> dropped=<n>`
+    (the time the line was rendered and the attempt that published the page),
     counting the distinct web addresses the source page links to,
     the ones the published page carries,
     and the source's that the page lacks.
@@ -144,7 +145,8 @@ which lists every file of this record.
 
     Expected:
     no output on a clean pass.
-    A line `DEFECTS <id> checks=<a>,<b>` names a page that shipped with those defects.
+    A line `DEFECTS <id> at=<time> attempt=<n> checks=<a>,<b>` names a page that shipped with those defects,
+    and the attempt that published it.
     `archive-original`,
     `contributor-names`,
     `destinations`,

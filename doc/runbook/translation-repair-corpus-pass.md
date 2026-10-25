@@ -595,19 +595,34 @@ Each is the exact string the log carries.
     straight after the keyword and the entry
     (and after the status on a `TALLY`,
     or `queued` on a `REATTEMPT`).
-    `at=` is the time the line was printed,
+    `at=` is the time the line was rendered,
     an ISO 8601 UTC time with milliseconds,
-    so a window of the log is found by it;
+    so a window of the log is found by it
+    (a settled `TALLY` is rendered before its page is persisted,
+    so it reads a little earlier than the `DESTINATIONS` line printed beside it);
     `attempt=` is the number `attempts.json` holds for the entry,
     so the `TALLY` of an attempt and the `REATTEMPT` after it print the same number.
     A tally ending `error=Timeout: ... exceeded its ...ms deadline`,
     a `REATTEMPT` after it and a later `attempt=` read as one cap ending one attempt,
     and not as a cap that failed to fire.
-    The lines that stop the pass between entries carry neither field.
+
+-   `at=<time>` alone,
+    on the lines of the pass itself:
+    `START` and `DONE` end with it,
+    as do the lines that stop the pass between entries
+    (`SOFT budget reached`,
+    `SPEND CEILING reached`,
+    `STOP every provider is out of budget`).
+    They belong to no attempt and carry no `attempt=`.
+    The `INCOMPLETE <id> at=<time>: <side> page absent at the pin` line is printed before any attempt exists,
+    so it carries `at=` straight after the entry and no `attempt=`,
+    and that absent field tells it from the `INCOMPLETE <id> at=<time> attempt=<n>:` line of an attempt.
+    The lines the tagged logger writes carry the logger's own time,
+    and those inside an attempt name it as `[<entry>] [attempt <n>]`.
 
 -   `CAP OVERRIDDEN`,
     only when `TRANSLATION_REPAIR_HARD_CAP_MINUTES` was set.
-    It names the per-entry ceiling actually in force.
+    It names the ceiling each attempt of an entry runs under actually in force.
 
 -   `CAP TOO TIGHT`,
     which is a warning and not a refusal.
@@ -645,7 +660,10 @@ Each is the exact string the log carries.
     The operator does nothing while the pass waits,
     and the log ends the wait one of two ways.
     When the pass resumes the entry,
-    the gate logs `the pass resumes` and the entry's next `TALLY` line is the one that counts.
+    the gate logs `the pass resumes`
+    (a logger line,
+    so it carries the logger's time)
+    and the entry's next `TALLY` line is the one that counts.
     When the pass budget (the soft time budget or a spend ceiling) ends during or after the wait,
     the log shows `PARKED`,
     `the pass resumes`,

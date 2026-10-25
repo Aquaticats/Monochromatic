@@ -490,11 +490,16 @@ is under a new cap
 (the `XingZ60` pass of 2026-10-22,
 ledger B960).
 
-Every line the pass prints for an entry's attempt carries the time it was printed and the attempt it belongs to,
+Every line the pass prints for an entry's attempt carries the time it was rendered and the attempt it belongs to,
 as two fields straight after the line's opening words:
 `at=<time>`,
 an ISO 8601 UTC time with milliseconds,
 and `attempt=<n>`.
+The time is read when the line is rendered,
+not when it is printed.
+A settled `TALLY` is rendered before the entry's artifact and page are persisted and printed after,
+so its `at=` is a little earlier than the `at=` of the `DESTINATIONS` and `DEFECTS` lines printed beside it,
+which are rendered after the persistence.
 The opening words are the keyword and the entry,
 and the status where the line has one (`TALLY <id> status=ERROR at=... attempt=2 ms=... error=...`),
 or `queued` on a `REATTEMPT` line,
@@ -514,9 +519,36 @@ parked and declined),
 `REATTEMPT`,
 `STALLED`,
 `INCOMPLETE` and `NOT RESUMED`.
-The launch lines and the lines that stop the pass between entries (`SOFT budget reached`,
-`STOP`,
-`the pass resumes`) belong to no attempt and carry neither field.
+The lines of the pass itself belong to no attempt,
+and carry the time without an attempt:
+`START`,
+`DONE`,
+`SOFT budget reached`,
+`SPEND CEILING reached` and `STOP every provider is out of budget` end with `at=<time>`,
+so `START` keeps opening `START tip=` for the readers that find a pass by it.
+The `INCOMPLETE <id>: <side> page absent at the pin` line,
+printed before any attempt exists,
+carries `at=<time>` straight after the entry and never `attempt=`:
+that absent field is what tells it from the `INCOMPLETE <id> at=... attempt=<n>:` line
+of an attempt that ended with stage-local work remaining.
+The launch notes (`CAP OVERRIDDEN`,
+`SPEND CEILING OVERRIDDEN`,
+the window notes,
+`CORPUS PIN OVERRIDDEN`,
+`CAP TOO TIGHT`,
+`REQUIRED-PROVIDERS`,
+`PROVIDER OFF`) are read once after `START` and carry nothing.
+`CAP OVERRIDDEN` says each attempt of an entry runs under the cap,
+as `START` and `CAP TOO TIGHT` do.
+
+The lines the tagged logger writes carry its own time (`[level] [time] ...`).
+Those it writes inside an entry's attempt (`ARCHIVE ORIGINAL`,
+`FOOTNOTES`,
+the lane lines and the `SPEND` lines among them) name the attempt in a bracket of its own after the entry,
+`[<entry>] [attempt <n>] [<lane> slice <i>]`,
+from the same number.
+`the pass resumes` and the parked warning are logger lines of the pass,
+so they carry the logger's time and no attempt.
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,

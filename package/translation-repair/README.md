@@ -463,7 +463,7 @@ which is never the same as the run having done nothing.
 The pass also prints,
 beside each settled entry's `TALLY` line,
 `DESTINATIONS <id> at=<time> attempt=<n> source=N page=M dropped=K`
-(the time the line was printed and the attempt it belongs to,
+(the time the line was rendered and the attempt it belongs to,
 which every per-entry line of the pass carries,
 `doc/configuration.md`,
 "Bounding one run"):

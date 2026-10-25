@@ -565,24 +565,48 @@ A reader looking for what happened inside a time window could not place the line
 and the cap read as one that had fired without ending the entry (ledger B960).
 Only the tagged logger's lines carried a time;
 the lines the pass prints with `console.log` for an entry carried neither a time nor an attempt.
+The lines the pass prints for itself
+(`START`,
+`DONE`,
+the stop notes,
+the page-absent `INCOMPLETE`)
+carried no time either,
+and the logger's own lines for an entry carried a time and no attempt
+(ledger B961 to B964 closed them).
 
 The rule:
-a lifecycle line a reader windows by time carries a clock time and the attempt it belongs to.
-The two fields are `at=<ISO 8601 UTC with milliseconds>` and `attempt=<n>`,
-written by `lifecycleStamp` in one place,
-straight after the line's opening words (the keyword,
+a line a reader windows by time carries a clock time,
+whether it belongs to an attempt,
+to the pass
+or to an entry no attempt has begun for,
+and a line that belongs to an attempt also carries the attempt.
+The fields are `at=<ISO 8601 UTC with milliseconds>`
+and,
+for an attempt,
+`attempt=<n>`,
+written by `lifecycleStamp` (both)
+or `lifecycleClockStamp` (the time alone) in one place.
+A line of an attempt carries them straight after its opening words (the keyword,
 the entry,
 and the status or `queued` where the line has one),
-and before the other fields and before any capped text,
+before the other fields and before any capped text,
 so a search by prefix still finds the line and a cap on the reason never cuts them.
+A line of the pass carries the time as its last field
+where readers find it by its opening words (`START tip=`),
+and a line with no attempt never prints one:
+the absent `attempt=` is what tells two lines that share an opening apart.
+The logger's lines inside an attempt name it through the log context,
+in one place,
+as `[attempt <n>]`.
 The attempt is the number the pass persists for the entry once it has counted the attempt,
 so the lines of one attempt agree and a line never keeps a count of its own.
 A limit that applies to an attempt says so where the limit is printed.
 The clock is a parameter,
 so a case fixes it and waits on nothing,
 and durations stay on the monotonic clock.
-A new per-entry line is built from `lifecycleStamp`,
-and a case for it reads the whole line with the clock fixed and an attempt other than 1.
+A new line of the pass or of an entry is built from one of the two stamp writers,
+and a case for it reads the whole line with the clock fixed,
+and with an attempt other than 1 where the line carries one.
 
 What enforces it:
 the cases of `settledTallyLine`,
@@ -591,11 +615,17 @@ the cases of `settledTallyLine`,
 `runAttemptQueue`,
 `entryOverlap`,
 `destinationsLine`,
-`defectsLine` and `settleEntry`,
+`defectsLine`,
+`printSettledLines`,
+`stopBeforeNextEntry`,
+`passStartLine`,
+`passDoneLine`,
+`passIncompleteLine` and `settleEntry`,
 which read each line with the clock fixed and the attempt given,
-and `lifecycle-stamp.unit.test.ts`.
-`corpus-pass-queue.unit.test.ts` reads the `REATTEMPT` and `STALLED` lines of a pass queue against the attempts file.
-Nothing finds a new `console.log` line of an entry that omits the stamp,
-and the lines the pass prints between entries (`SOFT budget reached`,
-`STOP`,
-`the pass resumes`) and the logger's per-entry lines carry no attempt (ledger B960 lists them as open).
+and `lifecycle-stamp.unit.test.ts`,
+whose default-clock cases compare with a fixed floor and read no clock of their own.
+`corpus-pass-queue.unit.test.ts` reads the `REATTEMPT` and `STALLED` lines of a pass queue against the attempts file,
+the stop lines of the queue,
+and the clock the queue hands its settlement.
+`log-context.unit.test.ts` reads the logger's prefix.
+Nothing finds a new `console.log` line of the pass or of an entry that omits the stamp.
