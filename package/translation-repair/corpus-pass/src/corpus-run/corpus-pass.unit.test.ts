@@ -48,6 +48,28 @@ import {
 import { makeCorpusPassClone, } from './corpus-pass-clone.test-fixture.ts';
 
 /**
+ An instant before every run of this test, in the spelling of a stamp, which a clock counted from the start of a process
+ does not reach.
+ */
+const WALL_CLOCK_FLOOR = '2026-01-01T00:00:00.000Z';
+
+/**
+ Whether a clock time a child printed reads as the wall clock: a time after the floor, in UTC.
+
+ @param time - the instant, without its `at=` key
+
+ @returns Whether it sorts after the floor and ends in Z
+
+ @example
+ ```ts
+ const ok = run.clockTimes.every(isWallClockTime,);
+ ```
+ */
+function isWallClockTime(time: string,): boolean {
+  return time.endsWith('Z',) && (time > WALL_CLOCK_FLOOR);
+}
+
+/**
  What the lock file a live pass wrote records of its holder.
 
  @param text - the lock file's text
@@ -134,6 +156,9 @@ await describe({
               ...PROVIDERS_OFF_LINES,
               '',
             ].join('\n',),);
+            // THE START LINE ALONE CARRIES A TIME in a launch that stops at the key (ledger B960).
+            expect(run.clockTimes.length,).toBe(1,);
+            expect(run.clockTimes.every(isWallClockTime,),).toBe(true,);
             expect(run.stderr,).toBe(NO_KEY_REFUSAL,);
           },
         },),
@@ -180,8 +205,8 @@ await describe({
                 pending: 1,
                 hardMs: 90_000,
               },),
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 1.5 minutes rather '
-                + 'than the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 1.5 minutes '
+                + 'rather than the built-in 420',
               'SPEND CEILING OVERRIDDEN by TRANSLATION_REPAIR_RUN_SPEND_CEILING_USD: new entries stop once '
                 + 'this run has spent 5 USD on any one of openrouter, deepseek, xiaomi rather than the built-in 20',
               'STRAGGLER GRACE OVERRIDDEN by TRANSLATION_REPAIR_STRAGGLER_GRACE_MS: rounds abandon stragglers '
@@ -199,6 +224,9 @@ await describe({
               ...PROVIDERS_OFF_LINES,
               '',
             ].join('\n',),);
+            // THE INCOMPLETE LINE AND THE START LINE each carry a time, and neither an attempt (ledger B960).
+            expect(run.clockTimes.length,).toBe(2,);
+            expect(run.clockTimes.every(isWallClockTime,),).toBe(true,);
             expect(run.stderr,).toBe(NO_KEY_REFUSAL,);
           },
         },),

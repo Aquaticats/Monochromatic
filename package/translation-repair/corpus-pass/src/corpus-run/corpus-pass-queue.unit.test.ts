@@ -321,6 +321,7 @@ await describe({
             100,
             1_100,
           ], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             settled.push(entry.id,);
             return { kind: 'settled', };
@@ -328,7 +329,7 @@ await describe({
         },);
 
         expect(settled,).toEqual(['tabby',],);
-        expect(printed.lines,).toEqual(['SOFT budget reached after 1000ms; not starting new entries',],);
+        expect(printed.lines,).toEqual([`SOFT budget reached after 1000ms; not starting new entries ${AT}`,],);
       },
     },),
     it({
@@ -363,6 +364,7 @@ await describe({
           spendCeilingUsd: 0,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             settled.push(entry.id,);
             return { kind: 'settled', };
@@ -372,6 +374,8 @@ await describe({
         expect(settled,).toEqual([],);
         expect(attempts,).toEqual(new Map(),);
         expect(printed.lines.length,).toBe(1,);
+        expect(printed.lines[0]?.startsWith('SPEND CEILING reached',),).toBe(true,);
+        expect(printed.lines[0]?.endsWith(` ${AT}`,),).toBe(true,);
       },
     },),
     it({
@@ -581,6 +585,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             made.push(entry.id,);
             await dryCallOf({ client: dryClient, signal: dryStop.signal, },);
@@ -592,6 +597,9 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toHaveLength(1,);
+        // THE STOP LINE BELONGS TO THE PASS: it ends with the clock time and names no attempt (ledger B960).
+        expect(printed.lines.at(-1,)?.endsWith(` ${AT}`,),).toBe(true,);
+        expect(printed.lines.at(-1,),).not.toContain('attempt=',);
         expect(printed.lines.some(function isReattempt(line,): boolean {
           return line.startsWith('REATTEMPT',);
         },),).toBe(false,);
@@ -772,6 +780,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle() {
             dryStop.trip({ error: new EveryProviderDryError({ measured: 'meters read synthetic dry', },), },);
             return { kind: 'stopped', };
@@ -781,6 +790,7 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toHaveLength(1,);
+        expect(printed.lines.at(-1,)?.endsWith(` ${AT}`,),).toBe(true,);
         expect(printed.lines.at(-1,),).toContain('meters read synthetic dry',);
       },
     },),

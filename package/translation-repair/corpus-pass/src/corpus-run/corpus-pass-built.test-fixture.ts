@@ -86,6 +86,49 @@ export const ENTRIES_WITH_A_GAP: readonly CorpusCloneEntry[] = [
 ];
 
 /**
+ A clock time field of a pass line, with the space before it: `at=` and the instant in the spelling the logger writes.
+ */
+const CLOCK_TIME_FIELD = / at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/gu;
+
+/**
+ The clock times the pass lines in a text carry, in the order they are printed.
+
+ @param text - what the pass printed
+
+ @returns The instants, without their `at=` key
+
+ @example
+ ```ts
+ const times = clockTimesIn({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+export function clockTimesIn({ text, }: { readonly text: string; },): readonly string[] {
+  return [...text.matchAll(CLOCK_TIME_FIELD,),].map(function timeOf(found,): string {
+    return found[0].slice(' at='.length,);
+  },);
+}
+
+/**
+ What the pass printed with the clock time fields taken out, so a case run in a child process, whose clock it cannot
+ fix, compares the rest of each line whole.
+
+ @param text - what the pass printed
+
+ @returns The text without the ` at=<instant>` fields
+
+ @example
+ ```ts
+ const rest = withoutClockTimes({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+export function withoutClockTimes({ text, }: { readonly text: string; },): string {
+  return text.replaceAll(
+    CLOCK_TIME_FIELD,
+    '',
+  );
+}
+
+/**
  What the pass wrote to each stream and how it exited, with the places it ran in.
  */
 type PassRun = {
@@ -95,7 +138,7 @@ type PassRun = {
   readonly code: number;
 
   /**
-   Everything the child wrote to stdout.
+   Everything the child wrote to stdout, with the clock time fields taken out (`clockTimes` holds them).
    */
   readonly stdout: string;
 
@@ -103,6 +146,11 @@ type PassRun = {
    Everything the child wrote to stderr.
    */
   readonly stderr: string;
+
+  /**
+   The clock times the child's pass lines carried, in the order it printed them.
+   */
+  readonly clockTimes: readonly string[];
 };
 
 /**
@@ -144,7 +192,10 @@ export async function runPass(
     readonly settings: Readonly<Record<string, string>>;
   },
 ): Promise<PassRun> {
-  return await runBuiltCommand({
+  /**
+   What the child wrote, as it wrote it.
+   */
+  const written = await runBuiltCommand({
     command: 'corpus-pass',
     packageEntry: CORPUS_PASS_ENTRY,
     args,
@@ -156,6 +207,12 @@ export async function runPass(
       ...settings,
     },
   },);
+  return {
+    code: written.code,
+    stdout: withoutClockTimes({ text: written.stdout, },),
+    stderr: written.stderr,
+    clockTimes: clockTimesIn({ text: written.stdout, },),
+  };
 }
 
 /**
