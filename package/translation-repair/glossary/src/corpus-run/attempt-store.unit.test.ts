@@ -409,6 +409,8 @@ await describe({
               expect(lines[0],).toContain('Mittens',);
               expect(lines[0],).toContain(attemptsPath,);
               expect(lines[0],).toContain(`counts Mittens as ${shown},`,);
+              // The range a count may hold is part of the warning, since it is what the operator edits the file to.
+              expect(lines[0],).toContain('no whole number from 0 to 9007199254740990; read as 0, so Mittens sorts first',);
             }
           },
         },),
