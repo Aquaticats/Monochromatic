@@ -724,6 +724,209 @@ alternating with `main` and before the hold and with a second copy of the fixed 
   and lines 608 to 616,
   did not come back).
 
+### A pointer that rests over no character
+
+A verifier on the installed build (`dd16d49c0d586fb1`,
+code of `495bf2f39e`)
+saw 9 hover trials with no request and no log line
+after a 300-notch jump,
+and 2 settled hovers at one row that sent nothing.
+The code explains them (read on 2026-10-25),
+and the measurements below reproduce them.
+
+#### Cause of the silence
+
+`Rest::due` in `src/native/language/pointer.rs` admitted only a rest whose character at the pointer's move was `Some`.
+A move onto a hint row,
+the line numbers,
+a blank line,
+or the space past a line's end stores `None` (`Rest::moved`),
+so `due` never returned a place for it:
+`rest` in `src/native/language/rest_step.rs` returned before the `resolved=` log line,
+and `Rest::idle` only closed a popup.
+`Rest::follow` already started such a rest again when the view moved,
+so the moved view changed nothing:
+a pointer that rested over no character never asked,
+even when an identifier arrived under it by a wheel turn,
+a jump,
+or hints and messages arriving.
+Only a pointer move started the rest again.
+It is the same code as before the earlier fix,
+so it is old,
+not a regression of the hold.
+
+#### A second defect of the first version of the fix
+
+The first version of this fix made `due` return the place of a rest over no character whose view had moved,
+and the requests were right in every trial.
+Screenshots of the popups showed none:
+the log has `language popup shown` followed 20 ms later by
+`language surface dismissed reason="the pointer rests over no character"` in all of 12 far-jump trials.
+The rest still recorded `None` as its character after the request was made,
+so `Rest::idle` (a rest over no character for the rest time) closed the popup of the answer as soon as it was shown.
+The native tests had waited only for the popup to appear,
+and the counts of the trials only counted requests.
+`Rest::asked_about` now records the character the request was made for,
+and the tests wait the rest time twice more and compare the popup text.
+
+#### Fix
+
+- `Rest::due` returns the place of a rest over no character only after the view moved under it
+  (`shifted`,
+  set by `follow` when it starts a rest again,
+  cleared by a pointer move to another character and by `found_nothing`),
+  so a pointer over no character in a view that stands still asks nothing and logs nothing.
+- `Rest::follow` compares the drawn offset and the height of the whole text (`View`),
+  because hints or messages arriving between the top of the view and the pointer put other text under it
+  without changing the offset.
+- `rest` resolves the character against the rows and offset that are drawn when the request is built,
+  as before.
+  A character:
+  `Rest::asked_about` marks the rest asked and over that character.
+  None:
+  nothing is asked and nothing is marked asked,
+  `Rest::found_nothing` makes the rest one over no character in a settled view,
+  and the next move of the view starts it again.
+- `Rest::idle` is unchanged,
+  so a popup that is open over a character still closes when the pointer rests over no character in a view that stands still.
+- The 350 ms rest of a settled pointer and the 0.53 to 0.57 s after a jump are unchanged.
+
+#### Native tests and guards
+
+Tests are in `src/native/language/pointer_blank_tests.rs`.
+A rest over no character:
+asks after a near scroll,
+after a far jump (held at the tile's edge when the rest starts),
+and after hints arrive under it,
+and the popup stays open for twice the rest time;
+asks nothing in a view that stands still (the record of the rest is the same after three rest times);
+asks after the next scroll when the first scroll found no character;
+and a popup that is open over a character still closes when a scroll leaves no character under the pointer.
+Unit tests cover `due`,
+`idle`,
+`found_nothing`,
+`asked_about`,
+the offset,
+and the height.
+The guard cases `hover-*` of `bin/inspect-source-guards.ts` remove each changed line in a disposable copy;
+on the final tree all 24 `hover-*` guards failed the named test with the line removed
+and passed again with it restored
+(`mise run //package/desktop-app/ide:inspect:source-guards <cache> '' <names>`,
+24 of 255 guards).
+Two lines have a unit test only:
+the height of the text in `follow` (`a_growing_text_restarts_a_rest_that_was_not_asked_for`),
+and the height read from the window in `rest` and `on_pointer_moved` has a native test that shows only the constant side
+(`a_view_that_stands_still_keeps_the_moment_the_pointer_arrived`).
+
+#### Measurements
+
+Binaries:
+main is the installed `dd16d49c0d586fb1` (built from `495bf2f39e`;
+`git diff 495bf2f39e cff94d8247 -- package/desktop-app/ide/src package/desktop-app/ide/ui` is empty,
+so it is the code of `origin/main`),
+the fix is a release build of the branch (`fix`),
+and a second copy of the fix binary (`fix2`) gives the spread.
+The three ran as three hosted sessions at the same time,
+10 trials in every cell,
+one headless nested compositor each on the hardware GPU,
+the host's load as it was (1-minute load average 3.8 to 4.3 during the runs).
+The window is 1100 by 800.
+The text is a generated 1,500-line `long.ts` of exports with literal values
+(no hint and no message,
+so every line is one 24 px row,
+except a hint row above line 2),
+in a period of five lines:
+three with an identifier at the pointer's column,
+a `//` line,
+and a blank line.
+A notch moves the text 60 px (measured).
+The pointer is at x = 480 and rests 1.2 s before the wheel.
+A trial is right when the line of the request is the line of the settled probe
+(the pointer leaves the source and comes back to the same point after the view settled,
+and the request of that settled hover names the line),
+and the geometry above predicts the same line in every trial
+(`line != model` and `probe != model` are 0 everywhere).
+Notch counts are odd so that the pointer is over text at the end
+(an even count lands on the same kind of line it started on):
+301 for the far jump.
+Every cell had an identifier under the pointer at the end in all 10 trials of every arm.
+
+- Past the end of a `//` line,
+  5,
+  11,
+  29 and 301 notches:
+  main 0 of 10 requests in each,
+  fix 10 of 10 right in each (0.534 to 0.560 s after the wheel;
+  0.543 to 0.559 s at 301),
+  fix2 10 of 10 in each.
+- On the hint row above line 2,
+  5 and 301 notches:
+  main 0 of 10 in each,
+  fix 10 of 10 right (0.533 to 0.573 s),
+  fix2 10 of 10.
+- Hints arriving under the pointer (`build.unit.test.ts`,
+  the pointer past the end of line 97,
+  45 notches,
+  a fresh session for each trial because answered hints stay):
+  main 0 of 10,
+  fix 10 of 10 right,
+  fix2 10 of 10,
+  0.783 to 0.818 s after the wheel,
+  the line named is the line 96 of the screen (the parameter `dir`) in all 20.
+- The pointer moved onto an identifier 100 ms before a 300-notch wheel:
+  main 10 of 10 right,
+  fix 10 of 10 right,
+  fix2 10 of 10 (0.545 to 0.573 s in all three).
+- The pointer rested 1.2 s on an identifier (asked,
+  popup shown)
+  and then the wheel turned at the same point:
+  0 requests after the wheel in all three arms
+  (a rest that was asked stays asked),
+  as in editord.
+- A settled hover onto an identifier:
+  10 of 10 in all three arms,
+  0.350 to 0.370 s after the move.
+- No request before the wheel and no `resolved=` line before it in any trial of a rest over no character;
+  exactly one `resolved=` line after the wheel in every trial of the fix and none in main,
+  and no trial of any arm had a second request.
+
+Before the wheel the rest over no character logs nothing,
+so the settled pointer has no log noise.
+
+The hold of a first version of this change was also measured with screenshots at 150 ms after `language popup shown`:
+see the lines above about the second defect.
+After the fix,
+12 far-jump requests (4 each past the end of a line,
+on the hint row,
+and moved onto an identifier;
+301 and 300 notches) and 6 settled hovers were looked at in screenshots of the frame after the popup was shown:
+the popup heading (`const value0758: 758`,
+`const value0753: 753`,
+`const value0752: 752`,
+`const value0002: 2`) is the identifier of the row under the pointer in every one,
+the popup stands below that row at the pointer's column (3 px left of it),
+on screen,
+and none is for another identifier or at a stale place.
+The popup of the hints trial,
+`(parameter) dir: any`,
+stands below the wrapped row of line 96 and its right edge overlaps the left 10 px of the minimap.
+
+#### Not covered
+
+- Hints that arrive after the rest was resolved to no character start it again through the height of the text
+  (`a_growing_text_restarts_a_rest_that_was_not_asked_for`);
+  in the trials of the real server the hints arrived before the rest was due (0.44 s after the wheel),
+  so the height alone was not shown necessary there.
+- One trial of a fresh session under the load of a release build that had just finished
+  (a 301-notch wheel as the first scroll of the session) had `resolved=None` and its settled probe found no character either;
+  3 trials of the same variant after it were right.
+  The log shows a finished tile left for a next scroll step that never came
+  (`leaving a finished tile for the next scroll step`).
+  It is not explained and not reproduced.
+- Rows that are drawn late without a move of the offset or a change of the height of the text
+  (a tile that lands after the rest is over)
+  are not a signal to start the rest again.
+
 ## Workarounds before the fix
 
 The reader could avoid the blank by moving the view with a placement (Ctrl+End,

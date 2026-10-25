@@ -30,6 +30,26 @@ pub(super) const REST: Duration = Duration::from_millis(350);
 const VIEW_MOVE: f32 = 0.5;
 
 /// What:
+///  The two numbers that say where the text stands under a pointer that does not move:
+///  the offset the view is drawn at and the height of the whole text with its virtual rows.
+/// Why:
+///  A wheel turn or a jump changes the offset;
+///  hints or messages arriving above the pointer change the height,
+///  and may put other text under the pointer without changing the offset.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type View = { offset: number; extent: number };
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct View {
+    /// The offset that is drawn.
+    pub(super) offset: f32,
+    /// The height of the whole text with its virtual rows.
+    pub(super) extent: f32,
+}
+
+/// What:
 ///  Where the pointer is,
 ///  as the numbers `character_at` takes for the view of that moment.
 /// Why:
@@ -51,6 +71,8 @@ pub(super) struct Spot {
     pub(super) x: f32,
     /// The drawn offset at the time of the move.
     pub(super) offset: f32,
+    /// The height of the whole text at the time of the move.
+    pub(super) extent: f32,
 }
 
 /// What:
@@ -78,34 +100,80 @@ pub(super) struct Rest {
     pub(super) asked: bool,
     /// The pointer's place at its last move.
     spot: Option<Spot>,
-    /// The drawn offset at the last tick or move.
-    seen: f32,
+    /// The view at the last tick or move.
+    seen: Option<View>,
+    /// The view moved under this rest after the pointer arrived,
+    ///  so a pointer that was over no character may be over one now.
+    shifted: bool,
 }
 
 /// Movement and timing.
 impl Rest {
-    /// The drawn offset is `offset` at this tick:
+    /// The view is `view` at this tick:
     ///  a view that moved puts other text under a pointer that did not,
-    ///  so a rest that was not asked for yet starts again.
-    pub(super) fn follow(&mut self, offset: f32) {
-        if (offset - self.seen).abs() <= VIEW_MOVE {
+    ///  so a rest that was not asked for yet starts again,
+    ///  whether the pointer was over a character or over none,
+    ///  and remembers that the text under it may have changed.
+    pub(super) fn follow(&mut self, view: View) {
+        let Some(seen) = self.seen else {
+            self.seen = Some(view);
+            return;
+        };
+        let offset_moved = (view.offset - seen.offset).abs() > VIEW_MOVE;
+        let extent_moved = (view.extent - seen.extent).abs() > VIEW_MOVE;
+        if !(offset_moved || extent_moved) {
             return;
         }
-        self.seen = offset;
+        self.seen = Some(view);
         if self.asked {
             return;
         }
         if let Some((character, _)) = self.at {
-            tracing::debug!(offset, "the view moved under a rest not yet asked for");
+            tracing::debug!(
+                offset = view.offset,
+                extent = view.extent,
+                "the view moved under a rest not yet asked for"
+            );
             self.at = Some((character, Instant::now()));
+            self.shifted = true;
         }
+    }
+
+    /// What:
+    ///  The rest was resolved against the displayed view and found no character under the pointer,
+    ///  so nothing was asked.
+    /// Why:
+    ///  The rest becomes the rest of a pointer that moved onto nothing:
+    ///  it dismisses a popup after the rest time,
+    ///  asks nothing while the view stands still,
+    ///  and starts again when the view moves.
+    pub(super) fn found_nothing(&mut self) {
+        self.at = Some((None, Instant::now()));
+        self.shifted = false;
+    }
+
+    /// What:
+    ///  A request was made for `character`,
+    ///  which the rest resolved to when it was over.
+    /// Why:
+    ///  The rest is now a rest over that character,
+    ///  asked about once.
+    ///  Left as a rest over no character it would close the popup of the answer as soon as it is shown.
+    pub(super) fn asked_about(&mut self, character: usize) {
+        if let Some((_, since)) = self.at {
+            self.at = Some((Some(character), since));
+        }
+        self.asked = true;
     }
 
     /// The pointer moved to `character` at `spot`;
     ///  a different character restarts the rest.
     pub(super) fn moved(&mut self, character: Option<usize>, spot: Spot) {
         self.spot = Some(spot);
-        self.seen = spot.offset;
+        self.seen = Some(View {
+            offset: spot.offset,
+            extent: spot.extent,
+        });
         // `map` reads the character of the present rest, if any.
         let mut present = None;
         if let Some((current, _)) = self.at {
@@ -117,6 +185,7 @@ impl Rest {
         // `Some((character, Instant::now()))` starts a new rest at this moment.
         self.at = Some((character, Instant::now()));
         self.asked = false;
+        self.shifted = false;
     }
 
     /// The pointer left the source.
@@ -147,10 +216,13 @@ impl Rest {
         if self.asked {
             return None;
         }
-        // `let Some(...) = ... else` binds a resting character or leaves with nothing.
-        let Some((Some(_), since)) = self.at else {
+        // `?` leaves with nothing when the pointer is outside the source.
+        let (character, since) = self.at?;
+        // A pointer over no character in a view that stood still has nothing to ask about;
+        //  one whose view moved under it may be over a character now.
+        if character.is_none() && !self.shifted {
             return None;
-        };
+        }
         if since.elapsed() < REST {
             return None;
         }
