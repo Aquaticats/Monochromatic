@@ -81,5 +81,37 @@ await describe({
         expect(Object.keys(answer,).toSorted(),).toEqual(['kind', 'reason',],);
       },
     },),
+    it({
+      name: 'SAYS DIFFERS FOR A BLOCK THAT DIFFERS ON ITS OWN BESIDE A BLOCK THE TWO READINGS CANNOT BE ASKED ABOUT',
+      fn: async () => {
+        /**
+         A block quote whose footnote the two readings end at different places, and after it an image whose alternative text
+         is an angle autolink, which the page shows with its brackets whatever stands beside it.
+         */
+        const after = encodedDifference({
+          source: '> [^1]: x\n> <q>\n> text\n> ===\n\n![<https://example.net/a>](u.png)\n',
+        },);
+        expect(after.kind,).toBe('differs',);
+        expect(after.undecidedBlocks,).toBe(1,);
+        /**
+         The same two blocks in the other order.
+         */
+        const before = encodedDifference({
+          source: '![<https://example.net/a>](u.png)\n\n> [^1]: x\n> <q>\n> text\n> ===\n',
+        },);
+        expect(before.kind,).toBe('differs',);
+        expect(before.undecidedBlocks,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'SAYS UNDECIDED FOR A TEXT WHOSE ONLY DIFFERENCE IS IN THE BLOCK THE TWO READINGS DISAGREE ON, a block beside it equal',
+      fn: async () => {
+        /**
+         What the comparison says of a block quote whose footnote a tag ends, beside a paragraph the page shows as it is.
+         */
+        const answer = encodedDifference({ source: '> [^1]: x\n> <q>\n> text\n> ===\n\n她说 {\n', },);
+        expect(answer.kind,).toBe('undecided',);
+      },
+    },),
   ],
 },);

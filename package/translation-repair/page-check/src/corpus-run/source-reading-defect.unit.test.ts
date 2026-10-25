@@ -113,6 +113,30 @@ await describe({
       },
     },),
     it({
+      name: 'REPORTS A DEFECT NAMING THE SLICE FOR A RUN WHOSE READING THE COMPARISON CANNOT DECIDE',
+      fn: async () => {
+        /**
+         The page of a run with a bare brace in a footnote of a block quote that a tag ends, where the source's reading and
+         the page's end the footnote at different places.
+         */
+        const composed = composeRows({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '> [^1]: x {\n> <q>\n> text\n> ===\n',
+            },
+          ],
+        },);
+        expect(composed.step,).toBe('encoded-failing-runs',);
+        expect(composed.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-undecided',],);
+        expect(composed.defects[0]?.message,).toContain('slices [1]',);
+        expect(composed.defects[0]?.message,).not.toContain('<q>',);
+      },
+    },),
+    it({
       name: 'REPORTS THE DIFFERENCE OF A RUN BESIDE A RUN SHIPPED WITHOUT ITS ORIGINAL, the dropped step among them',
       fn: async () => {
         /**

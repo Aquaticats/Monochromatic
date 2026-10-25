@@ -190,7 +190,7 @@ await describe({
       },
     },),
     it({
-      name: 'LOGS A RUN IT CANNOT DECIDE AND REPORTS NOTHING FOR IT, a footnote in a block quote that a tag ends',
+      name: 'LOGS A RUN IT CANNOT DECIDE AND REPORTS IT IN A DEFECT OF ITS OWN, a footnote in a block quote that a tag ends',
       fn: async () => {
         /**
          A block quote whose footnote the source's reading and the page's end at different places.
@@ -205,10 +205,41 @@ await describe({
           ],
           encoded: [1,],
         },);
-        expect(defects,).toEqual([],);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual(['source-reading-undecided',],);
+        expect(defects[0]?.message,).toContain('slices [1]',);
+        expect(defects[0]?.message,).not.toContain('<q>',);
         expect(lines.map(function levelOf(line,): string {
           return line.split(' ', 1,)[0] ?? '';
         },),).toEqual(['info',],);
+      },
+    },),
+    it({
+      name: 'REPORTS A RUN THAT DIFFERS AND A BLOCK OF IT THAT CANNOT BE DECIDED IN TWO DEFECTS, naming the same slices',
+      fn: async () => {
+        /**
+         A block quote whose footnote the two readings end at different places, and an image whose alternative text is an
+         angle autolink after it.
+         */
+        const { defects, } = differenceFor({
+          rows: [
+            OPENING_ROW,
+            {
+              incumbentText: '',
+              sourceText: '> [^1]: x\n> <q>\n> text\n> ===\n\n![<https://example.net/a>](u.png)\n',
+            },
+          ],
+          encoded: [1,],
+        },);
+        expect(defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toEqual([
+          'source-reads-differently',
+          'source-reading-undecided',
+        ],);
+        expect(defects[0]?.message,).toContain('slices [1]',);
+        expect(defects[1]?.message,).toContain('slices [1]',);
       },
     },),
   ],
