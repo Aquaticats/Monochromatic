@@ -107,7 +107,9 @@ The run meter is never touched by it,
 because the meter is written only by clients that send an attempt.
 
 The corpus runs book no reuse either.
-The only writer of the run meter is `reportSpend` (`provider/src/spend-line.ts`, which calls `noteRunSpend`),
+The only writer of the run meter is `reportSpend`
+(`provider/src/spend-line.ts`,
+which calls `noteRunSpend`),
 and its callers are the provider clients and the Bedrock bound ledger,
 each inside a sent call,
 and the probe's guard for its ceiling-bound line.
@@ -120,8 +122,8 @@ That test passes at its parent commit and has no red.
 
 ### The probe refuses to score a row that made no call (ruling 3)
 
-`RepliedWithoutCallError` (`messageNamesOnly`, so its message is a fixed sentence naming `PROMPT-REUSE`)
-is pushed to the guard's endings,
+`RepliedWithoutCallError` has a fixed message that names `PROMPT-REUSE` and no input (`messageNamesOnly`).
+It is pushed to the guard's endings,
 aborts the arm's controller with it,
 and is thrown to the stage.
 The stage rethrows once the signal is aborted,
@@ -138,7 +140,9 @@ The class was added to the marked classes of `source-scan/src/message-names-only
   a row follows a `PROMPT-REUSE` body written since the row before it.
   `ArmFacts.reusedRows` and `ArmFigures.reusedRows` hold the count,
   and `ArmFigures.rows` holds only the rows that made a call,
-  so every comparison, the units the arms share, the stops and the repeat reading are over those rows.
+  so every comparison,
+  the units the arms share,
+  the stops and the repeat reading are over those rows.
 - The row check fails an arm that has any:
   `N of M rows were answered by prompt reuse and made no call, so none of them is a trial`.
   The billed log now fails it with 62 of 150, shares 88 units and reads no repeat of its replays.

@@ -11,7 +11,7 @@ Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 It is a new file of 2026-10-25,
 because [the multi-pass arms file](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md) stood at 788 lines
-and this round's entry ran to 396 lines when written (399 with the pointers round 11 added).
+and this round's entry ran to 396 lines when written (403 after round 11).
 The follow-ups of B899 of rounds 8 and 9 are in that file,
 and those of round 11 are in [the prompt reuse file](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md).
 
@@ -338,7 +338,7 @@ The prose after the rule quote moved to `probe/doc/editor-fidelity-decision-rule
 212 when re-check 7 read it,
 223 after round 11),
 the README keeps the figures of this round in a short list and links the doc,
-and stands at 972 lines (1020 after round 11).
+and stands at 972 lines (999 after round 11).
 The README quote of the rule equals `decisionRuleText()` of the built package (4249 characters each,
 whitespace normalised,
 `quote-check2.ts`);

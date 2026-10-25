@@ -296,22 +296,12 @@ and each task sets it to its own name.
   or an HTTP error status that carried no body,
   is counted nothing,
   and the arm ends with a `GUARD total=` line.
-  A reply that comes with no request behind it is counted nothing either:
-  the prompt reuse layer of the run client (`promptUniqueClient`) answers a prompt it has seen from the reply it kept,
-  logs a `PROMPT-REUSE` line with the model and the digest of the prompt,
-  and sends nothing,
-  so the guard,
-  which is told of each attempt the client sends,
-  sees a reply with no attempt told.
-  It writes no `SPEND` line for it,
-  aborts the arm with `RepliedWithoutCallError`
-  and the run throws it at once,
-  scoring no row for it,
-  because a repeat that is a replay compares an answer with itself.
-  Each row names its pass to the reuse layer (`reuseScope` on the request,
-  `pass 1`, `pass 2`, ...),
-  so a prompt asked again in a later pass is asked of the model afresh,
-  and the rows that made a call stay in their files.
+  A reply with no request behind it is counted nothing:
+  the reuse layer of the run client logs a `PROMPT-REUSE` line and sends nothing,
+  so the guard writes no `SPEND` line and aborts the arm with `RepliedWithoutCallError`,
+  and no row is scored for it.
+  Each row names its pass to that layer (`reuseScope`),
+  so a later pass asks the model afresh.
   Only the Claude key is read.
   Spends quota.
 - `editor-fidelity-pool-draw`:
@@ -516,30 +506,24 @@ measured in round 10 by one simulation run of the committed fixture
   0.0000 to 0.0553 at 176 and 0.0000 to 0.0475 at 264 (88 trials asked again),
   over 18 cells at each size,
   and one of the 54 readings is over 0.05:
-  0.0553 at 176 units for a fix rate of 0.9 with chance 0 and correlation 1,
-  where re-check 7 (seed prefix `edrc7`) read 0.0535 over 30000 replicates at 176 units and 0.0488 at 264,
-  0.0537 with the 4000 of this run pooled (about three standard deviations over 0.05),
-  so the false alarm rate of the warning is about 0.054 in that one cell,
-  where the trials of an entry read as alike as the model allows and are not independent draws.
-  The three cells re-check 7 took beside it read 0.0296 (fix rate 0.9, agreement 0, correlation 0),
-  0.0430 (fix rate 0.7, agreement 0, correlation 1) and 0.0379 (fix rate 0.9, agreement 0.5, correlation 1) at 176 units.
-  When the default effort repeats itself 15 points less than arms that always repeat,
-  it fired on 0.019 to 0.041 at 100 units,
-  0.984 to 0.996 at 176 and 0.992 to 0.996 at 264;
-  for 30 points on 0.272 to 0.288 at 100 units and on 1.0000 at 176 and 264.
+  the cell of fix rate 0.9,
+  agreement 0 and correlation 1 at 176 units,
+  0.0537 over 34000 replicates with re-check 7 (about three standard deviations over 0.05),
+  against 0.0296,
+  0.0430 and 0.0379 in its three contrast cells.
+  The doc linked below names the cells,
+  and the detection rates when the default effort repeats itself 15 and 30 points less.
 - The high fix rate warning fires when the default effort cleanly fixes 90 percent or more of the shared units,
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
   With both warnings,
   the benches that print neither at true fix rates 0.91,
-  0.92 and 0.93 were,
-  at correlation 1,
-  0 of 4000 at 264 units
+  0.92 and 0.93 were 0 of 4000 at 264 units
   and 1,
   1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice),
-  and at correlation 0.5 0 of 4000 at 264 units and 3,
-  0 and 0 of 6000 at 150 units.
-  The 11 benches that printed neither warning in the whole run are 11 of 80000 over its 16 cells,
-  and four of them were at the true rate 0.90.
+  and at correlation 0.5 0 of 4000 and 3,
+  0 and 0 of 6000
+  (11 of 80000 in all,
+  four of them at the true rate 0.90).
 
 The simulations behind these figures,
 the false pick bounds and the readings above a true fix rate of 0.9,
@@ -685,10 +669,8 @@ from the `TRIALS completed n of p units` line of `$BENCH/high.log`
 less the rows a reply of the reuse layer answered,
 which a `PROMPT-REUSE` line stands for each.
 A unit that made no call is no trial:
-the build of this round ends an arm at the first reply no request produced,
-so its `TRIALS` line counts units that made a call and the number taken off is 0,
-and a log of an earlier build can count more units than it asked the model about
-(the billed high arm of `dd4b15b75c` says 150 where 88 made a call).
+the build of this round writes no such row,
+and the billed high log of `dd4b15b75c` says 150 where 88 made a call.
 The command prints the number alone,
 and prints an empty line and exits 0 for a log with no `TRIALS` line,
 as the output of a dry run is,
@@ -802,9 +784,7 @@ The headers of `mise` and the refusal go to the error stream,
 which the filter does not read.
 
 When the line says `(100 percent)`,
-the high arm gave every trial it was asked again the same reading in each pass
-(each of those asks was made of the model:
-a pass is asked afresh, and the build ends an arm on a reply that no request produced),
+the high arm gave every trial it was asked again the same reading in each pass,
 and the later arms may take one pass,
 which costs a third:
 `--passes 3 --trials 88` in place of `--passes 3 --trials "$N"` on the `TRIALS=` line of the launch block,
@@ -901,9 +881,8 @@ the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count against the units it completed
 (with a `CAPPED` line saying why an arm completed fewer than it planned,
-and a failure for any row a `PROMPT-REUSE` line stands in front of,
-which made no call and is no trial:
-the figures and the units the arms share count only rows that made a call),
+and a failure for a row a `PROMPT-REUSE` line stands in front of,
+which made no call and is no trial),
 no `[error]` line,
 the `SEAT` line (`threw` stated,
 nothing unreachable,
