@@ -5640,7 +5640,17 @@ the GPU turns outlines and paths into pixels.
   A tile whose textures differ in size from the last one's needs new textures and a new list of slices
   (`source-slices`,
   which the markup draws with a `for`),
-  and the window does not show a list it was given inside a frame.
+  and a `for` brings its rows up to date before the frame begins,
+  so a list reset (`VecModel::set_vec`) or replaced inside the rendering notifier is not drawn by that frame
+  (a reset list draws no row,
+  a replaced one the old rows),
+  and nothing asks for the frame that draws it.
+  A row replaced in a list the window already holds (`set_row_data`) is drawn by its own frame,
+  and `show_slices` (`src/native/gpu_tile/types.rs`) chooses between the two by the number of rows,
+  which for the tile is the number of its textures.
+  The rule is Slint's and is measured in `src/native/repeater_frame_tests.rs`;
+  the trace through Slint 1.18.1's source is in
+  `doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
   So `GpuTile::submit_tile` makes the textures and gives the window the slices when the tile is handed over,
   outside any frame (`Inner::prepare_tile`,
   `src/native/gpu_tile/source.rs`),
@@ -5650,6 +5660,11 @@ the GPU turns outlines and paths into pixels.
   still gets its slices inside a frame,
   and the notifier then asks for one more frame (`request_redraw`).
   Without this a view placed by a press whose hint request was skipped kept a blank code column.
+  `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures` and
+  `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures` hand painted textures to the window
+  and count the pixels of the very next frame:
+  they fail when the slices are set inside the frame again,
+  and the `tile-slices-*-drawn` and `minimap-slices-*-drawn` guard cases show it.
   The tests `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame`
   (`src/native/tile_slice_frame_tests.rs`) and
   `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` (`src/native/language/hint_skip_tests.rs`)

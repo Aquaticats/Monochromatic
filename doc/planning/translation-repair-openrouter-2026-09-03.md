@@ -835,7 +835,8 @@ named for that subject and listed here.
   CuspariaKLSY23 settled in 17.1 min with Mercury clean and tense left open by the repair lane again,
   XingZ6018 ended after 62.4 min with no page while every provider ran dry,
   XingZ6019 ended after 19.2 min on a short writing bench with NeuralWatt dry,
-  XingZ6020 was relaunched,
+  XingZ6020 settled on its second attempt after 10 h 33 min with the last 30 of 118 slices unfilled and nothing on the
+  page to say so,
   and XingZ6021 settled in 2 h 5 min 45 s on the build `bcff23b8ce` with the Shinonome section shipping archive text
   that the source does not contain.
   Entries:
@@ -856,6 +857,10 @@ named for that subject and listed here.
   - [The providers of XingZ6018](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6018-providers.md)
   - [The defects of XingZ6018](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6018-defects.md)
   - [XingZ6019 and XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6019.md)
+  - [The run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)
+  - [The stages of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-stages.md)
+  - [The evidence of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-evidence.md)
+  - [The defects of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md)
   - [The run of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md)
   - [The stages of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md)
   - [The evidence of XingZ6021](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-evidence.md)

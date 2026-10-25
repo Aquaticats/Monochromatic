@@ -89,11 +89,38 @@ so that no file passes the repository's limit of 1,000 lines:
   and are recorded in
   [the XingZ6019 record](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6019.md).
   `XingZ6019` ended with no page after 19.2 min on a short writing bench;
-  `XingZ6020` was running when the record was filed.
-  The read of `XingZ6021` quotes the lead's figures for it
-  (10 h 33 min over two attempts,
-  its tail slices unfilled),
-  and that read of `XingZ6020` is not filed in this record.
+  `XingZ6020` was running when the record was filed,
+  and its read is filed since under its own `XingZ6020` item.
+- `XingZ6020` (entry `XingZ60`):
+  launched at 19:32:29 UTC on 2026-10-22 on the build `1d46232457`.
+  [The run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)
+  (log,
+  the providers and models,
+  the NeuralWatt day,
+  the Synthetic weekly credit and the rename that left it unreadable,
+  the cost of the 300,000 ms hold,
+  where the 10.5 hours went),
+  [the stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-stages.md)
+  (the timeline of the two attempts,
+  the page that shipped without its last 30 slices,
+  what the code does with a slice that ends unfilled and whether any check should have caught the gap),
+  [the evidence](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-evidence.md)
+  (control lines,
+  refusals,
+  lost voices,
+  what the second reader found that the first missed,
+  the points no log settles)
+  and [the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md)
+  (S1,
+  E2 and D1 to D7 with the second reader's verdicts,
+  and the commit that fixed each).
+  It SETTLED on its second attempt after 10 h 32 min 51 s (the first ended on the 7 h hard deadline during a hold
+  wait),
+  with the last 30 of 118 slices unfilled and no marker on the page.
+  A second reader checked the read against the log,
+  the corpus and the source,
+  and the check's reading is the one filed.
+  The fixes of its findings are what the build of `XingZ6021` carries.
 - `XingZ6021` (entry `XingZ60`):
   launched at 22:49 UTC on 2026-10-24 on the build `bcff23b8ce`,
   described in "The build of XingZ6021".
@@ -179,6 +206,12 @@ so that no file passes the repository's limit of 1,000 lines:
   `XingZ6020` was relaunched at 19:32:29 UTC,
   after the restart,
   and what NeuralWatt held during it is not recorded here.
+  Note of 2026-10-25 (UTC):
+  it is recorded in
+  [the run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md):
+  NeuralWatt read wet on all 518 meter readings,
+  served 1,779 calls and drew 451.711 Wh of the 550 Wh day,
+  and no hold ever named it.
 
 ## The build of XingZ6021
 
@@ -188,7 +221,10 @@ so that no file passes the repository's limit of 1,000 lines:
   corpus pin `a41fc607ea`),
   first log line at 22:49:32 UTC on 2026-10-24.
   The build of `XingZ6019` and `XingZ6020` was `1d46232457`.
-- It carries the fixes for the defects that the lead's read of `XingZ6020` found.
+- It carries the fixes for the defects that the read of `XingZ6020` found
+  (filed in
+  [the defects of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md),
+  with the commit that fixed each).
   The read of `XingZ6021` checked seven:
   the source text under a note when a slice has no archive and no backed wording (owner ruling of 2026-10-23),
   D1 (the wait that cannot help),

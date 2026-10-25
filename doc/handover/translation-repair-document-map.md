@@ -70,9 +70,12 @@ are filed in the
 (ledger B818 to B825),
 `XingZ6019` ended on a short writing bench while NeuralWatt was dry
 (ledger B826,
-open),
+fixed on 2026-10-23 UTC),
 `XingZ6020` was running when the record of `XingZ6019` was filed
-(its read is not filed),
+and settled after 10 h 33 min over two attempts with the last 30 of 118 slices unfilled
+(its read starts at
+[its run file](../planning/translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md),
+and its defects file lists the commit that fixed each finding),
 and `XingZ6021` on the build `bcff23b8ce` settled in 2 h 5 min 45 s on 2026-10-25 (UTC)
 with a page whose Shinonome section ships archive text that the source lacks;
 the owner's rulings on the floors behind it are of 2026-10-25 and the change is in progress.

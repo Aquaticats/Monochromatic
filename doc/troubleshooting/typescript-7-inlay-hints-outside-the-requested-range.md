@@ -584,15 +584,17 @@ and the frame that replaced the slices was the last one.
 The skipped press at y=560 drew its text because its tile had the size of the one before it:
 no textures were replaced and the slices already pointed at the textures the frame redrew.
 
-What was not found:
-why the real window shows nothing in that frame while the test harness
-(`Window::take_snapshot` through `gpu_snapshot.rs`) shows the new slices in the same snapshot.
-Both use the same femtovg-wgpu renderer,
-which calls the notifier before it draws the items
-(`i-slint-renderer-femtovg-1.18.1/lib.rs`,
-lines 246 to 262).
-The remedy does not depend on it,
-and the tests check the contract and not the frame (see below).
+Why the frame does not show the slices was found later the same day:
+the repeater of a `for` is brought up to date before the notifier runs,
+a model reset inside the notifier removes its instances,
+and nothing asks for the frame that builds them again.
+The test harness shows the same blank when the change is a reset or a new model;
+what it shows in the same frame is a row replaced in the list the window already holds
+(`set_row_data`, the case of a tile whose textures kept their number).
+The full trace with Slint's source lines is in
+`slint-repeater-model-change-inside-rendering-notifier.md`,
+and the tests that count the pixels of the very frame after a hand-over are in the section
+"The frame after a hand-over, counted in pixels" below.
 
 ### Fix
 
@@ -747,10 +749,12 @@ the gap above the line-number row of line 96 is read by template):
   Without the fix the window holds the slices of the earlier tile after the press
   (`the window holds the slices of the earlier tile after the press`,
   `the window still holds the slices of the tile before the press`).
-- The test harness cannot show the blank column.
+- The first tests could not see the blank column, and a later pair can (section "The frame after a hand-over, counted
+  in pixels").
   A first version compared the last frame an event loop would draw with a frame drawn right after it and passed on the
   tree without any fix:
-  the harness draws the slices the notifier set in the same snapshot.
+  the press it used kept the tile's number of textures, so the notifier replaced a row of the list
+  (`set_row_data`), which the frame does show.
   A version that compared the tile's text pixels with the frame measured the antialiased glyph edges,
   not the staleness.
   A third counted the frames drawn when a frame asks for the next (commit `e0b6493f30`) and failed without the ask,
@@ -925,12 +929,15 @@ a switch to another file clears the textures and sets an empty list (`forget_min
 `set_minimap_slices(ModelRc::default())` in `apply`),
 so the next picture's list is a new one (`show_slices` in `src/native/gpu_tile/types.rs`),
 so a new list is set inside the frame.
-This does not explain the tile's blank:
-after its first tile the window's list of slices is a `VecModel` too,
-and a press that replaced the tile's textures changed it in place (`set_vec` or `set_row_data`),
-the path of the in-place minimap changes that were shown.
-Why a list changed in place was shown by the frame for the minimap and not for the tile is not known,
-and is recorded here as an open difference.
+The tile's list is a `VecModel` after its first tile too,
+and a press that replaced the tile's textures changed it in place with `set_vec` when the number of textures changed
+and with `set_row_data` when it did not.
+That is the whole difference between the minimap and the tile
+(the open question of the first version of this section):
+a frame shows a row replaced in the list but not a list reset (`set_vec`) or replaced,
+the minimap picture almost always keeps its one texture,
+and the tile's number of textures follows its height
+(see `slint-repeater-model-change-inside-rendering-notifier.md`).
 A list that is changed in place (every other action,
 including the resizes that replace the textures) was shown by the frame that set it:
 in 72 of the 157 actions with times the last hand-over replaced textures inside the last frame before the screenshot,
@@ -988,7 +995,9 @@ and no picture differing between the two screenshots.
   heights,
   and check before any frame that the window holds the slices of the GPU's textures and the picture's height;
   the second also checks that a picture of the same shape at another place is placed by its frame and not before.
-  The harness cannot show the blank minimap for the reason the tile's tests give.
+  The harness shows the blank minimap too,
+  and the pixel test of the section "The frame after a hand-over,
+  counted in pixels" fails when the picture is handed over inside the frame again.
 - Six `inspect:source-guards` cases remove one line each in a disposable copy:
   `minimap-slices-prepared` and `minimap-slices-prepared-shape` (the shape check that makes the hand-over a no-op),
   `minimap-slices-same-shape` (the same check inverted,
@@ -996,3 +1005,93 @@ and no picture differing between the two screenshots.
   `minimap-slices-made` (the call that makes the textures),
   and `minimap-slices-applied` and `minimap-slices-applied-shape` (the call that gives the window the slices).
   All fail with the line changed and pass again with it restored (14 runs accepted).
+
+## The frame after a hand-over, counted in pixels
+
+Added on 2026-10-24 by the agent that traced the cause
+(`slint-repeater-model-change-inside-rendering-notifier.md`),
+after the owner's order to close the two open items of the sections above:
+the unexplained difference between the minimap and the code tile,
+and the missing test that fails when the slices are set inside the frame again.
+
+### Cause of the open differences
+
+Slint brings a repeater up to date before the frame begins,
+so a list reset (`VecModel::set_vec`) inside the rendering notifier is drawn as no row,
+a new model as the old rows,
+and a row replaced in a list the window already holds (`set_row_data`) as the new row.
+`show_slices` (`src/native/gpu_tile/types.rs`) takes the first path when the row count changes,
+and the row count of the tile's list is the number of its textures,
+which follows the tile's height (`tile_texture_rows`).
+The minimap picture keeps its one texture almost always.
+That is the whole difference.
+The same-count half was measured in the real window too:
+in recordings of presses on a 287-line and a 1500-line plain text with the slices handed over inside the frame
+again,
+every list change was a replaced row and the picture did not change.
+The count-changing half was reproduced in the test harness only.
+The trace with Slint's source lines is in the new troubleshooting file.
+
+An earlier version of this record said that the harness shows every change of the notifier in the same snapshot.
+It does so for replaced rows only,
+and the press the first test used kept the tile's number of textures.
+
+### The tests
+
+- `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures`
+  (`src/native/tile_slice_frame_tests.rs`) hands painted stacks of two,
+  three,
+  one,
+  two,
+  and two textures of other heights to a window that holds the device,
+  and after each hand-over counts the magenta pixels of the very next frame and of the one after.
+  Without the fix (the condition of `Inner::prepare_tile` forced,
+  the in-frame step then makes the textures) the first hand-over fails with
+  `the frame that followed the hand-over of a tile of the textures [40, 24] drew 0 pixels of the tile and the next frame 4056`:
+  a list that is new in the frame draws nothing in it.
+  The 40 pixels short of the 4096 are the edge column of the first texture,
+  which sits at a fraction of a pixel,
+  and the test therefore compares the two frames and not an exact area
+  (it also requires the later frame to hold 95 percent of the area).
+- `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures`
+  (`src/native/minimap_slice_frame_tests.rs`) does the same for the minimap:
+  a first picture,
+  the first picture after a file switch (the window's list emptied and the textures forgotten),
+  a picture of two textures after one,
+  one after two,
+  and one of another height.
+- `src/native/repeater_frame_tests.rs` is the minimal repro of the rule itself,
+  without the application's markup.
+
+### Proof (GFP and the guard cases)
+
+Four `inspect:source-guards` cases remove one line each in a disposable copy:
+`tile-slices-prepared-drawn` (the condition that makes the tile's textures at the hand-over),
+`tile-slices-applied-drawn` (the call that gives the window the slices),
+`minimap-slices-prepared-drawn`,
+and `minimap-slices-applied-drawn`.
+Each case ran in three phases
+(baseline,
+line removed,
+line restored)
+and all four were accepted in all three phases:
+the baseline and the restored run passed (status 0),
+and the run with the line removed failed (status 100).
+The failures with the line removed read:
+
+- `tile-slices-prepared-drawn`:
+  `the frame that followed the hand-over of a tile of the textures [40, 24] drew 0 pixels of the tile and the next frame 4056`
+- `tile-slices-applied-drawn`:
+  `the frame after the frame of a tile of the textures [40, 24] drew 0 of its 4096 pixels, so the test counts nothing`
+  (with the call removed the window never holds the slices,
+  so the settled frame is blank too)
+- `minimap-slices-prepared-drawn` and `minimap-slices-applied-drawn`:
+  `the first picture: the frame that followed the hand-over drew 0 pixels of the picture and the next frame 4096`
+  (with the call removed from the hand-over,
+  the notifier's own step still gives the window the slices inside the frame,
+  which is the old behavior this test exists for)
+
+The first run of the tile case failed at its baseline because the test required an exact area:
+4056 of 4096 pixels are the color,
+the rest blend at the texture edges.
+The test compares the two frames and a 95 percent floor instead.

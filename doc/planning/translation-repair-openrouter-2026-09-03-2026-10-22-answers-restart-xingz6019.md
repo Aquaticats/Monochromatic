@@ -13,6 +13,16 @@ so the figures are the lead's and carry no log lines.
 The one check the filer made is the ancestry of the build commit,
 in "The build".
 
+Note of 2026-10-25 (UTC):
+`XingZ6020` has since settled and its read is filed,
+as checked by a second reader,
+in
+[the run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md),
+[its stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-stages.md),
+[its evidence](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-evidence.md)
+and [its defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md).
+The sentences of this record about `XingZ6020` are kept as written on 2026-10-22.
+
 Part of [Translation repair: OpenRouter as the paid fallback provider](translation-repair-openrouter-2026-09-03.md),
 which lists every file of this record;
 the earlier passes of the rotation and the build before this one are in
@@ -76,6 +86,13 @@ Open:
 a fix is in progress in the lead's briefs labelled D4 and E2,
 and has not landed.
 
+Note of 2026-10-25 (UTC):
+ledger B826 is fixed;
+the merge `9eea0009d1` of the fix rounds 1 to 9 landed on 2026-10-23 at 08:05 UTC and is an ancestor of `main` and
+of the build `bcff23b8ce`.
+The fix has not yet been exercised by a run (see
+[the defects of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md)).
+
 NeuralWatt's dryness has a known return:
 the next day starts from the anchor the run decided at its start (19:15:08 UTC),
 48 s after the stop in this pass.
@@ -100,3 +117,7 @@ so a return the run itself knows belongs on the waiting side of that ruling.
   so it does not reuse the cache records of `XingZ6019`.
 - It was still running when this record was filed,
   and its read is owed when it settles.
+- Note of 2026-10-25 (UTC):
+  it settled on its second attempt at 06:05:33 UTC on 2026-10-23 after 10 h 32 min 51 s,
+  and its read is filed in
+  [the run of XingZ6020](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md).
