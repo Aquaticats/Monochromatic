@@ -322,7 +322,8 @@ so the text stays undecided and is reported.
 ### The real corpus
 
 The pinned clone `one-among-us/data` at `a41fc607ea5a70d8a7625cc67d5ed8c444f53379`,
-read with `git cat-file` and never written, by a scratch script that listed the blocks of each file and counted the
+read with `git cat-file` and never written,
+by a scratch script that listed the blocks of each file and counted the
 openers and the comparison's answers
 (the script and its output are not kept in the repository;
 the unit was capped with `MemoryMax=4G` and `CPUQuota=200%`).
