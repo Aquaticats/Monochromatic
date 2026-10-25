@@ -833,8 +833,11 @@ a `REATTEMPT` or an `OVERLAP` line,
 and the cap read as one that had fired without ending the entry.
 
 What the census found
-(`~/temp/agent/tr-fan/w354-stamps/census.md`,
-outside the repository):
+(a read of every `console` call in the non-test source of `corpus-pass`,
+`slice-cache`,
+`page-check` and `artifact-pool`,
+of the other `translation-repair` packages,
+and of the tagged-logger calls of the pass packages):
 
 - No `console.log` line of the pass carried the time it was printed at.
   Only the tagged logger's lines do (`[level] [iso] ...`,
@@ -886,14 +889,15 @@ and its control over `c265e8df95~1..c265e8df95` printed `c265e8df95`.
 No prompt,
 model call or cached step input changed.
 
-Open:
+Left open by this round and answered in round 2
+(`audit-ledger-lifecycle-line-stamps-round-two.md`,
+B961 to B964):
 
 - `SOFT budget reached`,
-  `STOP` and `the pass resumes` lines,
-  which stop the pass between entries,
-  still carry no clock time.
-- The logger's own per-entry lines carry the logger's stamp and no attempt number.
-- `CAP OVERRIDDEN` still reads "entries run under N minutes" without saying per attempt.
+  `SPEND CEILING reached` and `STOP every provider ...` carried no clock time.
+  `the pass resumes` is a tagged-logger line and always carried the logger's.
+- The logger's own per-entry lines carried the logger's stamp and no attempt number.
+- `CAP OVERRIDDEN` read "entries run under N minutes" without saying per attempt.
 
 Open to the owner's veto:
 the attempt counts every attempt of every invocation,
