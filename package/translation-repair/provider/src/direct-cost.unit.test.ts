@@ -254,7 +254,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'DeepSeek rate of a call that crosses a window edge',
+      name: 'DeepSeek rate of a call by where its start and its completion fall against the windows',
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
