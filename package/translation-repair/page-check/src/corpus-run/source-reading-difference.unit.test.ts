@@ -89,6 +89,23 @@ await describe({
       },
     },),
     it({
+      name: 'READS A TEXT THAT OPENS WITH A BYTE ORDER MARK AS THE PAGE HOLDS IT, where the mark is a character and starts no block quote',
+      fn: async () => {
+        /**
+         A line that a byte order mark leads, which a parse that drops the mark takes for the start of a block quote holding a
+         footnote that a tag ends, and an image after it whose alternative text is an angle autolink. The page holds the mark
+         as a character, so the line is a paragraph, the quote after it holds no footnote, and the image differs on its own.
+         */
+        const answer = encodedDifference({
+          source: '﻿> [^1]: x\n> <q>\n> text\n> ===\n![<https://example.net/a>](u.png)\n',
+        },);
+        expect(answer.kind,).toBe('differs',);
+        expect(Object.keys(answer,).toSorted(),).toEqual(['kind', 'reason',],);
+        // The same footnote in a block quote that a blank line separates from the mark is a footnote the readings disagree on.
+        expect(encodedDifference({ source: '﻿cat\n\n> [^1]: x\n> <q>\n> text\n> ===\n', },).kind,).toBe('undecided',);
+      },
+    },),
+    it({
       name: 'SAYS DIFFERS FOR A BLOCK THAT DIFFERS ON ITS OWN BESIDE A BLOCK THE TWO READINGS CANNOT BE ASKED ABOUT',
       fn: async () => {
         /**
