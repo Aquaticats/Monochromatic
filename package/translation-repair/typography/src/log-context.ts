@@ -244,6 +244,94 @@ function bracketed({ texts, }: { readonly texts: readonly string[]; },): string 
 }
 
 /**
+ How a logger writes one line: what it does with the message it is given and the function that hands the line on.
+ */
+type LineWriter = (
+  line: {
+    readonly message: string;
+    readonly send: (text: string,) => void;
+  },
+) => void;
+
+/**
+ Logger that writes every line through one writer, at every level.
+
+ @param l - logger the lines go to
+
+ @param write - what the logger does with a message before it hands it on
+
+ @returns Logger whose levels all write through `write`, and whose flush is the wrapped logger's
+
+ @example
+ ```ts
+ const logger = writing({ l, write: ({ message, send, },) => { send(`[Tabby] ${message}`,); }, },);
+ ```
+ */
+function writing(
+  {
+    l,
+    write,
+  }: {
+    readonly l: Logger;
+    readonly write: LineWriter;
+  },
+): Logger {
+  return {
+    debug: function debug(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.debug(text,);
+        },
+      },);
+    },
+    error: function error(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.error(text,);
+        },
+      },);
+    },
+    fatal: function fatal(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.fatal(text,);
+        },
+      },);
+    },
+    flush: async function flush(): Promise<void> {
+      await l.flush();
+    },
+    info: function info(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.info(text,);
+        },
+      },);
+    },
+    trace: function trace(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.trace(text,);
+        },
+      },);
+    },
+    warn: function warn(message: string,): void {
+      write({
+        message,
+        send: (text,) => {
+          l.warn(text,);
+        },
+      },);
+    },
+  };
+}
+
+/**
  Logger writing a prefix read afresh on every line.
 
  @param l - logger the lines go to
@@ -266,30 +354,24 @@ function prefixing(
     readonly prefixOf: () => string;
   },
 ): Logger {
-  return {
-    debug: function debug(message: string,): void {
-      l.debug(`${prefixOf()}${message}`,);
+  return writing({
+    l,
+    write: function prefixed({ message, send, },): void {
+      send(`${prefixOf()}${message}`,);
     },
-    error: function error(message: string,): void {
-      l.error(`${prefixOf()}${message}`,);
-    },
-    fatal: function fatal(message: string,): void {
-      l.fatal(`${prefixOf()}${message}`,);
-    },
-    flush: async function flush(): Promise<void> {
-      await l.flush();
-    },
-    info: function info(message: string,): void {
-      l.info(`${prefixOf()}${message}`,);
-    },
-    trace: function trace(message: string,): void {
-      l.trace(`${prefixOf()}${message}`,);
-    },
-    warn: function warn(message: string,): void {
-      l.warn(`${prefixOf()}${message}`,);
-    },
-  };
+  },);
 }
+
+/**
+ Whether the line being written has had its attempt, lane and slice tags put on by a slice-tagged logger that was
+ called first.
+
+ A line passes through every logger wrapped around the one that is called, so an entry logger that names the attempt
+ and a lane that slice-tags the logger it is handed would each add the tags. The logger called first adds them and
+ sets this for the length of its call; each one beneath it writes the line as it is. Writes are synchronous, so
+ nothing else writes while it is set.
+ */
+let sliceTagsOnLine = false;
 
 /**
  Entry, attempt, lane and slice tags for the line being written.
@@ -362,6 +444,10 @@ export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
  An entry's logger, naming the attempt, lane and slice of every line written
  inside one; the entry is already its tag.
 
+ A line passes through a slice-tagged logger once: where one wraps a logger that is itself built from a slice-tagged
+ one (a lane tags the logger an entry hands it with its function and slice-tags that), the tags are written by the
+ logger called first and the order the lanes have always written is kept (ledger B963).
+
  @param l - logger tagged with the entry
 
  @returns Logger writing `[entry] [attempt n] [lane slice n] message`
@@ -372,9 +458,21 @@ export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
  ```
  */
 export function sliceTagged({ l, }: { readonly l: Logger; },): Logger {
-  return prefixing({
+  return writing({
     l,
-    prefixOf: slicePrefix,
+    write: function sliceTagsOnce({ message, send, },): void {
+      if (sliceTagsOnLine) {
+        send(message,);
+        return;
+      }
+      sliceTagsOnLine = true;
+      try {
+        send(`${slicePrefix()}${message}`,);
+      }
+      finally {
+        sliceTagsOnLine = false;
+      }
+    },
   },);
 }
 

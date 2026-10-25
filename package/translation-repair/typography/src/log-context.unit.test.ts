@@ -297,13 +297,19 @@ await describe({
                 },);
               },
             },);
-            expect(lines.filter(function isLane(line,): boolean {
+            /**
+             The printed lines one by one, since the logger hands a run of lines of one level to the console as one call.
+             */
+            const printed = lines.flatMap(function split(text,): readonly string[] {
+              return text.split('\n',);
+            },);
+            expect(printed.filter(function isLane(line,): boolean {
               return line.includes('[Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',);
             },).length,).toBe(1,);
-            expect(lines.filter(function isStage(line,): boolean {
+            expect(printed.filter(function isStage(line,): boolean {
               return line.includes('[Tabby] [attempt 2] [repair slice 3] [editor] stretches',);
             },).length,).toBe(1,);
-            expect(lines.map(function attemptTags(line,): number {
+            expect(printed.map(function attemptTags(line,): number {
               return line.split('[attempt 2]',).length - 1;
             },),).toStrictEqual([
               1,
