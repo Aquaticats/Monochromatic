@@ -11,12 +11,12 @@ which lists every file of this record.
 Provenance:
 the XingZ6021 read (its defect N8),
 the fix of 2026-10-25 (UTC),
-and the second round after an independent re-check of that fix.
+and the second and third rounds after independent re-checks of that fix.
 
 ### B920: every DeepSeek call was booked at peak rates, so an off-peak run booked twice what the balance fell
 
 Status:
-fixed on 2026-10-25 (UTC) in two rounds,
+fixed on 2026-10-25 (UTC) in three rounds,
 found by the read of the XingZ6021 run (its defect N8)
 and decided by the lead that day (the id is the lead's allocation and may be renumbered at merge time).
 The entry moved from `audit-ledger-providers-routing-and-seating.md` to this file in the second round,
@@ -98,6 +98,45 @@ and Saturday and Sunday at the same hours,
 was green on arrival,
 because the code was right and the suite had a gap,
 which is what the re-check's own mutants showed.
+
+The third round,
+after a second independent re-check found no major finding,
+two minor ones and six nits:
+the sentence "a call that crosses a window edge is booked at peak" was wider than the code,
+since a call starting at 00:30 and completing at 04:30 on a weekday crosses both edges of the first window,
+has both instants outside it,
+and books half,
+as the not-bounded sentences of the same files said.
+It is reworded in the region comment and the TSDoc of `isDeepSeekPeakDuring` in `provider/src/direct-cost.ts`,
+in the card TSDoc in `shared-contract/src/direct-card-sides.ts`,
+in the Prices section of the decision record and in this entry:
+a call that starts or completes inside a window books peak,
+and a call that spans a whole window with both instants outside books half,
+which is wrong only if DeepSeek bills by an instant between the two.
+No test pinned that half:
+a mutant that books peak for any peak minute between the two instants passed both test files.
+The case Wednesday 00:30 to 04:30 UTC and 05:00 to 10:30 UTC now expects half,
+and the mutant fails it
+(`mutant J`,
+a minute-by-minute probe between the instants;
+two cases fail,
+the spanning case and the new direct case of `isDeepSeekPeakDuring`).
+The nits:
+the module header of `direct-cost.unit.test.ts` names both instants,
+two test names of 121 columns are shortened,
+`isDeepSeekPeakDuring` has its own suite,
+the multiplier TSDoc is rewrapped,
+and a retried-call case lets the clock answer by how many attempts the transport has been handed,
+so a start read taken between attempts and not before the first books another rate
+(a mutant that reads the start at every attempt fails it on the booked figure,
+where the earlier retried-call case fails only on the read count).
+The statements on `main` that went stale,
+in the XingZ6020 run record,
+the XingZ6021 defects record and the state-after-k4 handover,
+carry dated notes beside the original text.
+The commits are `496f09c0aa` (cases),
+`f5aa75f982` (wording) and `e7e7a82d15` (notes),
+after the merge of `origin/main` at `9d234a763e` in `f3be7fd0ce`.
 
 What the booked figure bounds:
 it is an upper bound as to holidays,
