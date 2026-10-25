@@ -1,4 +1,7 @@
-import type { Nodes, } from 'mdast';
+import type {
+  Nodes,
+  Root,
+} from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
@@ -8,6 +11,7 @@ import {
   firstNestingExcess,
   isStackOverflow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { withoutIndentedCode, } from './without-indented-code.ts';
 import { withoutRawHtml, } from './without-raw-html.ts';
 
 //region GFM block ranges
@@ -25,6 +29,10 @@ import { withoutRawHtml, } from './without-raw-html.ts';
 // line is a line of the footnote's paragraph there and the footnote goes on. `footnoteDefinitionRangesOf` is the first
 // reading, which the page is arranged to match, and `pageFootnoteDefinitionRangesOf` is the second, read with raw HTML
 // turned off (`without-raw-html.ts`), which says where a code span or a brace on those lines belongs.
+//
+// A SECOND DIFFERENCE IS THE INDENT: the strict grammar has no indented code either (`without-indented-code.ts`), so a
+// line `[^1]:` indented four spaces or more after a paragraph starts a footnote on the page, where CommonMark reads a
+// lazy line of the paragraph. The page's reading finds it and the source's does not.
 
 /**
  A stretch of a text, as offsets in UTF-16 units.
@@ -33,6 +41,49 @@ export type BlockRange = {
   readonly start: number;
   readonly end: number;
 };
+
+/**
+ Parses a text with GFM and the site's math on, and the constructs the page does not have turned off as the reading asks.
+
+ @param body - text to parse
+
+ @param reading - how the text is read
+
+ @returns Root of the tree
+
+ @example
+ ```ts
+ const root = parsedAs({ body: 'a\n<q>\n', reading: 'raw HTML off', },);
+ ```
+ */
+function parsedAs(
+  {
+    body,
+    reading,
+  }: {
+    readonly body: string;
+    readonly reading: 'source' | 'raw HTML off' | 'raw HTML and indented code off';
+  },
+): Root {
+  /**
+   The parser with GFM and the site's math on.
+   */
+  const parser = unified()
+    .use(remarkParse,)
+    .use(remarkGfm,)
+    .use(remarkMath,);
+  if (reading === 'source')
+    return parser.parse(body,);
+  if (reading === 'raw HTML off') {
+    return parser
+      .use(withoutRawHtml(),)
+      .parse(body,);
+  }
+  return parser
+    .use(withoutRawHtml(),)
+    .use(withoutIndentedCode(),)
+    .parse(body,);
+}
 
 /**
  Where a text holds blocks of one type, read with GFM on.
@@ -44,24 +95,25 @@ export type BlockRange = {
 
  @param type - type of the blocks to find
 
- @param rawHtmlIsText - whether raw HTML is read as the text the page makes of it
+ @param reading - how the text is read: as a reader of the source does, with raw HTML turned off as the page has it, or
+ with indented code turned off as well
 
  @returns Start and end of each block, in text order, nested ones included
 
  @example
  ```ts
- const tables = rangesOfType({ body: '| a |\n| - |\n', type: 'table', rawHtmlIsText: false, },);
+ const tables = rangesOfType({ body: '| a |\n| - |\n', type: 'table', reading: 'source', },);
  ```
  */
 function rangesOfType(
   {
     body,
     type,
-    rawHtmlIsText,
+    reading,
   }: {
     readonly body: string;
     readonly type: 'footnoteDefinition' | 'table';
-    readonly rawHtmlIsText: boolean;
+    readonly reading: 'source' | 'raw HTML off' | 'raw HTML and indented code off';
   },
 ): readonly BlockRange[] {
   if (firstNestingExcess({
@@ -81,18 +133,10 @@ function rangesOfType(
    */
   const pending: Nodes[] = [];
   try {
-    /**
-     The parser with GFM and the site's math on, and raw HTML turned off as the page has it when the caller asks.
-     */
-    const parser = unified()
-      .use(remarkParse,)
-      .use(remarkGfm,)
-      .use(remarkMath,);
-    pending.push(rawHtmlIsText
-      ? parser
-        .use(withoutRawHtml(),)
-        .parse(body,)
-      : parser.parse(body,),);
+    pending.push(parsedAs({
+      body,
+      reading,
+    },),);
   }
   catch (error) {
     // Only the engine's stack exhaustion is the refusal the strict grammar gives such a text; any other failure is an
@@ -149,7 +193,7 @@ export function tableRangesOf({ body, }: { readonly body: string; },): readonly 
   return rangesOfType({
     body,
     type: 'table',
-    rawHtmlIsText: false,
+    reading: 'source',
   },);
 }
 
@@ -171,13 +215,14 @@ export function footnoteDefinitionRangesOf({ body, }: { readonly body: string; }
   return rangesOfType({
     body,
     type: 'footnoteDefinition',
-    rawHtmlIsText: false,
+    reading: 'source',
   },);
 }
 
 /**
  Where a text holds a footnote definition once the page has it, in text order: the page writes every less-than sign of an
- untranslated original as text, so a line of raw HTML is a line of the paragraph above it and the footnote goes on.
+ untranslated original as text, so a line of raw HTML is a line of the paragraph above it and the footnote goes on, and it
+ reads no indented code, so a line indented four spaces or more starts a footnote.
 
  @param body - text, without front matter and a leading byte order mark
 
@@ -191,10 +236,36 @@ export function footnoteDefinitionRangesOf({ body, }: { readonly body: string; }
 export function pageFootnoteDefinitionRangesOf({ body, }: { readonly body: string; },): readonly BlockRange[] {
   if (!body.includes('[^',))
     return [];
-  return rangesOfType({
+  /**
+   Definitions where raw HTML is text, which keep indented code as CommonMark reads it.
+   */
+  const withRawHtmlOff = rangesOfType({
     body,
     type: 'footnoteDefinition',
-    rawHtmlIsText: true,
+    reading: 'raw HTML off',
+  },);
+  /**
+   Definitions where indented code is turned off as well, which also finds those a line indented four spaces starts.
+   */
+  const withNoIndentedCode = rangesOfType({
+    body,
+    type: 'footnoteDefinition',
+    reading: 'raw HTML and indented code off',
+  },);
+  // The second reading adds only the definitions that start where the first reads none: a fence indented four spaces
+  // is a fence only there, and the page the encoder writes does not keep it as one.
+  return [
+    ...withRawHtmlOff,
+    ...withNoIndentedCode.filter(function startsOutside({ start, },): boolean {
+      return !withRawHtmlOff.some(function holds(range,): boolean {
+        return (start >= range.start) && (start < range.end);
+      },);
+    },),
+  ].toSorted(function byStart(
+    left,
+    right,
+  ): number {
+    return left.start - right.start;
   },);
 }
 

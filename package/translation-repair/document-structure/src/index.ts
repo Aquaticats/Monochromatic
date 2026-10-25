@@ -181,6 +181,7 @@ export {
   storedStretchesOf,
 } from './translators-note-view.ts';
 export { UnhandledMemberInvariantError, } from './unhandled-member.ts';
+export { withoutIndentedCode, } from './without-indented-code.ts';
 export { withoutRawHtml, } from './without-raw-html.ts';
 export {
   type ContainerSpan,
