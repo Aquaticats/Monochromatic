@@ -1,7 +1,10 @@
 /**
  Tests that the router reports to the budgets which provider served each call, which is what lets the budgets tell a
  refusal right after a refusal cooldown ran out (nothing served in between) from a refusal of a provider that came
- back (`provider-budget-cooldown-marks.ts`).
+ back (`provider-budget-refusal-holds.ts`).
+
+ The providers that answer are Hyper and OpenRouter, which the owner keeps funded; Bedrock is kept off and never topped
+ up, so no case routes to it.
 
  Fixtures are cat-themed invention; the callers are stubs and no HTTP is made.
 
@@ -18,8 +21,8 @@ import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provid
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
-  SEAT_BEDROCK_ONLY_TEXT,
-  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_HYPER_ONLY,
+  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import {
   type BudgetView,
@@ -47,7 +50,7 @@ const SIGNAL = new AbortController().signal;
 
  @example
  ```ts
- const { client, served, } = routerReportingService({ refusers: ['bedrock',], },);
+ const { client, served, } = routerReportingService({ refusers: ['hyper',], },);
  ```
  */
 function routerReportingService(
@@ -88,7 +91,6 @@ function routerReportingService(
         neuralwatt: callerFor('neuralwatt',),
         synthetic: callerFor('synthetic',),
         hyper: callerFor('hyper',),
-        bedrock: callerFor('bedrock',),
         openrouter: callerFor('openrouter',),
       },
       budgets: {
@@ -97,7 +99,7 @@ function routerReportingService(
             neuralwatt: true,
             synthetic: true,
             hyper: false,
-            bedrock: false,
+            bedrock: true,
             deepseek: false,
             xiaomi: false,
             anthropic: false,
@@ -127,21 +129,7 @@ await describe({
         const { client, served, } = routerReportingService();
         expect(await textCallOutcome({
           client,
-          modelId: SEAT_BEDROCK_ONLY_TEXT,
-          messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
-          signal: SIGNAL,
-        },),).toEqual({ text: 'bedrock answers', },);
-        expect(served,).toEqual(['bedrock',],);
-      },
-    },),
-
-    it({
-      name: 'REPORTS ONLY THE PROVIDER THAT ANSWERED when the first refused and the call went on to the next',
-      fn: async () => {
-        const { client, served, } = routerReportingService({ refusers: ['bedrock',], },);
-        expect(await textCallOutcome({
-          client,
-          modelId: SEAT_HYPER_TEXT_BEDROCK,
+          modelId: SEAT_HYPER_ONLY,
           messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
           signal: SIGNAL,
         },),).toEqual({ text: 'hyper answers', },);
@@ -150,17 +138,31 @@ await describe({
     },),
 
     it({
+      name: 'REPORTS ONLY THE PROVIDER THAT ANSWERED when the first refused and the call went on to the next',
+      fn: async () => {
+        const { client, served, } = routerReportingService({ refusers: ['hyper',], },);
+        expect(await textCallOutcome({
+          client,
+          modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+          messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
+          signal: SIGNAL,
+        },),).toEqual({ text: 'openrouter answers', },);
+        expect(served,).toEqual(['openrouter',],);
+      },
+    },),
+
+    it({
       name: 'REPORTS NOBODY when every provider serving the model refuses',
       fn: async () => {
         const { client, served, } = routerReportingService({
           refusers: [
-            'bedrock',
             'hyper',
+            'openrouter',
           ],
         },);
         expect('thrown' in await textCallOutcome({
           client,
-          modelId: SEAT_HYPER_TEXT_BEDROCK,
+          modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
           messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
           signal: SIGNAL,
         },),).toBe(true,);
