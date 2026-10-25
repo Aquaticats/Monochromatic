@@ -57,10 +57,9 @@ export {
   type PaymentMarks,
 } from './provider-budget-payment-marks.ts';
 export {
-  type CooldownMarks,
-  type CooldownRepeat,
-  createCooldownMarks,
-} from './provider-budget-cooldown-marks.ts';
+  createRefusalHolds,
+  type RefusalHolds,
+} from './provider-budget-refusal-holds.ts';
 export { reachPastHoldsOrRefusal, } from './reach-past-holds.ts';
 
 //endregion Hold public index

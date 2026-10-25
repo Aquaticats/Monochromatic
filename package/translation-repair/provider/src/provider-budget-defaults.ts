@@ -1,6 +1,10 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
-import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import {
+  type ProviderName,
+  type ProviderRecord,
+  providerRecord,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { MeterState, } from './provider-meters.ts';
 
 //region Provider budget starting values
@@ -92,6 +96,52 @@ export function unreadBeforeReading(): MeterState {
  */
 export function notHeldOut(): boolean {
   return false;
+}
+
+/**
+ The reading cache of a budgets instance, mutated as readings start.
+ */
+export type ReadingCache = {
+  startedAt: number;
+  inFlight: boolean;
+  reading: Promise<{
+    readonly view: ProviderRecord<boolean>;
+    readonly states: ProviderRecord<MeterState>;
+    readonly levels: ProviderRecord<string>;
+  }>;
+};
+
+/**
+ The cache of a budgets instance before any meter has answered: the last meter reading and when it was taken, stamped
+ infinitely long ago until the first.
+
+ THE PRE-READ VIEW IS NOT A PLACEHOLDER LIE. Before any meter has answered, nothing is known about any budget, and the
+ policy for an unknown budget is already that it counts as spendable. A stamp infinitely long ago is stale on any clock,
+ so the first call reads every meter regardless.
+
+ NOT ZERO. The stamp was zero for never, which an epoch clock never reads; `monotonicMs` counts from near the process's
+ start and reads zero in its first millisecond, so a reading taken then passed for no reading and every meter was read
+ again inside the window (ledger B78). Nor can zero stand as an ordinary stamp: on this clock it is the process's start,
+ so every call in the first `freshForMs` would take the pre-read view as fresh and read no meter, which failed nine of
+ the budget layer's cases when tried.
+
+ @returns Cache stamped infinitely long ago, with nothing in flight and the reading nothing is known from
+
+ @example
+ ```ts
+ const cache = beforeAnyReading();
+ ```
+ */
+export function beforeAnyReading(): ReadingCache {
+  return {
+    startedAt: Number.NEGATIVE_INFINITY,
+    inFlight: false,
+    reading: Promise.resolve({
+      view: providerRecord({ of: spendableBeforeReading, },),
+      states: providerRecord({ of: unreadBeforeReading, },),
+      levels: providerRecord({ of: noLevelBeforeReading, },),
+    },),
+  };
 }
 
 /**
