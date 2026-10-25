@@ -285,6 +285,25 @@ await describe({
         },),
 
         it({
+          name: 'READS THE LARGEST SAFE INTEGER AS ZERO, keeping the entry and its neighbours, since the pass adds one '
+            + 'to a count it reads and that sum is no safe integer, which a stamp refuses, so a hand-edited '
+            + '9007199254740991 would end the pass at its first entry and again at every launch',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
+
+            expect(
+              await readWritten({
+                directory: scratch.path,
+                contents: '{"Mittens": 9007199254740991, "Marmalade": 5}',
+              },),
+            ).toStrictEqual(new Map([
+              ['Mittens', 0,],
+              ['Marmalade', 5,],
+            ],),);
+          },
+        },),
+
+        it({
           name: 'THROWS on a read fault that is neither absence nor malformed '
             + 'JSON. Pointing the path at a directory is the shape a misconfigured '
             + 'runs directory produces, and swallowing it would make every run '
@@ -367,6 +386,10 @@ await describe({
                   '1e20',
                   '100000000000000000000',
                 ],
+                [
+                  '9007199254740991',
+                  '9007199254740991',
+                ],
               ] as const
             ) {
               /* oxlint-disable no-await-in-loop -- each read diverts the one global console.warn, so they run in turn */
@@ -392,11 +415,11 @@ await describe({
           },
         },),
         it({
-          name: 'STAYS QUIET for the smallest and the largest count a file can hold, so the whole-number rule does not '
-            + 'throw away a count that is one',
+          name: 'STAYS QUIET for the smallest and the largest count a file can hold, which is the largest safe integer '
+            + 'less one since the pass adds one to it, so the whole-number rule does not throw away a count that is one',
           fn: async () => {
             expect(
-              (await warningsReading({ contents: '{"Mittens": 0, "Marmalade": 9007199254740991}', },)).lines,
+              (await warningsReading({ contents: '{"Mittens": 0, "Marmalade": 9007199254740990}', },)).lines,
             ).toStrictEqual([],);
           },
         },),
@@ -502,6 +525,46 @@ await describe({
               attempts: await readAttemptMap(attemptsPath,),
               id: '__proto__',
             },),).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES TO COUNT an attempt past the largest safe integer, since the sum is no whole number a stamp or '
+            + 'the attempts file can hold, and leaves the count it was given',
+          fn: async () => {
+            /**
+             An entry whose count is the largest a number holds exactly.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER,],],);
+
+            expect(() => {
+              countAttempt({
+                attempts,
+                id: 'Mittens',
+              },);
+            },).toThrow();
+            expect(attemptsOf({
+              attempts,
+              id: 'Mittens',
+            },),).toBe(Number.MAX_SAFE_INTEGER,);
+          },
+        },),
+
+        it({
+          name: 'COUNTS the attempt that reaches the largest safe integer, the last one it can hold',
+          fn: async () => {
+            /**
+             An entry one attempt short of the largest count.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER - 1,],],);
+            countAttempt({
+              attempts,
+              id: 'Mittens',
+            },);
+            expect(attemptsOf({
+              attempts,
+              id: 'Mittens',
+            },),).toBe(Number.MAX_SAFE_INTEGER,);
           },
         },),
 
