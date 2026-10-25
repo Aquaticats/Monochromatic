@@ -198,9 +198,11 @@ pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
 /// ```
 pub(super) fn turn(window: &AppWindow, state: &Rc<RefCell<State>>, distance: f32) {
     let height = window.get_viewport_height();
-    let real = -window.get_scroll_y();
     let now = Instant::now();
     let mut current = state.borrow_mut();
+    // The last offset a step or a placement reported: the toolkit's property already holds the first step of the ease
+    // while its `flicked` report is being made, and may even hold the end of it.
+    let real = current.offset;
     let mut base = real;
     let mut followed = false;
     if let Some(ease) = current.wheel.ease {
@@ -380,4 +382,10 @@ pub(super) fn holds_end(current: &State, bounds: tile::TileBounds, height: f32) 
         return false;
     };
     return holds(current, bounds, ease.dest, height);
+}
+
+/// Whether the window follows an ease to its end, for the tests.
+#[cfg(test)]
+pub(super) fn is_aimed(current: &State) -> bool {
+    return aimed_ease(current).is_some();
 }
