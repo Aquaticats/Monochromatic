@@ -523,6 +523,9 @@ const NAMED_PARTS: Record<string, string> = {
  an oversight, and the next reader would have to re-derive each of these.
  */
 const WITHHELD: Record<string, string> = {
+  AttemptCountError: 'names the entry id the attempts file keys the count by, which is a name the corpus chose and not '
+    + 'this package\'s vocabulary, beside the count the entry holds, so the marker would claim a safety the entry id '
+    + 'cannot show',
   ArtifactProvenanceError: 'expected and observed carry whatever field disagreed, which may be text',
   EmptyImageAssetError: 'names the picture by the file name a corpus chose, which is not this package\'s vocabulary; '
     + 'the stage reports the picture by its reason and never forwards the message',

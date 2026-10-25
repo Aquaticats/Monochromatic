@@ -62,33 +62,15 @@ function unwrappedEntryLoggersIn({ text, }: { readonly text: string; },): number
     },)
     .join(' ',);
   return ENTRY_LOGGER_SHAPES.reduce(function counted(total, shape,): number {
-    return total + joined
-      .split(shape,)
-      .slice(
-        0,
-        -1,
-      )
-      .filter(function lacksWrapper(before,): boolean {
-        return !before.endsWith(CONTEXT_WRAPPER,);
-      },).length;
+    /**
+     The text before each logger of this shape, which ends where the logger begins.
+     */
+    const textsBefore = joined.split(shape,);
+    textsBefore.pop();
+    return total + textsBefore.filter(function lacksWrapper(before,): boolean {
+      return !before.endsWith(CONTEXT_WRAPPER,);
+    },).length;
   }, 0,);
-}
-
-/**
- Source files the scan reads: every `.ts` under the `src` of every family package but tests and fixtures.
-
- @returns Files, each located by its package directory and path under `src`
-
- @example
- ```ts
- const files = await sourceFiles();
- ```
- */
-async function sourceFiles(): Promise<readonly SourceText[]> {
-  return (await readPackageSource())
-    .filter(function isSource({ path, isTest, },): boolean {
-      return (!isTest) && (!path.endsWith('.d.ts',));
-    },);
 }
 
 await describe({
@@ -114,9 +96,11 @@ await describe({
       name: 'BUILDS every entry logger on the log context, so its lines name the attempt inside one (ledger B963)',
       fn: async () => {
         /**
-         Files the scan read.
+         Files the scan reads: every `.ts` under the `src` of every family package but tests and fixtures.
          */
-        const files = await sourceFiles();
+        const files = (await readPackageSource()).filter(function isProduction(file: SourceText,): boolean {
+          return (!file.isTest) && (!file.path.endsWith('.d.ts',));
+        },);
 
         // The scan read real loggers, so an empty list of findings is not a scan that read nothing.
         expect(files.filter(function wrapsOne({ text, },): boolean {

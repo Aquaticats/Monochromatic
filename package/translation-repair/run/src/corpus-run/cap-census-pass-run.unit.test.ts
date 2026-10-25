@@ -172,13 +172,13 @@ await describe({
       },
     },),
     it({
-      name: 'READS A LOG WHOSE LINE BEFORE THE MARKER IS LONGER THAN THE FORMER BYTE HEAD, in three-byte characters, '
+      name: 'READS A LOG WHOSE LINE BEFORE THE MARKER IS LONGER THAN A FOUR-KILOBYTE HEAD, in three-byte characters, '
         + 'since the head is counted in lines and no byte count cuts a character or a log',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
 
         /**
-         A line of three-byte characters, longer than the former head held.
+         A line of three-byte characters, longer than a head of four kilobytes holds.
          */
         const wide = '猫'.repeat(FORMER_HEAD_BYTES,);
 
