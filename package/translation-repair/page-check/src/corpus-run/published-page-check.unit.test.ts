@@ -291,6 +291,7 @@ await describe({
             },),).toEqual({
               wordings: 1,
               silentSlices: 0,
+              sourceShipped: 0,
               missing: [{
                 sliceIndex: 0,
                 characters: 38,
@@ -672,6 +673,7 @@ await describe({
             },),).toEqual({
               wordings: 1,
               silentSlices: 1,
+              sourceShipped: 0,
               missing: [],
             },);
           },

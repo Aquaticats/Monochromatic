@@ -5,7 +5,7 @@ import {
   rowsChangingArchive,
   settlePageRounds,
 } from './page-assembly-rounds.ts';
-import { shippableReplacements, } from './publish-fixed.ts';
+import { shippableReplacements, } from './shippable-replacements.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Page assembly guard
@@ -71,7 +71,10 @@ export function guardPageAssembly(
    wording.
    */
   const replacements = rowsChangingArchive({
-    replacements: shippableReplacements({ artifact, },),
+    replacements: shippableReplacements({
+      artifact,
+      includeSource: false,
+    },),
     incumbentBySlice,
   },);
   /**

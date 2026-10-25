@@ -7,6 +7,7 @@ import {
   gfmMarkerSpans,
   type GfmMarkerSpan,
 } from './gfm-marker-spans.ts';
+import { headingFloorOf, } from './heading-floor-store.ts';
 import type { DeepReadonlyData, } from './readonly-data.ts';
 
 //region Unpositioned runs
@@ -641,7 +642,8 @@ function runSpans(
  heading's number signs or underline, a table cell's pipes and padding, and
  a JSX element's tags once its attributes are left out. After the last
  attribute an opening tag holds whitespace and its closing angle bracket
- alone (`micromark-extension-mdx-jsx`, `attributeBefore`).
+ alone (`micromark-extension-mdx-jsx`, `attributeBefore`). A setext heading the parser started at the definitions
+ before it starts after them (`heading-floors.ts`), whose brackets are not the heading's.
 
  @param parent - node whose child list the run opens or closes
 
@@ -663,7 +665,16 @@ function runEdges(parent: TreeNode,): RawBounds {
   const bounds = nodeBounds(parent,);
   if (bounds === NO_NODE_BOUNDS)
     throw new FootnoteRewriteError({ kind: 'position', },);
-  if ((parent.type === 'paragraph') || (parent.type === 'heading')
+  if (parent.type === 'heading') {
+    return {
+      start: Math.max(
+        bounds.start,
+        headingFloorOf({ heading: parent, },),
+      ),
+      end: bounds.end,
+    };
+  }
+  if ((parent.type === 'paragraph')
     || (parent.type === 'emphasis')
     || (parent.type === 'strong')
     || (parent.type === 'delete')

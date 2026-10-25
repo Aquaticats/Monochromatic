@@ -275,6 +275,7 @@ Three recordings of each binary, alternating, 0.4 s before the click to 1.5 s af
   The second range is within the first answered range,
   so a rule in the hint request that skips a window the last answer already covers
   would remove the extra request; it was not built, because it was not asked for.
+  (Built on 2026-10-24 after the owner asked for it: see the section "Skip a hint request that stored answers cover: built".)
 - The view moves about a quarter of a second after the press, once, by the difference the missing rows made
   (834 px for this file at the bottom).
   That is the correction the owner asked for, and it is the one visible step.
@@ -299,3 +300,465 @@ Three recordings of each binary, alternating, 0.4 s before the click to 1.5 s af
 
 Probes and recordings: `~/temp/agent/reaim/` (`arm.ts`, `compare.ts`, `rec.ts`, `runs.ts`; scratch,
 not kept in the repository).
+
+## Skip a hint request that stored answers cover: built
+
+Built on 2026-10-24 after the owner chose,
+through the question tool,
+a rule that skips a hint request
+when the last answer already covers the window.
+The code is `Annotations::answered_covers` (`src/annotation/coverage.rs`,
+`src/annotation.rs`),
+which `merge_labels` in `src/annotation/blocks.rs` feeds,
+and the call in `hints` in `src/native/language/sync.rs` (`HINT_SETTLE` is still 200 ms).
+
+### The rule
+
+A request for the visible lines asks one view height above the first visible line and two below it,
+clipped to the text (`request_lines` in `src/language/hints.rs`).
+That request is not sent when its range lies inside the union of the ranges that hint snapshots,
+stored for the same text revision,
+asked about:
+
+- Only a stored answer adds lines.
+  A request that is pending,
+  failed,
+  or cancelled never reaches the store,
+  so it covers nothing,
+  and the IDE holds the hints of the covered lines because the same snapshots put them in its per-line store.
+- The lines belong to one text revision (file generation and revision).
+  The first stored answer for another revision starts the record afresh,
+  and a query for another revision is not covered,
+  also while no answer for it has arrived.
+  So an edit,
+  a reload,
+  and another file reset it.
+  Opening the file in the worker again (an explicit action that restarts failed servers) forgets all lines too,
+  because the new worker holds no earlier request.
+- An answer counts only when it put a hint on one of the lines it asked about (a hint that stands on another line,
+  as TypeScript 7 gives for a statement that began above the range, does not count).
+  An answer without one covers nothing and takes the lines it asked about out of the earlier coverage,
+  because it replaced their hints with none.
+  A server that is still loading the project answers with no hint or with some,
+  and the view that settles over those lines then asks again, as it did before the rule.
+  Lines that really hold no hint are asked again on each settle for the same reason.
+- Ranges that overlap or touch are joined,
+  so two answers can cover a range together,
+  and a gap between answers is not covered.
+  An empty range is never covered.
+- A skipped view is recorded as the last handled one (the debug line is
+  `skipped the hint request: stored answers already cover its lines`),
+  so the view is not examined again on every tick.
+  The worker keeps the window it was last told.
+
+### What was measured
+
+The disposable project and binaries are those of the section "Re-aim once of a minimap press:
+built":
+a copy of `build.unit.test.ts` (287 lines) with the TypeScript 7.1.0-beta server,
+a window of 1080 by 1880 logical px at scale 2,
+the nested compositor,
+and the debug log.
+The base is the tree before the rule,
+the fix is the tree with it.
+Each scenario ran three times per binary,
+alternating base and fix,
+under the load the host had
+(other sessions were building throughout;
+load average 6 to 19).
+Requests are the lines `reported visible lines for inlay hints`,
+skips the lines `skipped the hint request`.
+
+- The first click at y=1700 of a session:
+  base 2 requests in 3 of 3 runs (top line 214,
+  then 223),
+  fix 1 request and 1 skip in 3 of 3 runs.
+  The answer of the first request was stored 250 to 255 ms after the click in base and 254 to 269 ms in fix;
+  the second answer,
+  498 to 510 ms in base,
+  is the one that is gone.
+  The second range,
+  lines 146 to 287,
+  lies inside the first,
+  lines 137 to 287.
+- A click at y=1000 and then the click at y=1700:
+  base 1 request for each click (3 of 3 runs),
+  fix 1 request for the click at y=1000 and none for the click at y=1700 (1 skip,
+  3 of 3 runs).
+  This differs from the expectation that the later press still costs one request:
+  the answer to the first click asked lines 70 to 288 (top line 147 plus two view heights clips to the end of the 288 lines),
+  so it already asked every line the press at y=1700 needs,
+  and all of their hints are stored (86 in that answer).
+  In a file where the first click's answer does not reach the end the later press costs what it did:
+  with a text of 843 lines (the header of the file,
+  then its body three times as functions),
+  the click at y=1000 cost 2 requests in base (the minimap re-aim reports a second view) and 1 request and 1 skip in fix,
+  and the click at y=1700 after it 2 requests in both binaries (3 of 3 runs each).
+- Ordinary scrolling still asks when the view leaves the covered lines.
+  In the 843-line text after a click at y=1700 (3 requests in both binaries),
+  a wheel of 40 notches up sent 1 request in both binaries (3 of 3 runs):
+  the answer was stored 414,
+  427,
+  and 428 ms after the wheel in base and 392,
+  403,
+  and 421 ms in fix.
+  The spread of the same binary is 14 ms in base and 29 ms in fix,
+  and the two binaries differ by less than that spread
+  at the median (427 against 403 ms),
+  so the hints appear within the same time.
+  The three smaller steps that followed,
+  one notch up,
+  one notch down,
+  and 40 notches down to the first view,
+  sent 1 request each in base (3 of 3 runs) and none in fix (3 skips each,
+  3 of 3 runs):
+  their lines were inside what the two earlier answers had asked,
+  and their hints were stored.
+
+After the change that makes an answer without a hint cover nothing,
+the two first scenarios were measured again with the new binary (three alternating runs per binary):
+the first click at y=1700 is 2 requests in base and 1 request plus 1 skip in fix (3 of 3 runs each),
+and the press at y=1700 after the click at y=1000 is 1 request in base and 0 requests plus 1 skip in fix (3 of 3 runs).
+The counts are those of the earlier runs.
+
+### Servers the IDE starts, and what they answer while loading
+
+The IDE uses Helix's built-in definitions with its own overrides (`src/language/config.rs`),
+so the servers are those of Helix's languages: `rust-analyzer`, the TypeScript 7 server for the TypeScript family
+(`src/language/config/typescript.rs`), `slint-lsp` and `qmlls` (which announce no inlay hints on this host), and others.
+Measured on 2026-10-24 with a direct probe (`~/temp/agent/cr/ra.ts`, a 23-line crate, whole-file requests every 250 ms
+after `didOpen`, `rust-analyzer` 1.98.1 from the stable toolchain):
+0 hints at 7 ms, 5 at 261 ms, error `-32801 content modified` at 514 and 858 ms, then 15 from 2057 ms on, stable until 12 s.
+So a loading server does answer with no hint (the case the rule treats as covering nothing)
+and with part of its hints (the case it does not catch: the 5 of 15 would cover their lines).
+The TypeScript 7 server answered completely from 0 ms in the section "Residual first-visit difference of the minimap"
+(68 and 68 hints after delays of 0 to 6000 ms), and its `content modified` errors are retried by the worker.
+
+### Known costs
+
+- A skipped view leaves the worker's window at the last view it was told about.
+  The worker asks again from that window after a reload (and when a second server starts late),
+  so such an ask names the lines of an earlier view.
+  Measured in `an_edit_forgets_the_lines_the_earlier_revision_asked_about` with the view left on a skipped place
+  (first requests start at lines 0,
+  173,
+  and 200;
+  the skipped view would start at line 186):
+  an external edit sent 2 requests,
+  the first starting at line 200 (the window the worker was told)
+  and then one starting at line 186 (the view);
+  a tree without the rule was not measured for this.
+  The answer for the earlier window is dropped as "no longer wanted" when the current window differs.
+- A partial answer of a loading server (some of its hints, not all) covers its lines until an edit, a reload,
+  reopening the file in the worker, or a view that leaves them; the rule cannot tell it from a complete answer.
+- With several servers one stored answer covers the lines for all of them,
+  although a server that started later has answered fewer lines.
+- A later press that lies wholly inside what an earlier visit asked costs no request,
+  as the second measurement shows;
+  the owner expected "still one" there,
+  and the hints of those lines are stored,
+  so nothing is missing from the view.
+
+### Proof that the tests and the guards see the rule
+
+- `src/native/language/hint_skip_tests.rs` has six tests that count the requests the scripted server receives
+  (its report file),
+  and `tests/annotation.rs` has four tests of the covered lines.
+- On a tree whose skip is disabled (`if false && covered`),
+  4 of the 6 native tests fail and 2 pass:
+  `a_view_inside_the_answered_lines_sends_no_request`,
+  and the three tests that first show a covered view
+  being skipped (`a_view_leaving_the_answered_lines_sends_a_request`,
+  `an_edit_forgets_the_lines_the_earlier_revision_asked_about`,
+  `opening_the_file_again_forgets_the_lines_asked_about`),
+  all with the message
+  `a view whose request asks only answered lines sent a request`.
+  `a_pending_request_does_not_cover_its_lines` and `a_failed_request_does_not_cover_its_lines` pass on such a tree,
+  because the request they wait for is sent anyway;
+  they fail against the guard cases `hint-skip-pending` and `hint-skip-failed`,
+  which record a request as covering its lines when it is sent.
+- Seventeen cases `hint-skip-*` in `bin/inspect-source-guards.ts` change one line each in a disposable copy
+  (`hint-skip-covered`,
+  `hint-skip-noted`,
+  `hint-skip-revision-reset`,
+  `hint-skip-edit`,
+  `hint-skip-revision-query`,
+  `hint-skip-empty-range`,
+  `hint-skip-ends`,
+  `hint-skip-touching`,
+  `hint-skip-pending`,
+  `hint-skip-failed`,
+  `hint-skip-reopen`,
+  `hint-skip-empty-answer`,
+  `hint-skip-empty-answer-window`,
+  `hint-skip-empty-uncover`,
+  `hint-skip-uncover-left`,
+  `hint-skip-uncover-right`,
+  `hint-skip-uncover-apart`):
+  all seventeen tests fail with the line changed,
+  with the expected message,
+  and pass again with it restored.
+  One line is not guarded:
+  the record of a skipped view as handled
+  (`language.hints.sent = Some((stamp, wanted))` in the skip branch);
+  without it only the debug line repeats on every tick.
+
+Probes and scripts:
+`~/temp/agent/cr/` (`measure.ts`,
+`runs.ts`,
+`restart.ts`,
+`big.ts`;
+scratch,
+not kept in the repository).
+
+## A press whose hint request is skipped leaves the code column blank
+
+Found on 2026-10-24 by a verification agent on the installed binary (merge `83f6240e4b`,
+the tree with the hint skip rule),
+and fixed the same day.
+
+### Symptom
+
+Opening `package/build-tool/css/src/build.unit.test.ts` (287 lines,
+window of 1080 by 1880 logical px at scale 2)
+and pressing the minimap at y=1000,
+1700,
+1000,
+560,
+and 1700 with a screenshot after each:
+the gutter numbers stay drawn and the code column is blank.
+The mean grey of the code area (crop 1300 by 3600 at +640+60) is 0.5000 to 0.500017 when blank
+and 0.5088 to 0.5114 when text is drawn.
+The installed binary drew the first press,
+left the second blank,
+the third blank,
+drew the fourth,
+and left the fifth blank.
+A later screenshot stayed blank,
+and one wheel notch brought the text back,
+so the picture was missing and not late.
+Every blank press coincided with the log line `skipped the hint request: stored answers already cover its lines`,
+but not the other way round:
+the skipped press at y=560 drew its text.
+
+### Cause
+
+`hints` in `src/native/language/sync.rs` skips correctly;
+it took away a frame that the code view needed and nothing else asked for.
+
+The code tile reaches the screen in two steps.
+`show` (`src/native/render/present.rs`) hands the scene to the GPU and asks for a frame.
+In that frame the rendering notifier (`bind` in `src/native/gpu_tile.rs`) draws the scene into textures,
+and when the new tile's textures differ in size from the last tile's (`tile_textures_fit` in
+`src/native/gpu_tile/source.rs`) it makes new textures first and gives the window their slices,
+the list `source-slices` that the markup draws with a `for` (`ui/app.slint`),
+through `outcome.apply(&active)` in the notifier closure,
+inside the frame.
+A frame does not show a slice list it was given inside itself,
+and an idle window draws no other frame.
+In the real window the code column is empty in that frame;
+the gutter,
+which comes from other properties,
+is drawn.
+A press places the view at another place,
+and the tile there has another height
+(188 lines for the first press and 117 lines for the second,
+in the 287-line file,
+the log line
+`window thread measured and built a tile`),
+so a press almost always replaces the textures.
+
+Before the skip rule the frame that showed the slices came by chance.
+The answer to the second hint request was stored,
+`tick` in `src/native/language/poll.rs` rendered the source again,
+and `show` asked for a frame.
+The log of the tree before the rule shows it,
+5 ms from the stored answer to the frame:
+`stored inlay hints for the displayed text`,
+`source reading state presented`,
+`winit asked for a redraw`,
+`the toolkit began drawing a frame`.
+A skipped request has no answer,
+so nothing rendered,
+and the frame that replaced the slices was the last one.
+The skipped press at y=560 drew its text because its tile had the size of the one before it:
+no textures were replaced and the slices already pointed at the textures the frame redrew.
+
+What was not found:
+why the real window shows nothing in that frame while the test harness
+(`Window::take_snapshot` through `gpu_snapshot.rs`) shows the new slices in the same snapshot.
+Both use the same femtovg-wgpu renderer,
+which calls the notifier before it draws the items
+(`i-slint-renderer-femtovg-1.18.1/lib.rs`,
+lines 246 to 262).
+The remedy does not depend on it,
+and the tests check the contract and not the frame (see below).
+
+### Fix
+
+A tile handed over for the next frame brings its slices with it.
+`GpuTile::submit_tile` (`src/native/gpu_tile.rs`) now takes the window and,
+when the device is held
+(`Inner::prepare_tile`,
+`src/native/gpu_tile/source.rs`) and the new tile's textures differ in size from the last one's,
+makes the textures and gives the window the slices at once,
+in the call from `show`,
+outside any frame.
+The frame that follows draws the scenes into those textures before the items are drawn,
+and shows the tile.
+The notifier keeps the old step for a tile handed over before the first frame,
+when no device is held yet,
+and asks for one more frame when it replaced the slices (`request_redraw`,
+logged as
+`replaced the slices of the source tile inside a frame, so asking for the next`).
+That step is not covered by a test of its own:
+it is reached only by the very first tile of a window.
+Textures of the same size are reused as before,
+so a scroll step that re-centers the tile still makes no texture
+and sets no list (`a_tile_of_the_same_shape_reuses_its_textures_and_the_list_of_images` passes unchanged).
+The skip rule is unchanged,
+and so are its request counts (below).
+
+Considered and not built:
+
+- Asking for one more frame after the notifier replaced the slices (built first,
+  commit `e0b6493f30`).
+  It showed the tile one frame late:
+  the recording below counted one blank frame for each replaced tile
+  (37 of 711 frames) where the fix above counts none,
+  and a test could only count frames,
+  not see the column.
+  The notifier keeps it for the first tile only.
+- Removing the skip rule.
+  It saves a request and its answer,
+  and the blank column was not its doing:
+  any tile handed over without a render after it would have the same defect.
+  Ranked:
+  the fix above,
+  then the ask-for-a-frame variant,
+  then the removal,
+  because the removal would hide the cause.
+
+### Measured
+
+The disposable project is a copy of `build.unit.test.ts` with the TypeScript 7.1.0-beta server,
+the window is 1080 by 1880 logical px at scale 2 on the hardware Vulkan device in the nested compositor,
+and the binaries are debug builds.
+The host was loaded throughout (load average 7 to 26,
+other sessions building and testing),
+so the numbers are what happened under that load.
+The recordings ask for 60 frames per second and got 21.6 to 22.7:
+at 2160 by 3760 pixels per frame the capture pipeline reads back fewer frames than that on this host,
+and none was dropped or failed in any recording.
+
+The five screenshots (presses at y=1000,
+1700,
+1000,
+560,
+1700;
+mean grey of the code area),
+three alternating runs per binary,
+the tree before the fix (`5e9584aa51`) and the fixed tree (`433856b8a6`):
+
+- Before:
+  0.511073,
+  0.500000,
+  0.500017,
+  0.510496,
+  0.500000 in 3 of 3 runs.
+  The second,
+  third,
+  and fifth screenshots are blank.
+- After:
+  0.511073,
+  0.509927,
+  0.511073,
+  0.510496,
+  0.509927 in 3 of 3 runs.
+  All five are drawn.
+- The first design (a frame asked for after the slices were replaced inside a frame,
+  commit `e0b6493f30`) also drew
+  all five in 4 of 4 runs.
+  The tree before the skip rule drew the first two presses here (0.511073,
+  0.509927),
+  and the verification agent reported all five.
+
+The requests per press,
+from the debug log,
+are unchanged by the fix.
+A first press at y=1700 sends 1 request and 1 skip;
+a press at y=1700 after a press at y=1000 sends 0 requests and 1 skip,
+and the same press again sends 0 requests and 1 skip.
+The first line shown by the first press and by the press after the visit elsewhere is the same,
+224 on the gutter
+(line 223 of the text,
+zero-based),
+in the fixed tree and in the tree before it,
+and the two minimap screenshots differ by 0 pixels.
+In the five-press sequence the log counted no slice list replaced inside a frame:
+every tile that needed new textures
+got them when it was handed over.
+
+The 88-click recording (the script of the verification agent:
+88 presses around the minimap,
+in order,
+reversed,
+and
+shuffled;
+PNG frames;
+a frame whose code area has a mean grey below 0.5005 is blank;
+the gap above the line-number row of line 96 is read by template):
+
+- Fixed tree:
+  726 frames at 22.0 per second,
+  0 blank,
+  line 96 found in 382 frames,
+  the gap above it 82 logical px in all
+  382 (a gap above 82 would be the doubled hints).
+  The log counts 4 hint requests and 29 skips.
+- Tree before the fix (`5e9584aa51`):
+  732 frames at 22.3 per second,
+  343 blank,
+  line 96 found in 386 frames,
+  the gap 82 in all of them.
+  4 hint requests and 28 skips.
+- First design (`e0b6493f30`):
+  711 frames at 21.6 per second,
+  37 blank,
+  each one frame long:
+  the frame that did not show the new slices.
+- Tree before the skip rule (`cr/base` of the earlier agents):
+  741 frames at 22.7 per second,
+  143 blank,
+  32 hint requests and no skip.
+  That tree also leaves the column blank for the time between a press and the answer that repaints it,
+  so the "0 blank frames" of the fixed tree is not a property the earlier trees had.
+
+### Proof that the tests and the guards see the fix
+
+- `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame` (`src/native/tile_slice_frame_tests.rs`)
+  presses the minimap on a 1500-line text and checks,
+  before any frame is drawn,
+  that the heights of the slices the window holds changed and are those of the textures the GPU holds.
+  `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile`
+  (`src/native/language/hint_skip_tests.rs`) does the same after two answered views,
+  with the press at the top of the
+  minimap and the request counts of the scripted server unchanged (the press is skipped).
+  Without the fix the window holds the slices of the earlier tile after the press
+  (`the window holds the slices of the earlier tile after the press`,
+  `the window still holds the slices of the tile before the press`).
+- The test harness cannot show the blank column.
+  A first version compared the last frame an event loop would draw with a frame drawn right after it and passed on the
+  tree without any fix:
+  the harness draws the slices the notifier set in the same snapshot.
+  A version that compared the tile's text pixels with the frame measured the antialiased glyph edges,
+  not the staleness.
+  A third counted the frames drawn when a frame asks for the next (commit `e0b6493f30`) and failed without the ask,
+  but it tested the first design.
+  What the tests check now is the contract the real window needs,
+  and the symptom is checked on the binary.
+- Five `inspect:source-guards` cases remove one line each in a disposable copy:
+  `tile-slices-prepared` and `tile-slices-prepared-skipped` (the condition that makes the textures),
+  `tile-slices-replaced` (the call that makes them),
+  and `tile-slices-applied` and `tile-slices-applied-skipped` (the call that gives the window the slices).
+  All fail with the line removed and pass again with it restored.

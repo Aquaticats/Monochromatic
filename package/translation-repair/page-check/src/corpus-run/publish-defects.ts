@@ -35,7 +35,9 @@ export type PublishCheck =
     | 'front-matter'
     | 'headings'
     | 'no-valid-wording'
-    | 'page-agreement';
+    | 'page-agreement'
+    | 'page-footnotes'
+    | 'page-source-unparseable';
 
 /**
  One failed content check the page shipped with.

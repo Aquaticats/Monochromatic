@@ -122,11 +122,41 @@ and each task sets it to its own name.
   reads every cache version constant the source declares,
   the commit that set each current value,
   and every non-test source commit since the earliest of them that no version's account names,
-  then the slice-cache records under the runs directories.
+  then the slice-cache records under the runs directories,
+  the newest one,
+  and how many versions were set after it.
   Read-only.
   Pass `--runs-under dir` after `--`,
   repeatable,
   to also search a directory holding runs directories.
+  A launch that follows the runbook writes its runs under `${HOME}/temp/agent`,
+  which the default roots do not reach,
+  so pass `--runs-under "${HOME}/temp/agent"` for the account a launch would resume.
+  A count of zero records prints a `WARNING:` line on stdout and a warning through the package logger,
+  naming every root searched and that runs root,
+  because the newest-record and versions-set-after lines then say nothing about the caches.
+  The same pair of warnings follows a count above zero when no root searched reaches that runs root,
+  because a stale record under the default roots makes the count non-zero while the runs of a launch were never read.
+  A root reaches it when the two are the same directory by real path,
+  or when the root holds it and the runs two levels below it sit within the four levels the search walks,
+  through no hidden directory and no `node_modules`.
+  The path is read as the kernel reads it,
+  so a `..` after a link goes to the parent of the link's target.
+  A root the filesystem refuses to resolve
+  (a path through a file,
+  a loop of links,
+  a directory the process may not enter)
+  does not end the audit:
+  it counts as not reaching the runs root,
+  one warning is logged with the root,
+  the filesystem's code and the failure's text,
+  and the warning on stdout ends by naming the root and the code,
+  so the newest-record and versions-set-after lines are still printed.
+  The runs root itself is resolved once before any root is compared with it:
+  where it cannot be resolved,
+  one warning is logged with that root and the failure's text,
+  and the warning on stdout says the roots searched could not be compared with it,
+  without calling any of them unresolved.
   Spends no quota.
 - `slice-cost-report`:
   reads the per-slice cost telemetry a pass wrote and says whether cost tracks slice size or a fixed overhead.

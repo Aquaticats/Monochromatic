@@ -105,6 +105,83 @@ impl Inner {
         return true;
     }
 
+    /// Whether some scene of `stack` cannot be a texture of a device whose side is at most `limit`,
+    ///  or the stack has none.
+    fn oversize(stack: &TileStack, limit: u32) -> bool {
+        let mut oversize = stack.textures.is_empty();
+        for scene in &stack.textures {
+            oversize |= scene.width == 0
+                || scene.height == 0
+                || scene.width > limit
+                || scene.height > limit
+                || scene.width != stack.width;
+        }
+        return oversize;
+    }
+
+    /// What:
+    ///  Make the textures `stack` needs and put the slices that show them in `outcome`,
+    ///  and answer whether it did.
+    /// Why:
+    ///  The window draws the tile through these slices (`source-slices` in the markup),
+    ///  and a slice list the window gets inside a frame is not shown by that frame.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function replaceTileTextures(device: Device, stack: TileStack, outcome: Outcome): boolean;
+    /// ```
+    fn replace_tile_textures(
+        &mut self,
+        device: &wgpu::Device,
+        stack: &TileStack,
+        outcome: &mut Outcome,
+    ) -> bool {
+        if !self.make_tile_textures(device, stack, outcome) {
+            return false;
+        }
+        let mut slices = Vec::with_capacity(self.tile.len());
+        let mut top = 0_u32;
+        for held in &self.tile {
+            slices.push(SourceSlice {
+                image: held.image.clone(),
+                top: top as f32,
+                height: held.target.height as f32,
+            });
+            top += held.target.height;
+        }
+        outcome.tile = Some(slices);
+        return true;
+    }
+
+    /// What:
+    ///  Make the textures a tile about to be drawn needs when its shape differs from the one the window shows,
+    ///  so that the window holds their slices before the frame that draws the tile begins;
+    ///  the outcome is empty when the textures fit,
+    ///  when the device is not held yet (the first frame has not run),
+    ///  or when the tile does not fit the device (the frame refuses it with a message).
+    /// Why:
+    ///  A slice list the window gets inside a frame is not shown by that frame,
+    ///  and the tile would be missing from it.
+    ///  Slices of textures made here are shown by the frame that draws the scenes into them,
+    ///  because the notifier draws before the items are drawn.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function prepareTile(stack: TileStack): Outcome;
+    /// ```
+    pub(super) fn prepare_tile(&mut self, stack: &TileStack) -> Outcome {
+        let mut outcome = Outcome::default();
+        let Some((device, _)) = self.device.clone() else {
+            return outcome;
+        };
+        let limit = device.limits().max_texture_dimension_2d;
+        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {
+            return outcome;
+        }
+        self.replace_tile_textures(&device, stack, &mut outcome);
+        return outcome;
+    }
+
     /// What:
     ///  Render the scenes of the tile,
     ///  top first,
@@ -126,15 +203,7 @@ impl Inner {
             return;
         };
         let limit = device.limits().max_texture_dimension_2d;
-        let mut oversize = stack.textures.is_empty();
-        for scene in &stack.textures {
-            oversize |= scene.width == 0
-                || scene.height == 0
-                || scene.width > limit
-                || scene.height > limit
-                || scene.width != stack.width;
-        }
-        if oversize {
+        if Self::oversize(stack, limit) {
             tracing::error!(
                 width = stack.width,
                 height = stack.height,
@@ -148,21 +217,8 @@ impl Inner {
             ));
             return;
         }
-        if !self.tile_textures_fit(stack) {
-            if !self.make_tile_textures(&device, stack, outcome) {
-                return;
-            }
-            let mut slices = Vec::with_capacity(self.tile.len());
-            let mut top = 0_u32;
-            for held in &self.tile {
-                slices.push(SourceSlice {
-                    image: held.image.clone(),
-                    top: top as f32,
-                    height: held.target.height as f32,
-                });
-                top += held.target.height;
-            }
-            outcome.tile = Some(slices);
+        if !self.tile_textures_fit(stack) && !self.replace_tile_textures(&device, stack, outcome) {
+            return;
         }
         for (index, scene) in stack.textures.iter().enumerate() {
             let Some(held) = self.tile.get(index) else {

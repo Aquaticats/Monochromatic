@@ -133,6 +133,13 @@ export type ArtifactContestSlice = {
    a reader of an older record refuses the key.
    */
   readonly tenseCandidates?: readonly TenseCandidateGroup[];
+
+  /**
+   Present when no round was opened because fewer seats were reachable than the voices a verdict needs, absent when a
+   roster was asked and heard nobody. Both read `quorum-not-met` with no ballot; this is what tells them apart. Part of
+   artifact generation twenty-one, so a reader of an older record refuses the key.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**
@@ -235,6 +242,7 @@ export function describeContestSlice(
     ballots: outcome.ballots,
     usable: outcome.usable,
     ...((eligibility === undefined) ? {} : { eligibility, }),
+    ...((outcome.benchBelowFloor === true) ? { benchBelowFloor: true as const, } : {}),
   };
 }
 

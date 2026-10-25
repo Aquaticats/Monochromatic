@@ -180,5 +180,92 @@ await describe({
         expect(meters[1],).toContain('openrouter=dry',);
       },
     },),
+
+    it({
+      name: 'REPORTS A PROVIDER THAT REFUSED FOR PAYMENT AS DRY IN THE STATES while its meter has not moved, '
+        + 'through a stated hold and after it ends, and as its meter says once the meter moves: a reader that '
+        + 'takes the states for the meters alone would otherwise wait out a hold for a provider that stays dry',
+      fn: async () => {
+        /**
+         Hyper's balance, which a top-up moves.
+         */
+        const balance = { credits: 243, };
+        /**
+         Clock the budgets read.
+         */
+        const clock = { now: 10_000, };
+        /**
+         Budgets whose Hyper meter moves with the balance.
+         */
+        const budgets = createProviderBudgets({
+          maxHoldMs: TEST_MAX_HOLD_MS,
+          ...WET_METERS,
+          hyper: { credits: async () => ({ balance: balance.credits, }), },
+          freshForMs: FRESH_MS,
+          rateLimitBackoffMs: FRESH_MS,
+          now: () => clock.now,
+        },);
+        await budgets.markRefused({
+          provider: 'hyper',
+          signal: SIGNAL,
+          paymentRequired: true,
+          statedWaitMs: 5 * FRESH_MS,
+        },);
+
+        // Inside the stated hold: the hold explains the dryness, and the state already says the balance does.
+        expect((await budgets.readStates({ signal: SIGNAL, },)).hyper,).toBe('dry',);
+        expect(budgets.holds().hyper,).toBe(5 * FRESH_MS,);
+
+        // After the hold ended: nothing waits any more, and the provider is still dry, as the routed view says.
+        clock.now += 20 * FRESH_MS;
+        expect(budgets.holds().hyper,).toBe(0,);
+        expect((await budgets.read({ signal: SIGNAL, },)).hyper,).toBe(true,);
+        /**
+         The states a reader waiting on holds takes the meters from, after the hold ended.
+         */
+        const states = await budgets.readStates({ signal: SIGNAL, },);
+        expect(states,).toEqual({
+          neuralwatt: 'dry',
+          synthetic: 'wet',
+          hyper: 'dry',
+          bedrock: 'dry',
+          deepseek: 'dry',
+          xiaomi: 'dry',
+          anthropic: 'dry',
+          openrouter: 'wet',
+        },);
+
+        // A top-up moves the meter: the mark clears and the state reads what the meter says.
+        balance.credits = 900;
+        clock.now += 2 * FRESH_MS;
+        expect((await budgets.readStates({ signal: SIGNAL, },)).hyper,).toBe('wet',);
+      },
+    },),
+
+    it({
+      name: 'JUDGES A LATER REFUSAL AGAINST WHAT THE METER SAID, not against the payment mark: Hyper refused for '
+        + 'payment, then refused again with no payment and a wet meter, is held for the rate-limit backoff and not '
+        + 'the exhaustion cooldown',
+      fn: async () => {
+        /**
+         Clock the budgets read.
+         */
+        const clock = { now: 10_000, };
+        /**
+         Budgets whose rate-limit backoff and exhaustion cooldown are told apart.
+         */
+        const budgets = createProviderBudgets({
+          maxHoldMs: TEST_MAX_HOLD_MS,
+          ...WET_METERS,
+          freshForMs: FRESH_MS,
+          rateLimitBackoffMs: FRESH_MS,
+          cooldownMs: 30 * FRESH_MS,
+          now: () => clock.now,
+        },);
+        await budgets.markRefused({ provider: 'hyper', signal: SIGNAL, paymentRequired: true, },);
+        await budgets.markRefused({ provider: 'hyper', signal: SIGNAL, },);
+        expect(budgets.holds().hyper,).toBe(FRESH_MS,);
+      },
+    },),
   ],
 },);

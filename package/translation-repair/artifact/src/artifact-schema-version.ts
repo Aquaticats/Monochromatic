@@ -22,6 +22,7 @@ import {
   ARTIFACT_SCHEMA_VERSION_V18,
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
 } from './corpus-run/artifact-two-lane-contract.ts';
 
 //region Artifact schema version
@@ -37,7 +38,7 @@ import {
 /**
  First schema generation there has ever been.
 
- NOT WHAT THE PASS WRITES, which is `ARTIFACT_SCHEMA_VERSION_V20`
+ NOT WHAT THE PASS WRITES, which is `ARTIFACT_SCHEMA_VERSION_V21`
  (`corpus-run/artifact-two-lane-contract.ts`, ledger D2) and has been
  a two-lane generation since `settleEntry` moved to one. This was called
  `SETTLED_ARTIFACT_SCHEMA_VERSION` and documented as the generation the pass
@@ -51,7 +52,7 @@ import {
  A version that does NOT move on a shape change is the failure this field
  exists to end, so say so here when a field is added compatibly.
 
- VERSIONS 10 TO 20 are recorded at their constants in
+ VERSIONS 10 TO 21 are recorded at their constants in
  `corpus-run/artifact-two-lane-contract.ts`, each saying what moved from the one
  before; the history here stops at 9 because the constants moved there.
 
@@ -180,6 +181,7 @@ export const KNOWN_ARTIFACT_SCHEMA_VERSIONS: readonly number[] = [
   ARTIFACT_SCHEMA_VERSION_V18,
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
+  ARTIFACT_SCHEMA_VERSION_V21,
 ];
 
 /**

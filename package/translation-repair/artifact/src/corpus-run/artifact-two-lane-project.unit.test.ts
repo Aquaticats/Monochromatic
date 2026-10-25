@@ -131,6 +131,29 @@ await describe({
         },),
 
         it({
+          name: 'CARRIES THE FLOOR MARK of an unfilled outcome and of no other, so the artifact tells a slice the '
+            + 'select bench never bought a candidate for from one the panel declined',
+          fn: async () => {
+            expect({
+              marked: toArtifactOutcome({
+                outcome: {
+                  kind: 'unfilled',
+                  benchBelowFloor: true,
+                },
+              },),
+              declined: toArtifactOutcome({ outcome: { kind: 'unfilled', }, },),
+            },)
+              .toEqual({
+                marked: {
+                  kind: 'unfilled',
+                  benchBelowFloor: true,
+                },
+                declined: { kind: 'unfilled', },
+              },);
+          },
+        },),
+
+        it({
           name: 'DROPS a field the live outcome carries and this schema does not '
             + 'describe, which no assignment would have done and is the whole '
             + 'reason these projections rebuild through literals',

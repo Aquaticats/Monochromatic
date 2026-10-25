@@ -683,9 +683,11 @@ await describe({
         },),
         it({
           name:
-            'PUBLISHES AN ENTRY WHOSE DECIDERS LEFT AN ANCHOR UNFILLED, leaving the gap exactly as the '
-              + 'archive had it. It used to refuse, on the argument that a half-document is worse than a '
-              + 'failed entry because only the failure gets retried. `XIEPT2` settled that: the refusal '
+            'PUBLISHES AN ENTRY WHOSE DECIDERS LEFT AN ANCHOR UNFILLED AND WHOSE ARTIFACT RECORDS NO ORIGINAL '
+              + 'FOR IT, leaving the gap exactly as the archive had it (an artifact that records the original '
+              + 'ships it under a note: `source-shipped-page.unit.test.ts`). It used to refuse, on the argument that '
+              + 'a half-document is worse than a failed entry because only the failure gets retried. `XIEPT2` '
+              + 'settled that: the refusal '
               + 'landed after four hours and forty-eight minutes of calls, kept neither page nor artifact, '
               + 'and a retry meets the same passage and the same judges. The archive already carries this '
               + 'gap, so the page loses nothing that was ever there and keeps every slice the run did buy',

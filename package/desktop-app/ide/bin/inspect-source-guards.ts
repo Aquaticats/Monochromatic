@@ -1851,6 +1851,217 @@ const cases: Guard[] = [
     test: 'a_drag_follows_the_aimed_press_and_then_the_live_layout',
     failure: 'the drag moves the box from the aimed place, with the live layout'
   },
+  // A view whose hint request would ask only lines that stored answers of the same text revision asked about sends no
+  // request. The rules: the skip itself; a stored answer adds its lines (and nothing else does: a request that is
+  // pending or failed never reaches the store); the lines of one revision belong to that revision only (an answer for
+  // another revision starts afresh, and a query for another revision is never covered); answers that touch or overlap
+  // cover their union; a range is covered only when one joined range holds all of it, ends included; an empty range
+  // is never covered; opening the file in the worker again forgets what was asked.
+  {
+    name: 'hint-skip-covered',
+    file: 'src/native/language/sync.rs',
+    before: '    if covered {',
+    after: '    if false && covered {',
+    native: true,
+    test: 'a_view_inside_the_answered_lines_sends_no_request',
+    failure: 'a view whose request asks only answered lines sent a request'
+  },
+  {
+    name: 'hint-skip-noted',
+    file: 'src/annotation/blocks.rs',
+    before: '        self.answered.note(snapshot.stamp, asked.clone());',
+    after: '        let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-revision-reset',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'an answer for the next revision kept the lines the earlier revision had covered'
+  },
+  {
+    name: 'hint-skip-edit',
+    file: 'src/annotation/coverage.rs',
+    before: '            self.ranges.clear();\n            self.stamp = Some(stamp);',
+    after: '            self.stamp = Some(stamp);',
+    native: true,
+    test: 'an_edit_forgets_the_lines_the_earlier_revision_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-revision-query',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if lines.is_empty() {',
+    integration: 'annotation',
+    test: 'covered_lines_belong_to_one_text_revision',
+    failure: 'lines asked in one revision were covered in the next, before any answer for it'
+  },
+  {
+    name: 'hint-skip-empty-range',
+    file: 'src/annotation/coverage.rs',
+    before: '        if self.stamp != Some(stamp) || lines.is_empty() {',
+    after: '        if self.stamp != Some(stamp) {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'an empty range was covered'
+  },
+  {
+    name: 'hint-skip-ends',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start <= lines.start && lines.end <= range.end {',
+    after: '            if range.start <= lines.start && lines.end < range.end {',
+    integration: 'annotation',
+    test: 'the_lines_a_stored_answer_asked_about_are_covered',
+    failure: 'the asked lines are not covered'
+  },
+  {
+    name: 'hint-skip-touching',
+    file: 'src/annotation/coverage.rs',
+    before: '                Some(last) if range.start <= last.end =>',
+    after: '                Some(last) if range.start < last.end =>',
+    integration: 'annotation',
+    test: 'answers_that_overlap_or_touch_cover_their_union_but_not_a_gap',
+    failure: 'three overlapping answers do not cover the lines together'
+  },
+  // A request recorded as covering its lines when it is sent, instead of when its answer is stored, makes a pending
+  // or failed request count.
+  {
+    name: 'hint-skip-pending',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_pending_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-failed',
+    file: 'src/native/language/sync.rs',
+    before: '        language.hints.sent = Some((stamp, wanted));\n    }\n    return Ok(());',
+    after: '        language.hints.sent = Some((stamp, wanted));\n        let text = source.borrow().document.text().clone();\n        let at = text.line_to_char(first);\n        let hint = ide_app::language::hints::InlayHint { position: at, label: String::from(": T"), kind: None, padding_left: false, padding_right: false, server: ide_app::language::identity::ServerIdentity { name: String::new(), instance: 0 } };\n        let _ = source.borrow_mut().annotations.accept_hints(stamp, &text, std::sync::Arc::new(ide_app::language::hints::HintsSnapshot { stamp, first_line: first, last_line: last, hints: vec![hint] }));\n    }\n    return Ok(());',
+    native: true,
+    test: 'a_failed_request_does_not_cover_its_lines',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  // An answer that put no hint on its lines covers nothing, and takes those lines out of what earlier answers covered:
+  // a server still loading the project answers with none, and the lines must be asked again.
+  {
+    name: 'hint-skip-empty-answer',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    integration: 'annotation',
+    test: 'an_answer_with_no_hint_on_its_lines_covers_nothing',
+    failure: 'an answer with no hint covered the lines it asked about'
+  },
+  {
+    name: 'hint-skip-empty-answer-window',
+    file: 'src/annotation/blocks.rs',
+    before: '        if inside > 0 {',
+    after: '        if true {',
+    native: true,
+    test: 'an_empty_answer_covers_nothing_so_the_same_lines_are_asked_again',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  {
+    name: 'hint-skip-empty-uncover',
+    file: 'src/annotation/blocks.rs',
+    before: '            self.answered.uncover(asked.clone());',
+    after: '            let _ = &self.answered;',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'lines an empty answer replaced stayed covered'
+  },
+  {
+    name: 'hint-skip-uncover-left',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.start < lines.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 35..40)'
+  },
+  {
+    name: 'hint-skip-uncover-right',
+    file: 'src/annotation/coverage.rs',
+    before: '            if lines.end < range.end {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_uncovers_the_lines_it_replaced',
+    failure: 'answered_covers(SHOWN, 50..60)'
+  },
+  {
+    name: 'hint-skip-uncover-apart',
+    file: 'src/annotation/coverage.rs',
+    before: '            if range.end <= lines.start || lines.end <= range.start {',
+    after: '            if false {',
+    integration: 'annotation',
+    test: 'an_empty_answer_leaves_answers_apart_from_its_lines_covered',
+    failure: 'an empty answer made the lines before its own covered'
+  },
+  {
+    name: 'hint-skip-reopen',
+    file: 'src/native/language/sync.rs',
+    before: '    stored.annotations.forget_answered();',
+    after: '    let _ = &mut stored;',
+    native: true,
+    test: 'opening_the_file_again_forgets_the_lines_asked_about',
+    failure: 'the scripted server did not receive the expected hint request'
+  },
+  // New textures for the code tile, and the slices that show them, are made when the tile is handed over, not inside the
+  // frame that draws it: a slice list the window is given inside a frame is not shown by that frame, and an idle window
+  // draws no other, so the code column stayed blank beside the new rows.
+  {
+    name: 'tile-slices-prepared',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {',
+    after: '        if true {',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier tile after the press'
+  },
+  {
+    name: 'tile-slices-prepared-skipped',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {',
+    after: '        if true {',
+    native: true,
+    test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
+    failure: 'the window still holds the slices of the tile before the press'
+  },
+  {
+    name: 'tile-slices-replaced',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        self.replace_tile_textures(&device, stack, &mut outcome);',
+    after: '        let _ = &mut outcome;',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier tile after the press'
+  },
+  {
+    name: 'tile-slices-applied',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the start drew no tile'
+  },
+  {
+    name: 'tile-slices-applied-skipped',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    native: true,
+    test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
+    failure: 'the window still holds the slices of the tile before the press'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

@@ -116,30 +116,96 @@ function raisesFromParse(): never {
 }
 
 /**
- A tree that raises a stack exhaustion whenever anything reads it, so the code that walks a parse after the parse call
- returned is the code that raises.
+ Names of the grammar's own functions. Each one reads the tree it has just built, to count what the parser dropped and
+ to note where a setext heading's own lines start, before it returns, and those reads are part of the parse: an
+ exhaustion they raise is the parse's, which the boundaries read as the refusal.
+ */
+const GRAMMAR_FUNCTION_NAMES: readonly string[] = [
+  'parseMdxBody',
+  'parseMarkdownBody',
+];
+
+/**
+ Whether the read being made is one the grammar's own function makes of the tree it has just built.
+
+ @returns Whether a frame of the call stack is a grammar function from the list of names
+
+ @example
+ ```ts
+ const own = readsFromTheGrammar(); // false in a test body, true inside parseMdxBody
+ ```
+ */
+function readsFromTheGrammar(): boolean {
+  /**
+   How many frames a stack keeps, restored once the stack is read.
+   */
+  const keptFrames = Error.stackTraceLimit;
+  Error.stackTraceLimit = Number.POSITIVE_INFINITY;
+  /**
+   The stack of the read.
+   */
+  const stack = new Error('stack of the read',).stack ?? '';
+  Error.stackTraceLimit = keptFrames;
+  return GRAMMAR_FUNCTION_NAMES.some(function isOnStack(name,): boolean {
+    // The bundler may suffix a name it had to make unique, as `parseMdxBody$1`.
+    return stack.includes(`at ${name} `,) || stack.includes(`at ${name}$`,);
+  },);
+}
+
+/**
+ A tree that raises a stack exhaustion whenever the code that walks a parse after the parse call returned reads it, and
+ answers the grammar's own reads from the tree the parser built, so the exhaustion comes from the boundary's code and not
+ from the grammar's.
+
+ @param built - the tree the real parser built
 
  @returns A stand-in for a parsed root
 
  @example
  ```ts
- const root = treeThatExhaustsTheStack();
+ const root = treeThatExhaustsTheStack({ built: realRoot, },);
  ```
  */
-function treeThatExhaustsTheStack(): object {
+function treeThatExhaustsTheStack({ built, }: { readonly built: object; },): object {
   return new Proxy(
-    {},
+    built,
     {
-      get(): never {
+      get(
+        target,
+        key,
+      ): unknown {
+        if (readsFromTheGrammar())
+          return Reflect.get(
+            target,
+            key,
+          );
         throw engineExhaustion();
       },
-      has(): never {
+      has(
+        target,
+        key,
+      ): boolean {
+        if (readsFromTheGrammar())
+          return Reflect.has(
+            target,
+            key,
+          );
         throw engineExhaustion();
       },
-      ownKeys(): never {
+      ownKeys(target,): (string | symbol)[] {
+        if (readsFromTheGrammar())
+          return Reflect.ownKeys(target,);
         throw engineExhaustion();
       },
-      getOwnPropertyDescriptor(): never {
+      getOwnPropertyDescriptor(
+        target,
+        key,
+      ) {
+        if (readsFromTheGrammar())
+          return Reflect.getOwnPropertyDescriptor(
+            target,
+            key,
+          );
         throw engineExhaustion();
       },
     },
@@ -147,23 +213,31 @@ function treeThatExhaustsTheStack(): object {
 }
 
 /**
- A parse that returns the tree that raises at the first read.
+ A parse that returns the tree that raises at the first read the boundary makes.
+
+ @param built - runs the real parser and gives the tree it built
 
  @returns The tree
 
  @example
  ```ts
- const root = returnsExhaustingTree();
+ const root = returnsExhaustingTree({ built: function build() { return realRoot; }, },);
  ```
  */
-function returnsExhaustingTree(): object {
-  return treeThatExhaustsTheStack();
+function returnsExhaustingTree({ built, }: { readonly built: () => unknown; },): object {
+  /**
+   The tree the real parser built.
+   */
+  const tree = built();
+  if (((typeof tree) !== 'object') || (tree === null))
+    throw new Error('unreachable: the parser returns a tree, which is an object',);
+  return treeThatExhaustsTheStack({ built: tree, },);
 }
 
 /**
  Replaces the parser for the parses a selection names, until the returned value is disposed of.
 
- @param replacement - what a taken-over parse does
+ @param replacement - what a taken-over parse does, given a way to run the real parser
 
  @param selection - which parses are taken over
 
@@ -179,7 +253,7 @@ function parserReplaced(
     replacement,
     selection,
   }: {
-    readonly replacement: () => unknown;
+    readonly replacement: (arguments_: { readonly built: () => unknown; },) => unknown;
     readonly selection: ParseSelection;
   },
 ): Disposable {
@@ -201,7 +275,12 @@ function parserReplaced(
         this,
         file,
       );
-    return replacement();
+    return replacement({
+      built: original.bind(
+        this,
+        file,
+      ),
+    },);
   };
   return {
     [Symbol.dispose]: function putParserBack(): void {
@@ -246,9 +325,11 @@ export function withExhaustionFromParse<Result>(
 }
 
 /**
- Runs a call while the parse it makes returns a tree that raises the engine's stack exhaustion at the first read, so the
- exhaustion comes from the code that reads the parse and not from the parse. The call is synchronous and runs to its end
- before any other test step.
+ Runs a call while the parse it makes returns a tree that raises the engine's stack exhaustion at the first read the code
+ under test makes, so the exhaustion comes from the code that reads the parse and not from the parse. The reads the
+ grammar's own function makes of the tree it has just built (`parseMdxBody` and `parseMarkdownBody` count the dropped
+ characters and note the setext heading floors) are answered from the real tree, since they are part of the parse. The
+ call is synchronous and runs to its end before any other test step.
 
  @param run - the call under test
 

@@ -150,6 +150,8 @@ function assertConsolidationCoversContest(
 
  @param tenseRecorded - whether the generation records the tense candidates of the shipped wording
 
+ @param benchFloorRecorded - whether the generation records a slice kept for want of a slate bench
+
  @returns What the stage settled, that it did not run, or that this artifact
  predates the field
 
@@ -175,6 +177,7 @@ export function parseConsolidation(
     quorumBasisRequired = false,
     lastSeatGrace = false,
     tenseRecorded = false,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly laneSelection: ArtifactLaneSelection;
@@ -187,6 +190,7 @@ export function parseConsolidation(
     readonly quorumBasisRequired?: boolean;
     readonly lastSeatGrace?: boolean;
     readonly tenseRecorded?: boolean;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ParsedConsolidation {
   if (value === undefined) {
@@ -251,6 +255,7 @@ export function parseConsolidation(
         quorumBasisRequired,
         lastSeatGrace,
         tenseRecorded,
+        benchFloorRecorded,
       },);
     },);
 

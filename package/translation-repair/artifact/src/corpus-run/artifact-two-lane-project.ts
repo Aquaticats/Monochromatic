@@ -125,8 +125,14 @@ export function toArtifactOutcome(
   }
   if (outcome.kind === 'not-evaluated')
     return { kind: 'not-evaluated', };
-  if (outcome.kind === 'unfilled')
-    return { kind: 'unfilled', };
+  if (outcome.kind === 'unfilled') {
+    return (outcome.benchBelowFloor === true)
+      ? {
+        kind: 'unfilled',
+        benchBelowFloor: true,
+      }
+      : { kind: 'unfilled', };
+  }
   if (outcome.kind === 'incumbent-fallback')
     return { kind: 'incumbent-fallback', };
   if (outcome.kind === 'not-applicable')

@@ -20,12 +20,15 @@ import {
 // to the roster read before it. Three copies of that memo had grown before
 // this one; a fourth phase takes this instead of a fifth copy.
 //
-// IT COSTS NOTHING WHILE NOTHING IS HELD: one synchronous read of the holds,
-// no dryness read. Under a hold the reading itself waits out the shortest hold
-// once when a bench the phase leans on cannot reach quorum
-// (`run-seats-read.ts`).
+// IT COSTS NOTHING WHILE NOTHING IS HELD AND THE REACH IS AT OR ABOVE THE FLOOR: one synchronous read of the holds,
+// no dryness read. A phase that passes `staleWhen` (the lane contest, the translate lane and the consolidation) also
+// reads again with no hold running while the seating it last handed over states a reach under the floor, since a
+// provider returning after its hold ended would lift it; that read costs a cached budget reading, trusted for 60
+// seconds (`BUDGET_FRESH_MS` in `provider-budget.ts`), and the reading's own `JUDGE SEATS` line, for every slice the
+// shortfall lasts. Under a hold the reading itself waits out the shortest hold once when its return would lift a bench
+// the phase leans on over its floor or to its quorum (`run-seats-read.ts`).
 //
-// A WARNING IS WRITTEN ONCE PER STATE (rounds 5 and 6). A hold that cannot cure a short bench is not waited for, so
+// A WARNING IS WRITTEN ONCE PER STATE. A hold whose return would change no bench is not waited for, so
 // every slice under it reads the same short bench and the reading warns of it each time; a Xiaomi or DeepSeek hold of
 // hours over hundreds of slices wrote hundreds of identical lines. The hook still reads the seats for every slice,
 // since a provider going dry changes the seating a slice must run on whether or not its hold would cure anything. It
@@ -68,6 +71,14 @@ export type Reseated<SeatingT,> = {
 
  @param seatingOf - what this phase takes from a seat reading
 
+ @param staleWhen - whether the seating last handed over must be read again
+ although no hold runs, for a phase whose seating states a shortfall that a
+ provider returning after its hold ended would cure; absent keeps the memo
+ until a hold runs. Such a read costs a cached budget reading (trusted for
+ sixty seconds, `BUDGET_FRESH_MS` in `provider-budget.ts`) and the reading's
+ own `JUDGE SEATS` line, so it holds the file header's no-read guarantee only
+ while the reach is at or above the floor
+
  @param l - entry logger, which records every re-seating
 
  @returns Per-slice reader of the seating the slice runs on
@@ -84,6 +95,7 @@ export function reseatHookFor<SeatingT,>(
     phase,
     unseated,
     seatingOf,
+    staleWhen,
     l,
   }: {
     readonly client: SeatReadingClient;
@@ -91,6 +103,7 @@ export function reseatHookFor<SeatingT,>(
     readonly phase: JudgeSeatPhase;
     readonly unseated: SeatingT;
     readonly seatingOf: (args: { readonly seats: JudgeSeats; },) => Reseated<SeatingT>;
+    readonly staleWhen?: (seating: SeatingT,) => boolean;
     readonly l: Logger;
   },
 ): () => Promise<SeatingT> {
@@ -103,7 +116,11 @@ export function reseatHookFor<SeatingT,>(
    */
   const warned: WarnedState = { signature: '', };
   return async function reseatBeforeSlice(): Promise<SeatingT> {
-    if (shortestHold({ holds: holdsWithinPass({ client, },), },) === 0) {
+    /**
+     Whether a hold runs, which is what the memo of the last no-wait line is forgotten on.
+     */
+    const held = shortestHold({ holds: holdsWithinPass({ client, },), },) !== 0;
+    if ((!held) && ((staleWhen === undefined) || (!staleWhen(latest.seating,)))) {
       warned.signature = '';
       return latest.seating;
     }
@@ -123,7 +140,10 @@ export function reseatHookFor<SeatingT,>(
      */
     const reseated = seatingOf({ seats, },);
     latest.seating = reseated.seating;
-    l.info(`JUDGE SEATS phase=${phase} ${reseated.line}`,);
+    // A READING TAKEN WITH NO HOLD RUNNING says nothing of a hold: the reading wrote its own JUDGE SEATS line, and
+    // this one would name a hold that is not there, once for every slice the shortfall lasts.
+    if (held)
+      l.info(`JUDGE SEATS phase=${phase} ${reseated.line}`,);
     return latest.seating;
   };
 }

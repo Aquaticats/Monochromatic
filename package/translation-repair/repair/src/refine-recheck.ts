@@ -387,6 +387,35 @@ export async function retainsResolvedIssues(
       ],
       readings: checker.readings,
     };
+  // THE ROLLBACK OF A WINNING REWRITE IS LOGGED HERE, where the issues and the
+  // ballots that decided it are in hand. The select stage has already logged
+  // that the rewrite won, so a run log without this line reads as a rewrite
+  // that shipped (XingZ6020, slices 4, 26 and 32).
+  if (lost.length > 0) {
+    /**
+     The ballots cast on each issue the rollback answers for, in issue order.
+     */
+    const ballotsByIssue = lost
+      .map(function ballotsOn(issueId,): string {
+        return `ballots on ${issueId}: ${
+          nonNullishOrThrow(checker.readings[issueId],)
+            .ballots
+            .map(function spell({
+              modelId,
+              verdict,
+            },): string {
+              return `${modelId} ${verdict}`;
+            },)
+            .join(', ',)
+        }`;
+      },)
+      .join('; ',);
+    l.warn(
+      `slice ${String(outcome.sliceIndex,)}: refine-rolled-back (${lost.join(', ',)}); rewrite by ${
+        (refineContributors.length === 0) ? 'no recorded model' : refineContributors.join(', ',)
+      }; ${ballotsByIssue}; keeping the text before the rewrite`,
+    );
+  }
   return {
     retained: false,
     findings: [

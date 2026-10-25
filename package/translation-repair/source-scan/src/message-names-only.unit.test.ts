@@ -61,6 +61,7 @@ import {
  */
 const BYTE_OFFSET_OR_NOTHING = "(at === OFFSET_UNSTATED) ? '' : ` at byte $"
   + '{String(at,)}`';
+
 /**
  Every class permitted to declare the marker, with nothing else allowed to.
 
@@ -166,6 +167,7 @@ const MARKED_CLASSES: readonly string[] = [
   'OpenRouterModelNotServedError',
   'OverlapRefusedError',
   'OverlappingEditsError',
+  'PageFootnoteResolutionError',
   'PairedShapeError',
   'PairingEvidenceError',
   'PipelineDigestError',
@@ -192,6 +194,7 @@ const MARKED_CLASSES: readonly string[] = [
   'SliceNotOnPageError',
   'SliceRecordContradictionError',
   'SourceMapFileError',
+  'SourcePageCompositionError',
   'SpendCeilingOverrideError',
   'StageBenchStartError',
   'StageRosterRepeatError',
@@ -481,6 +484,8 @@ const NAMED_PARTS: Record<string, string> = {
   'short({ id: recorded, },)': 'abbreviated digest',
   'unavailableCount': 'count of source-referenced assets without usable visual evidence',
   'clauses.join(\'; \',)': 'bench names, seat counts and the floor, built by the seat reading and quoting nothing',
+  'groups.join(\'; \',)':
+    'footnote labels of the page (the text between [^ and ], never a note\'s wording) under three fixed phrases',
   'yamlRefusalSite({ cause, },)': 'position, built to state a place and quote nothing',
   'kindAndRemedy': 'a corpus read failure kind in brackets and the one of four fixed remedy sentences keyed by '
     + 'that closed union (CorpusReadError, REMEDY_SENTENCES), quoting no path, revision or content',

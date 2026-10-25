@@ -28,7 +28,11 @@ use crate::native::{AppWindow, State};
 /// ```
 use anyhow::Result;
 /// Commands and the identities they carry.
-use ide_app::language::{hints::HintWindow, identity::DocumentStamp, sync::DocumentOpen};
+use ide_app::language::{
+    hints::{HintWindow, request_lines},
+    identity::DocumentStamp,
+    sync::DocumentOpen,
+};
 /// One code row is the least a line takes,
 ///  which bounds how many lines the view can show.
 use ide_app::row_map::CODE_ROW;
@@ -70,7 +74,8 @@ const HINT_SETTLE: Duration = Duration::from_millis(200);
 /// ```
 #[derive(Debug, Default)]
 pub(super) struct HintLines {
-    /// Stamp and lines the worker was last told.
+    /// Stamp and lines the worker was last told,
+    ///  or last skipped because stored answers covered them.
     sent: Option<(DocumentStamp, HintWindow)>,
     /// Lines seen on the latest tick and since when they have not changed.
     seen: Option<(HintWindow, Instant)>,
@@ -139,7 +144,10 @@ pub(super) fn update(language: &mut Language, source: &Rc<RefCell<State>>) -> Re
     language.synced = Some(stamp);
     language.reopen = false;
     // An older reload record is covered by the full text just sent.
-    source.borrow_mut().language_reload = None;
+    let mut stored = source.borrow_mut();
+    stored.language_reload = None;
+    // A worker that opened the file again holds no earlier hint request, so no lines count as asked about.
+    stored.annotations.forget_answered();
     return Ok(true);
 }
 
@@ -148,7 +156,8 @@ pub(super) fn update(language: &mut Language, source: &Rc<RefCell<State>>) -> Re
 ///  or at once for newly displayed text.
 /// Why:
 ///  Hints are asked for the lines in view and some around them;
-///  scrolling asks only when it stops.
+///  scrolling asks only when it stops,
+///  and not at all when stored answers of the same text revision already asked about every line the request would ask.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,6 +203,30 @@ pub(super) fn hints(
         None => false,
     };
     if !new_text && !settled {
+        return Ok(());
+    }
+    // What: The lines the request for `wanted` would ask, as the worker computes them from the text.
+    // Why: When stored answers of this revision asked about all of them, the store holds their hints already.
+    //      The view is then recorded as handled; the worker keeps the window it was last told.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [first, last] = requestLines(wanted, lineCount);
+    // if (annotations.answeredCovers(stamp, first, last)) return;
+    // ```
+    let (first, last) = request_lines(wanted, source.borrow().document.text().len_lines());
+    let covered = source
+        .borrow()
+        .annotations
+        .answered_covers(stamp, first..last);
+    if covered {
+        tracing::debug!(
+            ?stamp,
+            first_line,
+            visible_lines,
+            "skipped the hint request: stored answers already cover its lines"
+        );
+        language.hints.sent = Some((stamp, wanted));
         return Ok(());
     }
     if worker.request_hints(stamp, wanted)? {

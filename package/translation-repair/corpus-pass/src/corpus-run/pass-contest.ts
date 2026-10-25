@@ -18,7 +18,10 @@ import {
   RUN_PER_CALL_TIMEOUT_MS,
   type RunClient,
 } from '@monochromatic-dev/translation-repair-run/ts';
-import { contestHooksFor, } from './pass-contest-reseat.ts';
+import {
+  contestHooksFor,
+  contestReachOf,
+} from './pass-contest-reseat.ts';
 import type {
   FanOutMode,
   StageSettings,
@@ -160,6 +163,7 @@ export async function runPassContest(
       client,
       signal,
       l,
+      startedReachable: contestReachOf({ seats, },),
     },)
       .beforeSlice,
     l,

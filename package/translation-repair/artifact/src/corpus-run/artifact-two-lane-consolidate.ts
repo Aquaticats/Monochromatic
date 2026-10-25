@@ -455,6 +455,13 @@ export type ArtifactConsolidateSlice = {
    archive or a run-off. Recorded from artifact generation fifteen.
    */
   readonly tenseCandidates?: readonly TenseCandidateGroup[];
+
+  /**
+   Present when no slate was bought because the slate bench read below the floor of ballots a winner needs, absent when
+   a slate was asked and declined. Both read `incumbent-only` with no gate; this is what tells them apart. Recorded from
+   artifact generation twenty-one.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**
@@ -607,6 +614,7 @@ export function describeConsolidateSlice(
         usable: gate.usable,
       },
     polish: artifactPolishOf({ settlement, },),
+    ...((settlement.benchBelowFloor === true) ? { benchBelowFloor: true as const, } : {}),
   };
 }
 

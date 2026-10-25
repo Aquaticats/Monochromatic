@@ -112,6 +112,60 @@ function keptEverything(
 }
 
 /**
+ Slices a lane shipped a replacement at.
+
+ @param rows - lane's rows
+
+ @returns Their indices
+
+ @example
+ ```ts
+ const changed = changedBy({ rows, },);
+ ```
+ */
+function changedBy(
+  { rows, }: { readonly rows: readonly SliceDeliveryRecord[]; },
+): readonly number[] {
+  return rows
+    .filter(function wasShipped({ delivery, },): boolean {
+      return delivery.kind === 'replacement-shipped';
+    },)
+    .map(function indexOf({ sliceIndex, },): number {
+      return sliceIndex;
+    },);
+}
+
+/**
+ What each slice was decided to carry, as a lane's raw result reports it.
+
+ @param rows - lane's rows
+
+ @returns One evidence row per slice
+
+ @example
+ ```ts
+ const sliceTexts = evidenceOf({ rows, },);
+ ```
+ */
+function evidenceOf(
+  { rows, }: { readonly rows: readonly SliceDeliveryRecord[]; },
+): DocumentLanesResult['repair']['sliceTexts'] {
+  return rows.map(function toEvidence({
+    sliceIndex,
+    incumbentKind,
+    incumbentText,
+    outcome,
+  },) {
+    return {
+      sliceIndex,
+      incumbentKind,
+      incumbentText,
+      outcome,
+    };
+  },);
+}
+
+/**
  Both lanes' results for rows the caller states: nothing withdrawn, trimmed
  or refused.
 
@@ -130,9 +184,13 @@ function lanesOver(
   {
     prepared,
     rows,
+    translateRows = rows,
+    unfilled = [],
   }: {
     readonly prepared: PreparedDocumentPair;
     readonly rows: readonly SliceDeliveryRecord[];
+    readonly translateRows?: readonly SliceDeliveryRecord[];
+    readonly unfilled?: DocumentLanesResult['translate']['unfilled'];
   },
 ): DocumentLanesResult {
   /**
@@ -141,32 +199,13 @@ function lanesOver(
   const identity = preparationIdentity({ prepared, },);
 
   /**
-   Slices that shipped a replacement, which are the insertions.
+   Slices the repair lane shipped a replacement at, which are the insertions it filled.
    */
-  const changed = rows
-    .filter(function wasShipped({ delivery, },): boolean {
-      return delivery.kind === 'replacement-shipped';
-    },)
-    .map(function indexOf({ sliceIndex, },): number {
-      return sliceIndex;
-    },);
-
+  const changedRepair = changedBy({ rows, },);
   /**
-   What each slice was decided to carry, as both lanes report it.
+   Slices the translate lane shipped a replacement at.
    */
-  const sliceTexts = rows.map(function toEvidence({
-    sliceIndex,
-    incumbentKind,
-    incumbentText,
-    outcome,
-  },) {
-    return {
-      sliceIndex,
-      incumbentKind,
-      incumbentText,
-      outcome,
-    };
-  },);
+  const changedTranslate = changedBy({ rows: translateRows, },);
 
   return {
     alignmentFindings: [...prepared.alignmentFindings,],
@@ -177,27 +216,27 @@ function lanesOver(
       findings: [],
       sliceCritics: [],
       sliceCount: rows.length,
-      changedSliceIndices: changed,
+      changedSliceIndices: changedRepair,
       withdrawnSliceIndices: [],
       trimmedReplacements: [],
-      sliceTexts,
+      sliceTexts: evidenceOf({ rows, },),
       chunks: [],
     },
     translate: {
       translatedText: prepared.targetText,
-      sliceCount: rows.length,
-      changedSliceCount: changed.length,
+      sliceCount: translateRows.length,
+      changedSliceCount: changedTranslate.length,
       refusedSliceCount: 0,
       withdrawnSliceCount: 0,
-      changedSliceIndices: changed,
+      changedSliceIndices: changedTranslate,
       sliceSelections: [],
       withdrawnSliceIndices: [],
       trimmedReplacements: [],
       resumedSliceCount: 0,
-      status: 'complete',
-      unfilled: [],
+      status: (unfilled.length === 0) ? 'complete' : 'unfilled',
+      unfilled,
       slices: [],
-      sliceTexts,
+      sliceTexts: evidenceOf({ rows: translateRows, },),
       findings: [],
     },
     repairDelivery: {
@@ -206,7 +245,7 @@ function lanesOver(
     },
     translateDelivery: {
       preparationIdentity: identity,
-      records: rows,
+      records: translateRows,
     },
   };
 }
@@ -344,6 +383,97 @@ export function settledArtifactOverRows(
     lanes: lanesOver({
       prepared,
       rows,
+    },),
+    laneSelection: { kind: 'pending-human-decision', },
+    consolidation: { kind: 'not-run', },
+  },);
+}
+
+/**
+ A settled artifact over a preparation whose translate lane left every insertion unfilled, as the builder returns it:
+ the repair lane had nothing to do there, and the translate lane's outcome carries the floor mark or not as the caller
+ states.
+
+ @param prepared - preparation the artifact records, holding at least one insertion
+
+ @param entryId - entry the artifact settles
+
+ @param benchBelowFloor - whether the translate lane never bought a candidate for the gaps
+
+ @returns Artifact object, unserialized
+
+ @example
+ ```ts
+ const artifact = settledArtifactWithGap({ prepared, entryId: 'CatEntry1', benchBelowFloor: true, },);
+ ```
+ */
+export function settledArtifactWithGap(
+  {
+    prepared,
+    entryId,
+    benchBelowFloor,
+  }: {
+    readonly prepared: PreparedDocumentPair;
+    readonly entryId: string;
+    readonly benchBelowFloor: boolean;
+  },
+): SettledArtifact {
+  /**
+   Rows the repair lane reports: the archive retained, and nothing to do at an insertion.
+   */
+  const repairRows = keptEverything({ prepared, },)
+    .map(function leaveGap(row,): SliceDeliveryRecord {
+      return (row.incumbentKind === 'absent')
+        ? {
+          ...row,
+          outcome: { kind: 'not-applicable', },
+          shippedText: row.incumbentText,
+          delivery: { kind: 'gap-remains', },
+        }
+        : row;
+    },);
+  /**
+   Rows the translate lane reports: the same, with the gap unfilled.
+   */
+  const translateRows = repairRows.map(function leaveUnfilled(row,): SliceDeliveryRecord {
+    return (row.incumbentKind === 'absent')
+      ? {
+        ...row,
+        outcome: benchBelowFloor
+          ? {
+            kind: 'unfilled',
+            benchBelowFloor: true,
+          }
+          : { kind: 'unfilled', },
+      }
+      : row;
+  },);
+  return buildSettledTwoLaneArtifact({
+    pageAssembly: NO_PAGE_ASSEMBLY,
+    consistency: NO_CONSISTENCY,
+    entryId,
+    tip: 'a'.repeat(COMMIT_HEX_LENGTH,),
+    pipelineDigest: FIXTURE_DIGEST,
+    corpusSha: 'b'.repeat(COMMIT_HEX_LENGTH,),
+    callConfig: { perCallTimeoutMs: 600_000, },
+    durationMs: 1_234,
+    prepared,
+    lanes: lanesOver({
+      prepared,
+      rows: repairRows,
+      translateRows,
+      unfilled: translateRows
+        .filter(function isGap({ outcome, },): boolean {
+          return outcome.kind === 'unfilled';
+        },)
+        .map(function toUnfilled({ sliceIndex, },) {
+          return {
+            sliceIndex,
+            reason: 'no-candidate-backed' as const,
+            findings: [],
+            ...(benchBelowFloor ? { benchBelowFloor: true as const, } : {}),
+          };
+        },),
     },),
     laneSelection: { kind: 'pending-human-decision', },
     consolidation: { kind: 'not-run', },

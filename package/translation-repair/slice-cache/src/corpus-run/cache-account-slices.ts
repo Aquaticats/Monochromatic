@@ -139,7 +139,7 @@ export async function runsDirsIn({ parent, }: { readonly parent: string; },): Pr
  (`<root>/vub-run1-20260821`, `<root>/fidelity-native-artifacts-c0HMDl/runs`);
  four leaves room and still bounds a walk over a large tree.
  */
-const RUNS_SEARCH_DEPTH = 4;
+export const RUNS_SEARCH_DEPTH = 4;
 
 /**
  Whether a search for runs directories enters a directory: never a hidden
@@ -155,7 +155,7 @@ const RUNS_SEARCH_DEPTH = 4;
  const entered = searchEnters({ name: 'node_modules', },); // false
  ```
  */
-function searchEnters({ name, }: { readonly name: string; },): boolean {
+export function searchEnters({ name, }: { readonly name: string; },): boolean {
   return (!name.startsWith('.',)) && (name !== 'node_modules');
 }
 

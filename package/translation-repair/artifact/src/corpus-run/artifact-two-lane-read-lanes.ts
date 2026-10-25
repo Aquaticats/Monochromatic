@@ -54,6 +54,9 @@ import type { ArtifactKeyVocabulary, } from '../artifact-key-vocabulary.ts';
 
  @param keys - spelling the artifact's own generation gave the renamed keys
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Raw record and parsed ledger rows
 
  @throws {@link ArtifactParseError} when the lane carries a key this version
@@ -69,10 +72,12 @@ function parseLaneEnvelope(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): {
   readonly raw: Readonly<Record<string, unknown>>;
@@ -114,6 +119,7 @@ function parseLaneEnvelope(
           value: row,
           path: `${path}.delivery[${String(position,)}]`,
           keys,
+          benchFloorRecorded,
         },);
       },),
   };
@@ -168,6 +174,9 @@ function assertLedgerCoversPreparation(
 
  @param keys - spelling the artifact's own generation gave the renamed keys
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Both lanes, each with its raw record, its evidence core and its
  ledger
 
@@ -187,11 +196,13 @@ export function parseLanes(
     preparation,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly preparation: ParsedPreparation;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ParsedTwoLaneArtifact['lanes'] {
   /**
@@ -217,6 +228,7 @@ export function parseLanes(
     value: lanes.repair,
     path: `${path}.repair`,
     keys,
+    benchFloorRecorded,
   },);
 
   /**
@@ -226,6 +238,7 @@ export function parseLanes(
     value: lanes.translate,
     path: `${path}.translate`,
     keys,
+    benchFloorRecorded,
   },);
 
   /**
@@ -235,6 +248,7 @@ export function parseLanes(
     value: repairEnvelope.raw,
     path: `${path}.repair.result`,
     keys,
+    benchFloorRecorded,
   },);
 
   /**
@@ -244,6 +258,7 @@ export function parseLanes(
     value: translateEnvelope.raw,
     path: `${path}.translate.result`,
     keys,
+    benchFloorRecorded,
   },);
   assertLedgerCoversPreparation({
     delivery: repairEnvelope.delivery,

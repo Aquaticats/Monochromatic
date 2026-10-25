@@ -4287,7 +4287,83 @@ Owner answers of 2026-10-24 (question tool) to those two costs:
 add the skip rule (skip a hint request when the last answer already covers the window; an agent builds it with tests
 that fail first, then it is landed and the IDE reinstalled like the others),
 and the caret keeps following the view (no change).
-Scratch left until the owner confirms the fixes on the installed binary:
+Hint skip rule built on branch `worktree-agent-a9205e2a0149fe20e` (not yet merged or installed):
+a hint request is not sent when its range (one view height above the first visible line, two below)
+lies inside the union of the ranges that stored answers of the same text revision asked about
+(`Annotations::answered_covers`, `src/annotation/coverage.rs`; the call is in `src/native/language/sync.rs`).
+Measured with debug binaries before and after, three alternating runs each:
+the first click at y=1700 sends 2 requests before and 1 (plus 1 skip) after;
+the press at y=1700 after a click at y=1000 sends 1 before and 0 after on the 287-line file,
+because the answer to the click at y=1000 already asked lines 70 to 288
+(the owner expected "still one"; the hints are stored);
+a wheel that leaves the covered lines still asks,
+and its hints are stored in the same time (403 to 421 ms against 414 to 428 ms).
+Record, counts, guard runs and known costs:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "Skip a hint request that stored answers cover: built".
+Hint skip rule (owner answer above): landed 2026-10-24 as `83f6240e4b` (fast-forward to the agent's tip),
+installed (sha256 `36c9caad610ced81…`, prints 0.1.1).
+A hint request is not sent when its range lies inside the lines that stored answers of the same text revision asked
+about (`Annotations::answered_covers`, `src/annotation/coverage.rs`, called from `hints` in `src/native/language/sync.rs`).
+Review finding of mine, fixed before landing: an answer with no hint on its asked lines covers nothing
+(a loading server answers empty or partial; `rust-analyzer` 1.98.1 cold: 0 hints at 7 ms, 5 at 261 ms,
+`content modified` at 514 and 858 ms, 15 from 2057 ms on; the TypeScript 7 server answers complete from 0 ms).
+Residual limit: a partial non-empty answer covers its lines until an edit, a reload, a reopen or a view that leaves them.
+Measured on the 287-line file, three alternating runs per binary: first click 2 requests before, 1 request plus 1 skip after;
+a press after a visit elsewhere 1 request before, 0 after; a wheel leaving the coverage still 1 request.
+Gates on the merged tree: `lint` 0, `test:native` 306 passed and 5 skipped, `test` 811 passed, `test:bin` 0,
+`inspect:no-software-renderer` 0; 17 `hint-skip-*` guard cases accepted, every changed-line run failing as expected.
+Known costs: after a skip the worker's window stays at the last view it was told
+(an external edit after a skip sent 2 requests, not measured without the rule),
+and with several servers one stored answer counts as covering the lines for all of them.
+REGRESSION found by verifying the installed binary (2026-10-24, agent run on `83f6240e4b`):
+after a minimap press whose hint request is skipped, the code column is blank while the gutter numbers stay
+(installed binary: blank after the second to fifth press of y=1000, 1700, 1000, 560, 1700 in 3 of the 5 shots;
+349 of 707 frames of a recording blank; mean grey 0.5000 blank against 0.5088 to 0.5114 drawn;
+`cr/base` and `monochromatic-ide.previous` draw all five; one wheel notch restores the text; cause not determined,
+the skip rule is the suspect).
+The doubling fix, the first-click landing (first line 223 for both clicks, minimap crops 0 px apart),
+the request counts (1 request plus 1 skip, then 0) and the wheel case (request sent 382 to 400 ms after the stop,
+stored 402 to 421 ms) all measured as intended on the installed binary; the gap above line 96 was 82 px in all
+1,483 frames with line 96 visible (4 runs), the old binary showed 130 px in 16 and 178 px in 5 of 374.
+The nested compositor recorded only 17 to 22 fps under a load average of 21 to 23.
+Cause and fix (landed 2026-10-24 as merge `b38b14cc49`, agent tip `52941e580b`, fix commit `433856b8a6`):
+`outcome.apply(&active)` in the rendering notifier of `bind` (`src/native/gpu_tile.rs`) replaced `source-slices`
+inside the frame that draws the tile when a tile's textures differ in height from the last tile's
+(`tile_textures_fit`, `gpu_tile/source.rs`); a slice list set inside a frame is not shown by that frame,
+and an idle window draws no other frame.
+Before the skip rule the answer to the second hint request repainted the source and drew that frame,
+so the defect was a transient blank (143 of 741 frames of the 88-click recording on `cr/base`);
+a skipped request has no answer, so the blank became permanent until the next input.
+`GpuTile::submit_tile` now takes the window and `Inner::prepare_tile` gives the window the slices at hand-over,
+outside any frame; the very first tile (no device yet) keeps the in-frame path and asks for one more frame,
+and that path has no test.
+Why the real window shows nothing in that frame while the test harness snapshot shows the slices in it:
+not found; the harness cannot show the blank frame, so the tests assert that the window holds the slices before any frame.
+Proof: `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame` and
+`a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` fail without the fix,
+5 `tile-slices-*` guard cases, 14 runs accepted; gates on the merged tree: `lint` 0, `test:native` 308 passed and
+5 skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0.
+Interim: the installed binary was a re-aim release (`01cf04773425e1bc`) between the regression and the fix.
+Installed now: sha256 `26801fc497df68e3…` from `b38b14cc49`, prints 0.1.1; the previous binary is `.previous`.
+Verified on that installed release binary by a separate agent (nested compositor, 1080x1880 logical, scale 2, RX 7600):
+five-press sequence code means 0.511073, 0.509927, 0.511073, 0.510496, 0.509927 in 3 of 3 fresh runs
+(none blank; the old binary was blank after presses 2, 3 and 5);
+88-click recordings of 714 and 713 frames (21.7 and 21.9 fps against 60 requested, load average 7 to 21):
+0 blank code frames (old binary 349 of 707), gap above line 96 exactly 82 px in all 372 and 374 frames showing it;
+first y=1700 press and the later one both `first_line=223`, minimap crops 0 px apart,
+whole frames about 2.2 px apart (sub-pixel residue, not located);
+requests 1 plus 1 skip for the first press, 0 plus 1 skip for the two later presses;
+the wheel case request sent 376 to 434 ms and stored 396 to 454 ms after the wheel;
+minimap picture, gutter and sidebar never blank in about 1,427 frames.
+Not covered: the minimap picture also gets its slices inside a frame (not blank in those frames, so no defect seen);
+the first-tile path has no test; the 60 fps recording rate was not reached on this loaded host.
+Cleanup done: agent worktrees and branches (local and remote) removed, 14 GB of recording frames deleted.
+Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
+screenshots of the real binary after each press, so every change of when the view or hints are handled needs
+a drawn-text check on the installed binary before it is called done.
+Scratch left until the owner confirms the fixes on the installed binary
+(`~/temp/agent/cr` and `~/temp/agent/verify` join the list below):
 `~/temp/agent/mm`, `~/temp/agent/mm2`, `~/temp/agent/reaim` (354 MB, before and after debug binaries) and the
 disposable project `/tmp/ide-mm-proj-8MEEkc`.
 
@@ -4303,6 +4379,60 @@ and the same click after a visit elsewhere lands at the end (line 223 on top).
 In a window tall enough for the first request to cover the file the difference is 0 px.
 No IDE change was made;
 options (re-aim once, ask for the whole file, leave it) are ranked in the record and wait for the owner.
+
+Blank code column after a skipped press, found 2026-10-24 by a verification agent on the installed binary (built from
+`83f6240e4b`):
+after a press whose hint request the skip rule skipped,
+the gutter stayed drawn and the code column was
+blank (five presses at y=1000,
+1700,
+1000,
+560,
+1700:
+drawn,
+blank,
+blank,
+drawn,
+blank).
+Cause:
+the code tile's new textures and their slices (`source-slices`) were made inside the frame that drew the tile
+(`outcome.apply` in the rendering notifier,
+`src/native/gpu_tile.rs`),
+and a frame does not show a slice list it was
+given inside itself;
+the answer to the second hint request used to repaint the source and draw the frame that showed
+them,
+and a skipped request has no answer.
+Fix on the branch `worktree-agent-a340be41d39cfecfb` (not merged or installed):
+`GpuTile::submit_tile` makes the
+textures and gives the window the slices when the tile is handed over (`Inner::prepare_tile`,
+`src/native/gpu_tile/source.rs`).
+Measured with debug builds under load (three alternating runs per binary):
+five screenshots drawn in 3 of 3 runs after,
+blank at three of five in 3 of 3 runs before;
+the 88-click recording at 22 frames per second (60 requested):
+0 blank
+frames of 726 after,
+343 of 732 before (143 of 741 in the tree before the skip rule),
+the gap above line 96 82 px in all
+frames that show it;
+requests unchanged (first press at y=1700:
+1 request and 1 skip;
+after a visit elsewhere:
+0).
+Two tests that fail without the fix and five `tile-slices-*` guard cases;
+the test harness cannot show the blank frame,
+so the tests check that the window holds the new slices before any frame.
+Record:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "A press whose hint request
+is skipped leaves the code column blank".
+Not covered by a test:
+the in-frame step for the first tile of a window (the notifier asks for one more frame).
+Unmeasured:
+whether the minimap picture,
+which also gets its slices inside a frame,
+can show the same defect.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

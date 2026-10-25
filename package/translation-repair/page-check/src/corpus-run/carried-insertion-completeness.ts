@@ -6,7 +6,7 @@ import {
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
-import { shippableReplacements, } from './publish-fixed.ts';
+import { shippableReplacements, } from './shippable-replacements.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Carried insertion completeness
@@ -79,7 +79,10 @@ export function assertCarriedInsertionsRemain(
   const finalText = spliceSlices({
     targetText,
     slices,
-    replacements: shippableReplacements({ artifact, },),
+    replacements: shippableReplacements({
+      artifact,
+      includeSource: false,
+    },),
   },);
   /**
    The page as the anchoring reads it.

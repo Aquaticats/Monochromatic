@@ -5,7 +5,8 @@ the full suite,
 the lint,
 the cache versions,
 the handover,
-and the log's two streams.
+the log's two streams,
+and an audit that read nothing without saying so.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -517,3 +518,238 @@ a change that adds,
 removes or renames a workspace package runs `mise run file-enforcer` in its worktree before it lands
 and commits what that run writes to files derived from the workspace,
 reading the `mise.toml` `_.path` rewrite against the worktree's installs first.
+
+## B841: the cache-account audit printed an account of no record without a word, over roots that hold no launch's runs
+
+Status:
+fixed on 2026-10-23 (UTC),
+red `f4519c3d29` (its cases read the log through the level-keeping logger in `a420726b63`),
+fix `c49da916d4`,
+checklist and README `4be243b6b9`.
+The reading is the lead's and is open to the owner's veto.
+
+What was found:
+the lead's run of the audit on 2026-10-23 at 10:31 UTC read 0 records with its default roots,
+and 13,711 records in 419 runs directories with `--runs-under` the runbook's runs root under the home directory.
+The newest record there was written at 2026-10-22T19:14Z,
+and none of the 8 cache versions was set after it.
+Step 4 of the checklist in `mistake-prevention.md` (M25 and M28) ran the audit without `--runs-under`,
+while a launch that follows `doc/runbook/translation-repair-corpus-pass.md` writes its runs to
+`${HOME}/temp/agent/corpus-pass-<entry>`.
+The account of no record printed `newest slice-cache record: none` and nothing else,
+so a reader took an empty account for an empty cache.
+
+What changed:
+- `reportSliceCaches` (`slice-cache/src/corpus-run/cache-account-slice-report.ts`) warns through the package logger
+  when it read no slice-cache record,
+  and prints a `WARNING:` line with the same sentence on stdout.
+  The sentence says that the newest-record and versions-set-after lines then say nothing of the caches a launch would
+  resume,
+  names every root searched and the runbook's runs root,
+  and gives the `--runs-under` argument that reads it.
+  The logger and the home directory are optional arguments,
+  so the cases inject both.
+- Step 4 passes `-- --runs-under "${HOME}/temp/agent"`,
+  requires a count above zero on the `slice-cache records under N runs directories` line,
+  and reads the audit's own `newest slice-cache record` and `cache versions set after it` lines in place of the
+  hand-written `find` (the audit has printed both since 2026-10-01).
+  The README of `slice-cache` says the same and documents the warning.
+
+Cases:
+three in `cache-account-slice-report.unit.test.ts`,
+which fail at the parent for lack of the warning.
+Two scratch mutations,
+one dropping the log call and one dropping the stdout line,
+each fail two of them.
+
+The rule for next time:
+a census that reads nothing says so in words,
+and a check that passes on zero input requires a count above zero.
+
+Cache account:
+the audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+the same day:
+the warning fired on a count of exactly zero,
+and a count above zero is no proof that the roots searched hold the runs a launch writes.
+The default roots read the worktree's own runs directory and any `translation-repair-runs*` beside it,
+so one stale record there gives a non-zero count that says nothing of `${HOME}/temp/agent/corpus-pass-<entry>`,
+the audit stayed silent,
+and step 4 of the checklist passed on "count above zero".
+`reportSliceCaches` now also warns,
+in the log and on stdout,
+whenever the runbook's runs root is neither among nor under the roots searched,
+whatever the count,
+and names every root searched and the runbook's root;
+the sentence of the empty case is unchanged and is the only one a zero count prints.
+A root searched that lies below the runbook's root covers its own runs and not the rest of it,
+so it does not silence the warning.
+`auditCacheAccounts` takes the home directory as an optional argument,
+the process's own by default,
+so its cases state one.
+Red `b3ad54afb3` (two cases fail at the parent;
+the case with the root among or under the searched roots and the case of the empty count with the root searched pass
+there as controls),
+fix `f9c6ddde3f`.
+Step 4 now puts the whole command,
+`--runs-under` included,
+in one code span,
+and says what a `WARNING:` line beside a non-zero count means.
+The audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+fix round 4:
+the warning compared spellings and ignored the depth of the walk.
+The home directory as the process reports it and its real path are two spellings of one directory
+on a host where the home directory is reached through a link,
+and the comparison read a link as an uncovered root,
+which fails safe.
+The converse did not fail safe:
+a searched directory more than four levels up from the runs,
+where the walk of runs directories stops,
+read as covering them.
+`cache-account-search-reach.ts` now decides it.
+Both paths are resolved through their real path,
+an absent path through its nearest existing ancestor,
+and a root reaches a directory only when the directory is the root or lies below it,
+no name between them is one the search never enters (hidden,
+`node_modules`),
+and the runs two levels below the directory sit within the four levels the walk reads.
+The warning says so in its words ("is not reached by the roots searched").
+Red `b93b20ef45` (two cases fail at the parent:
+the link case warns where it must not,
+and the deep case does not warn where it must),
+fix `6d4f2cd78b`.
+The audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+fix round 5:
+the reach check ended the audit for a root the filesystem refuses to resolve.
+`searchReaches` raised the filesystem's error for a root behind a file (`ENOTDIR`),
+a loop of links (`ELOOP`) or a directory nobody may enter (`EACCES`),
+while the walk of runs directories reports such a root as one it could not list and goes on,
+so the audit stopped with a stack trace before it printed the newest record and the versions set after it,
+the two lines it exists to print.
+`reportSliceCaches` now checks each root on its own:
+a refusal is logged as one warning with the root and the filesystem's code (never its message,
+which quotes the path),
+the root counts as not reaching the runbook's runs root,
+and the warning on stdout ends by naming the roots it could not resolve.
+A root that does reach still settles the answer,
+so a refusal beside it leaves a line in the log and no warning on stdout.
+`searchReaches` itself still raises for these roots and says so in its `@throws`.
+Two edges went with it.
+The path is no longer folded by name before it is resolved,
+so `base/lnk/../d` goes to the parent of the link's target,
+as the kernel and the walk read it,
+where it read `base/d`.
+A root equal to the directory now obeys the depth rule,
+so runs five levels below it are not reached,
+as the walk stops at four.
+The branch for a relative path that is absolute was removed;
+the module states that it takes one filesystem root.
+Red `3050fca34f` (six cases fail at the parent:
+four in the report and two in the reach module;
+two cases of the reach module pass there as guards that the refusals still raise),
+fix `93990e5e0d`.
+The audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+fix round 6:
+the reach check changed as follows.
+The log line of a root the filesystem refuses to resolve now ends with the failure's text,
+where fix round 5 kept the code alone on the ground that the message quotes the path:
+the line already prints the root and the runbook's runs root,
+the text of a failed real-path lookup names the path the lookup stopped at,
+which tells a reader which file or link on the way is to blame,
+and the logger takes one string,
+so the caught value is rendered into the line.
+The printed warning still names the code alone.
+Red `a51fe1ee88` (four cases fail at the parent),
+fix `f9529cb472`.
+A runbook runs root that cannot be resolved is named once.
+It used to fail every comparison,
+so the audit logged one line per searched root,
+four with the default roots,
+and the warning listed each as a root it could not resolve.
+The runbook's root is now resolved before any comparison;
+a failure logs one line with the root and the failure's text,
+the warning says the roots searched could not be compared with it,
+and the newest record and the versions set after it are still printed.
+Red `8410bf72fb`,
+fix `23bfbdf076`.
+The readings moved from the report module into `cache-account-search-reach.ts`,
+beside the walk,
+because the report module passed the line limit.
+The ternary of `realPathOf` that joined a relative path onto the working directory by name was dropped (`578429910d`):
+`realpath` resolves a relative path against the working directory itself,
+and a probe over ten relative paths in a disposable directory answered the same as the joined path in every case,
+the successes and `ENOENT`,
+`ENOTDIR` and `ELOOP` alike,
+so no case can tell the two apart and the commit has no red.
+`RootReading` is now named members and a one-line union (`b90f416665`).
+The audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+fix round 7:
+the dropped ternary of `realPathOf` did change one thing the round-6 paragraph said it could not:
+the text of a failure.
+A relative root's lookup now failed with `realpath 'file/below'`,
+where the joined form named the working directory followed by the path,
+and the log line of an unresolved root prints that text,
+so a reader could not tell which directory a relative root had been read against.
+Results and codes were the same in every case of the probe;
+only the text differed.
+`realPathOf` now joins a relative path onto the working directory by plain concatenation before the lookup,
+which leaves `..` to the filesystem as the rest of the path is left,
+and the walk up an absent path runs over the joined path,
+so the failure text names the absolute path the lookup stopped at.
+Red `4d0cb07e58` (a searched root and the runbook's runs root,
+each given relative to the working directory and running through a file;
+both fail at the parent),
+fix `3086c465d1`.
+The two readings,
+`runbookRootReading` and `reachOfRoot`,
+are exported through the package index so that the built-artifact tests of the reach module call them,
+one case per branch:
+the runs root resolved,
+refused and given relative,
+and a searched root that reaches,
+does not reach,
+is refused and is given relative (`51ead37b6c`).
+They pass at their commit as guards of behaviour that already existed,
+and scratch mutations that returned the wrong reading or logged at the wrong level failed them.
+The audit reads versions and writes none,
+so no cache version moved.
+
+Later,
+fix round 8:
+the statement above that both relative-root cases fail at the parent of the fix holds for the pair and not for the
+commit as run.
+At `4d0cb07e58` one case fails;
+the other sits in a later top-level suite of the file,
+which a failing earlier suite stops.
+Run against the red source with the test file of `92bc64f003`,
+which nests the suites under one,
+both fail.
+The `@throws` of `searchReaches` now also names what `process.cwd` raises for a relative root or directory
+when the working directory was removed
+(probed on a removed directory:
+`ENOENT`).
+The type `RunbookRootReading` is exported beside `runbookRootReading`,
+which returns it,
+as `RootReading` is beside `reachOfRoot`.
+A comment at the join says why the plain concatenation is POSIX-only
+and why that holds for this module:
+a drive-relative Windows path such as `C:foo` is not absolute and would be joined wrongly,
+but `searchReaches` takes both paths to share one filesystem root and compares no pair on two drives
+(`516d786709`).
+No behaviour changed.
+The audit reads versions and writes none,
+so no cache version moved.

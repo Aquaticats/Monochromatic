@@ -1606,6 +1606,9 @@ a command the queue cannot take is sent again on the next 20 ms tick.
 The visible lines are reported for inlay hints once they stayed the same for 200 ms,
 a chosen value,
 and at once for newly displayed text.
+A report whose request would ask only lines that stored answers of the same text revision asked about is not sent
+(`src/native/language/sync.rs`;
+the rule is in the section "Inlay hints and diagnostics").
 Accepted hint and diagnostic snapshots are stored in `State::annotations`,
 the store the section "Inlay hints and diagnostics" describes,
 which hands a snapshot out only for the stamp of the text being drawn.
@@ -1718,6 +1721,70 @@ so its block grew by a copy per answer in the code view and in the minimap
 `hints_outside_the_asked_lines_are_not_part_of_an_answer` and
 `an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about`;
 `inspect:source-guards` cases `hints-asked-lines` and `hints-asked-lines-window`).
+
+A hint request is skipped when the store already holds the hints it would ask for
+(`Annotations::answered_covers`,
+`src/annotation/coverage.rs`,
+called from `hints` in `src/native/language/sync.rs`).
+The request for new visible lines asks one view height above the first visible line and two below it
+(`request_lines`,
+clipped to the text),
+and it is covered when that range lies inside the union of the ranges
+that hint snapshots stored for the displayed text revision asked about.
+Touching and overlapping ranges are joined,
+so two answers can cover a range together.
+A request that is pending,
+failed,
+or cancelled never reaches the store,
+so it covers nothing,
+and the lines of another text revision are never covered:
+the first stored answer for a new revision (an edit,
+a reload) drops the lines of the earlier one,
+a query for another revision (or another file) is not covered,
+and opening the file in the worker again forgets all of them,
+because the new worker holds no earlier request.
+An empty range is never covered.
+An answer counts only when it put a hint on one of the lines it asked about,
+because a server that is still loading the project answers with no hint or with some:
+an answer without one covers nothing,
+takes the lines it asked about out of what earlier answers covered
+(it replaced their hints with none),
+and so the view that settles over those lines asks again,
+as it did before the rule.
+Lines that really hold no hint are asked again on each settle for the same reason.
+A server that answers a loading project with some of its hints is not caught:
+`rust-analyzer` 1.98.1 answered a cold request for a 23-line file with 0 hints after 7 ms,
+5 after 261 ms,
+errors `content modified` after 514 and 858 ms,
+and 15 from 2057 ms on,
+so a partial answer of 5 covers its lines until an edit,
+a reload,
+or a view that leaves them.
+A skipped view is recorded as handled,
+so it is not examined again on each tick,
+and the worker keeps the window it was last told.
+With several servers,
+one stored answer covers the lines for all of them.
+The first click at the bottom of `build.unit.test.ts` (window of 1080 by 1880 logical px)
+reports its visible lines twice,
+first line 214 and then 223 after the minimap press is aimed again;
+the second request asks lines 146 to 287,
+inside the 137 to 287 of the first,
+so it is skipped
+(requests per scenario:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`;
+`a_view_inside_the_answered_lines_sends_no_request` and five more tests in `src/native/language/hint_skip_tests.rs`;
+`inspect:source-guards` cases `hint-skip-*`).
+
+A skipped request must not be what draws the code column.
+Before the rule,
+the answer to the second request repainted the source,
+and that repaint drew the frame that showed the code tile of a press;
+a press whose request is skipped has no answer,
+and its tile never appeared (the code column stayed blank beside the gutter numbers until another event drew a frame).
+The cause and the fix are in the bullet on `src/native/gpu_tile.rs` under "The code view on the GPU",
+and the record is in the section "A press whose hint request is skipped leaves the code column blank"
+of `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
 
 ### Placement
 
@@ -3295,8 +3362,10 @@ and `render/MainMinimap.kt`.
   (the settling time of the hint request plus the server's answer),
   in the one frame that also shows those rows.
   The view then stands on other lines,
-  so the hints of those lines are asked for after the settling time again:
-  one request more than the same press costs when every row is already there.
+  so the hints of those lines were asked for after the settling time again,
+  one request more than the same press costs when every row is already there;
+  since 2026-10-24 the request is skipped when stored answers already cover its lines
+  (see "Inlay hints and diagnostics").
 - A press on the box starts a drag without a jump.
   A press outside the box jumps and then continues as a drag of the box from where the jump left it
   (`ScrollBar.mousePressed`:
@@ -5568,6 +5637,26 @@ the GPU turns outlines and paths into pixels.
   and no scene is built or drawn.
   The wrap indicator of the gutter is a second,
   small texture drawn the same way.
+  A tile whose textures differ in size from the last one's needs new textures and a new list of slices
+  (`source-slices`,
+  which the markup draws with a `for`),
+  and the window does not show a list it was given inside a frame.
+  So `GpuTile::submit_tile` makes the textures and gives the window the slices when the tile is handed over,
+  outside any frame (`Inner::prepare_tile`,
+  `src/native/gpu_tile/source.rs`),
+  and the frame that follows draws the scenes into them and shows them.
+  Only a tile handed over before the first frame,
+  when no device is held yet,
+  still gets its slices inside a frame,
+  and the notifier then asks for one more frame (`request_redraw`).
+  Without this a view placed by a press whose hint request was skipped kept a blank code column.
+  The tests `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame`
+  (`src/native/tile_slice_frame_tests.rs`) and
+  `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` (`src/native/language/hint_skip_tests.rs`)
+  check,
+  before any frame is drawn,
+  that the window holds the slices of the new textures;
+  the `inspect:source-guards` cases `tile-slices-*` remove the lines that make and apply them.
 - Selection fills and the boxes of find matches are Slint rectangles behind the tile image (`ui/app.slint`),
   drawn by FemtoVG on the GPU as before.
   Their edges and the clip edges of the selected ink lie on whole pixels,

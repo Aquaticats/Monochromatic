@@ -167,14 +167,18 @@ export async function buyTranslateSlice(
   signal.throwIfAborted();
   if (attempt.kind === 'unfilled') {
     // ONE SLICE RATHER THAN THE ENTRY. The archive has no wording here, so
-    // there is nothing to fall back on and nothing to write; what the
-    // document keeps is the gap it already had. Every other slice is still
-    // worth what it cost, and the next run asks again, because nothing is
-    // cached for a slice that produced nothing.
+    // there is nothing to fall back on and nothing to write; where the
+    // artifact records the passage's source text and it renders as something,
+    // the page carries it under a note that it has not been translated yet
+    // (the owner, 2026-10-23, "Source text + note"; `page-check`
+    // `source-ships.ts`), and a later run replaces it. Where it does not, the
+    // page carries nothing for the passage. Every other slice is still worth
+    // what it cost, and the next run asks again, because nothing is cached for
+    // a slice that produced nothing.
     l.warn(
       `slice ${String(sliceIndex,)}: no translation in the archive and none produced (${
         attempt.reason
-      }); the passage stays missing and the slice is NOT cached`,
+      }); the page carries the passage's source text under a note where one is recorded, and the slice is NOT cached`,
     );
     return {
       kind: 'unfilled',

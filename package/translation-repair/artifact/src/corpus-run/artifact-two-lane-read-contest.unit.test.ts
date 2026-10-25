@@ -572,6 +572,140 @@ await describe({
     },),
 
     it({
+      name: 'READS A SLICE THE FLOOR KEPT FROM THE ROSTER apart from a roster that declined: with generation '
+        + 'twenty-one the mark is read back as true, and a quorum-not-met slice with no ballots and no mark is a '
+        + 'real decline',
+      fn: async () => {
+        /**
+         Selection with one skipped slice, as the writer records it.
+         */
+        const skipped = parseLaneSelection({
+          value: {
+            kind: 'contested',
+            slices: [{
+              sliceIndex: 0,
+              verdict: { kind: 'quorum-not-met', },
+              ballots: [],
+              usable: 0,
+              benchBelowFloor: true,
+            },],
+          },
+          comparison: ONE_CONTESTED,
+          path: SELECTION_PATH,
+          keys: SLICE_SPELLED_KEYS,
+          generation: 21,
+        },);
+        /**
+         The same selection with no mark, which a roster that was asked and heard nobody leaves.
+         */
+        const declined = parseLaneSelection({
+          value: {
+            kind: 'contested',
+            slices: [{
+              sliceIndex: 0,
+              verdict: { kind: 'quorum-not-met', },
+              ballots: [],
+              usable: 0,
+            },],
+          },
+          comparison: ONE_CONTESTED,
+          path: SELECTION_PATH,
+          keys: SLICE_SPELLED_KEYS,
+          generation: 21,
+        },);
+        expect({
+          skipped: (skipped.kind === 'contested') ? skipped.slices[0]?.benchBelowFloor : 'pending',
+          declined: (declined.kind === 'contested') ? declined.slices[0]?.benchBelowFloor : 'pending',
+        },).toEqual({
+          skipped: true,
+          declined: undefined,
+        },);
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE FLOOR MARK in generation twenty, which did not record it, naming the keys that '
+        + 'generation allows',
+      fn: async () => {
+        const refusal = caught(function markBeforeTwentyOne() {
+          return parseLaneSelection({
+            value: {
+              kind: 'contested',
+              slices: [{
+                sliceIndex: 0,
+                verdict: { kind: 'quorum-not-met', },
+                ballots: [],
+                usable: 0,
+                benchBelowFloor: true,
+              },],
+            },
+            comparison: ONE_CONTESTED,
+            path: SELECTION_PATH,
+            keys: SLICE_SPELLED_KEYS,
+            generation: 20,
+          },);
+        },);
+        expect(refusal,).toBeInstanceOf(ArtifactParseError,);
+        expect(String(refusal,),).toBe(
+          'ArtifactParseError: artifact parse failed at CatEntry1.laneSelection.slices[0].benchBelowFloor: '
+            + 'expected no key here beyond sliceIndex, verdict, ballots, usable, eligibility, tenseCandidates.',
+        );
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE FLOOR MARK ON A SLICE A ROSTER ANSWERED, or set to false, since a slice asked about carries '
+        + 'ballots and the mark says none was asked',
+      fn: async () => {
+        /**
+         Reads one recorded slice at generation twenty-one and returns the refusal text.
+
+         @param slice - slice as recorded
+
+         @returns Refusal
+         */
+        function refusalOf(slice: Readonly<Record<string, unknown>>,): string {
+          return String(caught(function readMarked() {
+            return parseLaneSelection({
+              value: {
+                kind: 'contested',
+                slices: [slice,],
+              },
+              comparison: ONE_CONTESTED,
+              path: SELECTION_PATH,
+              keys: SLICE_SPELLED_KEYS,
+              generation: 21,
+            },);
+          },),);
+        }
+        expect({
+          answered: refusalOf({
+            sliceIndex: 0,
+            verdict: {
+              kind: 'lane-won',
+              lane: 'repair',
+            },
+            ballots: [FOR_REPAIR, FOR_REPAIR, FOR_TRANSLATE,],
+            usable: 3,
+            benchBelowFloor: true,
+          },),
+          falsy: refusalOf({
+            sliceIndex: 0,
+            verdict: { kind: 'quorum-not-met', },
+            ballots: [],
+            usable: 0,
+            benchBelowFloor: false,
+          },),
+        },).toEqual({
+          answered: 'ArtifactParseError: artifact parse failed at CatEntry1.laneSelection.slices[0].benchBelowFloor: '
+            + 'expected no ballots, since a bench read below its floor was not asked, rather than 3.',
+          falsy: 'ArtifactParseError: artifact parse failed at CatEntry1.laneSelection.slices[0].benchBelowFloor: '
+            + 'expected true or absent.',
+        },);
+      },
+    },),
+
+    it({
       name: 'REFUSES a tense candidate record in generation fourteen, the last generation before the field',
       fn: async () => {
         const refusal = caught(function tenseBeforeFifteen() {

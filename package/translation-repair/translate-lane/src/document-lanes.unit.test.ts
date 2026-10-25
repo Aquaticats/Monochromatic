@@ -13,7 +13,10 @@
  */
 
 import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
   describe,
@@ -362,6 +365,10 @@ function renderingFor({ content, }: { readonly content: string; },): string {
 
  @param activity - optional overlap instrument for both lane entry stages
 
+ @param prepared - preparation to run over, the cat document pair unless a case supplies its own
+
+ @param logger - logger the driver writes to, `l` unless a case reads its warnings
+
  @returns Both lane results
 
  @example
@@ -379,6 +386,11 @@ async function runLanes(
     reseatTranslate,
     beforeSlice,
     askedBy,
+    prepared = prepareDocumentPair({
+      sourceText: SOURCE_TEXT,
+      targetText: TARGET_TEXT,
+    },),
+    logger = l,
   }: {
     readonly served: SchemaLog;
     readonly abortAfterCriticCalls?: number;
@@ -390,6 +402,8 @@ async function runLanes(
       args: { readonly lane: 'repair' | 'translate'; },
     ) => Promise<RepairSliceSeating>;
     readonly askedBy?: AskedLog;
+    readonly prepared?: ReturnType<typeof prepareDocumentPair>;
+    readonly logger?: Logger;
   },
 ) {
   /**
@@ -406,10 +420,7 @@ async function runLanes(
         : { abortAfterCriticCalls, }),
       ...((activity === undefined) ? {} : { activity, }),
     },),
-    prepared: prepareDocumentPair({
-      sourceText: SOURCE_TEXT,
-      targetText: TARGET_TEXT,
-    },),
+    prepared,
     repairModels: REPAIR_MODELS,
     translateModels: TRANSLATE_MODELS,
     signal: controller.signal,
@@ -424,7 +435,7 @@ async function runLanes(
     ...((beforeSlice === undefined)
       ? {}
       : { beforeSlice, }),
-    l,
+    l: logger,
     stageSettings: SCRIPTED_STAGE_SETTINGS,
   },);
 }
@@ -870,6 +881,58 @@ await describe({
 
         const lanes = await runLanes({ served, },);
         expect(lanes.alignmentFindings,).toEqual(prepared.alignmentFindings,);
+      },
+    },),
+
+    it({
+      name: 'WRITES THE STRUCTURE AND SECTION-PAIRING FINDINGS to the run log as warn lines, once each, '
+        + 'and leaves the findings other lines already report out of it',
+      fn: async () => {
+        /**
+         Findings the preparation recorded: two the run log never showed, and two it shows elsewhere.
+         */
+        const structure = 'alignment structure-mismatch (source section 13: source-only (roster-unpaired); anchored '
+          + 'for insertion at offset 17)';
+        const sections = 'section-pairing paired 1 of 2 original and 1 translation sections, from 4 usable voices '
+          + 'of 4 heard';
+        const blocks = 'block-pairing section 0 paired 2 of 2 original and 2 of 2 translation blocks across 2 '
+          + 'relations, from 4 usable voices of 4 heard';
+        const lost = 'stage-voice-lost (block-pairing minimax-m3)';
+        /**
+         Warnings the driver wrote, in order.
+         */
+        const warnings: string[] = [];
+        /**
+         Logger keeping the warnings.
+         */
+        const capturing: Logger = {
+          ...l,
+          warn: function keep(message: string,): void {
+            warnings.push(message,);
+          },
+        };
+        await runLanes({
+          served: [],
+          prepared: {
+            ...prepareDocumentPair({
+              sourceText: SOURCE_TEXT,
+              targetText: TARGET_TEXT,
+            },),
+            alignmentFindings: [
+              structure,
+              sections,
+              blocks,
+              lost,
+            ],
+          },
+          logger: capturing,
+        },);
+        expect(warnings.filter(function recorded(message,): boolean {
+          return message.includes('alignment finding recorded: ',);
+        },),).toEqual([
+          `[${runDocumentLanes.name}] alignment finding recorded: ${structure}`,
+          `[${runDocumentLanes.name}] alignment finding recorded: ${sections}`,
+        ],);
       },
     },),
 

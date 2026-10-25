@@ -41,7 +41,9 @@ export type RunClient = ModelClient & {
   /**
    What each provider's meter said in the reading the dryness view is drawn
    from: `wet` or `dry` for a meter that answered, `unreadable` for one that
-   did not.
+   did not. A provider refused for payment reads `dry` until its meter moves,
+   whatever the meter said, since that refusal keeps it dry however long the
+   hold it stated.
 
    READ BESIDE THE DRYNESS by `run-seats-read.ts`, so the `JUDGE SEATS` line
    can say that a provider the router treats as spendable is one whose meter

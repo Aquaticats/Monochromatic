@@ -20,7 +20,10 @@ import {
   RUN_PER_CALL_TIMEOUT_MS,
   type RunClient,
 } from '@monochromatic-dev/translation-repair-run/ts';
-import { consolidationHooksFor, } from './pass-consolidate-reseat.ts';
+import {
+  consolidationHooksFor,
+  slateReachOf,
+} from './pass-consolidate-reseat.ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
   type PreparedDocumentPair,
@@ -141,6 +144,7 @@ export async function runPassConsolidation(
       signal,
       prepared,
       l,
+      startedSlateReachable: slateReachOf({ seats, },),
     },)
       .beforeSlice,
     // THE WHOLE SEATED ROSTER WRITES, the slate judges judge and the late

@@ -297,6 +297,13 @@ export function assembleTranslation(
       unfilledChunkIndices: unfilled.map(function toIndex(passage,): number {
         return passage.sliceIndex;
       },),
+      belowFloorChunkIndices: unfilled
+        .filter(function keptForWantOfABench(passage,): boolean {
+          return passage.benchBelowFloor === true;
+        },)
+        .map(function toIndex(passage,): number {
+          return passage.sliceIndex;
+        },),
       carriedChunkIndices,
     },),
     resumedSliceCount,

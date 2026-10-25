@@ -1810,6 +1810,52 @@ await describe({
           },
         },),
         it({
+          name: 'OPENS NO ROUND FOR A SLICE whose hook reports fewer reachable seats than the contest needs voices, '
+            + 'so the slice keeps its incumbent as an unheard roster does and no call is made (XingZ6020: 63 rounds '
+            + 'on one reachable seat of seven)',
+          fn: async () => {
+            /**
+             Seat of every call the driver made under a bench below the floor.
+             */
+            const asked: RosterModelId[] = [];
+            const slices = await contestOneSlice({
+              client: judgeRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<BenchSeating> => ({ modelIds: ROSTER, reachable: 1, }),
+            },);
+            expect({
+              calls: asked.length,
+              verdict: slices.at(0,)?.verdict,
+              usable: slices.at(0,)?.usable,
+              ballots: slices.at(0,)?.ballots.length,
+            },).toEqual({
+              calls: 0,
+              verdict: { kind: 'quorum-not-met', },
+              usable: 0,
+              ballots: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'ASKS A SLICE AS BEFORE once its hook reports the contest\'s floor reachable',
+          fn: async () => {
+            /**
+             Seat of every call the driver made with the floor met.
+             */
+            const asked: RosterModelId[] = [];
+            const slices = await contestOneSlice({
+              client: judgeRecordingClient({ asked, },),
+              beforeSlice: async (): Promise<BenchSeating> => ({ modelIds: ROSTER, reachable: 2, }),
+            },);
+            expect({
+              asked: asked.length > 0,
+              verdict: slices.at(0,)?.verdict.kind,
+            },).toEqual({
+              asked: true,
+              verdict: 'lane-won',
+            },);
+          },
+        },),
+        it({
           name: 'WRITES A LATER SLICE\'S OWN FAILURE UNDER THE CALLER\'S STOP, its hook refused by an unreachable '
             + 'bench as the stop landed while the first slice ended in the caller\'s reason, and refuses with that '
             + 'reason',

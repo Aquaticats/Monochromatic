@@ -144,3 +144,98 @@ which lists every file of these commitments.
   one real stop was of the kind still reachable (yulianNyanner,
   `incumbent-only`,
   0.48 hours).
+- **A slice with no archive text and no backed wording ships its source text under a note.**
+  Owner,
+  2026-10-23,
+  asked what a shipped page carries for such a slice,
+  after the corpus pass XingZ6020 shipped 88 of its 118 slices and left the other 30,
+  31.5 percent of the original and every footnote definition,
+  off the page with nothing on it to say so:
+  "Source text + note".
+  The page carries the source text of the passage,
+  preceded by a note saying it has not been translated yet and the original follows,
+  footnote definitions included;
+  a later run replaces it once a wording is backed.
+  Options offered and not chosen:
+  the note alone,
+  keeping the silent gap,
+  and unbacked wording marked as unreviewed,
+  which would break the standing rule that one judge alone never decides.
+  The earlier rulings stand:
+  a run always ships,
+  and a slice with archive text and no valid wording keeps the archive.
+  One note stands before each contiguous run of such slices,
+  in Canadian English as a block quote on its own lines:
+  `> This passage has not been translated yet. The original text follows.`
+  The source text follows as the artifact records it:
+  each slice's text exactly,
+  the slices of one run joined by one blank line,
+  and no text between slices (an HTML comment the original holds between two blocks,
+  for instance),
+  since that text belongs to no slice.
+  No page pass,
+  floor or footnote guard rewrites it,
+  since each of them reads or edits English;
+  the helper that lists what each slice contributes to a page leaves the source text out
+  unless its caller asks,
+  and only the writer of the published page asks.
+  The page grammar is strict MDX,
+  so a bare `{`,
+  an unclosed tag or an unmatched closing tag in the original can make the composed page unparseable.
+  The writer of the page therefore ships each run as recorded whenever the composed page parses,
+  and otherwise takes up to three steps,
+  parsing the page after each:
+  first it writes,
+  as literal text,
+  only the runs that do not parse as a fragment of their own,
+  any run that opens an HTML comment which never closes,
+  and any run that parses alone and cannot stand beside another
+  (a fence mark indented four spaces or more,
+  a name an earlier run still declares,
+  a fence or display math the run leaves open at its end,
+  which the strict grammar would end at a later run's line)
+  (a backslash before each `{`,
+  `}` and `<` the CommonMark parse of the run reads as text;
+  a fence,
+  a code span,
+  math,
+  a link destination,
+  a closed comment and an escape the original already wrote stay as they are);
+  then it writes every run so;
+  then it ships the page without the runs no writing makes parse
+  (without every run where that does not help)
+  and adds the defect `page-source-unparseable` naming the slices.
+  Each step taken writes one warn line naming the slices and the step,
+  and the entry never stops on this path.
+  The bytes of the original differ from the artifact's only on those paths.
+  The second step is taken when the page of the first step does not parse
+  (the page as written when the first step changed nothing)
+  and writing every run as literal text gives a page unlike the one last tried.
+  Two seeded searches of forty thousand pairs of runs each under the real grammar took it for 365 and 403 pairs,
+  every one a run nested past the bound beside a run holding a character that step escapes,
+  and it made the page parse for none.
+  The third step is taken when no writing makes the page parse:
+  a run nested past the bound of the plain reading
+  (the structural limit,
+  with the grammar's source cited in the module comment of `page-check/src/corpus-run/source-ships-encoding.ts`
+  and in ledger B832).
+  A fence or a `$$` flow that a run opens and no line of it closes is written as literal text with a closing line
+  at its end (`page-check/src/corpus-run/source-ships-open-flow.ts`),
+  since the strict grammar would end it at the next run's line
+  and leave the text after that line outside it as code.
+  A page shipped without runs reads as agreed with its artifact:
+  the page-agreement check runs the same composition over what the artifact records
+  and weighs the page against the artifact without the originals the composition leaves off,
+  and `verify-published` prints one line naming the entry,
+  `page-source-unparseable` and the slices.
+  A page that never carried originals still disagrees wherever the composition keeps them,
+  so a pass publishes it again.
+  The artifact keeps its record of the slice (`lanes.translate.delivery`),
+  and the would-ship reading names the role,
+  `source-ships` (`page-check/src/corpus-run/source-ships.ts`),
+  so the page-agreement check,
+  `verify-published` (`source-shipped=`)
+  and the `TALLY` line (`pageSourceShipped`,
+  beside `pageSilent`) read the page as the artifact says it ships.
+  The slice stays uncached,
+  so the next run asks again (ledger B827).
