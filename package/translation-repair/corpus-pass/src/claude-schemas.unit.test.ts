@@ -206,11 +206,13 @@ const SHARED_BUILDERS: readonly SharedBuilder[] = [
 //endregion Shared builders
 
 //region Forwarders
-// Functions that make an answer schema from what their caller passes and hand it to a sender, so the files that call
-// them write the arguments of the schema and are listed beside the stages.
+// Functions that make an answer schema from what their caller passes and hand it to a sender, and the functions that
+// pass what they are given on to one of those, however long the chain, so the files that call any of them write the
+// arguments of the schema and are listed beside the stages.
 
 /**
- One function that hands a sender a builder call made from its own parameters.
+ One function that hands a sender a builder call made from its own parameters, or passes a name made from them to one
+ that does.
  */
 type Forwarder = {
   /**
@@ -230,10 +232,11 @@ type Forwarder = {
 };
 
 /**
- Every function of the family that hands a sender a builder call made from its own parameters, and every file that calls
- it. Each makes the schema of a consistency ask from the labels shown, and gives back the bench's answer, so its callers
- are listed as stages and not reported for the answer they use. A function added or removed fails the case that reads
- these until it is listed here.
+ Every function of the family that hands a sender a builder call made from its own parameters, or passes a name made
+ from them to one that does, to the end of the chain, and every file that calls it. The first three each make the
+ schema of a consistency ask from the labels shown and give back the bench's answer; the others pass what they are
+ given on until the entry pipeline, so the files that call any of them are listed as stages and not reported for the
+ answer they use. A function added or removed fails the case that reads these until it is listed here.
  */
 const FORWARDERS: readonly Forwarder[] = [
   {
@@ -250,6 +253,66 @@ const FORWARDERS: readonly Forwarder[] = [
     forwarder: 'askRunOff',
     declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-run-off.ts',
     callers: ['corpus-pass/src/corpus-run/pass-consistency-bench-decide.ts',],
+  },
+  {
+    forwarder: 'decideAskedGroup',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-bench-decide.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-bench.ts',],
+  },
+  {
+    forwarder: 'choose',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-carry-choose.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-carry.ts',],
+  },
+  {
+    forwarder: 'askAll',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-bench.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency.ts',],
+  },
+  {
+    forwarder: 'carryUncontained',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-carry.ts',
+    callers: [],
+  },
+  {
+    forwarder: 'carryToUnit',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-carry.ts',
+    callers: [],
+  },
+  {
+    forwarder: 'settleAll',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency.ts',
+    callers: [],
+  },
+  {
+    forwarder: 'carryAll',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-carry.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-consistency-bench.ts',],
+  },
+  {
+    forwarder: 'runPassConsistency',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-settlement.ts',],
+  },
+  {
+    forwarder: 'settleAskedGroup',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-consistency-bench.ts',
+    callers: [],
+  },
+  {
+    forwarder: 'runPassSettlement',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-settlement.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-entry.ts',],
+  },
+  {
+    forwarder: 'runEntryPipeline',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-entry.ts',
+    callers: ['corpus-pass/src/corpus-run/pass-entry-settle.ts',],
+  },
+  {
+    forwarder: 'settleEntry',
+    declaredIn: 'corpus-pass/src/corpus-run/pass-entry-settle.ts',
+    callers: ['corpus-pass/src/corpus-run/corpus-pass.ts',],
   },
 ];
 

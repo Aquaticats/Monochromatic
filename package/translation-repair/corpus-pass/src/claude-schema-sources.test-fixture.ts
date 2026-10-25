@@ -83,8 +83,9 @@ import {
 // A forwarder is a function that calls a sender (`claude-schema-blind-senders.test-fixture.ts`) and calls a builder
 // with an argument that reads one of its own parameters, or a constant made from one
 // (`claude-schema-blind-forwarders.test-fixture.ts`). It is no builder, since what it gives back is the sender's
-// answer, but the files that use it write the arguments of the schema, so they are listed too. A function that forwards
-// through another forwarder is not followed past the first.
+// answer, but the files that use it write the arguments of the schema, so they are listed too. A function that calls a
+// forwarder with an argument that reads one of its own parameters is a forwarder as well, and the forwarders are the
+// fixpoint of that reading, so a chain of any length is followed to its end.
 //
 // The search reads exactly these positions, and the check `blindSpotsOf`, in
 // `claude-schema-blind-spots.test-fixture.ts`, reports every other reference to a module that carries a builder or to a
