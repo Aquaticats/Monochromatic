@@ -1,9 +1,10 @@
 /**
  Tests for the plain-markdown reading with the site's math extension, which a caller reads structure from.
 
- The reading is CommonMark and remark-math, with no MDX extensions and no GFM, so it never refuses a text for its
- syntax, and every node it builds carries a position (the GFM autolink-literal transform builds nodes without one).
- A caller that copies or rewrites a text by node positions needs both.
+ The reading is CommonMark and remark-math with two parts of GFM, tables and strikethrough, and no MDX extensions and no
+ other GFM, so it never refuses a text for its syntax, and every node it builds carries a position (the GFM
+ autolink-literal transform builds nodes without one). A caller that copies or rewrites a text by node positions needs
+ both, and needs a table to be a table: a span of inline content never runs from one row into the next.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -107,7 +108,13 @@ await describe({
         /**
          Bodies where the GFM autolink-literal transform leaves nodes without a position.
          */
-        const bodies = ['x {a} www.', '猫 https://example.net/b{c} 走', '\u{1F408} {d}',];
+        const bodies = [
+          'x {a} www.',
+          '猫 https://example.net/b{c} 走',
+          '\u{1F408} {d}',
+          '| a |\n| - |\n| www. {b} |\n',
+          'a ~~www.~~ b',
+        ];
         for (const body of bodies) {
           for (const node of nodesOf({ node: parseMarkdownMathBody({ body, },), },))
             expect(node.position,).not.toBeUndefined();
@@ -122,14 +129,71 @@ await describe({
     },),
 
     it({
-      name: 'READS NO GFM: a footnote definition is a paragraph and a bare address stays text',
+      name: 'READS NO FOOTNOTE, AUTOLINK LITERAL OR TASK LIST: a footnote definition is a paragraph, a bare address stays '
+        + 'text and a task list item is text',
       fn: async () => {
         /**
-         Body with a footnote definition and a bare address.
+         Body with a footnote definition, a bare address and a task list item.
          */
-        const root = parseMarkdownMathBody({ body: '[^1]: 注\n\nhttps://example.net/a\n', },);
+        const root = parseMarkdownMathBody({ body: '[^1]: 注\n\nhttps://example.net/a\n\n- [ ] 猫\n', },);
         expect(ofType({ root, type: 'footnoteDefinition', },).length,).toBe(0,);
         expect(ofType({ root, type: 'link', },).length,).toBe(0,);
+        expect(ofType({ root, type: 'listItem', },).map(function checkedOf(node,): unknown {
+          return ('checked' in node) ? node.checked : 'no such field';
+        },),).toEqual([null,],);
+      },
+    },),
+
+    it({
+      name: 'READS A TABLE AS A TABLE, so a backtick opened in one row pairs with none in another and a cell is a node',
+      fn: async () => {
+        /**
+         Body with a table whose second row opens a backtick that the line after the row would close.
+         */
+        const root = parseMarkdownMathBody({ body: '| a | b |\n| - | - |\n| c | `d |\n{d} y` |\n', },);
+        expect(ofType({ root, type: 'table', },).length,).toBe(1,);
+        expect(ofType({ root, type: 'tableRow', },).length,).toBe(3,);
+        expect(ofType({ root, type: 'inlineCode', },).length,).toBe(0,);
+        expect(ofType({ root, type: 'tableCell', },).length,).toBeGreaterThanOrEqual(5,);
+      },
+    },),
+
+    it({
+      name: 'ENDS A TABLE AT A LINE THAT STARTS A BLOCK OF RAW HTML, and at a line indented four spaces',
+      fn: async () => {
+        /**
+         Tables followed by a tag alone on a line and by a line indented four spaces.
+         */
+        const afterTag = parseMarkdownMathBody({ body: '| a | b |\n| - | - |\n| c | d |\n<b>\n- j\n', },);
+        expect(afterTag.children.map(function typeOf(node,): string {
+          return node.type;
+        },),).toEqual(['table', 'html',],);
+        /**
+         The same table before a line indented four spaces.
+         */
+        const afterIndent = parseMarkdownMathBody({ body: '| a | b |\n| - | - |\n| c | d |\n    [^1]: y\n', },);
+        expect(afterIndent.children.map(function typeOf(node,): string {
+          return node.type;
+        },),).toEqual(['table', 'code',],);
+      },
+    },),
+
+    it({
+      name: 'READS STRIKETHROUGH AS A DELETE NODE, with two tildes and with one, across a line',
+      fn: async () => {
+        /**
+         Bodies with struck text.
+         */
+        const [double, single, across,] = ['a ~~b~~ c\n', 'a ~b~ c\n', 'a ~~b\nc~~ d\n',].map(
+          function parsed(body,): Root {
+            return parseMarkdownMathBody({ body, },);
+          },
+        );
+        for (const root of [double, single, across,]) {
+          if (root === undefined)
+            throw new Error('a body was not parsed',);
+          expect(ofType({ root, type: 'delete', },).length,).toBe(1,);
+        }
       },
     },),
 
