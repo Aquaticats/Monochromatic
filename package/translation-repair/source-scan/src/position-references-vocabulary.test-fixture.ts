@@ -81,8 +81,8 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
  left is a pointer: "the lines below exact a fixed count", "the bowls below half the set" and "the checks below both
  fail" are found, and so is a comparison such as "a rate above four", which then needs an exemption with its reason.
 
- A BARE VERB AFTER "that" IS READ NOW (round 2). "that" followed by a word of `VERBS_AFTER_THAT` reads the position as a
- pointer: "the lines below that write it" and "the paragraphs above that explain", which passed, are found.
+ A BARE VERB AFTER "that" IS READ NOW (ledger B951). "that" followed by a word of `VERBS_AFTER_THAT` reads the position
+ as a pointer: "the lines below that write it" and "the paragraphs above that explain", which passed, are found.
 
  WHAT IT STILL DOES NOT READ. A word of the list that is a verb or opens a clause and is followed by a word outside
  `OBJECT_OPENERS` reads as a comparison, so a verb that `VERBS_AFTER_THAT` does not hold ("the lines below that
@@ -121,7 +121,7 @@ export const COMPARED_NOT_BEFORE_BARE_VERB: ReadonlySet<string> = wordSet({ word
  Verbs, in the form a plural subject takes, that a pointer puts after "that": the lines below that write it, the
  paragraphs above that explain. A list, since the scan cannot tell a verb from a noun. A word that is also a noun stays
  in only when no text the guard reads compares with it ("name", "list", "record", "note", "check", "hold"); "count",
- "use", "run", "set", "test", "call" and "return" stay out, because "above that count" compares.
+ "use", "run", "set", "test", "call" and "return" stay out as a precaution, because "above that count" could compare.
  */
 export const VERBS_AFTER_THAT: ReadonlySet<string> = wordSet({
   words: 'write explain say state describe define show give mention cite quote argue discuss introduce establish '
