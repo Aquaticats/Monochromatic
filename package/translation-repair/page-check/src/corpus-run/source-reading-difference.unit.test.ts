@@ -58,6 +58,13 @@ await describe({
       },
     },),
     it({
+      name: 'SAYS SAME FOR AN ADDRESS IN A BLOCK OF RAW HTML OR IN INDENTED CODE, which the strict grammar links and plain Markdown does not',
+      fn: async () => {
+        expect(encodedDifference({ source: '<div>\nhttps://example.net/a {c}\n</div>\n', },),).toEqual({ kind: 'same', },);
+        expect(encodedDifference({ source: '    https://example.net/a {c}\n', },),).toEqual({ kind: 'same', },);
+      },
+    },),
+    it({
       name: 'SAYS DIFFERS FOR AN IMAGE WHOSE ALTERNATIVE TEXT IS AN ANGLE AUTOLINK, which the page shows with its brackets',
       fn: async () => {
         expect(encodedDifference({ source: '![<https://example.net/a>](u.png)\n', },).kind,).toBe('differs',);
