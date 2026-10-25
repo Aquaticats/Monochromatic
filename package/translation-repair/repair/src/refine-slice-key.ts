@@ -391,8 +391,20 @@ import type {
  it, so records may stand at 16 and the change cannot ride inside it, and the number moves. The repair slice (47),
  translate (28) and consolidate (35) versions move for the same rules. No record has been written at 17, which this
  change sets first.
+
+ Version 18 covers the lead's ruling on re-check 3 (M1, 2026-10-25), by the owner rules that two ballots decide and
+ that one judge alone never decides: an accepted issue counts as regressed only when two or more checker ballots name
+ `worse` and the weight behind `worse` exceeds the rest (`adjudication/src/tally-resolution.ts`). The refinement
+ decides nothing on that flag (the recheck reads `resolved` and the count of `worse`, `repair/src/refine-recheck.ts`),
+ but a stored refinement embeds the readings of its recheck round and of the repair outcome it rewrote, and each
+ reading holds the tally whose `regressed` field changes for a round with one `worse` ballot. The key hashes the
+ version, the shape of the run and the texts, not the rule that reads the ballots, so a record written before would be
+ served after with the old flag. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 17 and the change cannot ride inside
+ it; the number moves. The repair slice version moves with it (48). No record has been written at 18, which this
+ change sets first.
  */
-export const REFINE_CACHE_VERSION = 17;
+export const REFINE_CACHE_VERSION = 18;
 
 /**
  Everything about this run that changes what the voices are ASKED.

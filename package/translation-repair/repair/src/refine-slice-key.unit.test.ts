@@ -91,13 +91,14 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'IS AT VERSION 17: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
-            + 'refinement may hold a rewrite the same texts now ship where they were declined, and the key hashes the '
+          name: 'IS AT VERSION 18: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored '
+            + 'refinement may hold a rewrite the same texts now ship where they were declined, and a stored recheck '
+            + 'reading holds a regressed flag that now needs two worse ballots (re-check 3, M1); the key hashes the '
             + 'version, the shape of the run and the texts, not the rule that reads the ballots, so only this number '
             + 'retires a record written under the floors before (16 was the reader taking a capitalization-only '
             + 'difference as the listed value)',
           fn: async () => {
-            expect(REFINE_CACHE_VERSION,).toBe(17,);
+            expect(REFINE_CACHE_VERSION,).toBe(18,);
           },
         },),
         it({
@@ -129,9 +130,11 @@ await describe({
             + 'third review of the Claude route; and from 15 to 16 with the reader that takes a capitalization-only '
             + 'difference from a listed value as the listed value: a stored refinement may rest on a round that lost '
             + 'such a voice; and from 16 to 17 with the removal of every weight floor (owner, 2026-10-25): a stored '
-            + 'refinement was declined against a summed weight a pair of ballots could not reach)',
+            + 'refinement was declined against a summed weight a pair of ballots could not reach; and from 17 to 18 with '
+            + 'the regressed flag that needs two worse ballots (re-check 3, M1): a stored recheck reading held the flag '
+            + 'on a single worse ballot)',
           fn: async () => {
-            expect(refineSliceKey(BASE,),).toBe('c3aa906685215c13f15c7782e60d720f3df8bfedf03c34f4bf1882452a82a98d',);
+            expect(refineSliceKey(BASE,),).toBe('4667fc4114e8d94d862f7b4ac11152ec31c7f5a437d9f304121eefc6e1ca966e',);
           },
         },),
 
