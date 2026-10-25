@@ -23,7 +23,7 @@ import {
   NO_MARK,
 } from './source-ships-open-flow.ts';
 import { editsWithOpeners, } from './source-ships-opener-in-code.ts';
-import { interruptionEdits, } from './source-ships-opener-interrupt.ts';
+import { htmlInterruptionEdits, } from './source-ships-html-interrupt.ts';
 import {
   asTheParseReadsIt,
   blanking,
@@ -325,8 +325,15 @@ function readText({ text, }: { readonly text: string; },): TextReading {
     root,
   },);
   /**
-   Where a footnote definition stands for a reader of the source and for the page, which the openers are written around;
-   none where the text holds no opener.
+   The blocks of raw HTML that cut a paragraph, which the page cuts too.
+   */
+  const interruption = htmlInterruptionEdits({
+    readable,
+    root,
+  },);
+  /**
+   Where a footnote definition stands for a reader of the source and for the page, which the openers in code are written
+   around; none where the text holds no opener.
    */
   const footnotes = (openerStartsInText.length === 0)
     ? []
@@ -346,19 +353,17 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       starts: openerStartsInText,
       edits: [
         ...spans.edits,
-        ...interruptionEdits({
-          text,
-          root,
-          start: rawHtmlStart,
-          footnotes,
-        },),
+        ...interruption.edits,
       ],
       openers,
       footnotes,
       closed: closedComments,
     },),
     insideLinks: spans.insideLinks,
-    streamStarts: spans.streamStarts,
+    streamStarts: [
+      ...spans.streamStarts,
+      ...interruption.starts,
+    ],
     closedComments,
   };
 }

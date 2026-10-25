@@ -34,7 +34,7 @@ import {
 // whole span is written as text. An opener in a fence or display math that a footnote definition holds at the top is
 // found in `source-ships-opener-footnote.ts`, since the plain reading takes the lines of that fence for indented code. An
 // opener first on a line right after a paragraph is the start of a block of raw HTML that ends the paragraph to a reader of
-// the source, and `source-ships-opener-interrupt.ts` puts a blank line before it.
+// the source, and `source-ships-html-interrupt.ts` puts a blank line before it, as before any such block.
 
 /**
  What a code span or inline math starts with: the run of its delimiter.

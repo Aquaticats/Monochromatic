@@ -7,7 +7,7 @@
  writes the opener as a character reference and the lines after it as the text of a paragraph, so the paragraph went on
  and the backtick paired with one of the lines after the opener, and the page showed a code span the source does not
  have. A blank line before the line of the opener ends the paragraph on the page where it ends for the reader of the
- source (`source-ships-opener-interrupt.ts`).
+ source (`source-ships-html-interrupt.ts`).
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
