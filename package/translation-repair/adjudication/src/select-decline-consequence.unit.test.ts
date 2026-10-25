@@ -285,12 +285,16 @@ await describe({
       name: 'REFUSES A LEADER HALF WITH NO QUALIFIER: "a leader only one judge named ... the panel is asked again '
         + 'first" is false where no candidate is left behind, so the wording of round 6 fails (re-check 6, M-B)',
       fn: async () => {
-        expect(unmetDeclineClauses([
+        /**
+         The sentence a judge would read.
+         */
+        const sentence = [
           LEAD,
           RUNS_OFF_UNQUALIFIED,
           NONE_BEHIND,
           OUTCOMES,
-        ].join('',),),).toEqual([RUNOFF_UNMET,],);
+        ].join('',);
+        expect(unmetDeclineClauses(sentence,),).toEqual([RUNOFF_UNMET,],);
       },
     },),
 
@@ -299,11 +303,15 @@ await describe({
         + 'asked again over the leaders and stops there tells a judge the question is asked in every shape '
         + '(re-check 6, M-B)',
       fn: async () => {
-        expect(unmetDeclineClauses([
+        /**
+         The sentence a judge would read.
+         */
+        const sentence = [
           LEAD,
           ASKS_OVER_THE_LEADERS,
           OUTCOMES,
-        ].join('',),),).toEqual([NONE_BEHIND_UNMET,],);
+        ].join('',);
+        expect(unmetDeclineClauses(sentence,),).toEqual([NONE_BEHIND_UNMET,],);
       },
     },),
 

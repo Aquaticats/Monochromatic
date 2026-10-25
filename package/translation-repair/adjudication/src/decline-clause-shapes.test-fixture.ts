@@ -27,11 +27,11 @@ import {
  */
 export type RunoffShape =
   | 'tied-at-top'
-  | 'leader-and-runner-up'
-  | 'whole-slate-tied'
-  | 'every-judge-declined'
-  | 'leader-alone'
-  | 'slate-of-two';
+    | 'leader-and-runner-up'
+    | 'whole-slate-tied'
+    | 'every-judge-declined'
+    | 'leader-alone'
+    | 'slate-of-two';
 
 /**
  The shapes in which a run-off narrows the question.
