@@ -64,15 +64,15 @@ const ASKS_OVER_THE_LEADERS = 'when the round leaves some candidates tied at the
   + 'again for as long as that narrows the question; ';
 
 /**
- The part of a challenge's sentence about the rounds that leave no candidate behind, in the words of the constant.
+ The part of a challenge's sentence about the rounds that have nothing to narrow, in the words of the constant.
  */
-const NONE_BEHIND = 'a round that leaves no candidate behind (the whole slate tied, every judge declining, a leader '
-  + 'alone in drawing a ballot, or a slate of only two) asks no such question; ';
+const NOTHING_TO_NARROW = 'a round that leaves nothing to narrow (the whole slate tied, every judge declining, a '
+  + 'leader alone in drawing a ballot, or a slate of only two) asks no such question; ';
 
 /**
  Both parts of a challenge's sentence about the run-off, in the words of the constant.
  */
-const RUNS_OFF = `${ASKS_OVER_THE_LEADERS}${NONE_BEHIND}`;
+const RUNS_OFF = `${ASKS_OVER_THE_LEADERS}${NOTHING_TO_NARROW}`;
 
 /**
  The wording of the run-off part before re-check 6, whose leader half carried no qualifier, for the refusal control.
@@ -87,9 +87,9 @@ const RUNS_OFF_UNQUALIFIED = 'when the round leaves only some candidates tied at
 const RUNS_OFF_REWORDED = 'if the round leaves just some candidates tied for the lead with others left out, or a '
   + 'leader that one judge alone named beside a runner-up with others left out, the panel is asked once more first, '
   + 'though a round may seat different members of it, over those candidates or over that leader and its runner-up, '
-  + 'and once more for as long as that narrows the question; if the round leaves none behind (the whole slate tied, '
-  + 'every judge declining, a leader alone in drawing a ballot, or a slate of only two) no narrower question is '
-  + 'asked; ';
+  + 'and once more for as long as that narrows the question; if the round has nothing left to narrow (the whole '
+  + 'slate tied, every judge declining, a leader alone in drawing a ballot, or a slate of only two) no narrower '
+  + 'question is asked; ';
 
 /**
  The stay in the words of the constant, waiting on the run-off.
@@ -130,7 +130,7 @@ const RUNOFF_UNMET = 'a tie at the top, or a leader one judge named, narrows the
 /**
  What the reader says of a challenge that does not say where its run-off is not asked.
  */
-const NONE_BEHIND_UNMET = 'a round that leaves no candidate behind asks no such question';
+const NOTHING_TO_NARROW_UNMET = 'a round that has nothing to narrow asks no such question, and does not say behind';
 
 /**
  How the sentence of the constant names each shape that narrows nothing, by shape.
@@ -276,14 +276,14 @@ await describe({
         expect(unmetDeclineClauses(`${LEAD}${OUTCOMES}`,),).toEqual([
           'the panel is asked again, though a round may seat other members of it',
           RUNOFF_UNMET,
-          NONE_BEHIND_UNMET,
+          NOTHING_TO_NARROW_UNMET,
         ],);
       },
     },),
 
     it({
       name: 'REFUSES A LEADER HALF WITH NO QUALIFIER: "a leader only one judge named ... the panel is asked again '
-        + 'first" is false where no candidate is left behind, so the wording of round 6 fails (re-check 6, M-B)',
+        + 'first" is false where there is nothing to narrow, so the wording of round 6 fails (re-check 6, M-B)',
       fn: async () => {
         /**
          The sentence a judge would read.
@@ -291,7 +291,7 @@ await describe({
         const sentence = [
           LEAD,
           RUNS_OFF_UNQUALIFIED,
-          NONE_BEHIND,
+          NOTHING_TO_NARROW,
           OUTCOMES,
         ].join('',);
         expect(unmetDeclineClauses(sentence,),).toEqual([RUNOFF_UNMET,],);
@@ -311,7 +311,26 @@ await describe({
           ASKS_OVER_THE_LEADERS,
           OUTCOMES,
         ].join('',);
-        expect(unmetDeclineClauses(sentence,),).toEqual([NONE_BEHIND_UNMET,],);
+        expect(unmetDeclineClauses(sentence,),).toEqual([NOTHING_TO_NARROW_UNMET,],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE WORD BEHIND IN THE PART ABOUT A ROUND WITH NOTHING TO NARROW: the run-off part uses it for '
+        + 'the candidates a narrowing would drop, and a lone leader of a wide slate leaves other candidates that drew '
+        + 'nothing, so "leaves no candidate behind" gave one word two meanings (re-check 7, nit 1)',
+      fn: async () => {
+        /**
+         The sentence a judge would read before this fix.
+         */
+        const sentence = [
+          LEAD,
+          ASKS_OVER_THE_LEADERS,
+          'a round that leaves no candidate behind (the whole slate tied, every judge declining, a leader alone in ',
+          'drawing a ballot, or a slate of only two) asks no such question; ',
+          OUTCOMES,
+        ].join('',);
+        expect(unmetDeclineClauses(sentence,),).toEqual([NOTHING_TO_NARROW_UNMET,],);
       },
     },),
 
@@ -351,7 +370,7 @@ await describe({
             shape,
           },);
         },),).toEqual(NAMES_OF_WHOLE_SLATE_SHAPES.map(function toUnmet([shape,],): readonly string[] {
-          return [`a round that leaves no candidate behind asks no such question, naming the shape ${shape}`,];
+          return [`a round that has nothing to narrow asks no such question, naming the shape ${shape}`,];
         },),);
       },
     },),

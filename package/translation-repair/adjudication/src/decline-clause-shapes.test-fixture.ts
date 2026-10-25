@@ -23,7 +23,7 @@ import {
 /**
  A declined round's shape, by what the next ask is over: a tie at the top that leaves some candidates behind, or a
  leader and its runner-up with some behind, narrow the question; the whole slate tied, every judge declining, a leader
- alone in drawing a ballot, and a slate of only two narrow nothing, since no candidate is left behind to drop.
+ alone in drawing a ballot, and a slate of only two narrow nothing, since there is nothing to narrow.
  */
 export type RunoffShape =
   | 'tied-at-top'
@@ -52,20 +52,22 @@ export const WHOLE_SLATE_SHAPES: readonly RunoffShape[] = [
 ];
 
 /**
- A challenge asks no narrower question where its round leaves no candidate behind, and the sentence may not say that
- the panel is asked again there or say an outcome.
+ A challenge asks no narrower question where its round has nothing to narrow, and the sentence may not say that the
+ panel is asked again there or say an outcome. It may not use the word behind either: the run-off part of the sentence
+ uses it for the candidates a narrowing would drop, and a lone leader of a wide slate leaves other candidates that drew
+ nothing, so a part that said no candidate is left behind would give the word a second meaning (re-check 7, nit 1).
 
  @example
  ```ts
- const none = NONE_LEFT_BEHIND_ASKS_NO_QUESTION.meaning;
+ const none = NOTHING_TO_NARROW_ASKS_NO_QUESTION.meaning;
  ```
  */
-export const NONE_LEFT_BEHIND_ASKS_NO_QUESTION: DeclineClause = {
-  meaning: 'a round that leaves no candidate behind asks no such question',
+export const NOTHING_TO_NARROW_ASKS_NO_QUESTION: DeclineClause = {
+  meaning: 'a round that has nothing to narrow asks no such question, and does not say behind',
   inOrder: [
     [
-      'leaves no candidate behind',
-      'leaves none behind',
+      'nothing to narrow',
+      'nothing left to narrow',
     ],
     [
       'no such question',
@@ -77,11 +79,13 @@ export const NONE_LEFT_BEHIND_ASKS_NO_QUESTION: DeclineClause = {
     'ships',
     'stays',
     'remains',
+    'behind',
+    'left out',
   ],
 };
 
 /**
- The first ask is over the whole slate where it leaves nothing behind, and the sentence may not say an outcome.
+ The first ask is over the whole slate where there is nothing to narrow, and the sentence may not say an outcome.
 
  @example
  ```ts
@@ -89,7 +93,7 @@ export const NONE_LEFT_BEHIND_ASKS_NO_QUESTION: DeclineClause = {
  ```
  */
 export const OTHERWISE_THE_WHOLE_SLATE: DeclineClause = {
-  meaning: 'where nothing is left behind the panel is asked again over the whole slate',
+  meaning: 'where there is nothing to narrow the panel is asked again over the whole slate',
   inOrder: [
     ['otherwise',],
     ['whole slate',],
@@ -118,7 +122,7 @@ const SHAPE_WORDS: Readonly<Record<Exclude<RunoffShape, 'tied-at-top' | 'leader-
  The clause a sentence must carry for one shape of declined round, in the round it is told in.
 
  A shape that narrows the question is read from the run-off clause's own half; a shape that does not is read from the
- clause that says no candidate is left behind and names the shape, in a challenge, and from the clause that says the
+ clause that says there is nothing to narrow and names the shape, in a challenge, and from the clause that says the
  whole slate is asked otherwise, in the first ask.
 
  @param shape - what the declined round came to
@@ -166,11 +170,11 @@ export function shapeClauseOf(
   if (mode === 'asked-again')
     return OTHERWISE_THE_WHOLE_SLATE;
   return {
-    meaning: `a round that leaves no candidate behind asks no such question, naming the shape ${shape}`,
+    meaning: `a round that has nothing to narrow asks no such question, naming the shape ${shape}`,
     inOrder: [
       [
-        'leaves no candidate behind',
-        'leaves none behind',
+        'nothing to narrow',
+        'nothing left to narrow',
       ],
       SHAPE_WORDS[shape],
       [
@@ -178,7 +182,7 @@ export function shapeClauseOf(
         'no narrower question',
       ],
     ],
-    forbidden: NONE_LEFT_BEHIND_ASKS_NO_QUESTION.forbidden,
+    forbidden: NOTHING_TO_NARROW_ASKS_NO_QUESTION.forbidden,
   };
 }
 
