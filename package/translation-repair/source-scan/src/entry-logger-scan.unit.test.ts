@@ -1,6 +1,7 @@
 /**
- Guards against an entry logger that reads nothing from the log context (ledger B963), by reading the source: every
- logger the pass builds for an entry is slice-tagged, so a line it writes inside an attempt names that attempt.
+ Guards against an entry logger that reads nothing from the log context (ledger B963), by reading the syntax tree of the
+ pass's source: every logger the pass builds for an entry is slice-tagged, so a line it writes inside an attempt names
+ that attempt.
 
  A logger built as a plain `tagged({ tag: entryId })` carries the entry and never the attempt, lane or slice, which
  the context holds. The docs say the lines an entry's loggers write inside its attempt name it, and the entry loggers
@@ -8,8 +9,13 @@
  tags where a lane slice-tags the logger again (`log-context.unit.test.ts`). Test files and test fixtures log outside
  any attempt and are not read.
 
- WHAT IT CANNOT CATCH. A logger whose tag is built from the entry in another spelling, such as a template literal, is
- not found; the scan reads the two spellings the pass uses, `entryId` and `entry.id`.
+ WHAT IT READS. Every call of `tagged` in the source of the packages that run the pass (`corpus-pass`, `slice-cache`),
+ under whatever name the file binds it, whose `tag` names an entry in any spelling (`entry-logger-finding.test-fixture.ts`
+ says which), unless it is the `l` of a call of `sliceTagged`.
+
+ WHAT IT CANNOT CATCH. A tag built from the entry by a name the scan does not know (not `entryId`, `.id` or `.entryId`),
+ and a function that receives an `l: Logger` from its caller and never calls `tagged`: only the behavioural cases of the
+ whole run, the seams and the hooks (`pass-entry.unit.test.ts` and its neighbours) see those.
 
  @module
  */
@@ -20,57 +26,40 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import {
+  SLICE_TAGGED,
+  unwrappedEntryLoggersIn,
+} from './entry-logger-finding.test-fixture.ts';
 import { readPackageSource, } from './family-source.test-fixture.ts';
 import type { SourceText, } from './source-scan.test-fixture.ts';
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 
 /**
- How an entry logger begins, in a text whose lines are trimmed and joined by a space, in the two spellings the pass
- uses for the entry.
+ Packages that run the pass, whose source builds the loggers of an entry.
  */
-const ENTRY_LOGGER_SHAPES = [
-  'tagged({ tag: entryId',
-  'tagged({ tag: entry.id',
+const PASS_PACKAGES = [
+  'corpus-pass/',
+  'slice-cache/',
 ];
 
 /**
- What must stand directly before an entry logger so the logger reads the context.
- */
-const CONTEXT_WRAPPER = 'sliceTagged({ l: ';
-
-/**
- Entry loggers in one file's text that no `sliceTagged` wraps.
+ A file of the given text, as the scans read one.
 
  @param text - file contents
 
- @returns How many entry loggers stand without the wrapper
+ @returns The file, named for the pass
 
  @example
  ```ts
- unwrappedEntryLoggersIn({ text: "const l = tagged({ tag: entryId, },);", },); // 1
+ const file = planted({ text: 'const l = tagged({ tag: entryId, },);', },);
  ```
  */
-function unwrappedEntryLoggersIn({ text, }: { readonly text: string; },): number {
-  /**
-   The text with each line trimmed and the lines joined by a space, so a wrapper split over lines still stands directly
-   before the logger it wraps.
-   */
-  const joined = text
-    .split('\n',)
-    .map(function trimmed(line,): string {
-      return line.trim();
-    },)
-    .join(' ',);
-  return ENTRY_LOGGER_SHAPES.reduce(function counted(total, shape,): number {
-    /**
-     The text before each logger of this shape, which ends where the logger begins.
-     */
-    const textsBefore = joined.split(shape,);
-    textsBefore.pop();
-    return total + textsBefore.filter(function lacksWrapper(before,): boolean {
-      return !before.endsWith(CONTEXT_WRAPPER,);
-    },).length;
-  }, 0,);
+function planted({ text, }: { readonly text: string; },): SourceText {
+  return {
+    path: 'corpus-pass/corpus-run/planted.ts',
+    text,
+    isTest: false,
+  };
 }
 
 await describe({
@@ -78,16 +67,21 @@ await describe({
   children: [
     it({
       name: 'SEES a plain entry logger and a wrapped one in a line of text, the positive control for the "BUILDS every '
-        + 'entry logger on the log context" scan',
+        + 'entry logger on the log context" scan, in the two spellings the pass uses',
       fn: async () => {
-        expect(unwrappedEntryLoggersIn({ text: 'const l = tagged({ tag: entryId, },);\n', },),).toBe(1,);
-        expect(unwrappedEntryLoggersIn({ text: 'l: tagged({ tag: entry.id, },),\n', },),).toBe(1,);
+        expect(unwrappedEntryLoggersIn({ file: planted({ text: 'const l = tagged({ tag: entryId, },);\n', },), },),)
+          .toBe(1,);
         expect(
-          unwrappedEntryLoggersIn({ text: 'const l = sliceTagged({ l: tagged({ tag: entryId, },), },);\n', },),
+          unwrappedEntryLoggersIn({ file: planted({ text: 'const parts = { l: tagged({ tag: entry.id, },), };\n', },), },),
+        ).toBe(1,);
+        expect(
+          unwrappedEntryLoggersIn({
+            file: planted({ text: 'const l = sliceTagged({ l: tagged({ tag: entryId, },), },);\n', },),
+          },),
         ).toBe(0,);
         expect(
           unwrappedEntryLoggersIn({
-            text: 'const l = sliceTagged({\n  l: tagged({\n    tag: entry.id,\n  },),\n},);\n',
+            file: planted({ text: 'const l = sliceTagged({\n  l: tagged({\n    tag: entry.id,\n  },),\n},);\n', },),
           },),
         ).toBe(0,);
       },
@@ -100,18 +94,20 @@ await describe({
         /**
          The spellings, each a file that builds one plain entry logger.
          */
-        const planted = [
-          'const l = tagged({ tag: `${entryId}`, },);\n',
+        const spellings = [
+          `const l = tagged({ tag: \`\${entryId}\`, },);\n`,
           'import { tagged as makeLogger, } from \'@monochromatic-dev/module-logger/ts\';\n'
-          + 'const l = makeLogger({ tag: entryId, },);\n',
+            + 'const l = makeLogger({ tag: entryId, },);\n',
           'const l = tagged({ l: parent, tag: entryId, },);\n',
           'const l = tagged({ tag: pair.id, },);\n',
           'const make = tagged;\nconst l = make({ tag: entryId, },);\n',
           'const l = tagged({tag:entryId,},);\n',
+          'const id = entry.id;\nconst l = tagged({ tag: id, },);\n',
+          'const l = tagged({ tag: String(entry.id,), },);\n',
         ];
-        expect(planted.map(function found(text,): number {
-          return unwrappedEntryLoggersIn({ text, },);
-        },),).toStrictEqual(planted.map(function one(): number {
+        expect(spellings.map(function found(text,): number {
+          return unwrappedEntryLoggersIn({ file: planted({ text, },), },);
+        },),).toStrictEqual(spellings.map(function one(): number {
           return 1;
         },),);
       },
@@ -124,16 +120,18 @@ await describe({
          Files that build loggers the scan must not find.
          */
         const harmless = [
-          'const l = sliceTagged({ l: tagged({ tag: `${entryId}`, },), },);\n',
+          `const l = sliceTagged({ l: tagged({ tag: \`\${entryId}\`, },), },);\n`,
           'import { sliceTagged as sliced, } from \'@monochromatic-dev/translation-repair-typography/ts\';\n'
-          + 'const l = sliced({ l: tagged({ l: parent, tag: pair.id, },), },);\n',
+            + 'const l = sliced({ l: tagged({ l: parent, tag: pair.id, },), },);\n',
           'const make = tagged;\nconst l = sliceTagged({ l: make({ tag: entryId, },), },);\n',
+          'const l = sliceTagged({ l: (tagged({ tag: entryId, },) as Logger), },);\n',
           'const l = tagged({ tag: \'pass-entry\', },);\n',
           'const l = tagged({ tag: runCorpusPassOver.name, },);\n',
-          'const l = tagged({ l: dl, tag: `slice ${String(row.sliceIndex,)}`, },);\n',
+          `const l = tagged({ l: dl, tag: \`slice \${String(row.sliceIndex,)}\`, },);\n`,
+          'const tag = row.sliceIndex;\nconst l = tagged({ tag, },);\n',
         ];
         expect(harmless.map(function found(text,): number {
-          return unwrappedEntryLoggersIn({ text, },);
+          return unwrappedEntryLoggersIn({ file: planted({ text, },), },);
         },),).toStrictEqual(harmless.map(function none(): number {
           return 0;
         },),);
@@ -143,21 +141,25 @@ await describe({
       name: 'BUILDS every entry logger on the log context, so its lines name the attempt inside one (ledger B963)',
       fn: async () => {
         /**
-         Files the scan reads: every `.ts` under the `src` of every family package but tests and fixtures.
+         Files the scan reads: every `.ts` under the `src` of the packages that run the pass but tests and fixtures.
          */
-        const files = (await readPackageSource()).filter(function isProduction(file: SourceText,): boolean {
-          return (!file.isTest) && (!file.path.endsWith('.d.ts',));
+        const files = (await readPackageSource()).filter(function isPassSource(file: SourceText,): boolean {
+          return (!file.isTest)
+            && (!file.path.endsWith('.d.ts',))
+            && PASS_PACKAGES.some(function isPassPackage(prefix,): boolean {
+              return file.path.startsWith(prefix,);
+            },);
         },);
 
         // The scan read real loggers, so an empty list of findings is not a scan that read nothing.
         expect(files.filter(function wrapsOne({ text, },): boolean {
-          return text.includes(CONTEXT_WRAPPER,);
+          return text.includes(`${SLICE_TAGGED}(`,);
         },).length,).toBeGreaterThan(0,);
 
         expectNoFindings({
           findings: files
-            .map(function scanOne({ path, text, },): string {
-              return `${path}: ${String(unwrappedEntryLoggersIn({ text, },),)}`;
+            .map(function scanOne(file,): string {
+              return `${file.path}: ${String(unwrappedEntryLoggersIn({ file, },),)}`;
             },)
             .filter(function hasPlain(finding,): boolean {
               return !finding.endsWith(': 0',);
