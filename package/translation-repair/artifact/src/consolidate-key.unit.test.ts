@@ -77,13 +77,14 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 35: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
-        + 'judge ships nothing past an undecided verdict, so a stored settlement may hold a consolidation the same '
-        + 'texts now keep out, and the key hashes the version, the shape of the run and the texts, not the rule that '
-        + 'reads the ballots, so only this number retires a record written under the floors before (34 was the reader '
-        + 'taking a capitalization-only difference as the listed value)',
+      name: 'IS AT VERSION 36: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+        + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
+        + 'named it, and an unheard gate over a refused archive ships the pick two slate ballots chose, so a stored '
+        + 'settlement may hold a wording the same texts now settle otherwise, and the key hashes the version, the '
+        + 'shape of the run and the texts, not the rule that reads the ballots, so only this number retires a record '
+        + 'written under the rule before (34 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(35,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(36,);
       },
     },),
     it({

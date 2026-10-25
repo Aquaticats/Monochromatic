@@ -536,8 +536,23 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  records may stand at 34 and the change cannot ride inside it, and the number moves. The repair slice (47), refine (17)
  and translate (28) versions move for the same selection rule. No record has been written at 35, which this change
  sets first.
+
+ Version 36 covers the owner's answers of 2026-10-25 "Two judges must name it" and "Ship the slate's wording": a
+ consolidation slate that declined with nothing to ship past no longer ships a candidate by the fixed preference of
+ repair lane, then translate lane, then slate order; it ships a candidate only when two or more judges named it, and
+ otherwise the archive text stays (finding `translate-slate-declined-archive-kept`;
+ `translate-stage/src/translate-runoff-tie.ts`). A gate that heard fewer than two usable ballots over a standing the
+ deterministic rule refused ships the slate's pick when two or more slate ballots chose it, with the finding
+ `unheard-gate-ships-slate-pick`, where version 35 kept the archive
+ (`consolidate/src/consolidate-ineligible-standing.ts`). A stored settlement may hold a shipped candidate where the same
+ texts now keep the archive, or the archive where the same texts now ship the slate's pick. The key hashes the version,
+ the shape of the run and the texts, not the rule that reads the ballots, so a record written before would be served
+ after. The previous number was set in the round 1 commits of the weight-floor branch; whether a record stands at 35 is
+ not known, and the change cannot ride inside it, so the number moves. The translate slice version (29) moves for the
+ same slate rule; the repair slice (47) and refine (17) versions stay. No record has been written at 36, which this
+ change sets first.
  */
-export const CONSOLIDATE_CACHE_VERSION = 35;
+export const CONSOLIDATE_CACHE_VERSION = 36;
 
 /**
  What a line-structured slice appends to its key material.
