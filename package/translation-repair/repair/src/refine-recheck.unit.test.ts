@@ -843,7 +843,8 @@ await describe({
         // four calls hear worse, fixed, worse, fixed, whichever seats they
         // are. The client reads its verdict at entry, before any await, so a
         // reordering of the launch moves only which seat holds which verdict,
-        // and the asked count below ties the script to a window of four.
+        // and the asserted count of exchanges ties the script to a window of
+        // four.
         /**
          Exchanges the recheck sent, one per seat asked.
          */
