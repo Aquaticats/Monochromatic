@@ -10,10 +10,12 @@ the false pick bounds and the readings above a true fix rate of 0.9,
 the exact test of the repeat warning with its measured false alarm and detection rates,
 the high fix rate warning with the share of benches that print neither warning,
 and the model the simulations play.
-The figures of each round are also in the ledger entries of
-[the multi-pass arms and repeat agreement ledger][arms-ledger].
+The figures of rounds 8 and 9 are also in the ledger entries of
+[the multi-pass arms and repeat agreement ledger][arms-ledger],
+and those of round 10 in [the exact repeat test ledger][round-10-ledger].
 
 [arms-ledger]: ../../doc/audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md
+[round-10-ledger]: ../../doc/audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md
 
 ## The false pick bounds
 

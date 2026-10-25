@@ -620,6 +620,12 @@ named for that subject and listed here.
   the false-pick bound under unequal repeat agreement,
   the lines that print each arm's repeat agreement and the fix rate of the default effort,
   and the runbook with its stop rule and pre-launch read.
+- [Audit ledger: the editor bench's exact repeat test, the high fix rate warning and the self-contained runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md):
+  The follow-ups of B899 from round 10 on:
+  the high fix rate warning that meets the rule's stated region,
+  the exact test of the repeat warning with its measured rates,
+  the lead's actions on two warnings,
+  and the runbook blocks that each set the variables they read.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,
