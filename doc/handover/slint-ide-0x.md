@@ -4655,17 +4655,18 @@ frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 ski
 10 of 10 starts on a drawn row and ends on the row drawn at release; Ctrl+End and Ctrl+Home 0 blank code frames in 4
 recordings. A comment word under the pointer gives a correct request and `hover=false` (no popup), as the server
 answers nothing for comments. `~/temp/agent/final5` and its projects are removed.
-Two open items from the hover agent are being worked now (agent scratch `~/temp/agent/open2`; branch off `d9bbff70fa`):
-(A) the unexplained fresh-session trial after a 301-notch first scroll (no character under the pointer, the settled
-probe found none either, a finished tile left for a scroll step that never came) is a possible stuck or stale view in
-the wheel path (`src/native/wheel.rs`: the destination tile of the first far turn, the follow release, `wheel::refit`,
-the 400 ms backstop): the agent runs fresh sessions (first wheel of 5, 40, 150, 300, 301, 600 notches at 0.5, 1, 2 and 4
-s after launch, 30 trials per cell where affordable) with a positive control that deliberately disables the follow
-release or the backstop, and fixes the cause behind a failing test if it reproduces; (B) rows that are drawn late
-without a move of the offset or a change of the text height do not restart a rest (`Rest::follow` watches only those
-two): the agent decides from the code and a measurement whether a real case exists and either extends the signal (a
-tile generation or text revision stamp) behind a failing test or records the evidence that none exists. The reports are
-verified, landed and the IDE reinstalled.
+Two open items from the hover agent (A:
+a fresh-session trial with no character under the pointer after a 301-notch first scroll;
+B:
+rows drawn late under a rest over no character) were worked on 2026-10-25 on the branch `worktree-agent-ac50f93d8163f1cf4`;
+the results are in the last block of this file ("The two open items of the hover fixes"):
+A is explained (no stuck view in 1,000 trials;
+the symptom is a row map 3 rows taller than the model,
+reproduced under a one-core limit),
+B had one real case (a reload that keeps the line count),
+fixed with the stamp of the displayed text.
+The reports are verified,
+landed and the IDE reinstalled.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
@@ -5021,6 +5022,80 @@ subsection "A pointer that rests over no character".
   generated 1,500-line `long.ts`,
   settled probe,
   summarizer) was kept only in the session scratch and removed.
+
+## The two open items of the hover fixes, 2026-10-25 (branch worktree-agent-ac50f93d8163f1cf4)
+
+Record:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A hover request after a far wheel jump",
+subsections "The first far scroll of a fresh session with no character under the pointer" and "Late rows under a rest over no character".
+
+- Item A,
+  no stuck view and no change of the wheel path:
+  1,000 trials of the build of `origin/main` (installed `0730fa64bdf211e7`) with a wheel of 5,
+  40,
+  150,
+  300,
+  301 and 600 notches as the first input of a fresh session,
+  0.5,
+  1,
+  2 and 4 s after the first drawn frame,
+  server ready or 3 s late,
+  three sessions at a time,
+  the load as it was:
+  0 wrong or blank views,
+  one tile applied per far jump.
+  The log line `leaving a finished tile for the next scroll step` is written by every poll within 20 ms of a step (27 to 30 of 30 normal trials),
+  so it is no evidence of a stranded tile.
+  The symptom (first rest `resolved=None`,
+  settled probe none,
+  exact gutter) is reproduced with the hosted app limited to one core (compositor `--isolate --app-cpu-quota 100`):
+  5 of 160 trials had a row map 72 px (3 rows) taller than the text (36096 against 36024),
+  so the pointer stood on a `// note` line;
+  the view was consistent with its map.
+  Positive controls:
+  a build that takes no tile 10 of 10 wrong;
+  a mispredicted end without the 400 ms backstop 10 of 10 wrong,
+  with the backstop 0 of 10.
+- Open from item A:
+  the taller row map (3 lines keep two rows after measurement passes at the narrow first width end late;
+  4 of 53 sessions without input under the one-core limit,
+  1 of 1,160 trials without a limit;
+  the lines were not found);
+  three trials with no wheel line in a log at load 28 to 35 (not reproduced in 40 more).
+- Item B,
+  one real case,
+  fixed:
+  an external change that keeps the line count (the offset and the height of the text stay the same) put an identifier under a pointer that rested over no character,
+  and nothing asked.
+  `View` and `Spot` carry the stamp of the displayed text;
+  `Rest::follow` starts a not yet asked rest again when it changes.
+  Measured,
+  10 trials per case:
+  `origin/main` 0 of 10 requests (past the end of a line and blank line),
+  fix 10 of 10 with exactly one request at a character of the new line,
+  second copy of the fix 10 of 10,
+  positive control (1 px move) 10 of 10 in `origin/main`;
+  an asked rest stays asked (0 requests in all).
+  The popups were viewed.
+  Other named cases (late tile after a hold,
+  hint replaced by a hint of the same height,
+  diagnostic message,
+  resize) are covered by the offset or the height,
+  or have no character to ask about.
+- Tests:
+  `a_replaced_text_restarts_a_rest_that_was_not_asked_for`,
+  `a_rest_over_no_character_asks_when_a_reload_puts_a_character_under_it`,
+  `a_rest_that_was_asked_about_is_not_asked_again_by_a_reload` in `src/native/language/pointer_blank_tests.rs`;
+  4 new guard cases (`hover-text-change-ignored`,
+  `-unit`,
+  `hover-spot-text`,
+  `hover-tick-text`),
+  two older ones follow the changed line.
+- The harness (headless nested compositor driver,
+  generated `long.ts`,
+  OCR of the gutter,
+  CPU-limited sessions) was kept only in the session scratch and removed.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

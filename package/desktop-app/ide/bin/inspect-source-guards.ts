@@ -2572,7 +2572,7 @@ const cases: Guard[] = [
     after: '        let text_changed = false;',
     native: true,
     test: 'a_replaced_text_restarts_a_rest_that_was_not_asked_for',
-    failure: 'a replaced text did not make the rest over nothing due'
+    failure: 'a replaced text left the rest over nothing idle'
   },
   {
     name: 'hover-spot-text',
