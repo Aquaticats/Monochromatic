@@ -156,6 +156,28 @@ and fails with a client that reuses across passes (`RepliedWithoutCallError`).
 `probe/src/corpus-run/editor-fidelity-arm-passes.unit.test.ts` holds the read step that fails an arm with such rows.
 No scan finds a measurement that repeats a prompt over a layer that reuses by identity.
 
+What the guard cannot tell:
+it ends an arm on a reply with no attempt told to it only for a client built over its admit,
+since only that client tells it of each attempt.
+A client given as itself tells it nothing,
+and a reply of the reuse layer then looks like a reply whose provider wrote no line on the meter,
+which the guard counts at its ceiling as an unreported cost.
+Every construction in production passes a builder,
+so the case does not arise in a run,
+and a case in `probe/src/corpus-run/editor-fidelity-spend-guard.unit.test.ts` pins the booked ceiling.
+A new caller of `spendGuardedClient` passes a builder,
+or the reuse check is off.
+
+The scan that fails a test file importing a fixture writer:
+a test that imports `infoLinesDuring` or `warnLinesDuring` from `typography/console-warn-lines.test-fixture.ts`
+diverts a process global,
+so the process globals scan (ledger B79) fails it unless every suite around its cases runs one case at a time.
+Two rounds of this work broke the scan that way,
+the second for five commits in a row.
+Run `mise run //package/translation-repair/source-scan:source-scans` before the first commit of a test
+that imports such a writer,
+and set `concurrency: 1` on its suite when it does.
+
 How to find the next one:
 for each measurement that asks the same thing more than once,
 list the layers between the asker and the wire and ask which of them can answer without sending.

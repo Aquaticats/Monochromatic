@@ -30,7 +30,8 @@ named for that subject and listed here.
 - [Audit ledger: glossaries and Canadian forms](audit-ledger-glossaries-and-canadian-forms.md):
   Every glossary entry and Canadian-forms pass measured against the corpus,
   with the mutation check and the re-probe of the glossaries.
-- [Audit ledger: rule text, the consolidation gate and the floor replay](audit-ledger-rule-text-gate-and-floor-replay.md):
+- [Audit ledger: rule text,
+  the consolidation gate and the floor replay](audit-ledger-rule-text-gate-and-floor-replay.md):
   Contradictions and gaps in the rule text every sheet carries,
   the consolidation gate finding,
   the replay of every floor over the archives and settled pages,
@@ -49,56 +50,67 @@ named for that subject and listed here.
   names claiming more than they check,
   magic numbers,
   and the log every test run writes into `node_modules/.monochromatic/`.
-- [Audit ledger: code no unit test runs, method, first censuses and early batches](audit-ledger-test-suite-unrun-code-method-first-censuses-and-early-batches.md):
+- [Audit ledger: code no unit test runs, method,
+  first censuses and early batches](audit-ledger-test-suite-unrun-code-method-first-censuses-and-early-batches.md):
   How the coverage of code no unit test runs was first measured on 2026-09-28 and 2026-09-29,
   the rule for when T8 closes and the census task that proves reach,
   the first whole-suite censuses,
   and the first eight batches of cases written against them,
   ending with the page-assembly rounds error that was decided rather than tested.
-- [Audit ledger: code no unit test runs, stretch queue batches one to ten](audit-ledger-test-suite-unrun-code-stretch-queue-batches-one-to-ten.md):
+- [Audit ledger: code no unit test runs,
+  stretch queue batches one to ten](audit-ledger-test-suite-unrun-code-stretch-queue-batches-one-to-ten.md):
   The stretch queue,
   batches one to ten,
   each read against a whole-suite census,
   from the census placement module to the `corpus-run` title modules,
   including the triage of the queue and the finding that the compressed build hid guards.
-- [Audit ledger: code no unit test runs, stretch queue batches eleven to sixteen](audit-ledger-test-suite-unrun-code-stretch-queue-batches-eleven-to-sixteen.md):
+- [Audit ledger: code no unit test runs, stretch
+  queue batches eleven to sixteen](audit-ledger-test-suite-unrun-code-stretch-queue-batches-eleven-to-sixteen.md):
   The stretch queue,
   batches eleven to sixteen,
   each read against a whole-suite census,
   from the alignment modules to the pairing modules.
-- [Audit ledger: code no unit test runs, stretch queue batches seventeen to twenty-four](audit-ledger-test-suite-unrun-code-stretch-queue-batches-seventeen-to-twenty-four.md):
+- [Audit ledger: code no unit test runs, stretch queue batches
+  seventeen to twenty-four](audit-ledger-test-suite-unrun-code-stretch-queue-batches-seventeen-to-twenty-four.md):
   The stretch queue,
   batches seventeen to twenty-four,
   each read against a whole-suite census,
   from the slice modules to the page modules.
-- [Audit ledger: code no unit test runs, agent clusters and bundles before the trial](audit-ledger-test-suite-unrun-code-agent-clusters-and-bundles-before-the-trial.md):
+- [Audit ledger: code no unit test runs, agent clusters
+  and bundles before the trial](audit-ledger-test-suite-unrun-code-agent-clusters-and-bundles-before-the-trial.md):
   The clusters of the census cut and given to agents reading one commit,
   what review changed in each patch,
   and the nineteen bundles whose agents stopped at a usage limit,
   up to the hand-over to the trial model.
-- [Audit ledger: code no unit test runs, trial model clusters from `group` to `coverage`](audit-ledger-test-suite-unrun-code-trial-clusters-group-through-coverage.md):
+- [Audit ledger: code no unit test runs, trial model
+  clusters from `group` to `coverage`](audit-ledger-test-suite-unrun-code-trial-clusters-group-through-coverage.md):
   The trial model's first thirteen clusters of the fresh whole-suite census,
   from `group` to `coverage`,
   each of eight to ten stretches.
-- [Audit ledger: code no unit test runs, trial model clusters from `markup` to `corpus-run/editor`](audit-ledger-test-suite-unrun-code-trial-clusters-markup-through-editor.md):
+- [Audit ledger: code no unit test runs, trial model clusters
+  from `markup` to `corpus-run/editor`](audit-ledger-test-suite-unrun-code-trial-clusters-markup-through-editor.md):
   The trial model's clusters fourteen to forty of the fresh whole-suite census,
   from `markup` to `corpus-run/editor`,
   each of five to seven stretches except the last.
-- [Audit ledger: code no unit test runs, trial model clusters from `corpus-run/roster` to `corpus-run/publish`](audit-ledger-test-suite-unrun-code-trial-clusters-roster-through-publish.md):
+- [Audit ledger: code no unit test runs, trial model clusters from `corpus-run/roster`
+  to `corpus-run/publish`](audit-ledger-test-suite-unrun-code-trial-clusters-roster-through-publish.md):
   The trial model's clusters forty-one to sixty-nine of the fresh whole-suite census,
   from `corpus-run/roster` to `corpus-run/publish`,
   each of three or four stretches.
-- [Audit ledger: code no unit test runs, re-verification of 2026-10-05](audit-ledger-test-suite-unrun-code-reverification-of-2026-10-05.md):
+- [Audit ledger: code no unit test runs,
+  re-verification of 2026-10-05](audit-ledger-test-suite-unrun-code-reverification-of-2026-10-05.md):
   The correction of 2026-10-05 of eight groups the trial model had blamed on the census,
   the verified facts about the census tools,
   the method adopted from then on,
   and the re-verification of the sites left open.
-- [Audit ledger: code no unit test runs, census at `65bd3a645` and the runner entry files](audit-ledger-test-suite-unrun-code-census-at-65bd3a645-and-runner-entry-files.md):
+- [Audit ledger: code no unit test runs, census at `65bd3a645`
+  and the runner entry files](audit-ledger-test-suite-unrun-code-census-at-65bd3a645-and-runner-entry-files.md):
   The whole-suite census of 2026-10-06 and the library clusters cut from it,
   the quote-loss refusal kept cold on purpose,
   and the runner entry files moved into modules,
   with what stayed open at the close of that passage.
-- [Audit ledger: code no unit test runs, final census and what stays cold](audit-ledger-test-suite-unrun-code-final-census-and-what-stays-cold.md):
+- [Audit ledger: code no unit test runs,
+  final census and what stays cold](audit-ledger-test-suite-unrun-code-final-census-and-what-stays-cold.md):
   The final whole-suite census of 2026-10-10,
   the two clusters cut from it,
   the entry tails round,
@@ -122,7 +134,8 @@ named for that subject and listed here.
   B827,
   B830
   and B831.
-- [Audit ledger: the source text under a note, follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md):
+- [Audit ledger: the source text under a note,
+  follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md):
   The holes between the plain parse and the strict grammar that followed B832,
   the limits of that follow-up closed and the shapes a second search found,
   the wiring tests of the page on disk,
@@ -155,21 +168,25 @@ named for that subject and listed here.
   the Markdown linter,
   links that lead nowhere,
   and references by position.
-- [Audit ledger: the Markdown linter's gate and the split of long docs](audit-ledger-markdown-linter-gate-and-the-split-of-long-docs.md):
+- [Audit ledger: the
+  Markdown linter's gate and the split of long docs](audit-ledger-markdown-linter-gate-and-the-split-of-long-docs.md):
   The gate that runs the Markdown linter over the family's docs (D35),
   the older docs it reads through name stems,
   and the docs filed by subject or by a span of dates to stay within the line limit.
-- [Audit ledger: found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md):
+- [Audit ledger: found while fixing,
+  stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md):
   Defects met while fixing another finding,
   in how the stages stop,
   seat and re-seat,
   and in what the slice and pairing keys carry.
-- [Audit ledger: found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md):
+- [Audit ledger: found while fixing,
+  tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md):
   Defects met while fixing another finding,
   in the tests and fixtures,
   in what source files say,
   and in parameters that fell back to the live transport or the corpus clone.
-- [Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md):
+- [Audit ledger: found while fixing,
+  names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md):
   Defects met while fixing another finding,
   in how a page's names,
   HTML headings and math are read.
@@ -261,7 +278,8 @@ named for that subject and listed here.
   a pass-through that no case depended on,
   the mutations of four rounds' guards that no test fails,
   and a fixture runner of the oxlint plugin tests that dropped a plugin's throw (B688).
-- [Audit ledger: survivors of the guard demonstrations and the tests that pin them](audit-ledger-guard-demonstration-survivors-and-their-pins.md):
+- [Audit ledger: survivors of
+  the guard demonstrations and the tests that pin them](audit-ledger-guard-demonstration-survivors-and-their-pins.md):
   The mutations of four rounds' guards that every test passed,
   the test round that pinned the reachable ones,
   the equivalent mutants,
@@ -309,22 +327,26 @@ named for that subject and listed here.
   quotations in single curly marks and two sentences that could be read against it,
   and the quotation mask that still joined marks of different pairs,
   with the three cache versions that moved for it (B676).
-- [Audit ledger: building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md):
+- [Audit ledger: building the consistency pass,
+  repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md):
   The record of building the page-level consistency pass up to the independent review of its rebuild:
   how the repeated wording is located,
   how the bench chooses and the pass carries the choice to every place,
   and what the first reviews found.
-- [Audit ledger: the consistency pass, the span and the marks beside it](audit-ledger-consistency-pass-span-and-marks-beside-it.md):
+- [Audit ledger: the consistency pass,
+  the span and the marks beside it](audit-ledger-consistency-pass-span-and-marks-beside-it.md):
   The fourth and fifth independent reviews of the pass:
   what the located span covers,
   which single marks beside it travel with it or refuse a splice,
   and the joint rules that keep a stand from sitting inside a word.
-- [Audit ledger: the consistency pass, apostrophes and block floors](audit-ledger-consistency-pass-apostrophes-and-block-floors.md):
+- [Audit ledger: the consistency pass,
+  apostrophes and block floors](audit-ledger-consistency-pass-apostrophes-and-block-floors.md):
   The sixth independent review and the apostrophe round that followed it:
   which apostrophes are attached to a word,
   the apostrophes that need no guess and travel with their word,
   and the blocks a splice carries in part.
-- [Audit ledger: the consistency pass, the page-wide proof, forms, floors and limits](audit-ledger-consistency-pass-page-wide-proof-forms-floors-and-limits.md):
+- [Audit ledger: the consistency pass, the page-wide proof,
+  forms, floors and limits](audit-ledger-consistency-pass-page-wide-proof-forms-floors-and-limits.md):
   The seventh independent review and the fixes that answered it:
   the proof that an edge mark is an apostrophe,
   read over the whole page,
@@ -332,23 +354,27 @@ named for that subject and listed here.
   the form of an arriving apostrophe,
   the floors that keep a writer from changing words that must stay,
   and the limits the lead accepted.
-- [Audit ledger: the consistency pass, stack depth, the floors fixed point and the page form](audit-ledger-consistency-pass-stack-depth-floors-fixed-point-and-page-form.md):
+- [Audit ledger: the consistency pass, stack depth, the
+  floors fixed point and the page form](audit-ledger-consistency-pass-stack-depth-floors-fixed-point-and-page-form.md):
   The rounds that built the whole-page reading:
   the parser's refusal at the edge of the stack,
   the floors and the gain check settled together,
   and the page that an arriving apostrophe takes its form from.
-- [Audit ledger: the consistency pass, one reading of every mark](audit-ledger-consistency-pass-one-reading-of-every-mark.md):
+- [Audit ledger: the consistency pass,
+  one reading of every mark](audit-ledger-consistency-pass-one-reading-of-every-mark.md):
   The independent grid check and the eighth review's findings that the first fix round closed:
   one meaning for a mark in the counter,
   the locator,
   the proof and the readers of form and of marks inside words,
   and the two limits that round left accepted.
-- [Audit ledger: the consistency pass, the fixes of the eighth review and the oracle residue](audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md):
+- [Audit ledger: the consistency pass, the fixes of the eighth
+  review and the oracle residue](audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md):
   The findings of the eighth review that the second fix round took in hand,
   the flags of the first that the lead decided to fix after the merge,
   and the residue of the oracle's rerun that the next round fixed,
   each with the outcome of its fix.
-- [Audit ledger: the consistency pass, parse boundaries, the letter test and the proof's page](audit-ledger-consistency-pass-parse-boundaries-letter-test-and-proof-page.md):
+- [Audit ledger: the consistency pass, parse boundaries,
+  the letter test and the proof's page](audit-ledger-consistency-pass-parse-boundaries-letter-test-and-proof-page.md):
   The defects of the second fix round and the rounds after it:
   the stack exhaustion read as a refusal wherever it came from,
   the letter test widened for every caller,
@@ -363,7 +389,8 @@ named for that subject and listed here.
   the mark after closing emphasis,
   the cost,
   and the comments.
-- [Audit ledger: the consistency pass, the independent oracle and the rules for marks](audit-ledger-consistency-pass-independent-oracle-and-mark-rules.md):
+- [Audit ledger: the consistency pass,
+  the independent oracle and the rules for marks](audit-ledger-consistency-pass-independent-oracle-and-mark-rules.md):
   What an oracle written from the rule text found after the fixes,
   the nine rules for marks the lead decided in answer,
   and the limits accepted with them.
@@ -375,7 +402,8 @@ named for that subject and listed here.
   a link or a space,
   the readers that knew four marks and eight,
   and the leading elisions.
-- [Audit ledger: the consistency pass, the re-review and the refusal run](audit-ledger-consistency-pass-re-review-and-the-refusal-run.md):
+- [Audit ledger: the consistency pass,
+  the re-review and the refusal run](audit-ledger-consistency-pass-re-review-and-the-refusal-run.md):
   The independent re-review of those fixes and the round that answered it:
   the refusal run stated by what renders between two marks,
   with references,
@@ -384,20 +412,23 @@ named for that subject and listed here.
   the elisions that open a quotation,
   the limits accepted,
   and the container markers at the start of a line.
-- [Audit ledger: the consistency pass, what the refusal run steps over](audit-ledger-consistency-pass-what-the-refusal-run-steps-over.md):
+- [Audit ledger: the consistency pass,
+  what the refusal run steps over](audit-ledger-consistency-pass-what-the-refusal-run-steps-over.md):
   What the reviews after that round found in the refusal run:
   the page-wide refusal for a reference that is a mark,
   the invisible characters,
   controls and separators it steps over,
   what it reads as a blank line,
   and the lines of invisible characters that stay inside a paragraph.
-- [Audit ledger: the consistency pass, span edges as whole units](audit-ledger-consistency-pass-span-edges-as-whole-units.md):
+- [Audit ledger: the consistency pass,
+  span edges as whole units](audit-ledger-consistency-pass-span-edges-as-whole-units.md):
   Span edges that cut a character reference or a backslash escape,
   took in text that only looks like a reference,
   or left half a word,
   and the units the edges are made of now,
   with the shown-word test and the word characters of any script that n159 landed.
-- [Audit ledger: the consistency pass, what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md):
+- [Audit ledger: the consistency pass,
+  what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md):
   What the review of n159 found the word test read wrongly,
   all fixed by n161:
   hidden stretches read unit by unit,
@@ -411,20 +442,23 @@ named for that subject and listed here.
   B634 and B638),
   inline code padded by line endings (B677),
   and two review findings about link labels that did not reproduce (B678).
-- [Audit ledger: the consistency pass, elisions, quoted numbers and pairing](audit-ledger-consistency-pass-elisions-quoted-numbers-and-pairing.md):
+- [Audit ledger: the consistency pass,
+  elisions, quoted numbers and pairing](audit-ledger-consistency-pass-elisions-quoted-numbers-and-pairing.md):
   The pairing of single marks on a curly page:
   elisions inside a quotation,
   the quoted letter,
   nested quotations,
   opening marks beside markup and quoted numbers,
   with the tie rule and the shown-text pairing that n159 landed.
-- [Audit ledger: the consistency pass, the prose mask and slices parsed alone](audit-ledger-consistency-pass-the-prose-mask-and-slices-parsed-alone.md):
+- [Audit ledger: the consistency pass,
+  the prose mask and slices parsed alone](audit-ledger-consistency-pass-the-prose-mask-and-slices-parsed-alone.md):
   Typography only on the prose that the page parse shows,
   the cache versions that moved with it and with the quoted-tense rule,
   and the readers that parse a slice alone,
   with the page's definitions,
   the fragment landing and the shared memory of the masks that n159 landed.
-- [Audit ledger: the consistency pass, definitions inside containers, fragment landings and the mask memory](audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md):
+- [Audit ledger: the consistency pass, definitions inside containers,
+  fragment landings and the mask memory](audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md):
   What the review of n159 found in those readers:
   the definitions inside containers that the shared reader still misses (open),
   a fragment landing outside its slice,
@@ -432,7 +466,8 @@ named for that subject and listed here.
   the last two fixed by n161,
   with the landing that took offsets which are not whole numbers (B635)
   and the callers of the fold that read without the page's definitions (B647).
-- [Audit ledger: the consistency pass, voices lost and places left unlocated](audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md):
+- [Audit ledger: the consistency pass,
+  voices lost and places left unlocated](audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md):
   What the run `TianqiChen66625` lost and n170 found,
   and n171 fixed:
   replies refused for the way they named a label,
@@ -441,7 +476,8 @@ named for that subject and listed here.
   a chosen place that no quote located,
   an abandonment line that counted the wire,
   and the two defects that n171 found in its own span agreement.
-- [Audit ledger: the consistency pass, page definitions recorded and carries gated by generation](audit-ledger-consistency-pass-page-definitions-recorded-and-carries-gated.md):
+- [Audit ledger: the consistency pass, page definitions recorded
+  and carries gated by generation](audit-ledger-consistency-pass-page-definitions-recorded-and-carries-gated.md):
   What the review of B656 to B664 left open:
   the page definitions a slot needs,
   which artifact generation 18 records,
@@ -449,7 +485,8 @@ named for that subject and listed here.
   a refusal text that named the wrong quotes,
   and generation 19,
   which gates the stricter recount of containment and inline code (B682).
-- [Audit ledger: follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md):
+- [Audit ledger: follow-ups on emphasis definitions, cache accounts
+  and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md):
   The emphasis readers that parsed without the page's definitions (B668),
   the contradictions in the TSDoc of the consistency cache version (B669),
   the account of the pairing cache version from `d614a0c1d` to `29d606470` (B670),
@@ -461,7 +498,8 @@ named for that subject and listed here.
   the judge seats line that printed `wet` for a meter that said nothing (B686),
   Synthetic's removed five-hour window and concurrency limit (B691),
   and the cache-account audit that read a version set in a merge resolution as in no commit (B814).
-- [Audit ledger: the package split, configs, scans and messages](audit-ledger-package-split-configs-scans-and-messages.md):
+- [Audit ledger: the package split,
+  configs, scans and messages](audit-ledger-package-split-configs-scans-and-messages.md):
   What the split of the package into 36 found in the moved code and its tooling:
   a build config that lacked a plugin,
   a task that depended on a missing build,
@@ -471,7 +509,8 @@ named for that subject and listed here.
   audit queries that covered only the new paths,
   workspace cycles made by tests,
   and a lint ignore that matched a package.
-- [Audit ledger: the polish gate's claims and the order of reason and vote](audit-ledger-polish-gate-claims-and-reason-order.md):
+- [Audit ledger:
+  the polish gate's claims and the order of reason and vote](audit-ledger-polish-gate-claims-and-reason-order.md):
   Sheets that withheld a claim the judges needed:
   the repair panel's accepted claims that never reached the polish gate (B731),
   the ballots whose reply shape asked for the choice before the reason (B732),
@@ -498,7 +537,8 @@ named for that subject and listed here.
 - [Audit ledger: references to titles](audit-ledger-title-references.md):
   How a title named in running text is recognized,
   glossed and rewritten.
-- [Audit ledger: lists that must name every member of a type](audit-ledger-lists-that-must-name-every-member-of-a-type.md):
+- [Audit
+  ledger: lists that must name every member of a type](audit-ledger-lists-that-must-name-every-member-of-a-type.md):
   Lists and switches meant to cover every member of a type that could silently miss one.
 - [Audit ledger: block pairings that do not fit their text](audit-ledger-block-pairings-that-do-not-fit-their-text.md):
   Pairings of source and target blocks that a later step applied to text they did not fit.
@@ -519,7 +559,8 @@ named for that subject and listed here.
   the rounds that waited five minutes on a stream that sent only comment lines (B809),
   and the seat abandoned again and again,
   where the evidence rejected a hold (B810).
-- [Audit ledger: NeuralWatt replies cut at the default effort and the picture energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md):
+- [Audit ledger: NeuralWatt replies cut at the default effort and
+  the picture energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md):
   Calls to NeuralWatt that ran at the provider's default reasoning effort and were cut at the length cap:
   the picture reader's reply the length limit cut (B718),
   a picture call sent at the provider's default effort (B719),
@@ -527,7 +568,8 @@ named for that subject and listed here.
   a text call sent at the provider's default effort (B807),
   the energy hold that read the pipeline's own use at a third of what a rotation of entries measured (B808),
   and the hold that read the GLM seat at fourteen times its use after the lift to low effort (B836).
-- [Audit ledger: branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
+- [Audit ledger: branches no input reaches,
+  kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
   most met when a coverage census asked for them to be removed,
   the four branches of the markup ranges that left a node out for want of a position (B683),
@@ -566,7 +608,8 @@ named for that subject and listed here.
   which the seat reader's line never stated (B833),
   a slice bought again by the next attempt for want of a second ballot (B834),
   and the contest and consolidation rounds opened for slices their bench could not settle (B835).
-- [Audit ledger: short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
+- [Audit ledger:
+  short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
   The ceiling that counted a provider its meter keeps dry as coming back (B837),
   the wait that judged a return against the quorum alone (B838),
   the translate lane's first-time buys on a select bench under its floor (B839),
@@ -604,11 +647,13 @@ named for that subject and listed here.
   the clause reader that refuses swapped outcomes (B924),
   the page title round asked again in full (B925),
   and the cache versions that moved (B926).
-- [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
+- [Audit ledger: holds
+  a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,
   and the scan that now reads the holds tests register (B817).
-- [Audit ledger: the every-provider-dry refusal, what it stops and what it says](audit-ledger-the-every-provider-dry-refusal.md):
+- [Audit ledger: the every-provider-dry refusal,
+  what it stops and what it says](audit-ledger-the-every-provider-dry-refusal.md):
   The router's refusal for a call made with every provider out of budget:
   lost as one seat's voice for 77 s and swallowed by four catches the pass guard hid (B818),
   the NeuralWatt return it stated as 00:00 UTC (B819),
@@ -652,24 +697,30 @@ named for that subject and listed here.
   the spend guard's one-call-at-a-time assertion (B897),
   the retry-ladder hook with the cache statement of round 6 (B898),
   and the bench total of 60 USD with the replicates the rule reads as units (B899).
-- [Audit ledger: the editor bench's multi-pass arms, the false-pick bound and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md):
+- [Audit ledger: the editor bench's multi-pass arms,
+  the false-pick bound and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md):
   The follow-ups of B899 from round 8 on:
   the planned line of an arm that walks the pool in passes,
   the false-pick bound under unequal repeat agreement,
   the lines that print each arm's repeat agreement and the fix rate of the default effort,
   and the runbook with its stop rule and pre-launch read.
-- [Audit ledger: the editor bench's exact repeat test, the high fix rate warning and the self-contained runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md):
+- [Audit ledger: the editor bench's exact repeat test, the high fix rate
+  warning and the self-contained runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md):
   The follow-ups of B899 from round 10 on:
   the high fix rate warning that meets the rule's stated region,
   the exact test of the repeat warning with its measured rates,
   the lead's actions on two warnings,
   and the runbook blocks that each set the variables they read.
-- [Audit ledger: the editor bench's prompt reuse in repeat passes](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md):
-  The follow-up of B899 in round 11:
+- [Audit ledger: the editor bench's prompt reuse,
+  the re-check fixes and the bench outcome](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md):
+  The follow-ups of B899 in rounds 11 to 15:
   repeat passes answered by the prompt reuse layer instead of the model,
   each reuse booked at its spend ceiling,
   the guard and the read step that now refuse a row that made no call,
-  and the README's stop rule over rows that made a call.
+  the README's stop rule over rows that made a call,
+  the fixes of the re-checks of rounds 12 to 14,
+  and the outcome of the bench,
+  with medium kept as the editor's effort.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,
@@ -717,7 +768,8 @@ named for that subject and listed here.
   scratch output without bound,
   a prescribed command changed and run from the wrong folder,
   and the breaks that agents and the main session listed in their own notes (M272 and M273).
-- [Audit ledger: process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md):
+- [Audit ledger: process mistakes,
+  launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md):
   What went unchecked before a run launched:
   the full suite,
   the lint,
@@ -772,26 +824,30 @@ named for that subject and listed here.
   briefs that left something out,
   agents that broke their rules,
   and work merged from parallel briefs.
-- [Audit ledger: process mistakes, agents and briefs in the consistency fix rounds](audit-ledger-process-agents-and-briefs-consistency-fix-rounds.md):
+- [Audit ledger: process mistakes,
+  agents and briefs in the consistency fix rounds](audit-ledger-process-agents-and-briefs-consistency-fix-rounds.md):
   The same,
   for the rounds that fixed the eighth,
   ninth and tenth reviews of the consistency pass and the re-review:
   the rule breaches of each round,
   and the six mistakes of the lead's briefs and rulings in them.
-- [Audit ledger: process mistakes, agents and briefs in the reference, edge and prose mask rounds](audit-ledger-process-agents-and-briefs-reference-edge-and-prose-mask-rounds.md):
+- [Audit ledger: process mistakes, agents and briefs in the reference,
+  edge and prose mask rounds](audit-ledger-process-agents-and-briefs-reference-edge-and-prose-mask-rounds.md):
   The rule breaches of the rounds from the review of n149 to the review of n156,
   and of the rounds that built the deferred findings,
   reviewed them and added the quoted-tense rule (n159 to n161),
   and two mistakes of the lead's own:
   ten fix rounds without a commit,
   and a review loop that was not stopped.
-- [Audit ledger: process mistakes, agents and briefs in the review, docs, archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md):
+- [Audit ledger: process mistakes, agents and briefs in the review, docs,
+  archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md):
   The rule breaches of the rounds from the review of n159 and n161 to the twin reading of empty links and the docs round
   (n162 to n169 and n172),
   a mistake of the lead's brief for the archive fixes,
   and two of the lead's brief for the docs round.
   The lead's other two mistakes of those days are filed in the shell commands and the claims files.
-- [Audit ledger: process mistakes, agents and briefs in the rounds after the split](audit-ledger-process-agents-and-briefs-rounds-after-the-split.md):
+- [Audit ledger: process mistakes,
+  agents and briefs in the rounds after the split](audit-ledger-process-agents-and-briefs-rounds-after-the-split.md):
   Two briefs of the lead whose search text was never run against what it searches,
   a proof pattern and a pathspec,
   a report that the tool refused to write,
@@ -831,7 +887,8 @@ named for that subject and listed here.
   the process mistakes and the other numbered findings,
   by id,
   with the file that holds it.
-- [Audit ledger: the areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):
+- [Audit ledger: the
+  areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):
   The probes of each area of the audit,
   the run it stopped,
   the T8 entry (code no unit test runs) with its census method,
