@@ -15,13 +15,15 @@ import { withoutIndentedCode, } from './without-indented-code.ts';
 import { withoutRawHtml, } from './without-raw-html.ts';
 
 //region GFM block ranges
-// WHERE THE STRICT GRAMMAR READS A GFM BLOCK, read off a parse with GFM on. The plain reading
-// (`parse-markdown-math.ts`) has no GFM, so a caller that reads a text by it cannot see these two, and each changes
-// where its nodes end. A table splits each row into cells at every pipe that is not written with a backslash, whatever
-// the pipe stands in (a code span, the address of an autolink), so text read without GFM as one construct can be two
-// cells. A footnote definition ends at the first line that is not indented once a block of the footnote has closed the
-// paragraph the definition opened with (an unclosed fence indented under it, say), where the plain reading takes every
-// line after the label for the same paragraph.
+// WHERE THE STRICT GRAMMAR READS A GFM BLOCK, read off a parse with all of GFM on. The plain reading
+// (`parse-markdown-math.ts`) has the tables and the strikethrough of GFM and no other part of it, so a caller that
+// reads a text by it cannot see a footnote definition, and a footnote definition changes where its nodes end; the table
+// ranges are read here so that a caller can ask where a table ends in the text without a tree. A table splits each row
+// into cells at every pipe that is not written with a backslash, whatever the pipe stands in (a code span, the address of
+// an autolink), so text read without tables as one construct can be two cells. A footnote definition ends at the first
+// line that is not indented once a block of the footnote has closed the paragraph the definition opened with (an
+// unclosed fence indented under it, say), where the plain reading takes every line after the label for the same
+// paragraph.
 //
 // TWO READINGS OF THE FOOTNOTE DEFINITIONS, and the lines of raw HTML between them. A reader of the source in GFM takes
 // a tag alone on a line for an HTML block, which ends the footnote's paragraph and puts what follows in a block of its

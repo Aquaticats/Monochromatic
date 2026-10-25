@@ -46,9 +46,10 @@ export function pageOnlyStartsOf(
  Takes out the starts whose line follows a row of a table, where the line is no part of a paragraph.
 
  A reader of the source takes the line after the last row of a table for a block of its own (indented code, for a line
- indented four columns or more), and the plain reading, which has no tables, takes the rows and the line for one
- paragraph with a code span across them. Joining the line to the row before it writes the line into the row, so such a
- start is cut as a start in any other paragraph is.
+ indented four columns or more), and so does the plain reading, which reads the table: the line is no part of a paragraph,
+ so no span runs across it. Joining the line to the row before it would write the line into the row, so such a start is
+ cut as a start in any other paragraph is, and a plain reading that took the rows and the line for one paragraph would
+ not join it.
 
  @param source - whole text, or the text the parse was given with its comments blanked, of the same length
 

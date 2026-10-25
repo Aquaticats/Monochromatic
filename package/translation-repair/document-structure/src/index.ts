@@ -185,6 +185,7 @@ export {
 export { UnhandledMemberInvariantError, } from './unhandled-member.ts';
 export { withoutIndentedCode, } from './without-indented-code.ts';
 export { withoutRawHtml, } from './without-raw-html.ts';
+export { withTablesAndStrikethrough, } from './with-tables-and-strikethrough.ts';
 export {
   type ContainerSpan,
   flattenContainers,

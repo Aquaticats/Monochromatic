@@ -57,11 +57,12 @@ export {
 // indented code, which MDX has no such thing as, the alternative text of an image) or something the grammar reads as
 // its own syntax (a fence, a code span, math, a link destination), and the second kind is never touched.
 //
-// WHAT THE PLAIN PARSE READS DIFFERENTLY FROM THE STRICT GRAMMAR, and how each is handled. GFM is not on in the plain
-// parse (its autolink-literal transform builds nodes without a position), so a footnote definition made of one
-// destination is a link reference definition there and a footnote to the strict grammar: its body is read as a text of
-// its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
-// the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
+// WHAT THE PLAIN PARSE READS DIFFERENTLY FROM THE STRICT GRAMMAR, and how each is handled. The plain parse has the
+// tables and the strikethrough of GFM and no other part of it (its autolink-literal transform builds nodes without a
+// position, and its footnotes read a definition the plain reading takes for a paragraph), so a footnote definition
+// made of one destination is a link reference definition there and a footnote to the strict grammar: its body is read
+// as a text of its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for
+// the blocks of the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
 // (`document-structure/src/gfm-block-ranges.ts`), and the lines the plain parse goes on to read after that are a text
 // of their own. A paragraph in which a footnote starts on a later line is cut there, a heading made of a footnote's
 // lines opens it, and a lazy line of equals signs or hyphens in it is paragraph text (`source-ships-footnote-spans.ts`,

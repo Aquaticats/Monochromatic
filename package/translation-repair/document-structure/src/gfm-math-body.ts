@@ -10,7 +10,7 @@ import { unified, } from 'unified';
 // (CommonMark with GFM and the site's math, no MDX): the footnotes, tables and autolink literals of GFM and the math of
 // `remark-math`, and none of the MDX extensions, so no text is refused for its syntax. A suite that puts a source text
 // beside the page carrying it reads the source through this, because the page is read with footnotes and math on, and a
-// source read without them (`parseMarkdownMathBody` has no GFM, so a footnote definition made of one address is a link
+// source read without them (`parseMarkdownMathBody` has no GFM footnotes, so a footnote definition made of one address is a link
 // reference definition there) would differ from the page where the two are the same text. The page check reads the
 // source through this to say whether the page shows what the source shows (`source-reading-difference.ts` in
 // `page-check`).

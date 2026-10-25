@@ -57,7 +57,8 @@ import {
 // original wrote, none of which a backslash may touch.
 //
 // WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is
-// met). GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark
+// met). Footnotes are not on in the plain parse (it has the tables and the strikethrough of GFM and no other part
+// of it), so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark
 // takes for link reference definitions, are footnotes to the strict grammar with a body to encode, and a block
 // indented under a footnote definition is a block of the footnote and no indented code, so a paragraph that opens
 // a footnote definition at the top, and a paragraph on the line right after one, are read as the body of the

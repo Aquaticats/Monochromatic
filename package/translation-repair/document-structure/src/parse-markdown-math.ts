@@ -8,17 +8,25 @@ import {
   isStackOverflow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { MarkdownParseError, } from './parse-mdx.ts';
+import { withTablesAndStrikethrough, } from './with-tables-and-strikethrough.ts';
 
 //region Plain reading with the site's math
 // THE READING A CALLER COPIES OR REWRITES A TEXT BY, apart from the strict grammar the pages are admitted under.
-// CommonMark with `remark-math` and nothing else: no MDX extensions, so no text is refused for its syntax; no GFM,
-// since its autolink-literal transform replaces a text node with nodes that carry no position (a body ending in
-// `www.` shows it), and a caller that edits the raw text by node positions cannot place those. The site compiles with
-// `remark-math` and without GFM (`parse-mdx.ts` says why the strict grammar here turns GFM on all the same), so this
-// is also the reading of the site's own markdown layer.
+// CommonMark with `remark-math` and the tables and the strikethrough of GFM, and nothing else: no MDX extensions, so no text
+// is refused for its syntax; no other GFM, since its autolink-literal transform replaces a text node with nodes that
+// carry no position (a body ending in `www.` shows it), and a caller that edits the raw text by node positions cannot
+// place those, and its footnotes turn a line like `[^1]: {` into a footnote where this reading has a link reference
+// definition, which the callers rely on. A table is read because a cell ends at its row: a span that a row opens pairs
+// with nothing in the row after it, and a line that starts a block of raw HTML ends the table, which a reading without
+// tables gets wrong; strikethrough is read because its node holds the text between the tildes whole across a line
+// (`with-tables-and-strikethrough.ts` says how the two are added). The site compiles with `remark-math` and without
+// GFM (`parse-mdx.ts` says why the strict grammar here turns GFM on all the same), so a page is read by the strict
+// grammar with all of GFM and the source by this reading, which differs from a reader of GFM in the footnotes, the
+// autolink literals and the task lists only.
 
 /**
- Parses body text as CommonMark with the site's math, the reading a caller takes positions from.
+ Parses body text as CommonMark with the site's math and the tables and strikethrough of GFM, the reading a caller takes
+ positions from.
 
  NESTED PAST THE BOUND IS REFUSED BEFORE THE PARSER READS IT, as {@link parseMarkdownBody} does and for the same
  reason: the outcome of a deeply nested text must not depend on how much stack the caller has left.
@@ -49,6 +57,7 @@ export function parseMarkdownMathBody({ body, }: { readonly body: string; },): R
     return unified()
       .use(remarkParse,)
       .use(remarkMath,)
+      .use(withTablesAndStrikethrough(),)
       .parse(body,);
   }
   catch (error) {

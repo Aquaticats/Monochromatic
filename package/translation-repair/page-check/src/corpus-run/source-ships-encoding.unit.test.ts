@@ -1140,25 +1140,36 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR A BARE ADDRESS THAT A PIPE ENDS AND FOR AN ANGLE '
-            + 'AUTOLINK HOLDING A PIPE WRITTEN WITH A BACKSLASH (limits the module comment names): the table cuts '
-            + 'the source at the pipe and the page holds one link',
+          name: 'LEAVES A BARE ADDRESS THAT A PIPE ENDS IN A TABLE CUT AT THE PIPE, as the source is, and escapes the '
+            + 'less-than sign after it',
           fn: async () => {
-            for (
-              const [text, written,] of [
-                [
-                  '| a | b |\n| - | - |\n| https://example.net/a|b<c> | d |\n',
-                  '| a | b |\n| - | - |\n| [https://example.net/a|b](https://example.net/a|b)\\<c> | d |\n',
-                ],
-                [
-                  '| a | b |\n| - | - |\n| <https://example.net/a\\|b> | c |\n',
-                  '| a | b |\n| - | - |\n| [https://example.net/a\\\\|b](https://example.net/a%5C|b) | c |\n',
-                ],
-              ] as const
-            ) {
-              expect(encoded({ text, },),).toBe(written,);
-              expect(readerOfPage({ carried: written, },) === readerOfSource({ source: text, },),).toBe(false,);
-            }
+            /**
+             A table whose cell holds a bare address, a pipe and a tag.
+             */
+            const text = '| a | b |\n| - | - |\n| https://example.net/a|b<c> | d |\n';
+            /**
+             What the encoder writes for it.
+             */
+            const written = '| a | b |\n| - | - |\n| https://example.net/a|b\\<c> | d |\n';
+            expect(encoded({ text, },),).toBe(written,);
+            expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
+          },
+        },),
+
+        it({
+          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR AN ANGLE AUTOLINK HOLDING A PIPE WRITTEN WITH A '
+            + 'BACKSLASH (a limit the module comment names): the table cuts the page at the pipe',
+          fn: async () => {
+            /**
+             A table whose cell holds an angle autolink with an escaped pipe.
+             */
+            const text = '| a | b |\n| - | - |\n| <https://example.net/a\\|b> | c |\n';
+            /**
+             What the encoder writes for it.
+             */
+            const written = '| a | b |\n| - | - |\n| [https://example.net/a\\\\|b](https://example.net/a%5C|b) | c |\n';
+            expect(encoded({ text, },),).toBe(written,);
+            expect(readerOfPage({ carried: written, },) === readerOfSource({ source: text, },),).toBe(false,);
           },
         },),
 
