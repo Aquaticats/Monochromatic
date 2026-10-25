@@ -655,6 +655,12 @@ named for that subject and listed here.
   the two sentences the sheet-wide scans never read (B930),
   the nits and the clause reader's negations (B931),
   and the cache versions that moved (B932).
+- [Audit ledger: the weight floors removed, round 7](audit-ledger-weight-floors-removed-round-seven.md):
+  The answer to the sixth re-check:
+  the rollback's level case that no longer depends on the sheet text (B933),
+  the leader clause that was false in two shapes the code does not narrow (B934),
+  the scans of the two new sheet entries and the nits (B935),
+  and the cache versions that moved (B936).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

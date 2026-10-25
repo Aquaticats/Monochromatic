@@ -87,6 +87,14 @@ so the runs used copies of the test that read `src/index.ts`
 
 The sentence of B922 that said the case could not be reached is corrected in place.
 
+Corrected in round 7 (B933):
+the sentence of this entry that the case needs the rotation of the sheet to leave out a `worse` seat
+describes the case as committed here.
+It was fragile,
+since a one-word edit of the checker sheet moved the rotation and failed it,
+and it now hands its verdicts out by order of call
+and passes on the unedited sheet and after that edit.
+
 ## B928: the challenge sentences say what a partial tie does (round 6)
 
 Status:
@@ -144,6 +152,11 @@ nothing else about the rounds changed.
 Known limit.
 No real judge has read the new sentences,
 since no provider was called.
+
+Corrected in round 7 (B934):
+the run-off part said a leader only one judge named sends the panel to a run-off,
+which is false for a leader alone in drawing a ballot and for a leader beside its runner-up in a slate of two.
+Both halves now carry the qualifier that the run-off is asked only where it leaves some candidates behind.
 
 ## B929: no sentence promises the same seats (round 6)
 
@@ -214,6 +227,10 @@ nothing in the sentences makes a scan fail,
 so the reach of each scan on the new entries rests on the listing
 and on each scan's own test that it reads every sheet it claims to;
 no spelling or tense fault was planted in the sentences to see a scan fire.
+Round 6's re-check planted spelling and translators' notes faults,
+which fire,
+and round 7 (B935) planted faults for the reader-protection,
+house-policy and apparatus-kinds scans.
 
 ## B931: the nits, and the clause reader refuses negated outcomes (round 6)
 
@@ -229,7 +246,7 @@ The nits of the fifth re-check:
   The TSDoc now says the first ask settles nothing and the deferring challenge ships only a level tie
   and otherwise sends the passage back.
 - The TSDoc line of `SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN` that ran past 120 columns is reflowed.
-- "above" used as a comparative four times in the ledger is reworded to "exceeds",
+- The positional word used as a comparative four times in the ledger is reworded to "exceeds",
   "exceeding" and "greater than"
   (B922 twice,
   L3 and L11 of `audit-ledger-repair-lane.md`).
