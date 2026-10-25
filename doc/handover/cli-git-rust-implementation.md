@@ -2216,7 +2216,10 @@ that is verification, not a decision for the user.
   entry from `~/.config/mise/config.toml` and delete `~/.local/bin/git`. `AGENTS.md` `APG` and `APQ` need no wording
   change: `APQ` ("fires in third-party clones too") is now true on this machine; it stays false on a machine without
   the global entry, which the runbook `doc/runbook/cli-git-global-install.md` covers. Still open: machines the user
-  does not control (server-side rulesets or CI), and the user has not been asked about them yet.
+  does not control (server-side rulesets or CI): asked 2026-10-25, the user chose "Leave it open for now"; issue 1796
+  stays open with that part undecided (result comment posted:
+  `https://github.com/Aquaticats/Monochromatic/issues/1796#issuecomment-6401078387`). Unmeasured risk to revisit if
+  an IDE misbehaves: every `git` call by every tool on the user's machine now goes through the wrapper.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
