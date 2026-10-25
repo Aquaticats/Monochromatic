@@ -436,7 +436,7 @@ function escapesNext(
 
  @param edits - edits in text order
 
- @returns The edits with each run of identical ones cut to its first
+ @returns Edits with each run of identical ones cut to its first
 
  @example
  ```ts

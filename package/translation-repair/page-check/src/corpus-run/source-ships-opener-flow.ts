@@ -108,7 +108,7 @@ function linesHolding(
 
  @param closed - comments that close
 
- @returns The edits and the openers they write
+ @returns Edits and the openers they write
 
  @example
  ```ts

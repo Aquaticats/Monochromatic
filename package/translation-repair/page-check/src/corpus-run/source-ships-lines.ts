@@ -263,7 +263,7 @@ export function lineJoinsOf(
 
  @param node - node of the parse
 
- @returns The whole of a code span or inline math; the destination and title of a link or an image, after its text; none
+ @returns Whole code span or inline math; the destination and title of a link or an image, after its text; none
  for a node of another kind
 
  @example
@@ -316,7 +316,7 @@ function joinableStretchesOf(
 
  @param starts - offsets where a footnote definition starts on the page and not for a reader of the source
 
- @returns The starts inside such a stretch of the block or of an inline node it holds
+ @returns Starts inside such a stretch of the block or of an inline node it holds
 
  @example
  ```ts

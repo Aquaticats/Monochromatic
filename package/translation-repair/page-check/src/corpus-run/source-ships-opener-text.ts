@@ -48,7 +48,7 @@ export const CARRIED = ' \t>';
 
  @param feed - index of the line feed that ends the line
 
- @returns A carriage return and a line feed when a carriage return stands before the line feed, a line feed otherwise
+ @returns Carriage return and line feed when a carriage return stands before the line feed, a line feed otherwise
 
  @example
  ```ts
@@ -77,7 +77,7 @@ export function endingAt({
 
  @param closed - comments that close, which the page masks
 
- @returns The stretch written for the strict grammar
+ @returns Stretch written for the strict grammar
 
  @example
  ```ts

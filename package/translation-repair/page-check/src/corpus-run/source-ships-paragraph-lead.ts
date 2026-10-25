@@ -77,7 +77,7 @@ export function isIndentedFourOrMore(
 
  @param by - characters to move back
 
- @returns The ranges moved, those that end at or before the start dropped, those that start before it cut to start there
+ @returns Ranges moved, those that end at or before the start dropped, those that start before it cut to start there
 
  @example
  ```ts
@@ -115,7 +115,7 @@ function rangesBack(
 
  @param by - length of the lead
 
- @returns The spans at the offsets of the block alone; what lay in the lead is dropped
+ @returns Spans at the offsets of the block alone; what lay in the lead is dropped
 
  @example
  ```ts

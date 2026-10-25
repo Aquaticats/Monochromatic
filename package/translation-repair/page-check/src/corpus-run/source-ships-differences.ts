@@ -53,7 +53,7 @@ type ComparedRun = {
 
  @param l - logger, tagged by the caller with this entry
 
- @returns A defect naming the slices of the differing runs, one naming those of the runs with a block the comparison
+ @returns Defect naming the slices of the differing runs, one naming those of the runs with a block the comparison
  could not decide, and one naming those of the runs that could not be compared, each only when it has a run to name
 
  @example

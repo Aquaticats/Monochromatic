@@ -36,7 +36,7 @@ export type BlockDifference = {
 
  @param accounts - what each block shows
 
- @returns The accounts that show something, joined with a single space
+ @returns Accounts that show something, joined with a single space
 
  @example
  ```ts

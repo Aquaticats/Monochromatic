@@ -506,7 +506,7 @@ export function linesAtEveryEnding({ body, }: { readonly body: string; },): read
 
  A footnote definition is none: the text after its colon is read as inline text, braces and all.
 
- @param line - the line's text after its container markers and indentation
+ @param line - text of the line after its container markers and indentation
 
  @returns Whether the line opens with a label and a colon
 

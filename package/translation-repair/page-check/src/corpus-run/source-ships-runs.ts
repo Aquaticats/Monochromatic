@@ -120,7 +120,7 @@ export function runTextOf(
 
  @param encoding - how the originals are written
 
- @returns The originals alone, without the note and the line ending the page text ends with
+ @returns Originals alone, without the note and the line ending the page text ends with
 
  @throws {@link Error} when the text of the run does not open with the note, which a run of slices does by its definition
 

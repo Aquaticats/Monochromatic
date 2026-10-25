@@ -139,7 +139,7 @@ function holdsOffset(
 
  @param root - plain parse of the text
 
- @returns The root, its blocks from each such place replaced by the parse of the text from there
+ @returns Root, its blocks from each such place replaced by the parse of the text from there
 
  @example
  ```ts

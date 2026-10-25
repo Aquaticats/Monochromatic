@@ -29,7 +29,7 @@ import {
 
  @param at - index of the line
 
- @returns The block
+ @returns Block of the source
 
  @example
  ```ts

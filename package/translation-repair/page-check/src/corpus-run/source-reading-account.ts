@@ -373,7 +373,7 @@ export type SourceBlock = {
 
  @param source - text as the artifact records it
 
- @returns The blocks in order, each with the offsets it stands at in the text; a block the parse gave no position stands
+ @returns Blocks in order, each with the offsets it stands at in the text; a block the parse gave no position stands
  at the start of the text and ends there
 
  @example

@@ -15,7 +15,7 @@ import type { BlockRange, } from '@monochromatic-dev/translation-repair-document
 
  @param page - ranges where the page reads one, in text order
 
- @returns The starts of the page's ranges that are outside every range of the source, in text order
+ @returns Starts of the page's ranges that are outside every range of the source, in text order
 
  @example
  ```ts
@@ -49,7 +49,7 @@ export function pageOnlyStartsOf(
 
  @param page - ranges where the page reads one, in text order
 
- @returns The source's ranges and the page's whose start is outside every range of the source, in text order
+ @returns Source's ranges and the page's whose start is outside every range of the source, in text order
 
  @example
  ```ts

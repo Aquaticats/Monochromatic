@@ -77,7 +77,7 @@ const OPENER_LENGTH = COMMENT_OPEN.length;
 
  @param starts - index of the `<` of each opener of a comment that never closes, in text order
 
- @returns The stretches with the four characters of each opener cut out, the pieces in text order
+ @returns Stretches with the four characters of each opener cut out, the pieces in text order
 
  @example
  ```ts

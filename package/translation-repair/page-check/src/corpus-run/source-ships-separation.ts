@@ -49,7 +49,7 @@ function isBlankLine({ line, }: { readonly line: string; },): boolean {
 
  @param line - line, without its line ending
 
- @returns The leading run of spaces, tabs and greater-than signs, empty for a line that opens with anything else
+ @returns Leading run of spaces, tabs and greater-than signs, empty for a line that opens with anything else
 
  @example
  ```ts

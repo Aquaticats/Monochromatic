@@ -37,7 +37,7 @@ import {
 
  @param range - where the node stands
 
- @returns The delimiter run at the start of the node
+ @returns Delimiter run at the start of the node
 
  @example
  ```ts
@@ -78,7 +78,7 @@ function delimiterRun({
 
  @param closed - comments that close
 
- @returns The edit and the openers it writes, none when the node holds no opener between its delimiters
+ @returns Edit and the openers it writes, none when the node holds no opener between its delimiters
 
  @example
  ```ts
@@ -172,7 +172,7 @@ function splitSpan(
 
  @param closed - comments that close
 
- @returns The edits that take what holds an opener out of its code or math, in text order, and the openers they write
+ @returns Edits that take what holds an opener out of its code or math, in text order, and the openers they write
 
  @example
  ```ts
@@ -342,7 +342,7 @@ export function openersInCodeOf(
 
  @param edits - edits the other readers made
 
- @param openers - the edit that writes each opener as a character reference
+ @param openers - edit that writes each opener as a character reference
 
  @param closed - comments that close
 

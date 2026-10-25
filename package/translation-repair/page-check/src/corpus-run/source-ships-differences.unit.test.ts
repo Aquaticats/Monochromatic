@@ -45,7 +45,7 @@ const OPENING_ROW: SourceShippedRow = {
 
  @param encoded - slices written as literal text
 
- @returns The defects and the lines the function wrote at the warn and info levels
+ @returns Defects and lines the function wrote at the warn and info levels
 
  @example
  ```ts

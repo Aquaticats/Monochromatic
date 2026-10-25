@@ -46,7 +46,7 @@ const OPENING_ROW: SourceShippedRow = {
 
  @param rows - slices, the anchor among them
 
- @returns The composition
+ @returns Composition of the rows
 
  @example
  ```ts

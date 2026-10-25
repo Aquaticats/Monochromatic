@@ -69,7 +69,7 @@ const CONTAINER_REASON = 'the footnote ranges of the two readings differ inside 
 
  @param source - text of a run of slices as the artifact records it
 
- @param carried - the same text as the page carries it after the note, encoded or as written
+ @param carried - same text as the page carries it after the note, encoded or as written
 
  @returns `same` when the accounts agree, `differs` when they do not, `undecided` when they do not and the difference
  sits where the two-readings ruling takes the page's reading
