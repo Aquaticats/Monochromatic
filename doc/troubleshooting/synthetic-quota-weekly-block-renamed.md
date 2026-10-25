@@ -116,8 +116,10 @@ and `provider-meters.ts:315` feeds it the snapshot, so a body that had been read
 ## Verification
 
 Version under test: the endpoint has no version, so the subject is the parser,
-at these commits of this repository, which are not on main yet;
-a merge keeps them, and a squash or a rebase would not:
+at these commits of this repository,
+which were not on main when this was written
+and have since landed on main by a merge,
+which kept them:
 `0fa4950b88` (before), `a4a53c010d` (first fix),
 `c388130106` (second fix, which adds instant validation, null-as-absent and drops `nextRegenPercent`),
 and `61528e1180` (red) with `90a480dcea` (third fix, which keeps the window and marks the return unreadable
