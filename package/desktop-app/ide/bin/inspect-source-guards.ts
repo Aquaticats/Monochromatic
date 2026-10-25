@@ -2072,7 +2072,7 @@ const cases: Guard[] = [
     after: '        if true {',
     native: true,
     test: 'the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures',
-    failure: 'pixels of it instead of'
+    failure: 'pixels of the tile and the next frame'
   },
   {
     name: 'tile-slices-applied-drawn',
@@ -2081,7 +2081,7 @@ const cases: Guard[] = [
     after: '        let _ = (outcome, window);',
     native: true,
     test: 'the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures',
-    failure: 'pixels of it instead of'
+    failure: 'pixels of the tile and the next frame'
   },
   // The very first tile of a window is handed over before the window's device is held, so its textures and slices are
   // made inside the first frame; that frame does not show a slice list it was given, so the notifier gives the window
@@ -2181,7 +2181,7 @@ const cases: Guard[] = [
     failure: 'the window holds the slices of the earlier picture after the hand-over'
   },
   // The same frame-discipline cases for the picture: handed over inside the frame again, the next frame draws less of it
-  // than the frame after, whether the window got no slices or none of the new textures' slices.
+  // than the frame after: the textures are made at the hand-over, and the slices the window gets in the frame are not drawn by it.
   {
     name: 'minimap-slices-prepared-drawn',
     file: 'src/native/gpu_tile/slice.rs',
@@ -2199,7 +2199,7 @@ const cases: Guard[] = [
     occurrence: 1,
     native: true,
     test: 'the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures',
-    failure: 'drew none of the picture'
+    failure: 'the frame that followed the hand-over drew'
   },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.

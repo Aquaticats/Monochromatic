@@ -3,15 +3,17 @@
 //!  and a picture whose textures differ in size from the last one's needs new textures and a new list of slices
 //!  (`minimap-slices`,
 //!  the list the markup draws with a `for`).
-//!  A list the window is given inside the frame is not shown by that frame,
+//!  A list the window is given inside the frame is not shown by that frame
+//!  (`repeater_frame_tests`),
 //!  and an idle window draws no other frame by itself,
 //!  so the first picture of a file,
 //!  whose list is a new one,
 //!  stayed blank until the next picture came;
 //!  a picture handed over for the next frame must bring its slices with it.
-//! The test harness draws every property the notifier set in the same snapshot,
-//!  so it cannot show the blank minimap;
-//!  these tests check the contract the real window needs:
+//! The test harness draws with the same renderer and shows the same blank:
+//!  the test that counts the pixels of the very frame after a hand-over fails when the slices are set inside the
+//!  frame again,
+//!  and the other tests check the contract the hand-over keeps:
 //!  when a picture is handed over and before any frame is drawn,
 //!  the window holds slices of the new textures.
 

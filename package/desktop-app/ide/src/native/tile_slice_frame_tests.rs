@@ -3,14 +3,18 @@
 //!  and a tile whose textures differ in size from the last one's needs new textures and a new list of slices
 //!  (`source-slices`,
 //!  the list the markup draws with a `for`).
-//!  A list the window is given inside the frame is not shown by that frame (the real window draws nothing in the
-//!  code column in it),
+//!  A list the window is given inside the frame is not shown by that frame
+//!  (a repeater whose model was reset inside the frame draws no row,
+//!  and one whose model was replaced draws the old rows:
+//!  `repeater_frame_tests` and
+//!  `doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`),
 //!  and an idle window draws no frame by itself,
 //!  so a tile handed over for the next frame must bring its slices with it:
 //!  otherwise the code column stays blank beside the new rows until some other event draws a frame.
-//! The test harness draws every property the notifier set in the same snapshot,
-//!  so it cannot show the blank column;
-//!  these tests check the contract the real window needs:
+//! The test harness draws with the same renderer and shows the same blank:
+//!  the test that counts the pixels of the very frame after a hand-over fails when the slices are set inside the
+//!  frame again,
+//!  and the tests that read the window's slices before any frame check the contract the hand-over keeps:
 //!  when a tile is handed over and before any frame is drawn,
 //!  the window holds slices of the new textures.
 //! The first tile of a window is the one tile that cannot do this:
@@ -20,7 +24,7 @@
 //!  The window does not show them in it,
 //!  so the notifier asks for the next frame;
 //!  the tests of that step read the ask,
-//!  because the harness snapshot draws the slices in the frame that set them.
+//!  because the first frame has no earlier frame to show the tile in.
 
 /// The frames a window asked for.
 use super::gpu_snapshot::{install_gpu_platform, snapshot, take_frame_wanted};
@@ -342,12 +346,14 @@ fn painted_stack(heights: &[u32]) -> TileStack {
     };
 }
 
-/// How many pixels of the frame `window` draws now are [`INK`].
+/// How many pixels of the frame `window` draws now are close to [`INK`]:
+///  magenta,
+///  or magenta blended with the dark or light window background by up to about a half.
 pub(super) fn ink_pixels(window: &AppWindow) -> u32 {
     let shot = snapshot(window.window());
     let mut count = 0;
     for pixel in shot.as_slice() {
-        if (pixel.r, pixel.g, pixel.b) == INK {
+        if pixel.r >= 128 && pixel.b >= 128 && pixel.g <= 64 {
             count += 1;
         }
     }
@@ -373,11 +379,23 @@ pub(super) fn painted_window() -> (AppWindow, GpuTile) {
     return (window, gpu);
 }
 
-/// Hand `heights` to the window as a painted tile and draw the one frame that follows,
-///  with nothing drawn in between.
-fn hand_over_and_draw(window: &AppWindow, gpu: &GpuTile, heights: &[u32]) -> u32 {
+/// What:
+///  Hand `heights` to the window as a painted tile,
+///  draw the one frame that follows with nothing drawn in between,
+///  draw a second frame,
+///  and say how many pixels of the tile each drew.
+/// Why:
+///  A frame that does not show the tile draws fewer pixels of it than the frame after.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function handOverAndDraw(window: AppWindow, gpu: GpuTile, heights: number[]): [number, number];
+/// ```
+fn hand_over_and_draw(window: &AppWindow, gpu: &GpuTile, heights: &[u32]) -> (u32, u32) {
     gpu.submit_tile(window, painted_stack(heights));
-    return ink_pixels(window);
+    let first = ink_pixels(window);
+    let settled = ink_pixels(window);
+    return (first, settled);
 }
 
 /// The frame that follows the hand-over of a tile shows the tile,
@@ -405,12 +423,17 @@ fn the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_text
         vec![60, 40],
         vec![50, 10],
     ] {
-        let drawn = hand_over_and_draw(&window, &gpu, &heights);
-        assert_eq!(
-            drawn,
-            area(&heights),
-            "the frame after the hand-over of a tile of the textures {heights:?} drew {drawn} pixels of it instead of {}",
+        let (first, settled) = hand_over_and_draw(&window, &gpu, &heights);
+        // The textures sit at a fraction of a pixel,
+        // so the edge columns blend with the background and a few pixels are not the color.
+        assert!(
+            settled * 100 >= area(&heights) * 95,
+            "the frame after the frame of a tile of the textures {heights:?} drew {settled} of its {} pixels, so the test counts nothing",
             area(&heights)
+        );
+        assert_eq!(
+            first, settled,
+            "the frame that followed the hand-over of a tile of the textures {heights:?} drew {first} pixels of the tile and the next frame {settled}"
         );
     }
     window.hide().expect("close tile window");
