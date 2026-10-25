@@ -9,6 +9,9 @@
 
 /// The source state holds the shaped rows the pointer is resolved against.
 use crate::native::State;
+/// The identity of the displayed text:
+///  its file generation and content revision.
+use ide_app::language::identity::DocumentStamp;
 /// What:
 ///  `Duration` is a time span;
 ///  `Instant` is a point on a clock that never goes backwards.
@@ -30,16 +33,20 @@ pub(super) const REST: Duration = Duration::from_millis(350);
 const VIEW_MOVE: f32 = 0.5;
 
 /// What:
-///  The two numbers that say where the text stands under a pointer that does not move:
-///  the offset the view is drawn at and the height of the whole text with its virtual rows.
+///  The three values that say what stands under a pointer that does not move:
+///  the offset the view is drawn at,
+///  the height of the whole text with its virtual rows,
+///  and the identity of the displayed text.
 /// Why:
 ///  A wheel turn or a jump changes the offset;
 ///  hints or messages arriving above the pointer change the height,
-///  and may put other text under the pointer without changing the offset.
+///  and may put other text under the pointer without changing the offset;
+///  a reload or another file changes the characters of the rows,
+///  and may keep both numbers (a line of the same count of lines edited in place).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type View = { offset: number; extent: number };
+/// type View = { offset: number; extent: number; text: DocumentStamp };
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct View {
@@ -47,6 +54,8 @@ pub(super) struct View {
     pub(super) offset: f32,
     /// The height of the whole text with its virtual rows.
     pub(super) extent: f32,
+    /// The text that is displayed.
+    pub(super) text: DocumentStamp,
 }
 
 /// What:
@@ -60,7 +69,7 @@ pub(super) struct View {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Spot = { belowTop: number; x: number; offset: number };
+/// type Spot = { belowTop: number; x: number; offset: number; extent: number; text: DocumentStamp };
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Spot {
@@ -73,6 +82,8 @@ pub(super) struct Spot {
     pub(super) offset: f32,
     /// The height of the whole text at the time of the move.
     pub(super) extent: f32,
+    /// The text that was displayed at the time of the move.
+    pub(super) text: DocumentStamp,
 }
 
 /// What:
@@ -110,7 +121,9 @@ pub(super) struct Rest {
 /// Movement and timing.
 impl Rest {
     /// The view is `view` at this tick:
-    ///  a view that moved puts other text under a pointer that did not,
+    ///  a view that moved,
+    ///  or a text that was replaced,
+    ///  puts other text under a pointer that did not move,
     ///  so a rest that was not asked for yet starts again,
     ///  whether the pointer was over a character or over none,
     ///  and remembers that the text under it may have changed.
@@ -121,7 +134,8 @@ impl Rest {
         };
         let offset_moved = (view.offset - seen.offset).abs() > VIEW_MOVE;
         let extent_moved = (view.extent - seen.extent).abs() > VIEW_MOVE;
-        if !(offset_moved || extent_moved) {
+        let text_changed = view.text != seen.text;
+        if !(offset_moved || extent_moved || text_changed) {
             return;
         }
         self.seen = Some(view);
@@ -132,6 +146,7 @@ impl Rest {
             tracing::debug!(
                 offset = view.offset,
                 extent = view.extent,
+                text_changed,
                 "the view moved under a rest not yet asked for"
             );
             self.at = Some((character, Instant::now()));
@@ -173,6 +188,7 @@ impl Rest {
         self.seen = Some(View {
             offset: spot.offset,
             extent: spot.extent,
+            text: spot.text,
         });
         // `map` reads the character of the present rest, if any.
         let mut present = None;

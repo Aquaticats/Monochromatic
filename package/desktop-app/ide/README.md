@@ -1393,9 +1393,12 @@ A resting pointer is a pointer and a view that both stood still for 350 ms.
 The toolkit sends no pointer event for text that scrolls under a still pointer,
 so the request does not name the character found at the last move.
 The pointer's distance from the top of the view is kept (`Spot` in `src/native/language/pointer.rs`),
-a rest that was not asked for yet starts again whenever the drawn offset moves
-or the height of the text changes,
-as it does when hints or messages arrive (`Rest::follow`),
+a rest that was not asked for yet starts again whenever the drawn offset moves,
+the height of the text changes,
+as it does when hints or messages arrive,
+or the displayed text is replaced (a reload of the file or another file,
+the stamp of the displayed text,
+which changes the characters under the pointer with the same offset and height) (`Rest::follow`),
 and when the rest is over,
 the character is found again from that distance and the offset that is drawn then
 (`rest` in `src/native/language/rest_step.rs`).
@@ -1417,6 +1420,8 @@ the rest is again one over no character,
 and the next move of the view starts it again;
 a view that stands still asks nothing for such a pointer
 and closes an open popup after the rest time.
+A rest that was asked about stays asked through a scroll or a reload,
+as in editord.
 Before 2026-10-25 the request named the character under the pointer at its last move.
 On a generated 1,500-line file,
 a pointer that moved onto a word and then saw a wheel turn of 300 notches
