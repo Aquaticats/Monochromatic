@@ -416,27 +416,21 @@ function prefixing(
 const sliceTagsWritten = new AsyncLocalStorage<true>();
 
 /**
- Entry, attempt, lane and slice tags for the line being written.
+ Entry tag for the line being written.
 
- @returns `[entry] [attempt n] [lane slice n] `, or empty outside an entry
+ @returns `[entry] `, or empty outside an entry
 
  @example
  ```ts
- const prefix = contextPrefix(); // '[Tabby] [attempt 2] [repair slice 3] '
+ const prefix = entryPrefix(); // '[Tabby] '
  ```
  */
-function contextPrefix(): string {
+function entryPrefix(): string {
   /**
    Context the line is written in.
    */
-  const context = currentLogContext();
-  return bracketed({
-    texts: [
-      context.entry,
-      attemptText({ context, },),
-      laneSliceText({ context, },),
-    ],
-  },);
+  const { entry, } = currentLogContext();
+  return bracketed({ texts: [entry,], },);
 }
 
 /**
@@ -497,33 +491,13 @@ function writeSliceTagsOnce(
 }
 
 /**
- A module's root logger, naming the entry, attempt, lane and slice of every
- line written inside one.
-
- @param tag - root tag
-
- @returns Logger writing `[tag] [entry] [attempt n] [lane slice n] message`
-
- @example
- ```ts
- const l = contextRoot({ tag: 'translation-repair', },);
- ```
- */
-export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
-  return prefixing({
-    l: tagged({ tag, },),
-    prefixOf: contextPrefix,
-  },);
-}
-
-/**
  An entry's logger, naming the attempt, lane and slice of every line written
  inside one; the entry is already its tag.
 
  A line passes through a slice-tagged logger once: where one wraps a logger that is itself built from a slice-tagged
  one (a lane tags the logger an entry hands it with its function and slice-tags that), the tags are written by the
  logger called first and the order the lanes have always written is kept (ledger B963).
- The guard holds between slice-tagged loggers only: `contextRoot` neither sets nor reads it.
+ The guard holds between every slice-tagged logger and `contextRoot`, which is one.
 
  @param l - logger tagged with the entry
 
@@ -538,6 +512,33 @@ export function sliceTagged({ l, }: { readonly l: Logger; },): Logger {
   return writing({
     l,
     write: writeSliceTagsOnce,
+  },);
+}
+
+/**
+ A module's root logger, naming the entry, attempt, lane and slice of every
+ line written inside one.
+
+ THE ROOT IS SLICE-TAGGED ITSELF. It writes the attempt, lane and slice through the same once-per-line guard as an
+ entry logger and the entry in front of them, so a lane that slice-tags a logger built over a root (the default parent
+ of `repairPreparedDocument`) leaves the root to write the entry alone and the line names the attempt once (ledger
+ B963). Called first, the root writes all of it.
+
+ @param tag - root tag
+
+ @returns Logger writing `[tag] [entry] [attempt n] [lane slice n] message`
+
+ @example
+ ```ts
+ const l = contextRoot({ tag: 'translation-repair', },);
+ ```
+ */
+export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
+  return sliceTagged({
+    l: prefixing({
+      l: tagged({ tag, },),
+      prefixOf: entryPrefix,
+    },),
   },);
 }
 
