@@ -558,7 +558,8 @@ but a pass reshapes the archive before it carves (`passArchiveText`,
 a heading relabel,
 `repairArchiveBlocks`),
 and the artifact stores the text it carved.
-The same mistake in the first republish read 23 of 77 stored carves as moved and left shihai4h's page 9 characters short;
+The same mistake in the first republish read 23 of 77 stored carves as moved
+and left shihai4h's page 9 characters short;
 carving over the stored archive reproduced all 23.
 The audit's own reproduction check reports the moved carves as departures from the run
 (hulicaijia's `71 slices rebuilt where the run recorded 72` among them),

@@ -133,7 +133,7 @@ which lists every file of this record.
 - [B170 to B172, block pairings that do not fit their text](audit-ledger-block-pairings-that-do-not-fit-their-text.md)
 - [B173 to B174, footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md)
 - [B175, defaults that stand in for an input](audit-ledger-defaults-standing-in-for-an-input.md)
-- [B176 to B177, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
+- [B176 to B177, branches no input reaches, kept as quiet answers][l01]
 - [B178 to B179, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
 - [B180, refusals that name too little](audit-ledger-refusals-that-name-too-little.md)
 - [B181 to B182, footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md)
@@ -147,7 +147,7 @@ which lists every file of this record.
 - [B196, block pairings that do not fit their text](audit-ledger-block-pairings-that-do-not-fit-their-text.md)
 - [B197, blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md)
 - [B198, values read back from text](audit-ledger-values-read-back-from-text.md)
-- [B199 to B200, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
+- [B199 to B200, branches no input reaches, kept as quiet answers][l01]
 - [B201, footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md)
 - [B202, provider streams, usage counts and retries](audit-ledger-provider-streams-usage-and-retries.md)
 - [B203 to B204, repeated wording and ids on a page](audit-ledger-repeated-wording-and-ids-within-one-text.md)
@@ -163,7 +163,7 @@ which lists every file of this record.
 - [B220, refusals that name too little](audit-ledger-refusals-that-name-too-little.md)
 - [B221, operator refusals printed as faults](audit-ledger-operator-refusals-printed-as-faults.md)
 - [B222, tags, nesting and paired marks](audit-ledger-tags-nesting-and-marks.md)
-- [B223 to B224, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
+- [B223 to B224, branches no input reaches, kept as quiet answers][l01]
 - [B225 to B226, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
 - [B227, lists that must name every member of a type](audit-ledger-lists-that-must-name-every-member-of-a-type.md)
 - [B228 to B230, repeated wording and ids on a page](audit-ledger-repeated-wording-and-ids-within-one-text.md)
@@ -292,17 +292,17 @@ which lists every file of this record.
 - [B419, what each sheet shows](audit-ledger-what-each-sheet-shows.md)
 - [B420 to B421, which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
 - [B422, refusals that name too little](audit-ledger-refusals-that-name-too-little.md)
-- [B423, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
+- [B423, building the consistency pass, repeat groups and the carry][l02]
 - [B424 to B425, outcome rules and stage records](audit-ledger-outcome-rules-and-stage-records.md)
-- [B426, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
+- [B426, building the consistency pass, repeat groups and the carry][l02]
 - [B427, folds and quote forms](audit-ledger-folds-and-quote-forms.md)
-- [B428, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
+- [B428, building the consistency pass, repeat groups and the carry][l02]
 - [B429, loops that copy what they built](audit-ledger-loops-that-copy-what-they-built.md)
 - [B430, the source scans and the coverage census](audit-ledger-source-scans-and-coverage-census.md)
-- [B431, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
+- [B431, building the consistency pass, repeat groups and the carry][l02]
 - [B432, text by code point, and words inside words](audit-ledger-code-points-and-word-boundaries.md)
 - [B433, building the tense check](audit-ledger-tense-check.md)
-- [B434 to B435, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
+- [B434 to B435, building the consistency pass, repeat groups and the carry][l02]
 - [B436, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
 - [B437, the source scans and the coverage census](audit-ledger-source-scans-and-coverage-census.md)
 - [B438, readers that accept what no writer writes](audit-ledger-readers-accept-shapes-writers-never-write.md)
@@ -316,27 +316,27 @@ which lists every file of this record.
 - [B447, defaults that stand in for an input](audit-ledger-defaults-standing-in-for-an-input.md)
 - [B448, files a later run reads back](audit-ledger-files-a-later-run-reads-back.md)
 - [B449, folds and quote forms](audit-ledger-folds-and-quote-forms.md)
-- [B450 to B462, building the consistency pass, repeat groups and the carry](audit-ledger-consistency-pass-repeat-groups-and-the-carry.md)
-- [B463 to B477, the consistency pass, the span and the marks beside it](audit-ledger-consistency-pass-span-and-marks-beside-it.md)
-- [B478 to B491, the consistency pass, apostrophes and block floors](audit-ledger-consistency-pass-apostrophes-and-block-floors.md)
-- [B492 to B500, the consistency pass, the page-wide proof, forms, floors and limits](audit-ledger-consistency-pass-page-wide-proof-forms-floors-and-limits.md)
-- [B501 to B503, the consistency pass, stack depth, the floors fixed point and the page form](audit-ledger-consistency-pass-stack-depth-floors-fixed-point-and-page-form.md)
-- [B504 to B512, the consistency pass, one reading of every mark](audit-ledger-consistency-pass-one-reading-of-every-mark.md)
-- [B513 to B519, the consistency pass, the fixes of the eighth review and the oracle residue](audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md)
-- [B520 to B521, the consistency pass, one reading of every mark](audit-ledger-consistency-pass-one-reading-of-every-mark.md)
-- [B522 to B525, the consistency pass, parse boundaries, the letter test and the proof's page](audit-ledger-consistency-pass-parse-boundaries-letter-test-and-proof-page.md)
+- [B450 to B462, building the consistency pass, repeat groups and the carry][l02]
+- [B463 to B477, the consistency pass, the span and the marks beside it][l03]
+- [B478 to B491, the consistency pass, apostrophes and block floors][l04]
+- [B492 to B500, the consistency pass, the page-wide proof, forms, floors and limits][l05]
+- [B501 to B503, the consistency pass, stack depth, the floors fixed point and the page form][l06]
+- [B504 to B512, the consistency pass, one reading of every mark][l07]
+- [B513 to B519, the consistency pass, the fixes of the eighth review and the oracle residue][l08]
+- [B520 to B521, the consistency pass, one reading of every mark][l07]
+- [B522 to B525, the consistency pass, parse boundaries, the letter test and the proof's page][l09]
 - [B526 to B534, the consistency pass, the ninth review](audit-ledger-consistency-pass-ninth-review.md)
-- [B535 to B548, the consistency pass, the independent oracle and the rules for marks](audit-ledger-consistency-pass-independent-oracle-and-mark-rules.md)
-- [B549 to B555, the consistency pass, the fixes of the eighth review and the oracle residue](audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md)
+- [B535 to B548, the consistency pass, the independent oracle and the rules for marks][l10]
+- [B549 to B555, the consistency pass, the fixes of the eighth review and the oracle residue][l08]
 - [B556 to B563, the consistency pass, the tenth review](audit-ledger-consistency-pass-tenth-review.md)
-- [B564 to B574, the consistency pass, the re-review and the refusal run](audit-ledger-consistency-pass-re-review-and-the-refusal-run.md)
-- [B575 to B589, the consistency pass, what the refusal run steps over](audit-ledger-consistency-pass-what-the-refusal-run-steps-over.md)
-- [B590 to B598, the consistency pass, span edges as whole units](audit-ledger-consistency-pass-span-edges-as-whole-units.md)
-- [B599 to B605, the consistency pass, elisions, quoted numbers and pairing](audit-ledger-consistency-pass-elisions-quoted-numbers-and-pairing.md)
-- [B606 to B615, the consistency pass, the prose mask and slices parsed alone](audit-ledger-consistency-pass-the-prose-mask-and-slices-parsed-alone.md)
-- [B616 to B619, the consistency pass, what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md)
-- [B620 to B622, the consistency pass, definitions inside containers, fragment landings and the mask memory](audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md)
-- [B623, the consistency pass, the prose mask and slices parsed alone](audit-ledger-consistency-pass-the-prose-mask-and-slices-parsed-alone.md)
+- [B564 to B574, the consistency pass, the re-review and the refusal run][l11]
+- [B575 to B589, the consistency pass, what the refusal run steps over][l12]
+- [B590 to B598, the consistency pass, span edges as whole units][l13]
+- [B599 to B605, the consistency pass, elisions, quoted numbers and pairing][l14]
+- [B606 to B615, the consistency pass, the prose mask and slices parsed alone][l15]
+- [B616 to B619, the consistency pass, what the word test reads as shown][l16]
+- [B620 to B622, the consistency pass, definitions inside containers, fragment landings and the mask memory][l17]
+- [B623, the consistency pass, the prose mask and slices parsed alone][l15]
 - [B624, files a later run reads back](audit-ledger-files-a-later-run-reads-back.md)
 - [B625, comments, TSDoc and source text](audit-ledger-comments-tsdoc-and-source-text.md)
 - [B626, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
@@ -346,33 +346,33 @@ which lists every file of this record.
 - [B630, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
 - [B631, output decided by arrival order](audit-ledger-output-decided-by-arrival-order.md)
 - [B632, comments, TSDoc and source text](audit-ledger-comments-tsdoc-and-source-text.md)
-- [B633 to B634, the consistency pass, what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md)
-- [B635, the consistency pass, definitions inside containers, fragment landings and the mask memory](audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md)
+- [B633 to B634, the consistency pass, what the word test reads as shown][l16]
+- [B635, the consistency pass, definitions inside containers, fragment landings and the mask memory][l17]
 - [B636 to B637, building the tense check](audit-ledger-tense-check.md)
-- [B638, the consistency pass, what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md)
-- [B639 to B645, the consistency pass, voices lost and places left unlocated](audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md)
+- [B638, the consistency pass, what the word test reads as shown][l16]
+- [B639 to B645, the consistency pass, voices lost and places left unlocated][l18]
 - [B646, the source scans and the coverage census](audit-ledger-source-scans-and-coverage-census.md)
-- [B647, the consistency pass, definitions inside containers, fragment landings and the mask memory](audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md)
-- [B648 to B655, the package split, configs, scans and messages](audit-ledger-package-split-configs-scans-and-messages.md)
-- [B656 to B664, the consistency pass, voices lost and places left unlocated](audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md)
-- [B665 to B667, the consistency pass, page definitions recorded and carries gated by generation](audit-ledger-consistency-pass-page-definitions-recorded-and-carries-gated.md)
-- [B668 to B673, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md)
+- [B647, the consistency pass, definitions inside containers, fragment landings and the mask memory][l17]
+- [B648 to B655, the package split, configs, scans and messages][l19]
+- [B656 to B664, the consistency pass, voices lost and places left unlocated][l18]
+- [B665 to B667, the consistency pass, page definitions recorded and carries gated by generation][l20]
+- [B668 to B673, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape][l21]
 - [B674, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
 - [B675, text by code point, and words inside words](audit-ledger-code-points-and-word-boundaries.md)
 - [B676, building the tense check](audit-ledger-tense-check.md)
-- [B677 to B678, the consistency pass, what the word test reads as shown](audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md)
+- [B677 to B678, the consistency pass, what the word test reads as shown][l16]
 - [B679, ambient state touched by library code](audit-ledger-ambient-state-touched-by-library-code.md)
 - [B680, readers that accept what no writer writes](audit-ledger-readers-accept-shapes-writers-never-write.md)
 - [B681, comments, TSDoc and source text](audit-ledger-comments-tsdoc-and-source-text.md)
-- [B682, the consistency pass, page definitions recorded and carries gated by generation](audit-ledger-consistency-pass-page-definitions-recorded-and-carries-gated.md)
+- [B682, the consistency pass, page definitions recorded and carries gated by generation][l20]
 - [B683, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
-- [B684, survivors of the guard demonstrations and the tests that pin them](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
+- [B684, survivors of the guard demonstrations and the tests that pin them][l22]
 - [B685, which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
-- [B686, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md)
+- [B686, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape][l21]
 - [B687, which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
 - [B688, test cases that cannot fail](audit-ledger-test-cases-that-cannot-fail.md)
 - [B689 to B690, refusals that name too little](audit-ledger-refusals-that-name-too-little.md)
-- [B691, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md)
+- [B691, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape][l21]
 - [B692 to B694, refusals that name too little](audit-ledger-refusals-that-name-too-little.md)
 - [B695, positions compared across texts](audit-ledger-positions-compared-across-texts.md)
 - [B696, outcome rules and stage records](audit-ledger-outcome-rules-and-stage-records.md)
@@ -395,10 +395,10 @@ which lists every file of this record.
 - [B715, folds and quote forms](audit-ledger-folds-and-quote-forms.md)
 - [B716, what each sheet shows](audit-ledger-what-each-sheet-shows.md)
 - [B717, defaults that stand in for an input](audit-ledger-defaults-standing-in-for-an-input.md)
-- [B718 to B720, NeuralWatt replies cut at the default effort and the energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
+- [B718 to B720, NeuralWatt replies cut at the default effort and the energy estimate][l23]
 - [B721 to B723, which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
 - [B730, outcome rules and stage records](audit-ledger-outcome-rules-and-stage-records.md)
-- [B731 to B732, the polish gate's claims and the order of reason and vote](audit-ledger-polish-gate-claims-and-reason-order.md)
+- [B731 to B732, the polish gate's claims and the order of reason and vote][l24]
 - [B733, labels and counts in messages](audit-ledger-labels-and-counts-in-messages.md)
 - [B734, output decided by arrival order](audit-ledger-output-decided-by-arrival-order.md)
 - [B760 to B761, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
@@ -410,19 +410,19 @@ which lists every file of this record.
 - [B804, provider streams, usage counts and retries](audit-ledger-provider-streams-usage-and-retries.md)
 - [B805, the polish gate's claims and the order of reason and vote](audit-ledger-polish-gate-claims-and-reason-order.md)
 - [B806, labels and counts in messages](audit-ledger-labels-and-counts-in-messages.md)
-- [B807 to B808, NeuralWatt replies cut at the default effort and the energy estimate](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
+- [B807 to B808, NeuralWatt replies cut at the default effort and the energy estimate][l23]
 - [B809 to B810, provider streams, usage counts and retries](audit-ledger-provider-streams-usage-and-retries.md)
 - [B811, runner reports and probes](audit-ledger-runner-reports-and-probes.md)
 - [B812, output decided by arrival order](audit-ledger-output-decided-by-arrival-order.md)
 - [B813, clocks and durations](audit-ledger-clocks-and-durations.md)
-- [B814, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape](audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md)
+- [B814, follow-ups on emphasis definitions, cache accounts and the Synthetic quota shape][l21]
 - [B815, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B816, short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
-- [B817, holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md)
+- [B817, holds a test registers and the seat reading sleeps][l25]
 - [B818 to B819, the every-provider-dry refusal](audit-ledger-the-every-provider-dry-refusal.md)
 - [B820, a stage that heard nobody, recorded as data](audit-ledger-silent-stages-recorded-as-data.md)
 - [B821 to B823, the every-provider-dry refusal](audit-ledger-the-every-provider-dry-refusal.md)
-- [B824 to B825, branches no input reaches, kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md)
+- [B824 to B825, branches no input reaches, kept as quiet answers][l01]
 - [B826, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B827 to B831, page assembly and the corpus-run driver](audit-ledger-page-assembly-and-corpus-run-driver.md)
 - [B832, the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md)
@@ -435,15 +435,15 @@ which lists every file of this record.
 - [B841, process mistakes, launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md)
 - [B860, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B861, the producer-list search and the shapes it read](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
-- [B862, the producer-list search and the readings no case held](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
+- [B862, the producer-list search and the readings no case held][l22]
 - [B863, the producer-list search read as a syntax tree](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [B870 to B893, probes that read one editor card](audit-ledger-editor-card-probes.md)
 - [B894 to B899, the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md)
-- [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md)
-- [B899 follow-ups of round 10, the exact repeat test, the high fix rate warning and the runbook](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md)
-- [B899 follow-ups of round 11, the prompt reuse in repeat passes and the spend it booked](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md)
+- [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement][l26]
+- [B899 follow-ups of round 10, the exact repeat test, the high fix rate warning and the runbook][l27]
+- [B899 follow-ups of rounds 11 to 15, the prompt reuse, the re-check fixes and the bench outcome][l28]
 - [B920, every DeepSeek call booked at peak rates](audit-ledger-deepseek-off-peak-pricing.md)
-- [B921, a heading and a card paragraph that described a spanning rule the code does not have](audit-ledger-deepseek-off-peak-pricing.md)
+- [B921, a heading and a card paragraph that described a spanning rule the code does not have][l29]
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
@@ -455,7 +455,7 @@ which lists every file of this record.
 - [D30, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D31 to D33, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D34, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
-- [D35, the Markdown linter's gate and the split of long docs](audit-ledger-markdown-linter-gate-and-the-split-of-long-docs.md)
+- [D35, the Markdown linter's gate and the split of long docs][l30]
 - [D36 to D37, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [L1 to L13, the repair lane](audit-ledger-repair-lane.md)
 - [L14, the repair lane's smaller items](audit-ledger-repair-lane-smaller-items.md)
@@ -610,21 +610,21 @@ which lists every file of this record.
 - [M181, process mistakes, searches and censuses](audit-ledger-process-searches-and-censuses.md)
 - [M182, process mistakes, agents and briefs](audit-ledger-process-agents-and-briefs.md)
 - [M183 to M188, process mistakes, agents and briefs](audit-ledger-process-agents-and-briefs.md)
-- [M189 to M209, process mistakes, agents and briefs in the consistency fix rounds](audit-ledger-process-agents-and-briefs-consistency-fix-rounds.md)
-- [M210 to M219, process mistakes, agents and briefs in the reference, edge and prose mask rounds](audit-ledger-process-agents-and-briefs-reference-edge-and-prose-mask-rounds.md)
+- [M189 to M209, process mistakes, agents and briefs in the consistency fix rounds][l31]
+- [M210 to M219, process mistakes, agents and briefs in the reference, edge and prose mask rounds][l32]
 - [M220, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
-- [M221 to M223, process mistakes, agents and briefs in the reference, edge and prose mask rounds](audit-ledger-process-agents-and-briefs-reference-edge-and-prose-mask-rounds.md)
+- [M221 to M223, process mistakes, agents and briefs in the reference, edge and prose mask rounds][l32]
 - [M224, process mistakes, shell commands and tasks](audit-ledger-process-shell-commands-and-tasks.md)
-- [M225, process mistakes, agents and briefs in the review, docs, archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md)
+- [M225, process mistakes, agents and briefs in the review, docs, archive and empty link rounds][l33]
 - [M226, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
-- [M227 to M233, process mistakes, agents and briefs in the review, docs, archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md)
-- [M234 to M237, process mistakes, agents and briefs in the review, docs, archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md)
+- [M227 to M233, process mistakes, agents and briefs in the review, docs, archive and empty link rounds][l33]
+- [M234 to M237, process mistakes, agents and briefs in the review, docs, archive and empty link rounds][l33]
 - [M238, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
 - [M239 to M255, process mistakes, the package split](audit-ledger-process-the-package-split.md)
 - [M256, process mistakes, shell commands and tasks](audit-ledger-process-shell-commands-and-tasks.md)
 - [M257, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
 - [M258, process mistakes, searches and censuses](audit-ledger-process-searches-and-censuses.md)
-- [M259 to M261, process mistakes, agents and briefs in the rounds after the split](audit-ledger-process-agents-and-briefs-rounds-after-the-split.md)
+- [M259 to M261, process mistakes, agents and briefs in the rounds after the split][l34]
 - [M262, process mistakes, the package split](audit-ledger-process-the-package-split.md)
 - [M263, process mistakes, docs that grow or go stale](audit-ledger-process-docs-that-grow-or-go-stale.md)
 - [M264, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
@@ -632,7 +632,7 @@ which lists every file of this record.
 - [M266, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
 - [M267, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
 - [M268 to M269, process mistakes, guards and red cases](audit-ledger-process-guards-and-red-cases.md)
-- [M270, process mistakes, agents and briefs in the rounds after the split](audit-ledger-process-agents-and-briefs-rounds-after-the-split.md)
+- [M270, process mistakes, agents and briefs in the rounds after the split][l34]
 - [M271, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
 - [M272 to M273, process mistakes, shell commands and tasks](audit-ledger-process-shell-commands-and-tasks.md)
 - [M274 to M276, process mistakes, claims and commit messages](audit-ledger-process-claims-and-commit-messages.md)
@@ -649,21 +649,59 @@ which lists every file of this record.
 - [M289 to M292, process mistakes, lint, edits and tests](audit-ledger-process-lint-edits-and-tests.md)
 - [M293 to M294, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
-- [T8, code no unit test runs, with the areas of the audit](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md)
+- [T8, code no unit test runs, with the areas of the audit][l35]
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
-- [X1, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
-- [X2 to X3, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
-- [X4 to X8, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
-- [X9, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
-- [X10 to X13, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
-- [X14, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
-- [X15, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
-- [X16, found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md)
-- [X17, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
-- [X18, found while fixing, stages, seats and pairing keys](audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md)
-- [X19, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
-- [X20 to X22, found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md)
-- [X23 to X24, found while fixing, tests, source text and live defaults](audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md)
+- [X1, found while fixing, stages, seats and pairing keys][l36]
+- [X2 to X3, found while fixing, tests, source text and live defaults][l37]
+- [X4 to X8, found while fixing, stages, seats and pairing keys][l36]
+- [X9, found while fixing, tests, source text and live defaults][l37]
+- [X10 to X13, found while fixing, stages, seats and pairing keys][l36]
+- [X14, found while fixing, tests, source text and live defaults][l37]
+- [X15, found while fixing, stages, seats and pairing keys][l36]
+- [X16, found while fixing, names, headings and math on the page][l38]
+- [X17, found while fixing, tests, source text and live defaults][l37]
+- [X18, found while fixing, stages, seats and pairing keys][l36]
+- [X19, found while fixing, tests, source text and live defaults][l37]
+- [X20 to X22, found while fixing, names, headings and math on the page][l38]
+- [X23 to X24, found while fixing, tests, source text and live defaults][l37]
 
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
+[l01]: audit-ledger-unreachable-branches-kept-as-quiet-answers.md
+[l02]: audit-ledger-consistency-pass-repeat-groups-and-the-carry.md
+[l03]: audit-ledger-consistency-pass-span-and-marks-beside-it.md
+[l04]: audit-ledger-consistency-pass-apostrophes-and-block-floors.md
+[l05]: audit-ledger-consistency-pass-page-wide-proof-forms-floors-and-limits.md
+[l06]: audit-ledger-consistency-pass-stack-depth-floors-fixed-point-and-page-form.md
+[l07]: audit-ledger-consistency-pass-one-reading-of-every-mark.md
+[l08]: audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md
+[l09]: audit-ledger-consistency-pass-parse-boundaries-letter-test-and-proof-page.md
+[l10]: audit-ledger-consistency-pass-independent-oracle-and-mark-rules.md
+[l11]: audit-ledger-consistency-pass-re-review-and-the-refusal-run.md
+[l12]: audit-ledger-consistency-pass-what-the-refusal-run-steps-over.md
+[l13]: audit-ledger-consistency-pass-span-edges-as-whole-units.md
+[l14]: audit-ledger-consistency-pass-elisions-quoted-numbers-and-pairing.md
+[l15]: audit-ledger-consistency-pass-the-prose-mask-and-slices-parsed-alone.md
+[l16]: audit-ledger-consistency-pass-what-the-word-test-reads-as-shown.md
+[l17]: audit-ledger-consistency-pass-definitions-landings-and-the-mask-memory.md
+[l18]: audit-ledger-consistency-pass-voices-lost-and-places-left-unlocated.md
+[l19]: audit-ledger-package-split-configs-scans-and-messages.md
+[l20]: audit-ledger-consistency-pass-page-definitions-recorded-and-carries-gated.md
+[l21]: audit-ledger-follow-ups-emphasis-definitions-cache-accounts-and-synthetic-quota.md
+[l22]: audit-ledger-guard-demonstration-survivors-and-their-pins.md
+[l23]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
+[l24]: audit-ledger-polish-gate-claims-and-reason-order.md
+[l25]: audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md
+[l26]: audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md
+[l27]: audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md
+[l28]: audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md
+[l29]: audit-ledger-deepseek-off-peak-pricing.md
+[l30]: audit-ledger-markdown-linter-gate-and-the-split-of-long-docs.md
+[l31]: audit-ledger-process-agents-and-briefs-consistency-fix-rounds.md
+[l32]: audit-ledger-process-agents-and-briefs-reference-edge-and-prose-mask-rounds.md
+[l33]: audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md
+[l34]: audit-ledger-process-agents-and-briefs-rounds-after-the-split.md
+[l35]: audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md
+[l36]: audit-ledger-found-while-fixing-stages-seats-and-pairing-keys.md
+[l37]: audit-ledger-found-while-fixing-tests-source-text-and-live-defaults.md
+[l38]: audit-ledger-found-while-fixing-page-names-headings-and-math.md

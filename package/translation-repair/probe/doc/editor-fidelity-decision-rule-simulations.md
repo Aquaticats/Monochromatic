@@ -211,6 +211,29 @@ and 24 points when it fixes seven in ten,
 against 37 and 28 points at 40 units,
 which is why 60 is the fewest the read step accepts.
 
+## The passes a bench walks
+
+At 88 units the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half,
+against 25 points at 176 units where a repeat always gives the arm's first answer again,
+so a second pass buys the bench nothing when the arms repeat themselves so.
+Where they do not repeat themselves so,
+three passes over 264 units detect a difference of about 13.5 points where agreement is 0 (round 8 power table)
+and one pass over 88 units detects about 25 points,
+and the verdict is read over those 88 units whatever the high arm's 264,
+so the bench money the high arm spent on its passes 2 and 3 buys the verdict nothing.
+
+## The units a cap buys
+
+The guard admits an ask only while the spend so far plus the ask's ceiling is at most the cap.
+The ceiling is the `ceiling` line of the dry run over its asks,
+0.377 USD an ask for the current pool.
+An arm that spends s a unit therefore completes floor((cap - 0.377) / s) + 1 units,
+which is fewer than cap / s:
+about 21 fewer at 0.0167 USD a unit,
+and one fewer at the margin of 60 units
+(0.25 USD a unit at 15 USD gives 59,
+where 15 / 0.25 says 60).
+
 ## The simulation
 
 The simulation plays the bench over the committed pool in its order,

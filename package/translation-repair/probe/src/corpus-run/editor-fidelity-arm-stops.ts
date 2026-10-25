@@ -3,11 +3,11 @@ import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
 import type { ArmFigures, } from './editor-fidelity-arm-figures.ts';
 
 //region Editor fidelity arm stop checks
-// THE CHECKS OF HOW THE ASKS OF AN ARM ENDED. A trial that reads unusable says only that it yielded nothing; whether the
-// card was cut off at the output-token cap or the exchange threw says why. Each row line states the ends of its trial's
-// asks, and these checks fail an arm whose rows state none, say which trials ended at the cap (they score as unusable for
-// the arm) or threw (they are left out of every arm, so the cap or the wire does not stand in for the effort), and warn of
-// an arm in which many trials were refused or unusable.
+// THE CHECKS OF HOW THE ASKS OF AN ARM ENDED. A trial that reads unusable says only that it yielded nothing;
+// whether the card was cut off at the output-token cap or the exchange threw says why. Each row line states the ends
+// of its trial's asks, and these checks fail an arm whose rows state none, say which trials ended at the cap (they
+// score as unusable for the arm) or threw (they are left out of every arm, so the cap or the wire does not stand in
+// for the effort), and warn of an arm in which many trials were refused or unusable.
 
 /**
  The share of an arm's units, in percent, that unusable plus refused may reach before the read step warns of it; four of
@@ -91,9 +91,9 @@ function rowsSaid({ rows, }: { readonly rows: readonly number[]; },): string {
 }
 
 /**
- The answer that says which trials ended at the output-token cap and which threw, and what the rule does with each: a
- trial that ended at the cap scores as unusable for this arm, and a trial in which an ask threw is left out of every arm.
- Neither fails the arm; the bench check of shared units fails only when too few remain.
+ The answer that says which trials ended at the output-token cap and which threw, and what the rule does with each:
+ a trial that ended at the cap scores as unusable for this arm, and a trial in which an ask threw is left out of every
+ arm. Neither fails the arm; the bench check of shared units fails only when too few remain.
 
  @param figures - the arm's figures
 
@@ -178,7 +178,9 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 
  @param figures - the arm's figures
 
- @returns The line alone, or nothing when unusable plus refused are no more than the warned share of the arm's units
+ @returns Lines that keep fix rates from being trusted when many units gave no edit: one when unusable plus refused
+ exceed their warned share of units, or when any exist and this log states no count of units, which leaves that share
+ unjudged; none otherwise, so clean arms stay quiet
 
  @example
  ```ts
@@ -202,9 +204,18 @@ export function unusableWarning({
     0,
     figures.refused,
   );
+  if (together === 0)
+    return [];
+  /**
+   The start of the line, which names the arm and the units that yielded no edit.
+   */
+  const start = `WARN ${arm}: unusable plus refused is ${String(together,)} of`;
+  // A log that states no count of units reads as minus one unit: nothing is known of the share.
+  if (figures.trials < 0)
+    return [`${start} an unknown number of units (the log states none)`,];
   return ((together * PERCENT) > (figures.trials * UNUSABLE_PLUS_REFUSED_WARNED_SHARE_PERCENT))
     ? [
-      `WARN ${arm}: unusable plus refused is ${String(together,)} of ${
+      `${start} ${
         countWithNoun({
           count: figures.trials,
           one: 'unit',

@@ -36,7 +36,8 @@ const CLEAN_SEAT = `SEAT ${LOW_CARD} asked=40 usable=40 unusable=0 threw=0 silen
  @param unusable - trials with no usable reply
  @param refused - trials where the card was heard and proposed no edit
  @param seat - the SEAT line
- @param units - units the tally counts, split evenly between the kinds; 22 insertion and 18 alteration trials when omitted
+ @param units - units the tally counts, split evenly between the kinds; 22 insertion and 18 alteration trials when
+ omitted
 
  @returns The arm, named low
 
@@ -100,8 +101,8 @@ await describe({
   name: 'editor fidelity stop checks',
   children: [
     it({
-      name: 'PASSES THE STOP-REASONS CHECK for an arm whose every row states how its asks ended, and fails it naming how '
-        + 'many rows state nothing',
+      name: 'PASSES THE STOP-REASONS CHECK for an arm whose every row states how its asks ended, and fails it naming '
+        + 'how many rows state nothing',
       fn: async () => {
         expect(lineOf({
           log: armWith({ stops: ['ok', 'refused+ok', 'ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
@@ -119,16 +120,21 @@ await describe({
     },),
 
     it({
-      name: 'PASSES THE TRIAL-ENDS CHECK FOR AN ARM WHOSE ASKS ENDED ANY WAY and says what became of the trials that ended '
-        + 'at the output-token cap (they score as unusable for the arm) or threw (they are left out of every arm): the '
-        + 'rule absorbs both by trial, so neither fails an arm',
+      name: 'PASSES THE TRIAL-ENDS CHECK FOR AN ARM WHOSE ASKS ENDED ANY WAY and says what became of the trials that '
+        + 'ended at the output-token cap (they score as unusable for the arm) or threw (they are left out of every '
+        + 'arm): the rule absorbs both by trial, so neither fails an arm',
       fn: async () => {
         expect(lineOf({
           log: armWith({ stops: ['ok', 'refused+ok', 'unparseable+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
           check: 'units at the output cap or thrown',
         },),).toBe('PASS low: units at the output cap or thrown: 3 units, none at the cap, none threw',);
         expect(lineOf({
-          log: armWith({ stops: ['ok', 'output-cap', 'ok', 'output-cap+ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },),
+          log: armWith({
+            stops: ['ok', 'output-cap', 'ok', 'output-cap+ok',],
+            unusable: 0,
+            refused: 0,
+            seat: CLEAN_SEAT,
+          },),
           check: 'units at the output cap or thrown',
         },),).toBe(
           'PASS low: units at the output cap or thrown: 2 units ended at the output-token cap (rows 2, 4) and score '
@@ -145,8 +151,8 @@ await describe({
     },),
 
     it({
-      name: 'FAILS NO ARM FOR THE SEAT LINE SAYING ASKS THREW, since the threw count belongs to the trials the row lines '
-        + 'name and the rule leaves those out',
+      name: 'FAILS NO ARM FOR THE SEAT LINE SAYING ASKS THREW, since the threw count belongs to the trials the row '
+        + 'lines name and the rule leaves those out',
       fn: async () => {
         const report = checkEditorBench({
           arms: [
@@ -182,15 +188,74 @@ await describe({
         /**
          The report without the warning, over the same arm bar the counts.
          */
-        const quiet = checkEditorBench({ arms: [armWith({ stops: ['ok',], unusable: 1, refused: 3, seat: CLEAN_SEAT, },),], },);
+        const quiet = checkEditorBench({
+          arms: [armWith({ stops: ['ok',], unusable: 1, refused: 3, seat: CLEAN_SEAT, },),],
+        },);
         const loud = checkEditorBench({ arms: [over,], },);
         expect(loud.failed,).toBe(quiet.failed,);
       },
     },),
 
     it({
-      name: 'SCALES THE WARNING TO THE UNITS OF AN ARM THAT WALKS THREE PASSES: 26 of 264 units unusable or refused is under '
-        + 'a tenth and says nothing, 27 is over it and warns, where 5 of 40 warns',
+      name: 'SAYS NOTHING FOR A LOG WITH NO EDITOR AND TRIALS LINES, as a dry run\'s output is: the arm completed '
+        + 'nothing and nothing is unusable or refused, so there is no warning to write',
+      fn: async () => {
+        /**
+         An arm with nothing unusable or refused, and the lines that count its units taken out of its log.
+         */
+        const whole = armWith({ stops: ['ok',], unusable: 0, refused: 0, seat: CLEAN_SEAT, },);
+        const dry: ArmLog = {
+          ...whole,
+          lines: whole.lines.filter(function isNotTrials(line,): boolean {
+            return (!line.includes('TRIALS completed ',)) && (!line.includes('] EDITOR ',));
+          },),
+        };
+        // POSITIVE CONTROL: the log has both lines before the cut, so a cut that removed nothing would fail here.
+        expect(whole.lines.some(function isTrials(line,): boolean {
+          return line.includes('TRIALS completed ',);
+        },),).toBe(true,);
+        expect(whole.lines.some(function isEditor(line,): boolean {
+          return line.includes('] EDITOR ',);
+        },),).toBe(true,);
+        expect(dry.lines.length,).toBeLessThan(whole.lines.length,);
+        expect(lineOf({ log: dry, check: 'unusable plus refused', },),).toBe('',);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE UNKNOWN COUNT OF UNITS WHEN THE LOG STATES NONE AND SOME TRIALS ARE UNUSABLE, in place of a '
+        + 'negative count of units',
+      fn: async () => {
+        /**
+         An arm with five trials unusable or refused over a pool of forty.
+         */
+        const whole = armWith({ stops: ['ok',], unusable: 2, refused: 3, seat: CLEAN_SEAT, },);
+        /**
+         The same arm with the count of units cut out of its pooled EDITOR line, which leaves the unusable and refused
+         counts in it.
+         */
+        const unknown: ArmLog = {
+          ...whole,
+          lines: whole.lines.map(function withoutCount(line,): string {
+            return line.includes(`] EDITOR ${LOW_CARD}: clean fix `,)
+              ? line.replace(' of ', ' from ',)
+              : line;
+          },),
+        };
+        // POSITIVE CONTROL: the whole log warns with its count of units, and the cut changed the log.
+        expect(lineOf({ log: whole, check: 'unusable plus refused', },),).toBe(
+          'WARN low: unusable plus refused is 5 of 40 units, over 10 percent',
+        );
+        expect(unknown.lines,).not.toStrictEqual(whole.lines,);
+        expect(lineOf({ log: unknown, check: 'unusable plus refused', },),).toBe(
+          'WARN low: unusable plus refused is 5 of an unknown number of units (the log states none)',
+        );
+      },
+    },),
+
+    it({
+      name: 'SCALES THE WARNING TO THE UNITS OF AN ARM THAT WALKS THREE PASSES: 26 of 264 units unusable or refused is '
+        + 'under a tenth and says nothing, 27 is over it and warns, where 5 of 40 warns',
       fn: async () => {
         expect(lineOf({
           log: armWith({ stops: ['ok',], unusable: 13, refused: 13, seat: CLEAN_SEAT, units: 264, },),
