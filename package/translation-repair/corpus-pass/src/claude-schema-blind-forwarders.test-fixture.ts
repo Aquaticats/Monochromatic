@@ -233,10 +233,9 @@ function referringTo(
 
  @param found - forwarders found by the rounds before
 
- @returns Forwarders found before, then those this round and the rounds after it add, in the order of the sources
-
- @throws When a round adds a function that an earlier round added, which no round may do and which would keep the
- search from ending
+ @returns Forwarders found before, then those this round and the rounds after it add, in the order of the sources.
+ A round adds only a function whose key is in neither the builders nor the forwarders found so far, and each round that
+ adds one adds a key no round added, so the search ends after at most as many rounds as the sources declare functions
 
  @example
  ```ts
@@ -314,19 +313,6 @@ function forwardersAfter(
     },);
   if (added.length === 0)
     return found;
-  /**
-   The functions this round adds that an earlier round added.
-   */
-  const repeated = added.filter(function wasFound(candidate,): boolean {
-    return known.forwarders
-      .keys
-      .has(keyOf(candidate,),);
-  },);
-  if (repeated.length > 0) {
-    throw new Error(
-      `forwarder search did not end: a round added ${String(repeated.length,)} functions an earlier round added`,
-    );
-  }
   return forwardersAfter({
     family,
     builders,
