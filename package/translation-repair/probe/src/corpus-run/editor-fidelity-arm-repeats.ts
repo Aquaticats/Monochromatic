@@ -4,16 +4,21 @@ import {
 } from './editor-fidelity-arm-facts.ts';
 import type { RowStops, } from './editor-fidelity-arm-figures.ts';
 import {
+  REPEAT_ALPHA,
+  type RepeatShortfall,
+  repeatShortfallsOf,
+} from './editor-fidelity-arm-repeat-test.ts';
+import {
   effortOf,
   fixedBy,
   sharedBenchOf,
   unitOf,
   withFiguresOf,
 } from './editor-fidelity-arm-shared.ts';
+import { pSaid, } from './editor-fidelity-decide-lines.ts';
 import {
   FALSE_PICK_BOUND_ALIKE,
   FALSE_PICK_UNEQUAL_REACHED,
-  REPEAT_WARNED_ABOVE_POINTS,
 } from './editor-fidelity-decide.ts';
 import { ALPHA, } from './editor-fidelity-paired.ts';
 
@@ -23,7 +28,9 @@ import { ALPHA, } from './editor-fidelity-paired.ts';
 // output-token cap is not a clean fix, as in the paired test). The share of such trials that agree is an arm's repeat
 // agreement. The exact test holds its bound when the arms repeat themselves alike; when the default effort repeats itself
 // far less than the others the simulation reached a higher chance, and in no other direction, so the repeat lines also warn
-// when the default effort's agreement is under another arm's by more than the stated amount.
+// when an exact one-sided test (`editor-fidelity-arm-repeat-test.ts`) finds the default effort's count of trials that
+// agree with themselves low against another arm's. The warning prints both counts and the p-value, so that a small number
+// of trials asked again shows as one: the test has no floor on them, and needs a larger difference when they are few.
 //
 // THE FIGURES ARE READ OVER THE UNITS EVERY ARM HOLDS when several logs are read (the units the paired test reads, a row in
 // which an ask of any arm threw being left out of every arm), so that an arm the spend guard stopped early is compared with
@@ -214,88 +221,75 @@ function repeatLine({ figure, }: { readonly figure: RepeatFigure; }): string {
 }
 
 /**
- Whether one arm's share is under another's by more than the number of points the read step warns over, compared exactly
- by cross-multiplying the counts so that a difference of exactly that number is not warned of.
+ The level the exact test of one warning was run at, as the line says it.
 
- @param low - the arm with the lower share
+ @param comparisons - the other arms the level was divided among
 
- @param high - the arm with the higher share
-
- @returns Whether the difference is over the amount
+ @returns The level, with its division when there is more than one other arm
 
  @example
  ```ts
- const over = differsOver({ low: defaultFigure, high: otherFigure, },);
+ // yields '0.05 divided by 2, the number of other arms'
+ const said = levelSaid({ comparisons: 2, },);
  ```
  */
-function differsOver(
-  {
-    low,
-    high,
-  }: {
-    readonly low: RepeatFigure;
-    readonly high: RepeatFigure;
-  },
-): boolean {
-  /**
-   The difference of the shares in points, times the product of the two counts of trials asked again.
-   */
-  const scaledGap = 100 * ((high.agreed * low.repeated) - (low.agreed * high.repeated));
-  /**
-   The number of points the read step warns over, times the same product.
-   */
-  const scaledLimit = REPEAT_WARNED_ABOVE_POINTS * (low.repeated * high.repeated);
-  return scaledGap > scaledLimit;
+function levelSaid({ comparisons, }: { readonly comparisons: number; },): string {
+  return (comparisons === 1)
+    ? String(REPEAT_ALPHA,)
+    : `${String(REPEAT_ALPHA,)} divided by ${String(comparisons,)}, the number of other arms`;
 }
 
 /**
- Says that the default effort repeats itself less than another arm does, by more than the number of points the read step
- warns over.
+ Says that the default effort repeats itself less than another arm does, at the level of the exact test.
 
  @param low - the default effort's figure
 
- @param high - the figure of the arm it is under
+ @param shortfall - the arm it is under, the p-value against it and the comparisons the level was divided among
 
  @returns The line, without a newline
 
  @example
  ```ts
- const line = warningLine({ low: defaultFigure, high: otherFigure, },);
+ const line = warningLine({ low: defaultFigure, shortfall, },);
  ```
  */
 function warningLine(
   {
     low,
-    high,
+    shortfall,
   }: {
     readonly low: RepeatFigure;
-    readonly high: RepeatFigure;
+    readonly shortfall: RepeatShortfall<RepeatFigure>;
   },
 ): string {
   /**
-   The difference between the two arms, in points.
+   The arm the default effort is under.
    */
-  const points = Math.round(100 * (shareOf({ figure: high, },) - shareOf({ figure: low, },)),);
-  return `WARN repeat agreement: ${low.arm} gave the same reading in every pass on ${
-    String(percentOf({ figure: low, },),)
-  } percent of the trials it was asked again, ${String(points,)} points under ${high.arm} at ${
-    String(percentOf({ figure: high, },),)
-  } percent, over ${String(REPEAT_WARNED_ABOVE_POINTS,)}; the bound of ${
-    String(FALSE_PICK_BOUND_ALIKE,)
-  } on choosing `
+  const { other: high, } = shortfall;
+  return `WARN repeat agreement: ${low.arm} gave the same reading in every pass on ${String(low.agreed,)} of ${
+    countWithNoun({
+      count: low.repeated,
+      one: 'trial',
+      many: 'trials',
+    },)
+  } it was asked again (${String(percentOf({ figure: low, },),)} percent), against ${String(high.agreed,)} of ${
+    String(high.repeated,)
+  } (${String(percentOf({ figure: high, },),)} percent) for ${high.arm}; an exact one-sided test of the two counts gives p ${
+    pSaid({ p: shortfall.p, },)
+  }, at or under ${levelSaid({ comparisons: shortfall.comparisons, },)}; the bound of ${String(FALSE_PICK_BOUND_ALIKE,)} on choosing `
     + 'another effort when none is better holds when the arms repeat themselves alike, and the simulation reached '
     + `${String(FALSE_PICK_UNEQUAL_REACHED,)} at a true fix rate of 0.9 when the default effort repeats itself far less `
     + `than the others, so a verdict of high or low is less sure than the ${String(ALPHA,)} level says`;
 }
 
 /**
- The warning for one arm of the default effort, when another arm repeats itself more by more than the stated amount.
+ The warning for one arm of the default effort, when it is under another arm at the level of the exact test.
 
  @param figure - the default effort's figure, with at least one repeated trial
 
  @param others - the figures of the other arms that have trials asked again, in the order they ran
 
- @returns The warning, none when no other arm is over the default effort by more than the stated amount
+ @returns The warning, none when the default effort is under no other arm at the level
 
  @example
  ```ts
@@ -312,31 +306,18 @@ function warningsFor(
   },
 ): readonly string[] {
   /**
-   The other arms, the highest share first, the arm that ran first among equals.
+   The other arm the default effort is under, when there is one at the level.
    */
-  const highestFirst = others.toSorted(function byShare(
-    a,
-    b,
-  ): number {
-    return shareOf({ figure: b, },) - shareOf({ figure: a, },);
+  const shortfalls = repeatShortfallsOf({
+    figure,
+    others,
   },);
-  /**
-   The other arm with the highest share, when there is one.
-   */
-  const [highest,] = highestFirst;
-  if (highest === undefined)
-    return [];
-  if (!differsOver({
-    low: figure,
-    high: highest,
-  },))
-    return [];
-  return [
-    warningLine({
+  return shortfalls.map(function lineOf(shortfall,): string {
+    return warningLine({
       low: figure,
-      high: highest,
-    },),
-  ];
+      shortfall,
+    },);
+  },);
 }
 
 /**

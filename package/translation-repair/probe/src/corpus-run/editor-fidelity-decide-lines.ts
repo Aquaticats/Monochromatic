@@ -71,7 +71,7 @@ function pointsSaid({ fraction, }: { readonly fraction: number; },): string {
  const said = pSaid({ p: 0.00000095, },);
  ```
  */
-function pSaid({ p, }: { readonly p: number; },): string {
+export function pSaid({ p, }: { readonly p: number; },): string {
   return (p < P_PRINTED_UNDER) ? `under ${String(P_PRINTED_UNDER,)}` : p.toFixed(P_DECIMALS,);
 }
 

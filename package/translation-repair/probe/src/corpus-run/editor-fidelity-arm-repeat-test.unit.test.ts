@@ -19,7 +19,7 @@ import {
 
 import {
   repeatAgreementTest,
-  repeatShortfallOf,
+  repeatShortfallsOf,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -139,7 +139,7 @@ await describe({
     },),
 
     describe({
-      name: repeatShortfallOf.name,
+      name: repeatShortfallsOf.name,
       children: [
         it({
           name: 'SETS THE DEFAULT EFFORT AGAINST THE OTHER ARM WITH THE HIGHEST SHARE, the first of the arms among equals, and '
@@ -151,7 +151,7 @@ await describe({
               figureOf({ arm: 'high', agreed: 44, repeated: 44, },),
               figureOf({ arm: 'medium-b', agreed: 44, repeated: 44, },),
             ];
-            const shortfall = repeatShortfallOf({ figure, others, },);
+            const [shortfall,] = repeatShortfallsOf({ figure, others, },);
             expect(shortfall?.other.arm,).toBe('high',);
             expect(shortfall?.p,).toBeLessThan(0.000001,);
             expect(shortfall?.comparisons,).toBe(3,);
@@ -167,8 +167,8 @@ await describe({
               figureOf({ arm: 'high', agreed: 3, repeated: 3, },),
               figureOf({ arm: 'low', agreed: 6, repeated: 6, },),
             ];
-            expect(repeatShortfallOf({ figure, others: others.toReversed(), },)?.other.arm,).toBe('low',);
-            expect(repeatShortfallOf({ figure, others, },)?.other.arm,).toBe('high',);
+            expect(repeatShortfallsOf({ figure, others: others.toReversed(), },)[0]?.other.arm,).toBe('low',);
+            expect(repeatShortfallsOf({ figure, others, },)[0]?.other.arm,).toBe('high',);
           },
         },),
 
@@ -179,9 +179,9 @@ await describe({
             const figure = figureOf({ arm: 'medium', agreed: 15, repeated: 20, },);
             const high = figureOf({ arm: 'high', agreed: 20, repeated: 20, },);
             const low = figureOf({ arm: 'low', agreed: 19, repeated: 20, },);
-            expect(repeatShortfallOf({ figure, others: [high, low,], },)?.other.arm,).toBe('high',);
-            expect(repeatShortfallOf({ figure, others: [high, low, figureOf({ arm: 'medium-b', agreed: 19, repeated: 20, },),], },),).toBeUndefined();
-            expect(repeatShortfallOf({ figure, others: [high,], },)?.comparisons,).toBe(1,);
+            expect(repeatShortfallsOf({ figure, others: [high, low,], },)[0]?.other.arm,).toBe('high',);
+            expect(repeatShortfallsOf({ figure, others: [high, low, figureOf({ arm: 'medium-b', agreed: 19, repeated: 20, },),], },),).toStrictEqual([],);
+            expect(repeatShortfallsOf({ figure, others: [high,], },)[0]?.comparisons,).toBe(1,);
           },
         },),
 
@@ -189,8 +189,8 @@ await describe({
           name: 'SAYS NOTHING WHEN THE DEFAULT EFFORT IS NOT UNDER ANY OTHER ARM AT THE LEVEL, and when there is no other arm',
           fn: async () => {
             const figure = figureOf({ arm: 'medium', agreed: 9, repeated: 12, },);
-            expect(repeatShortfallOf({ figure, others: [figureOf({ arm: 'high', agreed: 12, repeated: 12, },),], },),).toBeUndefined();
-            expect(repeatShortfallOf({ figure, others: [], },),).toBeUndefined();
+            expect(repeatShortfallsOf({ figure, others: [figureOf({ arm: 'high', agreed: 12, repeated: 12, },),], },),).toStrictEqual([],);
+            expect(repeatShortfallsOf({ figure, others: [], },),).toStrictEqual([],);
           },
         },),
       ],

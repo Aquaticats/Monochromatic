@@ -80,6 +80,14 @@ export {
 } from './corpus-run/editor-fidelity-arm-figures.ts';
 export { benchReportLines, } from './corpus-run/editor-fidelity-arm-report.ts';
 export { fixRateLinesOf, } from './corpus-run/editor-fidelity-arm-fix-rate.ts';
+export {
+  REPEAT_ALPHA,
+  type RepeatAgreementTest,
+  repeatAgreementTest,
+  type RepeatCounts,
+  type RepeatShortfall,
+  repeatShortfallsOf,
+} from './corpus-run/editor-fidelity-arm-repeat-test.ts';
 export { repeatLinesOf, } from './corpus-run/editor-fidelity-arm-repeats.ts';
 export {
   stopsStatedAnswer,

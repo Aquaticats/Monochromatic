@@ -1,5 +1,6 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
+import { REPEAT_ALPHA, } from './editor-fidelity-arm-repeat-test.ts';
 import {
   decidedOf,
   kindsLine,
@@ -89,17 +90,6 @@ export const FALSE_PICK_READINGS_ABOVE_NINE_TENTHS = '0.142 at 0.93, 0.173 at 0.
 export const DEFAULT_FIX_RATE_WARNED_AT_PERCENT = 93;
 
 /**
- The difference, in points, by which the default effort's repeat agreement must be under another arm's for the read step
- to warn. At 15 the warning fired on a mean of 4.5 percent over the grid of simulated benches whose arms repeat alike
- (and on 9.9 percent at the cell of a fix rate of 0.9 where no arm repeats itself, 4000 replicates, re-check 5), and the
- false pick chance was 0.046 at most over the benches it did not fire on (3000 replicates a cell, 176 and 264 units, true
- fix rates 0.5, 0.7 and 0.9); at 20 it fired on a mean of 0.9 percent and the chance was 0.049 at most; at 25 the chance
- reached 0.063. The grid held the arms alike or unlike in every direction; the warning fires in the one direction in
- which the simulation found a chance over 0.05, the default effort under another arm.
- */
-export const REPEAT_WARNED_ABOVE_POINTS = 15;
-
-/**
  The efforts the rule tests against the default.
  */
 const CHALLENGERS = [
@@ -150,8 +140,11 @@ export function decisionRuleText(): string {
     + `${FALSE_PICK_READINGS_ABOVE_NINE_TENTHS} by an independent re-implementation of the model (reviewer seed edrc5, 4000 `
     + 'replicates, 264 units), and 0.130 at 0.93 and 0.175 at 0.95 by the committed fixture (seed edr9-fx, 4000 '
     + 'replicates, three passes of 264 units, correlation 1). The read step prints each arm\'s repeat agreement over the '
-    + 'units every arm holds and warns when the default effort repeats itself more than '
-    + `${String(REPEAT_WARNED_ABOVE_POINTS,)} points less than another arm, a warning calibrated for fix rates up to 0.90, and `
+    + 'units every arm holds and warns when an exact one-sided test of the default effort\'s count of trials that read '
+    + 'alike in every pass against that of the other arm with the highest share is at or under '
+    + `${String(REPEAT_ALPHA,)} divided by the number of other arms, which holds the chance of that warning at or under `
+    + `${String(REPEAT_ALPHA,)} when every arm repeats itself alike, counting the trials of an arm as independent draws, a `
+    + 'warning relied on for fix rates up to 0.90, and '
     + `prints WARN high fix rate when the default effort fixes ${String(DEFAULT_FIX_RATE_WARNED_AT_PERCENT,)} percent or `
     + 'more of the shared units, since the repeat warning cannot see unequal repeats there and a verdict of high or low '
     + 'then stands under the caveat. Over the 88 trials '
