@@ -303,6 +303,25 @@ which are green because the code was right and the suite lacked the input):
   argued equivalent in rounds 17 to 20,
   goes with the code it mutated.
 
+Reads that report more than once or more than the shape needs,
+all of which fail closed,
+and that no case removes:
+a forwarder under a type mark that is held (`[(mk as any).bind(null)]`) gives two reports,
+the element and the member object;
+a member of a namespace under a type mark (`[(ns as any)['mkb']]`) gives two reports for one expression;
+a function bound twice and called at once is reported although it is called;
+a feature test of the loader (`typeof process.getBuiltinModule`) is reported;
+a key of an object that a sender takes,
+written as a template or as a computed string (`{ [`responseFormat`]: build(args) }`),
+is reported while `{ "responseFormat": build(args) }` is read.
+The inputs are n4 and n5 of re-check 19 (H14,
+I04,
+S01,
+S02) and the multi-bind inputs of its file of 20.
+A report that fails closed costs a case or a note in the file that holds it,
+and a missed report costs a hidden send,
+so none of them is removed.
+
 The mutant table of the round has 418 rows on `a1c78ef41bc4494afeef31b5a7dbf60b18fb7990`:
 354 of the 356 rows of fix round 20 (X11 goes with its code and S20-06 is replaced by the rows on the key;
 six rows are at a new anchor),
