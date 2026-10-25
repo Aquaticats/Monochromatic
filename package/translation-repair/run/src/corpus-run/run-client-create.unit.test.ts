@@ -598,8 +598,8 @@ await describe({
     },),
 
     it({
-      name: '(a) WAITS FOR SYNTHETIC EVERY TIME, AND THE RUN IS NOT ENDED, when the only provider beside it is Xiaomi, '
-        + 'which writes nothing: Synthetic is the only writing provider not dry',
+      name: '(a) WAITS FOR SYNTHETIC AND DOES NOT END THE RUN when the only provider beside it is Xiaomi, which writes '
+        + 'nothing: Synthetic is the only writing provider not dry, so a reading finds a writing provider and waits',
       fn: async ctx => {
         await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
         using rig = rigOn({
@@ -622,8 +622,10 @@ await describe({
           },),
         ).toEqual([],);
         // Synthetic is not read dry for good: the router held the first ask through the cooldown and asked again, and the
-        // reader waited the second cooldown out, so no reading found every writing provider dry. (The seat is withheld
-        // at the door after four asks that threw, so later slices ask nobody; the reading is what the case reads.)
+        // reader waited the second cooldown out, so no reading found every writing provider dry. Through the real client
+        // the waits on one seat are bounded by `SEAT_WITHHOLD_ASKS`: the tally withholds the seat at the door after four
+        // asks that threw, so later slices ask nobody. The pin of a wait in every slice for a provider that is the only
+        // writing provider not dry is the seat reader's rig (`run-seats-cooldown-repeat.unit.test.ts`, Synthetic alone).
         expect(waitsIn({ lines: rig.lines, },).length,).toBeGreaterThan(0,);
       },
     },),
