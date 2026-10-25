@@ -23,6 +23,7 @@ import {
 import { createProviderBudgets, } from '@monochromatic-dev/translation-repair-provider';
 import { consoleLinesDuring, } from '@monochromatic-dev/translation-repair-provider/ts/neuralwatt-ledger.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
+import { unreadableQuotas, } from '@monochromatic-dev/translation-repair-provider/ts/unreadable-quotas.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { readPhaseSeats, } from '../../dist/final/node/index.mjs';
 
@@ -59,6 +60,12 @@ type Rig = {
    Refuses a call of Synthetic and reads the seats as the next slice would, letting the clock pass the hold meanwhile.
    */
   readonly refuseAndRead: (args: { readonly statedWaitMs?: number; },) => Promise<void>;
+
+  /**
+   Refuses Synthetic at once after each cooldown the reading waited out, as many times as the provider does in the
+   XingZ6020 shape.
+   */
+  readonly refuseAtOnceAfterEachCooldown: () => Promise<void>;
 
   /**
    The budgets the rig reads.
@@ -104,11 +111,7 @@ function rigOn({ sinon, }: { readonly sinon: DisposableSandbox; },): Rig & Dispo
    */
   const budgets = createProviderBudgets({
     maxHoldMs: TEST_MAX_HOLD_MS,
-    synthetic: {
-      quotas: function quotas(): Promise<never> {
-        return Promise.reject(new Error('Synthetic /quotas body violated expectations',),);
-      },
-    },
+    synthetic: { quotas: unreadableQuotas, },
     bedrock: {
       credits: function credits() {
         return Promise.resolve({
@@ -136,28 +139,47 @@ function rigOn({ sinon, }: { readonly sinon: DisposableSandbox; },): Rig & Dispo
     },
     providerHolds: budgets.holds,
   };
+  /**
+   Refuses Synthetic and reads the seats as the next slice would, letting the clock pass the hold meanwhile.
+
+   @param statedWaitMs - wait the refusal names for the provider's return, none when absent
+
+   @example
+   ```ts
+   await refuseAndRead({},);
+   ```
+   */
+  async function refuseAndRead({ statedWaitMs, }: { readonly statedWaitMs?: number; },): Promise<void> {
+    await budgets.markRefused({
+      provider: 'synthetic',
+      signal: SIGNAL,
+      ...((statedWaitMs === undefined) ? {} : { statedWaitMs, }),
+    },);
+    /**
+     The reading the next slice takes, started before the clock passes the hold.
+     */
+    const reading = readPhaseSeats({
+      client,
+      phase: 'translate lane',
+      signal: SIGNAL,
+      l: levelCapturingLogger({ lines, },),
+      pollMs: POLL_MS,
+    },);
+    await clock.tickAsync(COOLDOWN_MS + POLL_MS,);
+    // The reading's answer is not read, only what it said.
+    await reading;
+  }
+
   return {
     budgets,
     lines,
-    refuseAndRead: async function refuseAndRead({ statedWaitMs, },): Promise<void> {
-      await budgets.markRefused({
-        provider: 'synthetic',
-        signal: SIGNAL,
-        ...((statedWaitMs === undefined) ? {} : { statedWaitMs, }),
-      },);
-      /**
-       The reading the next slice takes, started before the clock passes the hold.
-       */
-      const reading = readPhaseSeats({
-        client,
-        phase: 'translate lane',
-        signal: SIGNAL,
-        l: levelCapturingLogger({ lines, },),
-        pollMs: POLL_MS,
-      },);
-      await clock.tickAsync(COOLDOWN_MS + POLL_MS,);
-      // The reading's answer is not read, only what it said.
-      await reading;
+    refuseAndRead,
+    refuseAtOnceAfterEachCooldown: async function refuseAtOnceAfterEachCooldown(): Promise<void> {
+      for (const _refusal of Array.from({ length: REFUSALS, },)
+        .keys()) {
+        // oxlint-disable-next-line no-await-in-loop -- each refusal follows the reading the cooldown ended
+        await refuseAndRead({},);
+      }
     },
     [Symbol.dispose]: function removeClock(): void {
       clock.restore();
@@ -195,13 +217,7 @@ await describe({
       fn: async ctx => {
         using rig = rigOn({ sinon: ctx.sinon, },);
         await consoleLinesDuring({
-          run: async function refuseAtOnceAfterEachCooldown(): Promise<void> {
-            for (const _refusal of Array.from({ length: REFUSALS, },)
-              .keys()) {
-              // oxlint-disable-next-line no-await-in-loop -- each refusal follows the reading the cooldown ended
-              await rig.refuseAndRead({},);
-            }
-          },
+          run: rig.refuseAtOnceAfterEachCooldown,
           sinon: ctx.sinon,
         },);
 
@@ -216,13 +232,7 @@ await describe({
         using rig = rigOn({ sinon: ctx.sinon, },);
         rig.budgets.beginEntry({ entryId: 'XingZ6020', },);
         const lines = await consoleLinesDuring({
-          run: async function refuseAtOnceAfterEachCooldown(): Promise<void> {
-            for (const _refusal of Array.from({ length: REFUSALS, },)
-              .keys()) {
-              // oxlint-disable-next-line no-await-in-loop -- each refusal follows the reading the cooldown ended
-              await rig.refuseAndRead({},);
-            }
-          },
+          run: rig.refuseAtOnceAfterEachCooldown,
           sinon: ctx.sinon,
         },);
 

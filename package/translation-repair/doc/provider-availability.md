@@ -193,23 +193,30 @@ and the seat reader waits that hold out when the provider's return would lift a 
 The wait is a guess that the provider comes back.
 XingZ6020 (2026-10-23) showed the guess failing.
 Synthetic was seated while its meter read `unreadable-treated-as-spendable`
-(its `/quotas` body carried no `weeklyTokenLimit` object, so the meter could not be read),
+(its `/quotas` body carried no `weeklyTokenLimit` object,
+so the meter could not be read),
 every call was refused with HTTP 429,
 and each refusal set a fresh 300 s cooldown.
 The first cycle in the log is the whole defect:
 the refusal at 00:29:00 UTC (line 19970),
-the wait of 267481 ms that began at 00:29:33 (line 20031),
-the seat line `waited=267481ms` at 00:34:02 (line 20133),
-the refusal at 00:34:14, twelve seconds after the wait ended (line 20260),
-and the next wait of 299850 ms at 00:34:18 (line 20355).
-The cycle ran every 5 min 17 s: 58 distinct minutes between 00:34 and 06:05 UTC carry a `waited=` of 240 to 300 s.
+the wait of 267481 ms that began at 00:29:33 UTC (line 20031),
+the seat line `waited=267481ms` at 00:34:02 UTC (line 20133),
+the refusal at 00:34:14 UTC,
+twelve seconds after the wait ended (line 20260),
+and the next wait of 299850 ms at 00:34:18 UTC (line 20355).
+The cycle ran every 5 min 17 s:
+58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s.
 
 The bound an entry carries (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`) never cut this loop.
-It narrows `passLeftMs`, and the budgets apply that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
+It narrows `passLeftMs`,
+and the budgets apply that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
 so a cooldown is waited for whatever the bound is and only the entry's own abort ends the waiting.
 
-A provider that refuses right after a cooldown ran out, with nothing served in between, is now given up for the entry.
-The budget layer (`provider-budget-refusal-holds.ts`) keeps, for each provider,
+A provider that refuses right after a cooldown ran out,
+with nothing served in between,
+is now given up for the entry.
+The budget layer (`provider-budget-refusal-holds.ts`) keeps,
+for each provider,
 the last hold a refusal set,
 when the provider last served (the router reports each call it served),
 and whether the entry gave the provider up.
@@ -218,29 +225,39 @@ the hold in force was a cooldown (a meter that did not say wet and a refusal tha
 that hold has ended,
 it ended after the entry began,
 and the provider has served nothing since it ended.
-Reading "nothing served since" off the router, and not off a time window, is the operational meaning of "waited out" here:
-a window would have to outlast the transport's retry ladder, whose length no measurement fixes.
+Reading "nothing served since" off the router,
+and not off a time window,
+is the operational meaning of "waited out" here:
+a window would have to outlast the transport's retry ladder,
+whose length no measurement fixes.
 A given-up provider reads dry to the router and to the seat reader until the entry ends,
 its cooldowns count for no wait,
 and the reader seats the other providers' seats without waiting.
 One warn line from `hold` says it:
 `synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between;
 entry <id> stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends`.
-Each attempt of an entry starts with nothing given up (`beginEntry`, called by `settleEntry`),
+Each attempt of an entry starts with nothing given up (`beginEntry`,
+called by `settleEntry`),
 so the next entry waits once and decides on its own evidence,
 and `beginEntry` writes an info line naming the providers it asks again.
 
 What the rule leaves alone:
-a hold that names its own return (a `Retry-After` header, a daily limit in the body),
+a hold that names its own return (a `Retry-After` header,
+a daily limit in the body),
 a payment refusal,
 NeuralWatt's day start,
 the quorum sizes of the benches,
 and the waits the benches take for the judges they count.
-A provider that served after its cooldown is waited for each time, however often it refuses later.
+A provider that served after its cooldown is waited for each time,
+however often it refuses later.
 
-The limit: when every other provider that writes reads dry too, the given-up provider was the last one left,
-and the seat reader refuses with every provider dry, which ends the run and says so in its stop line.
-Before, the entry waited a cooldown for every slice until its cap.
+The limit:
+when every other provider that writes reads dry too,
+the given-up provider was the last one left,
+and the seat reader refuses with every provider dry,
+which ends the run and says so in its stop line.
+Before,
+the entry waited a cooldown for every slice until its cap.
 The rule is the lead's of 2026-10-25 and is open to the owner's veto;
 the owner kept the gather quorums above two and the bench waits as they were the same day.
 The record is ledger B965.

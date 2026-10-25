@@ -16,7 +16,6 @@ export {
 export {
   createWaitCap,
   HoldBoundError,
-  holdEndsNever,
   noLevelBeforeReading,
   notHeldOut,
   spendableBeforeReading,

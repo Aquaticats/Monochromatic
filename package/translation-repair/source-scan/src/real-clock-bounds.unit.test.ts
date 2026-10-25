@@ -579,6 +579,16 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: SCRIPTED_CLOCK,
   },
+  'run/corpus-run/run-seats-cooldown-repeat.unit.test.ts#refuseAndRead: statedWaitMs: statedWaitMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
+  },
+  'run/corpus-run/run-seats-cooldown-repeat.unit.test.ts#refuseWithAReturnEachTime: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
   'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: STATED_HOLD_MS': {
     count: 1,
     bound: 'other',
@@ -596,6 +606,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: PURE_WAIT_CUT,
   },
   'provider/provider-budget-hold-cap.unit.test.ts#cappedBudgets: rateLimitBackoffMs: 1_000': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-cooldown-give-up.unit.test.ts#refuse: statedWaitMs: 600_000': {
     count: 1,
     bound: 'other',
     reason: SCRIPTED_CLOCK,

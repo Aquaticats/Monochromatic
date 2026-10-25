@@ -188,35 +188,52 @@ run two repeats through the real layers with a scripted transport and count the 
 ## A wait that buys the same refusal is not repeated
 
 What happened:
-XingZ6020 seated Synthetic while its meter read "unreadable, treating as spendable".
-Every call was refused, each refusal set a 300 s cooldown, and the seat reader waited the cooldown out for every slice
-and asked again, only to be refused at once:
+XingZ6020 seated Synthetic while its meter read "unreadable,
+treating as spendable".
+Every call was refused,
+each refusal set a 300 s cooldown,
+and the seat reader waited the cooldown out for every slice
+and asked again,
+only to be refused at once:
 a wait of 240 to 300 s in each of 58 distinct minutes across five and a half hours (ledger B965).
-The wait was written for a provider that comes back, and nothing in the loop asked whether this one had.
-Each wait looked reasonable when it started, and the bound the entry carried did not reach it,
+The wait was written for a provider that comes back,
+and nothing in the loop asked whether this one had.
+Each wait looked reasonable when it started,
+and the bound the entry carried did not reach it,
 because that bound filters one provider's return and a refusal cooldown is waited for whatever the bound is.
 
 The rule:
 a wait that is taken to see whether a provider comes back records what it bought.
-A provider that refused right after a wait it was given, with nothing served in between,
-has answered the question, and the next wait for it is not taken in that entry.
-The record is the layer's own evidence (the hold ended, the router reported nothing served, the provider refused),
-not a time window, since a window must outlast the retry ladder of the layer below it.
-A hold the refusal itself states, a payment refusal and a NeuralWatt day start are not guesses and are never given up.
-The record lives for the entry, so the next entry meets the provider fresh.
+A provider that refused right after a wait it was given,
+with nothing served in between,
+has answered the question,
+and the next wait for it is not taken in that entry.
+The record is the layer's own evidence (the hold ended,
+the router reported nothing served,
+the provider refused),
+not a time window,
+since a window must outlast the retry ladder of the layer below it.
+A hold the refusal itself states,
+a payment refusal and a NeuralWatt day start are not guesses and are never given up.
+The record lives for the entry,
+so the next entry meets the provider fresh.
 A loop that waits and asks again is bounded by what its waits bought,
 and by its entry's abort only as the last resort.
 
 What enforces it:
 `run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts` runs the real budgets and the real seat reader on one fake
-clock with a provider that refuses at once after each cooldown, and fails when the reader waits for more than the first.
+clock with a provider that refuses at once after each cooldown,
+and fails when the reader waits for more than the first.
 Its pins fail for three mutants:
-the served check removed, the entry-start check removed, and a stated return counted as a cooldown.
+the served check removed,
+the entry-start check removed,
+and a stated return counted as a cooldown.
 `provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves.
 No scan finds a loop that waits and asks again.
 
 How to find the next one:
-list every place the code waits for a provider, a hold or a window to end and then asks the same party again,
+list every place the code waits for a provider,
+a hold or a window to end and then asks the same party again,
 and for each ask what the code knows after the second refusal that it did not know before the first wait.
 A positive control comes first:
 script the party to refuse at once after every wait and count the waits on a fake clock.

@@ -21,6 +21,7 @@ import {
 import { consoleLinesDuring, } from './neuralwatt-ledger.test-fixture.ts';
 import { createProviderBudgets, } from '../dist/final/node/index.mjs';
 import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
+import { unreadableQuotas, } from './unreadable-quotas.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -49,11 +50,7 @@ function budgetsOn(
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
     maxHoldMs: TEST_MAX_HOLD_MS,
-    synthetic: {
-      quotas: function quotas(): Promise<never> {
-        return Promise.reject(new Error('Synthetic /quotas body violated expectations',),);
-      },
-    },
+    synthetic: { quotas: unreadableQuotas, },
     hyper: {
       credits: function credits() {
         return Promise.resolve({ balance: 243, },);

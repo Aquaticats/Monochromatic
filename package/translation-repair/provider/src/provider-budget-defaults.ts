@@ -214,20 +214,6 @@ export type StatedWait = {
 const l = contextRoot({ tag: 'translation-repair', },);
 
 /**
- The end of a refusal hold before any refusal: never.
-
- @returns Zero, the stamp for no hold
-
- @example
- ```ts
- const heldUntil = providerRecord({ of: holdEndsNever, },);
- ```
- */
-export function holdEndsNever(): number {
-  return 0;
-}
-
-/**
  Builds the cut that keeps a wait a refusal states for itself inside the longest hold a run can use.
 
  @param maxHoldMs - longest hold a wait may be cut to
