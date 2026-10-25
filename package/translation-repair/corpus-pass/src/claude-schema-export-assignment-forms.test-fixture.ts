@@ -22,7 +22,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 export const EXPORT_ASSIGNMENT_CASES: readonly ShapeCase[] = [
   {
     name: 'LISTS THE FILE THAT CALLS A FORWARDER A FILE EXPORTS WITH `export =` AND BRINGS IN WITH '
-      + '`import x = require(path)`, since the name the caller binds stands for the forwarder',
+      + '`import x = require(path)`, since the name the caller binds stands for the forwarder, and reports the path of '
+      + 'the import as it does for a module that carries a builder',
     files: [
       SENDER_FILE,
       {
@@ -49,7 +50,14 @@ export const EXPORT_ASSIGNMENT_CASES: readonly ShapeCase[] = [
       'imaginary/src/assignment-stage.ts',
     ],
     builders: [],
-    spots: [],
+    spots: [
+      {
+        file: 'imaginary/src/assignment-caller.ts',
+        line: 1,
+        shape: 'module-path-outside-a-load',
+        position: 'TSExternalModuleReference.expression',
+      },
+    ],
   },
   {
     name: 'LISTS THE FILE THAT CALLS A FORWARDER A FILE EXPORTS WITH `export =` AND BRINGS IN AS ITS DEFAULT, since a '

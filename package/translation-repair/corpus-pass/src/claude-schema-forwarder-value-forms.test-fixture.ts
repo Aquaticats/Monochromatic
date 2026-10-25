@@ -247,6 +247,35 @@ function passedCase(
 }
 
 /**
+ A case with one more report: the caller file reads a member of the default import of a stage file that exports an
+ object, which the search records no default for, as it reports the same read of a module that carries a builder.
+
+ @param shapeCase - case whose caller imports the stage file as a default and calls a member of it
+
+ @returns Case with the report of the caller added
+
+ @example
+ ```ts
+ const held = heldCase({ name: 'x', lines: [], call: 's.mk(1,)', imported: 's', position: '', line: 6, },);
+ const reported = withDefaultMemberSpot({ shapeCase: held, },);
+ ```
+ */
+function withDefaultMemberSpot({ shapeCase, }: { readonly shapeCase: ShapeCase; },): ShapeCase {
+  return {
+    ...shapeCase,
+    spots: [
+      ...shapeCase.spots,
+      {
+        file: 'imaginary/src/value-caller.ts',
+        line: 2,
+        shape: 'module-binding-outside-a-read-position',
+        position: 'member of a default the module does not export',
+      },
+    ],
+  };
+}
+
+/**
  Cases of a forwarder read in a place that is no call.
  */
 export const FORWARDER_VALUE_CASES: readonly ShapeCase[] = [
@@ -275,21 +304,27 @@ export const FORWARDER_VALUE_CASES: readonly ShapeCase[] = [
     position: 'ArrayExpression.elements',
     line: 6,
   },),
-  heldCase({
-    name: 'REPORTS A FORWARDER HELD BY AN OBJECT THAT AN EXPORT ASSIGNMENT EXPORTS',
-    lines: ['export = { mk, };',],
-    call: `s.mk(${VALUE_ARGUMENTS},)`,
-    imported: 's',
-    position: 'Property.value',
-    line: 6,
+  withDefaultMemberSpot({
+    shapeCase: heldCase({
+      name: 'REPORTS A FORWARDER HELD BY AN OBJECT THAT AN EXPORT ASSIGNMENT EXPORTS, and the caller that reads a '
+        + 'member of the default import',
+      lines: ['export = { mk, };',],
+      call: `s.mk(${VALUE_ARGUMENTS},)`,
+      imported: 's',
+      position: 'Property.value',
+      line: 6,
+    },),
   },),
-  heldCase({
-    name: 'REPORTS A FORWARDER HELD BY AN OBJECT THAT THE DEFAULT EXPORT IS',
-    lines: ['export default { mk, };',],
-    call: `s.mk(${VALUE_ARGUMENTS},)`,
-    imported: 's',
-    position: 'Property.value',
-    line: 6,
+  withDefaultMemberSpot({
+    shapeCase: heldCase({
+      name: 'REPORTS A FORWARDER HELD BY AN OBJECT THAT THE DEFAULT EXPORT IS, and the caller that reads a member of '
+        + 'the default import',
+      lines: ['export default { mk, };',],
+      call: `s.mk(${VALUE_ARGUMENTS},)`,
+      imported: 's',
+      position: 'Property.value',
+      line: 6,
+    },),
   },),
   heldCase({
     name: 'REPORTS A FORWARDER HELD BY A CONSTANT OBJECT THAT IS EXPORTED BY NAME LATER',

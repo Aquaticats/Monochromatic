@@ -130,7 +130,7 @@ export const SCOPE_PIN_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'LISTS THE FILE THAT CALLS A FORWARDER THROUGH A MEMBER OF A MODULE BROUGHT IN WITH `import x = '
-      + 'require(path)`',
+      + 'require(path)`, and reports the path of the import as it does for a module that carries a builder',
     files: [
       SENDER_FILE,
       FORWARDER_STAGE,
@@ -147,7 +147,14 @@ export const SCOPE_PIN_CASES: readonly ShapeCase[] = [
       'imaginary/src/scope-stage.ts',
     ],
     builders: [],
-    spots: [],
+    spots: [
+      {
+        file: 'imaginary/src/scope-caller.ts',
+        line: 1,
+        shape: 'module-path-outside-a-load',
+        position: 'TSExternalModuleReference.expression',
+      },
+    ],
   },
   {
     name: 'REPORTS A CONSTANT A FILE EXPORTS WITH `export =` WHEN ANOTHER FILE HANDS A MEMBER OF IT TO A CALL THAT IS '
