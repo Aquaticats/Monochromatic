@@ -76,6 +76,11 @@ const RESEATED: readonly RosterModelId[] = [
 const REPEATING = '## 猫之歌\n\n小猫唱了《猫之歌》。\n';
 
 /**
+ Original repeating two titles the archive does not pair.
+ */
+const REPEATING_TWO = `${REPEATING}\n## 鱼之舞\n\n小猫跳了《鱼之舞》。\n`;
+
+/**
  Original naming a title once.
  */
 const ONCE = '小猫唱了《猫之歌》。\n';
@@ -105,6 +110,7 @@ function titleClient(
     asked,
     usable,
     answering,
+    renderingsBySeat,
   }: {
     readonly asked: RosterModelId[];
     readonly usable: boolean;
@@ -113,6 +119,12 @@ function titleClient(
      The only seats whose replies read, every seat when absent.
      */
     readonly answering?: readonly RosterModelId[];
+
+    /**
+     The renderings a seat gives, by title number from one, for a seat that
+     names its own; every other seat renders the first title alike.
+     */
+    readonly renderingsBySeat?: Readonly<Partial<Record<RosterModelId, readonly string[]>>>;
   },
 ): ModelClient {
   return {
@@ -122,9 +134,17 @@ function titleClient(
     chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
       asked.push(request.modelId,);
       /**
-       Every seat's reply.
+       This seat's reply: its own renderings where it names them, the one title alike otherwise.
        */
-      const value: unknown = { titles: [{ title: 1, rendering: 'Song of the Cat', },], };
+      const value: unknown = {
+        titles: (renderingsBySeat?.[request.modelId] ?? ['Song of the Cat',])
+          .map(function titled(
+            rendering,
+            at,
+          ) {
+            return { title: at + 1, rendering, };
+          },),
+      };
       return (usable && ((answering === undefined) || answering.includes(request.modelId,)) && request.validate(value,))
         ? { kind: 'ok', value, rawText: JSON.stringify(value,), }
         : { kind: 'schema-mismatch', rawText: '{}', detail: 'fixture refuses the sheet', };
@@ -191,12 +211,14 @@ async function lexiconRun(
     resumed,
     reseat,
     answering,
+    renderingsBySeat,
   }: {
     readonly sourceText: string;
     readonly usable: boolean;
     readonly resumed: ReadonlyMap<string, PageTitleLexiconRecord>;
     readonly reseat: boolean;
     readonly answering?: readonly RosterModelId[];
+    readonly renderingsBySeat?: Readonly<Partial<Record<RosterModelId, readonly string[]>>>;
   },
 ) {
   /**
@@ -220,6 +242,7 @@ async function lexiconRun(
       usable,
       // Conditional spread keeps the field absent where every seat answers.
       ...((answering === undefined) ? {} : { answering, }),
+      ...((renderingsBySeat === undefined) ? {} : { renderingsBySeat, }),
     },),
     modelIds: ROSTER,
     beforeItem: async (): Promise<BenchSeating> => {
@@ -397,6 +420,121 @@ await describe({
               askedAny: true,
               lines: [],
               stored: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when both seats answered and split one against one, since no title settled and a '
+            + 'round that leaves a title unsettled is no answer (the lead\'s ruling on re-check 3, Q1): a later run '
+            + 'on a fuller bench asks again instead of resuming the split',
+          fn: async () => {
+            /**
+             Round where the two seats render the one title differently.
+             */
+            const split = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: ['Song of the Cat',],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: ['The Cat Song',],
+              },
+            },);
+            /**
+             The next run, resuming whatever the split round stored.
+             */
+            const next = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: readBack({ persisted: split.persisted, },),
+              reseat: false,
+            },);
+            expect({
+              askedAny: split.asked.length > 0,
+              lines: split.added.lines,
+              stored: split.persisted.size,
+              nextAsksAgain: next.asked.length > 0,
+            },).toEqual({
+              askedAny: true,
+              lines: [],
+              stored: 0,
+              nextAsksAgain: true,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES NOTHING when one title of two settled and the other split, but still carries the settled '
+            + 'title in this run\'s lines: a round is stored only when every title it asked is settled',
+          fn: async () => {
+            /**
+             Round where both seats agree on the first title and split on the second.
+             */
+            const partial = await lexiconRun({
+              sourceText: REPEATING_TWO,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: [
+                  'Song of the Cat',
+                  'The Fish Dance',
+                ],
+              },
+            },);
+            expect({
+              carriesSettled: partial.added.lines.some(function names(line,): boolean {
+                return line.startsWith('- 猫之歌',) && line.includes('"Song of the Cat"',);
+              },),
+              carriesSplit: partial.added.lines.some(function names(line,): boolean {
+                return line.startsWith('- 鱼之舞',);
+              },),
+              stored: partial.persisted.size,
+            },).toEqual({
+              carriesSettled: true,
+              carriesSplit: false,
+              stored: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'STORES THE ROUND when both titles settled on two voices apiece, which is the control for the '
+            + 'two cases above: the assertion has to be reading whether every title settled and not whether the '
+            + 'round heard enough voices',
+          fn: async () => {
+            /**
+             Round where both seats agree on both titles.
+             */
+            const agreed = await lexiconRun({
+              sourceText: REPEATING_TWO,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              renderingsBySeat: {
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+                [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: [
+                  'Song of the Cat',
+                  'Dance of the Fish',
+                ],
+              },
+            },);
+            expect({
+              titleLines: agreed.added.lines
+                .filter(function isTitleLine(line,): boolean {
+                  return line.startsWith('- ',);
+                },)
+                .length,
+              stored: agreed.persisted.size,
+            },).toEqual({
+              titleLines: 2,
+              stored: 1,
             },);
           },
         },),
