@@ -279,7 +279,7 @@ export function breakRunoffTie<ValueT,>(
    slate order breaking equal preference: the preference ranks only what a
    judge pair backed (owner, 2026-10-25, "Two judges must name it").
    */
-  const [first,] = rankedByPreference({
+  const [chosen,] = rankedByPreference({
     finalists: tied
       .filter(function namedByTwoJudges(drawn,): boolean {
         return drawn.ballots >= MIN_SELECTION_BALLOTS;
@@ -296,12 +296,8 @@ export function breakRunoffTie<ValueT,>(
   // No tied candidate drew two ballots: the order would ship a candidate no
   // judge pair backed, so nothing ships by it and the caller keeps the wording
   // in place, or raises the absence where there is none.
-  if (first === undefined)
+  if (chosen === undefined)
     return { kind: 'unbroken', };
-  /**
-   The preferred finalist two judges named.
-   */
-  const chosen = first;
   return {
     kind: 'broken',
     index: chosen.index,
