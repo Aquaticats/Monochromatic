@@ -4438,8 +4438,25 @@ Cleaned: agent worktree and branches, `~/temp/agent/fd`, scratch trees.
 Started 2026-10-25, a verification-only agent (scratch `~/temp/agent/final`) on the installed `d9f48256d152b429…`:
 repeats the five-press, 88-click, line 96 gap and request-count checks, and records the open case in the real window:
 at least 20 resets of a slice list to another row count (code tile and minimap, from the new debug log lines) on a
-1,500-line TypeScript file, with the blank frames within 300 ms after each. Next action: record its numbers here,
-remove `~/temp/agent/final` and its disposable projects, and if a blank code frame shows, fix it at the cause.
+1,500-line TypeScript file, with the blank frames within 300 ms after each.
+Result (installed `d9f48256d152b429…`, hardware RX 7600 confirmed in every run log, load average 13 to 70, recorder
+21.6 to 26.0 fps against 60 requested, 0 dropped):
+five-press code means 0.510 to 0.5107 in the drawn band 0.5088 to 0.5139 in every run (none blank; the exact numbers
+differ from the earlier project because the disposable project differs: stubbed workspace imports, no `@types/node`,
+so inline TS2591 and TS2339 diagnostics shift the grey); one run began with two fully undrawn frames (nothing presented
+yet at load 20 to 28, not a blank code column with a drawn gutter);
+88-click recordings of 843, 878 and 832 frames: 0 blank code frames, 0 blank minimap frames, the gap above line 96
+82 px in all 119 frames of the one corrected run (the first two analyses matched line 196 by mistake and are discarded),
+requests 1 plus 1 skip (the request logs `first_line=214`, the skip 223), then 0 plus 1 skip, twice;
+count-changing resets of the code tile in the real window: 83 over two runs (1 to 2 and 2 to 1, 42 and 41), none for the
+minimap list; 80 of them had 0 blank code frames within 540 ms (Ctrl+End 24 events, Ctrl+Home 7, minimap clicks 24,
+switches 4, launch 1); the 3 windows with blank code frames each followed a wheel of 150 or 300 notches
+(c3-1: 2 whole-area blank frames 0.2 s after a 300-notch wheel and a 1 to 2 reset; c3-2: frame 3173 after a 150-notch
+wheel and a reset, frames 3335 and 3336 after a 300-notch wheel with no count change, whole area blank, gutter included).
+Minimap: 1 to 3 blank frames after Ctrl+End or Ctrl+Home (27 runs of 34), 1 to 2 at file switches, one run of 4 frames
+after Page Down, none at minimap clicks, none from a minimap list reset (there were none).
+Not established: whether those far-wheel blank frames are the old late-tile behaviour or new; an agent compares them
+with older installed builds. Evidence tables stay in `~/temp/agent/final` until that agent ends.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
