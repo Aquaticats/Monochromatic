@@ -145,8 +145,12 @@ The class was added to the marked classes of `source-scan/src/message-names-only
   the stops and the repeat reading are over those rows.
 - The row check fails an arm that has any:
   `N of M rows were answered by prompt reuse and made no call, so none of them is a trial`.
-  The billed log now fails it with 62 of 150, shares 88 units and reads no repeat of its replays.
-- The README's launch, `n`, stop rule and pre-launch blocks take the `PROMPT-REUSE source=` lines of the high log
+  The billed log now fails it with 62 of 150 rows,
+  shares 88 units
+  and reads no repeat of its replays.
+- The README's launch block,
+  `n` block,
+  stop rule and pre-launch block take the `PROMPT-REUSE source=` lines of the high log
   off the number the `TRIALS` line gives.
   The build of this round writes none (an arm that gets one ends),
   so the number taken off is 0 for its logs and exact for a log of an earlier build.
@@ -154,19 +158,25 @@ The class was added to the marked classes of `source-scan/src/message-names-only
 
 ### The six nits of re-check 7
 
-1. The 0.0553 reading, in the section "The 0.0553 reading, corrected".
-2. The TSDoc of `repeatLinesOf` says an exact test finds the arm under another, at the level the warning prints.
+1. The 0.0553 reading has the next section.
+2. The TSDoc of `repeatLinesOf` says an exact test finds the arm under another,
+   at the level the warning prints.
 3. `REPEAT_ALPHA` and its denominator in whole numbers state one fact twice:
    the TSDoc says so and a case holds the two together.
 4. The README no longer cites `dryrun-r7.txt`.
 5. The counts and the wording "rounds 8 and 9" of the round 10 file.
-6. The README gives the correlation 0.5 figures (3, 0 and 0 of 6000 at 150 units)
-   and says that the 11 benches are 11 of 80000, four of them at the true rate 0.90.
+6. The README gives the correlation 0.5 figures
+   (3,
+   0 and 0 of 6000 at 150 units)
+   and says that the 11 benches are 11 of 80000,
+   four of them at the true rate 0.90.
 
 ### The 0.0553 reading, corrected
 
-Round 10 called the cell (fix rate 0.9, repeat agreement 0, correlation 1, 176 units) 1.5 standard deviations over 0.05
-and within noise.
+Round 10 called the cell 1.5 standard deviations over 0.05 and within noise.
+The cell is a fix rate of 0.9,
+a repeat agreement of 0,
+a correlation of 1 and 176 units.
 Re-check 7 ran the same cell at 30000 replicates (seed prefix `edrc7`):
 0.0535 at 176 units and 0.0488 at 264.
 Pooled with the 4000 of round 10 it reads 0.0537 over 34000 replicates at 176 units,
@@ -174,9 +184,15 @@ about three standard deviations over 0.05.
 So the false alarm rate of the exact repeat warning is about 0.054 in that cell,
 where the trials of one entry read as alike as the model allows and are not independent draws.
 Three contrast cells at 176 units read under 0.05:
-0.0296 (fix rate 0.9, agreement 0, correlation 0),
-0.0430 (fix rate 0.7, agreement 0, correlation 1)
-and 0.0379 (fix rate 0.9, agreement 0.5, correlation 1).
+0.0296 (fix rate 0.9,
+agreement 0,
+correlation 0),
+0.0430 (fix rate 0.7,
+agreement 0,
+correlation 1)
+and 0.0379 (fix rate 0.9,
+agreement 0.5,
+correlation 1).
 The README and `probe/doc/editor-fidelity-decision-rule-simulations.md` say so,
 and the noise reading is gone.
 The frozen rule text states the bound for independent draws and so stays true.
@@ -188,22 +204,44 @@ Each red commit fails for the reason given,
 and the failing lines of each are in the round's scratch directory
 (`editor-fidelity-r11/red*-failing-lines.txt`).
 
-- Ruling 1, red `e21000f7d791396c7aa97d87dacf3174289ef38a`
-  (stage: the reuse in memory and in the durable store and the digest pin, 4 failing lines;
-  probe run: the end-to-end run through the real reuse layer and its payload store, 3;
-  client: the real route, 3;
-  the pass scope file did not load, 1),
-  fix `3b2294553994855ee731f81da512d486723af337`.
-- Rulings 2 and 3, red `43c5203919ae5c13e1364b0757c31f682c90db3a`
-  (guard: 4 failing lines, probe run: 3),
-  fix `394d1e651a379359f84d9c9dffa0a583f6f94c59`.
-- The meter pin, no red: `baef63bf1cc4df5981994e33fe0bd0afd77b9dee`.
-- Ruling 4, red `9c8974d3a4a74353645e810d53cf62a495332109` (5 failing lines),
-  fix `bbfb98d8ca8a44e462a76226b52a86d3f07496ff`.
-- Nits 2 and 3: `fe4e278399a8b8007896c61ad97aba963ac35fdd`
-  (the pinning case passes at the parent commit; it pins behavior the TSDoc change keeps).
-- The README and the simulations doc, nits 1, 4 and 6 and the runbook blocks:
+- Ruling 1,
+  red `e21000f7d791396c7aa97d87dacf3174289ef38a`:
+  4 failing lines for the stage cases (reuse in memory,
+  reuse in the durable store and the digest pin),
+  3 for the probe run through the real reuse layer and its payload store,
+  3 for the real route of the client,
+  and 1 for the pass scope file,
+  which did not load.
+  Fix `3b2294553994855ee731f81da512d486723af337`.
+- Rulings 2 and 3,
+  red `43c5203919ae5c13e1364b0757c31f682c90db3a`:
+  4 failing lines for the guard and 3 for the probe run.
+  Fix `394d1e651a379359f84d9c9dffa0a583f6f94c59`.
+- The meter pin,
+  no red:
+  `baef63bf1cc4df5981994e33fe0bd0afd77b9dee`.
+- Ruling 4,
+  red `9c8974d3a4a74353645e810d53cf62a495332109` with 5 failing lines.
+  Fix `bbfb98d8ca8a44e462a76226b52a86d3f07496ff`.
+- Nits 2 and 3:
+  `fe4e278399a8b8007896c61ad97aba963ac35fdd`.
+  The pinning case passes at the parent commit,
+  because it pins behavior the TSDoc change keeps.
+- The README and the simulations doc,
+  nits 1,
+  4 and 6,
+  and the runbook blocks:
   `94ba1c2e46e448fef2605d0741f2bfd2f688be5a`.
+- A comment in place of a TSDoc before a return in a test:
+  `3b209834c67a5eaa6430204cb230a3b5265c96a4`.
+- The ledger,
+  the prevention line and the corrected figure:
+  `ab17dcbf7478a6776561fb9d2924d2b9a3ca5ba3`.
+- Lines broken for the Markdown linter,
+  and the README brought back under its bound of 1000 lines:
+  `1dba616f89e67b71c1ba18e054caed921021188b`,
+  `fe66608549b2c300e0c9067fb108988d23541bff`
+  and the commit that follows them.
 
 ### The round 11 cache statement
 
@@ -211,9 +249,12 @@ and the failing lines of each are in the round's scratch directory
 The same search over `c265e8df95~1..c265e8df95` lists `c265e8df9525f4513b8229482d3e8d932ea630df`,
 so the search can show a hit.
 
-This round adds an optional request field that is never sent and that changes no digest of a request without it,
-changes the probe's guard, run and read step,
-and changes no reply, key or cache record.
+This round adds an optional request field that is never sent
+and that changes no digest of a request without it.
+It changes the probe's guard,
+run and read step,
+and changes no reply,
+key or cache record.
 No cache version moves.
 
 ### Prevention

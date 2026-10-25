@@ -336,7 +336,7 @@ The README held 944 lines and would have held 1064.
 The prose after the rule quote moved to `probe/doc/editor-fidelity-decision-rule-simulations.md`
 (204 lines when written,
 212 when re-check 7 read it,
-223 after round 11),
+233 after round 11),
 the README keeps the figures of this round in a short list and links the doc,
 and stands at 972 lines (999 after round 11).
 The README quote of the rule equals `decisionRuleText()` of the built package (4249 characters each,

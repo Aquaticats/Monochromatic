@@ -123,10 +123,19 @@ which hold 12,
   about three standard deviations over 0.05.
   The false alarm rate of the warning is about 0.054 in that cell,
   and below 0.05 in the three other cells re-check 7 took beside it,
-  at 176 units: 0.0296 (fix rate 0.9, agreement 0, correlation 0),
-  0.0430 (fix rate 0.7, agreement 0, correlation 1) and 0.0379 (fix rate 0.9, agreement 0.5, correlation 1).
-  The frozen `RULE` line says the chance is held at or under 0.05 counting the trials of an arm as independent draws,
-  which is a statement about independent draws, and the trials of this cell are not.
+  at 176 units:
+  0.0296 (fix rate 0.9,
+  agreement 0,
+  correlation 0),
+  0.0430 (fix rate 0.7,
+  agreement 0,
+  correlation 1)
+  and 0.0379 (fix rate 0.9,
+  agreement 0.5,
+  correlation 1).
+  The frozen `RULE` line says the chance is held at or under 0.05 counting the trials of an arm as independent draws.
+  That is a statement about independent draws,
+  and the trials of this cell are not.
 - The default effort repeating itself less than high and low,
   which repeat on every trial,
   by 15 and by 30 points of repeat agreement (fix rates 0.5,
@@ -182,7 +191,8 @@ correlation 1,
   and on 3,
   0 and 0 of 6000 at 150 units at 0.91,
   0.92 and 0.93.
-- Of the 11 benches in all that printed neither warning (11 of 80000, over 16 cells,
+- Of the 11 benches in all that printed neither warning
+  (11 of 80000 over 16 cells,
   four of them at the true rate 0.90 where the rule's own bound holds),
   one picked high or low,
   which is too few to state a chance.
