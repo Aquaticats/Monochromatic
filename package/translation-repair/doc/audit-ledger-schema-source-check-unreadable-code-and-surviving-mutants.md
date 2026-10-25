@@ -138,7 +138,8 @@ Follow-up of fix round 19
   and another file could take the constructor of a function from it.
   An export from another module names an export of that module and is not the global object.
 - Code made from text is told by `process.getBuiltinModule` with the specifier of `vm` as a literal,
-  and by `Object.getOwnPropertyDescriptor` and `Reflect.getOwnPropertyDescriptor` with the string `constructor` as the key.
+  and by `Object.getOwnPropertyDescriptor` and `Reflect.getOwnPropertyDescriptor`
+  with the string `constructor` as the key.
   A method of `Reflect` read through an alias
   (`const R = Reflect; R.get(f, "constructor")`)
   is not told.
@@ -403,6 +404,24 @@ Follow-up of fix round 19
   RK37
   and RK40),
   and G20 is the limit that a method of `Reflect` read through an alias is not told.
+- `origin/main` at `b6927f7ba93f5139fa0605ef160c6f44c60fa32d` is merged
+  (`ad9daff2a2c0816ec7abf8811a669d91290ede21`).
+  The only conflict is the index of entries by id,
+  where both lists stay:
+  B864 to B869 of this branch first,
+  then B870 to B893,
+  B894 to B899,
+  the follow-ups of B899,
+  B920 and B921 of `origin/main`.
+  On the merged head the family has 1689 sources,
+  the check gives the one named report,
+  and the search lists the same 15 forwarders.
+  In corpus-pass `build`,
+  `lint:types` and `lint:oxlint` (0 warnings,
+  0 errors) pass,
+  and `test:unit` has 220 markers of pass and none of fail.
+  In source-scan `test:unit` has 68 markers of pass and `source-scans` has 53,
+  with none of fail in either.
 - The lines of the files `claude-schema*` that passed 120 columns are wrapped
   (`14fcc71ef1c66385a9403ac3026ddcf547bbe52e`),
   and a doc tag with an article is fixed
@@ -518,6 +537,22 @@ Records corrected in fix round 19:
   The code reported the specifier of an `import type` of `vm`,
   and `564f767ad50507e70a91bd09b3c1d8c148d458c9` makes the code agree (follow-up of fix round 19 in B868).
 - Present-tense counts of the real sources in B864 and B869 (1579) are dated to the commits that measured them.
+
+Cache versions in fix round 19:
+none moved.
+The search over `6b7244fbb8d243387b3a9ed6ccbecae3bac420fe..ad9daff2a2c0816ec7abf8811a669d91290ede21`
+for `package/translation-repair` prints nothing,
+although the range spans the merge of `origin/main` with 247 of its commits:
+
+```sh
+# package/translation-repair, over 6b7244fbb8..ad9daff2a2
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
+  6b7244fbb8d243387b3a9ed6ccbecae3bac420fe..ad9daff2a2c0816ec7abf8811a669d91290ede21 \
+  -- package/translation-repair
+```
+
+The same search over `c265e8df95~1..c265e8df95` prints `c265e8df9525f4513b8229482d3e8d932ea630df`,
+so the search can print.
 
 Recurrence:
 `mistake-prevention-guards-searches-and-claims.md`,

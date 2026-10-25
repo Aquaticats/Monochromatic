@@ -713,7 +713,8 @@ Follow-up of fix round 19
   A case holds the first,
   and a second case holds that a value no name of the parameters reaches lists nothing.
   No case holds the second.
-- A callback written as a name is read as the function the file declares only when no scope around it binds the name again
+- A callback written as a name is read as the function the file declares
+  only when no scope around it binds the name again
   (red `7c71cccda8146b66e556c9e541551428445ff68b`,
   fix `512d81f6008e58d15254de0bd41593b3215b929d`):
   a parameter,
@@ -725,7 +726,8 @@ Follow-up of fix round 19
   `import U = A.FORMAT` read a member of a namespace through a node that is no member expression,
   so a constant that the module exports and the declaration reads was never followed.
   Its first name is a reference now,
-  and the constant is reported at the declaration whether `A` comes from `import * as A` or from `import A = require(path)`,
+  and the constant is reported at the declaration
+  whether `A` comes from `import * as A` or from `import A = require(path)`,
   and whether the declaration is exported.
   `import B = A` was reported already.
 - A function written as an argument of a method that is none of the eight is reported
