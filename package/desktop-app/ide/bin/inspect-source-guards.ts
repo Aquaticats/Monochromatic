@@ -561,7 +561,7 @@ const cases: Guard[] = [
   // Native bindings: key filters, the column reset, caret room, drag selection, and focus stops.
   {
     name: 'alt-is-not-a-caret-key',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        if alt {\n            return;\n        }',
     after: '',
     native: true,
@@ -570,7 +570,7 @@ const cases: Guard[] = [
   },
   {
     name: 'control-vertical-unbound',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '            && !control\n',
     after: '',
     native: true,
@@ -579,7 +579,7 @@ const cases: Guard[] = [
   },
   {
     name: 'horizontal-resets-column',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '            column = None;\n',
     after: '',
     native: true,
@@ -588,7 +588,7 @@ const cases: Guard[] = [
   },
   {
     name: 'selection-collapse-left',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: 'if !shift && start != end && motion == Motion::Left {',
     after: 'if false {',
     native: true,
@@ -597,7 +597,7 @@ const cases: Guard[] = [
   },
   {
     name: 'selection-collapse-right',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '} else if !shift && start != end && motion == Motion::Right {',
     after: '} else if false {',
     native: true,
@@ -606,7 +606,7 @@ const cases: Guard[] = [
   },
   {
     name: 'page-keys-move-view',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '                scrolled = down_pixels;\n',
     after: '',
     native: true,
@@ -624,7 +624,7 @@ const cases: Guard[] = [
   },
   {
     name: 'caret-follow',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        follow(&window, &state, scrolled);',
     after: '        render(&window, &state);',
     native: true,
@@ -1008,7 +1008,7 @@ const cases: Guard[] = [
   // Soft wrap keys and pointer in the window.
   {
     name: 'key-end-follows-rows',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '        return Some(Edge::End);\n',
     after: '        return None;\n',
     native: true,
@@ -1017,7 +1017,7 @@ const cases: Guard[] = [
   },
   {
     name: 'page-by-visual-rows',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: '(up as isize, down as isize)',
     after: '(up as isize, 1)',
     native: true,
@@ -1026,7 +1026,7 @@ const cases: Guard[] = [
   },
   {
     name: 'word-keys-by-offset',
-    file: 'src/native/input.rs',
+    file: 'src/native/caret_keys.rs',
     before: 'modified = Some(Motion::WordRight);',
     after: 'modified = Some(Motion::Right);',
     native: true,
@@ -2557,6 +2557,20 @@ const cases: Guard[] = [
     failure: 'a tick of a view that stood still started the rest again'
   },
   {
+    name: 'measure-rounds-capped',
+    file: 'src/native/render/measure.rs',
+    before: 'const ROUNDS: usize = 64;',
+    after: 'const ROUNDS: usize = 3;',
+    also: [{
+      file: 'src/native/render/measure.rs',
+      before: '                rows::absorb(current, measured.lines);\n                true',
+      after: '                let _ = measured;\n                true'
+    }],
+    native: true,
+    test: 'a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines',
+    failure: 'lines of the tile keep a stale height'
+  },
+  {
     name: 'hover-text-change-ignored',
     file: 'src/native/language/pointer.rs',
     before: '        let text_changed = view.text != seen.text;',
@@ -2591,6 +2605,70 @@ const cases: Guard[] = [
     native: true,
     test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
     failure: 'a tick of a view that stood still started the rest again'
+  },
+  {
+    name: 'pointer-log-line-from-zero',
+    file: 'src/native/pointer_log.rs',
+    before: '    return (line + 1, hit.saturating_sub(line_start));',
+    after: '    return (line, hit.saturating_sub(line_start));',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'the press record named the line counted from 0, not as the gutter counts it'
+  },
+  {
+    name: 'pointer-log-press-drawn-offset',
+    file: 'src/native/pointer_log.rs',
+    before: '        drawn_offset = point.window.get_drawn_offset(),',
+    after: '        drawn_offset = -point.window.get_scroll_y(),',
+    occurrence: 0,
+    native: true,
+    test: 'the_logged_line_is_the_line_the_logged_offset_and_point_name',
+    failure: 'the press record carried the real offset where the drawn offset belongs'
+  },
+  {
+    name: 'pointer-maps-through-real-offset',
+    file: 'ui/app.slint',
+    before: '        return (pointer-y - root.hold-shift) / 1px;',
+    after: '        return pointer-y / 1px;',
+    native: true,
+    test: 'the_logged_line_is_the_line_the_logged_offset_and_point_name',
+    failure: 'a press on a held view named the line of the real offset, not the line drawn under the pointer'
+  },
+  {
+    name: 'pointer-maps-through-moment-offset',
+    file: 'src/native/input.rs',
+    before: '    return y - window.get_drawn_offset() + shown;',
+    after: '    return y;',
+    native: true,
+    test: 'a_press_names_the_row_of_the_frame_that_was_shown',
+    failure: 'a press named the row of the offset of the moment it was handled, not the row of the frame the person saw'
+  },
+  {
+    name: 'pointer-shown-offset-unset',
+    file: 'src/native/gpu_tile.rs',
+    before: '                shown.set(Some(active.get_drawn_offset()));',
+    after: '                shown.set(None);',
+    native: true,
+    test: 'a_press_names_the_row_of_the_frame_that_was_shown',
+    failure: 'the frame did not record the offset it was drawn at'
+  },
+  {
+    name: 'pointer-log-drag-start-never',
+    file: 'src/native/input.rs',
+    before: '        let first = !pressed.dragged;',
+    after: '        let first = false;',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'no move was written as the drag start'
+  },
+  {
+    name: 'pointer-log-release-silent',
+    file: 'src/native/pointer_log.rs',
+    before: '        "source pointer release"',
+    after: '        "source pointer released"',
+    native: true,
+    test: 'a_press_a_drag_and_a_release_name_the_line_they_selected',
+    failure: 'the release wrote no record of the line it went up on'
   },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.

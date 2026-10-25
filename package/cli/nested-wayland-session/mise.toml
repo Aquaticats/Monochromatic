@@ -2249,6 +2249,30 @@ await check('static session: GPU dmabuf, two screenshots, input, a changed scree
   }
 })
 
+await check('windows lists a toplevel only once it takes pointer input: the wheel sent at the first listing is delivered', async () => {
+  // A client creates its toplevel, then needs tens to hundreds of milliseconds before its first buffer. Until that buffer no point
+  // of the screen belongs to the window, so a wheel there is refused. A driver that starts sending input when `windows` first lists
+  // a window must find the window ready; this polls fast enough to land in the gap if the list ever shows an unmapped toplevel.
+  const host = start({ name: 'listed', flags: ['--headless'], size: '400x300', scene: staticScene, env: withoutParent(baseEnvironment) })
+  try {
+    await until('the control socket', async () => (await control(host.socketPath, 'ping').catch(() => '')) === 'ok')
+    let listing = ''
+    const limit = performance.now() + 30000
+    while (!/^ok [1-9]/.test(listing)) {
+      assert(performance.now() < limit, 'no window was listed within 30 s: ' + listing)
+      listing = await control(host.socketPath, 'windows')
+      if (!/^ok [1-9]/.test(listing)) await wait(2)
+    }
+    const reply = await control(host.socketPath, 'wheel 200 150 0 1')
+    assert.equal(reply, 'ok', 'the first listing was "' + listing + '" and the wheel sent then was answered "' + reply + '"')
+    const refused = await control(host.socketPath, 'wheel 5000 5000 0 1')
+    assert(/^err no nested client surface at wheel position 5000,5000: /.test(refused) && refused.includes('nothing was sent to the client'), 'a wheel outside every window is refused with the reason: ' + refused)
+    return 'first listing "' + listing.slice(0, 60) + '", wheel answered ok'
+  } finally {
+    await finish(host).catch(() => host.session.kill())
+  }
+})
+
 await check('frame pacing: the client gets frame callbacks at the output refresh rate and the screenshot is current', async () => {
   const host = start({ name: 'pacing', flags: ['--headless'], size: '400x300', scene: animatedScene, env: withoutParent(baseEnvironment) })
   try {

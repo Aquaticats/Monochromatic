@@ -2216,7 +2216,40 @@ that is verification, not a decision for the user.
   entry from `~/.config/mise/config.toml` and delete `~/.local/bin/git`. `AGENTS.md` `APG` and `APQ` need no wording
   change: `APQ` ("fires in third-party clones too") is now true on this machine; it stays false on a machine without
   the global entry, which the runbook `doc/runbook/cli-git-global-install.md` covers. Still open: machines the user
-  does not control (server-side rulesets or CI), and the user has not been asked about them yet.
+  does not control (server-side rulesets or CI): asked 2026-10-25, the user chose "Leave it open for now"; issue 1796
+  stays open with that part undecided (result comment posted:
+  `https://github.com/Aquaticats/Monochromatic/issues/1796#issuecomment-6401078387`). Unmeasured risk to revisit if
+  an IDE misbehaves: every `git` call by every tool on the user's machine now goes through the wrapper.
+  RELEASE 0.2.9 chosen by the user 2026-10-25 ("Release 0.2.9 now"), carrying the m028b survivor fixes (`571a53dc51`).
+  Gate evidence: the container gate on that commit passed 2105 tests, 5 skipped, and mutation was 0 missed in the four
+  touched files (m028c). Since then no Rust, `Cargo.toml`, `Cargo.lock`, `tests` or `build.rs` file in
+  `package/git-policy/cli` changed (`git diff --stat 571a53dc51 HEAD`); only `bin/*.mjs`, `e2e/*.ts`,
+  `native-interop/*.mjs` and the package `mise.toml` changed, as formatting from other sessions (`style(*)` commits
+  `e72b70764d`, `68415aeb53`, `3da31bdc3a`). The README example install line was pinned to `0.2.8` and the release
+  script rewrote it each release; per the user's "no pinning because we control the wrapper" it is now `latest` and
+  `~/temp/agent/release.ts` no longer touches the README and takes the commit note as its third argument. Sequence:
+  commit the README and handover, `node ~/temp/agent/release.ts 0.2.8 0.2.9 "<note>"` (cargo check, lock members,
+  publish dry run, release commit), the push triggers `cargo-publish.yml`, then `node ~/temp/agent/install-026.ts 0.2.9`
+  and verify the installed `git --version` plus the global link at `~/.local/bin/git`.
+  Progress 2026-10-25: README commit `3cee80e2a6`; release commit `00c4e28af4` ("release 0.2.9", Cargo.toml, both
+  Cargo.lock files) after `cargo check` and `cargo publish --dry-run --locked` passed (566 files packaged); both
+  pushed, so `cargo-publish.yml` is publishing. Waiting on crates.io via `install-026.ts 0.2.9` (20 minute bound),
+  then verify the installed version and the global link.
+  0.2.9 PUBLISH BLOCKED 2026-10-25 (not by the crate): `install-026.ts` timed out (crates.io never showed 0.2.9). The
+  `cargo-publish` workflow run `40242133604` on `00c4e28af4` failed in the step "Install only the tools this workflow
+  needs" (`mise install rust`), before any publish step. Error (log `~/temp/agent/publish-run-40242133604.log`): mise
+  2026.10.19 (released 2026-10-24) locks every tool for every platform, removes and reinstalls the `cmake` vfox
+  plugin (`plugin:cmake uninstall`, `remove ~/.local/share/mise/plugins/cmake`), then warns "failed to load vfox
+  plugin metadata deps for cmake ... no file util.lua" and fails with `failed to resolve cmake for linux-arm64: error
+  converting Lua table to PreInstall (no version returned from vfox plugin)`. A second `cargo-publish` run `40242360125`
+  (another session's push `8c60a4afb3`) failed too; other workflows on the same commits passed. The last passing
+  publish run (`39829260282`, 2026-10-22) used mise 2026.10.17. So the break coincides with the mise version change
+  (observation, not proven: the repo's mise config also changed in between). No troubleshooting doc exists for this
+  message. Rerun requested with `gh run rerun 40242133604 --failed` to test determinism. Options if it fails again
+  (to bring to the user with evidence, not decide alone): pin mise in `.github/workflows/cargo-publish.yml` via the
+  mise-action `version` input with an explanatory comment (the repo allows pins with a comment), or fix the cmake
+  lock resolution; manual publish from the host is not available because the crate publishes through Trusted
+  Publishing.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and

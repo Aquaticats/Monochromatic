@@ -1065,33 +1065,15 @@ That is not proved for that trial,
 whose log is gone;
 the same symptom with the same log lines is reproduced here.
 
-What is open and not explained:
-
-- A row map that ends 72 px (3 rows) taller than the text.
-  It follows measurement passes that run at the narrow first width (a wrapped map of 41,000 to 57,000 px) and end late.
-  It is rare:
-  9 of 160 trials under the one-core limit,
-  4 of 53 sessions started with no input at all under the limit (2 of 8,
-  1 of 12,
-  1 of 33),
-  and 1 of 1,160 trials without a limit.
-  In one such session,
-  stepping down the file by 75 rows at a time,
-  the gutter followed the model exactly for 1,351 lines,
-  so the 3 rows are far from the top;
-  in the 5 trials above they are above the view.
-  The lines that keep two rows were not found,
-  and nothing blank is drawn for them in the screenshots that were looked at.
-- Three trials of the cell of 40 notches at 2 s with the server ready
-  (the first trial of each of three sessions,
-  at a moment with the 1-minute load average 28 to 35)
-  had no `turned the wheel` line and no later line in the log that was read,
-  with a correct gutter.
-  40 more trials of two cells (40 and 300 notches at 2 s,
-  ready) with the log of every odd trial kept had none,
-  and the logger writes straight to the file (`src/logging.rs`,
-  no non-blocking writer),
-  so the cause of the missing lines is not known.
+What was open and not explained at that time is explained in the section "A row map taller than the text"
+(the taller map and,
+in its subsection "Missing wheel log lines",
+the missing `turned the wheel` lines).
+The counts of the first account stand:
+the taller row map was 9 of 160 trials under the one-core limit,
+4 of 53 sessions started with no input at all under the limit,
+and 1 of 1,160 trials without a limit;
+three trials of the cell of 40 notches at 2 s with the server ready had no `turned the wheel` line at a 1-minute load average of 28 to 35.
 
 Positive controls (301 notches,
 1 s,
@@ -1229,6 +1211,379 @@ the 160-trial grid of the last section shows the same counts for the far jumps i
 one tile per jump),
 and the first rest after the wheel is unchanged
 (`resolved=Some` in 160 of 160 for each of the three binaries).
+
+## A row map taller than the text
+
+Measured on 2026-10-25 on the build of `origin/main` (installed binary `0730fa64bdf211e7`) and on a build with the fix,
+in the nested compositor (`--headless`,
+1080x1880 logical px,
+scale 2,
+the hardware GPU through Vulkan RADV),
+three sessions at a time,
+the 1-minute load average 20 to 31,
+the hosted app limited to one core (`--isolate --app-cpu-quota 100`),
+a generated `long.ts` of 1,500 lines
+(three `export const` lines,
+a `// note K` line and a blank line in each period of five;
+the text has 1,501 lines,
+so the model height is 36,024 px),
+and the project's TypeScript 7.1.0-beta server.
+The harness (a driver that starts a fresh IDE process for each trial,
+waits 5 s without any input,
+and reads the last `row map rebuilt` record of the log) was kept only in the session scratch and removed.
+
+### Reproduction
+
+- Sessions with no input,
+  one-core limit,
+  the `height=` of the last `row map rebuilt` record against 36,024:
+  `origin/main` 12 of 160 too tall by exactly 72 px,
+  a second copy of the same binary 7 of 160
+  (the spread of one binary),
+  the fix 0 of 160
+  (Fisher exact test,
+  one-sided,
+  the fix against the 320 sessions of both copies of `origin/main`:
+  p = 0.0004).
+  Two earlier groups of the first build:
+  5 of 60 and 3 of 30.
+- Sessions with a taller map by another amount (36,114 to 36,178) held a block of virtual rows:
+  an information message of the language support
+  (`bwrap: Can't bind mount ... on /tmp`:
+  the source directory `.../language/proj-<hash>/mise/tmp` of the bind mount did not exist).
+  They occur in every binary (2,
+  1 and 4 of 160) and are not a row defect.
+  Three sessions at a time share the harness's cache directory and the project hash,
+  which points to a race between sessions on one project
+  (a separate incident,
+  not investigated);
+  two IDE processes on one project could meet it too.
+
+### The lines and the cause
+
+A build with a probe (the `row map rebuilt` record listing the first lines that hold more than one row,
+and a record of the lines of the displayed tile that the pass measured differently from the table)
+showed in both sessions that were read with it the same three lines,
+150,
+151 and 152 (numbering from 0),
+each with two rows in the map and one row at the real width:
+
+1. The window starts with a narrow layout (a view of 173 px,
+   18 lines in the tile) and gets its real size (646 px by 1,848 px) some 0.1 to 1 s later.
+   Under a one-core limit the worker's first pass over the whole text,
+   at the narrow width,
+   can be taken by the 20 ms poll before the real size arrives
+   (`applied a measurement count=256 changed=true`),
+   so the table of measured rows holds two rows for every line that wraps at 171 px.
+   With CPU to spare the real size comes first and the narrow output is dropped as `another text or width`.
+2. The real width asks for a tile of 99 lines,
+   taken from that table.
+   `measure_requested` (`src/native/render/measure.rs`) measured the lines of the tile asked for at the real width in three rounds,
+   and after each round the map followed the corrected heights,
+   so the tile asked for reached further down the text:
+   the stale region of the table retreated from line 100 to 136 to 150 while the tile grew to 155 lines.
+   After the third round the lines the last tile asked for (here 150 to 154) were measured only for their cost:
+   the answer of `spending.measure(...)` was discarded,
+   so lines 150 to 152 kept two rows
+   (lines 153 and 154,
+   the note and the blank line,
+   never wrap).
+3. The window thread builds the tile of 155 lines,
+   which is painted with one row for each line,
+   and the map disagrees with it below line 150.
+   `apply_pass` (`src/native/tile/pass.rs`) never applies the lines of the displayed tile,
+   so the pass that finishes some milliseconds later does not correct them either
+   (the probe:
+   `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
+   then `done=true`).
+   The map ends 3 rows taller than the text.
+
+The earlier account,
+that measurement passes at the narrow width "end late",
+was wrong:
+the pass at the narrow width is finished or dropped,
+and what stays are heights it left in the table that the window thread's rounds did not reach.
+
+### When it corrects itself
+
+Not in a session with no input.
+Observed on a build of `origin/main` made to leave stale rows (the positive control below,
+600 lines with two rows,
+a map 240 px too tall),
+12 sessions:
+
+- A window resize (`resize 1000 1880`,
+  then back) made the map exact in 6 of 6,
+  because the new width measures the lines near the view again.
+- Ctrl+End left it 240 px too tall in 6 of 6,
+  because the tile of the end does not cover the stale lines.
+  Ctrl+Home then made it exact in 6 of 6,
+  because the tile of the first lines covers them.
+- A tile built on the worker that covers the lines corrects them too (`tile::apply` takes the heights the tile measured),
+  so stepping down by rows repairs the map when the view arrives
+  (the earlier agent's step-by-step session was exact for 1,351 lines).
+
+Until then the scroll extent is 72 px taller than the text,
+every line after line 152 stands 3 rows lower in the map than in the text,
+so a distance in pixels (a wheel jump,
+a minimap click,
+a restored scroll offset) lands 3 rows away from where the text model puts it,
+and a pointer placed from the model is over another row.
+The picture and the gutter agree with the map:
+after Ctrl+End a session with the taller map shows the last row at the bottom with the same gutter numbers
+(1,425 at the top and 1,501 at the bottom) as a session with the exact map,
+so nothing is drawn blank and a screenshot of one view does not show it.
+
+### Fix
+
+`measure_requested` repeats its rounds until one changes no height
+(at most 64,
+`ROUNDS`,
+with a warn record if the bound is reached),
+and the measurement of the last tile asked for is taken into the table too.
+The invariant is that every line of the tile built next has in the table the rows the shaper measured for it.
+`apply_pass` writes a debug record
+(`the measurement found rows in the displayed tile that differ from the map`)
+when a line of the displayed tile differs from what the pass measured,
+so this class of fault is visible in the log.
+
+- Native test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`):
+  the pass is held still,
+  a pass chunk of the narrow width is simulated by 2 rows for the lines 0 to 599,
+  a new width is taken by the window thread,
+  and every line of the displayed tile must have the rows a fresh shaper measures for it.
+  Before the fix:
+  4 lines of the tile kept a stale height (`[(50, 2, 1), (51, 2, 1), (52, 2, 1), (53, 2, 1)]`).
+  After:
+  it passes.
+- Guard case `measure-rounds-capped` of `bin/inspect-source-guards.ts` (3 rounds and no absorb of the last measurement).
+
+### Measurements of the fix
+
+- 160 sessions with no input under the one-core limit for each of three binaries,
+  alternating (`origin/main`,
+  the fix,
+  a second copy of `origin/main`):
+  too tall by 72 px in 12,
+  0 and 7 of 160.
+  The record of a pass finding rows of the displayed tile that differ from the map:
+  0 of 160 in the fix.
+- Positive control for the harness and the fix:
+  a throwaway build (both logics) that applies 2 rows to the lines 0 to 599 when the pass at the narrow width is posted,
+  the stand-in for a pass chunk applied before the real size.
+  The old logic gave 10 of 30 sessions with a map 240 px too tall (and 2 with the message block),
+  the fixed logic 0 of 30.
+  A first stalled build (one round,
+  no absorb of the last measurement) gave 1 of 60,
+  no more than the spread of the old logic,
+  so it was no control.
+- 90 sessions with Ctrl+End after the wait,
+  alternating the old build and the fix:
+  3 sessions with a map 72 px too tall in the old build and none in the fix,
+  and the same last rows on the screen in all.
+
+### Missing wheel log lines
+
+The wheel path writes two records per turn,
+both at debug level:
+
+- `the windowing system turned the wheel` (`src/native/wheel.rs`,
+  `note_event`),
+  once for each winit wheel event with a line delta,
+  before the toolkit sees it and whatever the displayed tile holds.
+- `a wheel turn began an ease` (`turn`),
+  once for each turn the toolkit's scroll reports within 50 ms of the event,
+  with `covered=true` when the displayed tile holds the end.
+
+A turn the displayed tile holds therefore logs both records,
+and nothing in the code skips them.
+Two branches dropped a turn without a record
+(`note_turn` when the window state was in use,
+`flicked` when the note was older than 50 ms);
+they write a debug record now.
+`src/logging.rs` does not write straight to the file:
+`src/logging/background.rs` queues records for a writer thread
+and drops records,
+with a warning that carries the count,
+only when 8 MiB wait in the queue;
+no such warning stood in any log read here.
+
+Measured:
+40 and 301 notches turned 300 ms after the server was ready,
+2 s of waiting,
+one-core limit,
+210 sessions.
+The 197 sessions with a `turned the wheel` line all show a scrolled gutter,
+and the 13 sessions without one all show the top of the file
+(the gutter pixels equal those of a session that never scrolled).
+What separates the sessions is the gutter and nothing else that was measured:
+the time of the toolkit's report of the real view size (`viewport_width=646`) after the server was ready overlaps
+(0.12 to 1.0 s in the 9 silent sessions of the cell of 40 notches,
+negative to 0.19 s in the 4 of the cell of 301,
+negative to 0.3 s in the sessions that took the wheel),
+so it is not the discriminator.
+The first account of this ("the pointer was over no surface of the IDE because the first surface is small")
+was a hypothesis,
+and the next section shows it wrong in its detail and right in its outcome:
+the event never reached the IDE because the compositor refused the command.
+
+### Where the early wheel is lost
+
+Measured on 2026-10-25 with the installed IDE binary and the nested compositor 0.6.1
+(`--headless`,
+1080x1880 logical px,
+scale 2,
+three sessions at a time,
+the 1-minute load average 10 to 45),
+276 fresh sessions on the generated 1,500-line `long.ts`,
+a wheel of 40 notches at 540,900 sent at a chosen time,
+2 s of waiting,
+then a screenshot read for the gutter number.
+Each session recorded the compositor's reply to the `wheel` command,
+the `the windowing system turned the wheel` record of the IDE (a winit event),
+and the gutter.
+Thirty-six sessions had the app's Wayland protocol log (`WAYLAND_DEBUG=1`).
+
+- The reply decides everything.
+  50 sessions were answered `err no nested client surface at wheel position 540,900`;
+  226 were answered `ok`.
+  Of the 50,
+  none has a winit wheel record and all 50 gutters show the top of the file.
+  Of the 226,
+  every one has exactly the winit record and every gutter is scrolled.
+  No session had an `ok` reply and no event in the IDE,
+  so nothing is lost between the compositor and winit,
+  in the toolkit,
+  or in the IDE,
+  at this count.
+- The protocol log shows the same split.
+  In the 17 debug sessions that were refused,
+  the compositor sent no `wl_pointer.enter` and no `axis` event to the client;
+  in the 19 that were answered `ok`,
+  it sent one `enter` and one `axis`,
+  and the client received them.
+- The refusal is the compositor's rule for `wheel` and `scroll`
+  (`point_pointer_at` in `package/cli/nested-wayland-session/src/input_wheel.rs`):
+  no window covers the point,
+  so the command fails and nothing is sent.
+  Until the hosted app commits its first buffer no window covers any point:
+  the reply time against the toplevel's first `wl_surface.attach` of a buffer
+  (the first line of the protocol log that attaches a buffer to the toplevel)
+  was before it in all 17 refused sessions (30 to 293 ms before)
+  and after it in all 19 accepted ones (36 to 493 ms after).
+- The surface is not small.
+  The compositor's first `xdg_toplevel.configure` is 1080x1880,
+  `wp_viewport.set_destination` is 1080x1880 before the first buffer,
+  and the first buffer covers the whole screen.
+  The 173 px view of the early layout is Slint's own layout width,
+  not the surface.
+  The pointer is therefore not outside a small surface:
+  there is no surface yet,
+  for 0.3 to 0.5 s after the toplevel is created
+  (the renderer starts after the toplevel,
+  and under load much later).
+- Why the earlier sessions lost the wheel at "300 ms after the server was ready":
+  the server's ready line does not wait for the first frame.
+  With the wheel at the ready line plus 300 ms,
+  14 of 72 sessions under the one-core limit and 2 of 60 without it were refused
+  (the first frame came 0.3 to 0.5 s after the ready line in the refused ones).
+  With the wheel at the first drawn frame plus 0.3,
+  0.6,
+  1.0 or 2.0 s,
+  0 of 108 were refused (60 with the limit,
+  48 without),
+  and at the first drawn frame plus 0 s 10 of 12 with the limit and 24 of 24 without were refused
+  (positive control:
+  the same harness loses the wheel when it is sent too early).
+- The harness of the earlier measurement sent the command and did not read the reply.
+  The `err` answer was the whole evidence of the loss.
+
+Where it is fixed:
+the compositor's `windows` answer listed a toplevel from the moment its client created it,
+so a driver that waited for `windows` and then sent `wheel` was still refused
+(in the `inspect:headless` check a wheel sent at the first listing was refused
+against 0.6.1 and is delivered now).
+With the IDE as the client and the wheel sent at once when `windows` first listed a window (60 sessions,
+three at a time,
+30 with the one-core limit and 30 without),
+0.6.1 refused 60 of 60 and the branch's compositor refused 0 of 60 and scrolled all 60.
+`windows`,
+`focus`,
+and `close` list a toplevel only once its client has committed a buffer,
+the refusal says why and what to do,
+and the README says that `click` and `move` over no window answer `ok` and reach nobody.
+A release of the compositor is needed for installed copies to have it.
+
+### A taller map after a stalled launch (reported by the verifier, not reproduced)
+
+The verifier ran the installed build with the measuring-rounds fix (`01d2c9454acda68f`) on input-free sessions:
+160 of 160 one-core sessions exact,
+and 56 of 60 unlimited sessions exact.
+Three of the four others were of one round that started at one instant and met a host stall of 2.2 s
+(the window was drawn at 24.0 s,
+the first tile built at 26.2 s):
+a map of 36,456 px (18 rows too tall),
+exactly one `row map rebuilt` (at the 173 px layout width),
+the real size (646 x 1848 px) reported at 27.4159 s,
+and no rebuild in the rest of the log (to 28.19 s;
+shutdown at 30.45 s).
+The fourth carried the `bwrap` information row (the second section above).
+
+What was tried here to reproduce it,
+with the fixed binary,
+unlimited,
+input-free,
+three sessions at a time,
+6 s of waiting after the server's ready line:
+229 launches in which the app (SIGSTOP and SIGCONT after 2.2 s),
+the compositor,
+or both were stopped at one of fourteen places of the start-up log
+(among them before the window,
+before the first tile,
+after the first tile,
+at the first report of the view's size,
+during the first measurement pass,
+at the real size,
+and at the first drawn frame),
+and 6 more in which only the tile worker's futex calls were delayed by 0.2 s each for 3 s (`strace`).
+All 229 and all 6 ended at the exact 36,024 px.
+With the compositor stopped the map passed through 50,784,
+57,624 and 55,344 px
+(the pass at the narrow width had finished) and went exact 124 ms after the real size was reported,
+by the pass at the new width (`applied a measurement count=1501 changed=true done=true`),
+not by a tile.
+
+Reading the code gives the same picture.
+The row map is rebuilt when the measured rows change (`wanted_key` in `src/native/rows.rs` carries `wrap_version`,
+not the width),
+and a new width is measured by a tile of the window thread (`measure_requested`),
+by the tile worker (`tile::apply` takes `built.measured`),
+and by the pass at the new width (`apply_pass`).
+Each of them runs after the report of the real size
+(`place_scrolled` then `render`,
+which defers or builds the tile and posts the pass),
+and a refused or discarded worker tile asks again while `scroll_wanted` is set.
+No path was found that leaves the real width unmeasured when the report arrives.
+For no rebuild to follow,
+none of the three measurements may have landed in the logged time.
+
+The records that tell the cases apart in the three logs of the round,
+after 27.4159 s:
+`left a new width to the tile worker`,
+`posted the measurement pass wrap=644`,
+`window thread applied a finished tile`,
+`applied a measurement`,
+`dropped a measurement`.
+None of them would mean a starved tile worker and pass (a scheduling stall,
+no skipped rebuild);
+a `left a new width` without a later tile would be a lost request.
+This was not available to the session that wrote this section.
+
+### Not explained
+
+- Whether the pass at the narrow width is taken before the real size only under a one-core limit:
+  the same symptom was seen once in 1,160 trials without a limit,
+  whose logs are gone.
 
 ## Workarounds before the fix
 

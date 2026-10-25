@@ -149,6 +149,30 @@ check the position from the picture, and verify movement with a before and after
 `magick compare -metric AE`.
 Tradeoff: the landing row is only known from the picture, so a measurement that needs an exact row cannot use this.
 
+## A wheel before the first frame is refused, and `windows` listed the window too early (2026-10-25)
+
+`wheel` and `scroll` answer `err no nested client surface at wheel position X,Y` while no hosted window covers the point.
+Until the app commits its first buffer no window covers any point,
+which lasted 0.3 to 0.5 s after the toplevel was created for the IDE and much longer under load.
+A driver that ignored the answer lost the wheel with no trace in the app's log:
+50 of 276 IDE sessions,
+all of them refused,
+none of the 226 accepted ones lost (see `slint-flickable-wheel-jump-outruns-the-tile.md`,
+"Where the early wheel is lost").
+
+- `click` and `move` over no window answer `ok` and reach nobody;
+  only `wheel` and `scroll` refuse.
+- `windows` used to list a toplevel from its creation,
+  so waiting for `windows` was no gate.
+  It lists a toplevel only once its client has committed a buffer in the next release of the compositor
+  (the change is on the branch `worktree-agent-a763037d1a881724e`;
+  0.6.1 still lists it early).
+- Workaround for 0.6.1:
+  read the answer of `wheel` and `scroll` and send them again on `err`;
+  before the first `click` or `key`,
+  which never answer `err`,
+  wait for the app's own "first frame drawn" fact.
+
 ## Upstream filing decision
 
 `.out-of-scope/` was checked:

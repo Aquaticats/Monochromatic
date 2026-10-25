@@ -422,6 +422,24 @@ const cases: Guard[] = [
     test: 'quiet::a_server_that_ends_during_its_start_is_logged_with_its_stderr_lines',
     failure: 'the cause in the reason'
   },
+  // A scratch directory is emptied in place: a sandbox binds it by path while another launch of the same project prepares it.
+  {
+    name: 'scratch-kept-in-place',
+    file: 'src/language/launch/state.rs',
+    before: '        empty_in_place(directory)?;',
+    after: '        if directory.exists() { let _ = std::fs::remove_dir_all(directory); }',
+    test: 'language::launch::tests::preparation_empties_a_scratch_directory_without_replacing_it',
+    failure: 'the scratch directory was removed'
+  },
+  // A sandbox that stopped before mise ran is not blamed on the project's mise configuration.
+  {
+    name: 'sandbox-stop-named',
+    file: 'src/language/mise/state.rs',
+    before: '        if failed.stopped_by_sandbox() {',
+    after: '        if false {',
+    test: 'language::mise::state::tests::a_sandbox_that_stopped_before_mise_is_not_blamed_on_the_mise_configuration',
+    failure: 'the notice blamed mise for a sandbox that stopped'
+  },
 ];
 // An optional comma-separated list reruns only the named guards.
 const only = process.env

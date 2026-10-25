@@ -164,6 +164,101 @@ fn preparation_creates_directories_and_empties_scratch_below_the_state_root() {
     );
 }
 
+/// A sandbox binds the scratch directory by its path,
+/// and another process on the same project prepares the same path.
+/// The directory must stay the one that was there:
+/// a directory removed and made again is missing for a moment,
+/// and bubblewrap stops with `Can't bind mount ... No such file or directory` when it looks in that moment.
+#[cfg(target_os = "linux")]
+#[test]
+fn preparation_empties_a_scratch_directory_without_replacing_it() {
+    use std::os::unix::fs::MetadataExt;
+    let parent = tempfile::tempdir().expect("parent");
+    let root = canonical(&parent).join("project");
+    let state = canonical(&parent).join("state");
+    fs::create_dir(&root).expect("project");
+    let scratch = state.join("server/tmp");
+    fs::create_dir_all(scratch.join("nested/deeper")).expect("old scratch");
+    fs::write(scratch.join("nested/deeper/leftover"), "old").expect("leftover");
+    fs::write(scratch.join("top"), "old").expect("leftover");
+    // An open directory is what a running sandbox holds: it must stay linked, and stay the directory at the path.
+    let held = fs::File::open(&scratch).expect("hold the scratch directory");
+    let before = held.metadata().expect("metadata before").ino();
+    prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect("preparation");
+    let after = held.metadata().expect("metadata after");
+    assert!(
+        after.nlink() > 0,
+        "the scratch directory was removed: a sandbox that holds it keeps a deleted directory"
+    );
+    assert_eq!(
+        fs::metadata(&scratch)
+            .expect("the path still names a directory")
+            .ino(),
+        before,
+        "the path names another directory than the one that was held"
+    );
+    assert_eq!(
+        fs::read_dir(&scratch).expect("scratch").count(),
+        0,
+        "files of an earlier launch stayed"
+    );
+}
+
+/// A link where the scratch directory belongs is never followed:
+/// one that leads out of the state root is refused,
+/// and one that leads inside it is replaced by a directory while what it led to stays.
+#[test]
+fn preparation_does_not_follow_a_link_where_the_scratch_directory_belongs() {
+    let parent = tempfile::tempdir().expect("parent");
+    let root = canonical(&parent).join("project");
+    let state = canonical(&parent).join("state");
+    let other = canonical(&parent).join("other");
+    fs::create_dir(&root).expect("project");
+    fs::create_dir(&other).expect("other");
+    fs::write(other.join("keep"), "keep").expect("unrelated file");
+    fs::create_dir_all(state.join("server/real")).expect("a directory inside the state root");
+    fs::write(state.join("server/real/keep"), "keep").expect("file behind the inner link");
+    let scratch = state.join("server/tmp");
+    std::os::unix::fs::symlink(&other, &scratch).expect("link out of the state root");
+    let reason = prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect_err("a link out of the state root was accepted");
+    assert!(
+        reason.contains("is not below the private state directory"),
+        "{reason}"
+    );
+    assert!(
+        other.join("keep").exists(),
+        "the link was followed and the directory behind it emptied"
+    );
+    fs::remove_file(&scratch).expect("remove the outer link");
+    std::os::unix::fs::symlink(state.join("server/real"), &scratch)
+        .expect("link inside the state root");
+    prepare(
+        &launch(Vec::new(), vec![scratch.clone()]),
+        &root,
+        Some(&state),
+    )
+    .expect("preparation");
+    assert!(
+        state.join("server/real/keep").exists(),
+        "the link was followed and what it led to emptied"
+    );
+    let found = fs::symlink_metadata(&scratch).expect("scratch");
+    assert!(
+        found.is_dir() && !found.file_type().is_symlink(),
+        "the link stayed in place of the directory"
+    );
+}
+
 #[test]
 fn preparation_refuses_directories_outside_the_state_root_or_inside_the_project() {
     let parent = tempfile::tempdir().expect("parent");
