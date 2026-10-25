@@ -1,20 +1,22 @@
 /**
  Guards ledger B806: the line that announces a run-off over the finalists of an
- undecided round says which round that was. A plurality (the leader short of
- the minimum weight) is not a tie, and the line said "tied finalists" for both.
+ undecided round says which round that was. A plurality (the leader named by
+ one judge alone) is not a tie, and the line said "tied finalists" for both.
 
  WHY: in a corpus pass of 2026-10-21 (UTC) the line `the same panel is asked
  again over the 2 tied finalists` was printed for a slice whose leader drew 1.5
  against a minimum of 2 and whose runner-up drew 1, so no two candidates were
  tied. `runoffFinalists` picked the leader and its runner-up and handed on only
- the two candidates, and the line could not tell the case from a tie.
+ the two candidates, and the line could not tell the case from a tie. That
+ leader would be decided on the first round since 2026-10-25, when the owner
+ removed the weight minimum ("Every weight floor"): two ballots decide.
 
  WHAT THESE PIN: the decline of a round carries the basis of its run-off beside
  the finalists (`tied-at-top` or `leader-and-runner-up`), and the run-off's line
- names the basis it was given. The plurality is built the way the pass built it:
- one judge wrote one of the candidates (its ballot for its own text counts half),
- so that candidate draws 1.5 from two ballots, a third judge names another at 1,
- and the fourth candidate draws nothing.
+ names the basis it was given. The plurality is built from a judge who wrote one
+ of the candidates (its ballot for its own text counts half) backing it, a second
+ judge naming another candidate at 1, and a third abstaining: the second
+ candidate leads at 1 from one ballot and the first draws a half.
 
  Fixtures are cat-themed invention. No call leaves the process.
 
@@ -102,14 +104,37 @@ const RENDERINGS: readonly string[] = [
 ];
 
 /**
- How the three judges vote in a scenario.
+ What one judge says in a scenario: the interested judge's own text, another candidate, or nothing.
+ */
+type Vote = 'own' | 'other' | 'none';
+
+/**
+ How the three judges vote in a scenario, in the order of {@link JUDGES}.
  */
 type Scenario = {
   /**
-   What the judge who wrote a candidate says: its own text, or a rejection.
+   One vote per judge.
    */
-  readonly interested: 'own' | 'reject';
+  readonly votes: readonly [Vote, Vote, Vote];
 };
+
+/**
+ The first judge, who wrote one of the candidates, rejects everything; the others name the interested judge's text and
+ another: two candidates at one ballot each, a tie.
+ */
+const TIE: Scenario = { votes: ['none', 'own', 'other',], };
+
+/**
+ The first judge backs its own text, the second names it too, the third another: the leader draws 1.5 from two ballots
+ against a runner-up at 1, which two ballots decide.
+ */
+const PLURALITY_OF_TWO: Scenario = { votes: ['own', 'own', 'other',], };
+
+/**
+ The first judge backs its own text (half a vote), the second names another candidate (a full vote), the third
+ abstains: the leader at 1 is strictly ahead of its runner-up at a half and was named by one judge alone.
+ */
+const LONE_LEADER: Scenario = { votes: ['own', 'other', 'none',], };
 
 /**
  Client whose translators render in call order and whose judges answer per the scenario.
@@ -179,16 +204,16 @@ function scriptedClient(
         return word !== ownWord.value;
       },) ?? '';
       /**
-       Whether this seat rejects every candidate: the judge who wrote one, where the scenario has it decline.
+       What this seat says in the scenario.
        */
-      const rejects = (request.modelId === JUDGES[0]) && (scenario.interested === 'reject');
+      const vote = scenario.votes[JUDGES.indexOf(request.modelId,)] ?? 'none';
       /**
-       Word of the candidate this seat names: the first two judges name the interested judge's own text, the third the other.
+       Word of the candidate this seat names, when it names one.
        */
-      const needle = (request.modelId === JUDGES[2]) ? otherWord : ownWord.value;
+      const needle = (vote === 'other') ? otherWord : ownWord.value;
       const ballot: unknown = {
         assessment: 'fixture',
-        best: rejects
+        best: (vote === 'none')
           ? 0
           : candidateCarrying({
             content,
@@ -207,23 +232,23 @@ function scriptedClient(
 }
 
 /**
- Judges one slate over an archived incumbent and runs off its finalists, keeping
- the lines the stage logged.
+ Judges one slate over an archived incumbent, keeping the lines the stage logged.
 
  @param scenario - how the judges vote
 
- @returns The first round's decline and the lines logged while the run-off was announced
+ @returns What the judging was handed, the first round's result and the lines logged so far
 
  @example
  ```ts
- const { first, lines, } = await declinedThenRunoff({ scenario: { interested: 'reject', }, },);
+ const { first, } = await judgeFirstRound({ scenario: TIE, },);
  ```
  */
-async function declinedThenRunoff(
+async function judgeFirstRound(
   { scenario, }: { readonly scenario: Scenario; },
 ): Promise<{
+  readonly judging: Parameters<typeof judgeTranslateSlate>[0];
   readonly first: TranslateStageResult;
-  readonly lines: readonly string[];
+  readonly lines: string[];
 }> {
   /**
    Lines the stage logged.
@@ -282,6 +307,37 @@ async function declinedThenRunoff(
     stageSettings: SCRIPTED_STAGE_SETTINGS,
   };
   const first = await judgeTranslateSlate(judging,);
+  return {
+    judging,
+    first,
+    lines,
+  };
+}
+
+/**
+ Judges one slate over an archived incumbent and runs off its finalists, keeping
+ the lines the stage logged.
+
+ @param scenario - how the judges vote
+
+ @returns The first round's decline and the lines logged while the run-off was announced
+
+ @example
+ ```ts
+ const { first, lines, } = await declinedThenRunoff({ scenario: TIE, },);
+ ```
+ */
+async function declinedThenRunoff(
+  { scenario, }: { readonly scenario: Scenario; },
+): Promise<{
+  readonly first: TranslateStageResult;
+  readonly lines: readonly string[];
+}> {
+  const {
+    judging,
+    first,
+    lines,
+  } = await judgeFirstRound({ scenario, },);
   /**
    Lines logged before the run-off is announced.
    */
@@ -330,7 +386,7 @@ await describe({
     it({
       name: 'CALLS A TIE A TIE: two candidates at one ballot each, a third judge declining, are the tied finalists',
       fn: async () => {
-        const { first, lines, } = await declinedThenRunoff({ scenario: { interested: 'reject', }, },);
+        const { first, lines, } = await declinedThenRunoff({ scenario: TIE, },);
         // The control: this is the shape the old line described.
         expect(first.decision,).toBe('declined-indecision',);
         expect(drawnWeightsOf({ first, },),).toEqual([1, 1,],);
@@ -348,13 +404,13 @@ await describe({
     },),
 
     it({
-      name: 'DOES NOT CALL A PLURALITY A TIE: a leader at 1.5 from two ballots against a runner-up at 1 are the leader '
-        + 'and its runner-up, and the leader fell short of the minimum weight',
+      name: 'DOES NOT CALL A PLURALITY A TIE: a leader at 1 from one ballot against a runner-up at a half are the '
+        + 'leader and its runner-up, and the leader was named by one judge alone',
       fn: async () => {
-        const { first, lines, } = await declinedThenRunoff({ scenario: { interested: 'own', }, },);
-        // The control: a plurality, the shape of the pass, and no tie.
+        const { first, lines, } = await declinedThenRunoff({ scenario: LONE_LEADER, },);
+        // The control: a plurality of one judge, and no tie.
         expect(first.decision,).toBe('declined-indecision',);
-        expect(drawnWeightsOf({ first, },),).toEqual([1, 1.5,],);
+        expect(drawnWeightsOf({ first, },),).toEqual([0.5, 1,],);
         expect(first.runoffFinalists?.length,).toBe(2,);
         expect(first.runoffBasis,).toBe('leader-and-runner-up',);
         /**
@@ -364,8 +420,19 @@ await describe({
           return entry.includes('asked again over',);
         },);
         expect(line,).toContain('asked again over the leader and its runner-up',);
-        expect(line,).toContain('the leader fell short of the minimum weight',);
+        expect(line,).toContain('the leader was named by one judge alone',);
         expect(line,).not.toContain('tied',);
+      },
+    },),
+
+    it({
+      name: 'DECIDES A PLURALITY OF TWO BALLOTS: a leader at 1.5 from two ballots against a runner-up at 1 wins the '
+        + 'first round, so no run-off follows (it declined against the weight minimum of 2 until 2026-10-25)',
+      fn: async () => {
+        const { first, } = await judgeFirstRound({ scenario: PLURALITY_OF_TWO, },);
+        expect(first.decision,).toBe('judged',);
+        expect(drawnWeightsOf({ first, },),).toEqual([1, 1.5,],);
+        expect(first.runoffFinalists,).toBeUndefined();
       },
     },),
   ],

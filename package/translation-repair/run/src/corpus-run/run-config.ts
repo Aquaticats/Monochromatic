@@ -806,7 +806,8 @@ const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-un
 
  READING IS ITS OWN STAGE, and the roster's narrowness when the stage was
  built is why. Exactly two models read images while the roster was one
- provider's six; selection needs a minimum weight of two, and a producer's
+ provider's six; selection needed a summed weight of two (removed on
+ 2026-10-25), and a producer's
  ballot for its own work counts half, so if those two also translated then no
  disinterested judge would remain on any slice carrying a picture. Asking them
  only to READ turns the picture into text, and the whole roster translates

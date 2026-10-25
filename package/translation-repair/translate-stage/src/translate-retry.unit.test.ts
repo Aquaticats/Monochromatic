@@ -522,14 +522,15 @@ await describe({
     },),
 
     it({
-      name: 'SEATS the run-off leader named by two ballots under the weight minimum where the slice has no '
+      name: 'SEATS the run-off leader named by two ballots where the slice has no '
         + 'incumbent (class seventy-three, mikaela4 slice 28, 2026-09-19): a tie between two valid finalists, '
         + 'then Cat-A and Cat-C name the same one while Cat-B abstains',
       fn: async () => {
         // Judging 1: Cat-A names its own rendering (half), Cat-B its own
         // (half), Cat-C rejects: a tie, so the challenge is a run-off over
         // both. Judging 2: Cat-A names its own again (half), Cat-C names it
-        // (full), Cat-B rejects: 1.5 from two ballots against a minimum of 2.
+        // (full), Cat-B rejects: 1.5 from two ballots, which two ballots decide
+        // (it was declined against a weight minimum of 2 until 2026-10-25).
         const { result, judgeCalls, } = await judgedUnder({
           incumbentKind: 'absent',
           ballotFor: function splitThenLean(
@@ -552,7 +553,7 @@ await describe({
         expect(result.origin,).toBe('fresh',);
         expect(result.text.includes('dozes',),).toBe(true,);
         expect(result.findings.includes(RETRY_FINDING,),).toBe(true,);
-        expect(result.findings.includes('select-runoff-under-minimum',),).toBe(true,);
+        expect(result.findings.includes('select-runoff-under-minimum',),).toBe(false,);
         expect(judgeCalls,).toBe(JUDGES.length * 2,);
       },
     },),
@@ -577,7 +578,7 @@ await describe({
         expect(result.origin,).toBe('fresh',);
         expect(result.text.includes('dozes',),).toBe(true,);
         // The second narrowing is announced without calling the round before it a tie: a round that leaves no winner is
-        // a tie or a plurality short of the minimum (ledger B806).
+        // a tie or a plurality one judge alone drew (ledger B806).
         expect(
           lines.some(function announcesSecondNarrowing(line,): boolean {
             return line.includes('run-off left no winner over 3 finalists and narrowed to 2; asking the same panel over them',);

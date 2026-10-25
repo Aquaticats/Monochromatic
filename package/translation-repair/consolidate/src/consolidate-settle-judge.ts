@@ -285,12 +285,6 @@ async function judgeSingleRoundOverStanding(
 
  @param challenged - whether a tie is run off once
 
- @param standingFlawedByMajority - whether a strict majority of the contest
- ballots called the archive flawed; over an eligible standing, a leader that
- at least two ballots named then wins the challenge round although it drew
- less than the minimum weight and no run-off could narrow the question,
- because every cast ballot fell on it (one entry's slice 45, 2026-10-19)
-
  @param signal - cancellation for the whole round
 
  @param perCallTimeoutMs - ceiling on each call
@@ -309,7 +303,7 @@ async function judgeSingleRoundOverStanding(
 
  @example
  ```ts
- const decided = await judgeConsolidationSlate({ client, judgeModelIds, subject, built, survivors, producedFindings, standingEligible, incumbent, identity, evidence, lineStructured, challenged, standingFlawedByMajority, signal, perCallTimeoutMs, l, stageSettings, },);
+ const decided = await judgeConsolidationSlate({ client, judgeModelIds, subject, built, survivors, producedFindings, standingEligible, incumbent, identity, evidence, lineStructured, challenged, signal, perCallTimeoutMs, l, stageSettings, },);
  ```
  */
 export async function judgeConsolidationSlate(
@@ -326,7 +320,6 @@ export async function judgeConsolidationSlate(
     evidence,
     lineStructured,
     challenged,
-    standingFlawedByMajority,
     signal,
     perCallTimeoutMs,
     l,
@@ -351,7 +344,6 @@ export async function judgeConsolidationSlate(
     }>;
     readonly lineStructured: boolean;
     readonly challenged: boolean;
-    readonly standingFlawedByMajority: boolean;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -412,9 +404,6 @@ export async function judgeConsolidationSlate(
     // slate still ships by preference, and a challenge round declined
     // with nothing left to narrow does, where it stopped the entry.
     withheldStanding: !standingEligible,
-    // A WITHHELD STANDING IS NOT ON THE SLATE, so there is no fallback to
-    // condemn there; its slate ships by preference instead.
-    fallbackCondemned: standingEligible && standingFlawedByMajority,
     signal,
     perCallTimeoutMs,
     l,

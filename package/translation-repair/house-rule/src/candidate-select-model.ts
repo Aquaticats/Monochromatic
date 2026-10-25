@@ -28,20 +28,23 @@ export const FULL_VOTE_WEIGHT = 1;
  would overcorrect a bias nobody has measured on this roster yet, which is
  what the judge-quality bench is for.
 
- A half rather than some tuned fraction, and the arithmetic is the argument:
- one author draws at most this much for its own text and three authors at most
- three halves, both short of {@link MIN_SELECTION_WEIGHT}, while FOUR reach it
- exactly. So up to three stakeholders a candidate needs a judge with no stake
- in it, and at four it does not.
+ THE HALF DECIDES WHICH CANDIDATE LEADS AND NOTHING ELSE. There is no weight
+ floor a winner must draw: by the owner's rulings of 2026-10-25, "floor of 3 -
+ don't set a floor." and "Every weight floor", a leader that two or more
+ answering judges named wins, and one judge alone never does. A self-voting
+ judge is ONE ANSWERING JUDGE; its half is a share of the weight, not half a
+ judge in the count of ballots. Until 2026-10-25 a winner needed a summed
+ weight of two as well, which made one author's own text (a half) or three
+ authors' (three halves) need a judge with no stake in it, and a leader
+ drawing one full vote and one self-vote (1.5) decline on a bench at quorum.
 
- That four-stakeholder case is reached by COLLAPSE rather than by a wide
- producing role: models returning byte-identical text merge into one candidate
- carrying every author, so four models writing the same sentence can ship it
- between themselves. Kept deliberately, because independent models agreeing to
- the byte is itself the corroboration an outside judge would supply. Both it
- and the three-author case that falls short are pinned by
- `runCollapsedSelection` in `candidate-select.unit.test.ts`, so retuning either
- weight fails there rather than moving the bound in silence.
+ The collapse case follows: models returning byte-identical text merge into
+ one candidate carrying every author, and two or more of them naming it ship
+ it between themselves. Kept deliberately, because independent models agreeing
+ to the byte is itself the corroboration an outside judge would supply, and it
+ is the rule the owner gave. `runCollapsedSelection` in
+ `candidate-select.unit.test.ts` pins that the half still counts for which
+ candidate leads when a rival is named.
 
  STATED PRECISELY, because a looser version of this sentence was written into
  four documents and was wrong: the discount attaches to a JUDGE AND CANDIDATE
@@ -55,15 +58,19 @@ export const FULL_VOTE_WEIGHT = 1;
 export const SELF_VOTE_WEIGHT: number = 1 / 2;
 
 /**
- Summed ballot weight a winner must draw before a selection counts.
+ Ballots naming the winner a selection needs, whatever their weight: the
+ floor of two answering judges, and the only floor a selection round has.
 
- One vote deciding is one model deciding, which is the exact thing the
- ensemble exists to prevent: a round where every other judge abstained or was
- lost would otherwise hand the whole chunk to whichever single judge answered.
- Two is the smallest number that makes a selection an agreement rather than an
- opinion.
+ One vote deciding is one model deciding, which the ensemble exists to prevent:
+ a round where every other judge abstained or was lost would otherwise hand
+ the whole chunk to whichever single judge answered (the owner's standing
+ rule, 2026-09-09). Two is the smallest number that makes a selection an
+ agreement rather than an opinion. A self-vote counts as a ballot, since the
+ judge answered; its half weight only ranks the candidates. Until 2026-10-25
+ a winner also needed a summed weight of two, which the owner removed
+ ("Every weight floor"), so two ballots decide when they weigh 1.5.
  */
-export const MIN_SELECTION_WEIGHT = 2;
+export const MIN_SELECTION_BALLOTS = 2;
 
 /**
  Who produced a candidate.
@@ -406,9 +413,10 @@ export type SelectionBallot = {
 /**
  What one candidate drew, so a decline is as auditable as a win.
 
- A round tally says the leader was short of the minimum without saying by how
- much or against what, and a short leader is the commonest outcome of a judged
- round. This is the per-candidate half of that account.
+ A round tally says the leader was named by one judge alone, or that judges
+ tied, without saying by how much or against what, and a leader short of two
+ ballots is the commonest outcome of a judged round. This is the per-candidate
+ half of that account.
 
  @example
  ```ts
@@ -437,7 +445,7 @@ export type CandidateWeight = {
   readonly selfVotes: number;
 
   /**
-   Summed weight, which is what the minimum is compared against.
+   Summed weight, which ranks the candidates; no minimum is compared against it.
    */
   readonly weight: number;
 };
@@ -449,7 +457,7 @@ export type CandidateWeight = {
  either overrides its judges or throws away work over a coin flip:
 
  -   `indecision` means judges answered but did not converge, by tying or by
-     leaving the leader short of the minimum votes. Every candidate may be
+     leaving the leader named by one judge alone. Every candidate may be
      perfectly good; nobody said otherwise. This is a failure to rank.
  -   `rejection` means judges affirmatively answered that NO candidate is
      acceptable, or that no judge could be seated at all. This

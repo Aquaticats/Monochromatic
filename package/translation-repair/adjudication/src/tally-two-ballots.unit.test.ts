@@ -67,7 +67,7 @@ function soloCluster(
   { claimMember, }: { readonly claimMember: AggregatedClaim; },
 ): ClaimCluster {
   return {
-    clusterId: `cluster/${claimMember.claimId}`,
+    clusterId: `two-ballots-cluster/${claimMember.claimId}`,
     position: 10,
     members: [claimMember,],
   };

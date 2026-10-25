@@ -395,12 +395,12 @@ await describe({
       },
     },),
     it({
-      name: 'counts a roster SHORT OF THE MINIMUM WEIGHT as incorrect even where the single judge '
-        + 'that voted named the complete text, since one voice does not carry a stage',
+      name: 'counts a panel where ONE JUDGE ALONE answered as incorrect even where that judge '
+        + 'named the complete text, since one voice does not carry a stage',
       fn: async () => {
         /**
          One judge backs the complete text and the rest abstain, which draws
-         `FULL_VOTE_WEIGHT` against a minimum of `MIN_SELECTION_WEIGHT`.
+         one ballot against the `MIN_SELECTION_BALLOTS` a winner needs.
          */
         const outcome = await runScripted({
           script: {
@@ -413,7 +413,7 @@ await describe({
         },);
         expect(outcome.verdict,).toBe('declined',);
         expect(outcome.correct,).toBe(false,);
-        expect(outcome.declineReason,).toBe('winner short of the minimum vote weight',);
+        expect(outcome.declineReason,).toBe('winner named by one judge alone',);
         // The ballot still records what that judge chose, which is the reading
         // that separates a panel nobody voted in from one that could not agree.
         /** Preserve per-judge evidence independently of prompt-rotated order. */

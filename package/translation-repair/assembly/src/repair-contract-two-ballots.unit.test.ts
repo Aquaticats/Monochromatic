@@ -53,7 +53,7 @@ await describe({
           assertJudgeableProducerRoster({
             producerModelIds: [PRODUCER_ONE, PRODUCER_TWO,],
             judgeModelIds: [PRODUCER_ONE, PRODUCER_TWO,],
-            role: 'editor',
+            role: 'translator',
           },);
         },).not.toThrow();
       },
@@ -66,7 +66,7 @@ await describe({
           assertJudgeableProducerRoster({
             producerModelIds: [PRODUCER_ONE,],
             judgeModelIds: [PRODUCER_ONE, JUDGE_ONE,],
-            role: 'editor',
+            role: 'translator',
           },);
         },).not.toThrow();
       },
@@ -79,7 +79,7 @@ await describe({
           assertJudgeableProducerRoster({
             producerModelIds: [PRODUCER_ONE,],
             judgeModelIds: [JUDGE_ONE,],
-            role: 'editor',
+            role: 'translator',
           },);
         },).toThrow(ProducerRosterError,);
       },

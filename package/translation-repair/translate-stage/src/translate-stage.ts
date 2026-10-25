@@ -127,7 +127,7 @@ import type {
 
  @throws {@link ProducerRosterError} when the
  roster could not select anything: repeats on either side, no translator, or
- judges too few to reach the minimum weight
+ fewer than two judges
 
  @throws {@link import('./translation-repair-interrupted-error.ts').TranslationRepairInterruptedError}
  when absent-passage correction repeats exact task or providers remain unavailable

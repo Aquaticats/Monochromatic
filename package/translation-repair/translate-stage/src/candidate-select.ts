@@ -11,11 +11,7 @@ import {
   stakesByIndexOf,
 } from './candidate-select-roster.ts';
 import {
-  CONDEMNED_FALLBACK_UNDER_MINIMUM_FINDING,
-  condemnedFallbackLoses,
-  MIN_SELECTION_BALLOTS,
-  RUNOFF_UNDER_MINIMUM_FINDING,
-  selectionMinimum,
+  selectionBench,
   shortBenchFinding,
 } from './candidate-select-minimum.ts';
 import {
@@ -29,6 +25,7 @@ import {
 import {
   type Candidate,
   describeProducer,
+  MIN_SELECTION_BALLOTS,
   type SelectionOutcome,
   type SelectionTally,
   SELF_VOTE_WEIGHT,
@@ -60,9 +57,11 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 //   fallback, which is text the pipeline already trusts, so the conservative
 //   outcome is the default whenever the ensemble fails to agree.
 //
-// The discount is sized so it cannot decide anything by itself: see
-// `SELF_VOTE_WEIGHT`. Self-preference is not assumed away, so every self-vote
-// is recorded by name, weighed on the ballot, and counted in the tally.
+// The discount decides which candidate leads and nothing else: a winner needs
+// two answering judges, a self-voting judge is one of them, and no summed
+// weight is required (the owner's rulings of 2026-10-25, see `SELF_VOTE_WEIGHT`).
+// Self-preference is not assumed away, so every self-vote is recorded by name,
+// weighed on the ballot, and counted in the tally.
 //
 // Callers pass their WHOLE roster as `judgeModelIds`. Hand-partitioning a judge
 // list outside is how a caller ends up with an empty roster it cannot see.
@@ -102,17 +101,6 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
  @param l - logger of the calling stage
 
- @param runoff - whether this round is the challenge round's run-off over
- finalists a prior round backed and the floor found valid; the leader then
- wins on the ballot floor under the weight minimum, since abstentions on a
- question between valid finalists answer neither (class seventy-three)
-
- @param fallbackCondemned - whether the contest majority called the fallback
- this round would keep flawed; a leader that at least two ballots named then
- wins under the weight minimum, when it is not the fallback itself, even
- where every cast ballot fell on it and no run-off could narrow the question
- (one entry's slice 45, 2026-10-19)
-
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
@@ -120,8 +108,8 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  reason; either way the round's tally and every ballot cast
 
  @throws {@link ProducerRosterError} when a judge
- appears twice on the roster, which would let one model reach the minimum
- weight by itself
+ appears twice on the roster, which would let one model count as two
+ answering judges
 
  @example
  ```ts
@@ -142,8 +130,6 @@ export async function decideBestCandidate<ValueT,>(
     l,
     fanOut,
     sourceText,
-    runoff = false,
-    fallbackCondemned = false,
     stageSettings,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
@@ -158,8 +144,6 @@ export async function decideBestCandidate<ValueT,>(
     readonly l: Logger;
     readonly fanOut?: FanOutMode;
     readonly sourceText?: string;
-    readonly runoff?: boolean;
-    readonly fallbackCondemned?: boolean;
     readonly stageSettings: StageSettings;
   }>,
 ): Promise<SelectionOutcome<ValueT>> {
@@ -290,24 +274,19 @@ export async function decideBestCandidate<ValueT,>(
   },);
 
   /**
-   Minimum this round applies, sized to the seats a wet provider could
-   serve (the owner's decision of 2026-09-09, `candidate-select-minimum.ts`).
+   Seats a wet provider could serve (the owner's decision of 2026-09-09,
+   `candidate-select-minimum.ts`), read for the findings and the log only: the
+   winner needs two ballots whatever the bench.
    */
-  const minimum = selectionMinimum({
+  const bench = selectionBench({
     benchSize: judges.length,
     unreachable: gather.unreachable
       .size,
   },);
-  /**
-   Minimum weight as the log prints it.
-   */
-  const minimumLabel = minimum.weight
-    .toFixed(2,);
-  if (minimum.short) {
+  if (bench.short) {
     sl.warn(
-      `bench short of quorum: seats reachable ${String(minimum.reachable,)} of ${String(judges.length,)} against a `
-        + `quorum of ${String(minimum.quorum,)}; the winner needs weight ${minimumLabel} from at least `
-        + `${String(MIN_SELECTION_BALLOTS,)} ballots`,
+      `bench short of quorum: seats reachable ${String(bench.reachable,)} of ${String(judges.length,)} against a `
+        + `quorum of ${String(bench.quorum,)}; the winner needs at least ${String(MIN_SELECTION_BALLOTS,)} ballots`,
     );
   }
 
@@ -316,9 +295,9 @@ export async function decideBestCandidate<ValueT,>(
    */
   const roundFindings: readonly string[] = [
     ...gather.findings,
-    ...(minimum.short
+    ...(bench.short
       ? [shortBenchFinding({
-        minimum,
+        bench,
         benchSize: judges.length,
       },),]
       : []),
@@ -390,70 +369,19 @@ export async function decideBestCandidate<ValueT,>(
   const leaderBallots = leaderDrawn.ballots;
 
   /**
-   Whether the leader stands under the weight minimum.
-   */
-  const underMinimum = leader[1] < minimum.weight;
-
-  /**
-   Whether a run-off's leader wins under the weight minimum on the ballot
-   floor alone (class seventy-three, mikaela4 slice 28): the finalists were
-   valid and the question was which, so the judges who chose decide and the
-   abstentions answer neither. Two ballots still keep one model from
-   deciding.
-   */
-  const runoffDecides = runoff
-    && underMinimum
-    && (leaderBallots >= MIN_SELECTION_BALLOTS);
-
-  /**
    Winning candidate, indexed back from the one-based ballot. ALWAYS FOUND:
    `countBallots` ranks only a `best` from 1 to the candidate count, the
    length of `candidates`.
    */
   const winner = nonNullishOrThrow(candidates[leader[0] - 1],);
 
-  /**
-   Whether the ballots decide because the fallback was called flawed, which
-   the run-off, deciding on the same floor, already covers.
-   */
-  const condemnedDecides = (!runoffDecides)
-    && condemnedFallbackLoses({
-      condemned: fallbackCondemned,
-      underMinimum,
-      leaderIsFallback: winner.producer
-        .kind
-        === 'incumbent',
-      leaderBallots,
-    },);
-
-  /**
-   Whether the ballot floor, not the weight minimum, decides this round.
-   */
-  const floorDecides = runoffDecides || condemnedDecides;
-  if (underMinimum && (!floorDecides)) {
-    // A plurality of one is not agreement. Lost voices and abstentions can
-    // leave a single judge as the only one who named anything, and letting
-    // that judge decide would put one model back in control of the stage.
-    sl.info(
-      `winner drew only weight ${String(leader[1],)} (ballots: ${String(counted.ballots,)}, abstentions: `
-        + `${String(counted.abstentions,)}) against a minimum of ${minimumLabel}; keeping the fallback`,
-    );
-    return {
-      kind: 'declined',
-      reason: 'winner short of the minimum vote weight',
-      disposition: 'indecision',
-      tally: counted,
-      findings: roundFindings,
-      ballots,
-      perCandidate,
-    };
-  }
-
   if (leaderBallots < MIN_SELECTION_BALLOTS) {
-    // THE FLOOR UNDER THE SCALED MINIMUM. On a bench short of quorum the
-    // weight can fall to what one full ballot carries; two ballots is what
-    // keeps one judge from deciding, which is what the absolute minimum was
-    // for (owner, 2026-09-09).
+    // A PLURALITY OF ONE IS NOT AGREEMENT, whatever it weighs. Lost voices and
+    // abstentions can leave a single judge as the only one who named anything,
+    // and letting that judge decide would put one model back in control of the
+    // stage (owner, 2026-09-09). This count is the only floor: the minimum
+    // vote weight went on 2026-10-25 ("Every weight floor"), so two ballots
+    // decide even when they weigh 1.5.
     sl.info(
       `winner was named by ${String(leaderBallots,)} ballot against a floor of ${String(MIN_SELECTION_BALLOTS,)}; `
         + 'keeping the fallback',
@@ -469,19 +397,6 @@ export async function decideBestCandidate<ValueT,>(
     };
   }
 
-  if (runoffDecides) {
-    sl.info(
-      `run-off: candidate ${String(leader[0],)} (ballots naming it: ${String(leaderBallots,)}) at weight `
-        + `${String(leader[1],)} under the minimum of ${minimumLabel}; the finalists were valid, so the ballots decide`,
-    );
-  }
-  if (condemnedDecides) {
-    sl.info(
-      `condemned fallback: candidate ${String(leader[0],)} (ballots naming it: ${String(leaderBallots,)}) at weight `
-        + `${String(leader[1],)} under the minimum of ${minimumLabel}; the contest majority called the fallback `
-        + 'flawed, so the ballots decide',
-    );
-  }
   sl.info(
     `candidate ${String(leader[0],)} from ${describeProducer(winner.producer,)} won `
       + `weight ${String(leader[1],)} (ballots: ${String(counted.ballots,)})`,
@@ -493,17 +408,7 @@ export async function decideBestCandidate<ValueT,>(
     voteWeight: leader[1],
     selectedIndex: leader[0],
     tally: counted,
-    findings: runoffDecides
-      ? [
-        ...roundFindings,
-        RUNOFF_UNDER_MINIMUM_FINDING,
-      ]
-      : condemnedDecides
-        ? [
-          ...roundFindings,
-          CONDEMNED_FALLBACK_UNDER_MINIMUM_FINDING,
-        ]
-        : roundFindings,
+    findings: roundFindings,
     ballots,
     perCandidate,
   };

@@ -102,18 +102,6 @@ import type {
 
  @param responsibility - initial selection or prior-decline challenge
 
- @param runoff - whether this judging is the challenge round's run-off over
- finalists the prior round backed, which the ballot floor then decides under
- the weight minimum (class seventy-three)
-
- @param fallbackCondemned - whether a strict majority of the contest's ballots
- called the incumbent flawed, so a leader that at least two ballots named
- wins under the weight minimum although no run-off narrowed the question; the
- consolidation sets it over an eligible standing (one entry's slice 45,
- 2026-10-19). Read by the challenge round alone: the first round still
- declines under the minimum, so a tie that backed two candidates is still run
- off over them (slice 34) and not decided on the first plurality
-
  @param withheldStanding - whether an absent incumbent stands for wording
  that exists and cannot ship (a standing the deterministic rule refused, an
  archive rendering the floor refused or the adjudicators disputed) rather
@@ -175,8 +163,6 @@ export async function judgeTranslateSlate(
     syntax,
     lineStructured,
     responsibility = 'initial-selection',
-    runoff = false,
-    fallbackCondemned = false,
     withheldStanding = false,
     shipPastDecline = withheldStanding,
     signal,
@@ -221,8 +207,6 @@ export async function judgeTranslateSlate(
      */
     readonly lineStructured: boolean;
     readonly responsibility?: TranslateJudgeResponsibility;
-    readonly runoff?: boolean;
-    readonly fallbackCondemned?: boolean;
     readonly withheldStanding?: boolean;
     readonly shipPastDecline?: boolean;
     readonly signal: AbortSignal;
@@ -444,13 +428,6 @@ export async function judgeTranslateSlate(
       withheldStanding,
     },),
     task,
-    runoff,
-    // THE CHALLENGE ROUND ALONE. The first round declining under the minimum
-    // is what lets a tie across two candidates be narrowed to a run-off, a
-    // narrower question than the first plurality answered (slice 34 of the
-    // same entry); only a round that is already the second ask has nothing
-    // narrower left to give.
-    fallbackCondemned: fallbackCondemned && (responsibility === 'decline-challenge'),
     criteria: translatedSlateCriteria({
       sourceText,
       archiveText: incumbentText,

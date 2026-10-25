@@ -143,7 +143,7 @@ export type TranslateStageResult = {
   /**
    Why those are the finalists, present exactly when `runoffFinalists` is:
    the candidates tied at the top, or the leader and its runner-up where one
-   candidate led and fell short of the minimum weight (ledger B806).
+   candidate led and one judge alone named it (ledger B806).
    */
   readonly runoffBasis?: RunoffBasis;
 

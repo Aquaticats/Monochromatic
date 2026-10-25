@@ -1271,10 +1271,11 @@ await describe({
       },
     },),
     it({
-      name: 'SEATS THE PROPOSAL TWO BALLOTS BACKED over a standing every contest ballot called flawed, though '
+      name: 'SEATS THE PROPOSAL TWO BALLOTS BACKED over a standing, flawed or not, though '
         + 'every cast ballot fell on that one proposal (one entry\'s slice 45, 2026-10-19): the writer names '
-        + 'it at half weight, one disinterested judge at full weight and the third declines, so 1.5 against a '
-        + 'minimum of 2 and no run-off to narrow, which kept the archive wording no ballot endorsed',
+        + 'it at half weight, one disinterested judge at full weight and the third declines, so 1.5 from two '
+        + 'ballots and no run-off to narrow, which kept the archive wording no ballot endorsed while a weight '
+        + 'minimum of 2 stood (removed by the owner on 2026-10-25)',
       fn: async () => {
         /**
          Fragment naming the proposal on a sheet.
@@ -1297,15 +1298,11 @@ await describe({
         },);
         expect(flawed.settled.terminal,).toBe('consolidated',);
         expect(flawed.settled.text.replaceAll('\n', ' ',),).toBe(FRESH,);
-        expect(flawed.settled.findings,).toContain('select-condemned-fallback-under-minimum',);
-        // The first round still declines under the minimum, so a tie across two candidates keeps its
-        // run-off; it is the challenge round, asking the whole slate again, that the ballots decide.
+        expect(flawed.settled.findings.includes('select-condemned-fallback-under-minimum',),).toBe(false,);
+        // The first round decides, so no challenge round is asked.
         expect(flawed.judgeSheets.some(function challenged(sheet,): boolean {
           return sheet.includes('A prior panel declined this exact slate',);
-        },),).toBe(true,);
-        expect(flawed.judgeSheets.some(function firstAsk(sheet,): boolean {
-          return !sheet.includes('A prior panel declined this exact slate',);
-        },),).toBe(true,);
+        },),).toBe(false,);
 
         const endorsed = await settleWith({
           voices: [voiceOf({ modelId: ROSTER[0], translation: FRESH, },),],
@@ -1313,8 +1310,9 @@ await describe({
           judgeReply: writerAndOneOther,
           gateReply: ballot({ choice: 'consolidated', },),
         },);
-        expect(endorsed.settled.terminal,).toBe('slate-declined-standing',);
-        expect(endorsed.settled.text,).toBe(STANDING,);
+        // The flag no longer matters: the same ballots decide where nobody called the standing flawed.
+        expect(endorsed.settled.terminal,).toBe('consolidated',);
+        expect(endorsed.settled.text.replaceAll('\n', ' ',),).toBe(FRESH,);
       },
     },),
     it({
