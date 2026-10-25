@@ -5,7 +5,7 @@
 //!  and a view that is still moving is not a rest.
 
 /// The rest time and the places it is kept for.
-use super::pointer::{REST, Rest, Spot};
+use super::pointer::{REST, Rest, Spot, View};
 /// Fixtures and real window events.
 use super::test_support::{
     LanguageReader, TEXT_TOP, caret_x, definitions, idle, move_to, point, popup, project, reader,
@@ -19,12 +19,12 @@ use slint::platform::update_timers_and_animations;
 use std::time::Instant;
 
 /// Logical pixels of one code row.
-const ROW: f32 = 24.0;
+pub(super) const ROW: f32 = 24.0;
 
 /// `lines` lines:
 ///  `alphaNNN beta` on even lines,
 ///  blank odd lines.
-fn long_text(lines: usize) -> String {
+pub(super) fn long_text(lines: usize) -> String {
     let mut text = String::new();
     for index in 0..lines {
         if index % 2 == 0 {
@@ -45,12 +45,21 @@ fn start(line: usize) -> usize {
 
 /// A ready reader of `long_text(lines)`,
 ///  and the window point of the `b` of `beta` on line 4.
-fn resting_place(lines: usize) -> (super::test_support::Project, LanguageReader, f32) {
+pub(super) fn resting_place(lines: usize) -> (super::test_support::Project, LanguageReader, f32) {
+    return resting_place_with(lines, &[]);
+}
+
+/// Like `resting_place`,
+///  with the scripted server configured by `variables`.
+pub(super) fn resting_place_with(
+    lines: usize,
+    variables: &[(&str, &str)],
+) -> (super::test_support::Project, LanguageReader, f32) {
     let fixture = project(&[
         ("main.scripted", &long_text(lines)),
         ("other.scripted", "o\n"),
     ]);
-    let opened = reader(&fixture, "main.scripted", definitions(&[], None));
+    let opened = reader(&fixture, "main.scripted", definitions(variables, None));
     ready(&opened);
     let x = caret_x(&opened, start(4) + 9) + 2.0;
     return (fixture, opened, x);
@@ -59,13 +68,13 @@ fn resting_place(lines: usize) -> (super::test_support::Project, LanguageReader,
 /// The line drawn under the window point `y`:
 ///  the point in the text is the distance below the top of the view
 ///  plus the offset that is drawn.
-fn line_drawn_under(reader: &LanguageReader, y: f32) -> usize {
+pub(super) fn line_drawn_under(reader: &LanguageReader, y: f32) -> usize {
     let text_y = y - TEXT_TOP + reader.window.get_drawn_offset();
     return reader.source.borrow().row_map.locate(text_y).line;
 }
 
 /// Wait for the hover popup and give its text.
-fn wait_for_popup(reader: &LanguageReader, what: &str) -> String {
+pub(super) fn wait_for_popup(reader: &LanguageReader, what: &str) -> String {
     let mut waiting = Waiting::language();
     while popup(reader).is_empty() {
         waiting.step(what);
@@ -75,7 +84,7 @@ fn wait_for_popup(reader: &LanguageReader, what: &str) -> String {
 
 /// The hover popup of a request names the line under the pointer in the view that is drawn,
 ///  not the line the pointer was over when it last moved.
-fn assert_names_line_drawn_under(reader: &LanguageReader, y: f32, text: &str) {
+pub(super) fn assert_names_line_drawn_under(reader: &LanguageReader, y: f32, text: &str) {
     let line = line_drawn_under(reader, y);
     assert!(
         line > 4,
@@ -186,6 +195,7 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
         below_top: 100.0,
         x: 20.0,
         offset: 500.0,
+        extent: 9000.0,
     };
     let mut rest = Rest::default();
     rest.moved(Some(7), spot);
@@ -193,13 +203,13 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
     rest.at = Some((Some(7), Instant::now() - REST * 2));
     assert_eq!(rest.due(), Some(spot));
     // Within half a pixel is rounding.
-    rest.follow(500.4);
+    rest.follow(View { offset: 500.4, extent: 9000.0 });
     assert_eq!(rest.due(), Some(spot), "rounding restarted the rest");
-    rest.follow(620.0);
+    rest.follow(View { offset: 620.0, extent: 9000.0 });
     assert_eq!(rest.due(), None, "a moved view did not restart the rest");
     rest.at = Some((Some(7), Instant::now() - REST * 2));
     rest.asked = true;
-    rest.follow(900.0);
+    rest.follow(View { offset: 900.0, extent: 9000.0 });
     assert!(rest.asked, "a request already made was forgotten");
     assert_eq!(rest.due(), None);
 }
