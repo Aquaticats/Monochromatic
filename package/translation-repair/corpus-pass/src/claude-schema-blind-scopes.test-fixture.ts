@@ -1,6 +1,7 @@
 import {
   ancestorsOf,
   identifierName,
+  isTreeNode,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
@@ -20,8 +21,9 @@ import {
 // `claude-schema-resolve.test-fixture.ts`; a function, a block, a loop or a `catch` clause that binds the name makes
 // it another thing there. The scopes are read as the language gives them: the parameters, the name of a function
 // expression, the declarations of a function's own body for `var`, the declarations a block lists for `let`, `const`,
-// functions and classes, the head of a loop, the parameter of a `catch` clause and the name of a class expression.
-// The top level of the file is not one of them.
+// functions and classes, the declarations the body of a TypeScript namespace lists (those, and an enum, a namespace, a
+// declared function and `import x = y`, also under `export`), the head of a loop, the parameter of a `catch` clause and
+// the name of a class expression. The top level of the file is not one of them.
 
 /**
  The kinds of loop whose head declares names that only the loop sees.
@@ -33,10 +35,52 @@ const LOOP_KINDS: ReadonlySet<string> = new Set<string>([
 ],);
 
 /**
- The names a list of statements declares in the scope that holds the list: a variable declaration, a function and a
- class.
+ The kinds of node whose `body` lists the statements of a scope: a block, a static block and a namespace's body.
+ */
+const STATEMENT_LIST_KINDS: ReadonlySet<string> = new Set([
+  'BlockStatement',
+  'StaticBlock',
+  'TSModuleBlock',
+],);
 
- @param statements - statements of a block, of a static block or of a `switch` case
+/**
+ The kinds of declaration that bind the name in their `id` field: a function and a class, and the declarations of a
+ TypeScript namespace's body that do the same (a declared function, an enum, a namespace, an import-equals declaration).
+ */
+const NAMING_DECLARATION_KINDS: ReadonlySet<string> = new Set([
+  'ClassDeclaration',
+  'FunctionDeclaration',
+  'TSDeclareFunction',
+  'TSEnumDeclaration',
+  'TSImportEqualsDeclaration',
+  'TSModuleDeclaration',
+],);
+
+/**
+ The name a declaration's `id` starts with: the name itself, or the first name of a qualified one (`namespace A.B`
+ declares `A`).
+
+ @param id - `id` of a declaration, of any kind or none
+
+ @returns Name, empty for any other node
+
+ @example
+ ```ts
+ const name = firstNameOf({ id: declaration.id, },);
+ ```
+ */
+function firstNameOf({ id, }: { readonly id: unknown; },): string {
+  return (isTreeNode(id,) && (id.type === 'TSQualifiedName'))
+    ? firstNameOf({ id: id.left, },)
+    : identifierName({ node: id, },);
+}
+
+/**
+ The names a list of statements declares in the scope that holds the list: a variable declaration, a function, a class,
+ and, in a namespace, an enum, a namespace, a declared function and an import-equals declaration, also when an export
+ statement holds the declaration.
+
+ @param statements - statements of a block, of a static block, of a `switch` case or of a namespace
 
  @returns Names in order
 
@@ -47,18 +91,25 @@ const LOOP_KINDS: ReadonlySet<string> = new Set<string>([
  */
 function declaredByStatements({ statements, }: { readonly statements: readonly TreeNode[]; },): readonly string[] {
   return statements.flatMap(function declaredByStatement(statement,): readonly string[] {
-    if (statement.type === 'VariableDeclaration') {
-      return nodesAt({
+    /**
+     The declaration the statement makes: the one an export statement holds, the statement itself otherwise.
+     */
+    const declaration = (statement.type === 'ExportNamedDeclaration')
+      ? nodeAt({
         node: statement,
+        field: 'declaration',
+      },)
+      : statement;
+    if (declaration.type === 'VariableDeclaration') {
+      return nodesAt({
+        node: declaration,
         field: 'declarations',
       },)
         .flatMap(function boundByDeclarator(declarator,): readonly string[] {
           return namesBoundBy({ node: declarator.id, },);
         },);
     }
-    if ((statement.type === 'FunctionDeclaration') || (statement.type === 'ClassDeclaration'))
-      return [identifierName({ node: statement.id, },),];
-    return [];
+    return NAMING_DECLARATION_KINDS.has(declaration.type,) ? [firstNameOf({ id: declaration.id, },),] : [];
   },);
 }
 
@@ -134,7 +185,7 @@ function boundByScope({ scope, }: { readonly scope: TreeNode; },): readonly stri
       },),
     ];
   }
-  if ((scope.type === 'BlockStatement') || (scope.type === 'StaticBlock')) {
+  if (STATEMENT_LIST_KINDS.has(scope.type,)) {
     return declaredByStatements({
       statements: nodesAt({
         node: scope,
