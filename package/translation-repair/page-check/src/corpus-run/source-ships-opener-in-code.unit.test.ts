@@ -173,9 +173,9 @@ await describe({
       },
     },),
     it({
-      name: 'KEEPS THE CODE BEFORE THE OPENER IN THE SPAN AND WRITES THE REST AS TEXT',
+      name: 'KEEPS THE CODE BEFORE THE OPENER IN THE SPAN AND WRITES THE REST AS TEXT, the white space between them after the span',
       fn: async () => {
-        expect(encodeAsLiteralMdx({ text: 'a `x <!-- y` z {d}\n', },),).toBe('a `x `&lt;\\!\\-\\- y z \\{d\\}\n',);
+        expect(encodeAsLiteralMdx({ text: 'a `x <!-- y` z {d}\n', },),).toBe('a `x` &lt;\\!\\-\\- y z \\{d\\}\n',);
       },
     },),
     it({

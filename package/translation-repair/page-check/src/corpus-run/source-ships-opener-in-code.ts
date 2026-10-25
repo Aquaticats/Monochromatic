@@ -142,16 +142,34 @@ function splitSpan(
    Whether anything but white space stands before the opener, which the span then keeps as code.
    */
   const keepsCode = before.trim() !== '';
+  /**
+   The code the span keeps: what stood before the opener less the white space between them, which a reader of the page
+   would take off the span with the white space at its other end, and which is written after the closing delimiter.
+   */
+  const kept = before.trimEnd();
+  /**
+   Where the content of the node starts.
+   */
+  const contentStart = range.start + delimiter.length;
+  /**
+   Where the code the span keeps ends.
+   */
+  const keptEnd = contentStart + kept.length;
+  /**
+   What separates the code from the closing delimiter when it ends with the character the delimiter is made of, which
+   would make the run longer than the delimiter and close nothing.
+   */
+  const separator = kept.endsWith(delimiter.charAt(0,),) ? ' ' : '';
   return {
     edits: [
       {
-        start: keepsCode ? first : range.start,
+        start: keepsCode ? keptEnd : range.start,
         end: range.end,
-        replacement: `${keepsCode ? delimiter : ''}${
+        replacement: `${keepsCode ? `${separator}${delimiter}` : ''}${
           writtenAsText({
             source,
             range: {
-              start: keepsCode ? first : (range.start + delimiter.length),
+              start: keepsCode ? keptEnd : (range.start + delimiter.length),
               end: contentEnd,
             },
             openers: inside,
