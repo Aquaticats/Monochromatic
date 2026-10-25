@@ -162,7 +162,8 @@ none of them runs the resolution checkers
 
 The artifact generation stays.
 It is `ARTIFACT_SCHEMA_VERSION_V21` (`artifactSchemaVersion` in `artifact/src/corpus-run/artifact-two-lane-build.ts`).
-The stored readings keep their keys and shape, and only the value of one boolean can differ,
+The stored readings keep their keys and shape,
+and only the value of one boolean can differ,
 and no reader of the published artifact recounts the checker tally or reads the flag
 (the gates on generation in `artifact-two-lane-contract.ts` guard rules that a reader re-derives,
 as the last-seat grace of generation 20 was).
