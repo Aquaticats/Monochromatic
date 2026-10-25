@@ -4435,6 +4435,11 @@ tile's height.
 Production code: only debug log lines (`show_slices`), one counter and comments; behaviour unchanged, so the
 88-click recording was not repeated; installed again from `f32566de81`, sha256 `d9f48256d152b429…`, prints 0.1.1.
 Cleaned: agent worktree and branches, `~/temp/agent/fd`, scratch trees.
+Started 2026-10-25, a verification-only agent (scratch `~/temp/agent/final`) on the installed `d9f48256d152b429…`:
+repeats the five-press, 88-click, line 96 gap and request-count checks, and records the open case in the real window:
+at least 20 resets of a slice list to another row count (code tile and minimap, from the new debug log lines) on a
+1,500-line TypeScript file, with the blank frames within 300 ms after each. Next action: record its numbers here,
+remove `~/temp/agent/final` and its disposable projects, and if a blank code frame shows, fix it at the cause.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
