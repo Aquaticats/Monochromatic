@@ -5,6 +5,7 @@ import {
 
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
 import {
+  keyNameOf,
   moduleLoadOf,
   nodeAt,
   nodesAt,
@@ -16,18 +17,41 @@ import {
 // Besides `eval` and `Function` (`claude-schema-blind-unreadable.test-fixture.ts`), code is made from text by the `vm`
 // module and by the constructor of a function, which is the `Function` constructor. Both can be told by a read of the
 // text. The module is told by its specifier, `vm` or `node:vm`, in an import, an export from, a call of `require`, an
-// `import()`, a call of `process.getBuiltinModule` or the module of an import-equals declaration; an import or an
-// export that names types only (`import type`) loads nothing and names no module. The constructor is told by a member
+// `import()`, a call of `process.getBuiltinModule` (also read off the global object) or the module of an import-equals
+// declaration; an import or an export that names types only (`import type`) loads nothing and names no module. A
+// pattern that takes `getBuiltinModule` out of a value is reported, since the function is then called by a free name,
+// and so is a call of `binding` or `internalBinding` with the string `contextify`, the binding of Node that makes
+// scripts, which is a route to `vm.Script` without the module. The constructor is told by a member
 // named `constructor` written with a dot or with a string literal in brackets, also through `?.`, and by `Reflect.get`,
 // `Reflect.getOwnPropertyDescriptor` and `Object.getOwnPropertyDescriptor` with the string `constructor` as the key. A
 // key that is no literal, a pattern that takes `constructor` out of a value, and a method that is written through an
 // alias (`const R = Reflect; R.get(f, "constructor")`) are not told, and are limits of the search that the ledger
-// states.
+// states, and so is a loader that `process.getBuiltinModule` was assigned to and is called by another name.
 
 /**
  What a report says of a place that loads the `vm` module.
  */
 const LOADS_VM = 'vm runs text the search cannot read';
+
+/**
+ What a report says of a pattern that takes `getBuiltinModule` out of a value, since the function it names can load
+ `vm` under any name.
+ */
+const TAKES_LOADER = 'getBuiltinModule taken out of a value loads modules the search cannot read';
+
+/**
+ What a report says of a call of the binding of Node that makes scripts.
+ */
+const BINDS_CONTEXTIFY = 'contextify binding runs text the search cannot read';
+
+/**
+ The names a call may read the binding of Node through: `process.binding` and `internalBinding`, and the same
+ function called by a free name.
+ */
+const BINDING_CALLEES: ReadonlySet<string> = new Set([
+  'binding',
+  'internalBinding',
+],);
 
 /**
  What a report says of a place that reads the constructor of a value.
@@ -200,19 +224,83 @@ function getsBuiltinVm({ node, }: { readonly node: TreeNode; },): boolean {
   },)
     .at(0,);
   /**
-   The names the callee reads through, joined, whatever marks the object is written under.
+   The names the callee reads through, whatever marks the object is written under.
    */
-  const calleePath = pathOf({ node: callee, },)
-    .join('.',);
+  const calleePath = pathOf({ node: callee, },);
   /**
-   Whether the callee is `process.getBuiltinModule`.
+   Whether the callee is `process.getBuiltinModule`, whether `process` is read off the global object or not.
    */
-  const isGetter = calleePath === 'process.getBuiltinModule';
+  const isGetter = (calleePath.at(-1,) === 'getBuiltinModule') && (calleePath.at(-2,) === 'process');
   /**
    Whether the first argument is a string literal that names `vm`.
    */
   const isVm = (specifier !== undefined) && VM_SPECIFIERS.has(stringValueOf({ node: specifier, },),);
   return isGetter && isVm;
+}
+
+/**
+ Whether a pattern takes `getBuiltinModule` out of a value.
+
+ @param node - node read, of any kind
+
+ @returns Whether the node is an object pattern with a property whose key is `getBuiltinModule`
+
+ @example
+ ```ts
+ const takes = takesLoader({ node, },);
+ ```
+ */
+function takesLoader({ node, }: { readonly node: TreeNode; },): boolean {
+  if (node.type !== 'ObjectPattern')
+    return false;
+  return nodesAt({
+    node,
+    field: 'properties',
+  },)
+    .some(function isLoaderKey(property,): boolean {
+      return (property.type === 'Property') && (keyNameOf({ key: nodeAt({
+        node: property,
+        field: 'key',
+      },), },) === 'getBuiltinModule');
+    },);
+}
+
+/**
+ Whether a call is a call of the binding of Node that makes scripts.
+
+ @param node - node read, of any kind
+
+ @returns Whether the node is a call of `binding` or `internalBinding`, read off any object, with the string
+ `contextify` as its first argument
+
+ @example
+ ```ts
+ const binds = bindsContextify({ node, },);
+ ```
+ */
+function bindsContextify({ node, }: { readonly node: TreeNode; },): boolean {
+  if (node.type !== 'CallExpression')
+    return false;
+  /**
+   The first argument of the call, absent when it has none.
+   */
+  const first = nodesAt({
+    node,
+    field: 'arguments',
+  },)
+    .at(0,);
+  /**
+   The names the callee reads through.
+   */
+  const calleePath = pathOf({ node: nodeAt({
+    node,
+    field: 'callee',
+  },), },);
+  /**
+   The name the callee ends in.
+   */
+  const calleeName = calleePath.at(-1,) ?? '';
+  return BINDING_CALLEES.has(calleeName,) && (stringValueOf({ node: first, },) === 'contextify');
 }
 
 /**
@@ -230,6 +318,10 @@ function getsBuiltinVm({ node, }: { readonly node: TreeNode; },): boolean {
 function textCodePositionOf({ node, }: { readonly node: TreeNode; },): string {
   if (VM_SPECIFIERS.has(moduleNamedBy({ node, },),) || getsBuiltinVm({ node, },))
     return LOADS_VM;
+  if (takesLoader({ node, },))
+    return TAKES_LOADER;
+  if (bindsContextify({ node, },))
+    return BINDS_CONTEXTIFY;
   if ((node.type === 'MemberExpression') && readsConstructor({ node, },))
     return READS_CONSTRUCTOR;
   return reflectsConstructor({ node, },) ? READS_CONSTRUCTOR : '';
