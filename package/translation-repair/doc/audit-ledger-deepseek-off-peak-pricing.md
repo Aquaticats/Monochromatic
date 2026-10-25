@@ -11,7 +11,8 @@ which lists every file of this record.
 Provenance:
 the XingZ6021 read (its defect N8),
 the fix of 2026-10-25 (UTC),
-and the second and third rounds after independent re-checks of that fix.
+the second and third rounds after independent re-checks of that fix,
+and the wording round of B921 after the third re-check.
 
 ### B920: every DeepSeek call was booked at peak rates, so an off-peak run booked twice what the balance fell
 
@@ -129,13 +130,16 @@ the multiplier TSDoc is rewrapped,
 and a retried-call case lets the clock answer by how many attempts the transport has been handed,
 so a start read taken between attempts and not before the first books another rate
 (a mutant that reads the start at every attempt fails it on the booked figure,
-where the earlier retried-call case fails only on the read count).
+where the second round's case
+"PRICES a retried call from the start of its first attempt to the completion of the attempt that succeeded"
+fails only on the read count).
 The statements on `main` that went stale,
 in the XingZ6020 run record,
 the XingZ6021 defects record and the state-after-k4 handover,
 carry dated notes beside the original text.
 The commits are `496f09c0aa` (cases),
-`f5aa75f982` (wording) and `e7e7a82d15` (notes),
+`f5aa75f982` (wording),
+`e7e7a82d15` (notes) and `764ddcc51b` (the repair of three source-scan findings in the notes and this file),
 after the merge of `origin/main` at `9d234a763e` in `f3be7fd0ce`.
 
 What the booked figure bounds:
@@ -172,3 +176,57 @@ Cache versions:
 none moved.
 The booked cost reaches the SPEND line and the run meter only,
 and no cache key reads either.
+
+### B921: a heading and a card paragraph still described a spanning rule the code does not have
+
+Status:
+fixed on 2026-10-25 (UTC),
+found by the third independent re-check of B920 (a minor wording finding and four nits),
+a wording round with no change of behaviour.
+
+The defect:
+the third round of B920 reworded every sentence that said a call crossing a window edge books peak,
+and left the phrase "at the rate of the hours the call spanned" in five places:
+the region heading in `provider/src/direct-cost.ts`,
+the TSDoc and a comment in `provider/src/deepseek-client.ts`,
+the TSDoc of `spendFieldsOf` in `provider/src/direct-client.ts`
+and the index line of this file in `audit-ledger.md`.
+The phrase says every hour of the call counts,
+so a reader would book a call from 00:30 UTC to 04:30 UTC on a weekday at peak,
+and the code books it at half,
+because both instants lie outside the window between them.
+The rule as built is the one of B920:
+a call books peak when its start or its completion lies in a weekday window,
+an instant that is not a time counting as peak,
+and half the peak rates only when both lie outside every window,
+even if the call spanned a whole window between them.
+Each place now says that,
+under the phrase "the rate of the hours of its start and its completion".
+
+The other wording points:
+the TSDoc of the DeepSeek card in `shared-contract/src/model-card.ts`
+called the figure an upper bound as to which instant decides,
+without the call that spans a whole window,
+which books half and is under-read if DeepSeek bills by an instant between the two;
+it now says so,
+as `shared-contract/src/direct-card-sides.ts` and the decision record already did.
+The suite "DeepSeek rate of a call that crosses a window edge" in `direct-cost.unit.test.ts`
+is now named
+"DeepSeek rate of a call by where its start and its completion fall against the windows",
+because its cases include a spanning call and weekend calls that cross no peak edge;
+the case names and bodies are unchanged.
+The note of 2026-10-25 (UTC) in the XingZ6021 defects record
+used "crosses a window edge" for a call that starts outside every window and completes inside one;
+it now says that,
+because a call that spans a whole window also crosses window edges and is still booked as at its start.
+The phrase survives only as the quotation of the retired sentence in the B920 entry of this file.
+The B920 entry no longer points at a case by its place in the text,
+and its list of third-round commits names `764ddcc51b`.
+
+Nothing in behaviour changed:
+no test was added or removed and no cache version moved.
+The commits are `2266bb9b8a` (the heading, the two client TSDocs and the index line),
+`b1eea0a93d` (the card TSDoc),
+`f69dd3191c` (the suite name)
+and `1ec534cbcd` (the defects note),
+then the commit that holds this entry.
