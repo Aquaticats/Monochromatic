@@ -15,9 +15,9 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // DEEPSEEK IS PRICED AT THE RATE OF THE HOUR THE REQUEST STARTED IN: at the
 // card's peak rates when it started inside a weekday peak window (UTC), at half
 // of them otherwise. The page (`https://api-docs.deepseek.com/quick_start/pricing`,
-// read 2026-10-25 by the lead; this change fetched nothing) says "Peak hours are
-// 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through Friday, excluding Chinese
-// public holidays", and halves every rate off peak, which is every other hour.
+// read 2026-10-25 by the lead; this change fetched nothing) says:
+// `Peak hours are 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through Friday, excluding Chinese public holidays`
+// and halves every rate off peak, which is every other hour.
 // Until 2026-10-25 every call was booked at peak, and a run that ran a Saturday
 // night booked 0.147093 USD while the account's balance fell 0.07.
 //
@@ -25,20 +25,21 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // only turns a weekday window off peak, so pricing every weekday window at
 // peak, with no calendar, can only over-read it; outside the weekday windows
 // the page itself says off peak. The weekday is the UTC weekday: both windows
-// lie between 09:00 and 18:00 in Beijing on the same calendar date, so the UTC
-// weekday and the Beijing weekday agree for every instant a window covers.
+// lie between nine in the morning and six in the evening in Beijing on the same
+// calendar date, so the UTC weekday and the Beijing weekday agree for every
+// instant a window covers.
 //
-// THE EDGES. The page writes each window as "01:00 - 04:00" and does not say
+// THE EDGES. The page writes each window as `01:00 - 04:00` and does not say
 // whether its last instant belongs to it. Each window is read as half-open, a
-// ruling of the lead of 2026-10-25: 01:00:00 is peak, 04:00:00 is off peak,
-// and likewise 06:00:00 and 10:00:00.
+// ruling of the lead of 2026-10-25: 01:00:00 UTC is peak, 04:00:00 UTC is off
+// peak, and likewise 06:00:00 UTC and 10:00:00 UTC.
 //
 // WHAT IS NOT BOUNDED. The instant is the one the request started at, read once
-// before the first attempt; a call that spans an edge, or a retry that starts
-// after one, is booked at the rate of its first start. A Saturday that China
-// makes a working day is off peak here, since the page says "Monday through
-// Friday". The first is bounded by one call's length, the second by the page's
-// own wording.
+// before the first attempt: a call that spans an edge, or a retry that starts
+// after one, is booked at the rate of its first start, a gap of at most one
+// call's length. A Saturday that China makes a working day is off peak here,
+// since the page says "Monday through Friday", and the page's own wording is
+// the only bound on that.
 //
 // A COUNT THE WIRE DID NOT SPLIT IS PRICED AT THE DEARER RATE, for the same
 // reason: a DeepSeek block with no cache fields prices the whole prompt as
@@ -90,7 +91,7 @@ type PeakWindowUtcHours = {
 };
 
 /**
- The two peak windows of a weekday, "01:00 - 04:00 and 06:00 - 10:00 UTC" on the
+ The two peak windows of a weekday, `01:00 - 04:00 and 06:00 - 10:00 UTC` on the
  page, each half-open.
  */
 const PEAK_WINDOWS_UTC: readonly PeakWindowUtcHours[] = [
@@ -124,7 +125,7 @@ const SATURDAY_UTC_DAY = 6;
 
  @param at - instant the request started at
 
- @returns Whether it lies on a Monday to Friday (UTC) inside 01:00 to 04:00 or 06:00 to 10:00 UTC, the end of each
+ @returns Whether it lies on a Monday to Friday (UTC) inside 01:00 to 04:00 UTC or 06:00 to 10:00 UTC, the end of each
  window excluded
 
  @example
