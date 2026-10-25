@@ -263,6 +263,39 @@ await describe({
       },
     },),
     it({
+      name: 'PLACES A BLOCK THAT NO RANGE REACHES AT THE PLACE WHERE THE BLOCK A RANGE REACHES ENDS, the same word twice',
+      fn: async () => {
+        /**
+         A block a range reaches and a block after it that shows the same word, the page showing the word once: the second
+         block stands where the first ends and the first has no words to match, so one block stays undecided.
+         */
+        expect(blockDifferenceOf({
+          sourceBlocks: [blockAt({ account: 'tabby', at: 0, },), blockAt({ account: 'tabby', at: 1, },),],
+          pageBlocks: ['tabby',],
+          disagreements: [{ start: 0, end: 1, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 1, },);
+      },
+    },),
+    it({
+      name: 'TAKES THE CHEAPEST OF THE PLACES THE BLOCKS BEFORE CAN END AT FOR A BLOCK THAT FOLLOWS ONE A RANGE REACHES',
+      fn: async () => {
+        /**
+         A block that shows nothing and a range reaches, a word, a block a range reaches, and the word of the last block
+         twice, the page showing words that fit one way of placing them only: the cheapest way leaves one block undecided.
+         */
+        expect(blockDifferenceOf({
+          sourceBlocks: [
+            blockAt({ account: '', at: 0, },),
+            blockAt({ account: 'calico', at: 1, },),
+            blockAt({ account: 'tabby', at: 2, },),
+            blockAt({ account: 'tabby', at: 3, },),
+          ],
+          pageBlocks: ['calico calico tabby',],
+          disagreements: [{ start: 0, end: 1, }, { start: 20, end: 21, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 1, },);
+      },
+    },),
+    it({
       name: 'ANSWERS FOR A PAGE OF MANY BLOCKS OF THE SAME WORDS, which the placing of each block must not set against every other',
       fn: async () => {
         /**
