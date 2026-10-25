@@ -13,6 +13,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import {
@@ -184,6 +185,56 @@ async function callOnClockTurningAtReply(
   return { booked, reads: reads.count, };
 }
 
+/**
+ Sends one call through a client whose clock answers by how many exchanges the transport has been handed: the first
+ instant before the first attempt has been sent, the second between the first attempt and the next, and so on, the last
+ instant from then on. A start read taken between attempts, and not before the first, therefore reads another instant.
+
+ @param instantAfterExchanges - instant every read returns once that many exchanges have been handed to the transport
+
+ @param replies - the transport's script, one reply per attempt
+
+ @returns USD the run spend meter gained for DeepSeek, and how many times the clock was read
+
+ @example
+ ```ts
+ const { booked, reads, } = await callOnClockByAttempt({
+   instantAfterExchanges: [
+     new Date('2026-10-21T04:30:00.000Z',),
+     new Date('2026-10-21T02:00:00.000Z',),
+     new Date('2026-10-21T05:00:00.000Z',),
+   ],
+   replies: [UNAVAILABLE_REPLY, FINISHED_REPLY,],
+ },);
+ ```
+ */
+async function callOnClockByAttempt(
+  {
+    instantAfterExchanges,
+    replies,
+  }: {
+    readonly instantAfterExchanges: readonly Date[];
+    readonly replies: readonly { readonly status: number; readonly bodyText: string; }[];
+  },
+): Promise<{ readonly booked: number; readonly reads: number; }> {
+  /**
+   Reads taken so far.
+   */
+  const reads = { count: 0, };
+  const booked = await bookedUsdOfCallOn({
+    replies,
+    nowFor: function clockOf({ exchanges, },): () => Date {
+      return function read(): Date {
+        reads.count += 1;
+        return nonNullishOrThrow(
+          instantAfterExchanges[Math.min(exchanges.length, instantAfterExchanges.length - 1,)],
+        );
+      };
+    },
+  },);
+  return { booked, reads: reads.count, };
+}
+
 await describe({
   name: createDeepSeekClient.name,
   // SEQUENTIAL: the run spend meter is process-wide, so cases that read its change must not overlap.
@@ -310,6 +361,34 @@ await describe({
         },);
         expect(peakThenOff.booked,).toBeCloseTo(PEAK_USD, 12,);
         expect(peakThenOff.reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a retried call from the instant read before its first attempt, not one read between the attempts: '
+        + 'off peak first, peak between and off peak last books half, and peak first, off peak after books peak',
+      fn: async () => {
+        const replies = [UNAVAILABLE_REPLY, FINISHED_REPLY,];
+        const offPeakFirst = await callOnClockByAttempt({
+          instantAfterExchanges: [
+            new Date('2026-10-21T04:30:00.000Z',),
+            new Date('2026-10-21T02:00:00.000Z',),
+            new Date('2026-10-21T05:00:00.000Z',),
+          ],
+          replies,
+        },);
+        expect(offPeakFirst.booked,).toBeCloseTo(PEAK_USD / 2, 12,);
+        expect(offPeakFirst.reads,).toBe(2,);
+        const peakFirst = await callOnClockByAttempt({
+          instantAfterExchanges: [
+            new Date('2026-10-21T02:00:00.000Z',),
+            new Date('2026-10-21T04:30:00.000Z',),
+            new Date('2026-10-21T05:00:00.000Z',),
+          ],
+          replies,
+        },);
+        expect(peakFirst.booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(peakFirst.reads,).toBe(2,);
       },
     },),
 

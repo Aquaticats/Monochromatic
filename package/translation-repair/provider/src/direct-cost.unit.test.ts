@@ -2,9 +2,10 @@
  Tests for the pricing of one DeepSeek or Xiaomi call from the usage it reported and the card's rates.
 
  Rates in the expected figures are the cards' own, in USD per million tokens: DeepSeek at peak 0.006 (hit), 0.3 (miss)
- and 1.2 (output), and half of each when the call started outside a weekday peak window (UTC); Xiaomi 0.0028 (cached),
- 0.14 and 0.28. Instants are written in UTC; 2026-10-21 is a Wednesday, 2026-10-23 a Friday, 2026-10-24 a Saturday and
- 2026-10-25 a Sunday. Fixtures are cat-themed invention.
+ and 1.2 (output), and half of each when both the instant the request started at and the instant its reply completed
+ at lie outside every weekday peak window (UTC); Xiaomi 0.0028 (cached), 0.14 and 0.28. Instants are written in UTC;
+ 2026-10-21 is a Wednesday, 2026-10-23 a Friday, 2026-10-24 a Saturday and 2026-10-25 a Sunday. Fixtures are
+ cat-themed invention.
 
  @module
  */
@@ -22,6 +23,7 @@ import {
   deepSeekCostOf,
   DIRECT_COST_UNREPORTED,
   isDeepSeekPeakAt,
+  isDeepSeekPeakDuring,
   XIAOMI_MODELS,
   xiaomiCostOf,
 } from '../dist/final/node/index.mjs';
@@ -277,7 +279,7 @@ await describe({
         },),
         it({
           name: 'BOOKS a call at peak when it started at 05:59:50 UTC, outside the second window, and its reply '
-            + 'completed at 06:00:10 UTC, inside it, and one that started at 09:59:50 UTC and completed at 10:00:10 UTC',
+            + 'completed at 06:00:10 UTC, inside it, and one that started at 09:59:50 UTC, completed at 10:00:10 UTC',
           fn: async () => {
             expect(costStartedAt({
               startedAt: '2026-10-21T05:59:50.000Z',
@@ -336,6 +338,20 @@ await describe({
           },
         },),
         it({
+          name: 'BOOKS a call at half the peak rates when it spans a whole window with both instants outside it, '
+            + 'Wednesday 00:30 UTC to 04:30 UTC and 05:00 UTC to 10:30 UTC',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-21T00:30:00.000Z',
+              completedAt: '2026-10-21T04:30:00.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-21T05:00:00.000Z',
+              completedAt: '2026-10-21T10:30:00.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+          },
+        },),
+        it({
           name: 'BOOKS a call at peak when either instant is not a time, the dearer rate, whichever side it is on',
           fn: async () => {
             expect(deepSeekCostOf({
@@ -355,7 +371,7 @@ await describe({
           },
         },),
         it({
-          name: 'BOOKS each weekday, Monday 2026-10-19 to Friday 2026-10-23, at peak at 02:00 UTC and at 07:00 UTC, and '
+          name: 'BOOKS each weekday, Monday 2026-10-19 to Friday 2026-10-23, at peak at 02:00 UTC and 07:00 UTC, and '
             + 'Saturday 2026-10-24 and Sunday 2026-10-25 at half the peak rates at the same hours',
           fn: async () => {
             /**
@@ -385,6 +401,68 @@ await describe({
               }
             }
             expect(booked,).toEqual(expected,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isDeepSeekPeakDuring.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'IS PEAK when either instant is inside a window, and off peak only when both lie outside every window',
+          fn: async () => {
+            /**
+             Start and completion times of a Wednesday call, paired with whether the call is peak.
+             */
+            const wednesday: readonly (readonly [string, string, boolean])[] = [
+              ['00:59:50.000', '01:00:10.000', true,],
+              ['03:59:50.000', '04:00:10.000', true,],
+              ['02:00:00.000', '02:00:00.000', true,],
+              ['04:00:10.000', '04:00:40.000', false,],
+              ['00:30:00.000', '04:30:00.000', false,],
+              ['05:00:00.000', '10:30:00.000', false,],
+            ];
+            for (const [startTime, completionTime, peak,] of wednesday) {
+              expect(isDeepSeekPeakDuring({
+                startedAt: new Date(`2026-10-21T${startTime}Z`,),
+                completedAt: new Date(`2026-10-21T${completionTime}Z`,),
+              },),).toBe(peak,);
+            }
+          },
+        },),
+        it({
+          name: 'IS OFF PEAK across the weekend, from Friday evening to Saturday and from Sunday night to Monday '
+            + '00:59 UTC, and peak once the completion reaches Monday 01:00 UTC',
+          fn: async () => {
+            expect(isDeepSeekPeakDuring({
+              startedAt: new Date('2026-10-23T23:59:50.000Z',),
+              completedAt: new Date('2026-10-24T00:00:10.000Z',),
+            },),).toBe(false,);
+            expect(isDeepSeekPeakDuring({
+              startedAt: new Date('2026-10-25T23:59:50.000Z',),
+              completedAt: new Date('2026-10-26T00:59:59.999Z',),
+            },),).toBe(false,);
+            expect(isDeepSeekPeakDuring({
+              startedAt: new Date('2026-10-25T23:59:50.000Z',),
+              completedAt: new Date('2026-10-26T01:00:00.000Z',),
+            },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'IS PEAK when either instant is not a time, whichever side it is on, and when both are',
+          fn: async () => {
+            /**
+             Instant on a Saturday, off peak at every hour.
+             */
+            const saturday = new Date('2026-10-24T02:00:00.000Z',);
+            /**
+             Instant that is not a time.
+             */
+            const invalid = new Date(Number.NaN,);
+            expect(isDeepSeekPeakDuring({ startedAt: saturday, completedAt: invalid, },),).toBe(true,);
+            expect(isDeepSeekPeakDuring({ startedAt: invalid, completedAt: saturday, },),).toBe(true,);
+            expect(isDeepSeekPeakDuring({ startedAt: invalid, completedAt: invalid, },),).toBe(true,);
           },
         },),
       ],
