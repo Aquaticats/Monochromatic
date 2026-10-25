@@ -4664,7 +4664,33 @@ changed; the instrument is the problem (the app logs no event time and no presse
 drawn offset, held, line and character), runs 30 trials per delay at 300 notches (delays 20 to 250 ms, 10 each at 150
 and 600) and checks the pressed line against the line mapped through the drawn offset of the last logged frame, with a
 positive control build that maps with the real offset; its report is verified, landed and the IDE reinstalled. The
-row-map agent (`~/temp/agent/rowmap`) is still running.
+row-map agent (`~/temp/agent/rowmap`) reported 2026-10-25 (branch `worktree-agent-a02a1c558c302127c`, tip
+`a2d8758424`, gates on its merged tree green: `test:native` 346 passed, `test` 811, `test:bin` 71): the taller row map
+is a real defect with a cause, not a harness effect: at the 173 px first layout a measurement chunk applied at the
+narrow width leaves 2 rows for every wrapping line, `measure_requested` (`src/native/render/measure.rs`) measured the
+displayed tile in 3 fixed rounds, the stale region retreated 100, 136, 150 lines while the tile grew to 155, and the
+final `spending.measure(...)` result was thrown away, so lines 150 to 152 (0-based) kept 2 rows; `apply_pass`
+(`src/native/tile/pass.rs`) skips the displayed tile's lines so nothing corrects them; with no input the map stays 72
+px too tall for the session (a resize or Ctrl+Home corrects it), the picture and gutter stay consistent with the map,
+pixel positions land 3 rows off the text model (wheel distances, minimap, scroll restore, pointer placement). The earlier
+guess "passes that end late" was wrong. Fix: `measure_requested` repeats its rounds until no height changes (bound 64,
+warn record at the bound) and absorbs the last measurement, plus a debug record in `apply_pass` when a displayed line
+disagrees. Measured one-core sessions, input-free, 160 per arm: main 12 and a second copy 7 too tall, fix 0 (Fisher
+p 0.0004); native test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` failed before with
+`[(50,2,1),(51,2,1),(52,2,1),(53,2,1)]`, guard `measure-rounds-capped` removed fails and restored passes; positive
+control 10 of 30 sessions 240 px too tall before, 0 of 30 after. Item 2 (three trials with no wheel line): not a logging
+gap; the wheel path writes `the windowing system turned the wheel` (`wheel.rs:150`) for every wheel event and `a wheel
+turn began an ease` (`wheel.rs:239`); 13 of 210 early-wheel sessions (40 and 301 notches, 300 ms after the server was
+ready, one-core limit) had no wheel line and a gutter at the top of the file in all 13, so the IDE never received the
+event; two debug records were added for silent drops in the wheel path (`note_turn` when busy, `flicked` when the note
+is older than 50 ms), no behavior change. Merged and gated in `land-row`, then pushed, built, installed and verified.
+Left unexplained by that agent and queued here (QWD), started at once with a third agent (scratch
+`~/temp/agent/early`): (a) where a wheel that arrives early after launch is dropped (compositor, toolkit or the
+IDE's input surface: the pointer outside the small first surface is the hypothesis; the real user case is a wheel
+within the first second); (b) a `bwrap: Can't bind mount ... mise/tmp` information row shown in the IDE in some sessions
+(2, 1 and 4 of 160 per arm, row heights 90 to 154 px taller): a product-visible message, probably a race on a shared
+cache directory between concurrent sessions or between two IDE processes on one project; (c) the one taller map in 1,160
+unlimited sessions (logs gone; the same mechanism may explain it).
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
