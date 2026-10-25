@@ -65,11 +65,13 @@ named for that subject and listed here.
   Rules for a guard that holds a run to an amount of money:
   what it admits,
   what it counts,
-  and the retries a client makes inside the call it admits.
+  the retries a client makes inside the call it admits,
+  and a wait taken again for a provider that has just refused.
   Sections:
   - [Attempts a guard cannot see](mistake-prevention-spend-guards-and-client-retries.md#attempts-a-guard-cannot-see)
   - [A guard's assumption is asserted][spend-assumption]
   - [A repeat measurement proves each repeat made its own call](mistake-prevention-spend-guards-and-client-retries.md#a-repeat-measurement-proves-each-repeat-made-its-own-call)
+  - [A wait that buys the same refusal is not repeated](mistake-prevention-spend-guards-and-client-retries.md#a-wait-that-buys-the-same-refusal-is-not-repeated)
 - [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md):
   Rules for the docs themselves:
   current-state docs,

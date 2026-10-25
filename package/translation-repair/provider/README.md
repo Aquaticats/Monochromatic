@@ -37,6 +37,7 @@ The groups that follow name the main ones.
   `isCredentialRefusal`,
   `routeProviderFor`,
   `createProviderBudgets`,
+  `createRefusalHolds`,
   `readEveryMeter`,
   `EveryProviderDryError`,
   `createRequestPace`.
@@ -44,6 +45,7 @@ The groups that follow name the main ones.
   `credential-hold.ts`,
   `budget-routing.ts`,
   `provider-budget.ts`,
+  `provider-budget-refusal-holds.ts`,
   `provider-meters.ts`,
   and `request-pace.ts`.
 - Provider clients:

@@ -510,3 +510,112 @@ The reader decides when a phase waits and holds no cached record.
 
 Recurrence:
 the thirteenth class of the defect-class history (the hold wait).
+
+## B965: the seat reader waited out the refusal cooldown of a provider that refused at once after it, for every slice
+
+Status:
+fixed on 2026-10-25 (UTC),
+found in XingZ6020 (the corpus pass of 2026-10-22 and 2026-10-23, build `1d46232457`).
+The id is the lead's allocation (B948 to B964 are spoken for by other branches) and may be renumbered at merge time.
+The rule is the lead's and is open to the owner's veto.
+The owner ruled on 2026-10-25 that the gather quorums above two and the bench waits that count judges stay as they are.
+
+The defect:
+the pass seated Synthetic while its meter read `unreadable-treated-as-spendable`,
+because its `/quotas` body carried no `weeklyTokenLimit` object (the meter half, fixed by S1 in `0204b7c8ba`).
+Every Synthetic call was refused with HTTP 429.
+A refusal on a meter that is not wet holds the provider out for `REFUSAL_COOLDOWN_MS` (300 s),
+and the seat reader waits the hold out when the provider's return would lift a short bench.
+The first cycle in the log `corpus-pass-XingZ6020.log`:
+the refusal at 00:29:00 UTC (lines 19970 and 19971),
+the wait of 267481 ms (line 20031),
+the `JUDGE SEATS` line with `waited=267481ms` at 00:34:02 (line 20133),
+the refusal 12 s after the wait ended, at 00:34:14 (line 20260),
+and the next wait of 299850 ms (line 20355).
+It repeated every 5 min 17 s,
+and 58 distinct minutes between 00:34 and 06:05 UTC carry a `waited=` of 240 to 300 s.
+The brief for the fix counted about 25 waits by a gap scan,
+which the count of the `waited=` lines does not reproduce.
+Both counts are of waits the seat reader took for one provider that never served after them.
+
+The trace on `35c7a95a34`:
+the 429 reaches the router's catch (`provider-router.ts` 583 and 588),
+`markRefused` reads the meters at once and, for a state that is not wet, sets the cooldown
+(`provider-budget.ts` 845 to 847 and 863).
+The next slice's reading finds the hold (`pass-reseat-hook.ts` 122),
+`readDrynessPastShortBench` counts it as a hold worth waiting for
+(`run-seats-short-bench.ts` 230 to 248, `run-seats-hold-need.ts` 275),
+waits it out (341) and reads the dryness again (351),
+where the hold has ended and an unreadable meter routes as wet (`provider-budget.ts` 747 to 767),
+so the bench is met, the stage asks Synthetic, and the call is refused at once.
+`withEntryBound` (D4 and E2, `a0b38f5a45`) does not bound this loop:
+it narrows `passLeftMs`,
+the budgets apply that bound to NeuralWatt's day start alone (`provider-budget.ts` 884 to 894),
+and `run-client-contract.ts` 107 says a refusal cooldown is waited for whatever the bound is.
+Only the entry's own abort ended it.
+
+The fix:
+`provider-budget-refusal-holds.ts` owns the holds a refusal sets (it took over `heldUntil` from `provider-budget.ts`)
+and a mark per provider for the entry.
+A refusal gives its provider up for the entry when the hold in force was a cooldown (the meter did not say wet and the
+refusal named no return), that hold has ended, it ended after the entry began, and the provider has served nothing since.
+A given-up provider reads dry in the budgets' view and its meter word, its cooldown counts for no wait in `holds`,
+and one warn line names the provider, the entry and the cooldown that ran out.
+The router reports each served call (`markServed`, from `callOn` and the decisions route),
+the run client carries `beginEntry`,
+and `settleEntry` calls it before the pipeline,
+so each attempt of an entry starts with nothing given up.
+The seat reader, the bench tables, the quorum sizes and `holdsThatCureShortBenches` are unchanged:
+with the provider dry and its cooldown uncounted, the reader seats the other providers' seats without waiting.
+
+The operational meaning of "waited out",
+open to the owner's veto:
+the brief's rule says the entry waited the cooldown out,
+and the budget layer cannot see who waited.
+It reads the evidence it has,
+a cooldown that ended after the entry began and a refusal before the provider served anything.
+That covers a cooldown the entry waited for and one that ran out unwaited while the entry did other work,
+and it leaves out a cooldown that ran out before the entry began,
+which the entry did not wait out (the second entry waits once, then decides).
+A time window ("refused within 60 s of the end") was rejected:
+it would have to outlast the transport's retry ladder, whose length no measurement fixes,
+and it would give up a provider that served for a minute and then refused.
+
+The limit the fix accepts:
+when every other provider that writes reads dry as well, the given-up provider was the last one left,
+and the seat reader refuses with every provider dry, which the owner ruled ends the run.
+Before, the entry waited a cooldown for every slice until its cap and settled nothing.
+The case of the red commit gave the budgets no other provider and was changed to give them Bedrock for that reason.
+
+The red case:
+`dd85fdefb2`,
+`run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts`.
+It runs the real budgets (a Synthetic meter that cannot be read) and the real seat reader on one fake clock,
+refuses Synthetic three times, each right after the cooldown the reading waited out,
+and counts the waiting lines.
+It failed on the parent with `expected 3 to equal 1`: the reader waited for every refusal.
+The fix `3d5997c42b` changed its second provider to Bedrock (so the reader had a seat to move to)
+and added the pins that pass on the parent's behavior:
+a provider that served after its cooldown is waited for each time,
+a refusal that states its return is waited for each time,
+and a second entry waits once and gives the provider up on its own evidence.
+`670d3cf8cd` moved the logic into `provider-budget-refusal-holds.ts` to keep `provider-budget.ts` under its 300 code lines
+(the lint rule counted 341 with the first shape) and to model absence without nullish unions.
+Three mutants were built and run once, each failed a case:
+the served check removed (the served case failed),
+the entry-start check removed (the second entry case failed),
+and a stated return counted as a cooldown (the stated return case failed).
+
+Prevention rule:
+a wait that repeats an ask is judged by what the first wait bought,
+see "A wait that buys the same refusal is not repeated" in
+[Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md).
+
+Cache versions:
+none moved.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `35c7a95a34..HEAD` prints nothing,
+and its control `c265e8df95~1..c265e8df95` prints that commit.
+The seat reader decides when a phase waits and which seats it asks and holds no cached record.
+
+Recurrence:
+the thirteenth class of the defect-class history (the hold wait).
