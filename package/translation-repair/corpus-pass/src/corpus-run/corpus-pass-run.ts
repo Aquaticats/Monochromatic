@@ -309,10 +309,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     spendCeilingUsd,
     start,
     now,
-    settle: function settleOne({ entry, },): Promise<EntryOutcome> {
+    settle: function settleOne({ entry, attempt, wallClock, },): Promise<EntryOutcome> {
       return input.settle({
         client,
         entry,
+        attempt,
+        wallClock,
         artifactsDir,
         publishDir,
         declinedDir,

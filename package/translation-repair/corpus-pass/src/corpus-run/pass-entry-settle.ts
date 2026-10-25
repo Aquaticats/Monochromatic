@@ -1,6 +1,9 @@
 import { join, } from 'node:path';
 
-import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  monotonicMs,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import type {
   CorpusPair,
   EntryOutcome,
@@ -93,13 +96,19 @@ import type {
  @param floorLimited - this entry's memory of translate slices that ended unfilled on a select bench below its
  floor, held by the pass so a later attempt of the entry finds what an earlier one left
 
+ @param attempt - number of this attempt of the entry, as the pass's attempts file holds it once the pass has counted
+ it: every lifecycle line this settlement prints (OVERLAP, TALLY, DESTINATIONS, DEFECTS, CLEANUP) carries it beside its
+ clock time, because the hard cap ends an attempt and the next one begins under a fresh cap (ledger B960)
+
+ @param wallClock - clock those lines' times are read on; the wall clock unless a test fixes it
+
  @returns Settlement, resumable operational failure, or stopped incomplete work
 
  @example
  ```ts
  const outcome = await settleEntry({
    client, entry, artifactsDir, publishDir, declinedDir, sliceCacheDir, tip, pipelineDigest, pin, hardCapMs, baseSignal,
-   outsideReads, pictureSources: RUN_PICTURE_SOURCES, overlap, stageSettings,
+   outsideReads, pictureSources: RUN_PICTURE_SOURCES, overlap, stageSettings, attempt: 1,
  },);
  ```
  */
@@ -124,9 +133,13 @@ export async function settleEntry(
     endRun,
     parked,
     floorLimited,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly client: RunClient;
     readonly entry: CorpusPair;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
@@ -158,6 +171,8 @@ export async function settleEntry(
   const entrySlices = entryOverlap({
     entryId: entry.id,
     setting: overlap,
+    attempt,
+    wallClock,
   },);
 
   /**
@@ -198,6 +213,8 @@ export async function settleEntry(
     ...((endRun === undefined) ? {} : { endRun, }),
     ...((parked === undefined) ? {} : { parked, }),
     ...((floorLimited === undefined) ? {} : { floorLimited, }),
+    attempt,
+    wallClock,
   },);
   if (outcome.kind !== 'settled') {
     // The cache is what makes operational resume cheaper. Stopped quality work
@@ -208,6 +225,8 @@ export async function settleEntry(
   await retireSettledEntryCache({
     entryId: entry.id,
     dir: entryCacheDir,
+    attempt,
+    wallClock,
   },);
   return outcome;
 }

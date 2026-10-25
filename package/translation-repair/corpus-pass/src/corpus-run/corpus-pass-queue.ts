@@ -1,8 +1,10 @@
 import { join, } from 'node:path';
 
+import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type AttemptMap,
+  attemptsOf,
   countAttempt,
   writeAttemptMap,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
@@ -62,7 +64,11 @@ function announceDryStop({ dryStop, }: { readonly dryStop: PassDryStop; },): voi
 
  @param now - clock the budget is read on, in milliseconds
 
- @param settle - settles one entry, given that entry; the pass's whole per-entry procedure
+ @param wallClock - clock every lifecycle line's time is read on, in the lines this queue prints and in those the
+ settlement prints; the wall clock unless a test fixes it
+
+ @param settle - settles one entry, given that entry and the number of the attempt about to run (what the attempts file
+ holds once this queue has counted it); the pass's whole per-entry procedure
 
  @mutates attempts - counts one more attempt for an entry ahead of the attempt itself
 
@@ -83,6 +89,7 @@ export async function runPassQueue(
     spendCeilingUsd,
     start,
     now,
+    wallClock = wallClockNow,
     settle,
   }: {
     readonly pending: readonly CorpusPair[];
@@ -95,7 +102,14 @@ export async function runPassQueue(
     readonly spendCeilingUsd: number;
     readonly start: number;
     readonly now: () => number;
-    readonly settle: (input: { readonly entry: CorpusPair; },) => Promise<EntryOutcome>;
+    readonly wallClock?: () => Date;
+    readonly settle: (
+      input: {
+        readonly entry: CorpusPair;
+        readonly attempt: number;
+        readonly wallClock: () => Date;
+      },
+    ) => Promise<EntryOutcome>;
   },
 ): Promise<void> {
   await runAttemptQueue({
@@ -109,6 +123,17 @@ export async function runPassQueue(
         ),
       },);
     },
+
+    // THE NUMBER THE ATTEMPTS FILE HOLDS, not a count of the queue's own: the lines this queue prints for an attempt
+    // and the lines its settlement prints must name the same number, and the file is what outlives the process.
+    attemptOf: function attemptOf({ entry, },): number {
+      return attemptsOf({
+        attempts,
+        id: entry.id,
+      },);
+    },
+
+    wallClock,
 
     stopBeforeNext: function stopBeforeNext(): boolean {
       if (dryStop.tripped()) {
@@ -152,7 +177,14 @@ export async function runPassQueue(
         entry: entry.id,
         generation: pipelineDigest,
         run: async function settleInContext(): Promise<EntryOutcome> {
-          return await settle({ entry, },);
+          return await settle({
+            entry,
+            attempt: attemptsOf({
+              attempts,
+              id: entry.id,
+            },),
+            wallClock,
+          },);
         },
       },);
     },

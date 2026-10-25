@@ -130,7 +130,7 @@ export type PassStartFacts = {
   readonly softBudgetMs: number;
 
   /**
-   Ceiling one entry runs under.
+   Ceiling one attempt of an entry runs under; the next attempt of the same entry begins under a fresh one.
    */
   readonly hardCapMs: number;
 
@@ -144,6 +144,17 @@ export type PassStartFacts = {
    */
   readonly claudeCallMs: number;
 };
+
+/**
+ What the hard ceiling counts over, said on the START line beside the ceiling itself.
+
+ THE CEILING ENDS AN ATTEMPT, NOT AN ENTRY. An entry the ceiling cut goes to the back of the queue and is attempted again
+ in the same invocation under a fresh ceiling (`package/translation-repair/doc/configuration.md`), so an entry can run
+ for several times the ceiling and a reader of the log cannot tell that from a ceiling that failed to fire. On
+ 2026-10-22 a fired 420-minute ceiling on `XingZ60` was followed by a second attempt, and the START line said only
+ `hard=25200000ms` (ledger B960).
+ */
+const HARD_CAP_SCOPE = 'per-attempt';
 
 /**
  The line that opens a pass's report.
@@ -160,9 +171,9 @@ export type PassStartFacts = {
 export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },): string {
   return `START tip=${facts.tip} pipeline=${facts.pipelineDigest} files=${String(facts.fileCount,)} pending=${
     String(facts.pending,)
-  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms call=${
-    String(facts.perCallMs,)
-  }ms claude-call=${String(facts.claudeCallMs,)}ms`;
+  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms hard-scope=${
+    HARD_CAP_SCOPE
+  } call=${String(facts.perCallMs,)}ms claude-call=${String(facts.claudeCallMs,)}ms`;
 }
 
 /**

@@ -1,7 +1,10 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import { armCallDeadline, } from '@monochromatic-dev/translation-repair-provider/ts';
-import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  monotonicMs,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { repairClaimEvidenceOf, } from '@monochromatic-dev/translation-repair-archive/ts';
 import {
   type CorpusPair,
@@ -112,11 +115,16 @@ import {
  @param floorLimited - what earlier attempts of this pass left for this entry's translate slices that ended unfilled
  on a select bench below its floor
 
+ @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
+ the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
+
+ @param wallClock - clock those lines' times are read on; the wall clock unless a test fixes it
+
  @returns Whether an artifact was written
 
  @example
  ```ts
- const outcome = await runEntryPipeline({ client, entry, artifactsDir, entryCacheDir, ... },);
+ const outcome = await runEntryPipeline({ client, entry, artifactsDir, entryCacheDir, attempt, ... },);
  ```
  */
 export async function runEntryPipeline(
@@ -140,9 +148,13 @@ export async function runEntryPipeline(
     endRun,
     parked,
     floorLimited,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly client: RunClient;
     readonly entry: CorpusPair;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
@@ -204,6 +216,8 @@ export async function runEntryPipeline(
         corpusSha: pin.commitSha,
         note: archiveOriginal.note,
         startedAt: t0,
+        attempt,
+        wallClock,
       },);
 
     /**
@@ -500,7 +514,11 @@ export async function runEntryPipeline(
     /**
      Tally proven readable before any persistence.
      */
-    const tally = settledTallyLine({ artifact, },);
+    const tally = settledTallyLine({
+      artifact,
+      attempt,
+      wallClock,
+    },);
 
     // BEFORE THE ARTIFACT, for the same reason the tally line is read before it,
     // and for one more. A pass builds its skip set from the artifacts already on
@@ -511,6 +529,8 @@ export async function runEntryPipeline(
     printSettledLines({
       entryId: entry.id,
       tally,
+      attempt,
+      wallClock,
       published: await persistSettledEntry({
         artifact,
         slices: prepared.slices,
@@ -531,6 +551,8 @@ export async function runEntryPipeline(
     return tallyCaughtEntry({
       entryId: entry.id,
       error,
+      attempt,
+      wallClock,
       durationMs: monotonicMs() - t0,
       aborted: deadline.callSignal
         .aborted,

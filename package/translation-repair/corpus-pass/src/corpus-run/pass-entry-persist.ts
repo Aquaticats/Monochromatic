@@ -8,6 +8,7 @@ import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-rea
 import { artifactFileNameOf, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   assertFinalNaturalnessComplete,
   defectsLine,
@@ -124,9 +125,14 @@ export async function persistSettledEntry(
 
  @param published - what persisting it reported
 
+ @param attempt - number of the entry's attempt that settled, as the pass's attempts file holds it, which the
+ destinations and defects lines carry as the tally line does
+
+ @param wallClock - clock the destinations and defects lines' time is read on; the wall clock unless a test fixes it
+
  @example
  ```ts
- printSettledLines({ entryId, tally, published: await persistSettledEntry({ ... },), },);
+ printSettledLines({ entryId, tally, published: await persistSettledEntry({ ... },), attempt, },);
  ```
  */
 export function printSettledLines(
@@ -134,9 +140,13 @@ export function printSettledLines(
     entryId,
     tally,
     published,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
     readonly tally: string;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
     readonly published: Readonly<{
       destinations: DestinationCheck;
       defects: readonly PublishDefect[];
@@ -147,6 +157,8 @@ export function printSettledLines(
   console.log(destinationsLine({
     entryId,
     destinations: published.destinations,
+    attempt,
+    wallClock,
   },),);
   /**
    Defects line, empty for a clean page.
@@ -154,6 +166,8 @@ export function printSettledLines(
   const defects = defectsLine({
     entryId,
     defects: published.defects,
+    attempt,
+    wallClock,
   },);
   // A PAGE THAT SHIPPED WITH DEFECTS says so beside its tally, for a grep.
   if (defects !== '')
