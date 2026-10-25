@@ -892,3 +892,84 @@ Of the 1407,
 55 images,
 384 indent-4 footnote starts,
 7 fence marks).
+
+#### Fourth round: the full task, the merge, the checks and the slips
+
+The merge of `origin/main` at `a50c2875a2` conflicted with nothing (`git merge-tree --write-tree` exited 0)
+and is `b8c0b1dbff7f1c0391fe798536747af4694d62d2`.
+It brought no change to `page-check`,
+`document-structure` or `markup`.
+
+The full task ran once on `2725c1280fd8d1dc0f8358f972d80bd096ee55fb`,
+the head that holds the last code and the ledger,
+as the unit `dx1f2-livefull4` with `MemoryMax=4G` and `CPUQuota=300%`,
+its stderr on a path never used before.
+`systemd-run --wait` reported success,
+a service runtime of 9 min 43.561 s,
+11 min 24.328 s of CPU time and a memory peak of
+749.2 MB with 19.7 MB swapped.
+The case that holds the three names passed in 581.8 s.
+The one-minute load average of the host was 13.04 when the unit started and 8.91 when it ended.
+The stderr file holds three lines:
+the two preamble lines of the task and the logger message that a sink could not be verified
+within 5000 ms.
+
+The checks ran one at a time on the final code:
+`build`,
+`lint:types`,
+`lint:oxlint` (0 warnings and 0 errors) and `test:unit` of `document-structure` (65 `[PASS]` lines)
+and of `page-check` (170),
+both with no `[FAIL]`;
+`markup` is untouched in this round.
+`test:unit` of `translation-repair-source-scan` ran 68 and `source-scans` 53,
+with no `[FAIL]`.
+The first `source-scans` run on the new code found these in the new files,
+all fixed by `2797c8f871`:
+two modules with no unit test of their own,
+three suites that copied one case body and a helper written twice,
+a caught error's message handed on as text,
+two blankness tests of the account,
+a class with the marker and no inventory line,
+a record check in the GFM reading,
+and two top-level suites in one file.
+The first `test:unit` of `translation-repair-source-scan` after the merge of the third round
+failed on a stale built `run` package;
+the task `source-scans` builds before it reads.
+
+No cache version moved:
+`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 1c7918806f..HEAD` names no commit,
+and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
+No cached stage changes its output:
+the encoder,
+the composition and the comparison run when a page is published,
+no cache key reads them,
+and no package but `page-check` and `document-structure` calls them
+(a search of `package` for `encodeAsLiteralMdx`,
+`composeSourcePage`,
+`footnoteDefinitionRangesOf` and the other names of these
+two packages outside them finds only their own tests).
+A page published before this round and compared with the page expected now may differ,
+which a later pass republishes.
+No new B id was taken.
+
+COMMIT-MESSAGE SLIPS of the third and fourth rounds,
+none corrected on the remote and nothing posted:
+
+- Positional words in the body:
+  `5c874bbe52c55f8b8eaab94b2d35b8db49bdc2f5` ("above"),
+  `45b25ac221ed098caa3831822c636ea3f5173baa` ("follows",
+  "above"),
+  `f4f533493a0a474e2ac1188408e47e74952ffa5b`,
+  `cc7aa64640a8137e7b8b760c3560995bfa70d9bb` and
+  `a5faefbb710596da17da5fc7b0c39ce4a2d97041` ("follows" in the subject),
+  and
+  `1f40b76acdaac69d48e86339d48a5cbf18bbfb31` ("next").
+- `1f40b76acdaac69d48e86339d48a5cbf18bbfb31` ends on a garbled reference,
+  "a8f5d3f...",
+  where `f4f533493a` named the limit.
+- `873e6ac8ad2ebad5979afd17793700dfb2336f5b` says `document-structure` holds 62 suites;
+  the run reads 63.
+- `2797c8f8714569cdf347fd02d58a8f2d1078486f` has the type `test` and changes source files
+  (the reason of `readingDifferenceOf`,
+  `parseGfmMathBody`,
+  the marker of `PageSyntaxError`).
