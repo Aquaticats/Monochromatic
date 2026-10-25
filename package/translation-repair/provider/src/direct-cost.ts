@@ -21,7 +21,9 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // `Off-peak rates are half of the peak rates.`
 // `All other hours are off-peak, including weekends and Chinese public holidays in full.`
 // The page does not say whether the start or the end of a request decides its
-// rate, so a call that crosses a window edge is booked at peak.
+// rate, so a call that starts or completes inside a window is booked at peak,
+// and one that spans a whole window with both instants outside is booked at
+// half, which is wrong only if DeepSeek bills by an instant between the two.
 // Until 2026-10-25 every call was booked at peak, and a run that ran a Saturday
 // night booked 0.147093 USD while the account's balance fell 0.07.
 //
@@ -41,8 +43,8 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // THE TWO INSTANTS. The start is the one the client read before the first
 // attempt; the end is the one it read when the attempt that succeeded had
 // completed, so a retry is bracketed by its first start and its last
-// completion. Whichever of the two DeepSeek bills by, a call that crosses an
-// edge is not booked below what it was charged.
+// completion. Whichever of the two DeepSeek bills by, a call that starts or
+// completes inside a window is not booked below what it was charged.
 //
 // WHAT IS NOT BOUNDED. A call that starts before a window and completes after
 // it, three hours at least, has both instants outside and books half. A
@@ -69,8 +71,9 @@ const PRICE_UNIT_TOKENS = 1_000_000;
  Share of a peak rate DeepSeek charges outside a peak window.
 
  The page (`https://api-docs.deepseek.com/quick_start/pricing`, read 2026-10-25
- by the lead and by the reviewer) states the off-peak rates as half of the peak rates, and the card
- (`DEEPSEEK_V4_1_FLASH_ON_DEEPSEEK`) holds the peak rates only.
+ by the lead and by the reviewer) states the off-peak rates as half of the peak
+ rates, and the card (`DEEPSEEK_V4_1_FLASH_ON_DEEPSEEK`) holds the peak rates
+ only.
 
  @example
  ```ts
@@ -168,7 +171,9 @@ export function isDeepSeekPeakAt({ at, }: { readonly at: Date; },): boolean {
 
  The page does not say whether the start or the end of a request decides its
  rate, so only a call with both instants outside every window is booked off
- peak, and a call that crosses an edge is booked at peak.
+ peak: a call that starts or completes inside a window is booked at peak, and
+ one that spans a whole window with both instants outside is booked at half,
+ which is wrong only if DeepSeek bills by an instant between the two.
 
  @param startedAt - instant the request started at (the first attempt's)
 

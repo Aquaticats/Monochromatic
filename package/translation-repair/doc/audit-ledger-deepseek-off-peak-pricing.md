@@ -79,7 +79,9 @@ a pure function of the two instants).
 The client reads the clock a second time once the retry ladder has returned,
 so a retried call is bracketed by the first attempt's start and the successful attempt's completion,
 and hands both to the route as `startedAt` and `completedAt`.
-A call that crosses an edge is therefore booked at peak whichever instant DeepSeek bills by.
+A call that starts or completes inside a window is therefore booked at peak whichever instant DeepSeek bills by,
+and a call that spans a whole window with both instants outside is booked at half,
+which is wrong only if DeepSeek bills by an instant between the two.
 
 The red cases of the second round:
 `83cb81981c` (eight cases fail:

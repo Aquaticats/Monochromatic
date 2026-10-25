@@ -480,7 +480,9 @@ Each window is read as half-open
 04:00:00 UTC and 10:00:00 UTC are off peak),
 because the page does not say whether its last instant belongs to a window.
 The page does not say either whether the start or the end of a request decides its rate,
-so a call that crosses an edge is booked at peak.
+so a call that starts or completes inside a window is booked at peak,
+and a call that spans a whole window with both instants outside is booked at half,
+which is wrong only if DeepSeek bills by an instant between the two.
 The client reads the clock it is given
 (`now` of `createDeepSeekClient`,
 the system clock by default)

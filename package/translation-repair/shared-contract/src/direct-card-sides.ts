@@ -57,10 +57,12 @@ import type {
  (`provider/src/direct-cost.ts`). It reads no holiday calendar, so a holiday
  inside a window can only make that call cheaper than booked, and the page does
  not say whether the start or the end of a request decides its rate, so a call
- that crosses a window edge is booked at peak: the booked figure is an upper
- bound as to holidays and as to which instant decides. It is not bounded as to a
- Saturday that China makes a working day, which the page's wording books off
- peak and which DeepSeek may bill at peak.
+ that starts or completes inside a window is booked at peak: the booked figure
+ is an upper bound as to holidays and as to which instant decides. A call that
+ spans a whole window with both instants outside books half, which is wrong only
+ if DeepSeek bills by an instant between the two. The figure is not bounded as
+ to a Saturday that China makes a working day, which the page's wording books
+ off peak and which DeepSeek may bill at peak.
 
  @example
  ```ts
