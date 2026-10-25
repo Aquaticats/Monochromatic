@@ -69,15 +69,15 @@ await describe({
       },
     },),
     it({
-      name: 'READS A FENCE AND A HEADING THE SAME, whatever the indent construct',
+      name: 'READS A LIST AND A FENCE THE SAME, whatever the indent construct',
       fn: async () => {
-        expect(blockTypesOf({ body: '# cat\n\n```js\npurr\n```\n', },),).toEqual({
+        expect(blockTypesOf({ body: '- cat\n\n```js\npurr\n```\n', },),).toEqual({
           on: [
-            'heading',
+            'list',
             'code',
           ],
           off: [
-            'heading',
+            'list',
             'code',
           ],
         },);
