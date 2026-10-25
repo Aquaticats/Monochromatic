@@ -278,9 +278,7 @@ function fixingClient(
         candidate.region.endOffset,
       )}`,);
     },);
-    /**
-     The report for it: the region with the sentence removed, or the number put back.
-     */
+    // The report for it: the region with the sentence removed, or the number put back.
     return (silent || (trial === undefined))
       ? { unrelated: true, }
       : {
