@@ -45,6 +45,7 @@ const DECLARING_KINDS: ReadonlySet<string> = new Set([
   'FunctionExpression',
   'TSEnumDeclaration',
   'TSEnumMember',
+  'TSImportEqualsDeclaration',
   'TSModuleDeclaration',
   'VariableDeclarator',
 ],);

@@ -5,6 +5,7 @@ import {
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { gatherImportEquals, } from './claude-schema-equals.test-fixture.ts';
 import {
   type Binding,
   type DeclaredFunction,
@@ -307,9 +308,9 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
 }
 
 /**
- What a declaration adds: a function, or each constant a variable declaration names.
+ What a declaration adds: a function, an import-equals declaration, or each constant a variable declaration names.
 
- @param declaration - function declaration or the variable declaration
+ @param declaration - function declaration, import-equals declaration or the variable declaration
 
  @returns Declared functions and the bindings
 
@@ -319,6 +320,8 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
  ```
  */
 export function gatherDeclaration({ declaration, }: { readonly declaration: TreeNode; },): Gathered {
+  if (declaration.type === 'TSImportEqualsDeclaration')
+    return gatherImportEquals({ declaration, },);
   if (declaration.type === 'FunctionDeclaration') {
     /**
      The function's name, empty for an anonymous default export.

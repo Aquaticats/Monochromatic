@@ -199,7 +199,7 @@ export const WHITELIST_MODULE_CASES: readonly ShapeCase[] = [
         ],),
       },
     ],
-    found: [],
+    found: ['imaginary/src/equals-stage.ts',],
     builders: [],
     spots: [
       {
