@@ -41,11 +41,12 @@ pub(super) fn rest(
     language: &mut Language,
     displayed: DocumentStamp,
 ) {
-    // A view that moved since the last tick (a wheel ease, a jump, rows arriving) puts other text under the pointer,
-    //  so a rest that was not asked for yet starts again.
+    // A view that moved since the last tick (a wheel ease, a jump, rows arriving) or a text that was replaced (a
+    //  reload, another file) puts other text under the pointer, so a rest that was not asked for yet starts again.
     language.rest.follow(pointer::View {
         offset: window.get_drawn_offset(),
         extent: window.get_content_extent(),
+        text: displayed,
     });
     let blocked = window.get_search_open()
         || matches!(
