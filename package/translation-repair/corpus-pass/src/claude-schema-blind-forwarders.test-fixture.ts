@@ -136,6 +136,7 @@ function forwardsFrom(
   if (!calls.some(function callsSender(call,): boolean {
     return callsAnySender({
       scope: {
+        facts: nonNullishOrThrow(family.get(file,),),
         family,
         file,
         parents,

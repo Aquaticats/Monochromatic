@@ -176,6 +176,11 @@ export type ModuleFacts = {
    The names the file's code refers to, each as a path.
    */
   readonly references: readonly (readonly string[])[];
+
+  /**
+   The names the file assigns anywhere, which a declaration's keyword does not make fixed.
+   */
+  readonly assigned: ReadonlySet<string>;
 };
 
 /**

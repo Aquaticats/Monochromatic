@@ -4,6 +4,7 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { assignedNamesIn, } from './claude-schema-assigned.test-fixture.ts';
 import { gatherDeclaration, } from './claude-schema-declare.test-fixture.ts';
 import {
   type Binding,
@@ -375,6 +376,7 @@ export function moduleFactsOf(
     exports: new Map(gathered.exports,),
     stars: gathered.stars,
     references: referencesIn({ root: program, },),
+    assigned: assignedNamesIn({ nodes, },),
   };
 }
 

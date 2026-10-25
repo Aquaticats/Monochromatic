@@ -26,7 +26,8 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 // value is the property of the one object argument that the entry names, at the argument the sender reads: the first,
 // or the second through `.call`, and none through `.apply` or `.bind`. A sender is named by the module that declares
 // it, so another function of the same name, a free name, or a name that a scope around the call binds again (a
-// parameter, a constant, a nested function or class, a loop variable, a `catch` binding) is no sender; any other call
+// parameter, a constant, a nested function or class, a loop variable, a `catch` binding) or that the file assigns again
+// anywhere (an alias of the sender that is reassigned, by an assignment, a pattern or a loop head) is no sender; any other call
 // that takes the value is reported, since it may keep it, copy it or send it where the search cannot read.
 
 /**
@@ -167,7 +168,7 @@ function argumentReadBy({ members, }: { readonly members: readonly string[]; },)
 /**
  What the senders need of the file around a call: the sources, the file and the parents of its nodes.
  */
-type SenderScope =Pick<BlindContext, 'family' | 'file' | 'parents'>;
+type SenderScope = Pick<BlindContext, 'facts' | 'family' | 'file' | 'parents'>;
 
 /**
  The senders a call names and the names its callee is written with after the head.
@@ -218,6 +219,16 @@ function sendersNamedBy(
     name: chain.head,
     parents: scope.parents,
   },)) {
+    return {
+      senders: [],
+      members: [],
+    };
+  }
+  /**
+   The names the file assigns anywhere.
+   */
+  const { assigned, } = scope.facts;
+  if (assigned.has(chain.head,)) {
     return {
       senders: [],
       members: [],
