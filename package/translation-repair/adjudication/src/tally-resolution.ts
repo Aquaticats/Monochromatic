@@ -366,9 +366,11 @@ export function tallyResolutionChecks(
      Ballots that named the revision damaging, however much weight each
      carries.
      */
-    const worseBallots = cast.filter(function namesWorse(one,) {
-      return one.verdict === 'worse';
-    },).length;
+    const worseBallots = cast
+      .filter(function namesWorse(one,) {
+        return one.verdict === 'worse';
+      },)
+      .length;
 
     return [
       issueId,
