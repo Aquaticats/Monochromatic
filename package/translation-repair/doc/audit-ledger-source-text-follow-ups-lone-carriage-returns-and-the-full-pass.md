@@ -387,7 +387,9 @@ that version shows the line as text.
 Its commit body says so,
 and it was not kept as the end state.
 
-The end state is a choice for the owner to veto.
+The end state is the owner's decision,
+answered on 2026-10-25 as "Two readings (Recommended)",
+and it is no longer open to a veto.
 `footnoteDefinitionRangesOf` reads the source's ranges with raw HTML on,
 and `pageFootnoteDefinitionRangesOf` the page's with it off
 (`1ab47ca1f5dbb8790764eb7d1352044fc22afeb3`).
@@ -397,7 +399,7 @@ and the blank line after a footnote's last block,
 which is put before a paragraph as well as a definition where the page goes on over a line of raw HTML.
 That keeps the top of a text as the oracle reads it,
 and the page differs from the source by one blank line where the footnote ends at a tag.
-The alternative is the page's ranges everywhere with the oracle changed to read the page,
+The alternative the owner declined is the page's ranges everywhere with the oracle changed to read the page,
 which the state of `cd61a365fd` reaches with no finding;
 it moves the claim "the page shows the source text" to "the page shows the page's reading of the source text".
 `24cdb8ac739d0f9b3b4ded019727621797c5376f` carries the page-check side,
@@ -438,9 +440,10 @@ and the PASS line is stamped 05:04Z in the stdout file of the final run.
 
 #### Limits and open findings of this round
 
-- The indent-4 probes `span-top-ind4-tag`,
+- Fixed in the third round (the section on the owner's ruling and the indent-4 probes):
+  the indent-4 probes `span-top-ind4-tag`,
   `span-top-ind4-brace`,
-  `span-quote-lazy-ind4-tag` and `span-quote-lazy-ind4-brace` still fail on the head:
+  `span-quote-lazy-ind4-tag` and `span-quote-lazy-ind4-brace` failed on the head of this round:
   a code span across a footnote line indented four spaces.
   The strict grammar disables indented code,
   so a footnote definition may start at any indent there,
@@ -448,8 +451,7 @@ and the PASS line is stamped 05:04Z in the stdout file of the final run.
   The ruling named indents 0 to 3,
   the generators of the pools write none at 4,
   and the four fail on the base too.
-  The fix would read a footnote start at any indent in the strict grammar;
-  it is not made here.
+  The fix reads a footnote start at any indent in the strict grammar.
 - The source scan of the own-test ratchet gained two own tests (`without-raw-html.unit.test.ts` and
   `source-ships-separation.unit.test.ts`),
   and `withoutRawHtml` and `separatingEdits` are exported for them.
@@ -470,5 +472,208 @@ The nesting measure feeds the markup atom scan,
 whose result enters `markupDelta` in the page pass (`apply-patch.ts`),
 and no cache key reads it,
 so the change of the bound is no cache key either.
+No new B id was taken:
+the next free one is B842.
+
+#### Third round: the owner's ruling and the indent-4 probes
+
+The owner answered on 2026-10-25 "Two readings (Recommended)".
+That is the decision recorded in the section on the two readings of a footnote:
+`cd61a365fd` with its 16 red leaf cases is the alternative the owner declined,
+and it is not the end state.
+The choice rests on one condition,
+that the page check catches a page which reads differently from the source.
+The search of this round tests it,
+and the answer is that it does not hold for every text.
+
+`5c874bbe52` adds `source-ships-indent-four.unit.test.ts`,
+eight cases that all failed:
+the four probes `span-top-ind4-tag`,
+`span-top-ind4-brace`,
+`span-quote-lazy-ind4-tag` and `span-quote-lazy-ind4-brace`,
+and four more at six spaces,
+a tab,
+four spaces after the marks of a block quote and four spaces under the text of a list item
+(the failing lines are in `red-r17-failing-lines.txt`).
+`6bb3065bd0` adds the case of `pageFootnoteDefinitionRangesOf` that the fix needed,
+which reads a footnote start at a line indented four spaces or more
+(`red-r18-failing-lines.txt`).
+The fix is `873e6ac8ad` in `document-structure` and `fb82a8f537` in `page-check`.
+The strict grammar disables indented code,
+so the page's ranges are now the ranges with raw HTML off,
+plus the starts of a second parse with indented code off as well,
+where that start lies outside every range of the first.
+A parse with indented code off alone was tried and regressed the sampled pairs:
+a fence mark indented four spaces opens a fence there,
+which hides the footnotes of a container after it,
+and the encoder does not leave such a mark as a fence.
+At the top of a text,
+`withPageOnlyStarts` joins the source's ranges with the page's starts that the source does not have,
+so a code span the original pairs across the line is cut where the page cuts it.
+The 80-probe grid reads 0 refused and 0 live on the final code,
+where the head of the second round read 2 and 2,
+and the 24 shapes of the ruling parse,
+hold no live construct and are reader-equal.
+The 10 pairs of the two c10 scan files that listed findings read 0 findings on the final code.
+
+#### Third round: the search for a top-level reading difference
+
+The search is a script of the run directory (`topdiff.ts`,
+not part of the repository).
+Its texts are every first and second run of the 40000 pairs of each seed (31415926 and 27182818),
+the texts of `footnoteProductTexts`,
+and a grid of shapes:
+six footnote openers,
+nine tags or raw HTML lines and 23 following blocks,
+each with and without the final line ending,
+and a footnote start at indents 0 to 6 after nine leads.
+That is 132260 distinct texts,
+96192 of them with a label opener.
+A text is in scope when the source's ranges and the page's differ,
+and the plain parse of the text holds no block quote and no list at all.
+For each text in scope the search encodes the text,
+reads the page with the strict grammar,
+and compares the reader of the page with the reader of the source (`readerOfPage` and `readerOfSource`,
+link targets aside).
+It then asks the page check (`readText` of `source-live-pairs.test-fixture.ts`)
+whether it finds a live construct,
+a refusal or a drop.
+It also takes a control for each different text:
+the same text with every `[^` written `[`,
+so that no footnote is read.
+
+The page check compares no reading:
+it finds live constructs,
+refusals and unforced drops,
+and that is all.
+So a page that reads differently from the source is caught only when it is also live or refused.
+
+On `1a5f953284`,
+before the third round,
+10856 texts were in scope:
+9678 read the same,
+6 were refused,
+and 1172 read differently with the page check silent
+(1042 from the pairs and 130 from the shapes).
+Two causes were fixable and are fixed red first.
+
+The first is the blank line after the end of a footnote,
+where the page goes on with the footnote's paragraph over a line of raw HTML.
+`separatingEdits` put it only before a definition or a paragraph;
+a heading underlined by equals signs,
+a table or a definition after a tag that the source ends the footnote at
+showed as lines of the footnote's paragraph on the page.
+The second is the same on a block of the top that the page writes as a paragraph:
+raw HTML of the kinds that end at a line of their own
+(a processing instruction,
+a declaration,
+a CDATA section,
+a script,
+a pre or a style element),
+and indented code,
+which the page has none of.
+The line right after it was a lazy line of that paragraph.
+`45b25ac221` adds ten failing cases (`red-r19-failing-lines.txt`) and `f4f533493a` makes them pass:
+`separatingEdits` applies wherever the page goes on,
+and `afterLiteralBlockEdits` (first named `afterHtmlBlockEdits`) puts the blank line after a raw HTML block.
+`cc7aa64640` adds three failing cases for indented code (`red-r20-failing-lines.txt`),
+and `a5faefbb71` makes them pass.
+That commit also moves two cases of `source-ships-encoding.unit.test.ts`,
+which pinned a definition line right after indented code at the top as shown text,
+to the cases that compare what a reader sees.
+In a block quote or a list item the same blank line is not written,
+because it needs the marks of the container.
+That is a named limit.
+
+On the final code,
+`a5faefbb71`,
+11423 texts are in scope,
+because the page's ranges now also hold the starts at indent 4 and 19789 texts have ranges that differ,
+8366 more being in or beside a container and out of scope.
+10016 read the same,
+none is refused,
+and 1407 read differently with the page check silent.
+They fall in classes that the third round did not fix:
+
+- 925 texts hold a comment that never closes.
+  The reader of the source reads the rest of the text as one raw HTML block,
+  where the encoder writes `&lt;!--` on purpose and the page reads Markdown.
+  851 of them read differently with the label openers removed,
+  so the footnote ranges are not the cause.
+  The other 74 differ only because a footnote sits after the opener.
+- 57 texts hold an image whose alternative text is an angle autolink:
+  the page shows the angle brackets and the source shows the address alone.
+  This is an open finding of the first rounds and differs without any footnote
+  (`![<https://example.net/a>](u.png)` alone reads differently).
+- 384 texts hold a footnote start indented four spaces or more after a paragraph with a code span across the lines.
+  The page's grammar reads the footnote,
+  so the code span is cut and the page shows the backticks as characters,
+  where the source shows the code.
+  No escape can keep both,
+  and the encoder only makes the page safe (no live construct).
+  Before the fix of the indent-4 probes the encoder did not cut the span there,
+  and the page held live constructs (the four probes);
+  now the page is safe and differs by the backticks.
+- 37 texts hold a footnote whose first line is a tag alone,
+  followed by a tag alone and Markdown syntax
+  (`[^1]: <b>` then `<q>` then a code span).
+  The source's reading ends the footnote after its first line and reads the rest as a raw HTML block;
+  the plain parse of the encoder reads a paragraph,
+  so the encoder leaves the code span a code span on the page.
+  A fix would parse the text after a footnote's end as a text of its own.
+  It is not made here.
+- 4 texts mix an indent-4 fence mark with a footnote.
+
+The answer to the condition is therefore that the page check does not catch every page that reads differently.
+The count is 1407 of 11423 texts in scope,
+12.3 percent,
+in the draws and the shapes named,
+outside a block quote and a list item.
+Whether to add a reader comparison to the page check,
+which would refuse or drop those pages,
+is a choice for the owner.
+
+#### Third round: the full task, the merge and the checks
+
+The merge of `origin/main` at `d91f415253` conflicted with nothing (`git merge-tree --write-tree` exited 0),
+and is `68018d2f6d36e8897c88f4c1c8f04e58f8de9c33`.
+It brought no change to `page-check`,
+`document-structure` or `markup`.
+
+The full task ran once on `68018d2f6d36e8897c88f4c1c8f04e58f8de9c33`,
+as the unit `dx1f2-livefull3` with `MemoryMax=4G` and `CPUQuota=300%`.
+Its stderr went to a path never used before,
+because `StandardError=file:` opens a file without truncating it.
+`systemd-run --wait` reported success,
+a service runtime of 12 min 8.162 s,
+12 min 45.618 s of CPU time and a memory peak of 708.2 MB with 301.1 MB swapped.
+The case that holds the three names passed in 719.2 s.
+The one-minute load average of the host was 36.64 when the unit started
+and 49.71 when it ended.
+The stderr file holds three lines:
+the two preamble lines of the task
+and the logger message that a sink could not be verified within 5000 ms.
+After that run the head moved only by `4fd5c77878`,
+which changes two test files and no source.
+
+The checks run one at a time on that head:
+`build`,
+`lint:types`,
+`lint:oxlint` (0 warnings and 0 errors) and `test:unit` of `page-check`
+(159 `[PASS]` lines and no `[FAIL]`) and `document-structure` (63).
+`markup` is untouched in this round.
+The first `test:unit` of `translation-repair-source-scan` after the merge had 10 `[FAIL]` lines and six failing cases:
+3 for `COMMAND_LINES`,
+because the built `run` package was older than the merge and the task `source-scans` builds before it reads,
+and 3 findings of my own,
+which the third round fixed in `4fd5c77878` and in the wording of this file:
+two suites awaited at the top of the separation test file,
+a case of `without-indented-code.unit.test.ts` that copied one of `without-raw-html.unit.test.ts`,
+and a word in this file that points by position.
+After the fix `source-scans` ran 53 `[PASS]` lines and `test:unit` 68,
+with no `[FAIL]`.
+No cache version moved:
+`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 1c7918806f..HEAD` names no commit,
+and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 No new B id was taken:
 the next free one is B842.
