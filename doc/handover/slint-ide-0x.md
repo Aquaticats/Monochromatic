@@ -4828,6 +4828,13 @@ pass over all platforms in parallel. Not our code. Failed job rerun once (is it 
 once read; if it fails again identically the options are the runbook's pin (`version: 2026.10.9` in the
 `jdx/mise-action` steps of `cargo-publish.yml`, comment per rule PIN, update doc/runbook/release-the-music-player.md
 "The mise version pin" and the troubleshooting doc) or removing the need of cmake in this job.
+OWNER INSTRUCTION 2026-10-25 (user message): "another session is investigating the mise issue. Don't spend effort
+yourself to investigate it, just wait." So this session does NOT investigate, pin, or edit `cargo-publish.yml` or the
+runbook for it, and does not start the real compositor release (version bump 0.6.1 to 0.6.2) until that session reports
+or the owner says otherwise. The rerun of the failed job (run 40242360125) is only read, not acted on. The IDE dry run
+(run 40242357783) is green; the IDE's own workflow pins mise 2026.10.9 and is not affected; a real IDE release
+(0.1.1 to 0.1.2) is held with the compositor's so both releases carry the same state, until the mise question is
+answered. Nothing else is waiting on this session.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
