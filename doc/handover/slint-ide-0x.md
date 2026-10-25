@@ -4835,6 +4835,27 @@ or the owner says otherwise. The rerun of the failed job (run 40242360125) is on
 (run 40242357783) is green; the IDE's own workflow pins mise 2026.10.9 and is not affected; a real IDE release
 (0.1.1 to 0.1.2) is held with the compositor's so both releases carry the same state, until the mise question is
 answered. Nothing else is waiting on this session.
+OWNER ANSWER 2026-10-25 (question tool, to "should the IDE release wait for the compositor release or go now"): "I got
+the other session to pin mise to 2026.10.17 in CIs as a stopgap measure. Release everything you own now." So the hold
+above is lifted. Main has `3e16deb852` (pin mise 2026.10.17 in all six `jdx/mise-action` steps of `cargo-publish.yml`,
+because 2026.10.19 cannot resolve cmake for linux-arm64, Refs #1791); `ide-release.yml` keeps its own pin 2026.10.9.
+Dry runs before the releases: IDE `ide-release.yml` run 40242357783 green at `8c60a4afb3` (IDE sources unchanged since);
+compositor `cargo-publish.yml` run 40244877203 green at `3e16deb852` (`nws-publish-crate` and both `nws-build-binary`
+legs green, `nws-create-release` skipped as in a dry run). Version bumps in the scratch tree `release-prep`: IDE 0.1.1
+to 0.1.2 (`mise run //package/desktop-app/ide:fetch`, exactly one changed line in `Cargo.lock`), compositor 0.6.1 to
+0.6.2 (the compositor has no `fetch` task and its tasks do not use `--locked`, so `mise run //package/cli/nested-wayland-
+session:build` refreshed `Cargo.lock`: exactly one changed line; the README heading "Changes after 0.6.1 (not
+released)" became "Changes in 0.6.2"). Commits `f5e1a3f44c` `chore(ide): release 0.1.2` and `eb60defb1d`
+`chore(nested-wayland-session): release 0.6.2` (explicit pathspecs), pushed with a merge as `5750e0b9c3` at ancestry 0.
+The real runs started by that push: `ide-release.yml` run 40245539422 and `cargo-publish.yml` run 40245539506. Next
+(runbooks: `doc/runbook/release-the-ide.md` "Cut a release" steps 5 to 7 and "Verifying attestations";
+`doc/runbook/publish-crate-first-time.md` "Cut the release" steps 2 to 4): read both runs to the end; the IDE release
+`ide-v0.1.2` must hold four files (both archives, the notices, `SHA256SUMS`) and be a pre-release; the compositor release
+`monochromatic-nested-wayland-session-v0.6.2` must hold two archives and the checksums file, the crate must be on
+crates.io; verify with `gh release view`, `gh attestation verify`, `sha256sum --check` and `cargo binstall --dry-run`
+for the compositor. A failed release job after publishing cannot be repaired (immutable): release the next patch
+version and say in its notes that the previous is broken. Then install the released IDE archive? No: the installed
+binary is the local build `d60a2272574c0a64…` from `8c60a4afb3`, whose IDE sources equal the release's.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
