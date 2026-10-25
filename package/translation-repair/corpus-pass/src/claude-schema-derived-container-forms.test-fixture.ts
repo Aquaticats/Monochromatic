@@ -79,7 +79,12 @@ function storingCase(
 
  @example
  ```ts
- const shapeCase = methodCase({ method: 'push', declaration: HOLDER, call: '  holder.push(args,);', argument: 'holder', },);
+ const shapeCase = methodCase({
+   method: 'push',
+   declaration: HOLDER,
+   call: '  holder.push(args,);',
+   argument: 'holder',
+ },);
  ```
  */
 function methodCase(
