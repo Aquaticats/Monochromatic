@@ -304,6 +304,8 @@ export component AppWindow inherits Window {
     // A press places the caret or, repeated quickly, selects a word or a line; a drag reports further hits.
     callback pointer-press(float, float, bool);
     callback pointer-hit(float, float, bool);
+    // The left button went up at this point (the same two numbers as a drag's); native code only writes it to the log.
+    callback pointer-release(float, float);
     callback key-input(string, bool, bool, bool);
     callback viewport-changed(float, float, float);
     callback theme-changed;
@@ -621,6 +623,9 @@ export component AppWindow inherits Window {
                                     root.definition-at-pointer(root.drawn-y(self.mouse-y),
                                         (self.mouse-x - root.gutter-width) / 1px);
                                 }
+                            } else if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                                root.pointer-release(root.drawn-y(self.mouse-y),
+                                    max(0, (self.mouse-x - root.gutter-width) / 1px));
                             } else if event.kind == PointerEventKind.move && !self.pressed {
                                 // A resting pointer asks for hover information; x is negative over the line numbers.
                                 root.pointer-moved(root.drawn-y(self.mouse-y),

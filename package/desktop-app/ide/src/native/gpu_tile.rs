@@ -53,7 +53,10 @@ use slint::wgpu_30::wgpu;
 /// and the image import.
 use slint::{ComponentHandle, GraphicsAPI, Image, RenderingState};
 /// Shared ownership of the GPU state on the window thread.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 /// Vello's renderer and its settings.
 use vello::{
     AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, peniko::Color as VelloColor,
@@ -130,10 +133,33 @@ struct Inner {
 pub(super) struct GpuTile {
     /// The state the notifier also holds.
     inner: Rc<RefCell<Inner>>,
+    /// The offset the text was drawn at when the latest frame began,
+    ///  or nothing before the first frame.
+    /// The notifier writes it,
+    ///  and the pointer handlers read it:
+    ///  a press is handled after the frame it was made over,
+    ///  so the row under the pointer is the row of that frame.
+    shown: Rc<Cell<Option<f32>>>,
 }
 
 /// Hand scenes over.
 impl GpuTile {
+    /// What:
+    ///  The offset the text was drawn at in the latest frame that began,
+    ///  in logical pixels from the top of the text,
+    ///  or nothing while no frame has begun.
+    /// Why:
+    ///  The pointer maps to the rows of the picture the person sees,
+    ///  and the window keeps animating between that frame and the moment the press is handled.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// shownOffset(): number | undefined;
+    /// ```
+    pub(super) fn shown_offset(&self) -> Option<f32> {
+        return self.shown.get();
+    }
+
     /// Make the scenes of the tile the ones to draw at the next frame;
     /// a tile not drawn yet is replaced.
     /// A tile whose textures differ in size from the last one's gets its new textures,
@@ -439,6 +465,7 @@ impl Inner {
 /// ```
 pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
     let inner = Rc::clone(&gpu.inner);
+    let shown = Rc::clone(&gpu.shown);
     let weak = window.as_weak();
     let installed = window.window().set_rendering_notifier(move |state, api| {
         frame_trace::log_rendering_stage(&state);
@@ -472,6 +499,7 @@ pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
             if matches!(state, RenderingState::BeforeRendering) {
                 // The offset the toolkit's scroll has reached against the offset the text is drawn at: the two differ
                 // while the displayed tile does not hold the view.
+                shown.set(Some(active.get_drawn_offset()));
                 tracing::debug!(
                     target: "monochromatic_ide::native::frame",
                     real = -active.get_scroll_y(),
