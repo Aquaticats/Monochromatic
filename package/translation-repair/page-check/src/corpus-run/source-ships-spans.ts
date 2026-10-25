@@ -18,6 +18,7 @@ import {
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
+import { withPageOnlyStarts, } from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
@@ -118,13 +119,17 @@ export function spansOf(
    */
   const tables = tableRangesOf({ body: readable, },);
   /**
-   Where the strict grammar reads a footnote definition, which ends where the plain reading's paragraph goes on.
-   */
-  const footnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
-  /**
    Where the page ends a footnote definition, which a line of raw HTML does not end: the page writes it as text.
    */
   const pageFootnoteRanges = pageFootnoteDefinitionRangesOf({ body: readable, },);
+  /**
+   Where a reader of the source reads a footnote definition, which ends where the plain reading's paragraph goes on, and
+   the definitions only the page starts.
+   */
+  const footnoteRanges = withPageOnlyStarts({
+    source: footnoteDefinitionRangesOf({ body: readable, },),
+    page: pageFootnoteRanges,
+  },);
   /**
    Stretches read as text.
    */
