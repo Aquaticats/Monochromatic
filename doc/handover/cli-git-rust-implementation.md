@@ -2325,6 +2325,11 @@ that is verification, not a decision for the user.
   QUEUED: mutation for `effective_target.rs` (unit `cli-git-mut-m029`, logs `~/temp/agent/m029-mutation-*.log`; do not
   edit `src/native` while it runs); source-trace the mise failure and decide upstream filing
   (`doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`); test the cmake backend switch in podman.
+  USER ANSWER 2026-10-25 on the CI pin: "Test the cmake backend switch in podman first, and I'm eliminating mise in
+  CI in another session." So: run the podman test (control versus `mise backends switch cmake`, mise 2026.10.19,
+  `~/temp/agent/podman-ci-cmake.ts`), record the result, and make NO further edits to `.github/workflows` (another
+  session is removing mise from CI; the pin stays until that lands and is expected to disappear with it). The result
+  still matters for the host's own mise 2026.10.19, whose upgrades print the same cmake error.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
