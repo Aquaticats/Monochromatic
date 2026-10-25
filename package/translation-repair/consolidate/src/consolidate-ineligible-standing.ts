@@ -126,13 +126,14 @@ export const UNHEARD_GATE_KEEPS_STANDING_FINDING: string = 'unheard-gate-keeps-s
 
 /**
  Finding recorded on a settlement whose gate heard fewer than two answering
- judges over a standing the deterministic rule refused, so the proposal two or
- more slate ballots chose shipped rather than the archive the rule refused
- (the owner's answer of 2026-10-25, "Ship the slate's wording").
+ judges over a standing the deterministic rule refused or a contest majority
+ called flawed, so the proposal two or more slate ballots chose shipped rather
+ than that standing (the owner's answers of 2026-10-25, "Ship the slate's
+ wording" and "Ship the slate's pick (Recommended)").
  */
 export const UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING: string = 'unheard-gate-ships-slate-pick: the gate heard fewer than '
-  + 'two answering judges over a standing that failed the deterministic publication rule, so the proposal two or more '
-  + 'slate ballots chose ships rather than the archive the rule refused';
+  + 'two answering judges over a standing that failed the deterministic publication rule or that a majority of the '
+  + 'contest ballots called flawed, so the proposal two or more slate ballots chose ships rather than that standing';
 
 /**
  Finding recorded on a settlement where no wording passed the deterministic
@@ -339,12 +340,14 @@ export function slatePickBallotsOf(
  the want of a quorum, not an indecision among judges, and one judge alone
  never decides. What the slate decided stands on its own, though: where two or
  more slate ballots chose the proposal and the standing is the archive the
- deterministic rule refused, the proposal ships, with
- {@link UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING}, because the archive cannot ship
- and the slate's choice is itself a two-ballot decision (the owner's answer of
- 2026-10-25, "Ship the slate's wording"). Over a standing the contest majority
- called flawed, which passes the rule, and over a pick fewer than two slate
- ballots chose, the outcome comes back as it stands with
+ deterministic rule refused, or an eligible standing a strict majority of the
+ contest ballots called flawed, the proposal ships, with
+ {@link UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING}, because the slate's choice is
+ itself a two-ballot decision (the owner's answers of 2026-10-25, "Ship the
+ slate's wording" for the refused archive and "Ship the slate's pick
+ (Recommended)" for the flawed one). Over an eligible standing no contest
+ majority called flawed the outcome comes back untouched before this rule is
+ read, and over a pick fewer than two slate ballots chose, it comes back as it stands with
  {@link UNHEARD_GATE_KEEPS_STANDING_FINDING}.
 
  @param outcome - what the gate settled
@@ -417,12 +420,13 @@ export function shipPastForfeitStanding(
   // A GATE THAT HEARD FEWER THAN TWO ANSWERING JUDGES HAS NO VERDICT, undecided or otherwise, to ship a proposal past.
   // XingZ6021 shipped five consolidations (slices 13, 14, 33, 44 and 84) on a gate with one usable ballot, which
   // broke the owner's standing rule that one judge alone never decides, restated on 2026-10-25 ("Two ballots
-  // decide"). The standing stays unless the slate's own pick was chosen by two or more slate ballots over an
-  // archive the rule refused (owner, 2026-10-25, "Ship the slate's wording"), where the pick ships; otherwise an
-  // ineligible standing leaves the archive kept through `nothingValidShips` (owner, 2026-09-27, "Keep archive,
-  // ship"), and a majority-flawed one ships as it stands.
+  // decide"). The standing stays unless the slate's own pick was chosen by two or more slate ballots, over an
+  // archive the rule refused (owner, 2026-10-25, "Ship the slate's wording") or an eligible standing a majority of the
+  // contest ballots called flawed (owner, 2026-10-25, "Ship the slate's pick (Recommended)"), where the pick ships;
+  // otherwise an ineligible standing leaves the archive kept through `nothingValidShips` (owner, 2026-09-27, "Keep
+  // archive, ship"), and a majority-flawed one ships as it stands.
   if (outcome.usable < CONSOLIDATE_GATE_QUORUM) {
-    if ((!standingEligible) && (slatePickBallots >= MIN_SELECTION_BALLOTS)) {
+    if (slatePickBallots >= MIN_SELECTION_BALLOTS) {
       l.warn(
         `consolidate gate: heard ${String(outcome.usable,)} usable ${
           wordForCount({
@@ -430,7 +434,9 @@ export function shipPastForfeitStanding(
             one: 'ballot',
             many: 'ballots',
           },)
-        }, below the two judges a verdict needs, over an ineligible standing; the proposal ${
+        }, below the two judges a verdict needs, over ${
+          standingEligible ? 'a standing a majority of contest ballots called flawed' : 'an ineligible standing'
+        }; the proposal ${
           String(slatePickBallots,)
         } ${
           wordForCount({
