@@ -61,6 +61,8 @@ const REQUEST: ChatTextRequest = {
 
 await describe({
   name: promptUniqueClient.name,
+  // SEQUENTIAL: the meter case diverts console.info and reads the process-wide run spend meter, so cases must not overlap.
+  concurrency: 1,
   children: [
     it({
       name: 'REUSES COMPLETED PAYLOAD instead of second provider call',
