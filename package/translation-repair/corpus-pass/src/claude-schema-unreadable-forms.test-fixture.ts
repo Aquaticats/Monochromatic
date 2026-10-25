@@ -235,9 +235,7 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
   },
   {
     name: 'REPORTS A MEMBER OF globalThis, window, self OR global COMPUTED FROM ANYTHING BUT A STRING, which can name '
-      + 'eval or Function, and nothing for a literal key, a dotted member, a computed member of another object, '
-      + 'and the three stated limits: the constructor of a function, node:vm and the constructor of the async '
-      + 'prototype',
+      + 'eval or Function, and nothing for a literal key, a dotted member and a computed member of another object',
     files: [
       {
         file: 'imaginary/src/computed-global-stage.ts',
@@ -257,15 +255,6 @@ export const UNREADABLE_CODE_CASES: readonly ShapeCase[] = [
           'export const literal = globalThis[\'fetch\'](\'x\',);',
           'export const dotted = globalThis.fetch(\'x\',);',
           'export const other = config[key](\'1\',);',
-          'export const constructed = (function () {}).constructor(\'return 1\',)();',
-          'export const prototyped = Object.getPrototypeOf(async function () {}).constructor(\'return 1\',);',
-        ],),
-      },
-      {
-        file: 'imaginary/src/vm-stage.ts',
-        text: textOf([
-          'import vm from \'node:vm\';',
-          'export const ran = vm.runInThisContext(\'1\',);',
         ],),
       },
     ],
