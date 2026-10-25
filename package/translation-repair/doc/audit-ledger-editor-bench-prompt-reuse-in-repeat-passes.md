@@ -297,7 +297,7 @@ No cache version moves.
 ## Round 12: the findings of re-check 8
 
 The independent re-check of round 11 (`editor-recheck8.md`) found no major,
-two minor and seven nit,
+two minor and seven nits,
 and each was ruled a fix.
 
 - Minor 1:
@@ -362,7 +362,7 @@ a repeat measurement proves that each repeat made its own call.
 ## Round 13: the findings of re-check 9
 
 The independent re-check of round 12 (`editor-recheck9.md`) found no major,
-one minor and six nit,
+one minor and six nits,
 and each was ruled a fix.
 The build the high arm runs is the frozen copy of `85e21653a2ebb055ee807a6edc2fdf1248073abc`
 (the section on round 14 says how that copy is named),
@@ -464,7 +464,7 @@ run the source scans before the first commit of a test that imports a fixture wr
 ## Round 14: the findings of re-check 10
 
 The independent re-check of round 13 (`editor-recheck10.md`) found no major,
-no minor and six nit,
+no minor and six nits,
 and each was ruled a fix.
 The code commits,
 oldest first:
@@ -764,6 +764,9 @@ and rendered every touched Markdown file with micromark.
 Two commits came after the one that holds the section for round 15 and are named here:
 `d2d9ad9a84e26a7900219cdd6c09e1ecb86b51b6` merges `origin/main` at `a50c2875a2`,
 and `2e6c835d273e36794febe984533488bfa757b4fb` wraps the one line over 120 characters that the merge brought.
+The commits of this round other than the one that holds this section:
+`88c0d196d82ba42db1469a8ea6320520f28d0d50` restores the fence,
+and `f9beeb00e3e072e3f10aa714b6c0eaa995dc9123` names the block in the outcome file and changes the `@returns`.
 
 - The minor:
   `b27c7bb93dc6d450086be48c8942a8058a3b8f0e` broke the two probe result lines of the decision record
@@ -792,9 +795,22 @@ and `2e6c835d273e36794febe984533488bfa757b4fb` wraps the one line over 120 chara
 - Message slips,
   to correct by a commit comment once the branch lands:
   `b27c7bb93dc6d450086be48c8942a8058a3b8f0e` says a link cannot be broken across lines,
-  but `2e3a508520060aa38117d7d7e886b765bd4d86b3` breaks the text of 54 links and each renders;
+  but `2e3a508520060aa38117d7d7e886b765bd4d86b3` breaks the text of 54 links and each renders,
+  and it says "No wording changed" while its own body names the one sentence it adds;
   `7f3ca7257bf139c44806d81a48e1a8aefb3311bb` says "three Markdown commits of round 14" where this file names four;
   `2e6c835d273e36794febe984533488bfa757b4fb` says the wrapped line was 122 characters,
-  and it measured 121 (the coordinator wrote the figure before measuring it).
+  and the line as it stood at `d2d9ad9a84` measures 121 code points;
+  the figure was written into the message before the line was measured.
+
+## Round 17: the nits of re-check 13
+
+The independent re-check of round 16 (`editor-recheck13.md`) found no major and no minor,
+and three nits,
+each fixed in the commit that holds this section:
+the section for round 16 now names its own commits,
+gives the measurement behind the 121,
+and adds the "No wording changed" slip of `b27c7bb93d` to its list.
+It also saw "seven nit" and "six nit" in the sections for rounds 12 to 14;
+they now read "seven nits" and "six nits".
 
 [prevention]: mistake-prevention-spend-guards-and-client-retries.md
