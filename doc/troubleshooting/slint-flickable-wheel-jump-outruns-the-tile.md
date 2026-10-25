@@ -10,7 +10,8 @@ The blank frames are not a regression of the 2026-10-24 minimap,
 hint skip,
 or hand-over changes:
 the build of 2026-10-22 shows them as often as the current `main`.
-Nothing in the IDE was changed.
+Nothing in the IDE was changed for that measurement;
+the fix of the same day is the section "Fix of 2026-10-25".
 
 ## Symptom
 
@@ -365,11 +366,209 @@ So the blank follows the speed of the sweep,
 not the distance,
 and a wheel turned by a person does not reach it.
 
-## Verified workarounds
+## Fix of 2026-10-25
 
-None applied:
-the IDE is unchanged.
-The reader can avoid the blank by moving the view with a placement (Ctrl+End,
+The owner rejected the five options below ("Surely there is a better way?"),
+and the IDE was changed in two parts that no option had named.
+`package/desktop-app/ide/README.md`,
+"A jump faster than the tile",
+describes the design as built;
+this section holds what was learned from the Slint source and from the measurement.
+
+- The toolkit reports no end for an ease.
+  `content-y` is a physics-animated property (`set_physic_animation_value`),
+  and nothing exposes the target.
+  The `flicked` callback has no arguments.
+  A `TouchArea` `scroll-event` handler sees only the first turn of a burst:
+  after one turn the `Flickable` intercepts every wheel event of the next 800 ms
+  (`SCROLL_FILTER_DURATION`,
+  `handle_mouse_filter` in `items/flickable.rs`) before its children.
+  The winit backend's window event hook (`WinitWindowAccessor::on_winit_window_event`,
+  one hook for each window) sees every event,
+  and the end of the ease is the sum the toolkit makes itself:
+  the offset the ease started at,
+  plus the notches times 60,
+  plus the end of an ease still running (`remaining_distance`),
+  limited to the text.
+  The source view's `flicked` report says the turn was the source view's,
+  so a turn over the sidebar asks for no source tile.
+- The public window event `WindowEvent::PointerScrolled` carries `TouchPhase::Cancelled`
+  (`i-slint-core` `api.rs`),
+  which makes the `Flickable` set the offset at once and ease nothing;
+  a headless test cannot reproduce the ease with it,
+  so the native tests step the ease along its curve themselves and the real path is verified only by the nested compositor.
+- Reading the offset property inside the `flicked` report gives the first value of the ease in the real window
+  and its end in a headless test.
+  The window uses the offset it last placed or was told of.
+- The `flicked` report comes twice for one notched turn (inside the wheel branch and at the end of the event);
+  the note of the turn is taken,
+  not read.
+- `rows::settle` places the view when hints change the map,
+  and that placement released the follow in the first build:
+  a tile for a step was requested 5 ms into the ease.
+  It re-asks for the same end under the new map now (`wheel::refit`).
+- The hold is a markup binding on the toolkit's live offset,
+  so it needs no step to follow the ease and cannot lag it by a frame.
+  The clamp edges are the raster's own,
+  not the re-center edges that `holds` uses.
+
+### Result of the fix
+
+Harness:
+the one of "Verification" (`~/temp/agent/wheel2`,
+removed with the run),
+two release builds alternating in a shuffled order in every (repetition,
+N) pair:
+`main` at `52056f6fbc` (sha256 prefix `d9f48256d152b429`,
+byte-identical to the installed binary) and the fix (`2dd970ae81`).
+N in 40,
+150,
+300,
+and 600;
+10 repetitions in each of three batches of freshly started sessions,
+so 30 jumps for each binary and N
+(239 of 240 were analysed:
+one analysis of `main` at 300 notches in the third batch died with its frames).
+A new disposable project held the 1,500-line generated file
+and the project's TypeScript 7.1.0-beta;
+the device was the RX 7600 (RADV) in every run.
+Recorder:
+60 fps requested,
+a median of 21.2 achieved (10th percentile 19.0,
+13.4 to 22.6),
+0 frames dropped.
+Load:
+the 1-minute load average at the start of a jump had a median of 8.9 (3.9 to 26.1,
+90th percentile 15.3);
+other sessions kept it up and nothing was waited for.
+The positive control is the launch recording of every session
+(`0.5490 0.5000 0.5166 ...`),
+and `main` reproduces the earlier blank counts.
+
+Each entry is jumps with a blank code frame,
+then blank frames in batch 1 / 2 / 3,
+then partial frames and jumps with an edge gap over all 30 jumps.
+
+- N=40:
+  `main` 0 of 30,
+  0/0/0,
+  partial 0,
+  edge gap in 7 jumps.
+  Fix 0 of 30,
+  0/0/0,
+  partial 0,
+  edge gap in 0.
+- N=150:
+  `main` 29 of 30,
+  11/10/9,
+  partial 20,
+  edge gap in 6.
+  Fix 0 of 30,
+  0/0/0,
+  partial 0,
+  edge gap in 0.
+- N=300:
+  `main` 29 of 29,
+  19/20/19,
+  partial 16,
+  edge gap in 14.
+  Fix 0 of 30,
+  0/0/0,
+  partial 0,
+  edge gap in 0.
+- N=600:
+  `main` 30 of 30,
+  28/28/32,
+  partial 17,
+  edge gap in 9.
+  Fix 0 of 30,
+  0/0/0,
+  partial 0,
+  edge gap in 0.
+
+The spread of `main` between batches is 3 to 4 frames at 600 notches;
+the fix has none to spread.
+Tiles applied for one jump on average:
+`main` 1.03 / 2.70 / 3.48 / 3.90 at 40 / 150 / 300 / 600 notches,
+fix 1.00 at every size,
+discarded 0.00 (0.03 for `main` at 300).
+Window-thread builds after the jump
+(`window thread measured and built a tile`,
+about half a second later,
+when the hints of the new place arrive):
+0.00 / 0.07 / 0.21 / 0.10 for `main` and 0.00 / 0.07 / 0.20 / 0.13 for the fix,
+so the fix adds none.
+The time from the first changed frame to the frame with the final lines is 181 to 189 ms for `main`
+and 183 to 186 ms for the fix.
+
+The app's own record of the frames it drew (`the frame's view real=... drawn=... held=...`)
+gives the held frames of the fix per jump:
+0.0 / 1.0 / 1.7 / 2.6 at 40 / 150 / 300 / 600 notches,
+of which behind the toolkit's offset at the old tile's far edge 0.0 / 0.0 / 0.1 / 0.8
+and ahead of it at the near edge of the tile of the end 0.0 / 1.0 / 1.6 / 1.7.
+A held frame is a frame whose content is not the content of the toolkit's offset;
+the median largest distance was 2,335,
+6,549,
+and 16,620 px at 150,
+300,
+and 600 notches.
+So the first held frames (if any) show the last rows of the displayed tile,
+the next show the first rows of the tile of the end
+(the view jumps once,
+across the whole distance),
+and the ease then arrives in that tile;
+a recorded sequence at 600 notches showed lines 274 to 277,
+then 876 to 880 twice,
+then 912 to 917 (four recorded frames,
+cropped to the top of the code area).
+
+Regression checks on the fix in the same compositor
+(the 286-line `build.unit.test.ts` of `package/build-tool/css`,
+a disposable project with the same TypeScript server;
+`main` run in the same way for comparison):
+the 88-click recording shows 0 blank code frames and 0 blank minimap frames in 730 frames of the fix (856 of `main`),
+and the gap above line 96 is 82 px in all 124 frames where it could be measured (146 of `main`);
+the hint requests of the three presses at y 1700,
+1000,
+and 1700 are 1 request and 1 skip,
+then 0 and 1,
+then 0 and 1,
+with the same first lines in both builds
+(214 and 220,
+157,
+220;
+the first line of the skip is 223 in the project of the earlier verification,
+whose stubbed workspace imports change the hint rows,
+and 220 in this one for both builds).
+
+### What remains imperfect
+
+- A held frame is not the content of the offset the wheel asked for:
+  for 1 to 3 frames of a jump of 150 notches or more the text is that of the displayed tile's edge or of the new tile's near edge,
+  and the minimap's box and picture (which follow the toolkit's offset) run ahead of it.
+  The box was left on the toolkit's offset on purpose:
+  the picture is built for the bands around that offset,
+  so a box on the drawn text would stand over a picture of other bands.
+- The first frame that shows the end shows it without the hint rows of that place,
+  which arrive half a second later and move the text (unchanged).
+- Only a notched wheel (winit `LineDelta`) is followed.
+  A touchpad (`PixelDelta`) sets the offset step by step and asks for the usual tile for each,
+  and its fling after the finger lifts is not predicted;
+  a wheel over the tree asks for no source tile.
+- The native tests step the ease themselves,
+  because the toolkit's public `PointerScrolled` event carries the gesture phase `Cancelled`
+  and moves the scroll at once;
+  the toolkit's own ease is exercised only by the nested-compositor measurement above.
+- The toolkit's constant (180 ms) and its rule for adding the remainder of a running ease are copied
+  (`wheel.rs`);
+  a Slint release that changes them would make the end the window asks for wrong,
+  and the window would then ask for the right tile when the ease ends (`wheel::finish` and the step at the end),
+  as it did before,
+  with the hold covering the gap.
+
+## Workarounds before the fix
+
+The reader could avoid the blank by moving the view with a placement (Ctrl+End,
 Ctrl+Home,
 a minimap click,
 a page key),
@@ -378,6 +577,8 @@ or by turning the wheel a few notches at a time.
 
 ## Options considered
 
+The owner rejected all five on 2026-10-25;
+the section above is what was built instead.
 Ranked,
 nothing built (the owner treats choppiness and blank flashes as defects,
 so the first two are the ones

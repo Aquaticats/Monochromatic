@@ -4485,6 +4485,58 @@ build and no CPU painting. Acceptance: 0 blank code frames at 150, 300 and 600 n
 nothing new at 40, with the 478-jump protocol, 88-click recording unchanged (0 blank frames, 82 px gap, 1 plus 1 skip
 then 0 plus 1 skip, first line 223 for both y=1700 presses), drags covered or stated. Its report is verified, landed and
 the IDE reinstalled; then `~/temp/agent/final` and `~/temp/agent/wheel` are removed.
+Landed 2026-10-25 as `83af48b117` (agent tip `37b212448c`, plus my commit that breaks one doc-comment line in
+`wheel_tests.rs`: the agent's branch passed its lint, the merged tree failed `markdown/semantic-line-breaks`).
+Design as built: `ui/app.slint` has `hold-top`, `hold-bottom` (set in `show()` from `viewport::reach`) and
+`drawn-offset` = clamp(real offset, reach); slices, selection and find rectangles, gutter rows and caret ride in one
+`Rectangle { y: hold-shift }`; the pointer maps through `drawn-y(mouse-y)`; placements and drags build the tile first so
+the hold never engages for them; minimap box, slide and offset stay on the toolkit's real offset (the box runs ahead
+of the held text for 1 to 3 frames, by design). `src/native/wheel.rs`: Slint 1.18.1 exposes no ease end (`flicked` has
+no arguments, a `TouchArea` `scroll-event` sees only the first turn of a burst, `SCROLL_FILTER_DURATION` 800 ms), so
+the winit event hook (`frame_trace::bind`) notes a `LineDelta` turn, the source `Flickable`'s `flicked` takes the note,
+the end is last placed offset minus notches times 60 (or the end of a running ease) clamped to the text, and if the
+shown or requested tile does not hold it `request_window` asks for ONE tile for it; per-step asks stop while steps lie
+on the way; a placement releases the follow; rows arriving mid-ease re-ask for the same end (`wheel::refit`); a 400 ms
+timer is the backstop. Touchpad `PixelDelta`, near turns the tile holds, and wheels over the tree stay on the old path.
+Measured by the builder on 239 of 240 jumps (two release binaries alternating, 3 batches of 10, recorder median 21.2 fps,
+load median 8.9): fix 0 blank code frames, 0 partial frames and 0 edge-gap jumps at 40, 150, 300 and 600 notches;
+`main` blanked 0, 29, 29 and 30 of 30 jumps (partial frames 0, 20, 16, 17); tiles applied per jump 1.00 against
+1.03, 2.70, 3.48 and 3.90; no extra window-thread build; held frames per jump 0, 1.0, 1.7 and 2.6 (content not at the
+wheel's offset at that instant, largest distance 2,335, 6,549 and 16,620 px at 150, 300 and 600 notches); first changed
+frame to final lines 183 to 186 ms against 181 to 189 ms. 8 tests in `src/native/wheel_tests.rs`, 14 guard cases
+(`hold-*`, `wheel-*`) removed and restored, 28 of 28 accepted; the new tests cannot compile on the baseline tree.
+Gates on the merged tree: `lint` 0 after the one-line fix, `test:native` 326 passed and 5 skipped, `test` 811 passed,
+`test:bin` 0, `inspect:no-software-renderer` 0.
+Imperfect: 1 to 3 frames per far jump show text that is not at the wheel's offset; the first full frame lacks the new
+place's hint rows (about 0.5 s later); the 180 ms constant and the add-remainder rule are copied from Slint, so a Slint
+change would make the predicted end wrong (the placement and the hold would still cover it, untested); the 223 first-line
+check was not reproduced on the builder's project. Installed: sha256 `e96cdd88596d32e9…` from `83af48b117`, prints
+0.1.1. The installed binary is being checked by the earlier verifier agent (far jumps against `wheel2/bin/main`,
+held-frame look, selection, caret and find marks while held, pointer mapping while held, drags, keys, the earlier
+regression checks); its numbers follow in this block, and `~/temp/agent/final`, `final2` and `wheel2` are removed after.
+Verification of the installed `e96cdd88596d32e9…` (2026-10-25; hardware RX 7600 confirmed in every log; recorder median
+22.2 fps against 60 requested; load average at jump start median 6.25, 1.9 to 23.9; 238 of 240 jumps analysed, two
+analyses died, so 29 jumps at 300 and 600 notches): blank code frames 0 of 30, 0 of 30, 0 of 29 and 0 of 29 jumps at
+40, 150, 300 and 600 notches, with 0 partial frames and 0 edge gaps, against the baseline `d9f48256…` 0, 28, 30 and 30
+of 30 jumps with blank frames (0, 28, 60 and 89 blank frames in total; partial frames 0, 31, 28, 13); first changed frame
+to final lines 179 to 182 ms against 177 to 178 ms; tiles applied per jump 1.00 against 1.03, 3.17, 3.57, 4.10; held
+frames per jump 0, 1.0, 2.0 and 2.7 (largest held distance median 0, 2,687, 7,377 and 16,634 px).
+What a viewer sees at 300 and 600 notches: old place, one first ease step, a jump across the whole distance to the near
+edge of the destination tile held for 2 frames with real text and matching line numbers (never black), then the ease
+arriving, then the same text again when the hint rows arrive at about 0.55 s.
+Layers in held frames (3 repetitions each): selection down (365 notches) and up (417), find marks (60 matches stepped,
+then a wheel down) and the caret had the same shift as gutter and text with error 0.0 (-36, -184, -60 and -36 px);
+not run: find and caret upward, a held selection at 600 notches, hover popups.
+Other inputs 0 blank code frames: minimap box drag down and up (0 held frames), a minimap click, Page Up and Down,
+Ctrl+End and Ctrl+Home, 20 and held arrow keys, wheel over the tree (source untouched, maximum pixel difference 0.0),
+1 to 5 notches (0 held frames); the source view has no scroll bar to drag.
+Regression: five-press means 0.510708, 0.509617, 0.510708, 0.510073, 0.509618 (disposable project with TS2591 and TS2339
+diagnostics, identical to the previous installed binary on the same project), 88-click recording 888 frames at 24.3
+fps with 0 blank code and 0 blank minimap frames, gap 82 px in all 124 frames showing line 96, requests 1 plus 1 skip
+(logged at 214, skip at 223) then 0 plus 1 skip twice; file switches 16 with 1 to 2 blank minimap frames each.
+Two pointer results under review (an agent repeats them with 8 trials per delay): a press 0.130 s after a 300-notch
+wheel selected on the settled view's line, not the held line (the hold had ended: acceptable); a press 0.053 s after
+the wheel selected one row in one frame and nothing in later frames, not repeated and possibly just a click's caret.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
@@ -4670,6 +4722,57 @@ logs,
 a debug binary with the scratch toggles `ide-scratch`,
 a 24 GB `gcache`)
 can be deleted by the owner.
+
+## The far wheel jump no longer blanks the code area, 2026-10-25 (branch worktree-agent-a74ce816a17d718d4)
+
+Owner order of 2026-10-25 after the report of the 478 jumps:
+the five options were rejected,
+and the orchestrating session's design was built and measured.
+
+- Hold at the tile's edge:
+  `ui/app.slint` draws everything that rides with the tile in one group moved by `real offset - drawn-offset`,
+  where `drawn-offset` is the toolkit's offset limited to the raster's reach (`hold-top`,
+  `hold-bottom`,
+  set by `show` from `viewport::reach`).
+  The pointer maps through `drawn-y`.
+  Drags are placements,
+  so the hold never engages for them.
+  The minimap box and picture stay on the toolkit's offset (the picture is built for those bands).
+- One tile at the end of the ease:
+  `src/native/wheel.rs`.
+  The winit event hook (`frame_trace::bind`,
+  the one hook a window has) notes a `LineDelta` wheel turn,
+  the source `Flickable`'s `flicked` report takes the note,
+  the end is the sum the toolkit makes,
+  `viewport::request_window` asks for its tile,
+  `place_scrolled` and `rows::settle` ask for none while the view is on the way,
+  `tile::accepts` takes the tile of the end although the view is far from it,
+  and a placement releases the follow.
+- Measured over 239 jumps against `main` (`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+  "Result of the fix"):
+  0 blank,
+  0 partial,
+  0 edge-gap jumps at 40,
+  150,
+  300,
+  and 600 notches for the fix,
+  against 29 of 30,
+  29 of 29,
+  and 30 of 30 jumps with a blank frame for `main` at 150,
+  300,
+  and 600;
+  one tile applied for each jump,
+  no extra window-thread build;
+  the 88-click recording,
+  the 82 px gap and the request counts are unchanged.
+- Tests:
+  `src/native/wheel_tests.rs` (8 tests),
+  14 guard cases in `bin/inspect-source-guards.ts` (`hold-*`,
+  `wheel-*`).
+- Open:
+  the toolkit's own ease is checked only in the nested compositor;
+  a touchpad fling is not followed;
+  the minimap runs ahead of the held text for 1 to 3 frames.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

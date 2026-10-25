@@ -8,7 +8,7 @@
 ///  the find presentation,
 ///  and the annotation readings.
 use crate::native::{
-    AppWindow, State, annotate, find::present::present, rows, ui::SourceSelection,
+    AppWindow, State, annotate, find::present::present, rows, ui::SourceSelection, viewport::reach,
 };
 /// The rectangles a frame hands to the window.
 use ide_app::shaped_text::ReadingRect;
@@ -184,6 +184,7 @@ pub(in crate::native) fn show(window: &AppWindow, state: &Rc<RefCell<State>>, fr
         current.images_set += 1;
     }
     let placement = rows::measure(&current, anchor_line);
+    let (hold_top, hold_bottom) = reach(&current);
     let gpu = current.gpu.clone();
     drop(current);
 
@@ -203,6 +204,10 @@ pub(in crate::native) fn show(window: &AppWindow, state: &Rc<RefCell<State>>, fr
     // Rows above the tile can change without a repaint; the image and the line numbers follow the map.
     // The scroll extent is set before the offset, so the old extent cannot clamp the new offset.
     window.set_image_y(origin);
+    // The reach of the displayed tile arrives with the tile and its origin, so the view is never drawn against a
+    // tile other than the one whose picture the frame samples.
+    window.set_hold_top(hold_top);
+    window.set_hold_bottom(hold_bottom);
     rows::present(window, placement);
     if let Some(offset) = scrolled {
         window.set_scroll_y(-offset);
