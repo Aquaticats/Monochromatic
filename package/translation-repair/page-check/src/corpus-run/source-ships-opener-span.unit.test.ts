@@ -45,6 +45,18 @@ const CASES: readonly (readonly [string, string])[] = [
     '- p\n      ```\n      x <!-- never\n      ```\n',
   ],
   [
+    'A CODE SPAN ON LINES INDENTED FOUR SPACES AFTER A FOOTNOTE LINE IN A BLOCK QUOTE, NOTHING BUT MARKS BEFORE THE OPENER',
+    '> [^1]: x\n>     ```\n>     <!-- never\n>     ```\n',
+  ],
+  [
+    'A CODE SPAN ON LINES INDENTED FOUR SPACES AFTER A FOOTNOTE LINE IN A LIST ITEM, NOTHING BUT WHITE SPACE BEFORE THE OPENER',
+    '- [^1]: x\n      ```\n      <!-- never\n      ```\n',
+  ],
+  [
+    'A CODE SPAN IN A BLOCK QUOTE, CODE AND A MARK BEFORE THE OPENER',
+    '> p ```\n> x\n> <!-- never\n> ``` q\n',
+  ],
+  [
     'A CODE SPAN ON ONE LINE, A SPACE BEFORE THE OPENER',
     'a `x <!-- never` b\n',
   ],
