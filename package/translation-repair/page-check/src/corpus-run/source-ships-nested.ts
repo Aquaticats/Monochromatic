@@ -219,7 +219,7 @@ export function joinedSpans(
  const spans = editsOnly({ edits: [], },);
  ```
  */
-function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): SourceSpans {
+export function editsOnly({ edits, }: { readonly edits: readonly TextEdit[]; },): SourceSpans {
   return {
     text: [],
     literal: [],

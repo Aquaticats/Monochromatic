@@ -78,8 +78,7 @@ const SHAPE_PAIRS: readonly (readonly [string, RunPair])[] = [
     },
   ],
   [
-    'A LAZY LINE OF CODE AFTER A FENCE MARK INDENTED FOUR SPACES IN A BLOCK QUOTE, ON LINES THAT END IN A LONE CARRIAGE '
-    + 'RETURN',
+    'A LAZY LINE OF CODE AFTER A FENCE MARK INDENTED FOUR SPACES IN A QUOTE, LINES ENDING IN A LONE CARRIAGE RETURN',
     {
       first: `> a \`x\n>  [^1]: {c}\` {d}\r> a\n>     \`\`\`\r    {y}\n${REFUSED_BLOCK}`,
       middle: MIDDLE,

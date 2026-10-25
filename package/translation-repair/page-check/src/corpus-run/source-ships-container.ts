@@ -1,5 +1,7 @@
+import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import { withoutQuoteMarks, } from './source-ships-footnote.ts';
 import {
+  editsOnly,
   joinedSpans,
   nestedSpans,
   type SpansReader,
@@ -9,6 +11,7 @@ import {
   type SourceSpans,
   type TextRange,
 } from './source-ships-ranges.ts';
+import { separatingEdits, } from './source-ships-separation.ts';
 
 //region Source ships container
 // A PARAGRAPH OF A BLOCK QUOTE OR A LIST ITEM IN WHICH A FOOTNOTE DEFINITION STARTS ON A LATER LINE, read as the strict
@@ -154,6 +157,130 @@ function staysInContainer(
 }
 
 /**
+ Characters that stand before the content of a line inside a container: the indentation and the marks of a block quote.
+ */
+const LINE_PREFIX = ' \t>';
+
+/**
+ Where the strict grammar closes the container at a lazy line that holds a fence mark indented four spaces or more.
+
+ The plain reading takes such a line for text of the paragraph it follows, and a line without the marks of the container
+ for a lazy continuation of it. The strict grammar reads a fence there, which a lazy line cannot continue: the container
+ ends before the line, and the fence opens at the top.
+
+ @param source - whole text
+
+ @param range - where the paragraph stands
+
+ @param lines - where the footnote's lines stand
+
+ @returns Index where the line ending before the first such line starts, the end of the lines when there is no such line
+
+ @example
+ ```ts
+ const cut = lazyFenceBreak({ source, range, lines: { start: 2, end: 20, }, },);
+ ```
+ */
+function lazyFenceBreak(
+  {
+    source,
+    range,
+    lines,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+    readonly lines: TextRange;
+  },
+): number {
+  for (let at = lines.start; at < lines.end; at += 1) {
+    /**
+     The character at the index.
+     */
+    const character = source.charAt(at,);
+    if ((character !== '\n') && (character !== '\r'))
+      continue;
+    /**
+     Where the next line starts, after a line ending of one or two characters.
+     */
+    const lineStart = ((character === '\r') && (source.charAt(at + 1,) === '\n')) ? at + 2 : at + 1;
+    /**
+     Where the next line's content starts, after its indentation and quote marks.
+     */
+    const content = { at: lineStart, };
+    while ((content.at < lines.end) && LINE_PREFIX.includes(source.charAt(content.at,),))
+      content.at += 1;
+    /**
+     Index after the fence mark indented four spaces or more that the line holds, the start of its content when none.
+     */
+    const markEnd = indentedFenceMarkEnd({
+      source,
+      at: content.at,
+    },);
+    /**
+     Whether the line lacks the marks or the indentation of the container, so that it is a lazy line.
+     */
+    const isLazy = !staysInContainer({
+      source,
+      range,
+      split: content.at,
+    },);
+    if ((markEnd > content.at) && isLazy)
+      return at;
+  }
+  return lines.end;
+}
+
+/**
+ Reads lines of a container as a text of their own.
+
+ @param source - whole text
+
+ @param readable - whole text with its comments blanked, the parse's own input
+
+ @param readSpans - what reads a block's spans, handed in so this module and the reader do not import each other
+
+ @param stays - whether the marks of the container are taken off every line, as they are where a footnote line carries them
+
+ @param lines - where the lines stand
+
+ @returns Spans of the lines at the offsets of the whole text
+
+ @throws {@link Error} when a node of the lines has no position, which the reading used never builds
+
+ @example
+ ```ts
+ const spans = linesRead({ source, readable, readSpans: spansOf, stays: true, lines: { start: 6, end: 12, }, },);
+ ```
+ */
+function linesRead(
+  {
+    source,
+    readable,
+    readSpans,
+    stays,
+    lines,
+  }: {
+    readonly source: string;
+    readonly readable: string;
+    readonly readSpans: SpansReader;
+    readonly stays: boolean;
+    readonly lines: TextRange;
+  },
+): SourceSpans {
+  return nestedSpans({
+    source,
+    readable,
+    readSpans,
+    indices: stays
+      ? withoutQuoteMarks({
+        source,
+        range: lines,
+      },)
+      : indicesOf({ range: lines, },),
+  },);
+}
+
+/**
  Reads a paragraph of the plain reading, in a block quote or a list item, in which a footnote definition starts on a
  later line: the lines before the first definition as a text of their own, and each definition with the lines up to
  the next one as another.
@@ -252,20 +379,62 @@ export function footnoteInContainerSpans(
           at: next,
         },),
     };
-    return nestedSpans({
+    /**
+     Whether the footnote line carries the marks of the container, which are then taken off every line after it.
+     */
+    const stays = staysInContainer({
+      source,
+      range,
+      split: start,
+    },);
+    /**
+     The footnote the strict grammar starts at this line.
+     */
+    const footnote = footnotes.find(function startsHere(candidate,): boolean {
+      return candidate.start === start;
+    },);
+    /**
+     Where the footnote ends: the strict grammar ends it before a line that the paragraph of the plain reading goes on in,
+     a fence mark indented four spaces or more among them.
+     */
+    const footnoteEnd = Math.min(
+      (footnote === undefined) ? lines.end : footnote.end,
+      stays
+        ? lazyFenceBreak({
+          source,
+          range,
+          lines,
+        },)
+        : lines.end,
+      lines.end,
+    );
+    /**
+     The lines of the footnote.
+     */
+    const body = linesRead({
       source,
       readable,
       readSpans,
-      indices: staysInContainer({
+      stays,
+      lines: {
+        start,
+        end: footnoteEnd,
+      },
+    },);
+    if (footnoteEnd >= lines.end)
+      return body;
+    return joinedSpans({
+      first: body,
+      second: linesRead({
         source,
-        range,
-        split: start,
-      },)
-        ? withoutQuoteMarks({
-          source,
-          range: lines,
-        },)
-        : indicesOf({ range: lines, },),
+        readable,
+        readSpans,
+        stays,
+        lines: {
+          start: footnoteEnd,
+          end: lines.end,
+        },
+      },),
     },);
   },);
   /**
@@ -278,7 +447,23 @@ export function footnoteInContainerSpans(
       second: part,
     },);
   }
-  return joined.spans;
+  // A footnote that reached blocks of the top ends where they do, and a definition on the line after them is a block of the
+  // top: a blank line keeps it from being a lazy line of the footnote's paragraph on the page.
+  if (end <= range.end)
+    return joined.spans;
+  return joinedSpans({
+    first: joined.spans,
+    second: editsOnly({
+      edits: separatingEdits({
+        source,
+        readable,
+        range: {
+          start: end,
+          end: readable.length,
+        },
+      },),
+    },),
+  },);
 }
 
 //endregion Source ships container

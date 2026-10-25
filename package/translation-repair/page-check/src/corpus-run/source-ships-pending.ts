@@ -257,7 +257,8 @@ function startsAtBlock(
 }
 
 /**
- Takes the blocks of the root that start before a place off the nodes still to read.
+ Takes the blocks that start before a place off the nodes still to read, those of the root and those of the container the
+ footnote stands in.
 
  @param pending - nodes still to read, the next one on top; the blocks taken are removed from it
 
@@ -267,10 +268,10 @@ function startsAtBlock(
 
  @example
  ```ts
- const taken = takeRootBlocksBefore({ pending, end: 12, },);
+ const taken = takeBlocksBefore({ pending, end: 12, },);
  ```
  */
-function takeRootBlocksBefore(
+function takeBlocksBefore(
   {
     pending,
     end,
@@ -284,8 +285,6 @@ function takeRootBlocksBefore(
    */
   const taken: TreeNode[] = [];
   for (let next = pending.at(-1,); next !== undefined; next = pending.at(-1,)) {
-    if (!next.isRootChild)
-      break;
     /**
      Where the block stands.
      */
@@ -374,7 +373,7 @@ export function takeFootnote(
   /**
    The blocks the footnote reaches into.
    */
-  const taken = takeRootBlocksBefore({
+  const taken = takeBlocksBefore({
     pending,
     end: footnote.end,
   },);

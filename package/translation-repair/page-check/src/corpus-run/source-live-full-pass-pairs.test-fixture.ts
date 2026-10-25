@@ -12,10 +12,18 @@
 import type { RunPair, } from './source-live-sample.test-fixture.ts';
 
 /**
+ A line of open brackets longer than the nesting bound, which the parser refuses a text for.
+ */
+const BRACKETS_PAST_BOUND = 300;
+
+/**
  The pairs, each named by its shape, in the order the two seeds' passes listed them. The comment above each says which
  draw of which seed it is, so the full pass can be run again to see it.
  */
-export const FULL_PASS_PAIRS: readonly (readonly [string, RunPair])[] = [
+export const FULL_PASS_PAIRS: readonly (readonly [
+  string,
+  RunPair,
+])[] = [
   // Seed 31415926, draw 4679.
   [
     'A FOOTNOTE AND A TAG ON LINES THAT END IN A LONE CARRIAGE RETURN, THEN A QUOTE WITH A CODE SPAN ACROSS A FOOTNOTE LINE',
@@ -103,14 +111,14 @@ export const FULL_PASS_PAIRS: readonly (readonly [string, RunPair])[] = [
     {
       first: '-->\n[^1]: <b>\n[r]: u{b "t {"\n',
       middle: '[^1]: A note.\n',
-      second: `~~~js {x} ${'['.repeat(300,)} <br>\n`,
+      second: `~~~js {x} ${'['.repeat(BRACKETS_PAST_BOUND,)} <br>\n`,
     },
   ],
   // Seed 27182818, draw 23243.
   [
     'A LINE OF BRACKETS PAST THE BOUND, BESIDE A QUOTE WITH A FOOTNOTE, A TAG AND A DEFINITION',
     {
-      first: `> \r\rhttps://example.net/a_b<c>\r\r${'['.repeat(300,)}\n`,
+      first: `> \r\rhttps://example.net/a_b<c>\r\r${'['.repeat(BRACKETS_PAST_BOUND,)}\n`,
       middle: 'She slept on the counter.\n',
       second: '[^1]: <b>\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n[^1]: x\n\n        c\n[r]: u{b}\n',
     },
@@ -157,7 +165,7 @@ export const FULL_PASS_PAIRS: readonly (readonly [string, RunPair])[] = [
     {
       first: '<https://example.net/a>\r- a `x\n [^1]: <b>` {d}\n',
       middle: '[^1]: A note.\n',
-      second: `~~~\r{a}\r~~~\r\n> a \`x\n>  [^1]: {c}\` {d}\n${'['.repeat(300,)}\n`,
+      second: `~~~\r{a}\r~~~\r\n> a \`x\n>  [^1]: {c}\` {d}\n${'['.repeat(BRACKETS_PAST_BOUND,)}\n`,
     },
   ],
 ];
