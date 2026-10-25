@@ -247,8 +247,9 @@ named for that subject and listed here.
   Report and probe commands that printed a claim their own figures deny,
   or bought work nothing could use,
   a picture reader measurement whose next step named the sample when the trusted records had limited the count (B800),
-  and the coverage rounds over an untranslated tail,
-  examined and kept (B811).
+  the coverage rounds over an untranslated tail,
+  examined and kept (B811),
+  and the pass's per-entry lines that carried no clock time and no attempt number (B960).
 - [Audit ledger: footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md):
   Scans for footnote markers and link destinations that disagreed with the parse,
   about where a marker is a reference or where an address ends,

@@ -28,6 +28,8 @@ and `PASS_OVERLAP` in `package/translation-repair/corpus-pass/src/corpus-run/pas
     The variable still overrides it in either direction.
 -   The launch line still prints `OVERLAP <entry> value=<n> source=<fallback or variable>`,
     so a log says which driver ran.
+    Since 2026-10-25 it carries `at=<time> attempt=<n>` after the entry,
+    as every per-entry line of the pass does (ledger B960).
 -   The straggler window is not moved by this record.
     The round window is the owner's 120000 ms of 2026-09-03
     (`doc/decision/translation-repair-straggler-grace.md`),

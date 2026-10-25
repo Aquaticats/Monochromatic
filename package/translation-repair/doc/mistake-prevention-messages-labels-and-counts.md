@@ -550,3 +550,52 @@ What enforces it:
 asserting the absence of the opening sentence in the off and unanchored cases),
 `budget-hold-wait.unit.test.ts` (the day changes between the two reads),
 and the message inventory of `message-names-only.unit.test.ts`.
+
+## A lifecycle line a reader windows by time
+
+What happened:
+on 2026-10-22 the `XingZ60` pass hit its 420-minute cap.
+The log held the entry's `TALLY` line with `status=ERROR` and `aborted=true`,
+then a `REATTEMPT` line,
+and the entry's second attempt began under a fresh cap.
+The cap ends an attempt by design,
+but none of the three lines said when it was printed or which attempt it closed,
+and the `START` line said `hard=25200000ms` without saying what the ceiling counts over.
+A reader looking for what happened inside a time window could not place the lines,
+and the cap read as one that had fired without ending the entry (ledger B960).
+Only the tagged logger's lines carried a time;
+the lines the pass prints with `console.log` for an entry carried neither a time nor an attempt.
+
+The rule:
+a lifecycle line a reader windows by time carries a clock time and the attempt it belongs to.
+The two fields are `at=<ISO 8601 UTC with milliseconds>` and `attempt=<n>`,
+written by `lifecycleStamp` in one place,
+straight after the line's opening words (the keyword,
+the entry,
+and the status or `queued` where the line has one),
+and before the other fields and before any capped text,
+so a search by prefix still finds the line and a cap on the reason never cuts them.
+The attempt is the number the pass persists for the entry after it counts the attempt,
+so the lines of one attempt agree and a line never keeps a count of its own.
+A limit that applies to an attempt says so where the limit is printed.
+The clock is a parameter,
+so a case fixes it and waits on nothing,
+and durations stay on the monotonic clock.
+A new per-entry line is built from `lifecycleStamp`,
+and a case for it reads the whole line with the clock fixed and an attempt other than 1.
+
+What enforces it:
+the cases of `settledTallyLine`,
+`tallyCaughtEntry`,
+`recordEntryDecline`,
+`runAttemptQueue`,
+`entryOverlap`,
+`destinationsLine`,
+`defectsLine` and `settleEntry`,
+which read each line with the clock fixed and the attempt given,
+and `lifecycle-stamp.unit.test.ts`.
+`corpus-pass-queue.unit.test.ts` reads the `REATTEMPT` and `STALLED` lines of a pass queue against the attempts file.
+Nothing finds a new `console.log` line of an entry that omits the stamp,
+and the lines the pass prints between entries (`SOFT budget reached`,
+`STOP`,
+`the pass resumes`) and the logger's per-entry lines carry no attempt (ledger B960 lists them as open).

@@ -449,6 +449,7 @@ which lists every file of this record.
 - [B927 to B932, the weight floors removed, round 6](audit-ledger-weight-floors-removed-round-six.md)
 - [B933 to B947, the weight floors removed, rounds 7 to 9](audit-ledger-weight-floors-removed-round-seven.md)
 - [B948 to B952, the weight floors removed, rounds 10 to 12](audit-ledger-weight-floors-removed-round-ten.md)
+- [B960, runner reports and probes](audit-ledger-runner-reports-and-probes.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

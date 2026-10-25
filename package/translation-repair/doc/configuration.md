@@ -452,6 +452,7 @@ naming the checkers that are padding the bench with no wet provider behind them.
     A run that overrides logs `SPEND CEILING OVERRIDDEN`.
 -   `TRANSLATION_REPAIR_HARD_CAP_MINUTES`.
     Overrides the per-entry ceiling,
+    which each attempt of an entry runs under afresh,
     a positive number of minutes.
     A value that is not one is refused rather than replaced by the default,
     including `30m`,
@@ -477,18 +478,55 @@ The cap ends an **attempt** rather than an entry.
 An entry the cap cut goes to the back of the queue and is attempted again inside the same invocation,
 against the same frozen pipeline digest,
 so an entry too large for one attempt no longer needs a relaunch per attempt.
+Each attempt begins under a fresh cap,
+so an entry can run for several times the cap in one invocation and no cap has failed to fire.
+The `START` line says so:
+`hard=25200000ms hard-scope=per-attempt` beside the other ceilings.
+A tally that reads `error=Timeout: ... exceeded its 25200000ms deadline`
+is followed by a `REATTEMPT` line when the attempt bought cache records,
+and the next attempt's own tally,
+at a later `at=`,
+is under a new cap (the `XingZ60` pass of 2026-10-22, ledger B960).
+
+Every line the pass prints for an entry's attempt carries the time it was printed and the attempt it belongs to,
+as two fields straight after the line's opening words:
+`at=<time>`,
+an ISO 8601 UTC time with milliseconds,
+and `attempt=<n>`.
+The opening words are the keyword and the entry,
+and the status where the line has one (`TALLY <id> status=ERROR at=... attempt=2 ms=... error=...`),
+or `queued` on a `REATTEMPT` line,
+so a search by line prefix still finds them.
+The attempt is the number `attempts.json` in the runs directory holds for the entry after the pass counts the attempt,
+which counts every attempt of every invocation,
+so a pass that finds an entry already at 4 prints `attempt=5` on its first attempt.
+The lines are `OVERLAP`,
+`TALLY` (settled,
+error,
+incomplete,
+parked and declined),
+`INTERRUPTED`,
+`DESTINATIONS`,
+`DEFECTS`,
+`CLEANUP`,
+`REATTEMPT`,
+`STALLED`,
+`INCOMPLETE` and `NOT RESUMED`.
+The launch lines and the lines that stop the pass between entries (`SOFT budget reached`,
+`STOP`,
+`the pass resumes`) belong to no attempt and carry neither field.
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,
 and re-queues only when that count grew.
-An attempt that bought nothing logs `STALLED` and the entry is dropped for this invocation,
+An attempt that bought nothing logs `STALLED <id> at=... attempt=<n>` and the entry is dropped for this invocation,
 because no progress guarantee holds:
 an abort can land before the first persistence,
 and the slices a lane deliberately leaves uncached produce no record however long they took.
 Without the earned rule a stuck entry would spend the whole soft budget.
 
-A re-attempt logs `REATTEMPT <id> queued`,
-naming what the attempt bought.
+A re-attempt logs `REATTEMPT <id> queued at=... attempt=<n>`,
+naming the attempt it follows and what that attempt bought.
 
 ## Pacing a run
 
@@ -508,7 +546,7 @@ section `Historical writer and editor runners`.
     and so does the editor calibration (`CALIBRATION_OVERLAP` in
     `package/translation-repair/slice-cache/src/corpus-run/slice-overlap.ts`);
     `1` reproduces the sequential driver.
-    The pass reads it once per entry and prints `OVERLAP <id> value=N source=...`,
+    The pass reads it once per entry and prints `OVERLAP <id> at=... attempt=<n> value=N source=...`,
     where the source is `fallback` or the variable's name.
     Anything but a canonical decimal whole number of at least 1 is refused.
 
