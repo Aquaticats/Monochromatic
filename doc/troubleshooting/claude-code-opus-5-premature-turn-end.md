@@ -1303,7 +1303,47 @@ Not measured: the false-positive rate of the narrow set against a human reading,
 Owner decisions in the same exchange: Luna's block rule stays at the top label at 0.60.
 On Luna input, the owner asked for better samples of a repeated false positive and a repeated false negative before
 deciding whether Luna should receive the earlier stops of the turn.
-That research is not done.
+
+### Luna with the earlier stops of the turn, on repeated stops, 2026-10-25
+
+Samples came from the verdict log: 142 turns, of which 41 had a hook block followed by later stops (227 stops).
+I read the 83 of those stops that Luna blocked again, scored 0.2 or higher for open work, or that a human replied to.
+
+Labelled repeats, with how each label was made:
+
+- Repeated false blocks, 3: stops 17 and 26 of turn `969554a8#50` and stop 31 of `969554a8#49`.
+  The log shows running shell tasks at each (7, 7 and 1), Luna labelled them `waits_on_user`, and the table blocked.
+  A fourth I had read as a false block (`83e3a58d#167`, stop 15) had no running task, and I did not verify it, so it is
+  not in the sample.
+- Repeated misses, 7: released stops after a first block in the same turn that the owner's next message answered with a
+  nudge, including the 23:11 and 10:31 stops of 2026-10-24 and 2026-10-25.
+- Controls, 30: stops after a first block that were released and after which the agent carried on.
+
+Luna was asked the usual six-label question with the final message alone, and again with the assistant text of every
+earlier stop of the turn (1,500 characters per stop, 8,000 in all).
+Block mass is the summed probability of `announces_own_next_step`, `leaves_open_work` and `waits_on_user`.
+
+- Repeated false blocks: 0.72 alone, 0.07 with history; all three fall.
+  Two move to `waits_on_background_work` at 1.00, the right label with tasks running; one moves to `work_closed`.
+- Repeated misses: 0.38 alone, 0.14 with history; six of seven fall, one is unchanged.
+  The 10:31 stop goes from `waits_on_user` 0.81 to `work_closed` 0.66.
+- Controls: 0.15 alone, 0.12 with history; ten fall and four rise.
+
+So history makes Luna more lenient: it removes the repeated false blocks, and it also removes what little block mass the
+repeated misses had.
+For the failure the owner reported, a miss late in a chain, history moves the score the wrong way.
+Neither group is large enough for a rate: three and seven stops.
+
+The same message does not score the same on different days.
+The 10:31 stop was logged at `waits_on_user` 0.59 and scored 0.81 in this run; the 23:11 stop was logged at
+`leaves_open_work` 0.40 and `work_closed` 0.48, and scored 0.22 and 0.58.
+Within one run the same input gave the same answer every time, so the comparisons above hold, but a logged probability
+cannot be reproduced later, and the 0.60 cutoff was set on scores that have since moved.
+The verdict log keeps the final message and the probabilities but not `stop_hook_active` or the text Luna was sent, so a
+repeated stop cannot be told apart from a first stop without rebuilding the turn from the transcript.
+
+Decision state: Luna's input is unchanged.
+Proposed, not done: log `stop_hook_active` in each verdict record, so repeated stops become first-class samples.
 
 ### Not yet known
 
