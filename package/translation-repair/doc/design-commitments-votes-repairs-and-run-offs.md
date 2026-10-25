@@ -180,7 +180,9 @@ which lists every file of these commitments.
   2026-10-21:
   "Polished text wins ties"
   (full record in [the rulings of 2026-10-21](design-commitments-rulings-of-2026-10-21.md)).
-- **Two answering judges decide; no weight floor stands in their way; one judge alone never decides.**
+- **Two answering judges decide;
+  no weight floor stands in their way;
+  one judge alone never decides.**
   Owner,
   2026-10-25,
   after the corpus pass XingZ6021 shipped slices 67 to 69 with a quotation from *Metal Gear Solid 2*
@@ -192,12 +194,16 @@ which lists every file of these commitments.
   Asked whether to keep that floor:
   "floor of 3 - don't set a floor."
   Asked what decides a claim that only one judge answers
-  (and, by the same stroke, a claim two judges answer):
+  (and,
+  by the same stroke,
+  a claim two judges answer):
   "Two ballots decide (Recommended)".
   Asked how far this goes:
   "Every weight floor".
   So a claim or a contest is decided once two or more judges have answered it,
-  by the shares of the weight that answered (the decision, source-defect and run-off ratios, which stay),
+  by the shares of the weight that answered (the decision,
+  source-defect and run-off ratios,
+  which stay),
   and a summed weight is never compared with a number again.
   One judge alone still never decides,
   whatever it weighs:
@@ -213,8 +219,10 @@ which lists every file of these commitments.
   the run-off and condemned-fallback exceptions that existed to get around that weight,
   the roster guard's weight arithmetic,
   and the count of three non-translation votes
-  (now two critics heard, which cannot come from fewer than two critics;
+  (now two critics heard,
+  which cannot come from fewer than two critics;
   the contradiction check and the good-translation anchor remain the guards against a false block).
   A consolidation gate that heard fewer than two judges ships nothing past its neither.
-  The stage quorum that sizes a round (a majority of the seated bench, two on a short bench)
+  The stage quorum that sizes a round (a majority of the seated bench,
+  two on a short bench)
   and the checker count of three are not weight floors and were not changed (ledger B900 to B906).
