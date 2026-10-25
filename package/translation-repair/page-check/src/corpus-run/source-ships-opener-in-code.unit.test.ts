@@ -165,6 +165,14 @@ await describe({
       },
     },),
     it({
+      name: 'WRITES THE LINES IT ADDS WITH THE LINE ENDING THE TEXT HAS, a carriage return and a line feed',
+      fn: async () => {
+        expect(encodeAsLiteralMdx({ text: '```\r\nx {a}\r\n<!-- never\r\n[a]: u\r\n', },),).toBe(
+          '```\r\nx {a}\r\n```\r\n\r\n&lt;\\!\\-\\- never\r\n\r\n```\r\n[a]: u\r\n```',
+        );
+      },
+    },),
+    it({
       name: 'KEEPS THE CODE BEFORE THE OPENER IN THE SPAN AND WRITES THE REST AS TEXT',
       fn: async () => {
         expect(encodeAsLiteralMdx({ text: 'a `x <!-- y` z {d}\n', },),).toBe('a `x `&lt;\\!\\-\\- y z \\{d\\}\n',);
