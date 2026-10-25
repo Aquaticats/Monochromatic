@@ -36,7 +36,6 @@ import {
   namesUnreadableCode,
   unreadableShapesIn,
 } from './claude-schema-blind-unreadable.test-fixture.ts';
-import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
   buildersIn,
   familyOf,
@@ -45,7 +44,6 @@ import {
 import { moduleLoadOf, } from './claude-schema-tree.test-fixture.ts';
 import {
   keyOf,
-  type KnownFunctions,
   usagesIn,
 } from './claude-schema-usage.test-fixture.ts';
 
