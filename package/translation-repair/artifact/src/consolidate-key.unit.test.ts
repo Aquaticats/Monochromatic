@@ -446,8 +446,11 @@ await describe({
         // moved this literal.
         // Version 35 (2026-10-25) removes every weight floor and ships nothing
         // past a gate that heard one judge, which moved this literal.
+        // Version 36 (2026-10-25) ships a declined slate's candidate only when
+        // two judges named it and ships the slate's two-ballot pick past an
+        // unheard gate over a refused archive, which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '66038b2d22b76a7e86aad1f7b6ef40a12c6636dec5ef17bbce1d3943b695a65c',
+          'aa4de456c4f3d8da5969c10a7359f0ee4d49c202493023ce47aa6e384c266878',
         );
       },
     },),
