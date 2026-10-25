@@ -34,6 +34,7 @@ export {
   shipPastForfeitStanding,
   slateIncumbentFor,
   UNDECIDED_GATE_SHIPS_PROPOSAL_FINDING,
+  UNHEARD_GATE_KEEPS_STANDING_FINDING,
 } from './consolidate-ineligible-standing.ts';
 export {
   consolidationWorthResuming,

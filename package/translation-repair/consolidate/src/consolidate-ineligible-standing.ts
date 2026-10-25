@@ -1,6 +1,9 @@
 import type { Logger, } from '@monochromatic-dev/module-logger/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
-import type { ConsolidateGateOutcome, } from './consolidate-gate-stage.ts';
+import {
+  CONSOLIDATE_GATE_QUORUM,
+  type ConsolidateGateOutcome,
+} from './consolidate-gate-stage.ts';
 import type {
   ConsolidationSettlement,
   ConsolidationTerminal,
@@ -107,6 +110,15 @@ export const FLAWED_STANDING_GATE_SHIPS_PROPOSAL_FINDING: string = 'undecided-ga
 export const GATE_PREFERRED_INELIGIBLE_STANDING_FINDING: string = 'gate-preferred-ineligible-standing: the gate '
   + 'preferred a standing text that failed the deterministic publication rule, which cannot ship, so the proposal '
   + 'the slate judges chose ships as the best valid text; the gate ballots name what they held against it';
+
+/**
+ Finding recorded on a settlement whose gate heard fewer than two answering
+ judges over a standing that could not be kept by default, so no proposal
+ shipped past it (the owner's rulings of 2026-10-25: one judge alone never
+ decides, two ballots decide).
+ */
+export const UNHEARD_GATE_KEEPS_STANDING_FINDING: string = 'unheard-gate-keeps-standing: the gate heard fewer than two '
+  + 'answering judges, so it settled nothing and the proposal the slate judges chose does not ship past it';
 
 /**
  Finding recorded on a settlement where no wording passed the deterministic
@@ -277,6 +289,11 @@ export function keepTheArchive(
  slate's choice too, with the finding naming the preference; an eligible
  standing the gate prefers still ships as before.
 
+ A GATE THAT HEARD FEWER THAN TWO ANSWERING JUDGES SHIPS NOTHING PAST ITS
+ NEITHER (XingZ6021, 2026-10-25): its neither is the want of a quorum, not an
+ indecision among judges, and one judge alone never decides. The outcome comes
+ back as it stands with {@link UNHEARD_GATE_KEEPS_STANDING_FINDING}.
+
  @param outcome - what the gate settled
 
  @param standingEligible - whether the standing passed the deterministic gate
@@ -338,6 +355,29 @@ export function shipPastForfeitStanding(
   const standingForfeit = (!standingEligible) || standingFlawedByMajority;
   if (!standingForfeit)
     return outcome;
+  // A GATE THAT HEARD FEWER THAN TWO ANSWERING JUDGES HAS NO VERDICT, undecided or otherwise, to ship a proposal past.
+  // XingZ6021 shipped five consolidations (slices 13, 14, 33, 44 and 84) on a gate with one usable ballot, which
+  // broke the owner's standing rule that one judge alone never decides, restated on 2026-10-25 ("Two ballots
+  // decide"). The standing stays: an ineligible one then leaves the archive kept through `nothingValidShips`
+  // (owner, 2026-09-27, "Keep archive, ship"), and a majority-flawed one ships as it stands.
+  if (outcome.usable < CONSOLIDATE_GATE_QUORUM) {
+    l.warn(
+      `consolidate gate: heard ${String(outcome.usable,)} usable ${
+        wordForCount({
+          count: outcome.usable,
+          one: 'ballot',
+          many: 'ballots',
+        },)
+      }, below the two judges a verdict needs, so the proposal the slate chose does not ship past it`,
+    );
+    return {
+      ...outcome,
+      findings: [
+        ...outcome.findings,
+        UNHEARD_GATE_KEEPS_STANDING_FINDING,
+      ],
+    };
+  }
   /**
    Why the standing is not kept, for the log and the finding.
    */
