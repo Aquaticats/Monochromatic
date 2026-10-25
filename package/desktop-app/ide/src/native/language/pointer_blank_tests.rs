@@ -12,7 +12,7 @@ use super::pointer_scroll_tests::{
     wait_for_popup,
 };
 /// Fixtures and real window events.
-use super::test_support::{idle, move_to, point, popup, rows};
+use super::test_support::{escape, idle, move_to, point, popup, rows};
 /// Which text the displayed hint answer covers.
 use crate::native::annotate::displayed;
 /// The scrolls the toolkit reports to the change handler,
@@ -89,7 +89,11 @@ fn a_rest_over_no_character_in_a_settled_view_asks_nothing() {
         !language.rest.asked,
         "a rest over no character was marked asked"
     );
-    assert_eq!(language.rest.due(), None, "a settled rest over nothing is due");
+    assert_eq!(
+        language.rest.due(),
+        None,
+        "a settled rest over nothing is due"
+    );
 }
 
 /// A scroll that leaves no character under the pointer asks nothing,
@@ -109,8 +113,15 @@ fn a_rest_that_finds_no_character_after_a_scroll_asks_after_the_next_scroll() {
     {
         let binding = reader.binding.as_ref().expect("the language binding");
         let language = binding.language.borrow();
-        assert!(!language.rest.asked, "a rest that asked nothing is marked asked");
-        assert_eq!(language.rest.due(), None, "a settled rest over nothing is due");
+        assert!(
+            !language.rest.asked,
+            "a rest that asked nothing is marked asked"
+        );
+        assert_eq!(
+            language.rest.due(),
+            None,
+            "a settled rest over nothing is due"
+        );
     }
     reader.window.set_scroll_y(-(61.0 * ROW));
     update_timers_and_animations();
@@ -128,7 +139,10 @@ fn a_popup_closes_when_a_scroll_leaves_no_character_under_the_pointer() {
     let (_fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
     move_to(&reader.window, point(&reader, 4, x));
     let shown = wait_for_popup(&reader, "no hover appeared for the resting pointer");
-    assert!(shown.starts_with("line=alpha004 beta"), "the popup is `{shown}`");
+    assert!(
+        shown.starts_with("line=alpha004 beta"),
+        "the popup is `{shown}`"
+    );
     // One line down puts the blank line 5 under the pointer.
     reader.window.set_scroll_y(-ROW);
     update_timers_and_animations();
@@ -137,7 +151,11 @@ fn a_popup_closes_when_a_scroll_leaves_no_character_under_the_pointer() {
         waiting.step("the popup stayed after the view moved");
     }
     idle(3 * REST.as_millis() as u64);
-    assert_eq!(popup(&reader), "", "a pointer over no character opened a popup");
+    assert_eq!(
+        popup(&reader),
+        "",
+        "a pointer over no character opened a popup"
+    );
 }
 
 /// Hints that arrive after a jump put other text under a pointer that rests over no character:
@@ -155,7 +173,11 @@ fn a_rest_over_no_character_asks_when_hints_arrive_under_it() {
     scroll_to(&reader.window, top);
     settle_tile(&reader.source);
     let before = line_drawn_under(&reader, place.y);
-    assert_eq!(before % 2, 1, "a character stood under the pointer before the hints");
+    assert_eq!(
+        before % 2,
+        1,
+        "a character stood under the pointer before the hints"
+    );
     let mut waiting = Waiting::language();
     loop {
         {
@@ -205,7 +227,11 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
     assert_eq!(rest.due(), None, "the move did not start the rest again");
     assert!(!rest.idle(), "a moved view left the rest over nothing idle");
     rest.at = Some((None, Instant::now() - REST * 2));
-    assert_eq!(rest.due(), Some(spot), "a moved view over nothing is not due");
+    assert_eq!(
+        rest.due(),
+        Some(spot),
+        "a moved view over nothing is not due"
+    );
     // Nothing found: the rest is over nothing in a settled view again.
     rest.found_nothing();
     rest.at = Some((None, Instant::now() - REST * 2));
@@ -218,10 +244,59 @@ fn a_rest_over_no_character_is_due_only_after_the_view_moved() {
     });
     rest.moved(None, spot);
     rest.at = Some((None, Instant::now() - REST * 2));
-    assert_eq!(rest.due(), Some(spot), "a pointer move over nothing forgot the moved view");
+    assert_eq!(
+        rest.due(),
+        Some(spot),
+        "a pointer move over nothing forgot the moved view"
+    );
     // A pointer that arrives on a character starts a new rest on it.
     rest.moved(Some(3), spot);
     assert_eq!(rest.due(), None, "a new rest is due at once");
+    // A pointer that arrives over nothing after a moved view starts a rest in a settled view.
+    rest.follow(View {
+        offset: 800.0,
+        extent: 9000.0,
+    });
+    rest.moved(None, spot);
+    rest.at = Some((None, Instant::now() - REST * 2));
+    assert_eq!(
+        rest.due(),
+        None,
+        "a new rest over nothing was due as if the view had moved"
+    );
+}
+
+/// A view that stands still does not start the rest of a pointer again:
+///  the first tick after the move keeps the moment the pointer arrived.
+#[test]
+fn a_view_that_stands_still_keeps_the_moment_the_pointer_arrived() {
+    let (_fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
+    move_to(&reader.window, point(&reader, 4, x));
+    let binding = reader.binding.as_ref().expect("the language binding");
+    let arrived = binding.language.borrow().rest.at;
+    assert!(arrived.is_some(), "the move did not start a rest");
+    idle(100);
+    assert_eq!(
+        binding.language.borrow().rest.at,
+        arrived,
+        "a tick of a view that stood still started the rest again"
+    );
+}
+
+/// A rest is asked about once:
+///  after its popup is dismissed nothing opens again until the pointer moves to another character.
+#[test]
+fn a_rest_that_was_asked_about_asks_once() {
+    let (_fixture, reader, x) = resting_place_with(400, &[("HINT_STEPS", SILENT)]);
+    move_to(&reader.window, point(&reader, 4, x));
+    let shown = wait_for_popup(&reader, "no hover appeared for the resting pointer");
+    assert!(
+        shown.starts_with("line=alpha004 beta"),
+        "the popup is `{shown}`"
+    );
+    escape(&reader);
+    idle(3 * REST.as_millis() as u64);
+    assert_eq!(popup(&reader), "", "the same rest asked again");
 }
 
 /// A text that grows without a move of the offset (hints or messages arriving between the top of the view and the pointer)

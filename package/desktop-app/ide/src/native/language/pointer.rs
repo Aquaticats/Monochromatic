@@ -119,9 +119,9 @@ impl Rest {
             self.seen = Some(view);
             return;
         };
-        if (view.offset - seen.offset).abs() <= VIEW_MOVE
-            && (view.extent - seen.extent).abs() <= VIEW_MOVE
-        {
+        let offset_moved = (view.offset - seen.offset).abs() > VIEW_MOVE;
+        let extent_moved = (view.extent - seen.extent).abs() > VIEW_MOVE;
+        if !(offset_moved || extent_moved) {
             return;
         }
         self.seen = Some(view);
@@ -179,7 +179,6 @@ impl Rest {
         self.at = None;
         self.spot = None;
         self.asked = false;
-        self.shifted = false;
     }
 
     /// The pointer is over the source text area.

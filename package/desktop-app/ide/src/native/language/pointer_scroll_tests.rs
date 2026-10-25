@@ -203,13 +203,22 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
     rest.at = Some((Some(7), Instant::now() - REST * 2));
     assert_eq!(rest.due(), Some(spot));
     // Within half a pixel is rounding.
-    rest.follow(View { offset: 500.4, extent: 9000.0 });
+    rest.follow(View {
+        offset: 500.4,
+        extent: 9000.0,
+    });
     assert_eq!(rest.due(), Some(spot), "rounding restarted the rest");
-    rest.follow(View { offset: 620.0, extent: 9000.0 });
+    rest.follow(View {
+        offset: 620.0,
+        extent: 9000.0,
+    });
     assert_eq!(rest.due(), None, "a moved view did not restart the rest");
     rest.at = Some((Some(7), Instant::now() - REST * 2));
     rest.asked = true;
-    rest.follow(View { offset: 900.0, extent: 9000.0 });
+    rest.follow(View {
+        offset: 900.0,
+        extent: 9000.0,
+    });
     assert!(rest.asked, "a request already made was forgotten");
     assert_eq!(rest.due(), None);
 }

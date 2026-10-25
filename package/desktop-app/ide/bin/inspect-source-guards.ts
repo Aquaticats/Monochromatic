@@ -2363,7 +2363,7 @@ const cases: Guard[] = [
   {
     name: 'hover-view-moving-restarts',
     file: 'src/native/language/pointer.rs',
-    before: '        if (offset - self.seen).abs() <= VIEW_MOVE {',
+    before: '        if !(offset_moved || extent_moved) {',
     after: '        if true {',
     native: true,
     test: 'a_view_still_scrolling_asks_nothing_until_it_stops',
@@ -2372,7 +2372,7 @@ const cases: Guard[] = [
   {
     name: 'hover-view-moving-restarts-unit',
     file: 'src/native/language/pointer.rs',
-    before: '        if (offset - self.seen).abs() <= VIEW_MOVE {',
+    before: '        if !(offset_moved || extent_moved) {',
     after: '        if true {',
     native: true,
     test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
@@ -2386,6 +2386,128 @@ const cases: Guard[] = [
     native: true,
     test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
     failure: 'rounding restarted the rest'
+  },
+  // A pointer that rests over no character while the view moves under it (src/native/language/pointer_blank_tests.rs).
+  // The rest over no character starts again with the view, asks once the rest time has passed after the move, and
+  // resolves the character against the displayed rows; in a view that stands still it asks nothing.
+  {
+    name: 'hover-offset-move-ignored',
+    file: 'src/native/language/pointer.rs',
+    before: '(view.offset - seen.offset).abs() > VIEW_MOVE;',
+    after: 'false;',
+    native: true,
+    test: 'a_moving_view_restarts_a_rest_that_was_not_asked_for',
+    failure: 'a moved view did not restart the rest'
+  },
+  {
+    name: 'hover-extent-move-ignored',
+    file: 'src/native/language/pointer.rs',
+    before: '(view.extent - seen.extent).abs() > VIEW_MOVE;',
+    after: 'false;',
+    native: true,
+    test: 'a_growing_text_restarts_a_rest_that_was_not_asked_for',
+    failure: 'a taller text did not restart the rest'
+  },
+  {
+    name: 'hover-blank-rest-never-due',
+    file: 'src/native/language/pointer.rs',
+    before: '        if character.is_none() && !self.shifted {',
+    after: '        if character.is_none() {',
+    native: true,
+    test: 'a_rest_over_no_character_asks_when_a_scroll_puts_a_character_under_it',
+    failure: 'no hover for the row under the pointer appeared after the scroll'
+  },
+  {
+    name: 'hover-blank-rest-never-due-far',
+    file: 'src/native/language/pointer.rs',
+    before: '        if character.is_none() && !self.shifted {',
+    after: '        if character.is_none() {',
+    native: true,
+    test: 'a_rest_over_no_character_asks_after_a_far_jump',
+    failure: 'no hover for the row under the pointer appeared after the jump'
+  },
+  {
+    name: 'hover-blank-rest-never-due-hints',
+    file: 'src/native/language/pointer.rs',
+    before: '        if character.is_none() && !self.shifted {',
+    after: '        if character.is_none() {',
+    native: true,
+    test: 'a_rest_over_no_character_asks_when_hints_arrive_under_it',
+    failure: 'no hover appeared for the line the hint rows put under the pointer'
+  },
+  {
+    name: 'hover-blank-rest-settled-due',
+    file: 'src/native/language/pointer.rs',
+    before: '        if character.is_none() && !self.shifted {',
+    after: '        if false {',
+    native: true,
+    test: 'a_rest_over_no_character_is_due_only_after_the_view_moved',
+    failure: 'a settled rest over nothing is due'
+  },
+  {
+    name: 'hover-view-move-marks-shifted',
+    file: 'src/native/language/pointer.rs',
+    before: '            self.shifted = true;',
+    after: '            self.shifted = false;',
+    native: true,
+    test: 'a_rest_over_no_character_is_due_only_after_the_view_moved',
+    failure: 'a moved view over nothing is not due'
+  },
+  {
+    name: 'hover-found-nothing-clears-shifted',
+    file: 'src/native/language/pointer.rs',
+    before: '        self.shifted = false;',
+    after: '        let _ = &self.shifted;',
+    occurrence: 0,
+    native: true,
+    test: 'a_rest_over_no_character_is_due_only_after_the_view_moved',
+    failure: 'a rest that found nothing is due again'
+  },
+  {
+    name: 'hover-move-clears-shifted',
+    file: 'src/native/language/pointer.rs',
+    before: '        self.shifted = false;',
+    after: '        let _ = &self.shifted;',
+    occurrence: 1,
+    native: true,
+    test: 'a_rest_over_no_character_is_due_only_after_the_view_moved',
+    failure: 'a new rest over nothing was due as if the view had moved'
+  },
+  {
+    name: 'hover-found-nothing-called',
+    file: 'src/native/language/rest_step.rs',
+    before: '        language.rest.found_nothing();',
+    after: '        let _ = &language;',
+    native: true,
+    test: 'a_rest_that_finds_no_character_after_a_scroll_asks_after_the_next_scroll',
+    failure: 'a settled rest over nothing is due'
+  },
+  {
+    name: 'hover-asked-marked',
+    file: 'src/native/language/rest_step.rs',
+    before: '    language.rest.asked = true;',
+    after: '    let _ = &language;',
+    native: true,
+    test: 'a_rest_that_was_asked_about_asks_once',
+    failure: 'the same rest asked again'
+  },
+  {
+    name: 'hover-spot-extent',
+    file: 'src/native/language/actions.rs',
+    before: '            extent: window.get_content_extent(),',
+    after: '            extent: 0.0,',
+    native: true,
+    test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
+    failure: 'a tick of a view that stood still started the rest again'
+  },
+  {
+    name: 'hover-tick-extent',
+    file: 'src/native/language/rest_step.rs',
+    before: '        extent: window.get_content_extent(),',
+    after: '        extent: 0.0,',
+    native: true,
+    test: 'a_view_that_stands_still_keeps_the_moment_the_pointer_arrived',
+    failure: 'a tick of a view that stood still started the rest again'
   },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
