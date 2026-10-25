@@ -4691,6 +4691,15 @@ within the first second); (b) a `bwrap: Can't bind mount ... mise/tmp` informati
 (2, 1 and 4 of 160 per arm, row heights 90 to 154 px taller): a product-visible message, probably a race on a shared
 cache directory between concurrent sessions or between two IDE processes on one project; (c) the one taller map in 1,160
 unlimited sessions (logs gone; the same mechanism may explain it).
+Landed 2026-10-25 as `ec7fe46251` (the row-map tip `a2d8758424` merged with my handover commit; gates on the merged
+tree: `lint` 0, `test:native` 346 passed and 5 skipped, `test` 811 passed, `test:bin` 0,
+`inspect:no-software-renderer` 0). Installed: sha256 `01d2c9454acda68f…` from `ec7fe46251`, prints 0.1.1. The earlier
+verifier agent (scratch `~/temp/agent/final7`) is checking it: 160 input-free one-core sessions and 60 unlimited
+ones for maps taller than 36,024 px by 72 px (the previous installed binary: 12 and 7 of 160), Ctrl+End screenshots in
+20 sessions, and the regression smoke (far jumps, five-press, 88-click, hover cases including a reload under a resting
+pointer, drag after a wheel, Ctrl+End and Ctrl+Home); its numbers follow here, then `final7` is removed. Running now:
+the `dragpress` agent (exact press and release log lines, drag-after-wheel check from the log) and the `early` agent
+((a) early wheel loss, (b) the `bwrap` message row, (c) the unlimited tall map).
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
