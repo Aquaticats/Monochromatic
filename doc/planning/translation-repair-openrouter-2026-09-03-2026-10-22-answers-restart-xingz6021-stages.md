@@ -298,7 +298,8 @@ Yes.
   pronouns,
   names) beyond the Shinonome section,
   the HTML tag balance and the footnote counts were not examined by the check.
-  The quotations of the page in the first reader's lists below were not compared with the source by the check.
+  The quotations of the page in the sections on mistranslations,
+  tense and names were not compared with the source by the check.
 
 ## The frozen build and footnote lines in quotes and list items
 

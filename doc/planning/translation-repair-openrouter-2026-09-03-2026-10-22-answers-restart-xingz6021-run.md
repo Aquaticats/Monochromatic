@@ -520,7 +520,7 @@ The 2,505 `SPEND` lines equal the 2,505 files in `prompt-payloads/`.
 A scan of the whole log for `claude-*`,
 `mimo-*`,
 `xiaomi/*`,
-`deepseek-*` and `deepseek/*` ids finds only the ids above,
+`deepseek-*` and `deepseek/*` ids finds only the ids of these eight pairs,
 so no model other than these appears on the Xiaomi,
 DeepSeek or Claude keys (the check's scan).
 
