@@ -17,9 +17,14 @@ import { withoutRawHtml, } from './without-raw-html.ts';
 // the pipe stands in (a code span, the address of an autolink), so text read without GFM as one construct can be two
 // cells. A footnote definition ends at the first line that is not indented once a block of the footnote has closed the
 // paragraph the definition opened with (an unclosed fence indented under it, say), where the plain reading takes every
-// line after the label for the same paragraph. The footnote definitions are read with raw HTML turned off
-// (`without-raw-html.ts`), since a line of HTML that ends the footnote's paragraph in the plain reading is a line of
-// it on the page.
+// line after the label for the same paragraph.
+//
+// TWO READINGS OF THE FOOTNOTE DEFINITIONS, and the lines of raw HTML between them. A reader of the source in GFM takes
+// a tag alone on a line for an HTML block, which ends the footnote's paragraph and puts what follows in a block of its
+// own. The page writes every `<` of an untranslated original as text and the strict grammar has no raw HTML, so the
+// line is a line of the footnote's paragraph there and the footnote goes on. `footnoteDefinitionRangesOf` is the first
+// reading, which the page is arranged to match, and `pageFootnoteDefinitionRangesOf` is the second, read with raw HTML
+// turned off (`without-raw-html.ts`), which says where a code span or a brace on those lines belongs.
 
 /**
  A stretch of a text, as offsets in UTF-16 units.
@@ -39,20 +44,24 @@ export type BlockRange = {
 
  @param type - type of the blocks to find
 
+ @param rawHtmlIsText - whether raw HTML is read as the text the page makes of it
+
  @returns Start and end of each block, in text order, nested ones included
 
  @example
  ```ts
- const tables = rangesOfType({ body: '| a |\n| - |\n', type: 'table', },);
+ const tables = rangesOfType({ body: '| a |\n| - |\n', type: 'table', rawHtmlIsText: false, },);
  ```
  */
 function rangesOfType(
   {
     body,
     type,
+    rawHtmlIsText,
   }: {
     readonly body: string;
     readonly type: 'footnoteDefinition' | 'table';
+    readonly rawHtmlIsText: boolean;
   },
 ): readonly BlockRange[] {
   if (firstNestingExcess({
@@ -73,13 +82,13 @@ function rangesOfType(
   const pending: Nodes[] = [];
   try {
     /**
-     The parser with GFM and the site's math on; for a footnote definition, with raw HTML turned off as the page has it.
+     The parser with GFM and the site's math on, and raw HTML turned off as the page has it when the caller asks.
      */
     const parser = unified()
       .use(remarkParse,)
       .use(remarkGfm,)
       .use(remarkMath,);
-    pending.push((type === 'footnoteDefinition')
+    pending.push(rawHtmlIsText
       ? parser
         .use(withoutRawHtml(),)
         .parse(body,)
@@ -140,6 +149,7 @@ export function tableRangesOf({ body, }: { readonly body: string; },): readonly 
   return rangesOfType({
     body,
     type: 'table',
+    rawHtmlIsText: false,
   },);
 }
 
@@ -161,6 +171,30 @@ export function footnoteDefinitionRangesOf({ body, }: { readonly body: string; }
   return rangesOfType({
     body,
     type: 'footnoteDefinition',
+    rawHtmlIsText: false,
+  },);
+}
+
+/**
+ Where a text holds a footnote definition once the page has it, in text order: the page writes every less-than sign of an
+ untranslated original as text, so a line of raw HTML is a line of the paragraph above it and the footnote goes on.
+
+ @param body - text, without front matter and a leading byte order mark
+
+ @returns Start and end of each definition, the end after the last character of its last block, nested ones included
+
+ @example
+ ```ts
+ const footnotes = pageFootnoteDefinitionRangesOf({ body: '[^1]: x\n<q>\n', },);
+ ```
+ */
+export function pageFootnoteDefinitionRangesOf({ body, }: { readonly body: string; },): readonly BlockRange[] {
+  if (!body.includes('[^',))
+    return [];
+  return rangesOfType({
+    body,
+    type: 'footnoteDefinition',
+    rawHtmlIsText: true,
   },);
 }
 

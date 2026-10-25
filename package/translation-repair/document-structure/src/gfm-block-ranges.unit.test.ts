@@ -13,6 +13,7 @@ import {
 
 import {
   footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   tableRangesOf,
 } from '../dist/final/node/index.mjs';
 
@@ -101,18 +102,44 @@ await describe({
         },),
 
         it({
+          name: 'ENDS A FOOTNOTE AT A LINE OF RAW HTML, as a reader of the source in GFM does',
+          fn: async () => {
+            // A tag alone on a line starts an HTML block, which ends the footnote's paragraph there.
+            expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n<q>\n`y`\n', },),).toEqual([
+              {
+                start: 0,
+                end: 11,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'READS NO FOOTNOTE IN A TEXT WITHOUT A LABEL OPENER OR NESTED PAST THE BOUND',
+          fn: async () => {
+            expect(footnoteDefinitionRangesOf({ body: '猫\n', },),).toEqual([],);
+            expect(footnoteDefinitionRangesOf({ body: `${'> '.repeat(300,)}[^1]: x\n`, },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: pageFootnoteDefinitionRangesOf.name,
+      children: [
+        it({
           name: 'KEEPS A LINE OF RAW HTML IN THE FOOTNOTE\'S PARAGRAPH, since the page writes it as text and the paragraph '
             + 'goes on',
           fn: async () => {
-            // A tag alone on a line starts an HTML block for the plain reading, which ends the footnote there.
-            expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n<q>\n`y`\n', },),).toEqual([
+            // A tag alone on a line is a line of the paragraph, so the code span on the line after it is the footnote's.
+            expect(pageFootnoteDefinitionRangesOf({ body: '[^1]: x\n<q>\n`y`\n', },),).toEqual([
               {
                 start: 0,
                 end: 15,
               },
             ],);
             // A tag with an attribute, and a definition on the line after it that a paragraph takes for a lazy line.
-            expect(footnoteDefinitionRangesOf({ body: '[^1]: x\n<a href="x">\n[r]: u\n', },),).toEqual([
+            expect(pageFootnoteDefinitionRangesOf({ body: '[^1]: x\n<a href="x">\n[r]: u\n', },),).toEqual([
               {
                 start: 0,
                 end: 27,
@@ -124,8 +151,8 @@ await describe({
         it({
           name: 'READS NO FOOTNOTE IN A TEXT WITHOUT A LABEL OPENER OR NESTED PAST THE BOUND',
           fn: async () => {
-            expect(footnoteDefinitionRangesOf({ body: '猫\n', },),).toEqual([],);
-            expect(footnoteDefinitionRangesOf({ body: `${'> '.repeat(300,)}[^1]: x\n`, },),).toEqual([],);
+            expect(pageFootnoteDefinitionRangesOf({ body: '猫\n', },),).toEqual([],);
+            expect(pageFootnoteDefinitionRangesOf({ body: `${'> '.repeat(300,)}[^1]: x\n`, },),).toEqual([],);
           },
         },),
       ],

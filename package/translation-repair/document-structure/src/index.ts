@@ -164,6 +164,7 @@ export {
 export {
   type BlockRange,
   footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   tableRangesOf,
 } from './gfm-block-ranges.ts';
 export {
