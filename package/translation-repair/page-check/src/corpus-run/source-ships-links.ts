@@ -12,10 +12,10 @@ import type { TextRange, } from './source-ships-ranges.ts';
 const DESTINATION_SYNTAX = '<>(){}\\';
 
 /**
- Characters Markdown reads in the text of a link, and the dollar sign, which the site's math reads as the edge of an
- expression and drops from the text.
+ Characters Markdown reads in the text of a link, the dollar sign, which the site's math reads as the edge of an
+ expression and drops from the text, and the pipe, which a table ends a cell at unless it is written with a backslash.
  */
-const LABEL_SYNTAX = '\\[]{}<>*_`~&$';
+const LABEL_SYNTAX = '\\[]{}<>*_`~&$|';
 
 /**
  The highest code point of a character that one percent escape stands for.
@@ -33,7 +33,8 @@ const SPACE_CODE = 0x20;
 const HEX = 16;
 
 /**
- Writes a character of a destination as the percent escape of its UTF-8 bytes when Markdown reads it as syntax.
+ Writes a character of a destination as the percent escape of its UTF-8 bytes when Markdown reads it as syntax, and a pipe
+ with a backslash.
 
  @param character - one character of the destination
 
@@ -49,6 +50,9 @@ function destinationCharacter({ character, }: { readonly character: string; },):
    The character's code point.
    */
   const codePoint = character.codePointAt(0,) ?? 0;
+  // A PIPE IS WRITTEN WITH A BACKSLASH, which a destination reads as the pipe and a table does not end a cell at.
+  if (character === '|')
+    return String.raw`\|`;
   /**
    Whether Markdown reads the character as the end of a destination or as its syntax.
    */
