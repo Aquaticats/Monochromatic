@@ -734,8 +734,21 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  readings of its recheck round. The translate, consolidate, lane-contest, consistency, pairing and page-title
  versions stay: none of them runs the resolution checkers. No record has been written at 48, which this change sets
  first.
+
+ Version 49 covers the owner's answer of 2026-10-25, "Two ballots for undo too", that the two-ballot rule also covers
+ the strip of a patch's unconfirmed edits (ledger L3) and the rollback of a refinement (L11): an edit is stripped only
+ where its issue regresses, two or more ballots naming `worse` with the `worse` weight above the rest, and one `worse`
+ ballot strips nothing (`repair/src/repair-worse-strip.ts`, which reads the tally's `regressed`). A checker round that
+ held one `worse` ballot on an unconfirmed edit used to strip the edit and prove the reduced patch once more; the same
+ texts now keep the edit on a single round, so the shipped patch, the stored proof and the findings differ. The key
+ hashes the version, the shape of the run and the texts, not the rule that reads the ballots, so a record written
+ before would be served after. The previous number was set in this same branch, and no slice-cache directory was
+ searched for a record written by code that holds it, so records may stand at 48 and the change cannot ride inside
+ it; the number moves. The refine version moves with it (19), because the rollback reads the same flag. The
+ translate, consolidate, lane-contest, consistency, pairing and page-title versions stay for this change: none of
+ them runs the resolution checkers. No record has been written at 49, which this change sets first.
  */
-export const SLICE_CACHE_VERSION = 48;
+export const SLICE_CACHE_VERSION = 49;
 /**
  Everything about a repair run that changes what the models are ASKED, folded
  into every cache key.
