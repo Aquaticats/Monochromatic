@@ -451,6 +451,12 @@ reported by the comparison and not fixed:
   tables included,
   which is a change to `parse-markdown-math.ts` that every consumer of the plain parse would feel.
   A block of raw HTML line after a table row with a backtick in the row is the same cause.
+- Strikethrough cut by a footnote start indented four columns (`~~x` then `    [^1]: y~~`):
+  the plain reading has no GFM,
+  so it holds no strikethrough node to join,
+  and the page shows the tildes the source reads as struck text.
+  Found by probing the siblings of emphasis at the end of the round and not measured in the search;
+  no file of the pinned corpus holds an indented footnote start.
 - A footnote start indented four columns right after a link reference definition (`[r]: u` then `    [^1]: y`):
   the source reads indented code,
   the page a footnote.
