@@ -152,6 +152,38 @@ export const FORWARDER_CASES: readonly ShapeCase[] = [
       },),
     ],
   },
+  {
+    name: 'DOES NOT LIST THE FILE THAT CALLS A FUNCTION THAT BUILDS FROM ITS OWN PARAMETER AND CALLS NO SENDER, in a '
+      + 'file that calls a sender elsewhere, since the schema goes to a call that is no sender and is reported',
+    files: [
+      SENDER_FILE,
+      {
+        file: 'imaginary/src/forward-stage.ts',
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'export function ask(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return Object.freeze(contestResponseFormat(args,),);',
+          '}',
+          'export async function other() {',
+          '  return await gatherThroughCache({',
+          '    responseFormat: contestResponseFormat({ schemaName: \'fixed\', verdicts: [], asksArchive: false, },),',
+          '  },);',
+          '}',
+        ],),
+      },
+      CALLER_FILE,
+    ],
+    found: ['imaginary/src/forward-stage.ts',],
+    builders: [],
+    spots: [
+      spotAt({
+        file: 'imaginary/src/forward-stage.ts',
+        line: 4,
+        position: CALL_ARGUMENT,
+      },),
+    ],
+  },
 ];
 
 //endregion A function that hands a sender a builder call made from its own parameters

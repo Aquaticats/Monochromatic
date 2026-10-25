@@ -82,10 +82,12 @@ import { OVER_READ_CASES, } from './claude-schema-over-read-forms.test-fixture.t
 import { NOT_A_REFERENCE_CASES, REFERENCE_POSITION_CASES, } from './claude-schema-position-forms.test-fixture.ts';
 import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-export-forms.test-fixture.ts';
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
+import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
 import { FORWARDER_CASES, } from './claude-schema-forwarder-forms.test-fixture.ts';
 import { forwardersOf, } from './claude-schema-forwarders-found.test-fixture.ts';
 import { PINNED_CASES, } from './claude-schema-pinned-forms.test-fixture.ts';
+import { SENDER_PIN_CASES, } from './claude-schema-sender-pin-forms.test-fixture.ts';
 import { SENDER_POSITION_CASES, } from './claude-schema-sender-position-forms.test-fixture.ts';
 import { SENDER_SHADOW_CASES, } from './claude-schema-sender-shadow-forms.test-fixture.ts';
 import { SPECIFIER_CASES, } from './claude-schema-specifier-forms.test-fixture.ts';
@@ -742,6 +744,8 @@ await describe({
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
+      ...CONSTANT_PIN_CASES,
+      ...SENDER_PIN_CASES,
       ...PINNED_CASES,
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
@@ -796,6 +800,8 @@ await describe({
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
       ...FORWARDER_CASES,
+      ...CONSTANT_PIN_CASES,
+      ...SENDER_PIN_CASES,
       ...PINNED_CASES,
       ...SENDER_POSITION_CASES,
       ...SENDER_SHADOW_CASES,
