@@ -9,7 +9,8 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 // reads: the superclass of a class, the default of a parameter and the default inside a destructured parameter take
 // the value of the parameter all the same. A call that stores in its first argument is `Object.assign` or a method of
 // `Object` that defines a property, and no method of another object that has the same name; a call of the other
-// functions that define a property, like `Reflect.defineProperty`, is outside the list and is pinned silent.
+// functions that define a property, like `Reflect.defineProperty`, is outside the list and is pinned silent, and so is
+// a storing function that a constant holds under another name, or that a pattern takes out of `Object`.
 
 /**
  Cases of the parts of a declaration outside its body, and of the calls that are not in the list of storing calls.
@@ -61,6 +62,28 @@ export const DERIVED_DECLARATION_CASES: readonly ShapeCase[] = [
     lines: [
       HOLDER,
       '  Reflect.defineProperty(holder, \'a\', { value: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT A CONSTANT THAT HOLDS Object.assign COPIES '
+      + 'ITS PARAMETER INTO, another name for a storing function and a limit of the reading',
+    lines: [
+      HOLDER,
+      '  const copy = Object.assign;',
+      '  copy(holder, { a: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: false,
+  },),
+  storingCase({
+    name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT assign TAKEN OUT OF Object BY A PATTERN '
+      + 'COPIES ITS PARAMETER INTO, another name for a storing function and a limit of the reading',
+    lines: [
+      HOLDER,
+      '  const { assign, } = Object;',
+      '  assign(holder, { a: args, },);',
     ],
     argument: 'holder.a',
     isListed: false,
