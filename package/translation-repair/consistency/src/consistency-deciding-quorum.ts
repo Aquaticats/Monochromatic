@@ -20,7 +20,10 @@ import { MIN_STAGE_VOICES, } from '@monochromatic-dev/translation-repair-stage/t
  ```
  */
 export function decidingQuorumOf({ quorum, }: { readonly quorum: number; },): number {
-  return Math.max(quorum, MIN_STAGE_VOICES,);
+  return Math.max(
+    quorum,
+    MIN_STAGE_VOICES,
+  );
 }
 
 //endregion Consistency deciding quorum
