@@ -26,6 +26,12 @@ in this same file,
 at the next free ids B937 to B943,
 under the heading "Round 8 at a glance".
 
+Round 9 answers the rotation sweep of round 8,
+which found four cases that passed at salt 0 and failed under other salts,
+in this same file,
+at the next free ids B944 to B947,
+under the heading "Round 9 at a glance".
+
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
@@ -653,3 +659,221 @@ and the other four fixes of this round are tests,
 a scan vocabulary and a comment.
 Whether a record stands at 35 or 42 is not known,
 and no slice-cache directory was searched.
+
+## Round 9 at a glance
+
+The rotation sweep of `b37685721e`,
+the head of round 8,
+refused it:
+four cases passed at salt 0 and failed under other salts,
+where the sweep of main at `b6927f7ba9` was clean.
+All four trace to one change of this branch,
+`1dee3ca797`,
+which sized the selection fan-out by the number of judges a winner needs
+and so turned a bench of four from a whole bench into a window of three.
+All four are defects of the test and none of the code.
+`origin/main` did not move during the round (`6457f1f09c`),
+so no merge was made.
+
+The archive case that held back the fourth seat is B944.
+The chunk case that had the fourth judge name a candidate is B945.
+The two refine cases that read the refiner's self-vote are B946.
+The cache versions,
+the controls and the lesson are B947.
+
+## B944: the archive window case held a seat the selection round may not ask (round 9)
+
+Status:
+fixed on 2026-10-25 (UTC),
+test `a62c92771a` and `5553a18d38`,
+no code change and no red commit.
+
+Finding of the rotation sweep of round 8.
+The case "KEEPS THE READERS' WINDOW IN THE SELECTION ROUND (ledger B713)"
+of `archive/src/archive-block-review-windows.unit.test.ts`
+failed under salts 1,
+3,
+5,
+7 and 9.
+It held back the fourth seat of the roster in the selection round
+and expected the finding `stage-voice-lost (select <that seat>)`.
+Since `1dee3ca797` a selection round asks the window of quorum plus one wherever the window holds two judges.
+Before it,
+three self-votes at half weight fell short of the weight minimum,
+so a bench of four was asked whole;
+`d42e79be74` records the change in the asked count of the stage case,
+from four to three.
+The selection round now asks three of the four seats,
+and the seat it leaves out follows the rotation,
+a hash of the sheet moved by the salt.
+Under the salts that left the fourth seat out nothing was held,
+all three judges answered at once (`select round: 3/3 heard`),
+and the finding was absent.
+
+The test was wrong.
+The code follows the rulings that two ballots decide and one judge never decides alone,
+and which seats are asked is a saving and not a verdict
+(the comment of `translate-stage/src/candidate-select-fanout.ts`).
+The case now holds the third ballot asked,
+whichever seat that is,
+by order of call,
+through a sink that records the seats asked,
+and asserts that three were asked and that the finding names the third.
+The review-round case still holds a seat by name,
+since that round asks the whole bench (`fanOut: 'whole-bench'`).
+The stage hands `fanOut` to the review round only,
+so the selection round has no seam to ask a named seat,
+and none was added,
+for the reason given in B933.
+
+Evidence,
+all keyless and on single test files with the sweep's own hook
+(`node --import rotation-salt-hooks.test-fixture.ts?salt=N`,
+once for each salt from 0 to 9):
+- Before:
+  the one-salt rerun of the sweep (`--package archive --salt 1`) lists the case,
+  and the file run at salt 1 fails with
+  `expected [ Array(1) ] to include 'stage-voice-lost (select hf:openai/gpt-oss-120b)'`.
+- After:
+  salts 0 to 9 all pass.
+- Cause control,
+  standing in for the bisect:
+  with `selectionFanOut` planted to return the whole bench,
+  the file as at `b37685721e` passes under all ten salts.
+- Guard control:
+  with the selection round planted to wait the writers' window (`grace.writerMs` in place of `grace.roundMs`
+  in `translate-stage/src/candidate-select.ts`),
+  the new case fails and names the seat it held,
+  and the review-round case passes.
+  Both plants were restored and the status of the tree was empty.
+
+Known limit.
+No one-salt rerun was made at a commit inside `b6927f7ba9..b37685721e`:
+the attribution to `1dee3ca797` rests on its diff of `candidate-select-fanout.ts`,
+the log line,
+and the cause control,
+and the two-point check at `1dee3ca797` and its parent was not run.
+
+## B945: the chunk decline case had a seat name the candidate that the window may leave out (round 9)
+
+Status:
+fixed on 2026-10-25 (UTC),
+test `a62c92771a`,
+no code change and no red commit.
+
+Finding of the rotation sweep of round 8.
+The case "SENDS the fallback repair on when most judges decline and one names a candidate"
+of `repair/src/chunk-decline-consequence.unit.test.ts`
+failed under salts 2 and 6.
+The one judge that named candidate 1 was the fourth of four.
+Where the window of three left it out,
+every judge asked declined,
+and the round kept the existing English (`The cat hates the sun.`),
+which is the other behaviour the file pins.
+
+The test was wrong,
+and the code is right in both outcomes:
+a round in which every judge asked declines keeps the text,
+and one name among declines is indecision,
+which sends the fallback repair on.
+The judge that names is now picked by its place in the order of call,
+the first asked,
+so the round is always two declines and one name.
+The sheet says "only when every judge declines";
+on a bench the window does not cover,
+that means every judge asked,
+as it did before this branch for benches of seven.
+
+Evidence:
+- Before:
+  salt 2 fails with `expected 'The cat hates the sun.' to equal 'The cat likes the sun.'`.
+- After:
+  salts 0 to 9 all pass.
+- Cause control:
+  with the whole bench planted,
+  the file as at `b37685721e` passes under all ten salts.
+- Guard control:
+  with indecision planted to ship the rejection fallback (`editor-ensemble.ts`),
+  the case fails at salt 2 and the other two cases pass.
+  The plant was restored.
+
+## B946: the two refine cases read a self-vote that holds only when the refiner is asked (round 9)
+
+Status:
+fixed on 2026-10-25 (UTC),
+test `a62c92771a`,
+no code change and no red commit.
+
+Finding of the rotation sweep of round 8.
+Two cases of `repair/src/refine-stage.unit.test.ts` failed:
+"NAMES the first of two paragraphs as an unchanged rewrite beside the second,
+which ships" under salts 1,
+5 and 9,
+and "NAMES each rewrite the resolver dropped beside the one that ships" under salts 3 and 7.
+Both expect `select-self-vote (<the refiner>)` and `refine-selected (weight 2.5 of 3 ballots)`.
+The refiner is the first of four judges,
+and the window of three leaves one seat out.
+Where it left the refiner out,
+the three judges asked gave three full ballots,
+and the findings read `refine-selected (weight 3 of 3 ballots)` with no self-vote.
+
+The test was wrong.
+Both cases now seat three judges,
+the first three of the bench with the refiner among them,
+so the window of three holds all of them whatever the rotation,
+and the rotation changes only the order of the calls.
+A bench of three keeps the asserted strings as they were.
+A pinned start or a whole bench was not used:
+`runRefineStage` takes neither (`fanOut` and `benchStart` are not in `refine-stage.ts`),
+a seam for two cases would add a field and pin the rotation the sweep exercises,
+and the order of call cannot say which seat the self-vote names.
+
+Evidence:
+- Before:
+  the failure lines `only in actual: "refine-selected (weight 3 of 3 ballots)"` and
+  `only in expected: "select-self-vote (...)"` at salts 1 and 3.
+- After:
+  salts 0 to 9 all pass.
+- Guard control:
+  with the self-vote finding planted away (`candidate-select.ts`),
+  both cases fail at salt 1 on their findings assertions.
+  The plant was restored.
+
+## B947: the cache versions, the gates and the lesson of round 9 (round 9)
+
+Status:
+done on 2026-10-25 (UTC).
+
+No code changed,
+so no cache version moved.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `b37685721e..HEAD` lists nothing,
+and the control over `938e84afb9..b37685721e` lists `6c81859c79` and `53e23a728c`,
+so the query reads the declarations.
+
+The lesson is in `mistake-prevention-tests-clocks-and-arrival-order.md`,
+in "Orders and seats that a prompt hash decides":
+a change to the rule that sizes a window moves which benches get one,
+and the cases on a bench that was always asked whole become rotation-dependent
+without any sheet text changing.
+`1dee3ca797` and `d42e79be74` ran no rotation sweep,
+and the next sweep found four cases.
+
+The gates ran on the tree of `5553a18d38`,
+keyless and one at a time.
+Archive and repair:
+`build`,
+`lint:types` and `lint:oxlint` (0 warnings and 0 errors) passed,
+and `test:unit` passed 65 and 149 suites with none failed.
+The first oxlint run of archive found the counter of the new predicate (`no-function-root-let`),
+which `5553a18d38` removes.
+Source-scan `test:unit` passed 68 and `source-scans` 53 on the tree with this text.
+The full rotation sweep ran once after this text was committed,
+and its result line is in the hand-back of the round.
+
+Commit-message slips of this round:
+- `a62c92771ab60c85630054efdc355701c4d77ae2` states the cause of all four as fact from the diff of the fan-out,
+  where the brief asked for a bisect and none was run;
+  its subject uses the scope `*` and its body has no per-package form.
+- `5553a18d385a207c77d7f9a5495660ee6f032106` says `a62c92771a` states that lint was not yet run;
+  it does not.
+  Neither was amended.

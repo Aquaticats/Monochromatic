@@ -671,6 +671,14 @@ named for that subject and listed here.
   the evidence of B933 that lived outside the repository (B941),
   the sentence of round 7 about the merge (B942),
   and the cache versions that moved (B943).
+  Round 9,
+  the answer to the rotation sweep of round 8,
+  is in the same file:
+  the archive window case that held a seat the selection round may not ask (B944),
+  the chunk decline case that had a seat name the candidate (B945),
+  the two refine cases that read a self-vote (B946),
+  and the cache versions,
+  the gates and the lesson (B947).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
