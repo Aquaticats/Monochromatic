@@ -424,7 +424,7 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
       marker: ' of ',
     },),
     capped: bodies.some(function isCapped(body,): boolean {
-      return body.startsWith('CAPPED at trial ',);
+      return body.startsWith('CAPPED at unit ',);
     },),
   };
 }

@@ -267,8 +267,8 @@ export function trialOrderAnswer(
         countWithNoun({
           count: later.rows
             .length,
-          one: 'trial',
-          many: 'trials',
+          one: 'unit',
+          many: 'units',
         },)
       } and ${first.arm} completed ${
         String(first.figures
@@ -310,8 +310,8 @@ export function trialOrderAnswer(
       countWithNoun({
         count: later.rows
           .length,
-        one: 'trial',
-        many: 'trials',
+        one: 'unit',
+        many: 'units',
       },)
     } it walked are the first ${String(later.rows
       .length,)} of ${first.arm}'s`,

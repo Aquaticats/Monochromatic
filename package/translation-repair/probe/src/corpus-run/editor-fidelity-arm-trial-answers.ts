@@ -30,14 +30,26 @@ export function plannedAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
       detail: 'no planned line was logged',
     };
   }
+  if (facts.poolTrials < 0) {
+    return {
+      ok: false,
+      detail: `${
+        countWithNoun({
+          count: facts.planned,
+          one: (facts.passes === 1) ? 'trial' : 'unit',
+          many: (facts.passes === 1) ? 'trials' : 'units',
+        },)
+      } planned, and no pool line was logged to hold them against`,
+    };
+  }
   /**
    Units the passes over the pool hold: the pool's trials once for each pass.
    */
   const held = facts.poolTrials * facts.passes;
   /**
-   Whether the line plans more units than the passes hold, which a pool line must be present to say.
+   Whether the line plans more units than the passes hold.
    */
-  const over = (facts.poolTrials >= 0) && (facts.planned > held);
+  const over = facts.planned > held;
   if (facts.passes === 1) {
     return {
       ok: !over,
@@ -120,16 +132,16 @@ export function ceilingAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
       ok: true,
       detail: `${countWithNoun({
         count: trials,
-        one: 'trial',
-        many: 'trials',
+        one: 'unit',
+        many: 'units',
       },)} priced`,
     }
     : {
       ok: false,
       detail: `${countWithNoun({
         count: trials,
-        one: 'trial',
-        many: 'trials',
+        one: 'unit',
+        many: 'units',
       },)}, for ${String(facts.planned,)} planned`,
     };
 }
@@ -176,8 +188,8 @@ export function editorAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer 
       ok: false,
       detail: `counts ${countWithNoun({
         count: counts,
-        one: 'trial',
-        many: 'trials',
+        one: 'unit',
+        many: 'units',
       },)}, for ${
         String(facts.completed,)
       } completed`,
@@ -224,7 +236,7 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
         count: numbers.length,
         one: 'row',
         many: 'rows',
-      },)} logged for ${String(facts.completed,)} completed ${(facts.completed === 1) ? 'trial' : 'trials'}`,
+      },)} logged for ${String(facts.completed,)} completed ${(facts.completed === 1) ? 'unit' : 'units'}`,
     };
   }
   if (new Set(numbers,).size !== numbers.length) {
@@ -243,8 +255,8 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
       detail: `${String(facts.completed,)} of ${
         countWithNoun({
           count: facts.completedOf,
-          one: 'planned trial',
-          many: 'planned trials',
+          one: 'planned unit',
+          many: 'planned units',
         },)
       } were completed and no CAPPED line says why the arm stopped`,
     };
@@ -256,7 +268,7 @@ export function rowAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
       one: 'row',
       many: 'rows',
     },)} logged, each once${
-      stoppedShort ? `; the guard capped the arm before trial ${String(facts.completed + 1,)}` : ''
+      stoppedShort ? `; the guard capped the arm before unit ${String(facts.completed + 1,)}` : ''
     }`,
   };
 }

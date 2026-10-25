@@ -2,8 +2,9 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
 //region Editor fidelity progress lines
 // THE LINES AN ARM WRITES ABOUT HOW FAR IT WENT: how many of the pool's trials it planned, where the spend guard capped it
-// and how many trials it completed. The read step takes the number of trials the later arms walk from the first arm's
-// `TRIALS` line, so these are the wording both sides agree on.
+// and how many units it completed, a unit being a trial in one pass over the pool. The read step takes the number of units
+// the later arms walk from the first arm's `TRIALS completed` line, whose marker stays so that the runbook's command reads
+// the number after it; the noun after the planned count says units.
 
 /**
  Says how many of the pool's trials an arm planned to walk.
@@ -65,9 +66,9 @@ export function plannedLine({
 /**
  Says where the spend guard capped an arm.
 
- @param completed - trials completed before the cap
+ @param completed - units completed before the cap
 
- @param planned - trials the arm was asked to walk
+ @param planned - units the arm was asked to walk
 
  @param said - the guard's own sentence
 
@@ -89,21 +90,21 @@ export function cappedLine(
     readonly said: string;
   },
 ): string {
-  return `CAPPED at trial ${String(completed + 1,)} of ${String(planned,)}: ${String(completed,)} ${
+  return `CAPPED at unit ${String(completed + 1,)} of ${String(planned,)}: ${String(completed,)} ${
     wordForCount({
       count: completed,
-      one: 'trial',
-      many: 'trials',
+      one: 'unit',
+      many: 'units',
     },)
   } completed; ${said}`;
 }
 
 /**
- Says how many trials an arm completed.
+ Says how many units an arm completed.
 
- @param completed - trials completed
+ @param completed - units completed
 
- @param planned - trials the arm was asked to walk
+ @param planned - units the arm was asked to walk
 
  @returns The line, without a newline
 
@@ -119,7 +120,13 @@ export function trialsLine({
   readonly completed: number;
   readonly planned: number
 },): string {
-  return `TRIALS completed ${String(completed,)} of ${String(planned,)}`;
+  return `TRIALS completed ${String(completed,)} of ${String(planned,)} ${
+    wordForCount({
+      count: planned,
+      one: 'unit',
+      many: 'units',
+    },)
+  }`;
 }
 
 //endregion Editor fidelity progress lines

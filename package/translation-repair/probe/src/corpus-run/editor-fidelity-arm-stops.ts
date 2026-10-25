@@ -135,8 +135,8 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
         `${
           countWithNoun({
             count: capped.length,
-            one: 'trial',
-            many: 'trials',
+            one: 'unit',
+            many: 'units',
           },)
         } ended at the output-token cap (${rowsSaid({ rows: capped, },)}) and ${
           (capped.length === 1) ? 'scores' : 'score'
@@ -148,8 +148,8 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
         `${
           countWithNoun({
             count: threw.length,
-            one: 'trial',
-            many: 'trials',
+            one: 'unit',
+            many: 'units',
           },)
         } had an ask that threw (${rowsSaid({ rows: threw, },)}) and ${
           (threw.length === 1) ? 'is' : 'are'
@@ -163,8 +163,8 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
         countWithNoun({
           count: figures.rows
             .length,
-          one: 'trial',
-          many: 'trials',
+          one: 'unit',
+          many: 'units',
         },)
       }, none at the cap, none threw`
       : found.join('; ',),
