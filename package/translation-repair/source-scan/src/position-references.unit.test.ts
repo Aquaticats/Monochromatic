@@ -246,6 +246,37 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A POSITION BEFORE A "that" AND ANY WORD THAT IS NOT A KNOWN NOUN, in the singular and the past of '
+        + 'a verb and in a verb the scan never named (writes, explains, explained, says, enumerate, follow, are), '
+        + 'since "that" after a position compares only before a noun it knows (ledger B952)',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// The lines below that writes it name the bowl.',
+              '// The paragraph above that explains the nap is short.',
+              '// The paragraphs above that explained the nap are short.',
+              '// The statement above that says the cat purred holds.',
+              '// The lines below that enumerate the bowls are short.',
+              '// The cases below that follow it pass.',
+              '// The lines below that are indented name the bowl.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'paragraph above',
+          'paragraphs above',
+          'statement above',
+          'lines below',
+          'cases below',
+          'lines below',
+        ],);
+      },
+    },),
+    it({
       name: 'FINDS A POSITION BEFORE A WORD THAT IS A VERB HERE, one for each of zero, baseline, threshold and total, '
         + 'which the compared list holds, and of exact and half, which it no longer holds, since the verb read as '
         + 'the object of a comparison and let "the lines below zero the counter" pass',
