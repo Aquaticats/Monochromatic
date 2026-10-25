@@ -1,6 +1,6 @@
 /**
  Tests for which logs the cap census counts: a log is a pass run when a line
- in its first four kilobytes opens `START tip=`, and only then are its calls
+ among its first two thousand opens `START tip=`, and only then are its calls
  read.
 
  Every log is written into a scratch directory, from invented, cat-themed
@@ -33,9 +33,14 @@ import {
 const HYPER_ID = MODEL_CARDS[SEAT_HYPER_OPENROUTER_UNMEASURED].hyper?.id ?? 'no hyper block';
 
 /**
- Bytes the census reads at the head of a log.
+ Lines at the head of a log the census searches for the marker.
  */
-const HEAD_BYTES = 4_096;
+const HEAD_LINES = 2_000;
+
+/**
+ Bytes the census once read at the head of a log, which the cases write more than before the marker.
+ */
+const FORMER_HEAD_BYTES = 4_096;
 
 /**
  The two lines of one completed call, five content characters delivered.
@@ -138,7 +143,7 @@ await describe({
     it({
       name: 'READS A LOG WITH 200 PAGE-ABSENT INCOMPLETE LINES BEFORE ITS MARKER, which a pass prints for the entries '
         + 'whose page is absent at the pin before it prints START, and which hold more bytes than a head counted in '
-        + 'bytes allows (ledger B961 to B964)',
+        + 'bytes allows (ledger B963)',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
 
@@ -153,7 +158,7 @@ await describe({
           },
         );
 
-        expect(pageAbsent.join('\n',).length,).toBeGreaterThan(HEAD_BYTES,);
+        expect(pageAbsent.join('\n',).length,).toBeGreaterThan(FORMER_HEAD_BYTES,);
         expect(await capCensusPassRunReading({
           path: await writeLog({
             directory: scratch.path,
@@ -167,22 +172,22 @@ await describe({
       },
     },),
     it({
-      name: 'READS A LOG WHOSE HEAD ENDS PART WAY THROUGH A CHARACTER, which the marker line before it does not '
-        + 'depend on',
+      name: 'READS A LOG WHOSE LINE BEFORE THE MARKER IS LONGER THAN THE FORMER BYTE HEAD, in three-byte characters, '
+        + 'since the head is counted in lines and no byte count cuts a character or a log',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
 
         /**
-         A line of three-byte characters, longer than the head holds.
+         A line of three-byte characters, longer than the former head held.
          */
-        const wide = '猫'.repeat(HEAD_BYTES,);
+        const wide = '猫'.repeat(FORMER_HEAD_BYTES,);
 
         expect(await capCensusPassRunReading({
           path: await writeLog({
             directory: scratch.path,
             lines: [
-              'START tip=tabby0001',
               wide,
+              'START tip=tabby0001',
               ...CALL_LINES,
             ],
           },),
@@ -219,7 +224,7 @@ await describe({
       },
     },),
     it({
-      name: 'SAYS A LOG IS NO PASS RUN where its marker lies past the first four kilobytes',
+      name: 'READS A LOG WHOSE MARKER IS THE LAST LINE OF THE HEAD, with one line fewer than the head holds before it',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
 
@@ -227,7 +232,35 @@ await describe({
           path: await writeLog({
             directory: scratch.path,
             lines: [
-              'x'.repeat(HEAD_BYTES,),
+              ...Array.from(
+                { length: HEAD_LINES - 1, },
+                function bannerLine(): string {
+                  return 'a banner line';
+                },
+              ),
+              'START tip=tabby0001',
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toEqual(CALL_READING,);
+      },
+    },),
+    it({
+      name: 'SAYS A LOG IS NO PASS RUN where its marker lies past the first two thousand lines, which bounds the '
+        + 'search of a log that holds none',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [
+              ...Array.from(
+                { length: HEAD_LINES, },
+                function bannerLine(): string {
+                  return 'a banner line';
+                },
+              ),
               'START tip=tabby0001',
               ...CALL_LINES,
             ],
