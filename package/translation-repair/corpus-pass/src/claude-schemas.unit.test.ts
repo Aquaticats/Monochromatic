@@ -104,6 +104,7 @@ import { SURVIVOR_CASES, } from './claude-schema-survivor-forms.test-fixture.ts'
 import { TAGGED_TEMPLATE_CASES, } from './claude-schema-tagged-template-forms.test-fixture.ts';
 import { type ShapeCase, UNREAD_SHAPE_CASES, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 import { UNREADABLE_CODE_CASES, } from './claude-schema-unreadable-forms.test-fixture.ts';
+import { GLOBAL_ALIAS_CASES, } from './claude-schema-global-alias-forms.test-fixture.ts';
 import { CALL_SHAPE_CASES, NOT_A_USE_CASES, } from './claude-schema-use-forms.test-fixture.ts';
 import {
   buildersOf,
@@ -804,6 +805,7 @@ await describe({
       ...DESTINATION_TOP_CASES,
       ...OUTSIDE_MODULE_CASES,
       ...UNREADABLE_CODE_CASES,
+      ...GLOBAL_ALIAS_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
@@ -867,6 +869,7 @@ await describe({
       ...DESTINATION_TOP_CASES,
       ...OUTSIDE_MODULE_CASES,
       ...UNREADABLE_CODE_CASES,
+      ...GLOBAL_ALIAS_CASES,
       ...WHITELIST_BEARING_CASES,
       ...WHITELIST_CALL_CASES,
       ...WHITELIST_CASES,
