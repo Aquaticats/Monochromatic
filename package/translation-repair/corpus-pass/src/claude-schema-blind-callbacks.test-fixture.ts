@@ -194,7 +194,7 @@ function valueNamesOf(
       position,
     ): readonly string[] {
       return indexes.some(function arrivesIn(index,): boolean {
-        return (index === position) || ((parameter.type === 'RestElement') && (index >= position));
+        return (index === position) || ((parameter.type === 'RestElement') && (index > position));
       },)
         ? namesBoundBy({ node: parameter, },)
         : [];
