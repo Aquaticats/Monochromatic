@@ -581,7 +581,9 @@ named for that subject and listed here.
   an unheard gate that ships the slate's two-ballot pick (B909),
   the page title and the consistency round on two voices (B910,
   B911),
-  the cache versions (B912) and the replay after the round (B913).
+  the cache versions (B912) and the replay after the round (B913),
+  and the addendum:
+  a tie across every offered candidate that ships only among the candidates two judges named (B914).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
   the router's five-minute hold slept by a unit test in every gate from g138 on,

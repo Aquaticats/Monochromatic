@@ -10,6 +10,9 @@ Round 2 of the same work (B907 to B913) records the owner's answers of the same 
 "Two judges must name it" and
 "Ship the slate's wording")
 and the lead's rulings on the findings of the independent re-check.
+The addendum to round 2 (B909, B913 and B914) records the owner's answer
+"Ship the slate's pick (Recommended)"
+and the lead's ruling on the tie of a challenge round across every offered candidate.
 The rulings are quoted in
 [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md)
 and referenced from
@@ -445,10 +448,11 @@ with the reading kept:
 - The tie of a challenge round across every offered candidate
   (`breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`,
   the tenth addendum of
-  `doc/decision/translation-repair-ineligible-standing.md`) still ships one by the fixed preference.
+  `doc/decision/translation-repair-ineligible-standing.md`) shipped one by the fixed preference
+  when this entry was written.
   It is the same class of path as the declined round,
   a choice on which no judge decided,
-  but it is outside the owner's answer of 2026-10-25 and is left to the lead to put to the owner (B908).
+  and the lead's later ruling, settled by the owner's "Two judges must name it", put it under the same rule (B914).
 
 Edges the two-ballot count does not cover,
 neither new in kind (finding F7):
@@ -548,13 +552,13 @@ The qualifier branch is nearly unreachable from a real tally
 so direct tests of `settleAbsentDecline` pin it,
 beside five judging-level cases.
 
-Not changed,
-a path of the same class outside the owner's answer:
-a challenge round whose top weight is tied across every offered candidate still ships one by the fixed preference
+Not changed in this entry,
+a path of the same class that the owner's answer did not name:
+a challenge round whose top weight is tied across every offered candidate shipped one by the fixed preference
 (`breakRunoffTie`,
-the tenth addendum of `doc/decision/translation-repair-ineligible-standing.md`).
-A control test pins it.
-Whether it should also wait for two judges is a question for the owner.
+the tenth addendum of `doc/decision/translation-repair-ineligible-standing.md`),
+and a control test pinned it.
+The lead ruled afterwards that it waits for two judges too, and B914 records the change.
 
 A test slip,
 recorded:
@@ -563,12 +567,16 @@ so `breakRunoffTie` fired and the case failed in the red commit for the wrong re
 the fix commit gave one candidate a lower weight.
 The red commit message also says "Seven cases ... five fail" where the file holds ten cases and five fail.
 
-## B909: an unheard gate over a refused archive ships the pick two slate ballots chose (round 2)
+## B909: an unheard gate over a refused or flawed standing ships the pick two slate ballots chose (round 2)
 
 Status:
 fixed on 2026-10-25 (UTC),
 red `371977693b`,
-fix `b2dd131f80`.
+fix `b2dd131f80`;
+widened to a flawed-majority standing in the addendum,
+red `728a164502`,
+fix `d8e1674fbf`,
+cache version `784efa1591`.
 
 The owner's answer of 2026-10-25,
 "Ship the slate's wording" (finding F5):
@@ -578,9 +586,7 @@ rather than falling to the archive that failed the rule.
 `shipPastForfeitStanding` takes `slatePickBallots`
 (`slatePickBallotsOf` reads the slate round's row for the shipped position),
 and ships `consolidated` with the finding `unheard-gate-ships-slate-pick`.
-A pick one slate ballot chose keeps the standing,
-as does a standing the contest majority called flawed (it passes the rule),
-whatever the pick drew.
+A pick one slate ballot chose keeps the standing.
 A gate that heard two usable answers is unchanged.
 
 The replay does not support one expectation,
@@ -599,13 +605,31 @@ which drew two usable gate ballots for `consolidated`,
 still ships.
 The artifact does not record the slate's ballots,
 so the log is the evidence.
+The brief for finding F5 rested on a wrong premise taken from the re-check,
+"the slate's two or more ballots":
+the five slices had one slate ballot each,
+and the lead confirmed that under "one judge alone never decides" they keep the archive text.
 
-Open,
-a narrower reading adopted and flagged:
-a standing that passes the rule but was called flawed by a contest majority keeps the standing
-when the gate hears fewer than two,
-since the owner's answer speaks of the archive that fails the publication rule.
-Whether the slate's two-ballot pick should also ship there is a question for the owner.
+The flawed-majority reading, resolved in the addendum.
+Round 2 had adopted and flagged a narrower reading:
+a standing that passes the rule but was called flawed by a contest majority kept the standing
+when the gate heard fewer than two,
+since the owner's answer spoke of the archive that fails the publication rule.
+The owner answered on 2026-10-25,
+"Ship the slate's pick (Recommended)":
+when a majority of the contest judges found the eligible standing flawed,
+the slate's pick had two or more slate ballots,
+and the gate got fewer than two usable answers,
+the slate's pick ships.
+`shipPastForfeitStanding` now reads `slatePickBallots` for either kind of forfeit standing,
+and the log line names which kind it was.
+The finding `unheard-gate-ships-slate-pick` and its text cover both.
+A pick of one slate ballot keeps the standing in both kinds,
+and an eligible standing no contest majority called flawed never reaches the rule.
+The red case that pinned the narrower reading was replaced
+(pick of two and three slate ballots with one and no usable answers ship `consolidated`),
+with controls for a pick of one ballot and for a standing no majority called flawed.
+`CONSOLIDATE_CACHE_VERSION` is 37 for it (B912).
 
 ## B910: a page title settles only on two or more heard voices (round 2)
 
@@ -679,6 +703,18 @@ not the rule that reads the ballots.
   (a stored answer holds the heard voices and the quorum and the count is read from them,
   so the bump is the lead's ruling and the namespace discard is the other brace).
 
+Moved again in the addendum,
+one commit per stage:
+- `TRANSLATE_SLICE_CACHE_VERSION` 29 to 30 in `21cda9419e`:
+  a tie across every candidate ships by preference only among candidates two judges named (B914).
+- `CONSOLIDATE_CACHE_VERSION` 36 to 37 in `784efa1591`:
+  the unheard gate over a flawed-majority standing ships the slate's pick (B909),
+  and the same tie rule on the consolidation slate (B914).
+  The key needs it because a stored settlement holds the wording that shipped,
+  and the same texts now ship another;
+  the numbers 29 and 36 were set a few commits before and whether a record stands at either is not known,
+  so the bump is the safe side and its cost is one re-run of the affected slices.
+
 Stay,
 with the reason:
 the repair slice (47) and refine (17) versions
@@ -688,7 +724,7 @@ the pairing version and the artifact generation.
 `MINIMUM_CHECKER_COUNT` is a run guard and not a key input.
 
 Checked by `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 53b55cf5c3..HEAD`,
-which lists exactly those four commits,
+which lists exactly those six commits,
 and by the positive control over `c265e8df95~1..c265e8df95`,
 which lists `c265e8df95`.
 
@@ -740,3 +776,113 @@ The gate replay changed in what it reads and not in what it settles:
   The archive text stays in those five slices,
   as it did after the gate in round 1,
   and the gate is no longer asked for them.
+
+The evidence that the five slices had one slate ballot each,
+from `corpus-pass-XingZ6021.log` in the scratch directory:
+- Slice 13:
+  line 17690 (`select round: 1/7 heard ... no quorum (1 of 2 needed)`),
+  line 17828 (`winner was named by 1 ballot against a floor of 2`),
+  and the preference shipping at line 17830.
+- Slice 14:
+  lines 17774,
+  17909 and 17911.
+- Slice 33:
+  lines 18557,
+  18791 and 18793.
+- Slice 44:
+  lines 18991,
+  19399 and 19401.
+- Slice 84:
+  lines 20190 and 20269 (both rounds heard one judge of seven),
+  with the decline of the rejection kind and the preference shipping at line 20274.
+- The five `challenge round declined .* shipping candidate` lines are the only ones in the run.
+
+The premise of the F5 brief,
+taken from the re-check,
+was "the slate's two or more ballots".
+The log shows one slate ballot in each of the five slices,
+so under "one judge alone never decides" they keep the archive text,
+and nothing changes there.
+The lead confirmed it.
+
+The addendum reran the three replay scripts on the final tree.
+The panel tally and the downstream replays are byte-identical to the figures above (`diff` finds no difference),
+and so is the gate replay for every figure above:
+slices 13,
+14,
+33,
+44 and 84 keep the standing and slice 101 ships,
+so no figure moved.
+It could not move:
+the five standings were ineligible and not flawed by a majority,
+the pick had one slate ballot,
+and the tie path has no recorded instance in the run
+(`rg --count "challenge round tied at weight"` finds none in the log,
+where the same log yields five `challenge round declined` lines for the positive control).
+The replay script gained a what-if for the flawed-majority rule:
+the same five gates over an eligible standing a majority called flawed keep the standing with the pick from the log
+(one ballot) and ship `consolidated` with a pick of two slate ballots,
+and slice 101 ships either way.
+
+## B914: a tie across every offered candidate ships only among the candidates two judges named (addendum)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `b6e39d3148`,
+fix `17b86eee0e`,
+cache versions `21cda9419e` and `784efa1591` (B912).
+
+The lead's ruling of 2026-10-25,
+settled by the owner's "Two judges must name it".
+The tie of a challenge round across every offered candidate
+(`breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`,
+class 174,
+TianqiChen6669 slice 4)
+shipped one by the fixed preference of repair lane,
+then translate lane,
+then slate order,
+whatever any judge named.
+B906 and B908 left it outside the owner's answer.
+That tie is a round in which no judge pair backed any candidate whenever each tied candidate drew one ballot,
+which is the shape the owner's rule refuses.
+
+The rule now:
+the preference ranks only the tied candidates that drew two or more ballots,
+and ships the best of them
+(basis `repair lane`,
+`translate lane` or `slate order`,
+as before,
+with the finding `translate-runoff-tie-broken`).
+If no tied candidate drew two ballots,
+`breakRunoffTie` returns `unbroken`,
+and `settleAbsentDecline` takes the path of `shipPreferredPastDecline`:
+the wording in place stays with the finding `translate-slate-declined-archive-kept` and a warning in the log,
+and where the caller ships nothing past a decline or the passage has no wording the absence is raised as before,
+which leaves the passage to the source-text path under the untranslated note.
+A tie that some candidates lost and others drew equally is still narrowed by the further run-off,
+and a first round is still challenged.
+
+The tests:
+the control of `translate-ship-past-decline-two-judges.unit.test.ts` that pinned the old behaviour
+("STILL BREAKS A TIE ACROSS EVERY FINALIST BY PREFERENCE",
+two finalists one ballot each shipping the repair lane's text)
+was replaced by one that expects the archive wording to stay,
+beside direct cases of `settleAbsentDecline`:
+a three-way tie of one ballot each keeps the archive,
+the same tie raises the absence where the caller ships nothing past a decline,
+a tie of two ballots each still ships the repair lane's text (a positive control that passes on the old rule too),
+and a tie where only the translate lane's text drew two ballots ships it, not the repair lane's text.
+Four cases failed on the red commit.
+Three judging-level cases of `translate-retry.unit.test.ts` and one of `translate-runoff.unit.test.ts`
+pinned a one-ballot tie shipping by order over an absent incumbent
+(the repair lane's text,
+the translate lane's text and slate order);
+they now expect the absence,
+and the case with an incumbent (keeping it) is unchanged.
+No tie of two or more ballots each can arise at the judging level on a bench of three,
+so the direct cases carry that branch.
+
+What the run showed:
+the log of `XingZ6021` holds no tie-path line (B913),
+so no figure of the replay moves.
+The five preferences it does hold came from declined rounds and were handled in B908.

@@ -229,14 +229,19 @@ which lists every file of these commitments.
   "Two judges must name it" (a declined round ships a candidate only when two or more judges named it,
   and otherwise the wording in place stays,
   or the source text under the note where none exists),
-  and "Ship the slate's wording" (a gate that hears fewer than two usable answers over an archive the publication rule
-  refused ships the slate's pick when two or more slate ballots chose it).
+  "Ship the slate's wording" (a gate that hears fewer than two usable answers over an archive the publication rule
+  refused ships the slate's pick when two or more slate ballots chose it),
+  and "Ship the slate's pick (Recommended)" (the same for an eligible standing a majority of the contest judges
+  called flawed).
   The lead ruled that a page title settles on two or more heard voices
   and that a consistency round decides on two or more answering ballots,
   and that the derivability probe and the restoration judge,
   which feed the benchmark scorecard only,
   stay as they are.
-  A challenge round tied across every offered candidate still ships one by the fixed preference;
-  that path is outside these answers.
+  The lead ruled,
+  settled by "Two judges must name it",
+  that a challenge round tied across every offered candidate ships by the fixed preference
+  only among the candidates two or more judges named,
+  and otherwise the wording in place stays by the path of the declined round.
   The stage quorum that sizes a round (a majority of the seated bench,
-  two on a short bench) was not changed (ledger B900 to B913).
+  two on a short bench) was not changed (ledger B900 to B914).
