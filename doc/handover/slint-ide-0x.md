@@ -4631,7 +4631,30 @@ the text height still do not restart a rest; the height signal has a unit test o
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
-Ctrl+End and Ctrl+Home); its numbers follow, then `~/temp/agent/final5` is removed.
+Ctrl+End and Ctrl+Home).
+Result on the installed `0730fa64bdf211e7…` (up to three sessions at once, load 5 to 12; regression runs alone or in
+pairs, load 1.5 to 4.8; clocks aligned through the app log's absolute times, screenshots 0.01 to 0.06 s from the log
+line): rest over no character, 10 trials per cell, 80 trials in all with 0 requests, 0 `resolved=` lines and 0 popup
+lines before the wheel: a request after the wheel for the drawn line in 10 of 10 in every cell (past a `//` line at 5,
+11, 29 and 301 notches, on a hint row at 5 and 301, hints arriving under the pointer), 0 wrong lines, 0.527 to 0.573 s
+after the wheel (0.785 to 0.818 s with hints); the popup was still open at +2.0 s with the same pixel count as at
++50 ms in all 70 trials that showed one, no dismissal logged. Settled controls: a pointer resting 5 s over no character
+in a settled view 0 log lines of any kind in 10 of 10; a popup open over a character closes when the pointer rests over
+none (10 of 10, `reason="the pointer rests over no character"` 1.85 to 2.42 s after the first move; the first trial
+logged 6.08 s from a clock mark taken after a slow screenshot, the popup was closed in the screenshot at +0.6 s in all
+10); settled hover 10 of 10 at 0.353 to 0.368 s for the drawn line; pointer moved onto an identifier 100 ms before a
+300-notch wheel 10 of 10 right at 0.537 to 0.573 s; pointer rested 1.2 s on an identifier then the wheel 0 new
+requests in 10 of 10 (only the dismissal `reason="the view scrolled"` 9 to 25 ms after the wheel). 12 popups viewed
+plus the hints popup: each for the identifier under the pointer, below its line block with the left edge at the
+pointer column, none at a stale place. Regression smoke: far jumps 10 each at 150, 300 and 600 notches 0 blank and 0
+partial code frames (partial counted as fewer than 60 percent of the settled frame's inked 16-row bands; counting overlap
+with the settled frame's bands gave 22, 17 and 7 on this sparse file because mid-ease frames show other lines, none of
+those viewed), tiles applied 1.00 per jump, held frames 1.2, 2.0, 2.0 per jump; five-press means 0.510708, 0.509617,
+0.510708, 0.510073, 0.509618 in 3 runs, none blank; 88-click recording 875 frames at 24.5 fps 0 blank code and minimap
+frames, 82 px gap in 126 of 126 frames, requests 1 plus 1 skip then 0 plus 1 skip twice; drag after a 300-notch wheel
+10 of 10 starts on a drawn row and ends on the row drawn at release; Ctrl+End and Ctrl+Home 0 blank code frames in 4
+recordings. A comment word under the pointer gives a correct request and `hover=false` (no popup), as the server
+answers nothing for comments. `~/temp/agent/final5` and its projects are removed.
 All scratch of these agents (`final*`, `wheel*`, `hover`) and their worktrees and branches are removed.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
