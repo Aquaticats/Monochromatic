@@ -499,8 +499,9 @@ await describe({
         },),
 
         it({
-          name: 'STILL BREAKS A TIE ACROSS EVERY FINALIST BY PREFERENCE (class one hundred seventy-four): two '
-            + 'finalists one ballot each ship the repair lane\'s, which the ledger records as outside this rule',
+          name: 'KEEPS THE ARCHIVE WORDING where a tie across every finalist has one ballot each (class one hundred '
+            + 'seventy-four, settled by the owner\'s "Two judges must name it"): the fixed order no longer ships the '
+            + 'repair lane\'s text over candidates one judge named apiece',
           fn: async () => {
             const result = await judgedWith({
               wants: {
@@ -509,7 +510,19 @@ await describe({
               },
               withheldStanding: true,
             },);
-            expect(result.text,).toBe(TEXTS.curls,);
+            expect({
+              text: result.text,
+              origin: result.origin,
+              kept: result.findings.includes(ARCHIVE_KEPT_FINDING,),
+              tieBroken: result.findings.some(function isTieBroken(finding,): boolean {
+                return finding.startsWith('translate-runoff-tie-broken',);
+              },),
+            },).toEqual({
+              text: ARCHIVE,
+              origin: 'incumbent',
+              kept: true,
+              tieBroken: false,
+            },);
           },
         },),
       ],
@@ -638,6 +651,103 @@ await describe({
               shippedPastDecline: undefined,
               ballots: 2,
             },);
+          },
+        },),
+
+        it({
+          name: 'KEEPS THE ARCHIVE WORDING where every candidate tied at the top with one ballot each (class one hundred '
+            + 'seventy-four, settled by "Two judges must name it"), naming the decline and why, and breaks no tie',
+          fn: async () => {
+            const result = settledWith({
+              perCandidate: [
+                drew({ index: 1, ballots: 1, weight: 1, },),
+                drew({ index: 2, ballots: 1, weight: 1, },),
+                drew({ index: 3, ballots: 1, weight: 1, },),
+              ],
+              ballots: [
+                ballotFor({ best: 1, reason: 'first reads best', },),
+                ballotFor({ best: 2, reason: 'the ledge reads best', },),
+                ballotFor({ best: 3, reason: 'the pipe reads best', },),
+              ],
+              shipPastDecline: true,
+              challenged: true,
+            },);
+            expect({
+              text: result.text,
+              origin: result.origin,
+              findings: result.findings,
+            },).toEqual({
+              text: ARCHIVE,
+              origin: 'incumbent',
+              findings: ['translate-declined (indecision)', ARCHIVE_KEPT_FINDING,],
+            },);
+          },
+        },),
+
+        it({
+          name: 'STILL BREAKS A TIE ACROSS EVERY CANDIDATE BY PREFERENCE where each drew two ballots (class one '
+            + 'hundred seventy-four, the positive control: it passes on the old rule as well)',
+          fn: async () => {
+            const result = settledWith({
+              perCandidate: [
+                drew({ index: 1, ballots: 2, weight: 1.5, },),
+                drew({ index: 2, ballots: 2, weight: 1.5, },),
+                drew({ index: 3, ballots: 2, weight: 1.5, },),
+              ],
+              ballots: [],
+              shipPastDecline: true,
+              challenged: true,
+            },);
+            expect({
+              text: result.text,
+              findings: result.findings,
+            },).toEqual({
+              text: TEXTS.curls,
+              findings: ['translate-declined (indecision)', 'translate-runoff-tie-broken (repair lane)',],
+            },);
+          },
+        },),
+
+        it({
+          name: 'BREAKS A TIE ACROSS EVERY CANDIDATE BY PREFERENCE AMONG THOSE TWO JUDGES NAMED only: the translate '
+            + 'lane\'s text that drew two ballots, not the repair lane\'s text that stands first and drew one',
+          fn: async () => {
+            const result = settledWith({
+              perCandidate: [
+                drew({ index: 1, ballots: 1, weight: 1, },),
+                drew({ index: 2, ballots: 1, weight: 1, },),
+                drew({ index: 3, ballots: 2, weight: 1, },),
+              ],
+              ballots: [],
+              shipPastDecline: true,
+              challenged: true,
+            },);
+            expect({
+              text: result.text,
+              findings: result.findings,
+            },).toEqual({
+              text: TEXTS.yawns,
+              findings: ['translate-declined (indecision)', 'translate-runoff-tie-broken (translate lane)',],
+            },);
+          },
+        },),
+
+        it({
+          name: 'RAISES the absence where a tie across every candidate has one ballot each and the caller does not '
+            + 'ship past a decline, since no judge pair backed a candidate and no wording stands to keep',
+          fn: async () => {
+            expect(function singleBallotTie() {
+              settledWith({
+                perCandidate: [
+                  drew({ index: 1, ballots: 1, weight: 1, },),
+                  drew({ index: 2, ballots: 1, weight: 1, },),
+                  drew({ index: 3, ballots: 1, weight: 1, },),
+                ],
+                ballots: [],
+                shipPastDecline: false,
+                challenged: true,
+              },);
+            },).toThrow(TranslateAbsenceError,);
           },
         },),
 
