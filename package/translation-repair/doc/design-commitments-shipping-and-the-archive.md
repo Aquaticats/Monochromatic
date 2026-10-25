@@ -166,7 +166,9 @@ which lists every file of these commitments.
   "Two ballots decide (Recommended)" and "Every weight floor";
   the full record is in
   [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md),
-  and a gate that heard one judge no longer ships a consolidation past its neither).
+  a gate that heard one judge no longer ships a consolidation past its neither on its own authority,
+  and a declined round ships a candidate only when two or more judges named it,
+  the wording in place staying otherwise).
   The earlier rulings stand:
   a run always ships,
   and a slice with archive text and no valid wording keeps the archive.

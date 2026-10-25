@@ -185,7 +185,7 @@ which lists every file of these commitments.
   one judge alone never decides.**
   Owner,
   2026-10-25,
-  after the corpus pass XingZ6021 shipped slices 67 to 69 with a quotation from *Metal Gear Solid 2*
+  after the corpus pass XingZ6021 shipped slices 67 to 69 with a quotation from Metal Gear Solid 2
   and two paragraphs the source does not hold,
   although the two panelists heard supported every critic claim against them:
   the panel tally asked for a summed weight of 3 (`minBallotWeight`),
@@ -222,7 +222,20 @@ which lists every file of these commitments.
   (now two critics heard,
   which cannot come from fewer than two critics;
   the contradiction check and the good-translation anchor remain the guards against a false block).
-  A consolidation gate that heard fewer than two judges ships nothing past its neither.
+  A consolidation gate that heard fewer than two judges ships nothing past its neither on its own authority.
+  The owner answered the open questions the same day:
+  "Allow two checkers" (the checker count is two),
+  "Keep waiting for half" (a gather above two voices and the bench waits stay),
+  "Two judges must name it" (a declined round ships a candidate only when two or more judges named it,
+  and otherwise the wording in place stays,
+  or the source text under the note where none exists),
+  and "Ship the slate's wording" (a gate that hears fewer than two usable answers over an archive the publication rule
+  refused ships the slate's pick when two or more slate ballots chose it).
+  The lead ruled that a page title settles on two or more heard voices
+  and that a consistency round decides on two or more answering ballots,
+  and that the derivability probe and the restoration judge,
+  which feed the benchmark scorecard only, stay as they are.
+  A challenge round tied across every offered candidate still ships one by the fixed preference;
+  that path is outside these answers.
   The stage quorum that sizes a round (a majority of the seated bench,
-  two on a short bench)
-  and the checker count of three are not weight floors and were not changed (ledger B900 to B906).
+  two on a short bench) was not changed (ledger B900 to B913).

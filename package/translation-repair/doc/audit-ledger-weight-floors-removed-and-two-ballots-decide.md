@@ -4,6 +4,12 @@ The owner's rulings of 2026-10-25 on the corpus pass `XingZ6021`:
 no summed-weight floor stands between two answering judges and a decision,
 a claim or contest is decided once two or more judges answered it,
 and one judge alone never decides.
+Round 2 of the same work (B907 to B913) records the owner's answers of the same day
+("Allow two checkers",
+"Keep waiting for half",
+"Two judges must name it" and
+"Ship the slate's wording")
+and the lead's rulings on the findings of the independent re-check.
 The rulings are quoted in
 [votes, repairs and run-offs](design-commitments-votes-repairs-and-run-offs.md)
 and referenced from
@@ -27,7 +33,7 @@ The tally compared the electorate weight with `minBallotWeight` 3,
 two panelists at the default weight of one summed to 2,
 and every claim landed `needs-human`.
 The editor had nothing to edit (`nothing to edit, unchanged`),
-and the archive's text shipped with an invented quotation from *Metal Gear Solid 2*
+and the archive's text shipped with an invented quotation from Metal Gear Solid 2
 and two paragraphs the source does not hold.
 Across the run 234 of 341 adjudicated issues ended `needs-human`.
 
@@ -96,6 +102,15 @@ The behaviour that changed and is visible:
 a condemned incumbent that leads with two ballots is selected,
 as it already was at a summed weight of 2 or more.
 
+The corner for the owner (finding F6 of the independent re-check):
+the exception `condemnedFallbackLoses` refused a leader that was the fallback itself when a contest majority had
+condemned it and it drew two ballots under a summed weight of 2.
+Two ballots from a full vote and a self-vote weigh 1.5, so the old code declined and the new code selects the incumbent
+(`repair/src/candidate-select.unit.test.ts`, "SEATS the standing text when two ballots lead with it").
+At 2 or more the old code already selected it, so the change is only the 1.5 corner.
+It touches the owner's ruling of 2026-10-11, "Majority, like the run-off";
+the exception is removed under the answers of 2026-10-25 and is listed in `report.md` as an owner-visible change.
+
 ## B902: three non-translation votes were needed to block a slice, and two critics could not
 
 Status:
@@ -121,8 +136,15 @@ What guards that shape now is the contradiction check
 (`NON_TRANSLATION_CONTRADICTION_MIN`,
 eight validated content-critique claims anchored in the target)
 and the good-translation anchor that vetoes a document-wide block.
-This is an owner-visible risk:
-a false block still discards a faithful translation whole.
+This is an owner-visible risk, and a narrow one:
+a false per-slice block leaves that slice unrepaired, with the archive's wording as it stands,
+and the document-level dominance block is report-only
+(`repair/src/repair-translation.ts` logs it as "reported, not blocking" and adds a finding),
+so no block discards a translation.
+The earlier wording of the TSDoc in `archive/src/non-translation-evidence.ts`, that a false block
+"still discards a faithful translation whole", overstated this and is corrected in the same commit series
+(finding F1 of the independent re-check).
+The measured effect at two votes: nothing newly blocks in the pinned corpus, as the re-check measured.
 
 The follow-up test:
 the block review of the archive asks three of its four seats after the selection fan-out change,
@@ -164,7 +186,7 @@ That fix addressed the purchase of rounds and not the shipping rule,
 so it did not reach this path:
 the rule that ships the slate's choice past an undecided gate was never given a minimum number of judges.
 
-The rule now:
+The rule now (round 1):
 a gate that heard fewer than two usable ballots returns its outcome unchanged with
 `UNHEARD_GATE_KEEPS_STANDING_FINDING`.
 The standing stays,
@@ -174,13 +196,23 @@ and an ineligible standing then leaves the archive kept through `nothingValidShi
 ship").
 A gate that preferred an ineligible standing still ships the slate's choice,
 since that is a verdict of a gate that settled on `standing`.
+Round 2 refines this for a slate pick that two or more slate ballots chose (B909).
 
-Not changed,
-named in B906:
-the translate stage's `shipPastDecline` preference,
-where a declined slate with a withheld standing ships its preferred candidate even when the leader was named by one judge.
+What it cost,
+for the owner (finding F5 of the independent re-check):
+five slices ship the archive text that failed the deterministic publication rule,
+with the finding `no-valid-wording` (the page ships with it reported),
+where the base shipped the slate's consolidation.
+The recorded log shows why the slate's choice cannot stand in for the gate there (B909).
+
+Not changed in round 1,
+named in B906 and settled in round 2 (B908):
+the translate stage's `shipPastDecline` preference.
+It shipped a declined slate's candidate by a fixed order (repair lane, then translate lane, then slate order),
+whatever any judge named,
+so it was not a lone-judge path (finding F6) but a path on which no judge decided.
 The four slices B835 kept in `XingZ6020` look like that path,
-and it rests on the owner's ruling of 2026-09-27,
+and it rested on the owner's ruling of 2026-09-27,
 "Preference + polish".
 
 ## B904: the cache versions that moved with the rules
@@ -275,7 +307,7 @@ all at a summed weight of 2):
 - Accepted,
   4:
   the two omission claims of the unkind world (2 supported of 2 answering each),
-  and the two claims of the invented *Metal Gear Solid 2* quotation (2 of 2).
+  and the two claims of the invented Metal Gear Solid 2 quotation (2 of 2).
 - Rejected,
   3:
   "her life was short" (twice) and a closing assertion of remembrance;
@@ -356,7 +388,8 @@ because one judge alone never decides:
   so the lone DeepSeek judge that called the archive a non-translation,
   one ballot under the floor of two,
   decides nothing.
-- A leader one judge alone named is declined in the candidate selection and the gate.
+- A leader one judge alone named is declined in the candidate selection and the gate,
+  and a declined round ships a candidate only when two or more judges named it (B908).
 
 Relation between the two-ballot rule and the stage quorum:
 two answering judges decide the panel tally,
@@ -369,26 +402,20 @@ each stage heard its reduced quorum of two.
 It still marks `silentStages`,
 and it still gates the verdicts of the derivability probe and the restoration judge.
 
+Settled by the owner on 2026-10-25 (round 2),
+after the readings below were put to the owner:
+- A gather quorum above two (a majority of a bench of five or more) and the pre-phase bench waits
+  (`run/src/corpus-run/run-seats-wait.ts` and its siblings): "Keep waiting for half".
+  Both stay;
+  they are counts of seats that a round waits for,
+  and on a short bench the quorum already falls to two.
+- The checker count of three (`MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts`, line 468 at the head;
+  the first census gave the base's line 508): "Allow two checkers".
+  It is two now (B907).
+- The translate stage's `shipPastDecline` preference: "Two judges must name it" (B908).
+
 Not changed,
-with both readings,
-for the owner:
-- A gather quorum above two (a majority of a bench of five or more).
-  Reading one:
-  it is a count of judges,
-  not a weight,
-  so it is not a weight floor and stays.
-  Reading two:
-  "Every weight floor" also means a round should close and decide on two voices.
-  On a short bench it already is two.
-- The pre-phase bench waits (`run/src/corpus-run/run-seats-wait.ts` and its siblings) hold a phase for a quorum of seats.
-  Same two readings.
-- The checker count of three (`MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts`).
-  Reading one:
-  it sizes a roster of checkers,
-  a count of seats,
-  not a floor on summed weight.
-  Reading two:
-  it is a floor of three on judges where two ballots now decide.
+with the reading kept:
 - A self-vote.
   The brief says a self-vote's half weight "counts toward shares but not toward the count of answering judges".
   The owner's ruling of 2026-10-20,
@@ -396,10 +423,287 @@ for the owner:
   rejected "Exclude self-votes".
   This tree follows the ruling:
   a self-vote is one answering judge and its half weight only ranks candidates.
-- The translate stage's `shipPastDecline` preference (see B903).
 - The assumption in the window trial (B901).
+- The tie of a challenge round across every offered candidate
+  (`breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`, the tenth addendum of
+  `doc/decision/translation-repair-ineligible-standing.md`) still ships one by the fixed preference.
+  It is the same class of path as the declined round,
+  a choice on which no judge decided,
+  but it is outside the owner's answer of 2026-10-25 and is left to the lead to put to the owner (B908).
+
+Edges the two-ballot count does not cover,
+neither new in kind (finding F7):
+- A `source-defect` vote decides at a share of one third (`adjudication/src/tally-votes.ts`).
+  With exactly two answering judges at equal weight,
+  one `source-defect` vote against one supported vote is a share of one half and decides `source-defect`.
+  That outcome is protective (no edit follows) and a case pins it ("COUNTS an ambiguous or source-defect answer").
+- `disposeMerge` in the same file merges members on one opining panelist.
+  Authority stays per member through `partitionGradedMembers`.
+
+Counts the first census omitted (finding F8):
+- `AGREEMENT_NEEDED = 2` in `stage/src/pair-sections-stage.ts` and `slice-reading/src/pair-blocks-read-outcomes.ts`:
+  a two-ballot rule on the readers that agree on a pairing,
+  and it stays.
+- `NON_TRANSLATION_CONTRADICTION_MIN = 8` in `archive/src/non-translation-evidence.ts`:
+  a count of claims anchored in the target,
+  not a floor on judges,
+  and it stays.
+- The count of one in the opposite direction:
+  a gather quorum below two,
+  which a seated bench of one or two seats has by design (`stage/src/roster-quorum-size.ts`).
+  A consistency round no longer decides on it (B911).
+  The derivability probe (`repair/src/derivability-probe.ts`) and the restoration judge
+  (`repair/src/restoration-judge.ts`) still read their verdicts at that quorum,
+  and are left alone because they feed the benchmark scorecard only (`repair/src/repair-scorecard.ts`).
 
 The rule for next time:
 when a rule is about how many judges decide,
 write the count where the code reads it,
 and list the other counts that look alike with the reading that keeps them.
+
+## B907: the checker count of three became two (round 2)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `e0f9ef0b42`,
+fix `d902da3ffe`.
+
+The owner's answer of 2026-10-25 to the checker count that B906 left open: "Allow two checkers".
+`MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts` is 2,
+and `assertCheckerQuorumReachable`,
+`CheckerQuorumError` (its message names "a floor of 2" and why: resolution needs two answering checkers),
+the TSDoc and the comments in `run/src/corpus-run/run-seats.ts` and `run/src/corpus-run/run-config.ts` changed together.
+The red cases (`assembly/src/checker-roster.unit.test.ts`) accept two checkers,
+refuse one and an empty roster,
+and refuse one checker that may also self-certify.
+The count is a run guard and not an input of any cache key.
+The historic text of `audit-ledger-which-seats-a-quorum-counts.md` still says three,
+as it was true then.
+
+## B908: a declined round ships a candidate only when two judges named it (round 2)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `d8e239c806`,
+fix `9622024d5d`.
+
+The owner's answer of 2026-10-25, "Two judges must name it", to the preference that B903 and B906 left open.
+Before:
+a challenge round that declined with nothing to ship past (a withheld standing, no run-off left)
+shipped a candidate by a fixed order,
+repair lane,
+then translate lane,
+then slate order,
+whatever any judge named
+(`shipPreferredPastDecline` in `translate-stage/src/translate-runoff-tie.ts`).
+In `XingZ6021` this fired five times,
+all in consolidation slates that heard one judge of seven
+(slices 13,
+14,
+33,
+44 and 84, log lines 17830, 17911, 18793, 19401 and 20274),
+each after `winner was named by 1 ballot against a floor of 2`.
+
+The rule now:
+the preference ranks only the candidates that two or more judges named,
+and ships the best of them.
+When none qualifies,
+the wording in place stays,
+with the finding `translate-slate-declined-archive-kept` and a warning in the log,
+and where no wording exists the source text ships under the note
+"This passage has not been translated yet. The original text follows." by the existing path.
+The sheet text the judges read (`SHIPS_WHAT_TWO_JUDGES_NAMED` in `adjudication/src/select-decline-consequence.ts`,
+formerly `SHIPS_BY_PREFERENCE`) says so.
+The qualifier branch is nearly unreachable from a real tally
+(a leader with two ballots is normally selected before a decline),
+so direct tests of `settleAbsentDecline` pin it,
+beside five judging-level cases.
+
+Not changed,
+a path of the same class outside the owner's answer:
+a challenge round whose top weight is tied across every offered candidate still ships one by the fixed preference
+(`breakRunoffTie`,
+the tenth addendum of `doc/decision/translation-repair-ineligible-standing.md`).
+A control test pins it.
+Whether it should also wait for two judges is a question for the owner.
+
+A test slip,
+recorded:
+the first version of the "several qualify" direct case gave all candidates equal weight,
+so `breakRunoffTie` fired and the case failed in the red commit for the wrong reason;
+the fix commit gave one candidate a lower weight.
+The red commit message also says "Seven cases ... five fail" where the file holds ten cases and five fail.
+
+## B909: an unheard gate over a refused archive ships the pick two slate ballots chose (round 2)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `371977693b`,
+fix `b2dd131f80`.
+
+The owner's answer of 2026-10-25, "Ship the slate's wording" (finding F5):
+when the gate hears fewer than two usable answers over an archive the deterministic rule refused,
+the slate's pick ships if two or more slate ballots chose it,
+rather than falling to the archive that failed the rule.
+`shipPastForfeitStanding` takes `slatePickBallots`
+(`slatePickBallotsOf` reads the slate round's row for the shipped position),
+and ships `consolidated` with the finding `unheard-gate-ships-slate-pick`.
+A pick one slate ballot chose keeps the standing,
+as does a standing the contest majority called flawed (it passes the rule),
+whatever the pick drew.
+A gate that heard two usable answers is unchanged.
+
+The replay does not support one expectation,
+for the lead (B913):
+the five slices of `XingZ6021` (13,
+14,
+33,
+44 and 84) did not have a slate pick chosen by two ballots.
+Each slate round heard one judge of seven and recorded
+`winner was named by 1 ballot against a floor of 2`,
+then the preference shipped a candidate the lone judge had not even named in slice 13.
+Under both of the owner's answers a pick that one judge alone chose cannot ship,
+so these slices keep the archive text (`no-valid-wording`) as in round 1.
+Slice 101,
+which drew two usable gate ballots for `consolidated`,
+still ships.
+The artifact does not record the slate's ballots,
+so the log is the evidence.
+
+Open,
+a narrower reading adopted and flagged:
+a standing that passes the rule but was called flawed by a contest majority keeps the standing
+when the gate hears fewer than two,
+since the owner's answer speaks of the archive that fails the publication rule.
+Whether the slate's two-ballot pick should also ship there is a question for the owner.
+
+## B910: a page title settles only on two or more heard voices (round 2)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `fd07e7fc49`,
+fix `cf2f03c5d2`,
+cache version `c52409ad5a`.
+
+The lead's ruling of 2026-10-25 on finding F3 of the independent re-check.
+`settlePageTitles` (`artifact/src/page-title-lexicon-stage.ts`) took the leader of any voice count,
+so a bench of seven that lost six seats for the title round settled,
+and `passPageTitles` (`corpus-pass/src/corpus-run/pass-page-titles.ts`) stored,
+the one voice's rendering as a line the translators and judges read.
+Now a round that heard fewer than `MIN_STAGE_VOICES` (2) voices settles nothing,
+logs why,
+adds a finding saying every repeated title keeps its current rendering,
+and stores nothing,
+so a later run asks again.
+`PAGE_TITLE_CACHE_VERSION` is 7.
+A tie among three or more heard voices is still broken by the earliest seat on the roster,
+which is a tie of two judges and outside this ruling.
+
+## B911: the consistency round decides only on two or more answering ballots (round 2)
+
+Status:
+fixed on 2026-10-25 (UTC),
+red `7faf9a705a`,
+fix `f69a6bab89`,
+cache version `9445a2c28f`.
+
+The lead's ruling of 2026-10-25 on finding F4.
+A gather on a seated bench of one or two seats closes on a quorum of one by design
+(`stage/src/roster-quorum-size.ts`),
+and `winnerOf`,
+`countConsistency`,
+`carryChoiceOf` and `runOffWinnerOf` then decided on one usable ballot.
+`decidingQuorumOf` (`consistency/src/consistency-deciding-quorum.ts`) raises the quorum a count applies to two,
+and a count below it changes nothing.
+`reachableQuorum` and every wait are unchanged.
+`CONSISTENCY_CACHE_VERSION` is 9.
+
+Left alone,
+by the lead's ruling:
+the derivability probe (`repair/src/derivability-probe.ts`)
+and the restoration judge (`repair/src/restoration-judge.ts`)
+decide a seed on one cast verdict once their quorum is met,
+and feed the benchmark scorecard only (`repair/src/repair-scorecard.ts`),
+so no page changes with them.
+The archive block review and the coverage verdict were checked in the re-check and are not lone-voice paths.
+
+## B912: the cache versions of round 2
+
+Status:
+fixed on 2026-10-25 (UTC),
+one commit per stage.
+
+The same account as B904:
+the key hashes the version,
+the shape of the run and the texts,
+not the rule that reads the ballots.
+- `TRANSLATE_SLICE_CACHE_VERSION` 28 to 29 in `1c72668739`:
+  a declined round ships a candidate only when two judges named it.
+- `CONSOLIDATE_CACHE_VERSION` 35 to 36 in `5828f9efe6`:
+  the same rule on the consolidation slate,
+  and the unheard gate over a refused archive.
+- `PAGE_TITLE_CACHE_VERSION` 6 to 7 in `c52409ad5a`:
+  a title settles on two or more heard voices.
+- `CONSISTENCY_CACHE_VERSION` 8 to 9 in `9445a2c28f`:
+  a count decides on two or more usable ballots
+  (a stored answer holds the heard voices and the quorum and the count is read from them,
+  so the bump is the lead's ruling and the namespace discard is the other brace).
+
+Stay,
+with the reason:
+the repair slice (47) and refine (17) versions
+(neither stores a slate shipped by preference or a title or consistency outcome),
+the lane contest (unchanged rule),
+the pairing version and the artifact generation.
+`MINIMUM_CHECKER_COUNT` is a run guard and not a key input.
+
+Checked by `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 53b55cf5c3..HEAD`,
+which lists exactly those four commits,
+and by the positive control over `c265e8df95~1..c265e8df95`,
+which lists `c265e8df95`.
+
+## B913: the replay of XingZ6021 after round 2
+
+Status:
+measured on 2026-10-25 (UTC),
+keyless,
+no provider called,
+scripts and output under `fix2/replay/` of the scratch directory.
+
+The panel tally and the downstream replays are byte-identical to round 1 (`diff` of `replay-tally.out`
+and `replay-downstream.out` finds no difference):
+295 `needs-human` claims at the base,
+55 now;
+234 issues at the base,
+49 now;
+slice 67 nine claims;
+slices with a dispute 3 at the base,
+26 now;
+envelopes 18 at the base,
+78 now.
+Round 2 touches no panel, editor or archive-dispute rule.
+
+The gate replay changed in what it reads and not in what it settles:
+- Slices 13,
+  14,
+  33,
+  44 and 84 (one usable gate ballot, slate pick of 1 ballot from the log):
+  the base shipped `consolidated`,
+  round 1 kept the standing (`unheard-gate-keeps-standing`),
+  round 2 keeps the standing.
+  Terminal `consolidated` on the gate path:
+  6 at the base,
+  1 at round 1,
+  1 now.
+- Slice 101 (two usable ballots for `consolidated`) ships at the base,
+  at round 1 and now.
+- Positive control for the new branch:
+  the same gate with a slate pick of 2 ballots ships `consolidated` in all six slices,
+  so the replay can show a ship when the slate's pick is two-ballot.
+- The five translate-stage preferences that shipped a declined slate in the whole run
+  (`rg` for `challenge round declined .* shipping candidate` finds five lines, all of the slices above)
+  ship nothing now,
+  because each pick was named by one ballot.
+  The archive text stays in those five slices,
+  as it did after the gate in round 1,
+  and the gate is no longer asked for them.
