@@ -38,6 +38,7 @@ export type PublishCheck =
     | 'page-agreement'
     | 'page-footnotes'
     | 'page-source-unparseable'
+    | 'source-reading-not-compared'
     | 'source-reads-differently';
 
 /**
