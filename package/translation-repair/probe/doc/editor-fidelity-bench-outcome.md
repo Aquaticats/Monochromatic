@@ -10,7 +10,10 @@ The rule that judged the arms is quoted in the README section "Decision rule",
 and the simulations behind its bounds are in
 [the simulations behind the decision rule](editor-fidelity-decision-rule-simulations.md).
 To check a figure here,
-run the read step over the three logs (the last block of the README) and compare the `ARM`,
+run the README's read step (the block "the read step" under "Medium and low") over the three logs,
+with `SHA=85e21653a2` set by hand in place of the block's `git rev-parse` line,
+since a later checkout names a bench directory that does not exist,
+and compare the `ARM`,
 `PAIRED`,
 `KINDS`,
 `REPEAT` and `VERDICT` lines.

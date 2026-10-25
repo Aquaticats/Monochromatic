@@ -178,9 +178,9 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 
  @param figures - the arm's figures
 
- @returns Warning lines that keep fix rates from being trusted when many units gave no edit: one line when unusable plus
- refused exceed their warned share of units, or when any exist and this log states no count of units, which leaves that
- share unjudged; none otherwise, so clean arms stay quiet
+ @returns Lines that keep fix rates from being trusted when many units gave no edit: one when unusable plus refused
+ exceed their warned share of units, or when any exist and this log states no count of units, which leaves that share
+ unjudged; none otherwise, so clean arms stay quiet
 
  @example
  ```ts
