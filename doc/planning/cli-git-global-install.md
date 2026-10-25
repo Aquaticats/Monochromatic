@@ -5,7 +5,10 @@
 Accepted by the user on 2026-10-25, then amended the same day: review found that a link to one version directory goes
 stale when an upgrade runs inside the repository, and the user approved linking through the `latest` symlink instead.
 Every experiment ran either read-only on the host or inside podman with a throwaway `HOME`.
-The host global mise config is edited only after the amended block passes the podman check again.
+The amended block passed the podman check, and it was applied to the user's global mise config on 2026-10-25.
+The user-boundary check passed: a clean login shell resolves `git` to `~/.local/bin/git`, and a `claude -p` commit in
+a clone outside this repository reached its bare remote with the user's real settings and no hook.
+The runbook for another machine is `doc/runbook/cli-git-global-install.md`.
 
 ## Problem
 

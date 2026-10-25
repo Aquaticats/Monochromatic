@@ -2194,6 +2194,29 @@ that is verification, not a decision for the user.
   `mise install cargo:monochromatic-git-policy-cli` from the home directory only for this tool (a bare `mise install`
   would install every missing global tool), then user-boundary verification, runbook and `AGENTS.md` wording, issue
   1796.
+  Re-verification of the amended block PASSED 2026-10-25 (`podman-proof-1796-d.ts` with install retries, unit
+  `cli-git-podman-1796d5`): after installing 0.2.7 the link `.../latest/bin/cli-git-native` resolved to 0.2.7; after a
+  plain `mise install` it resolved to 0.2.8 with no `postinstall` change; with the link deleted `mise install`
+  reported "already installed" and recreated it; `~/.local/bin` held only `git`. Attempts needed: 2 and 3 for the two
+  real installs, because of an intermittent container-to-GitHub failure. Cause observed in a failing verbose log
+  (`~/temp/agent/podman-1796f/attempt-a.log`): `cargo-binstall` warns "Timeout reached while checking fetcher invalid
+  url: deadline has elapsed" four times and fails fatally after about 62 s, then mise falls back to `cargo install`,
+  which also reports the crate missing from crates.io; identical fresh runs gave two failures and one 8 s success.
+  RETRACTED hypothesis: GitHub anonymous rate limiting (the host IP had 59 of 60 core requests left). The deeper
+  network cause (DNS, IPv6, pasta) is not investigated.
+  APPLIED ON THE HOST 2026-10-25: the wrapper entry (exact amended block, with an explanatory comment) was added at
+  the end of the `[tools]` table of `~/.config/mise/config.toml`, and `cd ~ && mise install
+  cargo:monochromatic-git-policy-cli` ran (printed "already installed" for 0.2.8 and, because of `when = "always"`,
+  created `~/.local/bin/git -> .../cargo-monochromatic-git-policy-cli/latest/bin/cli-git-native`; no temporary file
+  left). Verified at the user boundary: a clean login shell from the home directory (`env -i ... bash -lic`) prints
+  `git is /home/user/.local/bin/git` then `/usr/bin/git`; a `claude -p` session with the real user settings and no
+  hook, in a scratch clone with a bare remote outside the checkout, resolved `command -v git` to
+  `/home/user/.local/bin/git`, its pathspec commit was auto-pushed (local and remote `bed6e73`), and
+  `refs%2Fheads%2Fmain.last-pushed.json` was written. Probes left no processes or units. Rollback: remove the
+  entry from `~/.config/mise/config.toml` and delete `~/.local/bin/git`. `AGENTS.md` `APG` and `APQ` need no wording
+  change: `APQ` ("fires in third-party clones too") is now true on this machine; it stays false on a machine without
+  the global entry, which the runbook `doc/runbook/cli-git-global-install.md` covers. Still open: machines the user
+  does not control (server-side rulesets or CI), and the user has not been asked about them yet.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
