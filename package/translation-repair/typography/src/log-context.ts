@@ -523,6 +523,7 @@ export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
  A line passes through a slice-tagged logger once: where one wraps a logger that is itself built from a slice-tagged
  one (a lane tags the logger an entry hands it with its function and slice-tags that), the tags are written by the
  logger called first and the order the lanes have always written is kept (ledger B963).
+ The guard holds between slice-tagged loggers only: `contextRoot` neither sets nor reads it.
 
  @param l - logger tagged with the entry
 

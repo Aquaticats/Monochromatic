@@ -511,7 +511,7 @@ A count in that file that is not a whole number from 0 to 9007199254740990 (a ha
 `-3`,
 `1e999`,
 `1e20` or `9007199254740991`,
-whose successor is the first integer a number cannot hold exactly) is read as 0,
+whose successor is the first integer past the safe integers) is read as 0,
 beside a warning that names the entry,
 the file and the value,
 so the entry sorts first and the pass does not end on a count its stamp would refuse.

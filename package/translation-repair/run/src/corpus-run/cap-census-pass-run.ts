@@ -25,8 +25,9 @@ import {
 /**
  Lines at the head of a log searched for the pass-run marker; the marker must sit among them.
 
- It exceeds the entries of any pin by a wide margin, and a log that holds no marker costs this many lines to read, not
- its whole text.
+ A pass prints one `INCOMPLETE` line for each entry whose page is absent at the pin before `START`, so a pin with more
+ such entries than this is read as no pass run, and the number is a choice, not a measure of any pin.
+ A log that holds no marker costs this many lines to read, not its whole text.
  */
 const HEAD_LINES = 2_000;
 

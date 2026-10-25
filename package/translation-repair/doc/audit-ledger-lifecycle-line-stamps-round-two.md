@@ -140,20 +140,23 @@ A search for the wording found three,
 `corpus-pass` and `corpus-pass-refusals`,
 with six assertions between them (B963 changed all six).
 
-Two slips of the commits themselves,
-recorded as the second re-check found them and not amendable:
+Three slips of the commits themselves,
+the first two recorded as the second re-check found them and the third by the fixer of round 3,
+none amendable:
 `ce95582627` is typed `test` while it changes `corpus-pass/src/index.ts` to export `printSettledLines`
 (allowed,
 so a built-artifact test can reach the helper,
 but the type should have said so),
 and the red commit `6450c31d15` is not lint clean,
 because its built-pass fixture held a regex literal that oxlint
-refuses (the fix commit rewrote it).
+refuses (the fix commit rewrote it),
+and `80ed32c810` of round 3 is typed `style` while it replaces a module-level flag and a `try ... finally` with an
+`AsyncLocalStorage`,
+a change of mechanism that its body names but its type does not.
 The raised count of 12 in `real-clock-bounds.unit.test.ts`,
-the dropped allow-list entry of
-`pass-entry-persist.ts` and the `attemptText` line of `blank-text-tests.unit.test.ts` are scan bookkeeping,
-not a
-loosened bound.
+the dropped allow-list entry of `pass-entry-persist.ts`
+and the `attemptText` line of `blank-text-tests.unit.test.ts` are scan bookkeeping,
+not a loosened bound.
 
 ## B963: the lines of the pass itself and the logger's lines carried no time or no attempt
 
@@ -289,7 +292,32 @@ The red commit `644b50b094` fails on its parent by assertion on the doubled brac
   the typography case,
   the lanes seam case and the whole-run case fail by assertion,
   and all three pass unmutated (`202c97d8e1`).
-  The two built-pass cases show that the bundled packages share one copy of the logger's state.
+- One copy of the logger's state in the command that runs a pass.
+  The built command `corpus-pass/dist/final/node/corpus-pass.mjs` bundles typography with the provider,
+  repair and translate-lane code,
+  and `rg --only-matching` over it finds one `sliceTagsWritten = new AsyncLocalStorage`,
+  one `contextRoot`,
+  one `inEntryLogContext`,
+  and one `repairPreparedDocument` and one `translateDocument`,
+  so the lanes and the entry loggers of a real pass share the store that holds the once-per-line mark.
+  The library entry `index.mjs` imports typography from the package instead,
+  so the unit tests and the typography package share the other copy.
+  No built file holds two.
+- Readers of the newly tagged lines.
+  `JUDGE SEATS`,
+  `ARCHIVE ORIGINAL`,
+  `FOOTNOTES`,
+  `CORPUS NAMES`,
+  `FRONT MATTER` and the re-seat lines were searched for in the non-test `.ts` of `run`,
+  `bench` and `probe` and in `doc/runbook`.
+  Only emitters and comments in `run/src/corpus-run/run-seats*.ts` name them,
+  and nothing anchors on the position of the entry tag before them.
+  The reader survey of re-check 2 (the timing,
+  cap census and spend readers) covers the stream,
+  spend and round lines.
+- Not covered by a case:
+  the `contextRoot` logger neither sets nor reads the once-per-line mark,
+  and nothing wraps a `contextRoot` logger in `sliceTagged` today.
 
 Round 3 (re-check 2,
 minor 3):
@@ -302,6 +330,8 @@ with its case committed red first in `c515cbe961`:
 `capCensusPassRunReading` reads the log line by line and stops at the marker or after 2000 lines,
 a bound in lines that no field added to a line changes,
 and a log without the marker costs 2000 lines of reading and not its whole text.
+The number 2000 is a choice and not a measure of any pin:
+a pin with more page-absent entries than that is read as no pass run.
 The cases write 200 page-absent lines before `START` (red on the parent),
 a marker as line 2000 (read) and as line 2001 (not),
 and a line wider than the old window before the marker.

@@ -48,7 +48,7 @@ export type AttemptMap = Map<string, number>;
  A COUNT IS A NON-NEGATIVE WHOLE NUMBER THE PASS CAN ADD ONE TO. The pass adds one to the count it reads and the
  lifecycle stamp of the lines it prints for the attempt refuses anything that is not a safe integer from 1 (ledger
  B960), so a hand-edited 1.5, -3, 1e999 (which parses to Infinity), 1e20 or 9007199254740991 (whose successor is the
- first integer a number cannot hold exactly) passed through would end the pass at its first entry, outside any `try`,
+ first integer past the safe integers) passed through would end the pass at its first entry, outside any `try`,
  and again at every launch since the file keeps it.
 
  @param value - what the file holds for one entry
