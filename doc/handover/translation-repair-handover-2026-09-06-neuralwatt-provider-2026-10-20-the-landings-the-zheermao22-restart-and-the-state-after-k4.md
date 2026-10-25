@@ -723,3 +723,68 @@ State after the `XingZ6018` and `XingZ6019` reads,
   B822) and E2 (B826);
   rebuild,
   and launch the next rotation on the new build.
+
+State after the `XingZ6021` read,
+2026-10-25 (UTC):
+
+- The state "State after the `XingZ6018` and `XingZ6019` reads" says `XingZ6020` is running;
+  that is out of date.
+  The `XingZ6021` read quotes the lead's figures for `XingZ6020`:
+  10 h 33 min over two attempts (a 7 h deadline attempt,
+  then 3 h 33 min),
+  228 hold waits,
+  and the 30 tail slices unfilled.
+  That read is at `temp/agent/tr-fan/w312-xingz20/XingZ6020-read.md` and is not filed in the records;
+  filing it is owed.
+- The read of `XingZ6021` is filed in four files under the answers-restart record,
+  starting at `doc/planning/translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md`
+  (the run),
+  with the stages,
+  the evidence and the defects beside it.
+  A second reader checked it against the log,
+  the corpus and the source as built,
+  and the check's reading is the one filed
+  (it corrected the wire id of DeepSeek's key,
+  the split of the 225 `needs-human` adjudications,
+  three round counts and the Shinonome source lines,
+  and added slice 70,
+  the archive-dispute path and the second absolute floor to N1).
+- Its headlines:
+  `XingZ6021` ran on the frozen build `bcff23b8ce` from 22:49 UTC on 2026-10-24,
+  SETTLED on its first attempt in 2 h 5 min 45 s with all 118 slices filled,
+  no hold,
+  no HTTP error status and 0.4 min of idle wall clock.
+  Synthetic's weekly credit ran dry at 00:01:55 UTC,
+  and 225 of the 233 issue adjudications after that ended `needs-human` (9 of 108 before).
+- N1 is the defect that matters:
+  the shipped page's Shinonome section (slices 67 to 70) is byte-identical to the archive's,
+  with an invented *Metal Gear Solid 2* quotation and two paragraphs that the source lacks,
+  and it shipped with no `DEFECTS` line.
+  The chain is three absolute floors that a bench of two cannot meet
+  (tally weight 3,
+  3 non-translation votes,
+  a slate of 2 ballots).
+  The owner ruled on 2026-10-25:
+  "floor of 3 - don't set a floor.";
+  on a lone judge "Two ballots decide (Recommended)";
+  on scope "Every weight floor".
+  The change that follows is in progress and has no commit yet.
+  It is the work that answers N1.
+- Open from the read:
+  N8 (the DeepSeek cost booked at peak though the run was off peak) is an open defect candidate for the owner;
+  N2 to N10 are classed in the defects file as new,
+  known with a ledger id,
+  or by design.
+  The source text under a note and the NeuralWatt hold were not exercised by the run.
+  The re-check of the follow-ups to D and X1 (its finding R2) reports that the frozen build `bcff23b8ce` carries the
+  live-expression form for footnote lines in quotes and list items;
+  no definition line of this run was in a quote or a list item,
+  and one reference sat in a quote
+  (the stages file,
+  "The frozen build and footnote lines in quotes and list items").
+- Next:
+  land the floors change,
+  rebuild,
+  and rerun `XingZ60` to see whether the Shinonome section still ships the archive's text;
+  file the read of `XingZ6020`;
+  rule on N8.
