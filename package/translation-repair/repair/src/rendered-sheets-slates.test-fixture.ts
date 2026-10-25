@@ -25,7 +25,7 @@ import {
   repairSelectionSourceEvidence,
   selectDecision,
   type SelectEvidence,
-  SHIPS_BY_PREFERENCE,
+  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   buildRefineSelectionContext,
@@ -265,7 +265,7 @@ export function slateSheets(): readonly RenderedSheet[] {
             ARCHIVE,
             REPAIR,
           ],
-          declineConsequence: SHIPS_BY_PREFERENCE,
+          declineConsequence: SHIPS_WHAT_TWO_JUDGES_NAMED,
           sourceText: SOURCE,
         },),
       },),

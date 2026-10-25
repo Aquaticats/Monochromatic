@@ -46,6 +46,7 @@ import {
   settleAbsentDecline,
   type TranslateStageResult,
 } from '../dist/final/node/index.mjs';
+import { SEAT_OPENROUTER_DECISIONS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { candidateCarrying, } from '@monochromatic-dev/translation-repair-test-fixture/ts/translate-ballot.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
@@ -250,6 +251,8 @@ async function judgedWith(
 
  @param reason - the judge's stated reason
 
+ @param modelId - the judge, the first of the written judges by default
+
  @returns Ballot at a whole weight
 
  @example
@@ -261,13 +264,15 @@ function ballotFor(
   {
     best,
     reason,
+    modelId = JUDGES[0] ?? WRITER,
   }: {
     readonly best: number;
     readonly reason: string;
+    readonly modelId?: RosterModelId;
   },
 ): SelectionBallot {
   return {
-    modelId: JUDGES[0] ?? WRITER,
+    modelId,
     best,
     reason,
     weight: 1,
@@ -546,13 +551,46 @@ await describe({
         },),
 
         it({
+          name: 'RECORDS NO OBJECTION from a ballot whose reason is invisible characters alone, which trim() keeps '
+            + 'and no refiner could read (ledger B40), nor from a decision seat\'s ballot, whose reason is a '
+            + 'distribution and objects to nothing in words (ledger B125), beside a written objection',
+          fn: async () => {
+            const result = settledWith({
+              perCandidate: [
+                drew({ index: 1, ballots: 2, weight: 1, },),
+                drew({ index: 2, ballots: 1, weight: 1, },),
+                drew({ index: 3, ballots: 0, weight: 0, },),
+              ],
+              ballots: [
+                ballotFor({ best: 2, reason: '\u{200B}\u{3164}', },),
+                ballotFor({
+                  best: 2,
+                  reason: 'a distribution over the candidates',
+                  modelId: SEAT_OPENROUTER_DECISIONS,
+                },),
+                ballotFor({ best: 2, reason: 'the ledge reads best', },),
+              ],
+              shipPastDecline: true,
+              challenged: true,
+            },);
+            expect({
+              text: result.text,
+              objections: result.shippedPastDecline?.objections,
+            },).toEqual({
+              text: TEXTS.dozes,
+              objections: ['the ledge reads best',],
+            },);
+          },
+        },),
+
+        it({
           name: 'SHIPS THE PREFERRED OF THE CANDIDATES TWO JUDGES NAMED when several qualify: the translate lane\'s '
             + 'text over the writer\'s, and never the repair lane\'s that only one judge named',
           fn: async () => {
             const result = settledWith({
               perCandidate: [
                 drew({ index: 1, ballots: 2, weight: 1, },),
-                drew({ index: 2, ballots: 1, weight: 1, },),
+                drew({ index: 2, ballots: 1, weight: 0.5, },),
                 drew({ index: 3, ballots: 2, weight: 1, },),
               ],
               ballots: [],

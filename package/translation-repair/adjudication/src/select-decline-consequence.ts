@@ -63,20 +63,23 @@ export const LEAVES_PASSAGE_UNTRANSLATED: string =
 /**
  What a decline costs where the passage HAS wording that cannot ship: a
  standing the deterministic rule refused, or an archive rendering the floor
- refused or the adjudicators disputed. A slate declined in every round ships
- one candidate anyway (owner, 2026-09-27, "Preference + polish"), so a judge
+ refused or the adjudicators disputed. A slate declined in every round ships a
+ candidate only when two or more judges named it (owner, 2026-09-27,
+ "Preference + polish", narrowed on 2026-10-25 by "Two judges must name it"),
+ and otherwise the archive's wording stays and the page reports it, so a judge
  told the passage stays untranslated, or that trusted text is kept, would be
  told something false about what declining does.
 
  @example
  ```ts
- const consequence = SHIPS_BY_PREFERENCE;
+ const consequence = SHIPS_WHAT_TWO_JUDGES_NAMED;
  ```
  */
-export const SHIPS_BY_PREFERENCE: string = [
-  'the wording in place cannot ship, so declining does not keep it: a slate declined in every round still ships',
-  'one candidate, chosen by a fixed order (the repair lane\'s text, then the translate lane\'s, then the first on',
-  'the slate) rather than by your judgment, with your reason recorded against it',
+export const SHIPS_WHAT_TWO_JUDGES_NAMED: string = [
+  'the wording in place cannot ship, so declining does not keep it as the shipped text: a slate declined in every',
+  'round ships a candidate only when two or more judges named it, chosen among those by a fixed order (the repair',
+  'lane\'s text, then the translate lane\'s, then the first on the slate) rather than by your judgment, and when no',
+  'candidate was named by two judges the archive\'s wording stays and the page reports it, with your reason recorded',
 ].join(' ',);
 
 /**
@@ -105,7 +108,7 @@ export function declineConsequenceFor(
 ): string {
   if (incumbentKind === 'present')
     return KEEPS_TRUSTED_TEXT;
-  return withheldStanding ? SHIPS_BY_PREFERENCE : LEAVES_PASSAGE_UNTRANSLATED;
+  return withheldStanding ? SHIPS_WHAT_TWO_JUDGES_NAMED : LEAVES_PASSAGE_UNTRANSLATED;
 }
 
 //endregion Selection decline consequence

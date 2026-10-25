@@ -109,7 +109,9 @@ import type {
  "Preference + polish")
 
  @param shipPastDecline - whether a challenge round declined with nothing
- left to narrow ships its preferred candidate; defaults to the withheld
+ left to narrow ships its preferred candidate among those two or more judges
+ named, and keeps the archive wording where none drew two ballots (owner,
+ 2026-10-25, "Two judges must name it"); defaults to the withheld
  standing, and a caller with a further round of its own (the translate
  lane's follow-up production) defers it to that round
 
@@ -422,7 +424,8 @@ export async function judgeTranslateSlate(
     // sentence asks for caution by promising a fallback that does not exist and
     // buys a missing passage with it.
     // Wording that exists and cannot ship is neither: a declined challenge
-    // round ships by preference there (owner, 2026-09-27).
+    // round ships a candidate two judges named there, and otherwise the
+    // archive wording stays (owner, 2026-09-27 and 2026-10-25).
     declineConsequence: declineConsequenceFor({
       incumbentKind,
       withheldStanding,

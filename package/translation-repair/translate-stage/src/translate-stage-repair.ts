@@ -34,8 +34,10 @@ import type {
 // 2026-09-27, "Preference + polish"). An archive rendering the floor refuses
 // reaches this stage as an absent incumbent, and a second rejection there
 // rethrew into a content slice, which the slice attempt rethrows in turn, so
-// the entry stopped. The follow-up round now ships its preferred candidate
-// past a declined challenge round instead; the first round still defers to
+// the entry stopped. The follow-up round now ships past a declined challenge
+// round instead, the preferred of the candidates two or more judges named
+// and, where none drew two ballots, the wording the archive has (owner
+// 2026-10-25, "Two judges must name it"); the first round still defers to
 // the follow-up, which is the designed re-ask. Where the follow-up round's
 // translators are heard and propose nothing the floor accepts, the wording
 // the archive has stands on that round (ledger B39), where the empty slate
@@ -227,8 +229,9 @@ async function produceAndJudgeOnce(
  @param incumbentEligible - whether existing text may appear on candidate slate
 
  @param incumbentWithheld - whether the absent incumbent is wording that
- exists and cannot ship, so the follow-up round ships by preference past a
- decline rather than rethrowing (owner, 2026-09-27)
+ exists and cannot ship, so the follow-up round ships a candidate two or more
+ judges named, or keeps that wording, past a decline rather than rethrowing
+ (owner, 2026-09-27 and 2026-10-25)
 
  @param disputedWordings - wordings a disputed slice refuses as candidates
  (owner, 2026-09-27, "No eligible standing")

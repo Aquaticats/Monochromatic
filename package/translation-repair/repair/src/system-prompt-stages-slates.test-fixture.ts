@@ -15,7 +15,7 @@ import {
   LEAVES_PASSAGE_UNTRANSLATED,
   repairSelectionSourceEvidence,
   type SelectEvidence,
-  SHIPS_BY_PREFERENCE,
+  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   acceptedRepairClaimsNote,
@@ -342,7 +342,7 @@ export const SLATE_STAGES: readonly PromptStage[] = [
           subject.archive,
           subject.repair,
         ],
-        declineConsequence: SHIPS_BY_PREFERENCE,
+        declineConsequence: SHIPS_WHAT_TWO_JUDGES_NAMED,
         sourceText: subject.source,
       },);
     },

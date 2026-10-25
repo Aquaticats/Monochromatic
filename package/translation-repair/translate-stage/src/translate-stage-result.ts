@@ -150,8 +150,10 @@ export type TranslateStageResult = {
   /**
    How a slate declined in its challenge round shipped anyway over wording
    that cannot ship (owner, 2026-09-27, "Preference + polish"): the
-   preference that chose the candidate, and the reasons of the ballots that
-   did not back it. Absent wherever the judges chose or a tie was broken.
+   preference that chose among the candidates two or more judges named (owner,
+   2026-10-25, "Two judges must name it"), and the reasons of the ballots that
+   did not back it. Absent wherever the judges chose, a tie was broken, or no
+   candidate drew two ballots and the archive wording stayed.
 
    READ ONLY FOR THE CONSOLIDATION SLATE, whose reasons the final polish
    checks against the ORIGINAL (`consolidate-settle-gate.ts`). The translate
