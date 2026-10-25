@@ -390,6 +390,11 @@ await describe({
                   '9007199254740991',
                   '9007199254740991',
                 ],
+                // A count written as text keeps its quotes, which tell "5" from the number 5.
+                [
+                  '"5"',
+                  '"5"',
+                ],
               ] as const
             ) {
               /* oxlint-disable no-await-in-loop -- each read diverts the one global console.warn, so they run in turn */
@@ -403,7 +408,7 @@ await describe({
               expect(lines.length,).toBe(1,);
               expect(lines[0],).toContain('Mittens',);
               expect(lines[0],).toContain(attemptsPath,);
-              expect(lines[0],).toContain(shown,);
+              expect(lines[0],).toContain(`counts Mittens as ${shown},`,);
             }
           },
         },),
