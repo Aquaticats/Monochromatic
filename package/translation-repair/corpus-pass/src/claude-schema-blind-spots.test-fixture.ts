@@ -215,9 +215,10 @@ function spotsOf(
         node,
       },);
       /**
-       The place once for each node and shape.
+       The place once for each node and shape. A start offset tells the line, and it does not tell two nodes apart: the
+       name `Function` and the chain `Function.prototype.constructor` start at one offset.
        */
-      const key = `${shape} ${String(node.start,)}`;
+      const key = `${shape} ${node.type} ${String(node.start,)} ${String(node.end,)}`;
       return (held === undefined)
         ? [
           key,
