@@ -296,6 +296,22 @@ and each task sets it to its own name.
   or an HTTP error status that carried no body,
   is counted nothing,
   and the arm ends with a `GUARD total=` line.
+  A reply that comes with no request behind it is counted nothing either:
+  the prompt reuse layer of the run client (`promptUniqueClient`) answers a prompt it has seen from the reply it kept,
+  logs a `PROMPT-REUSE` line with the model and the digest of the prompt,
+  and sends nothing,
+  so the guard,
+  which is told of each attempt the client sends,
+  sees a reply with no attempt told.
+  It writes no `SPEND` line for it,
+  aborts the arm with `RepliedWithoutCallError`
+  and the run throws it at once,
+  scoring no row for it,
+  because a repeat that is a replay compares an answer with itself.
+  Each row names its pass to the reuse layer (`reuseScope` on the request,
+  `pass 1`, `pass 2`, ...),
+  so a prompt asked again in a later pass is asked of the model afresh,
+  and the rows that made a call stay in their files.
   Only the Claude key is read.
   Spends quota.
 - `editor-fidelity-pool-draw`:
@@ -499,7 +515,14 @@ measured in round 10 by one simulation run of the committed fixture
   On three alike arms it fired on 0.0000 to 0.0270 of the benches at 100 shared units (12 trials asked again),
   0.0000 to 0.0553 at 176 and 0.0000 to 0.0475 at 264 (88 trials asked again),
   over 18 cells at each size,
-  and one of the 54 readings is over 0.05.
+  and one of the 54 readings is over 0.05:
+  0.0553 at 176 units for a fix rate of 0.9 with chance 0 and correlation 1,
+  where re-check 7 (seed prefix `edrc7`) read 0.0535 over 30000 replicates at 176 units and 0.0488 at 264,
+  0.0537 with the 4000 of this run pooled (about three standard deviations over 0.05),
+  so the false alarm rate of the warning is about 0.054 in that one cell,
+  where the trials of an entry read as alike as the model allows and are not independent draws.
+  The three cells re-check 7 took beside it read 0.0296 (fix rate 0.9, correlation 0),
+  0.0430 (fix rate 0.7, correlation 1) and 0.0379 (chance 0.5, correlation 1) at 176 units.
   When the default effort repeats itself 15 points less than arms that always repeat,
   it fired on 0.019 to 0.041 at 100 units,
   0.984 to 0.996 at 176 and 0.992 to 0.996 at 264;
@@ -508,9 +531,15 @@ measured in round 10 by one simulation run of the committed fixture
   so that the rule's stated region (true fix rates up to 0.90) and the warning meet.
   With both warnings,
   the benches that print neither at true fix rates 0.91,
-  0.92 and 0.93 were 0 of 4000 at 264 units
+  0.92 and 0.93 were,
+  at correlation 1,
+  0 of 4000 at 264 units
   and 1,
-  1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice).
+  1 and 2 of 6000 at 150 units (a capped bench holding 62 trials asked twice),
+  and at correlation 0.5 0 of 4000 at 264 units and 3,
+  0 and 0 of 6000 at 150 units.
+  The 11 benches that printed neither warning in the whole run are 11 of 80000 over its 16 cells,
+  and four of them were at the true rate 0.90.
 
 The simulations behind these figures,
 the false pick bounds and the readings above a true fix rate of 0.9,
@@ -569,7 +598,7 @@ write `high`,
 The number of units n is not known before the high arm has run,
 so the dry runs of the later arms take a stand-in for it,
 any number from 60 to 264:
-the ledger entry and `dryrun-r7.txt` used 200.
+the ledger entry of round 7 used 200.
 The stand-in changes only the `planned:` and `ceiling` lines of the dry run,
 and every dry run takes the same `--passes`.
 
@@ -631,9 +660,10 @@ if [ "$ARM" = high ]; then
   TRIALS=(--passes 3)
 else
   N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+  REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
   SPENT=$(rg --only-matching --no-filename --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH"/*.log \
     | awk '{ micro += int($1 * 1000000 + 0.5) } END { printf "%.2f\n", int((micro + 9999) / 10000) / 100 }')
-  TRIALS=(--passes 3 --trials "$N")
+  TRIALS=(--passes 3 --trials "$((N - REUSED))")
 fi
 mkdir --parents "$BENCH/$ARM"
 systemd-run --user --wait --collect "--unit=tr-edfid-$ARM" --property=MemoryMax=2G --property=CPUQuota=100% \
@@ -650,40 +680,51 @@ echo $? > "$BENCH/$ARM.exit"
 ```
 
 Read n,
-the number of units the high arm completed,
-from the `TRIALS completed n of p units` line of `$BENCH/high.log`.
+the number of units the high arm completed with a call,
+from the `TRIALS completed n of p units` line of `$BENCH/high.log`
+less the rows a reply of the reuse layer answered,
+which a `PROMPT-REUSE` line stands for each.
+A unit that made no call is no trial:
+the build of this round ends an arm at the first reply no request produced,
+so its `TRIALS` line counts units that made a call and the number taken off is 0,
+and a log of an earlier build can count more units than it asked the model about
+(the billed high arm of `dd4b15b75c` says 150 where 88 made a call).
 The command prints the number alone,
-and prints an empty line and exits 0 for a log with no such line,
+and prints an empty line and exits 0 for a log with no `TRIALS` line,
 as the output of a dry run is,
 which has a `planned:` line and no `TRIALS` line:
 
 ```bash
-# README.md (editor fidelity bench): n, the units the high arm completed
+# README.md (editor fidelity bench): n, the units the high arm completed with a call
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
-echo "$N"
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
+echo "$((N - REUSED))"
 ```
 
 #### Stop rule
 
 When n less the rows of the high arm in which an ask threw is under 60,
 do not launch medium or low.
+Only rows that made a call count:
+a row answered by the reuse layer (a `PROMPT-REUSE` line stands for it) is no trial and is taken off n.
 A row in which an ask threw is left out of every arm,
 so it cannot be shared,
 and n counts it.
-The command counts the high arm's rows whose stop words include `threw` and prints what is left:
+The command counts the high arm's reuse lines and its rows whose stop words include `threw` and prints what is left:
 
 ```bash
-# README.md (editor fidelity bench): n less the rows of the high arm in which an ask threw, the units it can still share
+# README.md (editor fidelity bench): n less the rows without a call and the rows in which an ask threw
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
-echo "$((N - THREW))"
+echo "$((N - REUSED - THREW))"
 ```
 
-`rg` exits 1 and prints nothing when no row threw,
+`rg` exits 1 and prints nothing when no row threw or no reply was a reuse,
 `wc` then counts 0,
 and the pipeline prints the count with status 0 (do not set `pipefail` here).
 Under 60,
@@ -711,8 +752,9 @@ about 21 fewer at 0.0167 USD a unit,
 and one fewer at the margin of 60 units
 (0.25 USD a unit at 15 USD gives 59,
 where 15 / 0.25 says 60).
+The spend a unit is over the units that made a call.
 The block counts that reserve and also checks n,
-less the rows in which an ask threw,
+less the rows without a call and the rows in which an ask threw,
 against the floor of 60,
 which the cap alone does not:
 
@@ -721,9 +763,10 @@ which the cap alone does not:
 SHA=$(git rev-parse --short=10 HEAD)
 BENCH="$HOME/temp/agent/editor-fidelity-bench-$SHA"
 N=$(rg --only-matching --replace '$1' 'TRIALS completed ([0-9]+)' "$BENCH/high.log")
+REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --lines)
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
 HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
-echo "$HIGH $N $THREW" | awk '{ per = $1 / $2; left = $2 - $3; reserve = 0.377;
+echo "$HIGH $N $THREW $REUSED" | awk '{ calls = $2 - $4; per = $1 / calls; left = calls - $3; reserve = 0.377;
   m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
   printf "units left after thrown rows %d; spend a unit %.4f USD; ", left, per;
   printf "medium completes %d units, low completes %d units; %s\n", m, l,
@@ -759,7 +802,9 @@ The headers of `mise` and the refusal go to the error stream,
 which the filter does not read.
 
 When the line says `(100 percent)`,
-the high arm gave every trial it was asked again the same reading in each pass,
+the high arm gave every trial it was asked again the same reading in each pass
+(each of those asks was made of the model:
+a pass is asked afresh, and the build ends an arm on a reply that no request produced),
 and the later arms may take one pass,
 which costs a third:
 `--passes 3 --trials 88` in place of `--passes 3 --trials "$N"` on the `TRIALS=` line of the launch block,
@@ -855,7 +900,10 @@ the ceiling line,
 the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count against the units it completed
-(with a `CAPPED` line saying why an arm completed fewer than it planned),
+(with a `CAPPED` line saying why an arm completed fewer than it planned,
+and a failure for any row a `PROMPT-REUSE` line stands in front of,
+which made no call and is no trial:
+the figures and the units the arms share count only rows that made a call),
 no `[error]` line,
 the `SEAT` line (`threw` stated,
 nothing unreachable,
