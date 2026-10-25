@@ -68,6 +68,18 @@ const CASES: readonly (readonly [string, string])[] = [
     'a `x\n<div>\ny` z {d}\n</div>\n',
   ],
   [
+    'A DIV AFTER A BRACKET NOTHING CLOSES AND A BARE ADDRESS WITH A BRACE, THEN AN ADDRESS WITH A BRACE IN THE BLOCK',
+    '[ https://example.net/a{b\n<div>\n[https://example.net/a{ b](u)\n</div>\n',
+  ],
+  [
+    'A DIV AFTER A BRACKET NOTHING CLOSES, THE LINES ENDED BY A LONE CARRIAGE RETURN',
+    '[ https://example.net/a{b\r<div>\n[https://example.net/a{ b](u)\n</div>\n',
+  ],
+  [
+    'A DIV AFTER A BRACKET NOTHING CLOSES, BEHIND AN ESCAPED ASTERISK',
+    '\\*\n[ https://example.net/a{b\n<div>\n[https://example.net/a{ b](u)\n</div>\n',
+  ],
+  [
     'A DIV AFTER A PARAGRAPH WITH NO BACKTICK',
     'a x\n<div>\ny z {d}\n',
   ],
