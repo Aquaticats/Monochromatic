@@ -56,16 +56,27 @@ await describe({
         if (sheet === undefined)
           throw new Error(`the fixtures render no sheet named ${WITHHELD_WORDING_SHEET}`,);
 
+        const { text, } = sheet;
+
+        /**
+         Where the sentence opens in the sheet, -1 when the sheet has no such line.
+         */
+        const opens = text.indexOf(SENTENCE_OPENS_AT,);
+
+        /**
+         Where the line that asks for the reply stands, -1 when the sheet has no such line.
+         */
+        const closes = text.indexOf(SENTENCE_CLOSES_AT,);
+        expect(opens,).toBeGreaterThanOrEqual(0,);
+        expect(closes,).toBeGreaterThan(opens,);
+
         /**
          Text a judge reads between the two lines that bound the sentence.
          */
-        const sentence = sheet.text
-          .slice(
-            sheet.text
-              .indexOf(SENTENCE_OPENS_AT,),
-            sheet.text
-              .indexOf(SENTENCE_CLOSES_AT,),
-          );
+        const sentence = text.slice(
+          opens,
+          closes,
+        );
         expect(sentence.length,).toBeGreaterThan(SENTENCE_OPENS_AT.length,);
         expect(unmetDeclineClauses(sentence,),).toEqual([],);
       },

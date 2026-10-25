@@ -481,7 +481,8 @@ await describe({
 
     it({
       name: 'NAMES a round short of quorum unheard, not its issue worsened, where the one ballot cast says '
-        + 'worse: the findings name no issue, and the worse ballot stays in the reading',
+        + 'worse: the findings name no issue, and the worse ballot stays in the reading, which does not flag the '
+        + 'issue regressed since one worse ballot is one voice (re-check 3, M1)',
       fn: async () => {
         /**
          Round in which the second seat alone answers, and answers worse.
@@ -514,7 +515,7 @@ await describe({
                 notFixed: 0,
                 worse: 1,
                 resolved: false,
-                regressed: true,
+                regressed: false,
               },
             },
           },
