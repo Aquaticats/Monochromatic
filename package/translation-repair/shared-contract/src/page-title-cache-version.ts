@@ -86,11 +86,18 @@
  titles, the identity and the roster, not the rule, so such a record would be served under the new one. The number moves so that
  no stored record stands under a number whose rule differs. No record has been written at 7, which this change sets first.
 
+ Eight covers the lead's ruling of 2026-10-25 on finding F1 of re-check 2 (settled by the owner's rule that one judge alone
+ never decides): a title settles only on a rendering two or more voices gave (`artifact/src/page-title-lexicon-stage.ts`), where
+ a title one voice alone rendered, or that tied at one voice apiece and went to the earliest seat, used to settle on a round of
+ three or more voices. A record stored at seven may hold such a title, and the key hashes the version, the titles, the identity
+ and the roster, not the rule, so it would be served under the new one. Whether a record stands at 7 is not known (the number
+ was set a few commits before and no slice-cache directory was searched), so the number moves.
+
  @example
  ```ts
  const material = JSON.stringify({ version: PAGE_TITLE_CACHE_VERSION, source, titles, identity, roster, },);
  ```
  */
-export const PAGE_TITLE_CACHE_VERSION = 7;
+export const PAGE_TITLE_CACHE_VERSION = 8;
 
 //endregion Page title cache version
