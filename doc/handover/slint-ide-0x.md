@@ -4396,6 +4396,11 @@ first frame of the new code, frame interval 41 ms), 12 of 12 Ctrl+End or Ctrl+Ho
 frame each, 6 of 12 resizes 1 blank frame (5 in the main recording), 0 of 12 scale changes;
 54 of 2,771 frames blank in total, every one inside a transition of at most 9 frames, none 1 s after a switch.
 So a switch is not blank-free (the new file's picture is built after the switch), but the 0.1 to 0.47 s blank is gone.
+Owner answer after that report (2026-10-24): "Unexplained? Test gap? Just do it. 2 frames of blank for minimap is acceptable."
+So the 1 to 2 blank minimap frames at a file switch are accepted and need no work, and an agent now finds why a slice
+list set inside the frame that draws a tile is not shown by that frame (Slint and femtovg source, a minimal repro)
+and builds a regression test that can fail for the in-frame hand-over of the code tile and the minimap, with guards;
+its report is verified, landed and the IDE reinstalled.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
