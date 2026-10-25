@@ -4514,6 +4514,29 @@ check was not reproduced on the builder's project. Installed: sha256 `e96cdd8859
 0.1.1. The installed binary is being checked by the earlier verifier agent (far jumps against `wheel2/bin/main`,
 held-frame look, selection, caret and find marks while held, pointer mapping while held, drags, keys, the earlier
 regression checks); its numbers follow in this block, and `~/temp/agent/final`, `final2` and `wheel2` are removed after.
+Verification of the installed `e96cdd88596d32e9…` (2026-10-25; hardware RX 7600 confirmed in every log; recorder median
+22.2 fps against 60 requested; load average at jump start median 6.25, 1.9 to 23.9; 238 of 240 jumps analysed, two
+analyses died, so 29 jumps at 300 and 600 notches): blank code frames 0 of 30, 0 of 30, 0 of 29 and 0 of 29 jumps at
+40, 150, 300 and 600 notches, with 0 partial frames and 0 edge gaps, against the baseline `d9f48256…` 0, 28, 30 and 30
+of 30 jumps with blank frames (0, 28, 60 and 89 blank frames in total; partial frames 0, 31, 28, 13); first changed frame
+to final lines 179 to 182 ms against 177 to 178 ms; tiles applied per jump 1.00 against 1.03, 3.17, 3.57, 4.10; held
+frames per jump 0, 1.0, 2.0 and 2.7 (largest held distance median 0, 2,687, 7,377 and 16,634 px).
+What a viewer sees at 300 and 600 notches: old place, one first ease step, a jump across the whole distance to the near
+edge of the destination tile held for 2 frames with real text and matching line numbers (never black), then the ease
+arriving, then the same text again when the hint rows arrive at about 0.55 s.
+Layers in held frames (3 repetitions each): selection down (365 notches) and up (417), find marks (60 matches stepped,
+then a wheel down) and the caret had the same shift as gutter and text with error 0.0 (-36, -184, -60 and -36 px);
+not run: find and caret upward, a held selection at 600 notches, hover popups.
+Other inputs 0 blank code frames: minimap box drag down and up (0 held frames), a minimap click, Page Up and Down,
+Ctrl+End and Ctrl+Home, 20 and held arrow keys, wheel over the tree (source untouched, maximum pixel difference 0.0),
+1 to 5 notches (0 held frames); the source view has no scroll bar to drag.
+Regression: five-press means 0.510708, 0.509617, 0.510708, 0.510073, 0.509618 (disposable project with TS2591 and TS2339
+diagnostics, identical to the previous installed binary on the same project), 88-click recording 888 frames at 24.3
+fps with 0 blank code and 0 blank minimap frames, gap 82 px in all 124 frames showing line 96, requests 1 plus 1 skip
+(logged at 214, skip at 223) then 0 plus 1 skip twice; file switches 16 with 1 to 2 blank minimap frames each.
+Two pointer results under review (an agent repeats them with 8 trials per delay): a press 0.130 s after a 300-notch
+wheel selected on the settled view's line, not the held line (the hold had ended: acceptable); a press 0.053 s after
+the wheel selected one row in one frame and nothing in later frames, not repeated and possibly just a click's caret.
 Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
 (34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
