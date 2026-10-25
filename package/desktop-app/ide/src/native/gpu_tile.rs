@@ -469,6 +469,17 @@ pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
             // ```
             let replaced = outcome.tile.is_some();
             outcome.apply(&active);
+            if matches!(state, RenderingState::BeforeRendering) {
+                // The offset the toolkit's scroll has reached against the offset the text is drawn at: the two differ
+                // while the displayed tile does not hold the view.
+                tracing::debug!(
+                    target: "monochromatic_ide::native::frame",
+                    real = -active.get_scroll_y(),
+                    drawn = active.get_drawn_offset(),
+                    held = active.get_held(),
+                    "the frame's view"
+                );
+            }
             if replaced {
                 tracing::debug!(
                     "replaced the slices of the source tile inside a frame, so asking for the next"

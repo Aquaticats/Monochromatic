@@ -161,6 +161,8 @@ export component AppWindow inherits Window {
     // native code maps the vertical one to a source line.
     callback definition-at-pointer(float, float);
     callback pointer-moved(float, float);
+    // The source view's own scroll took a wheel turn or a pan; native code reads the wheel's distance it noted.
+    callback source-flicked;
     callback pointer-exited;
     callback language-dismiss;
     callback references-choose(int);
@@ -222,6 +224,27 @@ export component AppWindow inherits Window {
     in property <int> selection-anchor;
     in property <int> selection-head;
     in-out property <length> scroll-y: 0px;
+    // The reach of the displayed tile, in logical pixels from the top of the text: the offsets at which the view's top
+    // edge lies on the tile's first row and its bottom edge on the tile's last. A side of the tile that is the text's
+    // own first or last row has no limit, so it is a huge number there. Native code sets both with the tile.
+    in property <float> hold-top: -10000000;
+    in property <float> hold-bottom: 10000000;
+    // The offset the toolkit's scroll has reached, and the offset the text is drawn at: the same while the displayed tile
+    // holds the view, and the nearest offset the tile does hold while it does not (a wheel ease that has outrun the tile
+    // worker), so the code area shows real rows of the tile and never a blank. Everything that rides with the tile
+    // is moved by the difference.
+    private property <float> real-offset: -scroll.content-y / 1px;
+    private property <float> reach-least: root.hold-top;
+    private property <float> reach-most: root.hold-bottom - scroll.height / 1px;
+    out property <float> drawn-offset: root.reach-most < root.reach-least ? root.real-offset
+        : max(root.reach-least, min(root.reach-most, root.real-offset));
+    private property <length> hold-shift: (root.real-offset - root.drawn-offset) * 1px;
+    // The pointer's vertical place in the text as it is drawn: the pointer's own place is in the toolkit's scroll,
+    // and the text stands `hold-shift` further down while the view is held.
+    pure function drawn-y(pointer-y: length) -> float {
+        return (pointer-y - root.hold-shift) / 1px;
+    }
+    out property <bool> held: root.real-offset != root.drawn-offset;
     out property <float> viewport-height: scroll.height / 1px;
     // The text area is what the view leaves beside the gutter and the minimap; every report of the view's size and the
     // wrap width native code derives from it use this one width.
@@ -458,119 +481,129 @@ export component AppWindow inherits Window {
                     accessible-value: self.content-y / 1px;
 
                     // Retain native Flickable physics, including easing for notched wheels.
+                    flicked => { root.source-flicked(); }
                     changed content-y => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
                     changed height => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
                     changed width => { root.viewport-changed(-self.content-y / 1px, root.text-area-width / 1px, self.height / 1px); }
 
-                    for selection in root.source-selections: Rectangle {
-                        x: root.gutter-width + selection.x * 1px;
-                        y: selection.y * 1px;
-                        width: selection.width * 1px;
-                        height: selection.height * 1px;
-                        background: Palette.selection-background;
-                        // The active match is the selection plus a heavier boundary than other matches.
-                        // The boundary sits just outside the character cells so it never covers glyph stems.
-                        Rectangle {
-                            visible: root.selection-is-match;
-                            x: -2px;
-                            width: parent.width + 4px;
-                            height: parent.height;
-                            border-width: 2px;
-                            border-color: Palette.foreground;
+                    // Everything that rides with the tile (the selection and find rectangles, the picture, the gutter,
+                    // the caret) stands in one group, moved down by what the view is held back by, so a view held at
+                    // the tile's edge shows real rows of the tile whatever the toolkit's scroll has reached.
+                    Rectangle {
+                        y: root.hold-shift;
+                        width: scroll.content-width;
+                        height: scroll.content-height;
+
+                        for selection in root.source-selections: Rectangle {
+                            x: root.gutter-width + selection.x * 1px;
+                            y: selection.y * 1px;
+                            width: selection.width * 1px;
+                            height: selection.height * 1px;
+                            background: Palette.selection-background;
+                            // The active match is the selection plus a heavier boundary than other matches.
+                            // The boundary sits just outside the character cells so it never covers glyph stems.
+                            Rectangle {
+                                visible: root.selection-is-match;
+                                x: -2px;
+                                width: parent.width + 4px;
+                                height: parent.height;
+                                border-width: 2px;
+                                border-color: Palette.foreground;
+                            }
                         }
-                    }
 
-                    // Other matches: a translucent fill and a thin boundary, drawn over any selection beneath.
-                    for found in root.source-matches: Rectangle {
-                        x: root.gutter-width + found.x * 1px - 1px;
-                        y: found.y * 1px + 1px;
-                        width: found.width * 1px + 2px;
-                        height: found.height * 1px - 2px;
-                        background: Palette.foreground.with-alpha(0.14);
-                        border-width: 1px;
-                        border-color: Palette.foreground.with-alpha(0.7);
-                    }
-
-                    // Each texture sits at whole physical rows below the tile's top, at exactly its size, so the textures
-                    // meet without a gap or an overlap and nothing is resampled.
-                    for slice in root.source-slices: Image {
-                        x: root.gutter-width;
-                        y: root.image-y * 1px + slice.top * 1phx;
-                        width: root.image-width * 1px;
-                        height: slice.height * 1phx;
-                        source: slice.image;
-                        image-fit: fill;
-                    }
-
-                    // Width probes for the gutter: one bold letter, and the widest line number of at least three digits.
-                    letter-probe := Text {
-                        visible: false;
-                        text: "W";
-                        font-family: "JetBrains Mono";
-                        font-size: root.font-size;
-                        font-weight: 700;
-                    }
-                    number-probe := Text {
-                        visible: false;
-                        text: max(root.line-count, 100);
-                        font-family: "JetBrains Mono";
-                        font-size: root.font-size;
-                    }
-
-                    // One entry per visual row of the materialized lines. The first row of a line carries its number,
-                    // right-aligned 12 px before the text, and, where diagnostics start on the line, the worst
-                    // severity's letter 4 px before the number in that severity's ink. A row that continues a wrapped
-                    // line carries the wrap indicator in the number's place and no letter. A mark of 0 is no
-                    // diagnostic; a missing entry reads as 0.
-                    for top[index] in root.row-tops: Rectangle {
-                        x: 0px;
-                        y: top * 1px;
-                        width: root.gutter-width - root.number-gap;
-                        height: root.code-row;
-                        number := Text {
-                            x: parent.width - self.width;
-                            width: self.preferred-width;
-                            height: parent.height;
-                            text: root.row-numbers[index] > 0 ? "\{root.row-numbers[index]}" : "";
-                            vertical-alignment: center;
-                            color: Palette.foreground;
-                            opacity: 0.6;
-                            font-family: "JetBrains Mono";
-                            font-size: root.font-size;
+                        // Other matches: a translucent fill and a thin boundary, drawn over any selection beneath.
+                        for found in root.source-matches: Rectangle {
+                            x: root.gutter-width + found.x * 1px - 1px;
+                            y: found.y * 1px + 1px;
+                            width: found.width * 1px + 2px;
+                            height: found.height * 1px - 2px;
+                            background: Palette.foreground.with-alpha(0.14);
+                            border-width: 1px;
+                            border-color: Palette.foreground.with-alpha(0.7);
                         }
-                        Image {
-                            visible: root.row-numbers[index] == 0;
-                            x: parent.width - self.width;
-                            width: root.wrap-sign-width * 1px;
-                            height: parent.height;
-                            source: root.wrap-sign;
-                            // The mark is decoration; the text of the row is what assistive tools read.
-                            accessible-role: none;
+
+                        // Each texture sits at whole physical rows below the tile's top, at exactly its size, so the textures
+                        // meet without a gap or an overlap and nothing is resampled.
+                        for slice in root.source-slices: Image {
+                            x: root.gutter-width;
+                            y: root.image-y * 1px + slice.top * 1phx;
+                            width: root.image-width * 1px;
+                            height: slice.height * 1phx;
+                            source: slice.image;
+                            image-fit: fill;
                         }
-                        Text {
-                            visible: root.row-marks[index] > 0;
-                            x: number.x - root.mark-gap - self.width;
-                            width: root.mark-advance;
-                            height: parent.height;
-                            text: AnnotationInk.letter(root.row-marks[index] - 1);
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                            color: AnnotationInk.severity(root.row-marks[index] - 1);
+
+                        // Width probes for the gutter: one bold letter, and the widest line number of at least three digits.
+                        letter-probe := Text {
+                            visible: false;
+                            text: "W";
                             font-family: "JetBrains Mono";
                             font-size: root.font-size;
                             font-weight: 700;
-                            // The accessible description already starts with the problems at the caret.
-                            accessible-role: none;
                         }
-                    }
+                        number-probe := Text {
+                            visible: false;
+                            text: max(root.line-count, 100);
+                            font-family: "JetBrains Mono";
+                            font-size: root.font-size;
+                        }
 
-                    Rectangle {
-                        visible: code-focus.has-focus && root.selection-anchor == root.selection-head;
-                        x: root.gutter-width + root.caret-x * 1px;
-                        y: root.caret-y * 1px;
-                        width: 2px;
-                        height: root.code-row - 4px;
-                        background: Palette.foreground;
+                        // One entry per visual row of the materialized lines. The first row of a line carries its number,
+                        // right-aligned 12 px before the text, and, where diagnostics start on the line, the worst
+                        // severity's letter 4 px before the number in that severity's ink. A row that continues a wrapped
+                        // line carries the wrap indicator in the number's place and no letter. A mark of 0 is no
+                        // diagnostic; a missing entry reads as 0.
+                        for top[index] in root.row-tops: Rectangle {
+                            x: 0px;
+                            y: top * 1px;
+                            width: root.gutter-width - root.number-gap;
+                            height: root.code-row;
+                            number := Text {
+                                x: parent.width - self.width;
+                                width: self.preferred-width;
+                                height: parent.height;
+                                text: root.row-numbers[index] > 0 ? "\{root.row-numbers[index]}" : "";
+                                vertical-alignment: center;
+                                color: Palette.foreground;
+                                opacity: 0.6;
+                                font-family: "JetBrains Mono";
+                                font-size: root.font-size;
+                            }
+                            Image {
+                                visible: root.row-numbers[index] == 0;
+                                x: parent.width - self.width;
+                                width: root.wrap-sign-width * 1px;
+                                height: parent.height;
+                                source: root.wrap-sign;
+                                // The mark is decoration; the text of the row is what assistive tools read.
+                                accessible-role: none;
+                            }
+                            Text {
+                                visible: root.row-marks[index] > 0;
+                                x: number.x - root.mark-gap - self.width;
+                                width: root.mark-advance;
+                                height: parent.height;
+                                text: AnnotationInk.letter(root.row-marks[index] - 1);
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                color: AnnotationInk.severity(root.row-marks[index] - 1);
+                                font-family: "JetBrains Mono";
+                                font-size: root.font-size;
+                                font-weight: 700;
+                                // The accessible description already starts with the problems at the caret.
+                                accessible-role: none;
+                            }
+                        }
+
+                        Rectangle {
+                            visible: code-focus.has-focus && root.selection-anchor == root.selection-head;
+                            x: root.gutter-width + root.caret-x * 1px;
+                            y: root.caret-y * 1px;
+                            width: 2px;
+                            height: root.code-row - 4px;
+                            background: Palette.foreground;
+                        }
                     }
 
                     pointer := TouchArea {
@@ -580,17 +613,17 @@ export component AppWindow inherits Window {
                         pointer-event(event) => {
                             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
                                 code-focus.focus();
-                                root.pointer-press(self.mouse-y / 1px,
+                                root.pointer-press(root.drawn-y(self.mouse-y),
                                     max(0, (self.mouse-x - root.gutter-width) / 1px),
                                     event.modifiers.shift);
                                 // Ctrl+click asks for the definition of the character under the pointer.
                                 if event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt {
-                                    root.definition-at-pointer(self.mouse-y / 1px,
+                                    root.definition-at-pointer(root.drawn-y(self.mouse-y),
                                         (self.mouse-x - root.gutter-width) / 1px);
                                 }
                             } else if event.kind == PointerEventKind.move && !self.pressed {
                                 // A resting pointer asks for hover information; x is negative over the line numbers.
-                                root.pointer-moved(self.mouse-y / 1px,
+                                root.pointer-moved(root.drawn-y(self.mouse-y),
                                     (self.mouse-x - root.gutter-width) / 1px);
                             }
                         }
@@ -600,7 +633,7 @@ export component AppWindow inherits Window {
                         moved => {
                             // Only a drag with the left button extends; other buttons never started a selection.
                             if !self.pressed { return; }
-                            root.pointer-hit(self.mouse-y / 1px,
+                            root.pointer-hit(root.drawn-y(self.mouse-y),
                                 max(0, (self.mouse-x - root.gutter-width) / 1px), true);
                         }
                     }

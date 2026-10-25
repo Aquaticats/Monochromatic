@@ -13,7 +13,7 @@ use super::tile_pass::TAKE_LIMIT;
 /// Parent state,
 /// the window,
 /// and the viewport's hold rule.
-use super::{AppWindow, State, viewport::holds};
+use super::{AppWindow, State, viewport::holds, wheel};
 /// The part of a tall tile's lines its raster holds.
 use ide_app::shaped_text::Clip;
 /// Timer and toolkit-string bridges for the poll and the error message.
@@ -175,7 +175,8 @@ fn accepts(current: &State, paint: &Paint, built: &TileBuilt, height: f32) -> bo
         && built.active == paint.active
         && built.bounds.width == current.width
         && measured_rows_match(current, built)
-        && holds(current, built.bounds, current.offset, height)
+        && (holds(current, built.bounds, current.offset, height)
+            || wheel::holds_end(current, built.bounds, height))
         && stamp_for(current, built.bounds, paint) == built.stamp;
 }
 

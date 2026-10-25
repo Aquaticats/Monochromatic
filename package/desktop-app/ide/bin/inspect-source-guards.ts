@@ -2201,6 +2201,135 @@ const cases: Guard[] = [
     test: 'the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures',
     failure: 'the frame that followed the hand-over drew'
   },
+  // A wheel turn faster than the tile worker (src/native/wheel_tests.rs). The toolkit eases any wheel distance in 180 ms;
+  // the view is drawn at the nearest offset the displayed tile holds until the tile for the real offset lands, and one
+  // tile is asked for at the end of the ease and none for the steps on the way.
+  {
+    name: 'hold-clamp',
+    file: 'ui/app.slint',
+    before: '        : max(root.reach-least, min(root.reach-most, root.real-offset));',
+    after: '        : root.real-offset;',
+    native: true,
+    test: 'the_view_is_drawn_at_the_tile_edge_until_the_tile_for_the_real_offset_lands',
+    failure: 'the view is drawn at the last offset the displayed tile holds'
+  },
+  {
+    name: 'hold-clamp-frames',
+    file: 'ui/app.slint',
+    before: '        : max(root.reach-least, min(root.reach-most, root.real-offset));',
+    after: '        : root.real-offset;',
+    native: true,
+    test: 'no_frame_of_a_far_ease_is_blank',
+    failure: 'the ease outran the tile, so frames were held'
+  },
+  {
+    name: 'hold-group',
+    file: 'ui/app.slint',
+    before: '                        y: root.hold-shift;',
+    after: '                        y: 0px;',
+    native: true,
+    test: 'the_view_is_drawn_at_the_tile_edge_until_the_tile_for_the_real_offset_lands',
+    failure: 'the held view shows rows of the displayed tile, not a blank code area'
+  },
+  {
+    name: 'hold-group-frames',
+    file: 'ui/app.slint',
+    before: '                        y: root.hold-shift;',
+    after: '                        y: 0px;',
+    native: true,
+    test: 'no_frame_of_a_far_ease_is_blank',
+    failure: 'frames of the ease showed no text'
+  },
+  {
+    name: 'hold-pointer-press',
+    file: 'ui/app.slint',
+    before: '        return (pointer-y - root.hold-shift) / 1px;',
+    after: '        return pointer-y / 1px;',
+    native: true,
+    test: 'a_press_on_a_held_view_lands_on_the_row_drawn_under_it',
+    failure: 'a press on a held view lands on the row drawn under the pointer'
+  },
+  {
+    name: 'hold-pointer-drag',
+    file: 'ui/app.slint',
+    before: '        return (pointer-y - root.hold-shift) / 1px;',
+    after: '        return pointer-y / 1px;',
+    native: true,
+    test: 'a_drag_on_a_held_view_reaches_the_row_drawn_under_the_pointer',
+    failure: 'a drag on a held view spans the rows drawn under its two ends'
+  },
+  {
+    name: 'hold-reach-set',
+    file: 'src/native/render/present.rs',
+    before: '    window.set_hold_bottom(hold_bottom);',
+    after: '    let _ = hold_bottom;',
+    native: true,
+    test: 'the_view_is_drawn_at_the_tile_edge_until_the_tile_for_the_real_offset_lands',
+    failure: 'the reach of the tile ends within three view heights of the view'
+  },
+  {
+    name: 'wheel-flicked-bound',
+    file: 'src/native/viewport.rs',
+    before: '            wheel::flicked(&window, &flick_state);',
+    after: '            let _ = (&window, &flick_state);',
+    native: true,
+    test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
+    failure: 'the window follows the ease to its end'
+  },
+  {
+    name: 'wheel-request-end',
+    file: 'src/native/wheel.rs',
+    before: '        request_window(&mut current, dest, wrap, height);',
+    after: '        let _ = (&wrap, dest);',
+    native: true,
+    test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
+    failure: 'the tile of the end'
+  },
+  {
+    name: 'wheel-steps-ask-nothing',
+    file: 'src/native/viewport.rs',
+    before: '    if wheel::following(current, offset) {',
+    after: '    if false && wheel::following(current, offset) {',
+    native: true,
+    test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
+    failure: 'the tile of the end landed while the ease still ran'
+  },
+  {
+    name: 'wheel-end-tile-accepted',
+    file: 'src/native/tile.rs',
+    before: '            || wheel::holds_end(current, built.bounds, height))',
+    after: '            || false)',
+    native: true,
+    test: 'a_far_wheel_turn_asks_for_one_tile_at_its_end',
+    failure: 'the tile of the end landed while the ease still ran'
+  },
+  {
+    name: 'wheel-placement-releases',
+    file: 'src/native/viewport.rs',
+    before: '    wheel::release(current);',
+    after: '    let _ = &current;',
+    native: true,
+    test: 'a_placement_ends_the_followed_ease',
+    failure: 'a placement releases the ease the window followed'
+  },
+  {
+    name: 'wheel-rows-refit',
+    file: 'src/native/rows.rs',
+    before: '        wheel::refit(current, width, height);',
+    after: '        let _ = (width, height);',
+    native: true,
+    test: 'rows_that_arrive_during_a_followed_ease_move_the_tile_asked_for_with_them',
+    failure: 'the tile asked for starts where the new map puts the line one view height above the end'
+  },
+  {
+    name: 'wheel-near-turn-unfollowed',
+    file: 'src/native/wheel.rs',
+    before: '    let aimed = if covered { followed } else { steady };',
+    after: '    let aimed = steady;',
+    native: true,
+    test: 'a_near_wheel_turn_asks_for_no_tile_and_a_turn_past_the_tile_for_one',
+    failure: 'a turn the tile holds is not followed'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env
