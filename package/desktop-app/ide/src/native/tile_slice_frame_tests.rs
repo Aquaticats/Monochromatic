@@ -13,7 +13,19 @@
 //!  these tests check the contract the real window needs:
 //!  when a tile is handed over and before any frame is drawn,
 //!  the window holds slices of the new textures.
+//! The first tile of a window is the one tile that cannot do this:
+//!  the window's device arrives with the first frame,
+//!  so a tile handed over before it has no textures to make,
+//!  and the notifier makes them inside that frame.
+//!  The window does not show them in it,
+//!  so the notifier asks for the next frame;
+//!  the tests of that step read the ask,
+//!  because the harness snapshot draws the slices in the frame that set them.
 
+/// The frames a window asked for.
+use super::gpu_snapshot::{install_gpu_platform, snapshot, take_frame_wanted};
+/// The notifier of a window and the handle the state holds.
+use super::gpu_tile::{GpuTile, bind};
 /// A press on the minimap,
 ///  the viewport box,
 ///  and the settling of the tile.
@@ -27,10 +39,14 @@ use super::wrap_tests::{open, settled};
 ///  the window,
 ///  and the source state.
 use super::{AppWindow, State, find_tests::Reader};
+/// The scenes of a tile.
+use ide_app::tile_scene::{TileScene, TileStack};
 /// The window handle and the model trait.
 use slint::{ComponentHandle, Model};
 /// The shared source state.
 use std::{cell::RefCell, rc::Rc};
+/// An empty scene: the textures are made and drawn, with nothing in them.
+use vello::Scene;
 
 /// Lines of the fixture text.
 const LINES: usize = 1500;
@@ -133,4 +149,133 @@ fn a_tile_of_another_size_gives_the_window_its_slices_before_any_frame() {
         "the slices the window holds are not those of the textures the GPU draws the tile into"
     );
     opened.window.hide().expect("close tile window");
+}
+
+/// Width of the textures of the stacks the first-tile tests hand over.
+const STACK_WIDTH: u32 = 64;
+
+/// What:
+///  A tile of `heights.len()` textures `STACK_WIDTH` wide and `heights` tall,
+///  top first,
+///  whose scenes are empty.
+/// Why:
+///  The notifier makes textures and slices from the sizes alone,
+///  so the tests need no text to shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stack(heights: number[]): TileStack;
+/// ```
+fn stack(heights: &[u32]) -> TileStack {
+    let mut textures = Vec::with_capacity(heights.len());
+    for height in heights {
+        textures.push(TileScene {
+            scene: Scene::new(),
+            width: STACK_WIDTH,
+            height: *height,
+        });
+    }
+    return TileStack {
+        textures,
+        width: STACK_WIDTH,
+        height: heights.iter().sum(),
+    };
+}
+
+/// What:
+///  A shown window of the application's markup with the notifier bound to a new `GpuTile`,
+///  before any frame is drawn.
+///  The ask for a frame that showing it made is forgotten.
+/// Why:
+///  The device reaches the notifier in the first frame,
+///  so until a snapshot is drawn the tile is the first one of a window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unframedWindow(): [AppWindow, GpuTile];
+/// ```
+fn unframed() -> (AppWindow, GpuTile) {
+    install_gpu_platform();
+    let window = AppWindow::new().expect("window of the application's markup");
+    let gpu = GpuTile::default();
+    bind(&window, &gpu);
+    window.show().expect("show the window");
+    take_frame_wanted();
+    return (window, gpu);
+}
+
+/// The first tile of a window is handed over before the device is held:
+///  the window holds no slices until the first frame,
+///  that frame makes the textures and gives the window their slices,
+///  and it asks for the next frame, which is the one that shows them.
+#[test]
+fn the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next() {
+    let (window, gpu) = unframed();
+    gpu.submit_tile(&window, stack(&[40, 24]));
+    assert!(
+        slice_heights(&window).is_empty(),
+        "the window held slices before any device was held, so the test does not reach the in-frame step"
+    );
+    assert!(
+        gpu.tile_texture_sizes().is_empty(),
+        "textures were made before the first frame, so the test does not reach the in-frame step"
+    );
+    // The first frame: setup, then the scenes drawn.
+    let _frame = snapshot(window.window());
+    let asked = take_frame_wanted();
+    assert_eq!(
+        gpu.tile_texture_sizes(),
+        vec![(STACK_WIDTH, 40), (STACK_WIDTH, 24)],
+        "the first frame did not make the textures of the tile"
+    );
+    assert_eq!(
+        slice_heights(&window),
+        vec![40, 24],
+        "the first frame did not give the window the slices of the tile it drew"
+    );
+    assert!(
+        asked,
+        "the frame that gave the window the slices of the first tile asked for no frame to show them"
+    );
+    window.hide().expect("close tile window");
+}
+
+/// A frame that gives the window no new slices asks for nothing:
+///  a tile of the shape the first one had is drawn without a request,
+///  and a tile of another shape, handed over once the device is held, brings its slices before the frame
+///  and asks for nothing in it.
+/// The request of the first frame is therefore the notifier's own and not something every frame makes.
+#[test]
+fn a_frame_that_makes_no_slices_in_it_asks_for_no_frame() {
+    let (window, gpu) = unframed();
+    gpu.submit_tile(&window, stack(&[40, 24]));
+    let _first = snapshot(window.window());
+    assert!(
+        take_frame_wanted(),
+        "the first frame asked for no frame, so the test cannot tell a frame that asks from one that does not"
+    );
+    // The frame that shows the slices: the toolkit makes the images of the list there and may ask for a frame itself.
+    let _shown = snapshot(window.window());
+    // The same shape: the textures are drawn again, no slices are made.
+    gpu.submit_tile(&window, stack(&[40, 24]));
+    take_frame_wanted();
+    let _same = snapshot(window.window());
+    assert!(
+        !take_frame_wanted(),
+        "a frame that made no slices asked for the next"
+    );
+    // Another shape, with the device held: the window has the slices before the frame.
+    gpu.submit_tile(&window, stack(&[30, 30, 8]));
+    assert_eq!(
+        slice_heights(&window),
+        vec![30, 30, 8],
+        "a tile handed over once the device is held did not bring its slices"
+    );
+    take_frame_wanted();
+    let _other = snapshot(window.window());
+    assert!(
+        !take_frame_wanted(),
+        "the frame that drew a tile whose slices were already shown asked for the next"
+    );
+    window.hide().expect("close tile window");
 }
