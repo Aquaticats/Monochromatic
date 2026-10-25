@@ -19,7 +19,9 @@ import {
 // reference, `source-ships-encoding.ts`), so the paragraph goes on, and the backtick pairs with one in the lines of the
 // block, which the page then shows as a code span the source does not have. A blank line before the line of the block ends
 // the paragraph on the page where it ends for the reader of the source, in a block quote or a list item as at the top, the
-// blank line then carrying the marks of the container. A paragraph that a footnote definition holds is left as it is: the
+// blank line then carrying the marks of the container. The paragraph the block cuts is the last block of whatever stands
+// right before it, however deep: a block at column zero after a paragraph of a block quote or a list item stands outside
+// them, since a line of a block of raw HTML cannot be a lazy line, and the paragraph it cuts is in the container before it. A paragraph that a footnote definition holds is left as it is: the
 // page is arranged to go on with a footnote over a line of raw HTML (`document-structure/src/gfm-block-ranges.ts`).
 
 /**
@@ -73,6 +75,44 @@ function endsRightBefore(
    */
   const { start: blockStart, } = block.position;
   return (paragraphEnd.line + 1) === blockStart.line;
+}
+
+/**
+ The last block of a block and, when that is a container, of its last child, down to a block that holds no blocks.
+
+ @param block - block that stands right before another
+
+ @returns The block the first one ends with: itself for a block that is no container, the last block of the last item of a
+ list, the last block of a block quote
+
+ @example
+ ```ts
+ const last = lastBlockOf({ block: list, },);
+ ```
+ */
+function lastBlockOf({ block, }: { readonly block: TreeNode; },): TreeNode {
+  /**
+   The block read last, which the walk goes down from.
+   */
+  const reading = { node: block, };
+  for (;;) {
+    /**
+     The block the walk is at.
+     */
+    const { node, } = reading;
+    if ((!CONTAINERS.has(node.type,)) || (!('children' in node)))
+      break;
+    /**
+     The last block the container holds.
+     */
+    const last = node
+      .children
+      .at(-1,);
+    if (last === undefined)
+      break;
+    reading.node = last;
+  }
+  return reading.node;
 }
 
 /**
@@ -206,14 +246,18 @@ export function htmlInterruptionEdits(
         continue;
       if (before === undefined)
         continue;
+      /**
+       The block the one before ends with, a paragraph of a block quote or a list item among them.
+       */
+      const paragraph = lastBlockOf({ block: before, },);
       if (!endsRightBefore({
-        before,
+        before: paragraph,
         block,
       },))
         continue;
       cutting.push({
         block,
-        paragraph: before,
+        paragraph,
       },);
     }
   }
