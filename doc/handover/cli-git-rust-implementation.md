@@ -2050,6 +2050,17 @@ that is verification, not a decision for the user.
   (56 caught, 4 unviable), `discard_audit` 14 (14 caught), `landing_invariant` 32 (32 caught). Task 61 is done: every
   file touched since 0.2.5 has a campaign with 0 missed. Next release (0.2.9) carries the survivor fixes with the next
   change; none is due now.
+  Issue 1796 (2026-10-25; the user wrote 1976, which does not exist, and confirmed 1796): the wrapper reaches `PATH`
+  only through this repo's `mise.toml` `_.path`, so a session committing in a third-party clone gets `/usr/bin/git`
+  and nothing auto-pushes. User decisions: a warning when `git` is not the wrapper is rejected ("wouldn't really work
+  for all consumers"); the goal is auto-push enforcing everything on machines the user controls and at least this
+  repo's policy on machines the user does not control; next step is "Probe, then wire it. Drive Claude Code via -p".
+  Plan: probe routes with `claude -p` from a throwaway repo outside the checkout (unit `cli-git-probe-1796`, script
+  `~/temp/agent/probe-1796.ts`, results `~/temp/agent/probe-1796/results.json`): settings `env` `PATH`, project
+  settings `env`, a `SessionStart` hook writing `CLAUDE_ENV_FILE`, a mise global `_.path`; also the wrapper in a repo
+  with no `cli-git.config.jsonc`. Then wire the working route on this machine. Machines the user does not control: a
+  client cannot be forced, so server-side rulesets or CI running the same policies is the only enforcement there
+  (needs a `doc/planning/` proposal and the user's choices; auto-push cannot run server-side).
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
