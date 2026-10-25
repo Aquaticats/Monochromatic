@@ -2144,6 +2144,15 @@ that is verification, not a decision for the user.
   the `~/.local/bin` link partly on that evidence, so the choice is being revalidated: C3
   (`podman-proof-1796-c3.ts`) checks that the wrapper is engaged through the shim and measures per-call cost of plain
   git, a direct link and the shim.
+  C3 result (podman, scratch HOME, `~/temp/agent/podman-1796/results-c3.json`): the wrapper is engaged through both the
+  direct link and the shim (`git add .` exits 1 with `add-explicit/bulk-add-rejected` in both; plain git exits 0).
+  Per 50 sequential `git --version` calls, three interleaved rounds: plain 32, 29, 30 ms and a second plain arm as the
+  same-binary control 29, 29, 31 ms (spread about 2 ms); direct link 64, 64, 63 ms; shim 295, 272, 282 ms. That is
+  about 0.6 ms per call plain, 1.3 ms through the link, 5.6 ms through the shim, so the shim costs about 4 ms more per
+  call than the link (one extra mise process per `git`). Limits: `git --version` is the lightest path, n is three
+  rounds, container not host. Revalidated reading: the `~/.local/bin` link still beats the shim, but because of per-call
+  cost and because every `git` would depend on `mise` being healthy, not because of a loop. The user is asked to
+  confirm the choice stands on the corrected evidence.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
