@@ -74,6 +74,40 @@ function delimiterRun({
 }
 
 /**
+ What stands between code and a following opener without being code: white space and the marks of a block quote.
+ */
+const CODE_GAP = ' \t\r\n>';
+
+/**
+ The code a span keeps before an opener: what stood before the opener less the white space and the marks of containers
+ between the code and the opener, which a reader of the page would take off the span with the white space at its other
+ end, and which are written after the closing delimiter.
+
+ @param before - what stands in the span before the opener
+
+ @returns The code with the gap after it cut off; the whole of it when nothing but gap stands in it
+
+ @example
+ ```ts
+ const kept = codeBefore({ before: 'x ', },); // 'x'
+ ```
+ */
+function codeBefore({ before, }: { readonly before: string; },): string {
+  /**
+   Where the gap after the code starts.
+   */
+  const gap = { at: before.length, };
+  while ((gap.at > 0) && CODE_GAP.includes(before.charAt(gap.at - 1,),))
+    gap.at -= 1;
+  return (gap.at === 0)
+    ? before
+    : before.slice(
+      0,
+      gap.at,
+    );
+}
+
+/**
  Takes the first opener a code span or inline math holds out of it, with what follows it in the span.
 
  @param source - text
@@ -143,10 +177,9 @@ function splitSpan(
    */
   const keepsCode = before.trim() !== '';
   /**
-   The code the span keeps: what stood before the opener less the white space between them, which a reader of the page
-   would take off the span with the white space at its other end, and which is written after the closing delimiter.
+   The code the span keeps.
    */
-  const kept = before.trimEnd();
+  const kept = codeBefore({ before, },);
   /**
    Where the content of the node starts.
    */
