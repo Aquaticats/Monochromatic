@@ -34,6 +34,7 @@ import {
 } from './direct-usage.ts';
 import { requireWholeStream, } from './require-whole-stream.ts';
 import { withoutRefusedKeyBody, } from './refused-key-body.ts';
+import { systemClock, } from './provider-budget-defaults.ts';
 import { failureForReply, } from './request-size-refusal.ts';
 import { withSchemaInSystemPrompt, } from './schema-prompt.ts';
 import { reportSpend, } from './spend-line.ts';
@@ -114,12 +115,16 @@ export type DirectRoute = {
 
   /**
    The cost and cache fields the spend line carries for one finished call,
-   priced from the card.
+   priced from the card, at the rate of the hours of the call's start and its
+   completion where the provider's rate depends on the hour (`startedAt` is the
+   first attempt's start, `completedAt` the successful attempt's completion).
    */
   readonly spendFieldsOf: (
     args: {
       readonly extracted: ExtractedCompletion;
       readonly bodyText: string;
+      readonly startedAt: Date;
+      readonly completedAt: Date;
     },
   ) => Pick<Parameters<typeof reportSpend>[0], 'costUsd' | 'cachedTokens'>;
 };
@@ -183,6 +188,9 @@ export type DirectClient = ModelCaller;
 
  @param retryPolicy - transient-retry pacing; tests pass tiny backoffs
 
+ @param now - clock the start of each request and the completion of its reply are read from, which picks the rate of a
+ provider that prices by the hour; the system clock outside a test
+
  @returns Client surface with chatText and chatJson
 
  @example
@@ -197,12 +205,14 @@ export function createDirectClient(
     transport,
     perModelConcurrency,
     retryPolicy = DEFAULT_RETRY_POLICY,
+    now = systemClock,
   }: {
     readonly route: DirectRoute;
     readonly apiKey: string;
     readonly transport: ModelTransport;
     readonly perModelConcurrency: number;
     readonly retryPolicy?: RetryPolicy;
+    readonly now?: () => Date;
   },
 ): DirectClient {
   /**
@@ -325,6 +335,12 @@ export function createDirectClient(
         },);
 
       /**
+       Instant the request starts at, read once before the first attempt, so a
+       retry of the call keeps the start of the first attempt.
+       */
+      const startedAt = now();
+
+      /**
        Raw reply from the transport seam, retried on transient statuses.
        */
       const reply = await exchangeWithRetry({
@@ -345,6 +361,14 @@ export function createDirectClient(
         // so the ladder reads it inside its own try and retries the attempt.
         verify: requireWholeStream,
       },);
+
+      /**
+       Instant the reply completed at, read once the ladder has returned, so it
+       is the completion of the attempt that succeeded; a provider that prices
+       by the hour books a call at its dearer rate when this instant or the start
+       lies in a dear hour, as its page does not say which one decides.
+       */
+      const completedAt = now();
       if (!isSuccessStatus({ status: reply.status, },)) {
         rl.warn(`<- ${servedId}: HTTP ${String(reply.status,)}`,);
 
@@ -384,6 +408,8 @@ export function createDirectClient(
         ...route.spendFieldsOf({
           extracted,
           bodyText: reply.bodyText,
+          startedAt,
+          completedAt,
         },),
       },);
       return extracted;

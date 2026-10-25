@@ -13,6 +13,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import {
@@ -78,6 +79,162 @@ async function positiveBalanceRefusingChat(exchange: TransportExchange,): Promis
   return { status: 402, bodyText: '{"error":{"message":"Insufficient Balance"}}', };
 }
 
+/**
+ USD the 40-hit, 60-miss, 10-output call of the usage chunk costs at DeepSeek's peak rates.
+ */
+const PEAK_USD = ((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000;
+
+/**
+ A clock that reads a Wednesday at 02:00 UTC, inside a peak window, so a case that prices a call at the card's rates
+ does not depend on the hour it runs at.
+ */
+function wednesdayPeak(): Date {
+  return new Date('2026-10-21T02:00:00.000Z',);
+}
+
+/**
+ The reply of a finished DeepSeek stream that reports the 40-hit, 60-miss, 10-output usage chunk.
+ */
+const FINISHED_REPLY = { status: 200, bodyText: streamOf({ usageChunk: DEEPSEEK_USAGE_CHUNK, done: true, }), };
+
+/**
+ The reply of a DeepSeek that is briefly unavailable, which the client retries.
+ */
+const UNAVAILABLE_REPLY = { status: 503, bodyText: '{"error":{"message":"Server Busy"}}', };
+
+/**
+ Sends one call through a client on a clock and reads what the run's spend meter booked for it.
+
+ @param nowFor - builds the clock the client reads the request's instants from, given the exchanges the transport has
+ been handed so far, which lets a clock answer by how far the call has got
+
+ @param replies - the transport's script; one finished stream where the case says nothing
+
+ @returns USD the run spend meter gained for DeepSeek
+
+ @example
+ ```ts
+ const booked = await bookedUsdOfCallOn({ nowFor: () => wednesdayPeak, },);
+ ```
+ */
+async function bookedUsdOfCallOn(
+  {
+    nowFor,
+    replies = [FINISHED_REPLY,],
+  }: {
+    readonly nowFor: (args: { readonly exchanges: readonly TransportExchange[]; }) => () => Date;
+    readonly replies?: readonly { readonly status: number; readonly bodyText: string; }[];
+  },
+): Promise<number> {
+  const { transport, exchanges, } = scripted({ replies, },);
+  const client = createDeepSeekClient({
+    apiKey: 'cat-key-deepseek',
+    transport,
+    retryPolicy: ONE_QUICK_RETRY,
+    now: nowFor({ exchanges, },),
+  },);
+  const before = runSpendUsd({ provider: 'deepseek', },);
+  await askCat({ client, modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },);
+  return runSpendUsd({ provider: 'deepseek', },) - before;
+}
+
+/**
+ Sends one call through a client whose clock reads one instant until the transport has answered with every reply of its
+ script and another instant from then on, so a read moved across the reply changes what the call books.
+
+ @param beforeReply - instant every read before the last reply has arrived returns
+
+ @param afterReply - instant every read once the last reply has arrived returns
+
+ @param replies - the transport's script; one finished stream where the case says nothing
+
+ @returns USD the run spend meter gained for DeepSeek, and how many times the clock was read
+
+ @example
+ ```ts
+ const { booked, reads, } = await callOnClockTurningAtReply({
+   beforeReply: new Date('2026-10-26T00:59:50.000Z',),
+   afterReply: new Date('2026-10-26T01:00:10.000Z',),
+ },);
+ ```
+ */
+async function callOnClockTurningAtReply(
+  {
+    beforeReply,
+    afterReply,
+    replies = [FINISHED_REPLY,],
+  }: {
+    readonly beforeReply: Date;
+    readonly afterReply: Date;
+    readonly replies?: readonly { readonly status: number; readonly bodyText: string; }[];
+  },
+): Promise<{ readonly booked: number; readonly reads: number; }> {
+  /**
+   Reads taken so far.
+   */
+  const reads = { count: 0, };
+  const booked = await bookedUsdOfCallOn({
+    replies,
+    nowFor: function clockOf({ exchanges, },): () => Date {
+      return function read(): Date {
+        reads.count += 1;
+        return (exchanges.length < replies.length) ? beforeReply : afterReply;
+      };
+    },
+  },);
+  return { booked, reads: reads.count, };
+}
+
+/**
+ Sends one call through a client whose clock answers by how many exchanges the transport has been handed: the first
+ instant before the first attempt has been sent, the second between the first attempt and the next, and so on, the last
+ instant from then on. A start read taken between attempts, and not before the first, therefore reads another instant.
+
+ @param instantAfterExchanges - instant every read returns once that many exchanges have been handed to the transport
+
+ @param replies - the transport's script, one reply per attempt
+
+ @returns USD the run spend meter gained for DeepSeek, and how many times the clock was read
+
+ @example
+ ```ts
+ const { booked, reads, } = await callOnClockByAttempt({
+   instantAfterExchanges: [
+     new Date('2026-10-21T04:30:00.000Z',),
+     new Date('2026-10-21T02:00:00.000Z',),
+     new Date('2026-10-21T05:00:00.000Z',),
+   ],
+   replies: [UNAVAILABLE_REPLY, FINISHED_REPLY,],
+ },);
+ ```
+ */
+async function callOnClockByAttempt(
+  {
+    instantAfterExchanges,
+    replies,
+  }: {
+    readonly instantAfterExchanges: readonly Date[];
+    readonly replies: readonly { readonly status: number; readonly bodyText: string; }[];
+  },
+): Promise<{ readonly booked: number; readonly reads: number; }> {
+  /**
+   Reads taken so far.
+   */
+  const reads = { count: 0, };
+  const booked = await bookedUsdOfCallOn({
+    replies,
+    nowFor: function clockOf({ exchanges, },): () => Date {
+      return function read(): Date {
+        reads.count += 1;
+        return nonNullishOrThrow(
+          instantAfterExchanges[Math.min(exchanges.length, instantAfterExchanges.length - 1,)],
+        );
+      };
+    },
+  },);
+  return { booked, reads: reads.count, };
+}
+
 await describe({
   name: createDeepSeekClient.name,
   // SEQUENTIAL: the run spend meter is process-wide, so cases that read its change must not overlap.
@@ -86,7 +243,8 @@ await describe({
     it({
       name: 'SENDS the wire id deepseek-flash to /chat/completions with the owner\'s bearer key, streaming usage on, '
         + 'the measured cap, JSON mode for a schema, the word json in the system prompt, and NO reasoning member; '
-        + 'READS the answer back past comment lines and reasoning_content, and PRICES it at peak with the cache split',
+        + 'READS the answer back past comment lines and reasoning_content, and PRICES it at peak with the cache split '
+        + 'when the request started inside a weekday peak window',
       fn: async () => {
         const { transport, exchanges, } = scripted({
           replies: [{ status: 200, bodyText: streamOf({ usageChunk: DEEPSEEK_USAGE_CHUNK, done: true, }), },],
@@ -95,6 +253,7 @@ await describe({
           apiKey: 'cat-key-deepseek',
           transport,
           retryPolicy: ONE_QUICK_RETRY,
+          now: wednesdayPeak,
         },);
         const before = runSpendUsd({ provider: 'deepseek', },);
 
@@ -129,6 +288,107 @@ await describe({
         // 40 hits at 0.006, 60 misses at 0.3 and 10 outputs at 1.2 USD per million.
         const priced = ((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000;
         expect(runSpendUsd({ provider: 'deepseek', },) - before,).toBeCloseTo(priced, 12,);
+      },
+    },),
+
+    it({
+      name: 'BOOKS a call whose request started on a Saturday at half the peak rates, and one that started on a '
+        + 'Wednesday at 02:00 UTC at the peak rates',
+      fn: async () => {
+        expect(
+          await bookedUsdOfCallOn({ nowFor: () => () => new Date('2026-10-24T02:00:00.000Z',), },),
+        ).toBeCloseTo(PEAK_USD / 2, 12,);
+        expect(await bookedUsdOfCallOn({ nowFor: () => wednesdayPeak, },),).toBeCloseTo(PEAK_USD, 12,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a call at peak when its request started at 03:59:59 UTC, inside a window, read before the '
+        + 'exchange, though the clock reads 04:00:01 UTC once the reply has come back, and reads the clock twice',
+      fn: async () => {
+        const { booked, reads, } = await callOnClockTurningAtReply({
+          beforeReply: new Date('2026-10-21T03:59:59.000Z',),
+          afterReply: new Date('2026-10-21T04:00:01.000Z',),
+        },);
+        expect(booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a call at peak when its request started at 00:59:50 UTC on a Monday, outside a window, and the '
+        + 'clock reads 01:00:10 UTC once the reply has come back, so the instant the reply completed is read after '
+        + 'the exchange',
+      fn: async () => {
+        const { booked, reads, } = await callOnClockTurningAtReply({
+          beforeReply: new Date('2026-10-26T00:59:50.000Z',),
+          afterReply: new Date('2026-10-26T01:00:10.000Z',),
+        },);
+        expect(booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a call at half the peak rates when the clock reads a Saturday both before the exchange and once '
+        + 'the reply has come back',
+      fn: async () => {
+        const { booked, reads, } = await callOnClockTurningAtReply({
+          beforeReply: new Date('2026-10-24T02:00:00.000Z',),
+          afterReply: new Date('2026-10-24T02:00:20.000Z',),
+        },);
+        expect(booked,).toBeCloseTo(PEAK_USD / 2, 12,);
+        expect(reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a retried call from the start of its first attempt to the completion of the attempt that '
+        + 'succeeded: a 503 and then a finished stream, off peak at the start and peak at the end, and the reverse',
+      fn: async () => {
+        const replies = [UNAVAILABLE_REPLY, FINISHED_REPLY,];
+        const offThenPeak = await callOnClockTurningAtReply({
+          beforeReply: new Date('2026-10-26T00:59:50.000Z',),
+          afterReply: new Date('2026-10-26T01:00:10.000Z',),
+          replies,
+        },);
+        expect(offThenPeak.booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(offThenPeak.reads,).toBe(2,);
+        const peakThenOff = await callOnClockTurningAtReply({
+          beforeReply: new Date('2026-10-21T03:59:50.000Z',),
+          afterReply: new Date('2026-10-21T04:00:10.000Z',),
+          replies,
+        },);
+        expect(peakThenOff.booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(peakThenOff.reads,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'PRICES a retried call from the instant read before its first attempt, not one read between the attempts: '
+        + 'off peak first, peak between and off peak last books half, and peak first, off peak after books peak',
+      fn: async () => {
+        const replies = [UNAVAILABLE_REPLY, FINISHED_REPLY,];
+        const offPeakFirst = await callOnClockByAttempt({
+          instantAfterExchanges: [
+            new Date('2026-10-21T04:30:00.000Z',),
+            new Date('2026-10-21T02:00:00.000Z',),
+            new Date('2026-10-21T05:00:00.000Z',),
+          ],
+          replies,
+        },);
+        expect(offPeakFirst.booked,).toBeCloseTo(PEAK_USD / 2, 12,);
+        expect(offPeakFirst.reads,).toBe(2,);
+        const peakFirst = await callOnClockByAttempt({
+          instantAfterExchanges: [
+            new Date('2026-10-21T02:00:00.000Z',),
+            new Date('2026-10-21T04:30:00.000Z',),
+            new Date('2026-10-21T05:00:00.000Z',),
+          ],
+          replies,
+        },);
+        expect(peakFirst.booked,).toBeCloseTo(PEAK_USD, 12,);
+        expect(peakFirst.reads,).toBe(2,);
       },
     },),
 

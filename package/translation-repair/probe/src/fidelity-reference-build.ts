@@ -239,6 +239,10 @@ export function buildReviewedFidelityReference({
     sourceText,
     referenceText,
     damages,
+    pages: {
+      sourceFile,
+      archiveFile,
+    },
   };
 }
 

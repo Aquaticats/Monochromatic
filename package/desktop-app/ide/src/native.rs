@@ -196,6 +196,9 @@ mod minimap_reflection_tests;
 ///  equal one render of the picture.
 #[cfg(test)]
 mod minimap_seam_tests;
+/// A minimap picture of another shape reaches the window before the frame that draws it.
+#[cfg(test)]
+mod minimap_slice_frame_tests;
 /// The minimap's geometry,
 /// picture,
 /// and pointer paths.
@@ -252,6 +255,9 @@ mod refused_tile_tests;
 mod reload;
 /// Native rendering and input are split by their invalidation boundary.
 mod render;
+/// What a frame shows of a repeater whose model the rendering notifier changed.
+#[cfg(test)]
+mod repeater_frame_tests;
 /// The window thread's counted step when the wrap width changes.
 mod rewrap;
 /// The window's side of the vertical mapping between pixels and source lines.

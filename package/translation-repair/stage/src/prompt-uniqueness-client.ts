@@ -111,6 +111,11 @@ function canonicalPromptValue(value: PromptValue,): string {
  timeout,
  or output cap does not turn same substantive conversation into independent evidence.
 
+ THE REUSE SCOPE IS THE ONE EXCEPTION, and only when a caller names it:
+ a probe that asks one prompt again on purpose, to see whether the model answers it alike,
+ names the repeat, so the second ask is a second exchange and not a replay of the first.
+ A request with no scope serializes as it always did, so no digest of a corpus run, and no payload stored under one, moves.
+
  @param request - model request whose exact message bytes form prompt
 
  @returns Privacy-safe digest used only for duplicate accounting
@@ -137,6 +142,8 @@ export function modelPromptDigest(
     content: canonicalPromptValue({
       modelId: request.modelId,
       messages,
+      // Conditional spread keeps the member absent for a request with no scope.
+      ...((request.reuseScope === undefined) ? {} : { reuseScope: request.reuseScope, }),
     },),
   },);
 }

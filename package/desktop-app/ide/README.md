@@ -2072,7 +2072,9 @@ The worker keeps its own `TextShaper`,
 and it builds only the newest queued job.
 A `slint::Timer` polls the worker every 20 ms (`src/native/tile.rs`).
 The displayed tile stays on screen until the result arrives,
-so a scroll never shows a blank frame.
+so a scroll that stays within the tile's reach never shows a blank frame
+(for the jump that does not,
+see "A jump faster than the tile").
 A result is swapped in only when it still holds the view and its paint inputs still match,
 and the image,
 its offset,
@@ -2100,6 +2102,61 @@ All four stay at zero while the view moves inside the tile and during a scroll r
 and the worker's own counts rise for each re-center.
 A swapped-in tile matches a fresh render at the same offset,
 and a result built before an edit is discarded.
+
+### A jump faster than the tile
+
+A wheel command of many notches is not a placement.
+The toolkit's `Flickable` eases the whole delta in a fixed 180 ms
+(`WHEEL_SCROLL_DURATION` in Slint 1.18.1 `items/flickable.rs`),
+60 logical px for a notch,
+and the speed at the start of that ease is twice the mean:
+200 px/ms for 300 notches,
+against a tile that reaches one view height (1,848 px in a window of 1080 by 1880 logical px) past the view.
+Each step of the ease asks the worker for a tile,
+and a tile arrives 60 to 125 ms after the step it was built for,
+when the view has moved on.
+So the code area is black,
+gutter included,
+from the first frame in which no tile holds the view until the tile of the end of the ease lands,
+and a late tile that holds only part of the view shows only that part.
+This is not new:
+the build of 2026-10-22 and the builds before and after the minimap re-aim,
+the hint skip rule,
+and the slice hand-over fix behave alike
+(measured 2026-10-25,
+478 jumps of 40,
+150,
+300,
+and 600 notches in four builds,
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`):
+
+- 40 notches:
+  a blank frame in 2 of 30 jumps in three builds and 0 of 30 in the current one,
+  with a few lines at an edge empty for a frame in about half of the jumps.
+- 150 notches:
+  a blank frame in 29 of 30 jumps in every build.
+- 300 and 600 notches:
+  a blank frame in every jump,
+  100 to 165 ms of blank frames (2 to 3 frames at about 19 fps),
+  and the last tile applied 212 to 266 ms after the command.
+- The same 150 notches as single-notch commands 10 ms apart (5 px/ms):
+  no blank frame in 10 jumps of the current build
+  and one frame in 10 of the 2026-10-22 build.
+
+The first frame that shows text shows the right lines for the new offset,
+without the hint rows of that place,
+which arrive about half a second later and move the text.
+A placement (a key,
+a minimap press,
+a drag,
+a page step)
+builds its tile before the next frame and is not affected.
+Ranked options that are not built:
+take a wheel delta the tile cannot hold as a placement,
+a small window-thread tile in the frame that misses the view,
+a tile for the end of the ease queued at the first step,
+a taller overscan,
+and keeping the old tile (which is out of view for a far jump and so changes nothing).
 
 ### Soft wrap
 
@@ -5640,7 +5697,17 @@ the GPU turns outlines and paths into pixels.
   A tile whose textures differ in size from the last one's needs new textures and a new list of slices
   (`source-slices`,
   which the markup draws with a `for`),
-  and the window does not show a list it was given inside a frame.
+  and a `for` brings its rows up to date before the frame begins,
+  so a list reset (`VecModel::set_vec`) or replaced inside the rendering notifier is not drawn by that frame
+  (a reset list draws no row,
+  a replaced one the old rows),
+  and nothing asks for the frame that draws it.
+  A row replaced in a list the window already holds (`set_row_data`) is drawn by its own frame,
+  and `show_slices` (`src/native/gpu_tile/types.rs`) chooses between the two by the number of rows,
+  which for the tile is the number of its textures.
+  The rule is Slint's and is measured in `src/native/repeater_frame_tests.rs`;
+  the trace through Slint 1.18.1's source is in
+  `doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
   So `GpuTile::submit_tile` makes the textures and gives the window the slices when the tile is handed over,
   outside any frame (`Inner::prepare_tile`,
   `src/native/gpu_tile/source.rs`),
@@ -5650,6 +5717,11 @@ the GPU turns outlines and paths into pixels.
   still gets its slices inside a frame,
   and the notifier then asks for one more frame (`request_redraw`).
   Without this a view placed by a press whose hint request was skipped kept a blank code column.
+  `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures` and
+  `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures` hand painted textures to the window
+  and count the pixels of the very next frame:
+  they fail when the slices are set inside the frame again,
+  and the `tile-slices-*-drawn` and `minimap-slices-*-drawn` guard cases show it.
   The tests `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame`
   (`src/native/tile_slice_frame_tests.rs`) and
   `a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` (`src/native/language/hint_skip_tests.rs`)
@@ -5657,6 +5729,31 @@ the GPU turns outlines and paths into pixels.
   before any frame is drawn,
   that the window holds the slices of the new textures;
   the `inspect:source-guards` cases `tile-slices-*` remove the lines that make and apply them.
+  The first tile of a window,
+  handed over before any frame,
+  has its slices made and given inside the first frame;
+  the notifier then asks for one more frame.
+  `the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next` and
+  `a_frame_that_makes_no_slices_in_it_asks_for_no_frame` (`src/native/tile_slice_frame_tests.rs`) read the ask from the
+  harness's window adapter (`take_frame_wanted`),
+  and the `first-tile-*` guard cases remove the lines that give the slices and ask for the frame.
+  The minimap's picture is handed over the same way:
+  `GpuTile::submit_minimap` makes the textures and gives the window the slices and the picture's place when the
+  textures differ in size from the last picture's (`Inner::prepare_minimap`,
+  `src/native/gpu_tile/slice.rs`).
+  Before this the first picture of a file,
+  whose list of slices is a new one after a file switch,
+  was not shown by the frame that drew it,
+  and the minimap stayed blank until the next picture's frame:
+  17 of 32 recorded switches showed it more than 0.2 s after the first picture's frame,
+  none of 16 after the fix.
+  `the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame` and
+  `a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame` (`src/native/minimap_slice_frame_tests.rs`)
+  check the slices before any frame,
+  and the `minimap-slices-*` guard cases remove the lines that make,
+  give,
+  and place them.
+  Both records are in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
 - Selection fills and the boxes of find matches are Slint rectangles behind the tile image (`ui/app.slint`),
   drawn by FemtoVG on the GPU as before.
   Their edges and the clip edges of the selected ink lie on whole pixels,

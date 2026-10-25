@@ -26,7 +26,10 @@ import { REVIEWED_FIDELITY_REFERENCES, } from '../dist/final/node/index.mjs';
 
 import { runBuiltCommand, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
 import { PROBE_ENTRY, } from './corpus-run/built-entry.test-fixture.ts';
-import { refusalMessage, } from './fidelity-reference.test-fixture.ts';
+import {
+  refusalMessage,
+  withoutStamp,
+} from './fidelity-reference.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_UNMEASURED, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -57,40 +60,6 @@ type PreflightRun = {
    */
   readonly stderr: readonly string[];
 };
-
-/**
- Drops the second bracketed group of a log line, which holds its timestamp.
-
- @param line - output line read
-
- @returns The line without its timestamp, any other line unchanged
-
- @example
- ```ts
- const plain = withoutStamp({ line: '[info] [2026-01-01T00:00:00.000Z] [probe] purr', },); // '[info] [probe] purr'
- ```
- */
-function withoutStamp({ line, }: { readonly line: string; },): string {
-  if (!line.startsWith('[',))
-    return line;
-  /**
-   Where the level group closes.
-   */
-  const levelEnd = line.indexOf(']',);
-  /**
-   Where the timestamp group closes.
-   */
-  const stampEnd = line.indexOf(
-    ']',
-    levelEnd + 1,
-  );
-  if ([levelEnd, stampEnd,].includes(-1,))
-    return line;
-  return `${line.slice(
-    0,
-    levelEnd + 1,
-  )}${line.slice(stampEnd + 1,)}`;
-}
 
 /**
  Splits command output into lines, each log line's timestamp dropped so a

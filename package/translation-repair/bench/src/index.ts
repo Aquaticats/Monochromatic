@@ -62,6 +62,10 @@ export {
   printEditorCalibrateRefineReach,
   printEditorCalibrateShipped,
 } from './corpus-run/editor-calibrate-closing.ts';
+export {
+  type EditorChair,
+  editorChairFor,
+} from './corpus-run/editor-calibrate-chair.ts';
 export { driveEditorCalibrate, } from './corpus-run/editor-calibrate-drive.ts';
 export {
   editorLaneChairOf,

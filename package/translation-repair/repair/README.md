@@ -61,6 +61,7 @@ The groups that follow name the main ones.
   per chunk and per envelope.
   Names:
   `runEditorStage`,
+  `gatherEditorProposals`,
   `buildEditorMessages`,
   `EDITOR_RESPONSE_FORMAT`,
   `resolveEditorEdits`,
@@ -68,6 +69,7 @@ The groups that follow name the main ones.
   `selectChunkPatch`,
   `selectPerEnvelope`.
   Declared in `repair-editor-stage.ts`,
+  `editor-gather.ts`,
   `edit-prompt.ts`,
   `edit-wire.ts`,
   `editor-candidates.ts`,
@@ -94,13 +96,16 @@ The groups that follow name the main ones.
   derive omission seeds from a clean translation,
   audit whether the deleted sentences can be derived from the source,
   and judge restoration.
+  `sentenceRegionAround` widens a span to the whole sentences it touches.
   Names:
   `deriveOmissionSeeds`,
+  `sentenceRegionAround`,
   `runDerivabilityProbe`,
   `buildDerivabilityMessages`,
   `runRestorationJudge`,
   `buildRestorationJudgeMessages`.
   Declared in `derive-seeds.ts`,
+  `sentence-region.ts`,
   `derivability-probe.ts`,
   `derivability-wire.ts`,
   `restoration-judge.ts`,

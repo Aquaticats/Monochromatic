@@ -445,7 +445,57 @@ this section is the readiness reading of it.
   so the floor stopped the entry instead of waiting (ledger B826,
   open,
   the fix in progress).
-  `XingZ6020` was relaunched at 19:32:29 UTC on the same build and is running.
+  Note of 2026-10-25 UTC:
+  B826 is fixed by the merge `9eea0009d1`.
+  `XingZ6020` was relaunched at 19:32:29 UTC on the same build.
+  Its read is filed,
+  as checked by a second reader
+  ([the run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-run.md)).
+  It settled on its second attempt after 10 h 32 min 51 s,
+  the first attempt having ended on the 7 h hard deadline inside a wait for a hold,
+  and it does not move the answer toward yes.
+  The page it shipped is missing its last 30 of 118 slices (31.5 percent of the source,
+  every footnote definition among them) with nothing on the page to say so,
+  and the run was idle for 249.0 of the 336.8 min after Synthetic's weekly credit ran out.
+  The build had read that weekly block as unreadable since Synthetic renamed it
+  ([the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6020-defects.md),
+  S1 and D1 to D7,
+  each with the commit that fixed it).
+  The `XingZ6021` entry stays the latest reading.
+- `XingZ6021` ran on 2026-10-24 and 2026-10-25 on the build `bcff23b8ce`,
+  which carries the fixes for the defects found in `XingZ6020`,
+  and SETTLED on its first attempt in 2 h 5 min 45 s
+  ([the run](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md)).
+  All 118 slices were filled,
+  tail included,
+  with no hold,
+  no HTTP error status and 0.4 min of idle wall clock.
+  It does not move the answer toward yes.
+  The page shipped clean,
+  with no `DEFECTS` line,
+  while its Shinonome section (slices 67 to 70) is the archive's text:
+  an invented *Metal Gear Solid 2* quotation and two paragraphs that the source lacks,
+  after the run's own critics had flagged it
+  ([the defects](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-defects.md),
+  N1).
+  The cause is a chain of absolute floors
+  (tally weight 3,
+  3 non-translation votes,
+  a slate of 2 ballots)
+  that a bench of two cannot meet,
+  reached when Synthetic's credit ran dry 72.4 min in;
+  the archive stayed by omission and not by a recorded decision,
+  and no publish check measures whether the wording follows the source.
+  The owner ruled on those floors on 2026-10-25
+  and the change is in progress,
+  with no commit yet;
+  readiness is not claimed on this run,
+  and the check that the change worked is a rerun of the `XingZ60` page whose Shinonome section no longer ships the
+  archive's text.
+  Two of the seven fixes of the build were not exercised:
+  the source text under a note,
+  and the NeuralWatt hold
+  ([the stages](translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-stages.md)).
 - The entries never run on a recent build are the rest of the 92-entry corpus.
   The owner's rule stands:
   "We never ever need a all 92 entries launch";

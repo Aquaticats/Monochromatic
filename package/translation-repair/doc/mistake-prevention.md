@@ -61,6 +61,15 @@ named for that subject and listed here.
   - [Modules without a test of their own](mistake-prevention-guards-searches-and-claims.md#modules-without-a-test-of-their-own)
   - [Lists that must name every member of a type](mistake-prevention-guards-searches-and-claims.md#lists-that-must-name-every-member-of-a-type)
   - [What a failing check prints](mistake-prevention-guards-searches-and-claims.md#what-a-failing-check-prints)
+- [Preventing mistakes: spend guards and client retries](mistake-prevention-spend-guards-and-client-retries.md):
+  Rules for a guard that holds a run to an amount of money:
+  what it admits,
+  what it counts,
+  and the retries a client makes inside the call it admits.
+  Sections:
+  - [Attempts a guard cannot see](mistake-prevention-spend-guards-and-client-retries.md#attempts-a-guard-cannot-see)
+  - [A guard's assumption is asserted][spend-assumption]
+  - [A repeat measurement proves each repeat made its own call](mistake-prevention-spend-guards-and-client-retries.md#a-repeat-measurement-proves-each-repeat-made-its-own-call)
 - [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md):
   Rules for the docs themselves:
   current-state docs,
@@ -337,6 +346,9 @@ not a memory of having done it.
 
 [fleet-shape]:
   mistake-prevention-sheets-quorums-and-outcome-rules.md#a-test-fleet-models-every-provider-shape-of-the-live-roster
+
+[spend-assumption]:
+  mistake-prevention-spend-guards-and-client-retries.md#a-guards-assumption-is-asserted
 
 [process-mistakes-ledger]:
   audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit

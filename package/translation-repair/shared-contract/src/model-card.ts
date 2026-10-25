@@ -366,9 +366,15 @@ export type NeuralWattCard = ServedCard<NeuralWattServedId> & {
 export type DeepSeekCard = ServedCard<DeepSeekServedId> & {
   /**
    USD per million prompt tokens served from DeepSeek's cache, at the peak
-   price (the upper bound: peak is 01:00 to 04:00 UTC and 06:00 to 10:00 UTC,
-   Monday to Friday, excluding Chinese public holidays, and the run cannot
-   know the holidays, so every call is priced as if at peak).
+   price (peak is 01:00 to 04:00 UTC and 06:00 to 10:00 UTC, Monday to Friday,
+   excluding Chinese public holidays; the provider package halves the card's
+   rates for a call whose request started and whose reply completed outside every
+   weekday peak window, even if the call spanned a whole window between them, and
+   reads no holiday calendar, so a booked figure is an upper bound as to holidays
+   and, for a call with an instant inside a window, as to which instant decides;
+   it is not bounded as to a call that spans a whole window with both instants
+   outside, which is under-read if DeepSeek bills by an instant between the two,
+   nor as to a Saturday that China makes a working day).
    */
   readonly promptCacheHitUsdPerMillion: number;
 

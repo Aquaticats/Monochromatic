@@ -9,10 +9,6 @@ import type {
   RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
-import {
-  buildLicensedQuotes,
-  buildRemovableQuotes,
-} from '@monochromatic-dev/translation-repair-glossary/ts';
 import type {
   PatchOutcome,
   PreservationMode,
@@ -22,17 +18,12 @@ import {
   type ShippedProducer,
 } from './editor-selection-result.ts';
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
-import { buildEditorMessages, } from './edit-prompt.ts';
-import {
-  EDITOR_RESPONSE_FORMAT,
-  isEditorReportWire,
-} from './edit-wire.ts';
 import {
   buildChunkCandidates,
-  buildEditorCandidates,
   chunkCandidateOf,
   pickFallbackCandidate,
 } from './editor-candidates.ts';
+import { gatherEditorProposals, } from './editor-gather.ts';
 import {
   applyCandidate,
   selectChunkPatch,
@@ -43,10 +34,7 @@ import {
   type ProducerRosterError,
   type RepairJudgedRound,
 } from '@monochromatic-dev/translation-repair-assembly/ts';
-import {
-  gatherStageVoices,
-  type StageSettings,
-} from '@monochromatic-dev/translation-repair-stage/ts';
+import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 
 //region Editor stage
 // Several editors rewrite one chunk's envelopes independently, every proposal
@@ -207,8 +195,8 @@ export async function runEditorStage(
   },);
 
   /**
-   Declared names and references for the editors and both selections, each
-   absent when the page has none (ledger S14).
+   Declared names and references for the selections, each absent when the page
+   has none (ledger S14); the gather builds the editors' own from the same two.
    */
   const pageFragment = {
     ...((identityContext === undefined) ? {} : { identityContext, }),
@@ -216,89 +204,31 @@ export async function runEditorStage(
   };
 
   /**
-   Editor sheet shared by every editor, so their candidates answer the same
-   question and stay comparable.
+   The editors' sheet, their replies after retry-to-quorum, the untouched
+   outcome and the gate every proposal passes, shared with the editor fidelity
+   probe that seats one card through the same step.
    */
-  const plan = buildEditorMessages({
+  const {
+    gather,
+    unchanged,
+    preservation,
+    built,
+  } = await gatherEditorProposals({
+    client,
+    editorModelIds,
+    ...(editorRuleAddendum === undefined ? {} : { editorRuleAddendum, }),
     sourceText,
     targetText,
     envelopes,
     issues,
-    ...pageFragment,
-    ...(editorRuleAddendum === undefined ? {} : { editorRuleAddendum, }),
     ...((neighbouringSourceText === undefined) ? {} : { neighbouringSourceText, }),
     ...((neighbouringIncumbentText === undefined) ? {} : { neighbouringIncumbentText, }),
-  },);
-
-  /**
-   Editor replies after retry-to-quorum.
-   */
-  const gather = await gatherStageVoices({
-    client,
-    modelIds: editorModelIds,
-    messages: plan.messages,
+    ...((documentSourceText === undefined) ? {} : { documentSourceText, }),
+    ...pageFragment,
     signal,
-    exchangeTimeoutMs: perCallTimeoutMs,
-    responseFormat: EDITOR_RESPONSE_FORMAT,
-    validate: isEditorReportWire,
-    stage: 'editor',
-    // Retries stop at QUORUM, which on this three-editor roster is two voices.
-    // This stage waited for every voice from 2026-08-12 until the user removed
-    // that option on 2026-08-15: one model degrading for a day made every
-    // editor gather spend four deadlines chasing it, and the ensemble property
-    // the wait protected is already held by a quorum of two.
-    //
-    // A WRITER ROUND, so the third voice is a whole candidate and waits under
-    // the writer window, built in since 2026-09-06 (`writer-grace-override.ts`).
-    graceMs: stageSettings
-      .grace
-      .writerMs,
-    // A launch that pins the editor bench's rotation (a fixture or a calibration that must seat the same editors whatever the
-    // sheet says) hands the seat down in its settings; the prompt decides otherwise.
-    ...((stageSettings.editorBenchStart === undefined) ? {} : { benchStart: stageSettings.editorBenchStart, }),
+    perCallTimeoutMs,
     l,
-  },);
-
-  /**
-   Untouched outcome shared by both early exits.
-   */
-  const unchanged: PatchOutcome = {
-    patchedText: targetText,
-    applied: [],
-    rejected: [],
-  };
-
-  /**
-   Defect text each envelope's issues quoted, which the preservation gate
-   treats as licensed to disappear, the addition claims' quotes, whose markup
-   atoms alone an edit may remove, and the original the markup is read
-   against: the whole source document where the chunk has it, since an atom
-   copied from the source is copied from the page rather than the slice
-   (ledger L4).
-   */
-  const preservation: PreservationMode = {
-    mode: 'enforce',
-    licensedQuotes: buildLicensedQuotes({
-      envelopes,
-      issues,
-    },),
-    removableQuotes: buildRemovableQuotes({
-      envelopes,
-      issues,
-    },),
-    sourceText: documentSourceText ?? sourceText,
-  };
-
-  /**
-   One gated patch per heard editor, in roster order.
-   */
-  const built = buildEditorCandidates({
-    voices: gather.voices,
-    editorModelIds,
-    promptEnvelopes: plan.envelopes,
-    targetText,
-    envelopes,
-    preservation,
+    stageSettings,
   },);
 
   /**

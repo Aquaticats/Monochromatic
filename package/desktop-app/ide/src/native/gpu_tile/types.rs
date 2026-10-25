@@ -110,20 +110,39 @@ fn show_slices<Slice: Clone + PartialEq + 'static>(
     shown: ModelRc<Slice>,
     slices: Vec<Slice>,
 ) -> Option<ModelRc<Slice>> {
+    let list_name = std::any::type_name::<Slice>();
     let Some(list) = shown.as_any().downcast_ref::<VecModel<Slice>>() else {
+        tracing::debug!(
+            list_name,
+            rows = slices.len(),
+            "gave the window a new list of slices"
+        );
         #[cfg(test)]
         SLICE_LISTS_SET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         return Some(ModelRc::from(Rc::new(VecModel::from(slices))));
     };
     if list.row_count() != slices.len() {
+        tracing::debug!(
+            list_name,
+            before = list.row_count(),
+            after = slices.len(),
+            "reset the window's list of slices to another number of rows"
+        );
         list.set_vec(slices);
         return None;
     }
+    let mut replaced = 0_usize;
     for (row, slice) in slices.into_iter().enumerate() {
         if list.row_data(row).as_ref() != Some(&slice) {
             list.set_row_data(row, slice);
+            replaced += 1;
         }
     }
+    tracing::debug!(
+        list_name,
+        replaced,
+        "replaced rows of the window's list of slices"
+    );
     return None;
 }
 

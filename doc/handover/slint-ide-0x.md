@@ -4359,6 +4359,134 @@ minimap picture, gutter and sidebar never blank in about 1,427 frames.
 Not covered: the minimap picture also gets its slices inside a frame (not blank in those frames, so no defect seen);
 the first-tile path has no test; the 60 fps recording rate was not reached on this loaded host.
 Cleanup done: agent worktrees and branches (local and remote) removed, 14 GB of recording frames deleted.
+Owner answer (question tool, 2026-10-24): clear the captures now. Removed `~/temp/agent/mm` (1.1 GB), `mm2` (162 MB),
+`reaim` (354 MB) and `cr` (325 MB). Left on disk because a running agent reuses them:
+`~/temp/agent/verify`, `~/temp/agent/lp` and the disposable project `/tmp/ide-mm-proj-8MEEkc`; remove them when it ends.
+Started the same day at the owner's standing instruction to do open follow-ups now: an agent writes the test of the
+first-tile path (no device yet, in-frame hand-over) and measures whether the minimap picture can be blank after a
+hand-over inside a frame (fixing it the same way if so); its report is verified, landed and the IDE reinstalled.
+Result, landed 2026-10-24 as merge `b5595e2d17` (agent tip `4e67aafcb1`, fix commit `04935e5ede`):
+(A) the first-tile path has two native tests (`src/native/tile_slice_frame_tests.rs`, observable: the window's
+`request_redraw`, recorded by `take_frame_wanted` in `src/native/gpu_snapshot.rs`) and 4 `first-tile-*` guard cases.
+(B) the minimap picture can be blank for 0.1 to 0.35 s after a file switch: a switch empties the slice list
+(`forget_minimap`, `ModelRc::default()`), the first picture of the new file sets a new list inside a frame, and that
+frame does not show it; every switch hands over a second picture soon after, so the blank was never permanent.
+Before the fix 304 of 2,126 frames of 48 file switches were blank, 46 of 1,317 frames of 30 key actions
+(all in 12 Ctrl+End or Ctrl+Home), 9 of 2,343 frames of 45 resizes; none in 32 minimap clicks, 12 wheel actions,
+6 scale changes; the last blank frame came 0.129 to 0.466 s after the first picture's frame (median 0.22 s,
+17 of 32 over 0.2 s) and 0.062 to 0.116 s after the fix (16 switches, none over 0.2 s).
+Fix: `GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` gives it the slices and the picture's
+place at hand-over, outside any frame. 2 native tests (`src/native/minimap_slice_frame_tests.rs`), 6 `minimap-slices-*`
+guard cases (14 runs accepted). Gates on the merged tree: `lint` 0, `test:native` 312 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0.
+Open: why a slice list changed in place is shown by the frame for the minimap but not for the code tile
+(not found); no regression test for the in-place minimap case (the harness cannot show the blank).
+Installed: sha256 `1c6aafb396c36604…` from `b5595e2d17`, prints 0.1.1; the check of the installed release binary
+for the code column and the minimap on file switches was run by a separate agent (nested compositor, 1080x1880 logical,
+scale 2, RX 7600; 17.6 to 24.3 fps against 60 requested, load average 10 to 54):
+earlier checks unchanged: five-press code means 0.511073, 0.509927, 0.511073, 0.510496, 0.509927 in 3 of 3 runs,
+88-click recordings of 672 and 676 frames with 0 blank code frames and an 82 px gap in all 355 and 356 frames showing
+line 96, `first_line=223` for both y=1700 presses, minimap crops 0 px apart, requests 1 plus 1 skip then 0 plus 1 skip;
+minimap picture area never blank in those recordings.
+File switches, detector: fraction of pixels with chroma above 0.08 in the minimap column (blank below 0.002; launch
+frames before the first picture 0, drawn 0.0289, 0.0227 and 0.0051 for the three test files; the mean-grey and
+bright-pixel detectors were rejected because the viewport box hides a missing picture):
+16 of 16 tree-click switches and 9 of 9 Ctrl+digit switches showed 1 or 2 blank minimap frames (0 to 41 ms after the
+first frame of the new code, frame interval 41 ms), 12 of 12 Ctrl+End or Ctrl+Home jumps on the 3000-line file 1 blank
+frame each, 6 of 12 resizes 1 blank frame (5 in the main recording), 0 of 12 scale changes;
+54 of 2,771 frames blank in total, every one inside a transition of at most 9 frames, none 1 s after a switch.
+So a switch is not blank-free (the new file's picture is built after the switch), but the 0.1 to 0.47 s blank is gone.
+Owner answer after that report (2026-10-24): "Unexplained? Test gap? Just do it. 2 frames of blank for minimap is acceptable."
+So the 1 to 2 blank minimap frames at a file switch are accepted and need no work, and an agent now finds why a slice
+list set inside the frame that draws a tile is not shown by that frame (Slint and femtovg source, a minimal repro)
+and builds a regression test that can fail for the in-frame hand-over of the code tile and the minimap, with guards;
+its report is verified, landed and the IDE reinstalled.
+Result, landed 2026-10-25 as merge `f32566de81` (agent tip `62784d6204`):
+cause proven in Slint 1.18.1 (master `8be16937037c` keeps the same order of steps; no upstream issue found, the
+behaviour is a documentation gap of `set_rendering_notifier`, so nothing was filed; the draft stays in
+`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`, marked do not file as-is):
+`WindowInner::draw_contents` (`i-slint-core` `window.rs:1846`) instantiates the repeaters first
+(`Repeater::ensure_updated`, `model/repeater.rs:685`), then runs the renderer closure under
+`redraw_tracker.evaluate_as_dependency_root` (`window.rs:1855`), which has no dependencies at that point;
+femtovg calls the notifier inside that closure (`i-slint-renderer-femtovg` `lib.rs:260`) before it draws the items
+(`:301`), so a change made in the notifier lands after instantiation and nothing reaches
+`WindowRedrawTracker::notify` (`window.rs:503`): no further frame is asked for.
+What that frame draws depends on how the list changed: `VecModel::set_vec` resets the repeater
+(`repeater.rs:612`, `instances.clear()`) so the frame is blank, a new `ModelRc` draws the old rows,
+`set_row_data` updates the instance at once (`repeater.rs:533`) so the frame draws the new row.
+That explains the tile and the minimap difference: `show_slices` (`src/native/gpu_tile/types.rs`) uses `set_row_data`
+when the number of textures is unchanged, `set_vec` when it changes, a new list when none exists; a tile has 1 to 4
+textures that vary with its height, a minimap picture almost always has one.
+Correction of an earlier belief: the harness does show the blank (the reset and the new-list cases); the earlier test
+press kept the texture count, the one case that is drawn.
+Tests that fail on the old code: `src/native/repeater_frame_tests.rs` (4, on a bare Slint window),
+`the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures` and
+`the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures` (texture counts [40,24], [30,30,8], [100],
+[60,40], [50,10] and the minimap's five cases; magenta pixels counted, the settled frame must hold 95 percent of the area
+because texture edges blend); 4 guard cases `tile-slices-prepared-drawn`, `tile-slices-applied-drawn`,
+`minimap-slices-prepared-drawn`, `minimap-slices-applied-drawn`, 12 runs accepted (each removed run fails with
+`drew 0 pixels`); the older `tile-slices-*` and `minimap-slices-*` cases were not re-run separately, the full native
+suite passed. Gates on the merged tree: `lint` 0, `test:native` 318 passed and 5 skipped, `test` 811 passed,
+`test:bin` 0, `inspect:no-software-renderer` 0.
+Real window: with the hand-over inside the frame again (a scratch toggle, not committed) every list change the presses
+made kept the texture count and all screenshots were drawn; 240 code-column frames showed no change in mean grey, so the
+count-changing half is shown in the harness only; the case to record next is a TypeScript file whose hints change a
+tile's height.
+Production code: only debug log lines (`show_slices`), one counter and comments; behaviour unchanged, so the
+88-click recording was not repeated; installed again from `f32566de81`, sha256 `d9f48256d152b429…`, prints 0.1.1.
+Cleaned: agent worktree and branches, `~/temp/agent/fd`, scratch trees.
+Started 2026-10-25, a verification-only agent (scratch `~/temp/agent/final`) on the installed `d9f48256d152b429…`:
+repeats the five-press, 88-click, line 96 gap and request-count checks, and records the open case in the real window:
+at least 20 resets of a slice list to another row count (code tile and minimap, from the new debug log lines) on a
+1,500-line TypeScript file, with the blank frames within 300 ms after each.
+Result (installed `d9f48256d152b429…`, hardware RX 7600 confirmed in every run log, load average 13 to 70, recorder
+21.6 to 26.0 fps against 60 requested, 0 dropped):
+five-press code means 0.510 to 0.5107 in the drawn band 0.5088 to 0.5139 in every run (none blank; the exact numbers
+differ from the earlier project because the disposable project differs: stubbed workspace imports, no `@types/node`,
+so inline TS2591 and TS2339 diagnostics shift the grey); one run began with two fully undrawn frames (nothing presented
+yet at load 20 to 28, not a blank code column with a drawn gutter);
+88-click recordings of 843, 878 and 832 frames: 0 blank code frames, 0 blank minimap frames, the gap above line 96
+82 px in all 119 frames of the one corrected run (the first two analyses matched line 196 by mistake and are discarded),
+requests 1 plus 1 skip (the request logs `first_line=214`, the skip 223), then 0 plus 1 skip, twice;
+count-changing resets of the code tile in the real window: 83 over two runs (1 to 2 and 2 to 1, 42 and 41), none for the
+minimap list; 80 of them had 0 blank code frames within 540 ms (Ctrl+End 24 events, Ctrl+Home 7, minimap clicks 24,
+switches 4, launch 1); the 3 windows with blank code frames each followed a wheel of 150 or 300 notches
+(c3-1: 2 whole-area blank frames 0.2 s after a 300-notch wheel and a 1 to 2 reset; c3-2: frame 3173 after a 150-notch
+wheel and a reset, frames 3335 and 3336 after a 300-notch wheel with no count change, whole area blank, gutter included).
+Minimap: 1 to 3 blank frames after Ctrl+End or Ctrl+Home (27 runs of 34), 1 to 2 at file switches, one run of 4 frames
+after Page Down, none at minimap clicks, none from a minimap list reset (there were none).
+Not established then: whether those far-wheel blank frames are the old late-tile behaviour or new; an agent compared
+them with older builds (result in the next paragraph). Evidence tables stay in `~/temp/agent/final` until that agent ends.
+Result of that comparison, 2026-10-25 (record: `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`;
+README section "A jump faster than the tile"): OLD, not a regression. Four release builds (`cd49e20a92` the 2026-10-22
+install, `76f7818e8f` re-aim, `5e9584aa51` skip rule, `d91f415253` main, whose IDE sources equal `f32566de81`; the main
+and oct22 builds are byte-identical to the installed binaries), 478 jumps of 40, 150, 300, 600 notches from a settled
+random place, three batches of 10 per binary and N, alternating, 19 fps median at load average 26: blank code frames in
+29 of 30 jumps at 150 notches and 30 of 30 at 300 in every build (600: 29 of 29 or 30 of 30), 0 to 2 of 30 at 40
+(main 0, the three older 2 each); the spread between batches of one binary (for example main at 600: 27, 31, 36 blank
+frames) is as large as the difference between binaries. Mechanism: a wheel command is eased by Slint's `Flickable`
+over a fixed 180 ms whatever its length (`flickable.rs:51`, 60 px per notch in the winit adapter), 200 px/ms at the start
+for 300 notches, and the tile worker's tile arrives 60 to 125 ms after the step it was built for, so no tile holds the
+view for about 100 to 165 ms; the last tile is applied 212 to 266 ms after the command; the first frame with text has
+the right lines without the hint rows, which arrive at about 500 ms. A control of 150 notches as single-notch commands
+10 ms apart blanks 0 of 10 (main) and 1 of 10 (oct22). The earlier "0.25 s after the wheel" was the file modification
+time (encode time) of the frame, not its capture time. No product change; ranked options (placement for a wheel delta
+the tile cannot hold; a small window-thread tile; a tile for the end of the ease; a larger overscan; keeping the old tile
+changes nothing) are in the troubleshooting doc and need the owner's decision. Numeric tables (`jumps.csv`, `results/`,
+`results-control-b9/`) stay in `~/temp/agent/wheel` with the scripts; frames, extra worktrees and the disposable project
+were removed.
+Owner answer (question tool, 2026-10-25) to the options "far jump places, no sweep", "small sync tile", "queue the tile"
+and "leave it": "Surely there is a better way?". Design now built by an agent (branch off `52056f6fbc`): while the tile
+for the current offset has not landed, draw the view clamped to the reach of the tile that exists (real text, not black;
+every layer positioned from the offset follows the clamped offset, pointer hits map to the drawn rows) and move to the
+real offset when the tile lands; and request ONE tile for the destination at the first wheel step (the wheel delta gives
+the end of the ease) instead of one per ease step, keeping the per-step requests for slow scrolls. No synchronous
+build and no CPU painting. Acceptance: 0 blank code frames at 150, 300 and 600 notches (baseline 29 to 30 of 30 jumps),
+nothing new at 40, with the 478-jump protocol, 88-click recording unchanged (0 blank frames, 82 px gap, 1 plus 1 skip
+then 0 plus 1 skip, first line 223 for both y=1700 presses), drags covered or stated. Its report is verified, landed and
+the IDE reinstalled; then `~/temp/agent/final` and `~/temp/agent/wheel` are removed.
+Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
+(34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
@@ -4433,6 +4561,115 @@ Unmeasured:
 whether the minimap picture,
 which also gets its slices inside a frame,
 can show the same defect.
+
+First tile and minimap picture,
+2026-10-24 (branch `worktree-agent-afeb07ef78b842b5a`,
+from `141c226c28`;
+record:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "The first tile and the
+minimap picture"):
+the first tile of a window (no device yet,
+slices made inside the first frame,
+the notifier asks for one more frame)
+now has two native tests that read the ask from the harness adapter (`take_frame_wanted`),
+shown to fail with the `request_redraw` line replaced and by four `first-tile-*` guard cases (10 runs accepted).
+The minimap picture can show the same blank:
+a file switch empties the window's list (`forget_minimap`,
+`ModelRc::default()`),
+so the first picture of the new file sets a new list inside the frame,
+which the frame does not show
+(why an in-place change of the tile's list was not shown while the minimap's was is not known);
+17 of 32 recorded switches (debug build of `c1509291c8`,
+nested compositor,
+1080x1880 at scale 2,
+load average 8 to
+12) kept the minimap blank more than 0.2 s after the frame that drew the first picture (0.129 to 0.466 s,
+median 0.22,
+against 0.07 to 0.13 s of file-time lag when one picture is handed over);
+a second picture follows within a few tenths of
+a second in every switch (48 of 48) and hid it from the first screenshot-based check (173 actions,
+9,095 frames,
+all
+settled drawn).
+Fix `04935e5ede`:
+`GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` makes the textures and gives the
+window the slices at hand-over,
+outside any frame;
+0 of 16 switches after it (0.062 to 0.116 s),
+63 actions and 3,259
+frames on the fixed binary,
+71 blank frames,
+the last of each action 0.051 to 0.116 s after the first picture's frame
+(the file-time lag of 0.07 to 0.13 s).
+Two native tests and six `minimap-slices-*` guard cases (14 runs accepted).
+Not shown:
+a permanent blank (no switch handed over a single picture);
+the minimap's first picture before the first
+frame still has no frame asked (launch recordings 7 to 28 blank frames before the first drawn frame,
+spread larger than
+any difference).
+Scratch:
+`~/temp/agent/ft` (scripts,
+jsonl results,
+two debug binaries `ide-base` and `ide-fix`,
+a 32 GB target copy
+`gcache`),
+no frames kept;
+the owner can delete it.
+
+## Slices set inside the frame: the cause, 2026-10-24 (branch worktree-agent-accda2a5caee03c58)
+
+Cause found in Slint 1.18.1 (the latest release;
+master `8be16937037c` keeps the order of steps):
+`WindowInner::draw_contents` (`i-slint-core` `window.rs:1846`) brings every repeater up to date
+(`ensure_tree_instantiated`,
+`Repeater::ensure_updated` `model/repeater.rs:685`) before the renderer closure,
+femtovg calls the rendering notifier inside that closure (`lib.rs:260`),
+and the closure runs while the redraw tracker depends on nothing (`properties.rs:1361`).
+So a list changed in `BeforeRendering` is seen by the next frame,
+and nothing asks for one:
+`set_vec` (`model.rs:549`) resets the repeater (`repeater.rs:612`) and the frame visits no row,
+a new `ModelRc` in the property draws the old rows,
+and `set_row_data` (`repeater.rs:533`) updates the row at once and the frame draws it.
+`show_slices` (`src/native/gpu_tile/types.rs`) picks `set_row_data` when the number of textures is unchanged,
+and `set_vec` when it changes,
+which is the whole tile versus minimap difference (a tile has 1 to 4 textures,
+a picture nearly always one).
+The earlier belief that the harness cannot show the blank was wrong:
+it shows a reset or a new list,
+and the earlier test press kept the number of textures.
+Details,
+minimal repro and the filing decision (do not file):
+`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
+
+New tests (all pass;
+they fail with the slices set inside the frame again):
+`repeater_frame_tests` (4 tests,
+a bare Slint window),
+`the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures`,
+and `the_frame_that_follows_a_picture_shows_it_whatever_the_number_of_textures`
+(the frame after a hand-over must draw the same pixels as the frame after it).
+Four guard cases `tile-slices-prepared-drawn`,
+`tile-slices-applied-drawn`,
+`minimap-slices-prepared-drawn`
+and `minimap-slices-applied-drawn` fail with the line removed (status 100,
+for example
+`drew 0 pixels of the tile and the next frame 4056`) and pass restored.
+Production code:
+only `tracing::debug!` lines in `show_slices`;
+behaviour is unchanged.
+Not shown:
+a recorded blank frame of a reset list in the real window (presses on 287-line and 1500-line plain texts
+kept the number of textures:
+240 frames of the code column,
+none changed);
+a TypeScript file whose hints change a tile's height would be the case to record.
+Scratch `~/temp/agent/fd` (drivers,
+logs,
+a debug binary with the scratch toggles `ide-scratch`,
+a 24 GB `gcache`)
+can be deleted by the owner.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

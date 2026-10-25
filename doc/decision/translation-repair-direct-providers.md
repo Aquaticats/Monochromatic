@@ -26,7 +26,8 @@ the model cards carry exactly one side each (`shared-contract/src/direct-card-si
 and both clients throw before any request is built for any other roster model
 (`DeepSeekModelNotServedError`,
 `XiaomiModelNotServedError`).
-`shared-contract/src/direct-cards.unit.test.ts` and `provider/src/direct-client.unit.test.ts` fail when any of the three is removed.
+`shared-contract/src/direct-cards.unit.test.ts` and `provider/src/direct-client.unit.test.ts`
+fail when any of the three is removed.
 
 The roster does not change.
 No model is seated in a new role and no owner hold is lifted:
@@ -53,7 +54,8 @@ and the addresses of the model listings.
   when the word "json" is in the prompt.
   The client sends JSON mode and states the schema in the system prompt,
   whose text carries that word.
-- Xiaomi serves `mimo-v2.6-flash` (roster seat `xiaomi/mimo-v2.6-flash`) on `https://api.xiaomimimo.com/v1/chat/completions`.
+- Xiaomi serves `mimo-v2.6-flash` (roster seat `xiaomi/mimo-v2.6-flash`)
+  on `https://api.xiaomimimo.com/v1/chat/completions`.
   It accepts `json_schema` with `strict` unchanged.
 - Both put reasoning in `delta.reasoning_content`,
   which the stream reader drops,
@@ -462,13 +464,44 @@ so both are covered there without a list.
 
 ## Prices
 
-DeepSeek is priced at peak always:
+DeepSeek is priced at the rate of the hours of its start and its completion.
+The card holds the peak rates:
 0.006 (cache hit),
 0.3 (cache miss) and 1.2 (output) USD per million tokens,
 with the hit and miss split read from the usage block.
-The page halves every rate off peak (01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak),
-and a run cannot know the holidays,
-so a peak price is an upper bound and never an under-read of the balance.
+The page halves every rate off peak
+(01:00 to 04:00 UTC and 06:00 to 10:00 UTC on weekdays other than Chinese public holidays are peak,
+and every other hour is off peak,
+weekends and Chinese public holidays in full).
+A call is booked at the peak rates when its request started,
+or its reply completed,
+inside one of those windows on a Monday to Friday in UTC,
+and at half of them only when both instants lie outside every window.
+Each window is read as half-open
+(01:00:00 UTC and 06:00:00 UTC are peak,
+04:00:00 UTC and 10:00:00 UTC are off peak),
+because the page does not say whether its last instant belongs to a window.
+The page does not say either whether the start or the end of a request decides its rate,
+so a call that starts or completes inside a window is booked at peak,
+and a call that spans a whole window with both instants outside is booked at half,
+which is wrong only if DeepSeek bills by an instant between the two.
+The client reads the clock it is given
+(`now` of `createDeepSeekClient`,
+the system clock by default)
+before the first attempt and again when the attempt that succeeded has completed,
+so a retried call is bracketed by its first start and its last completion.
+The run reads no holiday calendar,
+and a holiday only makes a weekday window cheaper,
+so the booked figure is an upper bound as to holidays and as to which instant decides.
+It is not bounded as to a Saturday that China makes a working day,
+which the page books off peak and DeepSeek may bill at peak,
+nor as to a call that spans a whole window with both instants outside it.
+This replaced "peak always" on 2026-10-25,
+after the XingZ6021 run (Saturday 22:49 UTC to Sunday 00:55 UTC,
+off peak throughout)
+booked 0.147093 USD while the balance fell 0.07.
+SPEND lines and run meters written before this change book every DeepSeek call at peak,
+so they over-read off-peak calls by up to twice.
 Xiaomi is 0.0028 (cached),
 0.14 and 0.28 USD per million tokens,
 with the cached count read from the usage block.

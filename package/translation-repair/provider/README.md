@@ -322,7 +322,12 @@ and `createXiaomiClient` paces its calls to 100 a minute and reports the run's p
 Each client serves one model and throws `DeepSeekModelNotServedError` or `XiaomiModelNotServedError`
 for any other before a request is built.
 No request carries a reasoning member.
-Prices are in `direct-cost.ts` (DeepSeek always at peak),
+Prices are in `direct-cost.ts`
+(DeepSeek at the card's peak rates when the request started,
+or its reply completed,
+inside a weekday peak window in UTC,
+at half of them only when both instants lie outside every window,
+by the clock `createDeepSeekClient` takes as `now`),
 the cache split and `system_fingerprint` readers are in `direct-usage.ts`,
 and the record is `doc/decision/translation-repair-direct-providers.md`.
 

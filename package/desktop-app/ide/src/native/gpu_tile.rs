@@ -139,7 +139,8 @@ impl GpuTile {
     /// A tile whose textures differ in size from the last one's gets its new textures,
     /// and the window its new slices,
     ///  here and not in the frame,
-    /// because the window does not show a slice list it was given inside the frame that draws the tile.
+    /// because a `for` draws a list that was reset or replaced inside a frame only from the next frame
+    /// (`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`).
     pub(super) fn submit_tile(&self, window: &AppWindow, stack: TileStack) {
         let mut inner = self.inner.borrow_mut();
         let outcome = inner.prepare_tile(&stack);
@@ -158,8 +159,17 @@ impl GpuTile {
     /// whose first row is the row `top` of the whole picture,
     /// the one to draw at the next frame;
     /// a picture not drawn yet is replaced.
-    pub(super) fn submit_minimap(&self, chunks: Vec<TileScene>, top: u32) {
-        self.inner.borrow_mut().pending_minimap = Some((chunks, top));
+    /// A picture whose textures differ in size from the last one's gets its new textures,
+    /// and the window its new slices,
+    /// here and not in the frame,
+    /// because a `for` draws a list that was reset or replaced inside a frame only from the next frame
+    /// (`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`).
+    pub(super) fn submit_minimap(&self, window: &AppWindow, chunks: Vec<TileScene>, top: u32) {
+        let mut inner = self.inner.borrow_mut();
+        let outcome = inner.prepare_minimap(&chunks, top);
+        inner.pending_minimap = Some((chunks, top));
+        drop(inner);
+        outcome.apply(window);
     }
 
     /// Whether a picture of the minimap waits for a frame to draw it.
@@ -447,7 +457,8 @@ pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
         };
         if let Some(active) = weak.upgrade() {
             // What: New textures for the tile reach the window's list of slices inside the frame that made them,
-            //       and that frame does not show them; the window asks for the frame that does.
+            //       and a reset or replaced list is not drawn by that frame (`repeater_frame_tests`); the window
+            //       asks for the frame that does.
             // Why: Nothing else asks for it. The window draws no frame by itself, and before the hint skip rule the
             //      answer to a hint request repainted the source a moment later and so drew one by chance.
             //      A press whose request is skipped has no answer, and its code column stayed blank.

@@ -50,7 +50,7 @@ env.TRANSLATION_REPAIR_STARTED_BY = "displacement-probe"
 run = "node dist/final/node/displacement-probe.mjs"
 
 [tasks."editor-calibrate"]
-description = "Rank every model on the EDITOR's own job by driving the whole repair lane, every roster model editing and judging each slice, and report the refiner standing off the same spend; SPENDS QUOTA (pass a slice count after --, default 6; TRANSLATION_REPAIR_SLICE_OVERLAP=N runs N slices at once, default 4, and the straggler window is 300000 ms unless TRANSLATION_REPAIR_STRAGGLER_GRACE_MS says otherwise, both decided 2026-08-26)"
+description = "Rank every model on the EDITOR's own job by driving the whole repair lane, every roster model editing and judging each slice, and report the refiner standing off the same spend; SPENDS QUOTA (pass a slice count after --, default 6; --candidates <seatable ids> seats those cards as the editors beside the roster's writers in place of the run's named editors, and --candidates-alone seats only them, though the critics, panel, judges and checkers stay the whole roster; TRANSLATION_REPAIR_SLICE_OVERLAP=N runs N slices at once, default 4, and the straggler window is 300000 ms unless TRANSLATION_REPAIR_STRAGGLER_GRACE_MS says otherwise, both decided 2026-08-26)"
 depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "editor-calibrate"
 run = "node dist/final/node/editor-calibrate.mjs"
