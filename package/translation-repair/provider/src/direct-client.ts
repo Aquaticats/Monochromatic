@@ -34,6 +34,7 @@ import {
 } from './direct-usage.ts';
 import { requireWholeStream, } from './require-whole-stream.ts';
 import { withoutRefusedKeyBody, } from './refused-key-body.ts';
+import { systemClock, } from './provider-budget-defaults.ts';
 import { failureForReply, } from './request-size-refusal.ts';
 import { withSchemaInSystemPrompt, } from './schema-prompt.ts';
 import { reportSpend, } from './spend-line.ts';
@@ -114,12 +115,14 @@ export type DirectRoute = {
 
   /**
    The cost and cache fields the spend line carries for one finished call,
-   priced from the card.
+   priced from the card, at the rate of the hour its request started in where
+   the provider's rate depends on the hour (`startedAt`).
    */
   readonly spendFieldsOf: (
     args: {
       readonly extracted: ExtractedCompletion;
       readonly bodyText: string;
+      readonly startedAt: Date;
     },
   ) => Pick<Parameters<typeof reportSpend>[0], 'costUsd' | 'cachedTokens'>;
 };
@@ -183,6 +186,9 @@ export type DirectClient = ModelCaller;
 
  @param retryPolicy - transient-retry pacing; tests pass tiny backoffs
 
+ @param now - clock the start of each request is read from, which picks the rate of a provider that prices by the hour;
+ the system clock outside a test
+
  @returns Client surface with chatText and chatJson
 
  @example
@@ -197,12 +203,14 @@ export function createDirectClient(
     transport,
     perModelConcurrency,
     retryPolicy = DEFAULT_RETRY_POLICY,
+    now = systemClock,
   }: {
     readonly route: DirectRoute;
     readonly apiKey: string;
     readonly transport: ModelTransport;
     readonly perModelConcurrency: number;
     readonly retryPolicy?: RetryPolicy;
+    readonly now?: () => Date;
   },
 ): DirectClient {
   /**
@@ -325,6 +333,14 @@ export function createDirectClient(
         },);
 
       /**
+       Instant the request starts at, read once before the first attempt and
+       once only, so every retry of the call is priced at the hour the call
+       began in, and a reply that comes back after an edge of a rate window is
+       not priced by the hour it came back in.
+       */
+      const startedAt = now();
+
+      /**
        Raw reply from the transport seam, retried on transient statuses.
        */
       const reply = await exchangeWithRetry({
@@ -384,6 +400,7 @@ export function createDirectClient(
         ...route.spendFieldsOf({
           extracted,
           bodyText: reply.bodyText,
+          startedAt,
         },),
       },);
       return extracted;

@@ -29,6 +29,7 @@ import {
   deepSeekCostOf,
 } from './direct-cost.ts';
 import { deepSeekIdFor, } from './direct-reach.ts';
+import { systemClock, } from './provider-budget-defaults.ts';
 import { withoutRefusedKeyBody, } from './refused-key-body.ts';
 import { deepSeekCacheSplitOf, } from './direct-usage.ts';
 import {
@@ -190,26 +191,30 @@ function jsonObjectFormat(): Readonly<Record<string, unknown>> {
 }
 
 /**
- Prices one finished DeepSeek call at peak rates.
+ Prices one finished DeepSeek call at the rate of the hour its request started in.
 
  @param extracted - completion whose usage block DeepSeek filled in, or did not
 
  @param bodyText - whole drained stream, whose last usage block names the cache split
 
+ @param startedAt - instant the request started at, whose hour picks peak or off-peak rates
+
  @returns The cost and cache fields the spend line carries, each absent where the stream reported nothing
 
  @example
  ```ts
- const fields = deepSeekSpendFields({ extracted, bodyText, },);
+ const fields = deepSeekSpendFields({ extracted, bodyText, startedAt, },);
  ```
  */
 function deepSeekSpendFields(
   {
     extracted,
     bodyText,
+    startedAt,
   }: {
     readonly extracted: ExtractedCompletion;
     readonly bodyText: string;
+    readonly startedAt: Date;
   },
 ): ReturnType<DirectRoute['spendFieldsOf']> {
   /**
@@ -217,12 +222,13 @@ function deepSeekSpendFields(
    */
   const split = deepSeekCacheSplitOf({ bodyText, },);
   /**
-   The call priced at peak rates, or that nothing was reported.
+   The call priced at the rates of the hour it started in, or that nothing was reported.
    */
   const cost = deepSeekCostOf({
     card: DEEPSEEK_MODELS['deepseek-flash'],
     extracted,
     split,
+    startedAt,
   },);
   return {
     ...((cost === DIRECT_COST_UNREPORTED) ? {} : { costUsd: cost, }),
@@ -269,6 +275,9 @@ function deepSeekRoute({ baseUrl, }: { readonly baseUrl: string; },): DirectRout
 
  @param retryPolicy - transient-retry pacing; tests pass tiny backoffs
 
+ @param now - clock each request's start is read from, whose hour picks peak or off-peak rates for the cost the spend
+ line carries; the system clock outside a test
+
  @returns Client surface with chatText, chatJson and credits
 
  @example
@@ -283,12 +292,14 @@ export function createDeepSeekClient(
     baseUrl = DEEPSEEK_BASE_URL,
     perModelConcurrency = DEEPSEEK_PER_MODEL_CONCURRENCY,
     retryPolicy = DEFAULT_RETRY_POLICY,
+    now = systemClock,
   }: {
     readonly apiKey: string;
     readonly transport: ModelTransport;
     readonly baseUrl?: string;
     readonly perModelConcurrency?: number;
     readonly retryPolicy?: RetryPolicy;
+    readonly now?: () => Date;
   },
 ): DeepSeekClient {
   /**
@@ -300,6 +311,7 @@ export function createDeepSeekClient(
     transport,
     perModelConcurrency,
     retryPolicy,
+    now,
   },);
 
   /**

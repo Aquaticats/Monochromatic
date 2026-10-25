@@ -18,8 +18,10 @@ import {
 
 import {
   DEEPSEEK_MODELS,
+  DEEPSEEK_OFF_PEAK_MULTIPLIER,
   deepSeekCostOf,
   DIRECT_COST_UNREPORTED,
+  isDeepSeekPeakAt,
   XIAOMI_MODELS,
   xiaomiCostOf,
 } from '../dist/final/node/index.mjs';
@@ -222,6 +224,70 @@ await describe({
             expect(costStartedAt({ startedAt: '2026-10-23T23:59:00.000Z', },),).toBeCloseTo(OFF_PEAK_USD, 12,);
             expect(costStartedAt({ startedAt: '2026-10-26T00:59:59.999Z', },),).toBeCloseTo(OFF_PEAK_USD, 12,);
             expect(costStartedAt({ startedAt: '2026-10-26T01:00:00.000Z', },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isDeepSeekPeakAt.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'READS the page\'s two windows as half-open on the hour: 01:00:00 and 06:00:00 are peak, 04:00:00 and '
+            + '10:00:00 are off peak, and so is every other hour of a weekday',
+          fn: async () => {
+            /**
+             Instants of a Wednesday paired with whether they are peak.
+             */
+            const wednesday: readonly (readonly [string, boolean])[] = [
+              ['00:00:00.000', false,],
+              ['00:59:59.999', false,],
+              ['01:00:00.000', true,],
+              ['02:30:00.000', true,],
+              ['03:59:59.999', true,],
+              ['04:00:00.000', false,],
+              ['05:59:59.999', false,],
+              ['06:00:00.000', true,],
+              ['09:59:59.999', true,],
+              ['10:00:00.000', false,],
+              ['23:59:59.999', false,],
+            ];
+            for (const [time, peak,] of wednesday)
+              expect(isDeepSeekPeakAt({ at: new Date(`2026-10-21T${time}Z`,), },),).toBe(peak,);
+          },
+        },),
+        it({
+          name: 'READS Saturday and Sunday as off peak at every hour, the page naming Monday through Friday only',
+          fn: async () => {
+            for (const day of ['2026-10-24', '2026-10-25',]) {
+              for (let hour = 0; hour < 24; hour += 1) {
+                expect(
+                  isDeepSeekPeakAt({ at: new Date(`${day}T${String(hour,).padStart(2, '0',)}:30:00.000Z`,), },),
+                ).toBe(false,);
+              }
+            }
+          },
+        },),
+        it({
+          name: 'READS the weekday in UTC: a Monday reaches peak at 01:00 UTC and a Friday leaves it at 10:00 UTC',
+          fn: async () => {
+            expect(isDeepSeekPeakAt({ at: new Date('2026-10-26T00:59:59.999Z',), },),).toBe(false,);
+            expect(isDeepSeekPeakAt({ at: new Date('2026-10-26T01:00:00.000Z',), },),).toBe(true,);
+            expect(isDeepSeekPeakAt({ at: new Date('2026-10-23T09:59:59.999Z',), },),).toBe(true,);
+            expect(isDeepSeekPeakAt({ at: new Date('2026-10-23T10:00:00.000Z',), },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'READS an instant that is not a time as peak, the dearer rate, so a failing clock never books less than '
+            + 'the account may have been charged',
+          fn: async () => {
+            expect(isDeepSeekPeakAt({ at: new Date(Number.NaN,), },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'HALVES the card\'s rates off peak: the multiplier is 0.5, as the page states its off-peak rates',
+          fn: async () => {
+            expect(DEEPSEEK_OFF_PEAK_MULTIPLIER,).toBe(0.5,);
           },
         },),
       ],

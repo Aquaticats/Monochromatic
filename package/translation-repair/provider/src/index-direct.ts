@@ -21,8 +21,10 @@ export {
 } from './direct-client.ts';
 export { withoutRefusedKeyBody, } from './refused-key-body.ts';
 export {
+  DEEPSEEK_OFF_PEAK_MULTIPLIER,
   DIRECT_COST_UNREPORTED,
   deepSeekCostOf,
+  isDeepSeekPeakAt,
   xiaomiCostOf,
 } from './direct-cost.ts';
 export {
