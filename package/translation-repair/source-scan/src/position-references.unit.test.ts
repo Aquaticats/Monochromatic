@@ -221,6 +221,30 @@ await describe({
       },
     },),
     it({
+      name: 'FINDS A POSITION BEFORE A "that" AND A BARE VERB, in the two real pointers that passed ("the lines '
+        + 'below that write it", "the paragraphs above that explain") and one more verb of each kind',
+      fn: async () => {
+        expect(positionReferences({
+          file: {
+            path: 'src/cat.ts',
+            text: [
+              '// The lines below that write it name the bowl.',
+              '// The paragraphs above that explain the nap are short.',
+              '// The cases below that cover the whiskers pass.',
+              '// The notes above that say the cat purred hold.',
+            ].join('\n',),
+          },
+        },).map(function phraseOf({ phrase, },): string {
+          return phrase;
+        },),).toEqual([
+          'lines below',
+          'paragraphs above',
+          'cases below',
+          'notes above',
+        ],);
+      },
+    },),
+    it({
       name: 'FINDS A POSITION BEFORE A WORD OF THE COMPARED LIST THAT IS A VERB HERE, one for each such word, since '
         + 'the verb read as the object of a comparison and let "the lines below zero the counter" pass',
       fn: async () => {
@@ -315,7 +339,7 @@ await describe({
             text: [
               '// A roster below that floor declines, and a cat above that of the dog naps.',
               '// A count above zero, a nap below baseline for a day, a vote below threshold.',
-              '// A rate above total resolution.',
+              '// A rate above total resolution, a cap below that speed, and a nap not below that size.',
               '// It ranks above all else and above all others, below each of them, and above all, it naps.',
             ].join('\n',),
           },
