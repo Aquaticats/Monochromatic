@@ -15,19 +15,16 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 
 import {
   type ArmLog,
   repeatLinesOf,
 } from '../../dist/final/node/index.mjs';
 import {
-  armLogOf,
   inPass,
   POOL_TRIALS,
   poolRows,
   type RowSpec,
-  tallyFromRows,
 } from '../editor-fidelity-arm-log.test-fixture.ts';
 import {
   HIGH_CARD,
@@ -35,6 +32,10 @@ import {
   MEDIUM_CARD,
 } from '../editor-fidelity.test-fixture.ts';
 import { readAsBuilt as readAsBuiltIn, } from './editor-fidelity-arm-read-built.test-fixture.ts';
+import {
+  armOf,
+  walkOf,
+} from './editor-fidelity-arm-walk.test-fixture.ts';
 
 /**
  What a warning ends with: the bound, when it holds, and what the simulation reached when the default effort repeats
@@ -91,96 +92,6 @@ function twoPassRows(
       pass: 2,
     },),
   ];
-}
-
-/**
- The rows of an arm that walks the invented pool in passes and stops after a number of units: every pass takes the
- pool's trials in order.
-
- @param units - how many units, a unit being a trial in one pass
- @param fixedAt - whether the trial at an index of the pool reads as a clean fix in a pass
-
- @returns The rows, pass by pass
-
- @example
- ```ts
- const rows = walkOf({ units: 150, fixedAt: ({ pass, },) => pass === 1, },);
- ```
- */
-function walkOf(
-  {
-    units,
-    fixedAt,
-  }: {
-    readonly units: number;
-    readonly fixedAt: (at: { readonly pass: number; readonly index: number; },) => boolean;
-  },
-): readonly RowSpec[] {
-  return Array.from(
-    { length: Math.ceil(units / POOL_TRIALS,), },
-    function passRows(
-      _unused,
-      passAt,
-    ): readonly RowSpec[] {
-      /**
-       The pass, counted from one.
-       */
-      const pass = passAt + 1;
-      /**
-       The rows of this pass.
-       */
-      const rows = poolRows({
-        count: Math.min(POOL_TRIALS, units - (passAt * POOL_TRIALS)),
-        fixed: function fixesInPass(index,): boolean {
-          return fixedAt({ pass, index, },);
-        },
-      },);
-      return (pass === 1) ? rows : inPass({ rows, pass, },);
-    },
-  )
-    .flat();
-}
-
-/**
- One arm's log over the given rows.
-
- @param arm - the arm's name
- @param cardId - the card it seated
- @param rows - the rows it walked
- @param declaredUsd - what its guard line says the earlier arms spent
- @param countedUsd - what its guard total says it counted
-
- @returns The arm's log
-
- @example
- ```ts
- const log = armOf({ arm: 'high', cardId: HIGH_CARD, rows, },);
- ```
- */
-function armOf(
-  {
-    arm,
-    cardId,
-    rows,
-    declaredUsd = 0,
-    countedUsd = 0.5,
-  }: {
-    readonly arm: string;
-    readonly cardId: RosterModelId;
-    readonly rows: readonly RowSpec[];
-    readonly declaredUsd?: number;
-    readonly countedUsd?: number;
-  },
-): ArmLog {
-  return armLogOf({
-    arm,
-    tally: tallyFromRows({ cardId, rows, },),
-    stops: [],
-    rows,
-    seat: `SEAT ${cardId} asked=${String(rows.length,)} usable=${String(rows.length,)} unusable=0 threw=0 silent=0 abandoned=0 unreachable=0`,
-    benchSpentUsd: declaredUsd,
-    guardUsd: countedUsd,
-  },);
 }
 
 /**
@@ -573,8 +484,9 @@ await describe({
         },),
 
         it({
-          name: 'PRINTS NO WARNING WHEN ONLY THE HIGH ARM REPEATS ITSELF LESS, the same logs with the high and medium arms '
-            + 'exchanged, and the CHECKS line follows the three repeat lines',
+          name: 'PRINTS NO REPEAT WARNING WHEN ONLY THE HIGH ARM REPEATS ITSELF LESS, the same logs with the high and medium '
+            + 'arms exchanged, so that only the high fix rate warning (the medium arm fixes every unit) stands between the '
+            + 'three repeat lines and the CHECKS line',
           fn: async () => {
             /**
              Rows of two whole passes of the invented pool, the leading `differ` trials disagreeing in the second.
@@ -592,7 +504,8 @@ await describe({
               return line.startsWith('REPEAT high: ',);
             },);
             expect(run.stdout[repeatAt],).toBe('REPEAT high: 68 of 88 trials gave the same reading in every pass (77 percent)',);
-            expect(run.stdout[repeatAt + 3]?.startsWith('CHECKS ',),).toBe(true,);
+            expect(run.stdout[repeatAt + 3]?.startsWith('WARN high fix rate: medium cleanly fixed 176 of 176 shared units (100 percent)',),).toBe(true,);
+            expect(run.stdout[repeatAt + 4]?.startsWith('CHECKS ',),).toBe(true,);
             expect(run.stdout.some(function isWarning(line,): boolean {
               return line.startsWith('WARN repeat agreement',);
             },),).toBe(false,);

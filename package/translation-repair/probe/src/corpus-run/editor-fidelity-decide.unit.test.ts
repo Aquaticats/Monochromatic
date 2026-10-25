@@ -145,6 +145,8 @@ await describe({
             expect(rule,).toContain('a unit is a trial in one pass over the pool',);
             expect(rule,).toContain('a trial asked again joins the cluster of its entry',);
             expect(rule,).toContain('seeds edr7-sim and edr8-sim',);
+            expect(rule,).toContain('at true fix rates from 0.30 to 0.90, within-entry correlations from 0 to 1',);
+            expect(rule.includes('0.30 to 0.95',),).toBe(false,);
             expect(rule,).toContain('an agreement of a repeat with the arm\'s first answer from 0 to 1',);
             expect(rule,).toContain('scores as unusable for its arm',);
             expect(rule,).toContain('left out of every arm\'s comparison and counted',);
@@ -152,7 +154,11 @@ await describe({
             expect(rule,).toContain('not the span-only view production gives an editor',);
             expect(rule,).toContain('is at most 0.05 when every arm repeats itself alike',);
             expect(rule,).toContain('the worst of 192 cells was 0.055 at 800 replicates, within the noise of 0.008',);
-            expect(rule,).toContain('up to 0.107 when the default effort repeats itself far less than the others',);
+            expect(rule,).toContain('and 0.107 when the default effort repeats itself far less than the others (a true fix rate of 0.9, three passes, 4000 replicates of the committed fixture)',);
+            expect(rule.includes('up to 0.107',),).toBe(false,);
+            expect(rule,).toContain('Both figures hold for fix rates up to 0.90 and no higher.',);
+            expect(rule,).toContain('Above 0.90 the chance when the default effort repeats itself far less than the others was higher: 0.142 at 0.93, 0.173 at 0.95 and 0.241 at 0.97 by an independent re-implementation of the model (reviewer seed edrc5, 4000 replicates, 264 units), and 0.130 at 0.93 and 0.175 at 0.95 by the committed fixture (seed edr9-fx, 4000 replicates, three passes of 264 units, correlation 1).',);
+            expect(rule,).toContain('prints WARN high fix rate when the default effort fixes 93 percent or more of the shared units, since the repeat warning cannot see unequal repeats there and a verdict of high or low then stands under the caveat',);
             expect(rule,).toContain('prints each arm\'s repeat agreement over the units every arm holds and warns when the default effort repeats itself more than 15 points less than another arm',);
             expect(rule.includes('at most 0.055',),).toBe(false,);
             expect(rule,).toContain('about 26 points when medium fixes half',);
