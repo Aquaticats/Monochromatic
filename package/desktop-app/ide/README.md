@@ -975,10 +975,14 @@ and another process on the same project (a second window of the IDE)
 prepares the same path while this one starts bubblewrap.
 A directory removed and made again is missing in between,
 and bubblewrap then stops with `bwrap: Can't find source path .../tmp: No such file or directory`
-(or `Can't open source ...`, `Can't bind mount ... on /tmp`).
+(or `Can't open source ...`,
+`Can't bind mount ... on /tmp`).
 Measured on 2026-10-25 with three sessions at a time on one cache folder and one project:
-the old version failed in 4 of 709 launches (mise's run in 3, the server's in 1),
-the new one in 0 of 300 (those counts alone do not separate them);
+the old version failed in 4 of 709 launches
+(mise's run in 3,
+the server's in 1),
+the new one in 0 of 300
+(those counts alone do not separate them);
 with a cache folder for each session the old version failed in 0 of 120.
 `preparation_empties_a_scratch_directory_without_replacing_it` (`src/language/launch_tests.rs`)
 holds the directory open across a preparation and needs it still linked;
@@ -2283,16 +2287,23 @@ and `a wheel turn began an ease` for every turn the scroll reports within 50 ms 
 A turn the window state could not note,
 and a note older than 50 ms,
 write a record of their own.
-A session whose log has no such line received no wheel event:
-13 of 210 sessions (one-core limit,
-the wheel sent 300 ms after the language server was ready) have none,
-and all 13 show the top of the file,
-while all 197 with the line show a scrolled gutter.
-The time of the toolkit's report of the real window size does not tell the two groups apart;
-the likely cause,
-which the log cannot show,
-is a wheel sent while the first,
-small surface was the only one the pointer could be over.
+A session whose log has no such line received no wheel event.
+The nested compositor refuses a `wheel` command with
+`err no nested client surface at wheel position X,Y` while the app has committed no buffer yet,
+and nothing is sent to the app:
+of 276 fresh sessions 50 were refused
+(all show the top of the file,
+none has the line)
+and 226 were accepted
+(all have the line and a scrolled gutter).
+The first surface is not small:
+it is 1080 by 1880 logical px from its first buffer,
+and the 173 px width is Slint's first layout.
+The ready line of the language server does not wait for the first frame,
+so a wheel sent 300 ms after it was refused in 14 of 72 one-core sessions and 2 of 60 unlimited ones.
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+"Where the early wheel is lost",
+has the account.
 
 Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
 the hardware GPU,

@@ -5336,6 +5336,99 @@ subsections "Which row a press names" and "The log of a press".
   analysis,
   OCR) was kept only in the session scratch and removed.
 
+## The early wheel, the sandbox scratch race, and the unreproduced stalled-launch map, 2026-10-25 (branch worktree-agent-a763037d1a881724e)
+
+Full accounts with counts:
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md` ("Where the early wheel is lost",
+"A taller map after a stalled launch"),
+`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md`,
+`doc/troubleshooting/nested-wayland-gui-test-footguns.md`.
+
+- Early wheel lost (a):
+  the compositor refused the command.
+  50 of 276 fresh sessions got `err no nested client surface at wheel position 540,900` (the app had committed no buffer),
+  and 226 got `ok`;
+  every refused one has no winit wheel line and a top gutter,
+  every accepted one has the line and a scrolled gutter,
+  and the 36 sessions with the app's protocol log show no `enter` or `axis` sent for the refused ones.
+  The surface is not small (1080x1880 from the first buffer).
+  The earlier harness did not read the reply.
+  Fix in `package/cli/nested-wayland-session`:
+  `windows`,
+  `focus` and `close` list a toplevel only once it has a buffer (`src/window_list.rs`),
+  the refusal text says why (`src/input_wheel.rs`),
+  README says that `click` and `move` over no window answer `ok` and reach nobody.
+  Check `windows lists a toplevel only once it takes pointer input` in `inspect:headless`:
+  fails against 0.6.1,
+  passes now.
+  IDE as client,
+  wheel at the first listing,
+  60 sessions:
+  0.6.1 refused 60,
+  the branch 0.
+  **A release of the nested compositor is needed** (not done here);
+  the IDE needs none for this.
+- `bwrap` row (b):
+  bubblewrap printed it;
+  the IDE emptied a launch's private `/tmp` by removing and making the directory again,
+  so another process on the same project could find the bind source missing.
+  Old binary,
+  three at a time on one cache folder:
+  4 of 709;
+  separate folders 0 of 120;
+  one at a time 0 of 120;
+  fixed binary 0 of 300
+  (the counts alone do not separate the binaries;
+  the held-directory test does).
+  `empty_in_place` (`src/language/launch/state.rs`),
+  tests in `src/language/launch_tests.rs`,
+  guards `scratch-kept-in-place` and `sandbox-stop-named`
+  (both observed failing when removed,
+  passing when restored).
+  The mise notice for a message that begins `bwrap:` no longer sends the reader to `mise doctor` (`Failed::stopped_by_sandbox`).
+  Left:
+  two processes on one project still share one private `/tmp` per server (a per-process scratch would end that).
+  **An IDE release is needed** for the installed binary.
+- Taller map (c):
+  400 of 400 input-free unlimited sessions,
+  three at a time,
+  with the fixed binary (two copies of 200) ended at 36,024 px with no
+  `the measurement found rows in the displayed tile that differ from the map` record.
+  This proves nothing about the 1 in 1,160 rate or about the stalled-launch case:
+  there is no positive control,
+  and the earlier rate is too low for 400 sessions to show a difference.
+  The verifier's three stalled sessions (36,456 px,
+  one narrow rebuild,
+  none after the real size) were NOT reproduced in 229 stalled launches
+  (app,
+  compositor or both stopped 2.2 s at fourteen start-up places) or with a delayed tile worker;
+  no code path that skips the rebuild was found.
+  Next step:
+  the records after the real size in the verifier's three logs
+  (`left a new width to the tile worker`,
+  `posted the measurement pass wrap=644`,
+  `window thread applied a finished tile`,
+  `applied a measurement`)
+  tell a starved worker from a lost request.
+- Gates (IDE):
+  lint,
+  `test:language` 380 of 380,
+  `test:native` 350 of 350,
+  `test:bin`,
+  `test` 815 of 815,
+  `inspect:no-software-renderer`,
+  `inspect:language-guards` for the two new cases.
+  Gates (compositor):
+  `test` 278 of 278,
+  `lint`,
+  `lint:clippy`,
+  `inspect:headless` 5 of 5.
+- The harness (`drive.ts`:
+  sessions,
+  stalls,
+  `windows`-gated wheel,
+  OCR of the gutter) was kept only in the session scratch and removed.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

@@ -124,7 +124,8 @@ At run time (present on virtually every Linux desktop):
  or `--launcher-log` is used,
  and either a running parent session
 (the default is a nested winit client of an existing compositor)
-or, with `--headless`,
+or,
+with `--headless`,
 a DRM render node that Mesa's EGL can open
 (a readable `/dev/dri/renderD*`)
 or Mesa's software rasterizer,
@@ -278,11 +279,14 @@ printf 'screenshot /tmp/after.png\n'  | nc -U /tmp/nws.sock   # => ok
 printf 'quit\n'                       | nc -U /tmp/nws.sock   # => ok
 ```
 
-The socket is owner-only: its mode is `0600`,
+The socket is owner-only:
+its mode is `0600`,
 whatever the umask of the process that starts the session,
 so only the user who started it can connect.
 The `/tmp` path above is a convenience for a single-user machine;
-the mode, not the directory, is what keeps other local users out.
+the mode,
+not the directory,
+is what keeps other local users out.
 See [Who can connect](#who-can-connect).
 
 ### Headless mode
@@ -642,23 +646,37 @@ Sizes map the way they do on a desktop with a scaled output:
 
 A `resize` or `scale` that changes the screen while a recording runs also answers the frame requests of the hosted
 client at once.
-It sends the frame callbacks, and flushes, right after the new configure and the new scale,
+It sends the frame callbacks,
+and flushes,
+right after the new configure and the new scale,
 so the client can draw and commit the new size before the next capture instead of one capture later.
 Without it the recorder tick was the only sender of frame callbacks while recording,
-and a toolkit on winit (Slint, for one) holds its redraw until the callback of its previous frame arrives,
+and a toolkit on winit (Slint,
+for one) holds its redraw until the callback of its previous frame arrives,
 so a size that reached the client between two ticks was drawn after the next capture.
 That capture then showed the previous buffer on a canvas of the new size.
-A command that changes nothing, such as `scale` to the scale already set, sends no callbacks.
-Each callback is answered once, so the following tick finds none until the client asks again.
-Outside a recording nothing changes: the live path already sends them after every presentation.
-Measured with the Slint IDE hosted and a 16 ms `resize` drag (1100 to 600 to 1100 pixels, two sweeps) recorded at
-60 fps, with no dropped frame and a load below 20 at the start,
+A command that changes nothing,
+such as `scale` to the scale already set,
+sends no callbacks.
+Each callback is answered once,
+so the following tick finds none until the client asks again.
+Outside a recording nothing changes:
+the live path already sends them after every presentation.
+Measured with the Slint IDE hosted and a 16 ms `resize` drag (1100 to 600 to 1100 pixels,
+two sweeps) recorded at
+60 fps,
+with no dropped frame and a load below 20 at the start,
 the share of captures whose held buffer was not the width of the output mode fell
-from 88.1 to 92.7 percent (8 runs) to 45.2 to 56.0 percent (7 of 8 runs; the eighth stayed at 91.5 percent, with a
-median commit delay of 34 ms and 141 frames recorded instead of 143, cause not determined).
-In the other runs, the median delay from the command to the commit of that width fell
+from 88.1 to 92.7 percent (8 runs) to 45.2 to 56.0 percent (7 of 8 runs;
+the eighth stayed at 91.5 percent,
+with a
+median commit delay of 34 ms and 141 frames recorded instead of 143,
+cause not determined).
+In the other runs,
+the median delay from the command to the commit of that width fell
 from 11 to 13 ms to 6 to 7 ms.
-What remains was not analyzed further; the application's own work against a 16.7 ms tick is a part of it.
+What remains was not analyzed further;
+the application's own work against a 16.7 ms tick is a part of it.
 The runs and the method are in
 [`doc/troubleshooting/nested-wayland-recording-previous-resize-step.md`](
 ../../../doc/troubleshooting/nested-wayland-recording-previous-resize-step.md).
@@ -755,7 +773,10 @@ It prints the directory holding its evidence.
 Use `mise run //package/cli/nested-wayland-session:inspect:resize-callbacks` to verify the early callbacks
 on the built release binary.
 The task needs `slint-viewer`.
-It hosts an animating Slint scene, records at 2 fps, and makes four resizes, each 150 ms after a recorder tick.
+It hosts an animating Slint scene,
+records at 2 fps,
+and makes four resizes,
+each 150 ms after a recorder tick.
 From the client's own `WAYLAND_DEBUG` protocol log it requires that the first frame callback follows
 the configure within 100 ms (a callback left for the next tick comes about 350 ms later),
 that the callbacks come together in one burst,
@@ -1423,7 +1444,8 @@ and the client receives the same string either way.
   A point that no hosted window covers is refused too:
   the answer is `err no nested client surface at wheel position X,Y: ...` and nothing is sent to the client.
   That happens at every point until the app has committed its first buffer
-  (a client creates its toplevel, then spends tens to hundreds of milliseconds on its renderer),
+  (a client creates its toplevel,
+  then spends tens to hundreds of milliseconds on its renderer),
   so a driver must read the answer and send the wheel again,
   or wait until `windows` lists a window.
   A driver that ignores the answer loses the wheel without a trace in the app's log.
@@ -1592,7 +1614,9 @@ The socket is therefore never reachable with a looser mode,
 and a looser umask in the environment cannot widen it.
 A path that already exists is removed first.
 The directory that holds `PATH` must exist and be writable by the user.
-The staging directory, named `.nws-control-<pid>-<n>`, exists only for the instant of the bind;
+The staging directory,
+named `.nws-control-<pid>-<n>`,
+exists only for the instant of the bind;
 a session killed at that instant can leave it behind empty.
 
 Two cases are outside this guarantee.
@@ -1715,7 +1739,8 @@ It also checks that `title` and `app-id` follow the client's own title change.
   keeping the output scale,
   and applies it before answering `ok`.
   Odd and even sizes are exact in the client and in captures.
-  While a recording runs, the client's pending frame callbacks are answered right after the new configure;
+  While a recording runs,
+  the client's pending frame callbacks are answered right after the new configure;
   see [Change the output scale](#change-the-output-scale).
 - `scale SCALE` sets the output scale,
   keeping the logical size.
@@ -2036,7 +2061,8 @@ and why.
 - `windows`,
   `focus`,
   and `close` list a toplevel only once its client has committed a buffer.
-  Before, a toplevel was listed from the moment its client created it,
+  Before,
+  a toplevel was listed from the moment its client created it,
   tens to hundreds of milliseconds before any point of the screen belonged to it,
   so a driver that waited for `windows` and then sent `wheel` was refused.
   Measured with a Slint IDE window in 36 headless sessions with the app's Wayland protocol log:
@@ -2106,7 +2132,8 @@ and why.
   see [Headless pacing](#headless-pacing).
 - New `inspect:headless` task.
 - A `resize` or `scale` that changes the screen while a recording runs answers the client's pending frame callbacks
-  right after the new configure and scale, so the client draws and commits the new size before the next capture.
+  right after the new configure and scale,
+  so the client draws and commits the new size before the next capture.
   See [Change the output scale](#change-the-output-scale).
 
 ## Changes in 0.4.0
