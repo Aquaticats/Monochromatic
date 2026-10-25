@@ -28,7 +28,7 @@ const USER = 'imaginary/src/pos-user.ts';
 const POS_ARGUMENTS = '{ schemaName: \'pos\', verdicts: [], asksArchive: false, }';
 
 /**
- The report for a forwarder read in a place that is no call, in the user file.
+ The report for the forwarder `mk` read in a place that is no call, in the user file.
 
  @param line - line of the place
 
@@ -55,6 +55,7 @@ function positionSpotAt(
     line,
     shape: 'forwarder-outside-a-read-position',
     position,
+    held: 'mk',
   };
 }
 

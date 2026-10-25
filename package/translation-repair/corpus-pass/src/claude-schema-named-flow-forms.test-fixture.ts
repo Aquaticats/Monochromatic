@@ -1,0 +1,216 @@
+import type { BlindSpot, } from './claude-schema-blind-spots.test-fixture.ts';
+import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
+import { CONTEST_IMPORT, } from './claude-schema-destination-forms.test-fixture.ts';
+import {
+  SENDER_FILE,
+  SENDER_IMPORT,
+} from './claude-schema-forwarder-forms.test-fixture.ts';
+import type { NamedPlace, } from './claude-schema-named-places.test-fixture.ts';
+import type { SourceFile, } from './claude-schema-sources.test-fixture.ts';
+
+//region What a name of a place stands for when the check reads files
+// The reports the check makes over imaginary files, held to one name: a forwarder handed over as the value of a
+// property is named, and a second forwarder, or the same forwarder handed over again, is a report the name does not
+// stand for, on another line and on the line of the first.
+
+/**
+ One case where the check reads imaginary files and the names are held to the reports it makes.
+ */
+export type NamedFlowCase = {
+  /**
+   What the case holds.
+   */
+  readonly name: string;
+
+  /**
+   The imaginary files the check reads.
+   */
+  readonly files: readonly SourceFile[];
+
+  /**
+   The reports no name stands for, in the order of the files and then of the lines.
+   */
+  readonly unnamed: readonly BlindSpot[];
+};
+
+/**
+ The path of the file that declares the two forwarders of every flow case.
+ */
+const PLACE_STAGE = 'imaginary/src/place-stage.ts';
+
+/**
+ The path of the file that hands the forwarders over as the values of an object.
+ */
+const PLACE_DEPENDENCIES = 'imaginary/src/place-dependencies.ts';
+
+/**
+ The name of the one place the flow cases name: the forwarder `mk` handed over as the value of a property.
+ */
+export const FLOW_PLACE: NamedPlace = {
+  file: PLACE_DEPENDENCIES,
+  shape: 'forwarder-outside-a-read-position',
+  position: 'Property.value',
+  held: 'mk',
+  reason: 'a case',
+};
+
+/**
+ The report for a forwarder handed over as the value of a property in the file of the dependencies.
+
+ @param line - line of the property
+
+ @param held - name of the forwarder
+
+ @returns Report
+
+ @example
+ ```ts
+ const spot = flowSpotAt({ line: 4, held: 'other', },);
+ ```
+ */
+function flowSpotAt(
+  {
+    line,
+    held,
+  }: {
+    readonly line: number;
+    readonly held: string;
+  },
+): BlindSpot {
+  return {
+    file: PLACE_DEPENDENCIES,
+    line,
+    shape: 'forwarder-outside-a-read-position',
+    position: 'Property.value',
+    held,
+  };
+}
+
+/**
+ A flow case whose dependencies file holds the lines given after its import of both forwarders.
+
+ @param name - name of the case
+
+ @param lines - lines of the dependencies file after the import, the first of which is line two
+
+ @param unnamed - reports no name stands for
+
+ @returns Case
+
+ @example
+ ```ts
+ const flowCase = flowCaseOf({ name: 'x', lines: ['export const deps = { settle: mk, };',], unnamed: [], },);
+ ```
+ */
+function flowCaseOf(
+  {
+    name,
+    lines,
+    unnamed,
+  }: {
+    readonly name: string;
+    readonly lines: readonly string[];
+    readonly unnamed: readonly BlindSpot[];
+  },
+): NamedFlowCase {
+  return {
+    name,
+    files: [
+      SENDER_FILE,
+      {
+        file: PLACE_STAGE,
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'export async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+          'export async function other(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+        ],),
+      },
+      {
+        file: PLACE_DEPENDENCIES,
+        text: textOf([
+          'import { mk, other, } from \'./place-stage.ts\';',
+          ...lines,
+        ],),
+      },
+    ],
+    unnamed,
+  };
+}
+
+/**
+ Cases where the check reads imaginary files and the one name is held to the reports it makes.
+ */
+export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF A SECOND FORWARDER HANDED OVER AS A SHORTHAND PROPERTY OF THE SAME OBJECT',
+    lines: ['export const deps = { settle: mk, other, };',],
+    unnamed: [
+      flowSpotAt({
+        line: 2,
+        held: 'other',
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF A SECOND FORWARDER HANDED OVER AS ANOTHER PROPERTY OF THE SAME OBJECT',
+    lines: [
+      'export const deps = {',
+      '  settle: mk,',
+      '  run: other,',
+      '};',
+    ],
+    unnamed: [
+      flowSpotAt({
+        line: 4,
+        held: 'other',
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF THE NAMED FORWARDER HANDED OVER AGAIN UNDER A SECOND KEY',
+    lines: [
+      'export const deps = {',
+      '  settle: mk,',
+      '  again: mk,',
+      '};',
+    ],
+    unnamed: [
+      flowSpotAt({
+        line: 4,
+        held: 'mk',
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF A SECOND FORWARDER ON THE LINE OF THE NAMED ONE',
+    lines: ['export const deps = { settle: mk, run: other, };',],
+    unnamed: [
+      flowSpotAt({
+        line: 2,
+        held: 'other',
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF THE NAMED FORWARDER HANDED OVER AGAIN ON THE LINE OF THE FIRST',
+    lines: ['export const deps = { settle: mk, again: mk, };',],
+    unnamed: [
+      flowSpotAt({
+        line: 2,
+        held: 'mk',
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES NO REPORT WHEN THE NAMED FORWARDER IS HANDED OVER ONCE',
+    lines: ['export const deps = { settle: mk, };',],
+    unnamed: [],
+  },),
+];
+
+//endregion What a name of a place stands for when the check reads files

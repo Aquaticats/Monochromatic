@@ -54,6 +54,15 @@ import {
   placesWithoutSpot,
   spotsNotNamed,
 } from './claude-schema-named-places.test-fixture.ts';
+import {
+  FLOW_PLACE,
+  NAMED_FLOW_CASES,
+  type NamedFlowCase,
+} from './claude-schema-named-flow-forms.test-fixture.ts';
+import {
+  NAMED_PLACE_CASES,
+  type NamedPlaceCase,
+} from './claude-schema-named-place-forms.test-fixture.ts';
 import { CALLER_CASES, } from './claude-schema-caller-forms.test-fixture.ts';
 import {
   BINDING_IN_FUNCTION_CASES,
@@ -998,6 +1007,45 @@ await describe({
           return file;
         },),).toEqual([],);
       },
+    },),
+
+    ...NAMED_PLACE_CASES.map(function caseOfNames(namedCase: NamedPlaceCase,) {
+      return it({
+        name: `COMPARES THE REPORTS OF THE CHECK WITH THE PLACES THE TEST NAMES: ${namedCase.name}`,
+        fn: async () => {
+          expect({
+            unnamed: spotsNotNamed({
+              spots: namedCase.spots,
+              places: namedCase.places,
+            },),
+            stale: placesWithoutSpot({
+              spots: namedCase.spots,
+              places: namedCase.places,
+            },),
+          },).toEqual({
+            unnamed: namedCase.unnamed,
+            stale: namedCase.stale,
+          },);
+        },
+      },);
+    },),
+
+    ...NAMED_FLOW_CASES.map(function caseOfFlow(flowCase: NamedFlowCase,) {
+      return it({
+        name: `LEAVES THE REPORTS THE ONE NAME DOES NOT STAND FOR, over imaginary files: ${flowCase.name}`,
+        fn: async () => {
+          expect(spotsNotNamed({
+            spots: blindSpotsOf({
+              sources: [CONTEST_BUILDER_SOURCE, ...flowCase.files,],
+              notStageSchemas: NOT_STAGE_SCHEMAS,
+            },)
+              .filter(function isImaginary({ file, },): boolean {
+                return file.startsWith('imaginary/',);
+              },),
+            places: [FLOW_PLACE,],
+          },),).toEqual(flowCase.unnamed,);
+        },
+      },);
     },),
 
     it({

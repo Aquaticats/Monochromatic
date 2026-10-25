@@ -40,7 +40,7 @@ const DECLARATION = [
 const VALUE_ARGUMENTS = '{ schemaName: \'value\', verdicts: [], asksArchive: false, }';
 
 /**
- The report for a forwarder read in a place that is no call.
+ The report for the forwarder `mk` read in a place that is no call.
 
  @param file - file the place sits in
 
@@ -71,6 +71,7 @@ function valueSpotAt(
     line,
     shape: 'forwarder-outside-a-read-position',
     position,
+    held: 'mk',
   };
 }
 

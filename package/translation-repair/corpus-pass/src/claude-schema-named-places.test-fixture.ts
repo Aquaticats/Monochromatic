@@ -9,7 +9,7 @@ import type { BlindSpot, } from './claude-schema-blind-spots.test-fixture.ts';
 /**
  One place the test names, with the reason it is not read.
  */
-type NamedPlace = {
+export type NamedPlace = {
   /**
    Path of the file under `package/translation-repair`.
    */
