@@ -83,7 +83,7 @@ function neitherOver({ usable, }: { readonly usable: number; },): ConsolidateGat
 }
 
 await describe({
-  name: shipPastForfeitStanding.name,
+  name: `${shipPastForfeitStanding.name} and ${slatePickBallotsOf.name}`,
   children: [
     it({
       name: 'KEEPS THE STANDING when the gate heard one answering judge over an ineligible standing and the slate\'s '
@@ -172,12 +172,6 @@ await describe({
         expect(gated.ships,).toBe('consolidated',);
       },
     },),
-  ],
-},);
-
-await describe({
-  name: slatePickBallotsOf.name,
-  children: [
     it({
       name: 'READS THE BALLOTS OF THE ROW AT THE SHIPPED POSITION, self-votes included, so a pick two judges named '
         + 'counts two whatever its weight',

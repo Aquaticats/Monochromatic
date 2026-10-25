@@ -36,9 +36,12 @@ The groups that follow name the main ones.
   ask a panel that declined a slate once more over the same slate,
   and settle a slice no voice cleared the floor for.
   A declined round ships a candidate only when two or more judges named it,
-  and otherwise the wording in place stays (the owner's answer of 2026-10-25, "Two judges must name it").
+  and otherwise the wording in place stays (the owner's answer of 2026-10-25,
+  "Two judges must name it").
   A round tied across every offered candidate still ships one by a fixed preference
-  (repair lane, then translate lane, then slate order).
+  (repair lane,
+  then translate lane,
+  then slate order).
   Names:
   `runoffFinalists`,
   `runoffTiedFinalists`,

@@ -497,8 +497,8 @@ export type RunRepairModels = RepairModels & {
 
  The ISSUE-acceptance gate did move, and the user accepted the move rather
  than it happening unnoticed: the adjudication config's minimum ballot weight
- (since removed, see below) was the absolute value 3, so the share of the panel that must cast a non-abstain
- ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
+ (since removed, see the SUPERSEDED note of 2026-10-25) was the absolute value 3, so the share of the panel that
+ must cast a non-abstain ballot before any decision rises from 3-of-7 (43 percent) to 3-of-6 (50).
  User decision, 2026-08-06: "50% is okay here." At nine the same absolute 3
  is 3-of-9 (33 percent), inside the range already lived at ten (30 percent)
  and at eight (37.5 percent). SUPERSEDED on 2026-10-25: the owner removed the

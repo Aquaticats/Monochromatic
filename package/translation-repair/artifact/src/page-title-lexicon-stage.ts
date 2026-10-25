@@ -417,8 +417,13 @@ export async function settlePageTitles(
   const tooFewVoices = heard < MIN_STAGE_VOICES;
   if (tooFewVoices) {
     tl.warn(
-      `PAGE TITLES heard=${String(heard,)}, below the ${String(MIN_STAGE_VOICES,)} voices a title settles on; `
-        + 'nothing settles',
+      `PAGE TITLES heard=${String(heard,)}, below the ${String(MIN_STAGE_VOICES,)} ${
+        wordForCount({
+          count: MIN_STAGE_VOICES,
+          one: 'voice',
+          many: 'voices',
+        },)
+      } a title settles on; nothing settles`,
     );
   }
   /**
@@ -486,7 +491,13 @@ export async function settlePageTitles(
         ? [
           `page title lexicon heard fewer than ${
             String(MIN_STAGE_VOICES,)
-          } voices, so no title settles and every repeated title keeps its current rendering`,
+          } ${
+            wordForCount({
+              count: MIN_STAGE_VOICES,
+              one: 'voice',
+              many: 'voices',
+            },)
+          }, so no title settles and every repeated title keeps its current rendering`,
         ]
         : []),
     ],

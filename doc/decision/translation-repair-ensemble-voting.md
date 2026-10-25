@@ -2,8 +2,10 @@
 
 Superseded in part on 2026-10-25 by
 `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
-the minimum weight a selection needs (the weight the bench could award one candidate, reached by four contributors)
-is gone, and two answering judges decide whatever their weight.
+the minimum weight a selection needs (the weight the bench could award one candidate,
+reached by four contributors)
+is gone,
+and two answering judges decide whatever their weight.
 A self-vote still counts as one answering judge (the owner's ruling of 2026-10-20).
 
 Decided by the user on 2026-08-15,

@@ -9,7 +9,10 @@ import {
   type SelectionOutcome,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import { isDecisionSeat, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  rendersAsNothing,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type RunoffBasis,
   TranslateAbsenceError,
@@ -63,9 +66,9 @@ import type {
 // wording the archive has, which the consolidation's settlement answers by
 // keeping the archive (owner, 2026-09-27, "Keep archive, ship"), and the
 // translate lane carries to the same end. A tie across every finalist is
-// still broken by the order above (class one hundred seventy-four): the
-// owner's answer is about this decline, and the ledger records that path as
-// outside it.
+// still broken by the fixed order of repair lane, translate lane and slate
+// order (class one hundred seventy-four): the owner's answer is about this
+// decline, and the ledger records that path as outside it.
 
 /**
  How a run-off tie was broken, as the finding names it.
@@ -369,8 +372,13 @@ function shipPreferredPastDecline(
   if (chosen === undefined) {
     l.warn(
       `translate stage: challenge round declined (${outcome.disposition}) over wording that cannot ship, and no `
-        + `candidate drew ${String(MIN_SELECTION_BALLOTS,)} ballots; nothing ships past the decline and the wording `
-        + 'the archive has stays',
+        + `candidate drew ${String(MIN_SELECTION_BALLOTS,)} ${
+          wordForCount({
+            count: MIN_SELECTION_BALLOTS,
+            one: 'ballot',
+            many: 'ballots',
+          },)
+        }; nothing ships past the decline and the wording the archive has stays`,
     );
     return {
       ...keepIncumbent,

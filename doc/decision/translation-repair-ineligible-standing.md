@@ -3,7 +3,8 @@
 Superseded in part on 2026-10-25 by
 `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
 the fifteenth addendum ("Preference + polish") no longer ships a declined slate's preferred candidate;
-a candidate ships only when two or more judges named it, and otherwise the archive stays.
+a candidate ships only when two or more judges named it,
+and otherwise the archive stays.
 
 Decided by the owner on 2026-09-04 ("Yes:
 prefer the best valid proposal,

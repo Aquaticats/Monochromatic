@@ -2,7 +2,8 @@
 
 Superseded in part on 2026-10-25 by
 `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
-the contest no longer asks a minimum ballot weight, and two answering judges decide whatever their weight.
+the contest no longer asks a minimum ballot weight,
+and two answering judges decide whatever their weight.
 
 Decision of 2026-09-08,
 the owner's,

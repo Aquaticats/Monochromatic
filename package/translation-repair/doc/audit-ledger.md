@@ -575,10 +575,12 @@ named for that subject and listed here.
   the cache versions that moved (B904),
   the replay of the recorded ballots (B905),
   the floors that stay with the choices not taken (B906),
-  and round 2: the checker count of two (B907),
+  and round 2:
+  the checker count of two (B907),
   a declined round that ships only what two judges named (B908),
   an unheard gate that ships the slate's two-ballot pick (B909),
-  the page title and the consistency round on two voices (B910, B911),
+  the page title and the consistency round on two voices (B910,
+  B911),
   the cache versions (B912) and the replay after the round (B913).
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

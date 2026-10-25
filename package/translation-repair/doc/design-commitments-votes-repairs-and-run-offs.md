@@ -234,7 +234,8 @@ which lists every file of these commitments.
   The lead ruled that a page title settles on two or more heard voices
   and that a consistency round decides on two or more answering ballots,
   and that the derivability probe and the restoration judge,
-  which feed the benchmark scorecard only, stay as they are.
+  which feed the benchmark scorecard only,
+  stay as they are.
   A challenge round tied across every offered candidate still ships one by the fixed preference;
   that path is outside these answers.
   The stage quorum that sizes a round (a majority of the seated bench,

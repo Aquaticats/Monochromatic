@@ -432,7 +432,13 @@ export function shipPastForfeitStanding(
           },)
         }, below the two judges a verdict needs, over an ineligible standing; the proposal ${
           String(slatePickBallots,)
-        } slate ballots chose ships, since the slate's pick is a two-ballot decision of its own`,
+        } ${
+          wordForCount({
+            count: slatePickBallots,
+            one: 'slate ballot',
+            many: 'slate ballots',
+          },)
+        } chose ships, since the slate's pick is a two-ballot decision of its own`,
       );
       return {
         ...outcome,

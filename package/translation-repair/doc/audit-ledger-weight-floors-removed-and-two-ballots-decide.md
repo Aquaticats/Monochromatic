@@ -105,10 +105,15 @@ as it already was at a summed weight of 2 or more.
 The corner for the owner (finding F6 of the independent re-check):
 the exception `condemnedFallbackLoses` refused a leader that was the fallback itself when a contest majority had
 condemned it and it drew two ballots under a summed weight of 2.
-Two ballots from a full vote and a self-vote weigh 1.5, so the old code declined and the new code selects the incumbent
-(`repair/src/candidate-select.unit.test.ts`, "SEATS the standing text when two ballots lead with it").
-At 2 or more the old code already selected it, so the change is only the 1.5 corner.
-It touches the owner's ruling of 2026-10-11, "Majority, like the run-off";
+Two ballots from a full vote and a self-vote weigh 1.5,
+so the old code declined and the new code selects the incumbent
+(`repair/src/candidate-select.unit.test.ts`,
+"SEATS the standing text when two ballots lead with it").
+At 2 or more the old code already selected it,
+so the change is only the 1.5 corner.
+It touches the owner's ruling of 2026-10-11,
+"Majority,
+like the run-off";
 the exception is removed under the answers of 2026-10-25 and is listed in `report.md` as an owner-visible change.
 
 ## B902: three non-translation votes were needed to block a slice, and two critics could not
@@ -136,15 +141,22 @@ What guards that shape now is the contradiction check
 (`NON_TRANSLATION_CONTRADICTION_MIN`,
 eight validated content-critique claims anchored in the target)
 and the good-translation anchor that vetoes a document-wide block.
-This is an owner-visible risk, and a narrow one:
-a false per-slice block leaves that slice unrepaired, with the archive's wording as it stands,
+This is an owner-visible risk,
+and a narrow one:
+a false per-slice block leaves that slice unrepaired,
+with the archive's wording as it stands,
 and the document-level dominance block is report-only
-(`repair/src/repair-translation.ts` logs it as "reported, not blocking" and adds a finding),
+(`repair/src/repair-translation.ts` logs it as "reported,
+not blocking" and adds a finding),
 so no block discards a translation.
-The earlier wording of the TSDoc in `archive/src/non-translation-evidence.ts`, that a false block
-"still discards a faithful translation whole", overstated this and is corrected in the same commit series
+The earlier wording of the TSDoc in `archive/src/non-translation-evidence.ts`,
+that a false block
+"still discards a faithful translation whole",
+overstated this and is corrected in the same commit series
 (finding F1 of the independent re-check).
-The measured effect at two votes: nothing newly blocks in the pinned corpus, as the re-check measured.
+The measured effect at two votes:
+nothing newly blocks in the pinned corpus,
+as the re-check measured.
 
 The follow-up test:
 the block review of the archive asks three of its four seats after the selection fan-out change,
@@ -208,7 +220,9 @@ The recorded log shows why the slate's choice cannot stand in for the gate there
 Not changed in round 1,
 named in B906 and settled in round 2 (B908):
 the translate stage's `shipPastDecline` preference.
-It shipped a declined slate's candidate by a fixed order (repair lane, then translate lane, then slate order),
+It shipped a declined slate's candidate by a fixed order (repair lane,
+then translate lane,
+then slate order),
 whatever any judge named,
 so it was not a lone-judge path (finding F6) but a path on which no judge decided.
 The four slices B835 kept in `XingZ6020` look like that path,
@@ -403,16 +417,20 @@ It still marks `silentStages`,
 and it still gates the verdicts of the derivability probe and the restoration judge.
 
 Settled by the owner on 2026-10-25 (round 2),
-after the readings below were put to the owner:
+after the two readings of each question were put to the owner:
 - A gather quorum above two (a majority of a bench of five or more) and the pre-phase bench waits
-  (`run/src/corpus-run/run-seats-wait.ts` and its siblings): "Keep waiting for half".
+  (`run/src/corpus-run/run-seats-wait.ts` and its siblings):
+  "Keep waiting for half".
   Both stay;
   they are counts of seats that a round waits for,
   and on a short bench the quorum already falls to two.
-- The checker count of three (`MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts`, line 468 at the head;
-  the first census gave the base's line 508): "Allow two checkers".
+- The checker count of three (`MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts`,
+  line 468 at the head;
+  the first census gave the base's line 508):
+  "Allow two checkers".
   It is two now (B907).
-- The translate stage's `shipPastDecline` preference: "Two judges must name it" (B908).
+- The translate stage's `shipPastDecline` preference:
+  "Two judges must name it" (B908).
 
 Not changed,
 with the reading kept:
@@ -425,7 +443,8 @@ with the reading kept:
   a self-vote is one answering judge and its half weight only ranks candidates.
 - The assumption in the window trial (B901).
 - The tie of a challenge round across every offered candidate
-  (`breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`, the tenth addendum of
+  (`breakRunoffTie` in `translate-stage/src/translate-runoff-tie.ts`,
+  the tenth addendum of
   `doc/decision/translation-repair-ineligible-standing.md`) still ships one by the fixed preference.
   It is the same class of path as the declined round,
   a choice on which no judge decided,
@@ -468,10 +487,12 @@ fixed on 2026-10-25 (UTC),
 red `e0f9ef0b42`,
 fix `d902da3ffe`.
 
-The owner's answer of 2026-10-25 to the checker count that B906 left open: "Allow two checkers".
+The owner's answer of 2026-10-25 to the checker count that B906 left open:
+"Allow two checkers".
 `MINIMUM_CHECKER_COUNT` in `assembly/src/repair-contract.ts` is 2,
 and `assertCheckerQuorumReachable`,
-`CheckerQuorumError` (its message names "a floor of 2" and why: resolution needs two answering checkers),
+`CheckerQuorumError` (its message names "a floor of 2" and why:
+resolution needs two answering checkers),
 the TSDoc and the comments in `run/src/corpus-run/run-seats.ts` and `run/src/corpus-run/run-config.ts` changed together.
 The red cases (`assembly/src/checker-roster.unit.test.ts`) accept two checkers,
 refuse one and an empty roster,
@@ -487,9 +508,12 @@ fixed on 2026-10-25 (UTC),
 red `d8e239c806`,
 fix `9622024d5d`.
 
-The owner's answer of 2026-10-25, "Two judges must name it", to the preference that B903 and B906 left open.
+The owner's answer of 2026-10-25,
+"Two judges must name it",
+to the preference that B903 and B906 left open.
 Before:
-a challenge round that declined with nothing to ship past (a withheld standing, no run-off left)
+a challenge round that declined with nothing to ship past (a withheld standing,
+no run-off left)
 shipped a candidate by a fixed order,
 repair lane,
 then translate lane,
@@ -501,7 +525,11 @@ all in consolidation slates that heard one judge of seven
 (slices 13,
 14,
 33,
-44 and 84, log lines 17830, 17911, 18793, 19401 and 20274),
+44 and 84,
+log lines 17830,
+17911,
+18793,
+19401 and 20274),
 each after `winner was named by 1 ballot against a floor of 2`.
 
 The rule now:
@@ -511,7 +539,8 @@ When none qualifies,
 the wording in place stays,
 with the finding `translate-slate-declined-archive-kept` and a warning in the log,
 and where no wording exists the source text ships under the note
-"This passage has not been translated yet. The original text follows." by the existing path.
+`This passage has not been translated yet. The original text follows.`
+by the existing path.
 The sheet text the judges read (`SHIPS_WHAT_TWO_JUDGES_NAMED` in `adjudication/src/select-decline-consequence.ts`,
 formerly `SHIPS_BY_PREFERENCE`) says so.
 The qualifier branch is nearly unreachable from a real tally
@@ -541,7 +570,8 @@ fixed on 2026-10-25 (UTC),
 red `371977693b`,
 fix `b2dd131f80`.
 
-The owner's answer of 2026-10-25, "Ship the slate's wording" (finding F5):
+The owner's answer of 2026-10-25,
+"Ship the slate's wording" (finding F5):
 when the gate hears fewer than two usable answers over an archive the deterministic rule refused,
 the slate's pick ships if two or more slate ballots chose it,
 rather than falling to the archive that failed the rule.
@@ -681,13 +711,15 @@ slices with a dispute 3 at the base,
 26 now;
 envelopes 18 at the base,
 78 now.
-Round 2 touches no panel, editor or archive-dispute rule.
+Round 2 touches no panel,
+editor or archive-dispute rule.
 
 The gate replay changed in what it reads and not in what it settles:
 - Slices 13,
   14,
   33,
-  44 and 84 (one usable gate ballot, slate pick of 1 ballot from the log):
+  44 and 84 (one usable gate ballot,
+  slate pick of 1 ballot from the log):
   the base shipped `consolidated`,
   round 1 kept the standing (`unheard-gate-keeps-standing`),
   round 2 keeps the standing.
@@ -701,7 +733,8 @@ The gate replay changed in what it reads and not in what it settles:
   the same gate with a slate pick of 2 ballots ships `consolidated` in all six slices,
   so the replay can show a ship when the slate's pick is two-ballot.
 - The five translate-stage preferences that shipped a declined slate in the whole run
-  (`rg` for `challenge round declined .* shipping candidate` finds five lines, all of the slices above)
+  (`rg` for `challenge round declined .* shipping candidate` finds five lines,
+  all in the five slices named in B908)
   ship nothing now,
   because each pick was named by one ballot.
   The archive text stays in those five slices,
