@@ -20,8 +20,11 @@ import {
 //
 // A FOOTNOTE START ONLY THE PAGE READS is the same case. The strict grammar disables indented code, so a line
 // `[^label]:` indented four columns or more after a paragraph starts a footnote definition there, where CommonMark and
-// GFM read a lazy line of the paragraph. The span the original pairs across that line is cut on the page, so the line is
-// joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span holds.
+// GFM read a lazy line of the paragraph. The span the original pairs across that line (a code span, inline math, emphasis,
+// strong emphasis, the text of a link or the alternative text of an image, the title of a link) is cut on the page, so the
+// line is joined to the one before it and the footnote does not start; `footnoteStartsInSpans` says which starts a span
+// holds. A footnote start on the line after a row of a table is no start of this kind (`source-ships-footnote-ranges.ts`,
+// `startsOffTables`): a reader of the source takes that line for a block of its own, and joining it writes it into the row.
 
 /**
  Node types whose characters are code or math, which no backslash may be written into.
@@ -29,6 +32,18 @@ import {
 const SPAN_TYPES: ReadonlySet<string> = new Set([
   'inlineCode',
   'inlineMath',
+],);
+
+/**
+ Node types whose lines are joined at a footnote start only the page reads and nowhere else: emphasis, strong emphasis,
+ and the references, whose text a backslash can be written into, so a brace or a less-than sign that starts a line in
+ them is escaped as text and needs no join.
+ */
+const FOOTNOTE_ONLY_TYPES: ReadonlySet<string> = new Set([
+  'emphasis',
+  'strong',
+  'linkReference',
+  'imageReference',
 ],);
 
 /**
@@ -51,8 +66,12 @@ const FLOW_STARTS = '{<';
 
  @param footnoteStarts - offsets where a footnote definition starts on the page and not for a reader of the source
 
+ @param joinsFlowStarts - whether a brace, a less-than sign or an indented fence mark starts a block here, which it does in
+ a stretch no backslash can be written into and does not in text, where the encoder escapes the brace and the sign
+
  @returns One edit for each line ending followed, after the container marks, by a brace, a less-than sign, an indented
- fence mark or one of the footnote starts inside the stretch, replacing the ending and the marks with a space
+ fence mark (where those start a block) or one of the footnote starts inside the stretch, replacing the ending and the
+ marks with a space
 
  @example
  ```ts
@@ -64,10 +83,12 @@ export function joinedLines(
     source,
     range,
     footnoteStarts = [],
+    joinsFlowStarts = true,
   }: {
     readonly source: string;
     readonly range: TextRange;
     readonly footnoteStarts?: readonly number[];
+    readonly joinsFlowStarts?: boolean;
   },
 ): readonly TextEdit[] {
   /**
@@ -88,12 +109,13 @@ export function joinedLines(
     /**
      Whether the strict grammar starts a block at this line.
      */
-    const startsBlock = FLOW_STARTS.includes(source.charAt(content.at,),)
-      || footnoteStarts.includes(content.at,)
-      || (indentedFenceMarkEnd({
-        source,
-        at: content.at,
-      },) > content.at);
+    const startsBlock = footnoteStarts.includes(content.at,)
+      || (joinsFlowStarts
+        && (FLOW_STARTS.includes(source.charAt(content.at,),)
+          || (indentedFenceMarkEnd({
+            source,
+            at: content.at,
+          },) > content.at)));
     if (!startsBlock)
       continue;
     edits.push({
@@ -169,7 +191,9 @@ function joinBeforeFenceMark(
 
 /**
  Edits that join the lines of a node whose characters the plain reading keeps whole and the strict grammar cuts: a code
- span, inline math, and the destination and title of a link, an image or a definition.
+ span, inline math, and the destination and title of a link, an image or a definition, at a brace, a less-than sign, an
+ indented fence mark or a footnote start only the page reads; and emphasis, strong emphasis, the text of a link or an
+ image and a reference, at a footnote start only the page reads.
 
  @param source - text
 
@@ -219,22 +243,45 @@ export function lineJoinsOf(
       },),
     ];
   }
+  if (FOOTNOTE_ONLY_TYPES.has(node.type,)) {
+    return joinedLines({
+      source,
+      range,
+      footnoteStarts,
+      joinsFlowStarts: false,
+    },);
+  }
   if (((node.type === 'link') && source.startsWith(
     '[',
     range.start,
   )) || (node.type === 'image')) {
-    return joinedLines({
+    /**
+     Where the text of the link, or the alternative text of the image, ends.
+     */
+    const textEnd = closingBracket({
       source,
-      range: {
-        start: closingBracket({
-          source,
-          from: range.start + ((node.type === 'image') ? 2 : 1),
-          limit: range.end,
-        },),
-        end: range.end,
-      },
-      footnoteStarts,
+      from: range.start + ((node.type === 'image') ? 2 : 1),
+      limit: range.end,
     },);
+    return [
+      ...joinedLines({
+        source,
+        range: {
+          start: range.start,
+          end: textEnd,
+        },
+        footnoteStarts,
+        joinsFlowStarts: false,
+      },),
+      ...joinedLines({
+        source,
+        range: {
+          start: textEnd,
+          end: range.end,
+        },
+        footnoteStarts,
+      },),
+    ];
   }
   if ((node.type === 'definition') && (!hasFootnoteLabel({
     source,
@@ -263,8 +310,8 @@ export function lineJoinsOf(
 
  @param node - node of the parse
 
- @returns Whole code span or inline math; the destination and title of a link or an image, after its text; none
- for a node of another kind
+ @returns Whole code span, inline math, emphasis, strong emphasis, link, image or reference; none for a node of another
+ kind
 
  @example
  ```ts
@@ -286,29 +333,19 @@ function joinableStretchesOf(
    Where the node stands.
    */
   const range = rangeOf({ node, },);
-  if (SPAN_TYPES.has(node.type,))
+  if (SPAN_TYPES.has(node.type,) || FOOTNOTE_ONLY_TYPES.has(node.type,))
     return [range,];
   if (((node.type === 'link') && source.startsWith(
     '[',
     range.start,
-  )) || (node.type === 'image')) {
-    return [
-      {
-        start: closingBracket({
-          source,
-          from: range.start + ((node.type === 'image') ? 2 : 1),
-          limit: range.end,
-        },),
-        end: range.end,
-      },
-    ];
-  }
+  )) || (node.type === 'image'))
+    return [range,];
   return [];
 }
 
 /**
- Says which of the footnote starts only the page reads stand inside a code span, inline math, or the destination or title
- of a link or an image of a block, where the line is joined to the one before it and the footnote does not start.
+ Says which of the footnote starts only the page reads stand inside a code span, inline math, emphasis, strong emphasis, a
+ link, an image or a reference of a block, where the line is joined to the one before it and the footnote does not start.
 
  @param source - text
 

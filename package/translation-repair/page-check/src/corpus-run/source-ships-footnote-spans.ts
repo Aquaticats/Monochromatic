@@ -80,8 +80,8 @@ const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
  when absent
 
  @param pageOnlyStarts - where the page starts a footnote definition and a reader of the source does not, none when the
- caller reads none; one inside a code span, inline math or a link's title is no place to cut the paragraph, since the
- line is joined to the one before it (`source-ships-lines.ts`)
+ caller reads none; one inside a code span, inline math, emphasis, a link or an image is no place to cut the paragraph,
+ since the line is joined to the one before it (`source-ships-lines.ts`)
 
  @param pending - nodes still to read, the next one on top; the blocks the footnote reaches into are removed from it
 
