@@ -1,7 +1,5 @@
-import {
-  open,
-  readFile,
-} from 'node:fs/promises';
+import { createReadStream, } from 'node:fs';
+import { readFile, } from 'node:fs/promises';
 
 import {
   type CapLogReading,
@@ -36,6 +34,15 @@ import {
 // added to them (`at=` took each from 66 to 94), so a window of 4096 bytes lost
 // pass logs whose marker had not moved at all. The number of lines before
 // `START` is the number of such entries, which no field changes.
+//
+// A LINE IS READ UP TO `LINE_BYTES`, NOT WHOLE (ledger B963). A head bounded in
+// lines still buffered each line whole, so a log with no line break was read
+// entire (18 of the 2412 logs over 1 MiB under the agent root have none in
+// their first MiB; three are 13.4 MB browser store files). The head is read in
+// blocks of `BLOCK_BYTES`, one byte to a character since only ASCII is looked
+// for, and a line that outgrows the bound ends the search: the log is no pass
+// run. The longest line up to and including START among the 445 real pass logs
+// measured on 2026-10-25 was 378 bytes, so the bound is about 170 times it.
 
 /**
  Lines at the head of a log searched for the pass-run marker; the marker must sit among them.
@@ -45,6 +52,19 @@ import {
  A log that holds no marker costs this many lines to read, not its whole text.
  */
 const HEAD_LINES = 2_000;
+
+/**
+ Bytes one line of the head may hold; a log with a longer line is no pass run.
+
+ The number is a choice with room: the longest line up to and including START in a real pass log measured 378 bytes.
+ Memory while the head is searched is about this many bytes for the line being read and two blocks of the file.
+ */
+const LINE_BYTES = 65_536;
+
+/**
+ Bytes read from the file at a time while the head is searched.
+ */
+const BLOCK_BYTES = 65_536;
 
 /**
  Line a pass run opens its log with.
@@ -117,10 +137,13 @@ function startsAPass({ line, }: { readonly line: string; },): boolean {
 /**
  Whether the first line among the first `HEAD_LINES` of a log that opens with the pass-run marker is a pass's START.
 
- Lines are read one at a time and the read stops at the first line that opens with the marker or at the bound, so the
- cost does not depend on the size of the log or on the bytes of the lines before the marker. The first marker decides:
- a log whose first marker holds no commit id is a suite's, whatever it prints later. A bare carriage return ends a line
- here, as it does for any line reader.
+ The log is read in blocks of `BLOCK_BYTES`, one byte to a character, and the lines of a block are cut where a line
+ feed, a carriage return or a pair of them stands, so a lone carriage return ends a line as it does for any line
+ reader and a pair split between two blocks counts an empty line. The unfinished line at the end of a block is held to
+ be completed by the next. The read stops at the first line that opens with the marker, at the bound in lines, or at a
+ line longer than `LINE_BYTES`, so the cost and the memory do not depend on the size of the log, on the bytes of the
+ lines before the marker or on whether the log has a line break at all. The first marker decides: a log whose first
+ marker holds no commit id is a suite's, whatever it prints later.
 
  @param path - log file
 
@@ -132,24 +155,57 @@ function startsAPass({ line, }: { readonly line: string; },): boolean {
  ```
  */
 async function opensWithinHead({ path, }: { readonly path: string; },): Promise<boolean> {
-  /**
-   The open log, closed when the search ends.
-   */
-  await using handle = await open(path,);
-
   return await (async function searchHead(): Promise<boolean> {
     /**
      Lines read so far.
      */
     let linesRead = 0;
-    for await (const line of handle.readLines()) {
-      if (line.startsWith(PASS_RUN_MARKER,))
-        return startsAPass({ line, },);
-      linesRead += 1;
-      if (linesRead >= HEAD_LINES)
+
+    /**
+     The unfinished line at the end of the blocks read so far.
+     */
+    let unfinished = '';
+    for await (const block of createReadStream(
+      path,
+      {
+        encoding: 'latin1',
+        highWaterMark: BLOCK_BYTES,
+      },
+    )) {
+      /**
+       The unfinished line and the block, with every pair of a carriage return and a line feed made one line feed.
+       */
+      const pairsJoined = `${unfinished}${String(block,)}`.replaceAll(
+        '\r\n',
+        '\n',
+      );
+
+      /**
+       The same text with every lone carriage return made a line feed.
+       */
+      const lineFeedsOnly = pairsJoined.replaceAll(
+        '\r',
+        '\n',
+      );
+
+      /**
+       The text cut at every line feed: the lines it finished, then the line it leaves unfinished.
+       */
+      const pieces = lineFeedsOnly.split('\n',);
+      unfinished = pieces.pop() ?? '';
+      for (const line of pieces) {
+        if (line.length > LINE_BYTES)
+          return false;
+        if (line.startsWith(PASS_RUN_MARKER,))
+          return startsAPass({ line, },);
+        linesRead += 1;
+        if (linesRead >= HEAD_LINES)
+          return false;
+      }
+      if (unfinished.length > LINE_BYTES)
         return false;
     }
-    return false;
+    return unfinished.startsWith(PASS_RUN_MARKER,) && startsAPass({ line: unfinished, },);
   })();
 }
 

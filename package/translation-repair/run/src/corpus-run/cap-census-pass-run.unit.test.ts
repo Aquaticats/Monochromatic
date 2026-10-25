@@ -82,6 +82,11 @@ const BUILD_LINES = Array.from(
 const LINE_BYTES = 65_536;
 
 /**
+ Bytes the census reads from a log at a time.
+ */
+const BLOCK_BYTES = 65_536;
+
+/**
  The two lines of one completed call, five content characters delivered.
  */
 const CALL_LINES = [
@@ -427,6 +432,25 @@ await describe({
             ],
           },),
         },),).toBe('not-a-pass-run',);
+      },
+    },),
+    it({
+      name: 'READS A LOG WHOSE START LINE CROSSES THE END OF A BLOCK OF THE FILE, with the marker cut in two, since the '
+        + 'census reads the file in blocks and holds a line whole',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [
+              // The line and its break hold five bytes less than a block, so START begins five bytes before its end.
+              'a'.repeat(BLOCK_BYTES - 6,),
+              REAL_START,
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toEqual(CALL_READING,);
       },
     },),
     it({
