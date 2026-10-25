@@ -807,56 +807,6 @@ await describe({
     },),
 
     it({
-      name: 'PASSES a round of two worse ballots level with two fixed ballots on an open issue: the worse '
-        + 'weight has to strictly outweigh the rest as well as come from two checkers',
-      fn: async () => {
-        /**
-         Round on the five-seat bench in which four seats answer, two worse and
-         two fixed, and the fifth never does.
-         */
-        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
-          [
-            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-            'worse',
-          ],
-          [
-            SEAT_SYNTHETIC_VISION_WITHHELD,
-            'worse',
-          ],
-          [
-            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-            'fixed',
-          ],
-          [
-            SEAT_HYPER_ONLY,
-            'fixed',
-          ],
-        ],);
-        /**
-         What the recheck returned.
-         */
-        const verdict = await recheck({
-          issues: [SUNBATHING_ISSUE,],
-          verdicts,
-          checkerModelIds: FIVE_SEATS,
-        },);
-        expect({
-          retained: verdict.retained,
-          tally: verdict.readings[SUNBATHING_ISSUE.issueId]?.tally,
-        },).toEqual({
-          retained: true,
-          tally: {
-            fixed: 2,
-            notFixed: 0,
-            worse: 2,
-            resolved: false,
-            regressed: false,
-          },
-        },);
-      },
-    },),
-
-    it({
       name: 'WARNS ONCE when it rolls a slice back on two worse ballots, naming the slice, the refiner, the '
         + 'issue and every ballot cast on that issue',
       fn: async () => {

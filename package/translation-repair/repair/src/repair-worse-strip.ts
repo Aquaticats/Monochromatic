@@ -25,6 +25,15 @@ import type { IssueResolutionTally, } from '@monochromatic-dev/translation-repai
 // reduced patch faces one more checker round, and the introduced-defect
 // probe, before it ships. An unconfirmed edit with no worse ballot stays.
 //
+// TWO BALLOTS FOR UNDO TOO (the owner's answer of 2026-10-25, "Two ballots
+// for undo too", under the rule that one judge alone never decides): the ruling
+// above said "at least one worse ballot" and now reads as the condition that
+// sets `regressed` on the issue's tally (`tallyResolutionChecks`, the one
+// definition): two or more ballots name worse and the worse weight exceeds
+// the fixed and not-fixed weight together. One worse ballot strips nothing,
+// whatever sits beside it. This reads the tally's flag rather than a count, so
+// the strip, the rollback of a rewrite and the candidate ranking cannot drift.
+//
 // ONE ROUND, NEVER A LADDER, as the recovery round is: the recheck's tallies
 // settle the chunk whatever they say, and nothing is stripped a second time.
 //
@@ -43,7 +52,7 @@ type ProofRequest = Parameters<typeof proveRepairedChunk>[0];
 export type WorseStrip =
   | {
     /**
-     No unconfirmed edit drew a worse ballot; the patch stands whole.
+     No unconfirmed edit's issue regressed; the patch stands whole.
      */
     readonly stripped: false;
   }
@@ -66,7 +75,8 @@ export type WorseStrip =
 
 /**
  Strips from a patch every envelope's edit that serves an issue the checkers
- did not confirm and at least one checker voted worse.
+ did not confirm and flagged `regressed`: two or more checkers voted worse and
+ the worse weight exceeds the fixed and not-fixed weight together.
 
  @param editor - editor result whose patch the checkers judged
 
@@ -107,7 +117,8 @@ export function stripWorseVotedEdits(
     return issue.issueId;
   },),);
   /**
-   Issues the checkers did not confirm and at least one voted worse.
+   Issues the checkers did not confirm and two or more voted worse, the
+   weight of those ballots exceeding the rest (the tally's `regressed`).
 
    READ OFF THE TALLIES, since a worse ballot is only ever counted in one: an
    issue without a tally has no worse vote to strip. The checker stage keeps a
@@ -119,14 +130,9 @@ export function stripWorseVotedEdits(
     .filter(function isWorseVoted([issueId, tally,]: ReadonlyEntry<string, IssueResolutionTally>,): boolean {
       if (!creditableIds.has(issueId,))
         return false;
-      /**
-       What the checkers answered on it.
-       */
-      const {
-        resolved,
-        worse,
-      } = tally;
-      return (!resolved) && (worse > 0);
+      // `regressed` excludes `resolved` (worse above fixed plus the rest cannot
+      // sit with fixed above worse plus the rest), so it alone is the condition.
+      return tally.regressed;
     },)
     .map(function toId([issueId,]: ReadonlyEntry<string, IssueResolutionTally>,): string {
       return issueId;
@@ -277,7 +283,7 @@ export async function proveSheddingWorseVoted(request: ProofRequest,): Promise<S
    The line itself.
    */
   const finding = `repair-stripped-worse-voted (issues ${strippedList}: `
-    + 'unconfirmed by the checkers, with at least one worse ballot)';
+    + 'unconfirmed by the checkers, with two or more worse ballots outweighing the rest)';
   l.warn(finding,);
   /**
    What the reduced patch's envelopes bought.
