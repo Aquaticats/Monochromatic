@@ -282,30 +282,42 @@ and is `b8c0b1dbff7f1c0391fe798536747af4694d62d2`.
 It brought no change to `page-check`,
 `document-structure` or `markup`.
 
-The full task ran once on `2725c1280fd8d1dc0f8358f972d80bd096ee55fb`,
-the head that holds the last code and the ledger,
-as the unit `dx1f2-livefull4` with `MemoryMax=4G` and `CPUQuota=300%`,
-its stderr on a path never used before.
-`systemd-run --wait` reported success,
-a service runtime of 9 min 43.561 s,
-11 min 24.328 s of CPU time and a memory peak of
-749.2 MB with 19.7 MB swapped.
-The case that holds the three names passed in 581.8 s.
-The one-minute load average of the host was 13.04 when the unit started and 8.91 when it ended.
+The full task ran twice,
+each time once,
+in its own capped unit with `MemoryMax=4G` and `CPUQuota=300%`
+and a stderr path never used before.
+The first run,
+on `2725c1280fd8d1dc0f8358f972d80bd096ee55fb`,
+passed (service runtime 9 min 43.561 s,
+11 min 24.328 s of CPU time,
+a memory peak of 749.2 MB with 19.7 MB swapped,
+the case in 581.8 s)
+and was superseded,
+because the fix for the comment that never closes and the fix for the cut paragraph changed the encoder
+after it.
+The run on the final code,
+`2e090b7bf2e475f1d2437887ac5f92425e1d1da8` (the last code commit is `ad67735c42`,
+and the commits after it are ledger text),
+is the one that counts:
+the unit `dx1f2-livefull5` reported success,
+a service runtime of 9 min 7.674 s,
+10 min 42.555 s of CPU time and a memory peak of
+754.7 MB with no swap.
+The case that holds the three names passed in 545.4 s.
+The one-minute load average of the host was 27.70 when the unit started and 2.92 when it ended.
 The stderr file holds three lines:
-the two preamble lines of the task and the logger message that a sink could not be verified
-within 5000 ms.
+the two preamble lines of the task and the logger message that a sink could not be verified within 5000 ms.
 
 The checks ran one at a time on the final code:
 `build`,
 `lint:types`,
 `lint:oxlint` (0 warnings and 0 errors) and `test:unit` of `document-structure` (65 `[PASS]` lines)
-and of `page-check` (170),
+and of `page-check` (180),
 both with no `[FAIL]`;
 `markup` is untouched in this round.
 `test:unit` of `translation-repair-source-scan` ran 68 and `source-scans` 53,
 with no `[FAIL]`.
-The first `source-scans` run on the new code found these in the new files,
+The first `source-scans` run on the new code of the comparison found these in the new files,
 all fixed by `2797c8f871`:
 two modules with no unit test of their own,
 three suites that copied one case body and a helper written twice,
@@ -317,9 +329,12 @@ and two top-level suites in one file.
 The first `test:unit` of `translation-repair-source-scan` after the merge of the third round
 failed on a stale built `run` package;
 the task `source-scans` builds before it reads.
+The ledger file of the ninth round reached 1014 lines with the later fixes,
+and the fourth round moved into this file.
 
 No cache version moved:
-`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 1c7918806f..HEAD` names no commit,
+`git log --oneline --extended-regexp -G '_CACHE_VERSION = [0-9]+' 1c7918806f..HEAD`
+names no commit,
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 No cached stage changes its output:
 the encoder,
@@ -355,3 +370,9 @@ none corrected on the remote and nothing posted:
   (the reason of `readingDifferenceOf`,
   `parseGfmMathBody`,
   the marker of `PageSyntaxError`).
+- `b1667e8903d7858a31a560b445067b9e4bac6b8e` says three pinned outputs of the encoder tests changed;
+  one did.
+- `2725c1280fd8d1dc0f8358f972d80bd096ee55fb` called the comment class
+  intrinsic to the owner's ruling and the fence class
+  one the cutting module cannot keep context for;
+  both were wrong and are fixed (the section on the residual classes).
