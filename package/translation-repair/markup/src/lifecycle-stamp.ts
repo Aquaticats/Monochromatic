@@ -11,6 +11,7 @@
 // THE SPELLING. `at=` is the instant as `Date.prototype.toISOString` writes it, which is how the logger stamps its own
 // lines (`iso-stamp-text.ts`), so `isIsoStampText` reads it back by the same rule. `attempt=` is the number the pass
 // persists for the entry in its attempts file after it counts the attempt, never a count a line keeps for itself.
+// A line of the pass, or of an entry no attempt has begun for, carries `at=` alone (`lifecycleClockStamp`).
 //
 // THE CLOCK IS INJECTED. The wall clock is read only as a stamp for a moment that outlives the process (ledger B78);
 // durations stay on the monotonic clock.
@@ -58,6 +59,33 @@ export class LifecycleAttemptError extends Error {
 }
 
 /**
+ The clock time alone, for a line that belongs to the pass or to no attempt: the stop notes, the START and DONE lines
+ and the INCOMPLETE line of an entry whose page is absent at the pin, which no attempt has begun for.
+
+ A LINE READ BY TIME NEEDS ITS TIME EVEN WHERE NO ATTEMPT EXISTS, and must not print an attempt that does not (ledger
+ B960): `lifecycleStamp` refuses an attempt under 1, and the absence of `attempt=` is what tells the page-absent
+ INCOMPLETE line from the INCOMPLETE line of an attempt.
+
+ @param wallClock - clock the time is read on; the wall clock unless a test fixes it
+
+ @returns `at=<ISO 8601 UTC with milliseconds>`, with no leading or trailing space
+
+ @example
+ ```ts
+ const stamp = lifecycleClockStamp({},);
+ // => 'at=2026-10-22T08:10:11.123Z'
+ ```
+ */
+export function lifecycleClockStamp(
+  { wallClock = wallClockNow, }: { readonly wallClock?: () => Date; },
+): string {
+  return `at=${
+    wallClock()
+      .toISOString()
+  }`;
+}
+
+/**
  The two fields a lifecycle line carries after its opening words: the clock time it was printed at and the attempt it
  belongs to.
 
@@ -87,10 +115,7 @@ export function lifecycleStamp(
 ): string {
   if ((!Number.isSafeInteger(attempt,)) || (attempt < 1))
     throw new LifecycleAttemptError({ attempt, },);
-  return `at=${
-    wallClock()
-      .toISOString()
-  } attempt=${String(attempt,)}`;
+  return `${lifecycleClockStamp({ wallClock, },)} attempt=${String(attempt,)}`;
 }
 
 //endregion Lifecycle stamp

@@ -86,6 +86,7 @@ export {
 } from './lexical-restoration.ts';
 export {
   LifecycleAttemptError,
+  lifecycleClockStamp,
   lifecycleStamp,
   wallClockNow,
 } from './lifecycle-stamp.ts';
