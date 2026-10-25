@@ -499,6 +499,50 @@ const TRANSLATE_LANE: LaneText = {
  */
 const TIE_BROKEN = 'translate-runoff-tie-broken';
 
+/**
+ What the retry raises over a slice with no archive wording, for a judging that
+ settles nothing.
+
+ @param judges - judges who answer
+ @param laneTexts - lane texts the slate offers beside the proposals
+ @param ballotFor - what the judges say per judging
+
+ @returns The raised error, or the string `settled` where the judging did not raise
+
+ @example
+ ```ts
+ const raised = await absenceUnder({ judges: DISINTERESTED_JUDGES, laneTexts: [], ballotFor: () => 'reject', },);
+ ```
+ */
+async function absenceUnder(
+  {
+    judges,
+    laneTexts,
+    ballotFor,
+  }: {
+    readonly judges: readonly RosterModelId[];
+    readonly laneTexts: readonly LaneText[];
+    readonly ballotFor: (
+      judging: number,
+      seat: RosterModelId,
+      dozesAuthor: RosterModelId,
+    ) => ScriptedBallot;
+  },
+): Promise<unknown> {
+  try {
+    await judgedUnder({
+      incumbentKind: 'absent',
+      judges,
+      laneTexts,
+      ballotFor,
+    },);
+    return 'settled';
+  }
+  catch (error) {
+    return error;
+  }
+}
+
 await describe({
   name: judgeSlateWithRetry.name,
   children: [
@@ -590,12 +634,12 @@ await describe({
       },
     },),
     it({
-      name: 'SHIPS the repair lane text when a run-off over valid finalists ties again and cannot narrow where the '
-        + 'slice has no incumbent (class one hundred seventy-four, TianqiChen6669 slice 4, 2026-09-26: two valid '
-        + 'renderings tied 1.5 to 1.5 on the slate and again in the run-off, and the entry stopped)',
+      name: 'RAISES the absence, shipping the repair lane text by no preference, when a run-off over valid finalists '
+        + 'ties again one ballot each and cannot narrow where the slice has no incumbent (class one hundred '
+        + 'seventy-four, TianqiChen6669 slice 4, 2026-09-26, settled by "Two judges must name it": no judge pair '
+        + 'backed either rendering, so the order ships neither and the passage goes to the source-text path)',
       fn: async () => {
-        const { result, judgeCalls, } = await judgedUnder({
-          incumbentKind: 'absent',
+        const raised = await absenceUnder({
           judges: DISINTERESTED_JUDGES,
           laneTexts: [REPAIR_LANE,],
           ballotFor: tiedEveryJudging({
@@ -603,18 +647,17 @@ await describe({
             second: 'curls',
           },),
         },);
-        expect(result.origin,).toBe('fresh',);
-        expect(result.text,).toBe(REPAIR_LANE.text,);
-        expect(result.findings.includes(`${TIE_BROKEN} (repair lane)`,),).toBe(true,);
-        expect(judgeCalls,).toBe(DISINTERESTED_JUDGES.length * 2,);
+        expect(raised,).toBeInstanceOf(TranslateAbsenceError,);
+        expect((raised as TranslateAbsenceError).findings.some(function isTieBroken(finding,): boolean {
+          return finding.startsWith(TIE_BROKEN,);
+        },),).toBe(false,);
       },
     },),
     it({
-      name: 'SHIPS the translate lane text over a writer\'s proposal when the run-off ties between them and the '
-        + 'repair lane text is no finalist',
+      name: 'RAISES the absence where the tied finalists are a writer\'s proposal and the translate lane text, '
+        + 'one ballot each, with the repair lane text no finalist',
       fn: async () => {
-        const { result, } = await judgedUnder({
-          incumbentKind: 'absent',
+        const raised = await absenceUnder({
           judges: DISINTERESTED_JUDGES,
           laneTexts: [
             REPAIR_LANE,
@@ -625,15 +668,14 @@ await describe({
             second: 'yawns',
           },),
         },);
-        expect(result.text,).toBe(TRANSLATE_LANE.text,);
-        expect(result.findings.includes(`${TIE_BROKEN} (translate lane)`,),).toBe(true,);
+        expect(raised,).toBeInstanceOf(TranslateAbsenceError,);
       },
     },),
     it({
-      name: 'SHIPS a tied finalist by slate order when neither lane text is a finalist',
+      name: 'RAISES the absence where two writers\' proposals tie one ballot each and neither lane text is a '
+        + 'finalist, since slate order alone backs no candidate',
       fn: async () => {
-        const { result, } = await judgedUnder({
-          incumbentKind: 'absent',
+        const raised = await absenceUnder({
           judges: DISINTERESTED_JUDGES,
           laneTexts: [REPAIR_LANE,],
           ballotFor: tiedEveryJudging({
@@ -641,9 +683,7 @@ await describe({
             second: 'naps',
           },),
         },);
-        expect(result.origin,).toBe('fresh',);
-        expect(RENDERINGS.includes(result.text,),).toBe(true,);
-        expect(result.findings.includes(`${TIE_BROKEN} (slate order)`,),).toBe(true,);
+        expect(raised,).toBeInstanceOf(TranslateAbsenceError,);
       },
     },),
     it({

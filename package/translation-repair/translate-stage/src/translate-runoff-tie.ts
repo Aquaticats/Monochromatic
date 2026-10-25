@@ -65,10 +65,13 @@ import type {
 // candidates that drew two ballots, and a round that drew none keeps the
 // wording the archive has, which the consolidation's settlement answers by
 // keeping the archive (owner, 2026-09-27, "Keep archive, ship"), and the
-// translate lane carries to the same end. A tie across every finalist is
-// still broken by the fixed order of repair lane, translate lane and slate
-// order (class one hundred seventy-four): the owner's answer is about this
-// decline, and the ledger records that path as outside it.
+// translate lane carries to the same end. A tie across every finalist
+// (class one hundred seventy-four) is broken by the same fixed order of repair
+// lane, translate lane and slate order only among the tied candidates two
+// judges named (the lead's ruling of 2026-10-25, settled by the same answer);
+// where none of them drew two ballots nothing ships by the order, and the
+// caller keeps the wording in place by the path above, or raises the absence
+// where the passage has none.
 
 /**
  How a run-off tie was broken, as the finding names it.
@@ -111,7 +114,8 @@ export type RunoffTie<ValueT,> =
     | {
     /**
      Fewer than two drew weight, or some candidate drew less than the
-     leaders, which a further run-off narrows instead.
+     leaders, which a further run-off narrows instead, or no tied candidate
+     drew two ballots, which nothing ships by preference.
      */
       readonly kind: 'unbroken';
     };
@@ -233,8 +237,9 @@ function rankedByPreference<ValueT,>(
 
  @param perCandidate - what each position drew
 
- @returns The preferred finalist, or `unbroken` where fewer than two drew
- weight or some candidate drew less than the leaders
+ @returns The preferred of the tied finalists two or more judges named, or
+ `unbroken` where fewer than two drew weight, some candidate drew less than the
+ leaders, or no tied finalist drew two ballots
 
  @example
  ```ts
@@ -270,23 +275,33 @@ export function breakRunoffTie<ValueT,>(
     return { kind: 'unbroken', };
 
   /**
-   Tied finalists with their preference, best first, slate order breaking
-   equal preference.
+   Tied finalists two or more judges named, with their preference, best first,
+   slate order breaking equal preference: the preference ranks only what a
+   judge pair backed (owner, 2026-10-25, "Two judges must name it").
    */
   const [first,] = rankedByPreference({
-    finalists: tied.map(function withCandidate(drawn,): PlacedCandidate<ValueT> {
-      return {
-        index: drawn.index,
-        // The round counts one row per candidate on the slate, so every
-        // tied row names a position the slate has.
-        candidate: nonNullishOrThrow(candidates[drawn.index - 1],),
-      };
-    },),
+    finalists: tied
+      .filter(function namedByTwoJudges(drawn,): boolean {
+        return drawn.ballots >= MIN_SELECTION_BALLOTS;
+      },)
+      .map(function withCandidate(drawn,): PlacedCandidate<ValueT> {
+        return {
+          index: drawn.index,
+          // The round counts one row per candidate on the slate, so every
+          // tied row names a position the slate has.
+          candidate: nonNullishOrThrow(candidates[drawn.index - 1],),
+        };
+      },),
   },);
+  // No tied candidate drew two ballots: the order would ship a candidate no
+  // judge pair backed, so nothing ships by it and the caller keeps the wording
+  // in place, or raises the absence where there is none.
+  if (first === undefined)
+    return { kind: 'unbroken', };
   /**
-   The preferred finalist; at least two tied, so there is one.
+   The preferred finalist two judges named.
    */
-  const chosen = nonNullishOrThrow(first,);
+  const chosen = first;
   return {
     kind: 'broken',
     index: chosen.index,
@@ -468,7 +483,8 @@ function shipPreferredPastDecline(
 
 /**
  What a declined round ships where the slice has no incumbent: the preferred
- finalist where a challenge round tied across every candidate; the preferred
+ finalist two or more judges named where a challenge round tied across every
+ candidate; the preferred
  of the candidates two or more judges named where the passage has wording that
  cannot ship and the challenge round leaves nothing to narrow (owner,
  2026-09-27, narrowed on 2026-10-25), or the wording the archive has where no
