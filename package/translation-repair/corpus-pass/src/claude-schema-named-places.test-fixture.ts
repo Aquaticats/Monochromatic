@@ -4,11 +4,14 @@ import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 //region Places in the family's source that the check reports and the test names
 // The check behind the schema search reports every place it does not understand, and a place it reports is answered
 // by reading the place in the search or by naming the place in the test. A place is named by file, shape, position and,
-// for a forwarder held in a place that is no call, the name of the forwarder, not by line, so an edit above it moves
-// nothing. A name stands for one report, so a second report that agrees with it in every part is not named, and each
-// named place must still be reported, so a name never outlives the place. A name that stood for a report by file, shape
-// and position alone also stood for a second forwarder handed over beside the first, and for the same forwarder handed
-// over again under a second key.
+// for a forwarder held in a place that is no call, the module that declares the forwarder and its name, not by line,
+// so an edit above it moves nothing. A name stands for one report, so a second report that agrees with it in every
+// part is not named, and each named place must still be reported, so a name never outlives the place. A name that
+// stood for a report by file, shape and position alone also stood for a second forwarder handed over beside the first,
+// and for the same forwarder handed over again under a second key; a name that held only the name of the forwarder
+// also stood for a forwarder of the same name that another module declares and the import was redirected to. A
+// forwarder that no module declares, a free name, has no module, so its report holds the bare name, which no key
+// equals, and no name stands for it.
 
 /**
  One place the test names, with the reason it is not read.
@@ -30,8 +33,8 @@ export type NamedPlace = {
   readonly position: string;
 
   /**
-   The name of the function a report of the place holds, where the shape holds one: the name of the forwarder the
-   place hands over.
+   The function a report of the place holds, where the shape holds one: the key of the forwarder the place hands over,
+   the module that declares it and its name.
    */
   readonly held?: string;
 

@@ -130,7 +130,8 @@ export function chainOf({ node, }: { readonly node: unknown; },): Chain {
  @param count - how many members to keep
 
  @returns Whether it is a builder, a module or object that carries one, or neither, whether the name is free, and the
- name of the forwarder when it stands for one
+ forwarder when it stands for one: the key of the function (the module that declares it and its name), or the bare name
+ when the name is free, which no key can equal
 
  @example
  ```ts
@@ -201,7 +202,7 @@ export function standingAfter(
     return {
       standing: 'forwarder',
       isFree: false,
-      held: resolved.name,
+      held: keyOf(resolved,),
     };
   }
   if ((resolved.kind === 'free')
