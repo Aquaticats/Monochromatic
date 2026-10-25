@@ -575,8 +575,21 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  change to a sheet's wording moves the version, since a stored settlement holds ballots cast under the old sentence and
  the key hashes the version, the shape of the run and the texts, not the sheet. The translate slice version (31) moves
  for the same sheet; the repair slice (47) and refine (17) versions stay, since neither reads this sentence.
+
+ Version 39 covers the sheet sentence reworded a second time (`adjudication/src/select-decline-consequence.ts`,
+ `SHIPS_WHAT_TWO_JUDGES_NAMED`, re-check 3 finding M3): the three negatives of version 38 left a judge able to read its
+ own decline as the way to the stay, so the sentence now says that declining does not by itself keep the wording and
+ that a judge's own decline names no candidate, that with no candidate named by two or more judges the wording in place
+ stays and the page reports it, and that with one or more named by two or more judges the preferred of those ships by a
+ fixed order. The rule the code applies is the same as under 38; the judges are told it differently, and a stored
+ settlement holds ballots cast under the old sentence. The key hashes the version, the shape of the run and the texts,
+ not the sheet (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether
+ a record stands at 38 is not known (the number was set a few commits before and no search of a slice-cache directory
+ was made), and the change cannot ride inside it, so the number moves. The translate slice version (32) moves for the
+ same sheet; the repair slice (48) and refine (18) versions move for the regressed flag (re-check 3, M1) and not for
+ this sentence.
  */
-export const CONSOLIDATE_CACHE_VERSION = 38;
+export const CONSOLIDATE_CACHE_VERSION = 39;
 
 /**
  What a line-structured slice appends to its key material.

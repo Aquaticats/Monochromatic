@@ -77,16 +77,17 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 38: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 39: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
-        + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), and the '
-        + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself, '
-        + 'so a stored settlement may hold a wording the same texts now settle otherwise, and the key hashes the '
-        + 'version, the shape of the run and the texts, not the rule that reads the ballots, so only this number '
-        + 'retires a record written under the rule before (34 was the reader taking a capitalization-only difference '
-        + 'as the listed value)',
+        + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
+        + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
+        + '(38) and then said that declining does not by itself keep the wording and that a judge\'s own decline names '
+        + 'no candidate (39, re-check 3, M3), so a stored settlement may hold ballots cast under the old sentence, and '
+        + 'the key hashes the version, the shape of the run and the texts, not the sheet, so only this number '
+        + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
+        + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(38,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(39,);
       },
     },),
     it({
@@ -451,8 +452,11 @@ await describe({
         // Version 36 (2026-10-25) ships a declined slate's candidate only when
         // two judges named it and ships the slate's two-ballot pick past an
         // unheard gate over a refused archive, which moved this literal.
+        // Version 39 (2026-10-25) rewords the sentence the judges read about a
+        // declined round over wording that cannot ship (re-check 3, M3), which
+        // moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          'c6b5451c4f93d697db20136ac52e256a9a85d60baeabe987834e31fa992cac09',
+          'eebb28f9829e48f804a93ff20f55025fba6aecee199d11a6e6f974d550bb8562',
         );
       },
     },),
