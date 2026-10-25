@@ -14,6 +14,7 @@ import {
 import { isWholeNumberText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { checkEditorBench, } from './editor-fidelity-arm-bench.ts';
+import { fixRateLinesOf, } from './editor-fidelity-arm-fix-rate.ts';
 import { repeatLinesOf, } from './editor-fidelity-arm-repeats.ts';
 import { benchReportLines, } from './editor-fidelity-arm-report.ts';
 import type {
@@ -178,13 +179,15 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-fidelity-r
   },);
   // THE REPEAT AGREEMENT OF EACH ARM IS PRINTED WITH THE CHECKS, even when one fails: the runbook reads the high arm's alone,
   // before the other arms exist, to choose how many passes the later arms take. It informs that choice and the reading of
-  // the verdict; it is not a figure of the verdict.
+  // the verdict; it is not a figure of the verdict. The warning of a high fix rate of the default effort follows it, since
+  // it says where the repeat warning stops seeing.
   /**
-   The check lines, then the repeat lines.
+   The check lines, then the repeat lines, then the high fix rate warning.
    */
   const printed = [
     ...lines,
     ...repeatLinesOf({ arms, },),
+    ...fixRateLinesOf({ arms, },),
   ];
   process.stdout
     .write(`${printed.join('\n',)}\nCHECKS ${String(passed.length,)} pass, ${String(failed,)} fail\n`,);

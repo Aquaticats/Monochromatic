@@ -1,6 +1,8 @@
-import type {
-  ArmFigures,
-  RowStops,
+import type { ArmLog, } from './editor-fidelity-arm-facts.ts';
+import {
+  type ArmFigures,
+  armFiguresOf,
+  type RowStops,
 } from './editor-fidelity-arm-figures.ts';
 import type { SharedTrial, } from './editor-fidelity-decide-types.ts';
 
@@ -37,6 +39,33 @@ export function effortOf({ card, }: { readonly card: string; }): string {
    */
   const at = card.lastIndexOf(EFFORT_MARKER,);
   return (at === (-1)) ? '(none)' : card.slice(at + EFFORT_MARKER.length,);
+}
+
+/**
+ Reads the figures of each arm's log, keeping the arms in the order given.
+
+ @param arms - the arms' logs in the order they ran
+
+ @returns Each arm's name with the figures its log states, as `sharedBenchOf` takes them
+
+ @example
+ ```ts
+ const shared = sharedBenchOf({ arms: withFiguresOf({ arms, },), },);
+ ```
+ */
+export function withFiguresOf({ arms, }: { readonly arms: readonly ArmLog[]; },): readonly {
+  readonly arm: string;
+  readonly figures: ArmFigures;
+}[] {
+  return arms.map(function figuresOf(log,): {
+    readonly arm: string;
+    readonly figures: ArmFigures;
+  } {
+    return {
+      arm: log.arm,
+      figures: armFiguresOf({ log, },),
+    };
+  },);
 }
 
 /**

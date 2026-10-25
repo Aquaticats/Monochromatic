@@ -2,16 +2,13 @@ import {
   type ArmLog,
   countWithNoun,
 } from './editor-fidelity-arm-facts.ts';
-import {
-  type ArmFigures,
-  armFiguresOf,
-  type RowStops,
-} from './editor-fidelity-arm-figures.ts';
+import type { RowStops, } from './editor-fidelity-arm-figures.ts';
 import {
   effortOf,
   fixedBy,
   sharedBenchOf,
   unitOf,
+  withFiguresOf,
 } from './editor-fidelity-arm-shared.ts';
 import {
   FALSE_PICK_BOUND_ALIKE,
@@ -360,15 +357,7 @@ export function repeatLinesOf({ arms, }: { readonly arms: readonly ArmLog[]; },)
   /**
    Each arm with the figures its log states.
    */
-  const withFigures = arms.map(function figuresOf(log,): {
-    readonly arm: string;
-    readonly figures: ArmFigures;
-  } {
-    return {
-      arm: log.arm,
-      figures: armFiguresOf({ log, },),
-    };
-  },);
+  const withFigures = withFiguresOf({ arms, },);
   /**
    The units every arm holds, none when one log is read alone or the logs form no bench.
    */
