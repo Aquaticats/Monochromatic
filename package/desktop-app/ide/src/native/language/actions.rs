@@ -182,10 +182,22 @@ fn bind_pointer(owner: &AppWindow, source: &Rc<RefCell<State>>, language: &Rc<Re
     });
     let move_state = Rc::clone(source);
     let move_language = Rc::clone(language);
+    let move_window = owner.as_weak();
     owner.on_pointer_moved(move |y, x| {
+        let Some(window) = move_window.upgrade() else {
+            return;
+        };
         let character = pointer::character_at(&move_state.borrow(), y, x);
+        // The point is kept as a distance from the top of the view,
+        //  which stays the pointer's own while the view scrolls under it.
+        let offset = window.get_drawn_offset();
+        let spot = pointer::Spot {
+            below_top: y - offset,
+            x,
+            offset,
+        };
         if let Some(mut current) = held(&move_language) {
-            current.rest.moved(character);
+            current.rest.moved(character, spot);
         }
     });
     let exit_language = Rc::clone(language);

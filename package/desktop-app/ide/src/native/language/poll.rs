@@ -9,7 +9,7 @@
 /// The state,
 ///  the request record,
 ///  and the steps of a tick.
-use super::{Action, Language, Pending, guard, message, outcome, surface, sync};
+use super::{Action, Language, Pending, guard, message, outcome, pointer, surface, sync};
 /// The window,
 ///  the source,
 ///  the navigation that opens other files,
@@ -316,6 +316,9 @@ fn rest(
     language: &mut Language,
     displayed: DocumentStamp,
 ) {
+    // A view that moved since the last tick (a wheel ease, a jump, rows arriving) puts other text under the pointer,
+    //  so a rest that was not asked for yet starts again.
+    language.rest.follow(window.get_drawn_offset());
     let blocked = window.get_search_open()
         || matches!(
             language.shown,
@@ -332,10 +335,25 @@ fn rest(
             "the pointer rests over no character",
         );
     }
-    let Some(character) = language.rest.due() else {
+    let Some(spot) = language.rest.due() else {
         return;
     };
     language.rest.asked = true;
+    // The character is resolved now,
+    //  against the rows and the offset that are drawn,
+    //  not where the pointer last moved:
+    //  a still pointer gets no event while the view scrolls under it.
+    let offset = window.get_drawn_offset();
+    let resolved = pointer::character_at(&source.borrow(), spot.below_top + offset, spot.x);
+    tracing::debug!(
+        ?spot,
+        offset,
+        ?resolved,
+        "the resting pointer was resolved against the displayed view"
+    );
+    let Some(character) = resolved else {
+        return;
+    };
     // A character outside the displayed text cannot be asked about.
     if character > source.borrow().document.text().len_chars() {
         return;

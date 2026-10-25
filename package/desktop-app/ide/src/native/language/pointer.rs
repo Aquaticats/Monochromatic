@@ -24,6 +24,35 @@ use std::time::{Duration, Instant};
 /// How long the pointer rests on one character before hover information is asked for.
 pub(super) const REST: Duration = Duration::from_millis(350);
 
+/// How far the drawn offset must change between two ticks to count as a move of the view,
+///  in logical pixels.
+///  Half a pixel is the tolerance `surface::stale` allows for rounding when the view is kept still.
+const VIEW_MOVE: f32 = 0.5;
+
+/// What:
+///  Where the pointer is,
+///  as the numbers `character_at` takes for the view of that moment.
+/// Why:
+///  The pointer's own place in the window does not change while the view scrolls under it,
+///  and the toolkit sends no event for it.
+///  The distance from the top of the view is that place,
+///  and adding the offset that is drawn at the time of a request gives the text point under the pointer then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Spot = { belowTop: number; x: number; offset: number };
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Spot {
+    /// Logical distance of the pointer below the top of the view.
+    pub(super) below_top: f32,
+    /// Logical distance from the start of a line's text,
+    ///  negative over the line numbers.
+    pub(super) x: f32,
+    /// The drawn offset at the time of the move.
+    pub(super) offset: f32,
+}
+
 /// What:
 ///  Where the pointer rests.
 ///  `Option<(Option<usize>, Instant)>` is "nothing" while the
@@ -33,10 +62,13 @@ pub(super) const REST: Duration = Duration::from_millis(350);
 /// Why:
 ///  A hover request is sent once per rest,
 ///  and resting over no character hides the popup.
+///  The character is a test of the move,
+///  not the answer:
+///  what a request names is found again from `spot` when the rest is over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rest = { at?: [character: number | undefined, since: number]; asked: boolean };
+/// type Rest = { at?: [character: number | undefined, since: number]; asked: boolean; spot?: Spot; seen: number };
 /// ```
 #[derive(Debug, Default)]
 pub(super) struct Rest {
@@ -44,13 +76,36 @@ pub(super) struct Rest {
     pub(super) at: Option<(Option<usize>, Instant)>,
     /// The request for the current rest was already made.
     pub(super) asked: bool,
+    /// The pointer's place at its last move.
+    spot: Option<Spot>,
+    /// The drawn offset at the last tick or move.
+    seen: f32,
 }
 
 /// Movement and timing.
 impl Rest {
-    /// The pointer moved to `character`;
+    /// The drawn offset is `offset` at this tick:
+    ///  a view that moved puts other text under a pointer that did not,
+    ///  so a rest that was not asked for yet starts again.
+    pub(super) fn follow(&mut self, offset: f32) {
+        if (offset - self.seen).abs() <= VIEW_MOVE {
+            return;
+        }
+        self.seen = offset;
+        if self.asked {
+            return;
+        }
+        if let Some((character, _)) = self.at {
+            tracing::debug!(offset, "the view moved under a rest not yet asked for");
+            self.at = Some((character, Instant::now()));
+        }
+    }
+
+    /// The pointer moved to `character` at `spot`;
     ///  a different character restarts the rest.
-    pub(super) fn moved(&mut self, character: Option<usize>) {
+    pub(super) fn moved(&mut self, character: Option<usize>, spot: Spot) {
+        self.spot = Some(spot);
+        self.seen = spot.offset;
         // `map` reads the character of the present rest, if any.
         let mut present = None;
         if let Some((current, _)) = self.at {
@@ -67,6 +122,7 @@ impl Rest {
     /// The pointer left the source.
     pub(super) fn left(&mut self) {
         self.at = None;
+        self.spot = None;
         self.asked = false;
     }
 
@@ -76,28 +132,29 @@ impl Rest {
     }
 
     /// What:
-    ///  The character to ask hover information for,
-    ///  once the rest lasted long enough.
+    ///  The place to ask hover information for,
+    ///  once the pointer and the view rested long enough.
     /// Why:
     ///  Only one request per rest;
-    ///  the caller marks it asked.
+    ///  the caller marks it asked
+    ///  and finds the character under the place in the view it draws then.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// due(): number | undefined
+    /// due(): Spot | undefined
     /// ```
-    pub(super) fn due(&self) -> Option<usize> {
+    pub(super) fn due(&self) -> Option<Spot> {
         if self.asked {
             return None;
         }
         // `let Some(...) = ... else` binds a resting character or leaves with nothing.
-        let Some((Some(character), since)) = self.at else {
+        let Some((Some(_), since)) = self.at else {
             return None;
         };
         if since.elapsed() < REST {
             return None;
         }
-        return Some(character);
+        return self.spot;
     }
 
     /// True once the pointer rested over no character for the rest time.

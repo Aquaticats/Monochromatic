@@ -126,6 +126,9 @@ mod hover_tests;
 /// Message sentences and hover text rendering without a window.
 #[cfg(test)]
 mod message_tests;
+/// A resting pointer while the view scrolls under it.
+#[cfg(test)]
+mod pointer_scroll_tests;
 /// Server states,
 ///  stale replies,
 ///  and closing while a request is pending.
