@@ -97,11 +97,13 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  Version 33 tells the judges the sentence about a declined round per round (re-check 4, F1), which moved this literal.
  Version 34 tells the judges what a tie backing only some candidates does and drops "the same judges" (re-check 5, M-B
  and M-D), which moved this literal.
+ Version 35 tells the judges the run-off is asked only where it leaves some candidates behind (re-check 6, M-B), which
+ moved this literal.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '863592e7d08cb230ccf6dde708591686fe8a2d0c14fbb3a81427d535a769379e';
+const LEGACY_WINDOWLESS_KEY = '508eb67b3fe089af1d85d73b5c253e6453f6f24d4bf19f2be94aecfc454fbb3b';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -134,19 +136,20 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 34: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+      name: 'IS AT VERSION 35: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
         + 'ships a candidate only when two judges named it (29), a tie across every candidate ships by the fixed '
         + 'preference only among candidates two judges named (30), the sentence the judges read about a declined '
         + 'round over wording that cannot ship stopped contradicting itself (31) and then said that declining does not '
         + 'by itself keep the wording and that a judge\'s own decline names no candidate (32, re-check 3, M3) and was '
         + 'then told per round, the first ask settling nothing and the challenge of the first call sending the '
         + 'passage back for new proposals (33, re-check 4, F1) and then said what a tie backing only some candidates does '
-        + 'and that the panel, not the same judges, is asked again (34, re-check 5, M-B and M-D), so a '
+        + 'and that the panel, not the same judges, is asked again (34, re-check 5, M-B and M-D) and then said that the '
+        + 'run-off is asked only where it leaves some candidates behind (35, re-check 6, M-B), so a '
         + 'stored slice may hold ballots cast under the old sentence, and the key hashes the version, the shape of '
         + 'the run and the texts, not the sheet, so only this number retires a record written '
         + 'under the old sentence before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(34,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(35,);
       },
     },),
     it({

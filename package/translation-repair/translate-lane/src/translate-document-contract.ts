@@ -522,14 +522,28 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  sends the panel to a run-off first and that the ship, the stay and the level-tie ship wait on it, which the code did
  and the sentences of version 33 did not say (`settleAbsentDecline` ships or keeps only when no run-off is left), and
  the first ask now says that the panel is asked again, though a round may seat other members of it, where it said the
- same judges. The rule the code applies is the same; the judges are told it differently, and a stored slice holds
- ballots cast under the old sentences. The key hashes the version, the shape of the run and the texts, not the sheet
- (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ same judges. The rule the code applies is the same; the judges are told it differently, and a slice stored at 33 would
+ hold ballots cast under the old sentences. The key hashes the version, the shape of the run and the texts, not the
+ sheet (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
  stands at 33 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
  and the change cannot ride inside it, so the number moves. The consolidate version (41) moves for the same sheets; the
  repair slice (49) and refine (19) versions stay, since neither reads these sentences.
+
+ Version 35 covers the sentences made true in every shape of declined round
+ (`adjudication/src/select-decline-consequence.ts`, re-check 6, M-B): the run-off part of both challenge sentences and
+ of the first ask now says the panel is asked again over the leaders only where that leaves some candidates behind;
+ the challenges add that a round that leaves no
+ candidate behind (the whole slate tied, every judge declining, a leader alone in drawing a ballot, a slate of only two)
+ asks no such question, which the code does not ask there (`runoffFinalists` returns the whole slate), and the first
+ ask adds that it is otherwise asked over the whole slate. The rule the code applies is the same; the judges are told
+ it differently, and a slice stored at 34 would hold ballots cast under the old sentences. The key hashes the version,
+ the shape of the run and the texts, not the sheet (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only
+ the number retires a record. Whether a record stands at 34 is not known (the number was set in this same branch and no
+ search of a slice-cache directory was made), and the change cannot ride inside it, so the number moves. The
+ consolidate version (42) moves for the same sheets; the repair slice (49) and refine (19) versions stay, since neither
+ reads these sentences.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 34;
+export const TRANSLATE_SLICE_CACHE_VERSION = 35;
 
 /**
  Models the translate lane seats.
