@@ -15,9 +15,6 @@ import {
   LEAVES_PASSAGE_UNTRANSLATED,
   repairSelectionSourceEvidence,
   type SelectEvidence,
-  SETTLES_NOTHING_AND_ASKS_AGAIN,
-  SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
-  SHIPS_WHAT_TWO_JUDGES_NAMED,
 } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   acceptedRepairClaimsNote,
@@ -120,7 +117,7 @@ function objectionModeOf(
  const evidence = translatedEvidence({ subject: CAT_SUBJECT, sourceText: CAT_SUBJECT.source, },);
  ```
  */
-function translatedEvidence(
+export function translatedEvidence(
   {
     subject,
     sourceText,
@@ -191,49 +188,6 @@ function refineSlateOf(
       subject.repair,
       subject.archive,
     ],
-    sourceText: subject.source,
-  },);
-}
-
-/**
- The slate the translate lane asks over wording that cannot ship, one per round of a pair: only the decline text differs
- (re-check 5, the rendered-sheets gap).
-
- @param subject - invented subject
-
- @param declineConsequence - what the round tells its judges a decline does
-
- @returns Slate's messages
-
- @example
- ```ts
- const messages = withheldWordingSlateOf({ subject: CAT_SUBJECT, declineConsequence: SETTLES_NOTHING_AND_ASKS_AGAIN, },);
- ```
- */
-function withheldWordingSlateOf(
-  {
-    subject,
-    declineConsequence,
-  }: {
-    readonly subject: PromptSubject;
-    readonly declineConsequence: string;
-  },
-): PromptMessages {
-  return buildCandidateSelectMessages({
-    task: TRANSLATE_SELECTION_TASK,
-    criteria: translateSelectionCriteria({
-      lineStructured: false,
-      syntax: 'front-matter',
-    },),
-    evidence: translatedEvidence({
-      subject,
-      sourceText: subject.source,
-    },),
-    rendered: [
-      subject.archive,
-      subject.repair,
-    ],
-    declineConsequence,
     sourceText: subject.source,
   },);
 }
@@ -367,33 +321,6 @@ export const SLATE_STAGES: readonly PromptStage[] = [
         ],
         declineConsequence: LEAVES_PASSAGE_UNTRANSLATED,
         sourceText: subject.verseSource,
-      },);
-    },
-  },
-  {
-    name: 'translate front matter slate',
-    render: function renderTranslateFrontMatterSlate({ subject, },) {
-      return withheldWordingSlateOf({
-        subject,
-        declineConsequence: SHIPS_WHAT_TWO_JUDGES_NAMED,
-      },);
-    },
-  },
-  {
-    name: 'translate first ask slate',
-    render: function renderTranslateFirstAskSlate({ subject, },) {
-      return withheldWordingSlateOf({
-        subject,
-        declineConsequence: SETTLES_NOTHING_AND_ASKS_AGAIN,
-      },);
-    },
-  },
-  {
-    name: 'translate deferring challenge slate',
-    render: function renderTranslateDeferringChallengeSlate({ subject, },) {
-      return withheldWordingSlateOf({
-        subject,
-        declineConsequence: SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN,
       },);
     },
   },

@@ -30,6 +30,7 @@ import {
   type PromptSubject,
 } from '@monochromatic-dev/translation-repair-repair/ts/system-prompt-subject.test-fixture.ts';
 import { PREPARATION_STAGES, } from '@monochromatic-dev/translation-repair-repair/ts/system-prompt-stages-preparation.test-fixture.ts';
+import { ROUND_STAGES, } from '@monochromatic-dev/translation-repair-repair/ts/system-prompt-stages-rounds.test-fixture.ts';
 import { SLATE_STAGES, } from '@monochromatic-dev/translation-repair-repair/ts/system-prompt-stages-slates.test-fixture.ts';
 import { WRITER_STAGES, } from '@monochromatic-dev/translation-repair-repair/ts/system-prompt-stages-writers.test-fixture.ts';
 import { BREAK_STAGES, } from './system-prompt-stages-breaks.test-fixture.ts';
@@ -43,6 +44,7 @@ import { PAGE_STAGES, } from './system-prompt-stages-pages.test-fixture.ts';
 const STAGES: readonly PromptStage[] = [
   ...WRITER_STAGES,
   ...SLATE_STAGES,
+  ...ROUND_STAGES,
   ...PREPARATION_STAGES,
   ...PAGE_STAGES,
   ...CONSISTENCY_STAGES,

@@ -126,7 +126,11 @@ await describe({
         + 'run-off first, none named by two or more judges leaves the wording in place and reported, and one or more '
         + 'named by two or more judges ships the preferred of those by a fixed order',
       fn: async () => {
-        expect(unmetDeclineClauses(sentenceOn(WITHHELD_WORDING_SHEET,),),).toEqual([],);
+        /**
+         What a judge of the challenge that ships past a decline reads.
+         */
+        const sentence = sentenceOn(WITHHELD_WORDING_SHEET,);
+        expect(unmetDeclineClauses(sentence,),).toEqual([],);
       },
     },),
 
