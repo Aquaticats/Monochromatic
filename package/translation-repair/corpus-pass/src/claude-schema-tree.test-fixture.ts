@@ -2,7 +2,6 @@ import {
   identifierName,
   isTreeNode,
   literalText,
-  memberName,
   nodesUnder,
   type TreeNode,
   unwrapped,
@@ -622,6 +621,25 @@ export function moduleHeadOf({ specifier, }: { readonly specifier: string; },): 
 }
 
 /**
+ The name a member expression reads: a plain name, a string literal in brackets, or a template literal with no
+ substitution in brackets, which is the same string.
+
+ @param node - member expression read
+
+ @returns The member's name, empty where it is computed from anything else
+
+ @example
+ ```ts
+ const member = memberNameOf({ node: call.callee, },); // 'now' for Date['now']
+ ```
+ */
+export function memberNameOf({ node, }: { readonly node: TreeNode; },): string {
+  return (node.computed === true)
+    ? stringValueOf({ node: node.property, },)
+    : identifierName({ node: node.property, },);
+}
+
+/**
  The names an expression is written with when it is a plain name or a chain of members: `build`, `ns.build`,
  `kit.build`, also `kit['build']`, and, for a member read off a load in place, the name of the module first:
  `(await import('./a.ts')).build` is `module:./a.ts`, `build`.
@@ -660,7 +678,7 @@ export function pathOf({ node, }: { readonly node: unknown; },): readonly string
   /**
    The member's own name, empty when it is computed from anything but a string.
    */
-  const member = memberName({ node: inner, });
+  const member = memberNameOf({ node: inner, },);
   return ((objectPath.length === 0) || (member === '')) ? [] : [
     ...objectPath,
     member,

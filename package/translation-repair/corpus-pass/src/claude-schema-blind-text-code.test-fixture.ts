@@ -18,7 +18,8 @@ import {
 // module and by the constructor of a function, which is the `Function` constructor. Both can be told by a read of the
 // text. The module is told by its specifier, `vm` or `node:vm`, in an import, an export from, a call of `require`, an
 // `import()`, a call of `process.getBuiltinModule` (also read off the global object) or the module of an import-equals
-// declaration; an import or an export that names types only (`import type`) loads nothing and names no module. A
+// declaration; an import, an export or an import-equals declaration that names types only (`import type`) loads
+// nothing and names no module. A
 // pattern that takes `getBuiltinModule` out of a value is reported, since the function is then called by a free name,
 // and so is a call of `binding` or `internalBinding` with the string `contextify`, the binding of Node that makes
 // scripts, which is a route to `vm.Script` without the module. The constructor is told by a member
@@ -94,8 +95,18 @@ function moduleNamedBy({ node, }: { readonly node: TreeNode; },): string {
       ? ''
       : stringValueOf({ node: node.source, },);
   }
-  if (node.type === 'TSExternalModuleReference')
-    return stringValueOf({ node: node.expression, },);
+  if (node.type === 'TSImportEqualsDeclaration') {
+    /**
+     The reference to the module the declaration names, or what else it names.
+     */
+    const reference = nodeAt({
+      node,
+      field: 'moduleReference',
+    },);
+    return ((node.importKind === 'type') || (reference.type !== 'TSExternalModuleReference'))
+      ? ''
+      : stringValueOf({ node: reference.expression, },);
+  }
   if ((node.type !== 'ImportExpression') && (node.type !== 'CallExpression'))
     return '';
   /**

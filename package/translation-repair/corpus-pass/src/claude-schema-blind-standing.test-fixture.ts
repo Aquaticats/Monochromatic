@@ -1,7 +1,6 @@
 import {
   identifierName,
   isTreeNode,
-  memberName,
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
@@ -12,6 +11,7 @@ import {
 } from './claude-schema-resolve.test-fixture.ts';
 import { targetOf, } from './claude-schema-target.test-fixture.ts';
 import {
+  memberNameOf,
   moduleHeadOf,
   settledSpecifierOf,
 } from './claude-schema-tree.test-fixture.ts';
@@ -108,7 +108,7 @@ export function chainOf({ node, }: { readonly node: unknown; },): Chain {
   /**
    The member's own name, empty when it is computed from anything but a string.
    */
-  const member = memberName({ node: inner, },);
+  const member = memberNameOf({ node: inner, },);
   return (objectChain === NO_CHAIN)
     ? NO_CHAIN
     : {

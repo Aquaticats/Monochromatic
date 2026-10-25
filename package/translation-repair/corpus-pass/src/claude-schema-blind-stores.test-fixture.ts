@@ -1,13 +1,13 @@
 import {
   identifierName,
   isTreeNode,
-  memberName,
   type TreeNode,
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
 import {
+  memberNameOf,
   nodeAt,
   nodesAt,
 } from './claude-schema-tree.test-fixture.ts';
@@ -170,7 +170,7 @@ function namesStoredByCall({ call, }: { readonly call: TreeNode; },): readonly s
   /**
    The method the call reads off the object.
    */
-  const method = memberName({ node: callee, },);
+  const method = memberNameOf({ node: callee, },);
   /**
    The methods of the object the callee is read off that store in their first argument, none for an object that has
    none.
