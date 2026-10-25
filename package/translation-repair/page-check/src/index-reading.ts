@@ -29,6 +29,11 @@ export {
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
+export {
+  footnoteReadingsOf,
+  NO_PAGE_ONLY_DEFINITION,
+  pageOnlyDefinitionWritten,
+} from './corpus-run/source-ships-footnote-ranges.ts';
 export { splitFlow, } from './corpus-run/source-ships-opener-flow.ts';
 export { openersInFootnoteFlowsOf, } from './corpus-run/source-ships-opener-footnote.ts';
 export { htmlInterruptionEdits, } from './corpus-run/source-ships-html-interrupt.ts';

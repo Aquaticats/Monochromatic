@@ -1,9 +1,4 @@
-import {
-  footnoteDefinitionRangesOf,
-  pageFootnoteDefinitionRangesOf,
-  tableRangesOf,
-  type TreeNode,
-} from '@monochromatic-dev/translation-repair-document-structure/ts';
+import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   endLineOf,
   isIndentedCode,
@@ -20,9 +15,9 @@ import {
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
 import {
-  pageOnlyStartsOf,
-  startsOffTables,
-  withPageOnlyStarts,
+  footnoteReadingsOf,
+  NO_PAGE_ONLY_DEFINITION,
+  pageOnlyDefinitionWritten,
 } from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
@@ -121,36 +116,15 @@ export function spansOf(
   },
 ): SourceSpans {
   /**
-   Where the strict grammar reads a table, which cuts what it holds at a pipe.
+   Where the strict grammar reads a table and a footnote definition, and where the page starts a footnote definition and a
+   reader of the source does not.
    */
-  const tables = tableRangesOf({ body: readable, },);
-  /**
-   Where the page ends a footnote definition, which a line of raw HTML does not end: the page writes it as text.
-   */
-  const pageFootnoteRanges = pageFootnoteDefinitionRangesOf({ body: readable, },);
-  /**
-   Where a reader of the source reads a footnote definition, which ends where the plain reading's paragraph goes on.
-   */
-  const sourceFootnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
-  /**
-   Where a reader of the source reads a footnote definition, and the definitions only the page starts.
-   */
-  const footnoteRanges = withPageOnlyStarts({
-    source: sourceFootnoteRanges,
-    page: pageFootnoteRanges,
-  },);
-  /**
-   Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
-   after a paragraph.
-   */
-  const pageOnlyStarts = startsOffTables({
-    source: readable,
-    starts: pageOnlyStartsOf({
-      source: sourceFootnoteRanges,
-      page: pageFootnoteRanges,
-    },),
+  const {
     tables,
-  },);
+    pageFootnoteRanges,
+    footnoteRanges,
+    pageOnlyStarts,
+  } = footnoteReadingsOf({ readable, },);
   /**
    Stretches read as text.
    */
@@ -243,6 +217,28 @@ export function spansOf(
             fallback: footnote.endLine,
           },),
         },
+      );
+      continue;
+    }
+    // A FOOTNOTE LABEL AT A START ONLY THE PAGE READS, on a line right after a link reference definition, is a second
+    // definition to a reader of the source and shows nothing: its caret is written with a backslash, so that the page
+    // reads a definition of another label (`source-ships-footnote-ranges.ts`, `pageOnlyDefinitionLabelAt`).
+    /**
+     What writing the node as that definition comes to, when it is one.
+     */
+    const pageOnly = pageOnlyDefinitionWritten({
+      source,
+      node,
+      starts: pageOnlyStarts,
+      endLine: footnote.endLine,
+    },);
+    if (pageOnly !== NO_PAGE_ONLY_DEFINITION) {
+      definitionEnds.push(range.end,);
+      edits.push(pageOnly.edit,);
+      text.push(pageOnly.label,);
+      footnotes.set(
+        parent,
+        pageOnly.state,
       );
       continue;
     }

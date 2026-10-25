@@ -1,4 +1,21 @@
-import type { BlockRange, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  type BlockRange,
+  footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
+  tableRangesOf,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  endLineOf,
+  hasFootnoteLabel,
+} from './source-ships-footnote.ts';
+import type { FootnoteState, } from './source-ships-pending.ts';
+import {
+  closingBracket,
+  rangeOf,
+  type TextEdit,
+  type TextRange,
+} from './source-ships-ranges.ts';
 
 //region Source ships footnote ranges
 // THE FOOTNOTE DEFINITIONS THE ENCODER CUTS BY AT THE TOP OF A TEXT: where a reader of the source in GFM ends each one,
@@ -90,6 +107,117 @@ export function startsOffTables(
 }
 
 /**
+ What {@link pageOnlyDefinitionWritten} answers for a node that is no such definition.
+ */
+export const NO_PAGE_ONLY_DEFINITION: unique symbol = Symbol(
+  'no GFM footnote start of the page at this link reference definition',
+);
+
+/**
+ How a link reference definition is written that the page reads as the start of a footnote definition.
+ */
+export type PageOnlyDefinition = {
+  /**
+   The edit that writes the caret of the label with a backslash.
+   */
+  readonly edit: TextEdit;
+
+  /**
+   The rest of the label, which is text.
+   */
+  readonly label: TextRange;
+
+  /**
+   The state of the container once the definition is read: no footnote is open, since the page reads none.
+   */
+  readonly state: FootnoteState;
+};
+
+/**
+ Writes a link reference definition that the page reads as the start of a footnote definition and a reader of the source
+ does not.
+
+ CommonMark and GFM take a line `[^label]:` indented four columns or more right after a link reference definition for a
+ second definition, which shows nothing: the first keeps the paragraph going, and a definition may start on any line of it.
+ The strict grammar disables indented code, so it starts a footnote at the line, and the footnote shows its label and its
+ text. The caret of the label is written with a backslash, so that the page reads a definition of another label.
+
+ @param source - text the node was parsed from
+
+ @param node - node of the plain reading
+
+ @param starts - offsets where a footnote definition starts on the page and not for a reader of the source
+
+ @param endLine - line the block read last in the container ends on, which a definition without a position leaves
+
+ @returns The edit, the label and the state of the container; {@link NO_PAGE_ONLY_DEFINITION} when the node is no link
+ reference definition with a footnote label or the page starts no footnote at it
+
+ @example
+ ```ts
+ const written = pageOnlyDefinitionWritten({ source: '[r]: u\n    [^1]: y', node, starts: [11,], endLine: 1, },);
+ ```
+ */
+export function pageOnlyDefinitionWritten(
+  {
+    source,
+    node,
+    starts,
+    endLine,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+    readonly starts: readonly number[];
+    readonly endLine: number;
+  },
+): PageOnlyDefinition | typeof NO_PAGE_ONLY_DEFINITION {
+  if (!hasFootnoteLabel({
+    source,
+    node,
+  },))
+    return NO_PAGE_ONLY_DEFINITION;
+  /**
+   Where the definition starts and ends.
+   */
+  const {
+    start: from,
+    end: to,
+  } = rangeOf({ node, },);
+  /**
+   Where the bracket that opens the label stands, behind any indentation.
+   */
+  const open = source.indexOf(
+    '[',
+    from,
+  );
+  if (!starts.includes(open,))
+    return NO_PAGE_ONLY_DEFINITION;
+  return {
+    edit: {
+      start: open + 1,
+      end: open + 2,
+      replacement: String.raw`\^`,
+    },
+    label: {
+      start: open + 2,
+      end: closingBracket({
+        source,
+        from: open + 1,
+        limit: to,
+      },),
+    },
+    state: {
+      open: false,
+      endLine: endLineOf({
+        node,
+        fallback: endLine,
+      },),
+      endsInLiteral: false,
+    },
+  };
+}
+
+/**
  Joins the source's footnote ranges with the page's that start where no range of the source stands.
 
  @param source - ranges where a reader of the source in GFM reads a footnote definition, in text order
@@ -130,6 +258,76 @@ export function withPageOnlyStarts(
   ): number {
     return left.start - right.start;
   },);
+}
+
+/**
+ What a reader of the source and the page read of a text's tables and footnote definitions.
+ */
+export type FootnoteReadings = {
+  /**
+   Where the strict grammar reads a table, which cuts what it holds at a pipe.
+   */
+  readonly tables: readonly BlockRange[];
+
+  /**
+   Where the page ends a footnote definition, which a line of raw HTML does not end: the page writes it as text.
+   */
+  readonly pageFootnoteRanges: readonly BlockRange[];
+
+  /**
+   Where a reader of the source reads a footnote definition, and the definitions only the page starts.
+   */
+  readonly footnoteRanges: readonly BlockRange[];
+
+  /**
+   Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
+   after a paragraph or a link reference definition, less the lines that follow a row of a table.
+   */
+  readonly pageOnlyStarts: readonly number[];
+};
+
+/**
+ Reads where a text holds tables and footnote definitions for the reader of the source and for the page.
+
+ @param readable - text as the parse reads it, with its comments blanked
+
+ @returns The tables, the footnote definitions of the page and of the two readings together, and the starts only the page
+ reads
+
+ @example
+ ```ts
+ const { pageOnlyStarts, } = footnoteReadingsOf({ readable: 'a\n    [^1]: y', },);
+ ```
+ */
+export function footnoteReadingsOf({ readable, }: { readonly readable: string; },): FootnoteReadings {
+  /**
+   Where the strict grammar reads a table.
+   */
+  const tables = tableRangesOf({ body: readable, },);
+  /**
+   Where the page ends a footnote definition.
+   */
+  const pageFootnoteRanges = pageFootnoteDefinitionRangesOf({ body: readable, },);
+  /**
+   Where a reader of the source reads a footnote definition, which ends where the plain reading's paragraph goes on.
+   */
+  const sourceFootnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
+  return {
+    tables,
+    pageFootnoteRanges,
+    footnoteRanges: withPageOnlyStarts({
+      source: sourceFootnoteRanges,
+      page: pageFootnoteRanges,
+    },),
+    pageOnlyStarts: startsOffTables({
+      source: readable,
+      starts: pageOnlyStartsOf({
+        source: sourceFootnoteRanges,
+        page: pageFootnoteRanges,
+      },),
+      tables,
+    },),
+  };
 }
 
 //endregion Source ships footnote ranges
