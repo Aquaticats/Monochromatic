@@ -12,6 +12,10 @@ import {
 } from './claude-schema-blind-global-values.test-fixture.ts';
 import type { BlindContext, } from './claude-schema-blind-positions.test-fixture.ts';
 import type { FoundShape, } from './claude-schema-blind-spots.test-fixture.ts';
+import {
+  namesTextCode,
+  textCodeShapesIn,
+} from './claude-schema-blind-text-code.test-fixture.ts';
 import { isTypeWithoutValue, } from './claude-schema-reference.test-fixture.ts';
 import {
   keyNameOf,
@@ -29,9 +33,10 @@ import {
 // whose key is computed from anything but a string literal (`globalThis['ev' + 'al']`), since it can be either. The
 // global object written as a whole value, which a holder can read with such a key, is reported too
 // (`claude-schema-blind-global-values.test-fixture.ts`). A word
-// inside a string, a longer name and a type are not code. The check does not read the constructor of a function
-// (`(function () {}).constructor('...')`), the constructor of the prototype of an async function, nor `node:vm`; these
-// reach code from text without a name the search could tell, and are limits of the search that the ledger states.
+// inside a string, a longer name and a type are not code. The `vm` module and the constructor of a function, which
+// make code from text as well, are told by their text and reported in `claude-schema-blind-text-code.test-fixture.ts`;
+// a key that is no literal and a pattern that takes `constructor` out of a value reach them without a name the search
+// could tell, and are limits of the search that the ledger states.
 
 /**
  What a report says of a place that builds a loader.
@@ -160,7 +165,11 @@ function unreadableNameOf({ node, }: { readonly node: TreeNode; },): string {
  ```
  */
 export function namesUnreadableCode({ node, }: { readonly node: TreeNode; },): boolean {
-  return (unreadableNameOf({ node, },) !== '') || namesGlobalObject({ node, },);
+  /**
+   Whether the node is the global object or a place that loads `vm` or reads a constructor.
+   */
+  const isOtherPlace = namesGlobalObject({ node, },) || namesTextCode({ node, },);
+  return (unreadableNameOf({ node, },) !== '') || isOtherPlace;
 }
 
 /**
@@ -254,8 +263,8 @@ function namedShapesIn(
 }
 
 /**
- The places in a file that make code the search cannot read: a name that makes it, and the global object written as a
- whole value.
+ The places in a file that make code the search cannot read: a name that makes it, the global object written as a
+ whole value, and `vm` and the constructor of a function.
 
  @param context - what the file's names are read against
 
@@ -283,6 +292,10 @@ export function unreadableShapesIn(
       nodes,
     },),
     ...globalValueShapesIn({ context, },),
+    ...textCodeShapesIn({
+      context,
+      nodes,
+    },),
   ];
 }
 
