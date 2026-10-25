@@ -263,6 +263,31 @@ ran in a unit capped at 8G and 800 percent of CPU on the final code:
   equal to the search of the fifth round;
   0 texts that read the same before are reported now.
 
+By answer,
+with the false positives:
+
+- same:
+  117000,
+  and no text the oracle finds unequal is called the same (0 false negatives).
+- differs:
+  8838,
+  all of which the oracle finds unequal,
+  so 0 are reported for a page that reads the same.
+  8678 hold a block that differs when asked alone;
+  160 hold none,
+  and are the same texts as in the fifth round,
+  whose hand reading stands,
+  and which this round did not re-read.
+- undecided:
+  1119,
+  all of which the oracle finds unequal.
+  7 hold a block that differs alone inside a reached range (see the section on N5),
+  and 0 hold one outside every range.
+- could not compare:
+  5303,
+  all of them pages that refuse to parse (a nest past the bound),
+  which ship without their original and with the defect `page-source-unparseable`.
+
 The pool holds none of the shapes of N1,
 N2 and the openers (the re-check said so of N1),
 so three differentials of generated texts stand beside it,
@@ -440,10 +465,47 @@ reported by the comparison and not fixed:
   1119 of the search),
   each shipping `source-reading-undecided`.
 
+### The full task, the merge and the gates
+
+The full task,
+`mise run //package/translation-repair/page-check:test:live-full`,
+ran on the merge commit `08789214b1885c50d4ec060abdb120bac84f21cd` in the unit `dx1f4-livefull`
+(8G,
+800 percent of CPU,
+`--wait`),
+with its output in fresh files:
+success,
+case 696.2 s,
+service runtime 11 min 38.120 s,
+CPU time 13 min 34.234 s,
+memory peak 749.1M,
+swap 0B.
+
+`origin/main` moved twice during the round
+(`1362f15c40c72d721e13a6beab11c12e334e03e7`,
+then `495bf2f39e5b7ebbeacec33b5cdfb239a2649c5a`),
+and was merged once at the second by a merge that `git merge-tree` showed clean.
+That merge changes no file of `page-check`,
+`document-structure`,
+`markup` or `run`.
+Main's own commits in the merged range bump cache versions of other stages;
+this round's commits (`242d4d14fd..af5e52e29a`) name none.
+
+Each gate ran by itself from the worktree on the final code:
+page-check `build`,
+`lint:types`,
+`lint:oxlint` (0 warnings,
+0 errors),
+and `test:unit` (195 PASS,
+0 FAIL);
+source-scan `test:unit` (68 PASS) and `source-scans` (53 PASS).
+The packages `document-structure` and `markup` are not touched by this round.
+
 ### Cache versions
 
-`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `242d4d14fd..HEAD` and over `56514f37f1..HEAD` names no
-commit;
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+'` over `242d4d14fd..af5e52e29a`,
+the commits of this round before the merge,
+and over `56514f37f1..af5e52e29a` names no commit;
 the control over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 The round changes `page-check` only,
 which no key module of the cached stages imports.
