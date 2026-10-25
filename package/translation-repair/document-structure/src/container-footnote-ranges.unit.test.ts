@@ -12,7 +12,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { footnoteRangesDifferInContainer, } from '../dist/final/node/index.mjs';
+import {
+  containerFootnoteDisagreementsOf,
+  footnoteRangesDifferInContainer,
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: footnoteRangesDifferInContainer.name,
@@ -48,6 +51,42 @@ await describe({
       fn: async () => {
         expect(footnoteRangesDifferInContainer({ body: '> [^1]: x\n', },),).toBe(false,);
         expect(footnoteRangesDifferInContainer({ body: '她说 {\n', },),).toBe(false,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: containerFootnoteDisagreementsOf.name,
+  children: [
+    it({
+      name: 'GIVES THE START OF THE FOOTNOTE ONCE WHEN THE TWO READINGS START IT AT THE SAME PLACE AND END IT AT DIFFERENT ONES',
+      fn: async () => {
+        expect(containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },),).toEqual([2,],);
+        expect(containerFootnoteDisagreementsOf({ body: '- a\n  [^1]: x\n  <q>\n  text\n  ===\n  ', },),).toEqual([6,],);
+      },
+    },),
+    it({
+      name: 'GIVES THE START OF A FOOTNOTE ONLY THE PAGE STARTS, a line indented four spaces after a paragraph',
+      fn: async () => {
+        expect(containerFootnoteDisagreementsOf({ body: '> a `x\n>     [^1]: <b>` {d}\n', },),).toEqual([13,],);
+      },
+    },),
+    it({
+      name: 'GIVES THE STARTS OF EVERY DISAGREEMENT IN TEXT ORDER, each of two blocks apart having one',
+      fn: async () => {
+        expect(
+          containerFootnoteDisagreementsOf({
+            body: 'a\n\n> [^1]: x\n> <q>\n> text\n> ===\n\n- b `y\n      [^2]: <b>` {d}\n',
+          },),
+        ).toEqual([5, 46,],);
+      },
+    },),
+    it({
+      name: 'GIVES NONE FOR A FOOTNOTE AT THE TOP WHOSE READINGS DIFFER, or where the two readings agree',
+      fn: async () => {
+        expect(containerFootnoteDisagreementsOf({ body: '[^1]: x\n<q>\ntext\n===\n\n> after\n', },),).toEqual([],);
+        expect(containerFootnoteDisagreementsOf({ body: '> [^1]: x\n', },),).toEqual([],);
       },
     },),
   ],

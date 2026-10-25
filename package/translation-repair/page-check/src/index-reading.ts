@@ -16,11 +16,18 @@ export {
 export { rootWithFreshTails, } from './corpus-run/source-ships-fresh-tails.ts';
 export { differenceDefectsOf, } from './corpus-run/source-ships-differences.ts';
 export {
+  blocksOfPage,
+  blocksOfSource,
   PageSyntaxError,
   readerOfPage,
   readerOfSource,
+  type SourceBlock,
   withoutLinkTargets,
 } from './corpus-run/source-reading-account.ts';
+export {
+  type BlockDifference,
+  blockDifferenceOf,
+} from './corpus-run/source-reading-blocks.ts';
 export {
   type ReadingDifference,
   readingDifferenceOf,

@@ -162,7 +162,10 @@ export {
   type NamingError,
   refusalText,
 } from './refusal-text.ts';
-export { footnoteRangesDifferInContainer, } from './container-footnote-ranges.ts';
+export {
+  containerFootnoteDisagreementsOf,
+  footnoteRangesDifferInContainer,
+} from './container-footnote-ranges.ts';
 export {
   type BlockRange,
   footnoteDefinitionRangesOf,

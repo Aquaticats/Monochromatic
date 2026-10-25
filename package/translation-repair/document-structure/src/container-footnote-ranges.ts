@@ -15,7 +15,8 @@ import { parseMarkdownMathBody, } from './parse-markdown-math.ts';
 // the source's ranges at the top of a text and the page's inside a container and after a footnote's last block
 // (`gfm-block-ranges.ts`). A reader of plain Markdown gives only the source's reading, so a comparison of what the page
 // shows with what the source shows cannot say which is right where the ruling takes the page's. This says whether the
-// two readings differ at a place a container holds.
+// two readings differ at a place a container holds, and where each such place starts, so that a caller can tell which
+// block of the text it is in.
 
 /**
  Stretches of a text that a block quote or a list holds.
@@ -89,18 +90,19 @@ function rangesLacking(
 }
 
 /**
- Whether the source's and the page's footnote ranges differ at a place a block quote or a list holds.
+ Where the source's and the page's footnote ranges differ at a place a block quote or a list holds.
 
  @param body - text of a run, as the artifact records it
 
- @returns Whether a range one reading has and the other lacks starts inside a block quote or a list
+ @returns Offsets, in text order and each once, of the start of each range one reading has and the other lacks that starts
+ inside a block quote or a list; none where the two readings agree there
 
  @example
  ```ts
- const undecided = footnoteRangesDifferInContainer({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
+ const starts = containerFootnoteDisagreementsOf({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
  ```
  */
-export function footnoteRangesDifferInContainer({ body, }: { readonly body: string; },): boolean {
+export function containerFootnoteDisagreementsOf({ body, }: { readonly body: string; },): readonly number[] {
   /**
    The source's ranges.
    */
@@ -123,16 +125,51 @@ export function footnoteRangesDifferInContainer({ body, }: { readonly body: stri
     },),
   ];
   if (differing.length === 0)
-    return false;
+    return [];
   /**
    Where the containers of the text stand.
    */
   const containers = containerSpansOf({ root: parseMarkdownMathBody({ body, },), },);
-  return differing.some(function inContainer(range,): boolean {
-    return containers.some(function holds(container,): boolean {
-      return (container.start <= range.start) && (range.start < container.end);
-    },);
+  /**
+   Where the differing ranges that a container holds start, a start both readings have counted once.
+   */
+  const starts = new Set(
+    differing
+      .filter(function inContainer(range,): boolean {
+        return containers.some(function holds(container,): boolean {
+          return (container.start <= range.start) && (range.start < container.end);
+        },);
+      },)
+      .map(function startOf({ start, },): number {
+        return start;
+      },),
+  );
+  return [...starts,].toSorted(function ascending(
+    left,
+    right,
+  ): number {
+    return left - right;
   },);
+}
+
+/**
+ Whether the source's and the page's footnote ranges differ at a place a block quote or a list holds.
+
+ @param body - text of a run, as the artifact records it
+
+ @returns Whether a range one reading has and the other lacks starts inside a block quote or a list
+
+ @example
+ ```ts
+ const undecided = footnoteRangesDifferInContainer({ body: '> [^1]: x\n> <q>\n> text\n> ===\n', },);
+ ```
+ */
+export function footnoteRangesDifferInContainer({ body, }: { readonly body: string; },): boolean {
+  /**
+   Where the two readings disagree inside a container.
+   */
+  const starts = containerFootnoteDisagreementsOf({ body, },);
+  return starts.length > 0;
 }
 
 //endregion Container footnote ranges

@@ -18,10 +18,11 @@ import type { WouldShipSlice, } from './would-ship-text.ts';
 // writes a run as literal text when the strict grammar refuses it as recorded (`source-ships-compose.ts`), and the
 // encoder (`source-ships-encoding.ts`) is built so that a reader of the page sees the text a reader of the source sees.
 // Where it does not, the page still ships (a run always ships, the owner, 2026-09-27) and says so: one defect
-// `source-reads-differently` names the slices. A run the comparison cannot make is named by the defect
-// `source-reading-not-compared`, so that a page which parses and cannot be read against its source is never taken for
-// one compared and found equal. A run that ships as recorded is not compared, since what the site compiles is what the
-// original is upstream.
+// `source-reads-differently` names the slices. A run holding a block the comparison cannot decide (a footnote in a block
+// quote or a list item that the two readings end at different places, where the ruling takes the page's reading) is named
+// by `source-reading-undecided`, and a run the comparison cannot make at all by `source-reading-not-compared`, so that
+// no page is taken for one compared and found equal that was not. A run that ships as recorded is not compared, since
+// what the site compiles is what the original is upstream.
 
 /**
  What comparing a run came to when the comparison could not be made.
@@ -52,8 +53,8 @@ type ComparedRun = {
 
  @param l - logger, tagged by the caller with this entry
 
- @returns A defect naming the slices of the differing runs and a defect naming those of the runs that could not be
- compared, each only when it has a run to name
+ @returns A defect naming the slices of the differing runs, one naming those of the runs with a block the comparison
+ could not decide, and one naming those of the runs that could not be compared, each only when it has a run to name
 
  @example
  ```ts
@@ -139,6 +140,16 @@ export function differenceDefectsOf(
       return run;
     },);
   /**
+   Runs with a block the comparison could not decide, whether or not another block of the run differs.
+   */
+  const undecided = compared
+    .filter(function unsure({ answer, },): boolean {
+      return (answer.kind === 'undecided') || (('undecidedBlocks' in answer) && ((answer.undecidedBlocks ?? 0) > 0));
+    },)
+    .map(function runOf({ run, },): readonly number[] {
+      return run;
+    },);
+  /**
    Runs the comparison could not be made for.
    */
   const notCompared = compared
@@ -157,6 +168,17 @@ export function differenceDefectsOf(
           message: `entry ${entryId} shows the source text of slices ${
             namedSlices({ indices: differing.flat(), },)
           } differently from the source: a reader of the page sees other text than a reader of the original`,
+        },
+      ]),
+    ...((undecided.length === 0)
+      ? []
+      : [
+        {
+          check: 'source-reading-undecided' as const,
+          message: `entry ${entryId} could not decide whether the page shows the source text of slices ${
+            namedSlices({ indices: undecided.flat(), },)
+          } as the source does: a footnote in a block quote or a list item ends at different places in the two readings, `
+            + 'and the page keeps the reading the two-readings ruling takes, which a reader of plain Markdown cannot give',
         },
       ]),
     ...((notCompared.length === 0)

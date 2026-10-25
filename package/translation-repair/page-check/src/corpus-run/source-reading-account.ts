@@ -172,6 +172,39 @@ function accountOf({ root, }: { readonly root: TreeNode; },): string {
 }
 
 /**
+ The tree of the page that carries the text after the note, less the note.
+
+ @param carried - text as the page carries it, encoded or as written
+
+ @returns Root holding everything the page has after the note
+
+ @throws Whatever the strict grammar raises when the page does not parse
+
+ @example
+ ```ts
+ const root = pageRootOf({ carried: String.raw`她说 \{ 然后走了。`, },);
+ ```
+ */
+function pageRootOf({ carried, }: { readonly carried: string; },): TreeNode {
+  /**
+   The page as the package reads it, comments masked.
+   */
+  const { masked, } = maskHtmlComments({ text: `${NOTE}\n\n${carried}\n`, },);
+  /**
+   Tree of the strict grammar.
+   */
+  const root = parseMdxBody({ body: masked, },);
+  /**
+   Everything the page holds after the note.
+   */
+  const [, ...afterNote] = root.children;
+  return {
+    ...root,
+    children: afterNote,
+  };
+}
+
+/**
  What a reader sees of the page that carries the text after the note.
 
  @param carried - text as the page carries it, encoded or as written
@@ -187,41 +220,56 @@ function accountOf({ root, }: { readonly root: TreeNode; },): string {
  ```
  */
 export function readerOfPage({ carried, }: { readonly carried: string; },): string {
-  /**
-   The page as the package reads it, comments masked.
-   */
-  const { masked, } = maskHtmlComments({ text: `${NOTE}\n\n${carried}\n`, },);
-  /**
-   Tree of the strict grammar.
-   */
-  const root = parseMdxBody({ body: masked, },);
-  /**
-   Everything the page holds after the note.
-   */
-  const [, ...afterNote] = root.children;
-  return accountOf({
-    root: {
-      ...root,
-      children: afterNote,
-    },
-  },);
+  return accountOf({ root: pageRootOf({ carried, },), },);
 }
 
 /**
- What a reader of plain Markdown sees of the text as the artifact records it.
+ What a reader sees of each top-level block of the page that carries the text after the note.
 
- @param source - text as the artifact records it
+ @param carried - text as the page carries it, encoded or as written
 
- @returns Account of the text, its closed HTML comments blanked the way the page's reading blanks them; a text that
- opens with a byte order mark is read after the note, as the page carries it, since a parser drops a mark that opens its
- input and reads the first line as the start of the document, where the page has it in the middle
+ @returns Account of each block after the note, in order
+
+ @throws {@link PageSyntaxError} when the page holds syntax the reader would not see as text, and whatever the strict
+ grammar raises when the page does not parse
 
  @example
  ```ts
- const seen = readerOfSource({ source: '她说 { 然后走了。', },);
+ const seen = blocksOfPage({ carried: String.raw`她说 \{ 然后走了。`, },);
  ```
  */
-export function readerOfSource({ source, }: { readonly source: string; },): string {
+export function blocksOfPage({ carried, }: { readonly carried: string; },): readonly string[] {
+  /**
+   The tree after the note.
+   */
+  const root = pageRootOf({ carried, },);
+  if (!('children' in root))
+    return [];
+  return root.children
+    .map(function accountOfBlock(child,): string {
+      return accountOf({ root: child, },);
+    },);
+}
+
+/**
+ The tree a reader of plain Markdown builds of the text as the artifact records it, and how far its offsets are from the
+ text's.
+
+ @param source - text as the artifact records it
+
+ @returns Root of the tree, and the number of characters its offsets run ahead of the text's: none, except for a text
+ that opens with a byte order mark, which is read after the note, as the page carries it, since a parser drops a mark that
+ opens its input and reads the first line as the start of the document, where the page has it in the middle
+
+ @example
+ ```ts
+ const { root, shift, } = sourceRootOf({ source: '她说 { 然后走了。', },);
+ ```
+ */
+function sourceRootOf({ source, }: { readonly source: string; },): {
+  readonly root: TreeNode;
+  readonly shift: number
+} {
   /**
    The comments of the text.
    */
@@ -258,20 +306,111 @@ export function readerOfSource({ source, }: { readonly source: string; },): stri
     },);
   if (readable.startsWith(BYTE_ORDER_MARK,)) {
     /**
+     The note and the blank line after it, which the page holds before the text.
+     */
+    const before = `${NOTE}\n\n`;
+    /**
      The note and the text, read as the page holds them.
      */
     const {
       children,
       ...page
-    } = parseGfmMathBody({ body: `${NOTE}\n\n${readable}`, },);
-    return accountOf({
+    } = parseGfmMathBody({ body: `${before}${readable}`, },);
+    return {
       root: {
         ...page,
         children: children.slice(1,),
       },
-    },);
+      shift: before.length,
+    };
   }
-  return accountOf({ root: parseGfmMathBody({ body: readable, },), },);
+  return {
+    root: parseGfmMathBody({ body: readable, },),
+    shift: 0,
+  };
+}
+
+/**
+ What a reader of plain Markdown sees of the text as the artifact records it.
+
+ @param source - text as the artifact records it
+
+ @returns Account of the text, its closed HTML comments blanked the way the page's reading blanks them; a text that
+ opens with a byte order mark is read after the note, as the page carries it
+
+ @example
+ ```ts
+ const seen = readerOfSource({ source: '她说 { 然后走了。', },);
+ ```
+ */
+export function readerOfSource({ source, }: { readonly source: string; },): string {
+  return accountOf({ root: sourceRootOf({ source, },)
+    .root, },);
+}
+
+/**
+ One top-level block of a text as a reader of plain Markdown sees it: what the block shows, and where it stands.
+ */
+export type SourceBlock = {
+  /**
+   What the block shows, in the form the two readings are compared by.
+   */
+  readonly account: string;
+
+  /**
+   Offset in the text of the block's first character.
+   */
+  readonly start: number;
+
+  /**
+   Offset in the text just past the block's last character.
+   */
+  readonly end: number;
+};
+
+/**
+ What a reader of plain Markdown sees of each top-level block of the text as the artifact records it.
+
+ @param source - text as the artifact records it
+
+ @returns The blocks in order, each with the offsets it stands at in the text; a block the parse gave no position stands
+ at the start of the text and ends there
+
+ @example
+ ```ts
+ const blocks = blocksOfSource({ source: '她说 { 然后走了。', },);
+ ```
+ */
+export function blocksOfSource({ source, }: { readonly source: string; },): readonly SourceBlock[] {
+  /**
+   The tree, and how far its offsets run ahead of the text's.
+   */
+  const {
+    root,
+    shift,
+  } = sourceRootOf({ source, },);
+  if (!('children' in root))
+    return [];
+  return root.children
+    .map(function blockOf(child,): SourceBlock {
+      return {
+        account: accountOf({ root: child, },),
+        start: Math.max(
+          0,
+          (child.position
+            ?.start
+            .offset
+            ?? shift) - shift,
+        ),
+        end: Math.max(
+          0,
+          (child.position
+            ?.end
+            .offset
+            ?? shift) - shift,
+        ),
+      };
+    },);
 }
 
 /**

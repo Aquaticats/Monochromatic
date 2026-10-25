@@ -39,6 +39,7 @@ export type PublishCheck =
     | 'page-footnotes'
     | 'page-source-unparseable'
     | 'source-reading-not-compared'
+    | 'source-reading-undecided'
     | 'source-reads-differently';
 
 /**
