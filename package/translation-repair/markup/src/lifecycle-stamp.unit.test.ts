@@ -18,6 +18,7 @@ import {
 import {
   isIsoStampText,
   LifecycleAttemptError,
+  lifecycleClockStamp,
   lifecycleStamp,
   wallClockNow,
 } from '../dist/final/node/index.mjs';
@@ -46,6 +47,35 @@ const WALL_CLOCK_FLOOR = '2026-01-01T00:00:00.000Z';
 function fixedWallClock(): Date {
   return PRINTED_AT;
 }
+
+await describe({
+  name: lifecycleClockStamp.name,
+  children: [
+    it({
+      name: 'WRITES THE CLOCK TIME ALONE, in the spelling the stamp with an attempt uses, for a line that belongs to '
+        + 'the pass and to no attempt',
+      fn: async () => {
+        expect(lifecycleClockStamp({ wallClock: fixedWallClock, },),).toBe('at=2026-10-22T08:10:11.123Z',);
+        expect(lifecycleStamp({
+          attempt: 3,
+          wallClock: fixedWallClock,
+        },),).toBe(`${lifecycleClockStamp({ wallClock: fixedWallClock, },)} attempt=3`,);
+      },
+    },),
+    it({
+      name: 'READS THE WALL CLOCK when it is given no clock of its own, a time after the fixed floor',
+      fn: async () => {
+        /**
+         Time the stamp names, cut off its key.
+         */
+        const time = lifecycleClockStamp({})
+          .slice('at='.length,);
+        expect(isIsoStampText({ text: time, },),).toBe(true,);
+        expect(time > WALL_CLOCK_FLOOR,).toBe(true,);
+      },
+    },),
+  ],
+},);
 
 await describe({
   name: lifecycleStamp.name,
