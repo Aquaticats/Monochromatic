@@ -575,7 +575,7 @@ the entry,
 and the status or `queued` where the line has one),
 and before the other fields and before any capped text,
 so a search by prefix still finds the line and a cap on the reason never cuts them.
-The attempt is the number the pass persists for the entry after it counts the attempt,
+The attempt is the number the pass persists for the entry once it has counted the attempt,
 so the lines of one attempt agree and a line never keeps a count of its own.
 A limit that applies to an attempt says so where the limit is printed.
 The clock is a parameter,

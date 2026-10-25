@@ -486,7 +486,9 @@ A tally that reads `error=Timeout: ... exceeded its 25200000ms deadline`
 is followed by a `REATTEMPT` line when the attempt bought cache records,
 and the next attempt's own tally,
 at a later `at=`,
-is under a new cap (the `XingZ60` pass of 2026-10-22, ledger B960).
+is under a new cap
+(the `XingZ60` pass of 2026-10-22,
+ledger B960).
 
 Every line the pass prints for an entry's attempt carries the time it was printed and the attempt it belongs to,
 as two fields straight after the line's opening words:

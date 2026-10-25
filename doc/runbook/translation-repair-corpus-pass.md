@@ -592,7 +592,9 @@ Each is the exact string the log carries.
     `STALLED`,
     `INCOMPLETE`,
     `NOT RESUMED`),
-    straight after the keyword and the entry (and after the status on a `TALLY`, or `queued` on a `REATTEMPT`).
+    straight after the keyword and the entry
+    (and after the status on a `TALLY`,
+    or `queued` on a `REATTEMPT`).
     `at=` is the time the line was printed,
     an ISO 8601 UTC time with milliseconds,
     so a window of the log is found by it;

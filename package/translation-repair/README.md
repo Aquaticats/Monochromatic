@@ -465,7 +465,8 @@ beside each settled entry's `TALLY` line,
 `DESTINATIONS <id> at=<time> attempt=<n> source=N page=M dropped=K`
 (the time the line was printed and the attempt it belongs to,
 which every per-entry line of the pass carries,
-`doc/configuration.md`, "Bounding one run"):
+`doc/configuration.md`,
+"Bounding one run"):
 how many distinct web addresses the source page links to,
 how many the published page carries,
 and how many of the source's the page lacks.
