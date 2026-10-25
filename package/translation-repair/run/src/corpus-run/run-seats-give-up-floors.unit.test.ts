@@ -1,6 +1,7 @@
 /**
- Tests the bench floors an entry's give-up of a provider must leave met (`unmetBenchFloors`): the writing floors and the
- judging quorums, counted by the seat reader's own helpers over a view in which only some providers can be asked.
+ Tests the bench floors the entry's stages need (`unmetBenchFloors`), which the budgets read to tell whether a given-up
+ provider's return would make the entry finishable: the writing floors and the judging quorums, counted by the seat
+ reader's own helpers over a view in which only some providers can be asked.
 
  The roster is the run's real one and the view is a record the case writes, so no meter is read, no clock moves and
  no provider is asked.

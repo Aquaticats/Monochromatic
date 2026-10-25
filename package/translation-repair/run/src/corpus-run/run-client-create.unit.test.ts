@@ -10,9 +10,11 @@
 
  Every case builds the run client itself (`runClientFrom`) over a scripted transport on a fake clock: Synthetic
  answers its quota with a body the budgets cannot read (so the meter counts spendable) and every chat call with HTTP
- 429, as in XingZ6020, and the providers beside it read wet. The cases ask a seat only Synthetic and Hyper serve, then
- read the seats of the translate lane as the next slice would, so the wiring from the client to the budgets and the
- seat reader is part of what they run. No case waits, and no request leaves the process.
+ 429, as in XingZ6020, and the providers beside it read wet. The case of condition (b) has Hyper refuse in the same
+ way, since no set of providers beside a refusing Synthetic is lifted to every floor by its return (Bedrock is off, and
+ never a live alternative). The cases ask a seat only Synthetic and Hyper serve, then read the seats of the translate
+ lane as the next slice would, so the wiring from the client to the budgets and the seat reader is part of what they
+ run. No case waits, and no request leaves the process.
 
  Fixtures are cat-themed invention; every reply is a script.
 
@@ -62,6 +64,11 @@ const COOLDOWN_MS = 300_000;
  How often the seat reader's wait checks for abort, the real one-second slice.
  */
 const POLL_MS = 1_000;
+
+/**
+ How many turns of the real event loop an ask gets to end before the case takes it for one the router holds on a hold.
+ */
+const ASK_TURNS = 50;
 
 /**
  How many slices ask Synthetic, each right after the cooldown the slice before it waited out.
@@ -127,6 +134,19 @@ const KEY_VARIABLES: Readonly<Record<Alternative, string>> = {
 };
 
 /**
+ The provider that refuses every chat call right after each cooldown the entry waited out.
+ */
+type Refuser = 'synthetic' | 'hyper';
+
+/**
+ The key variable that switches on each refuser.
+ */
+const REFUSER_KEY_VARIABLES: Readonly<Record<Refuser, string>> = {
+  synthetic: 'TRANSLATION_REPAIR_SYNTHETIC_API_KEY',
+  hyper: 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY',
+};
+
+/**
  The state of XingZ6020 (2026-10-23): NeuralWatt, DeepSeek and Xiaomi read wet in all 518 readings of the meters, and
  Hyper, OpenRouter and Bedrock never did.
  */
@@ -156,19 +176,19 @@ type Rig = {
   readonly endings: string[];
 
   /**
-   How many slices sent Synthetic a chat request. A request the transport's retry ladder repeats counts once.
+   How many slices sent the refusing provider a chat request. A request the transport's retry ladder repeats counts once.
    */
-  readonly slicesThatAskedSynthetic: () => number;
+  readonly slicesThatAskedRefuser: () => number;
 
   /**
-   How long Synthetic stays held out right after each slice that asked it, as the client reports it, in the order of
-   the slices.
+   How long the refusing provider stays held out right after each slice that asked it, as the client reports it, in the
+   order of the slices.
    */
   readonly holdsAfterEachAsk: () => readonly number[];
 
   /**
-   Asks for a seat only Synthetic serves among the providers read wet, as a slice does, then reads the seats of the
-   translate lane while the clock passes the cooldown.
+   Asks for a seat only the refusing provider serves among the providers read wet, as a slice does, then reads the seats
+   of the translate lane while the clock passes the cooldown.
    */
   readonly sliceAfterTheLastCooldown: () => Promise<void>;
 };
@@ -219,7 +239,9 @@ function neuralwattReply(exchange: TransportExchange,): TransportReply {
  over a scripted transport, and the real seat reader over the client.
 
  @param sinon - case's own sandbox, which fakes the timers
- @param wet - which providers read wet beside Synthetic
+ @param wet - which providers read wet beside the refusing one
+ @param refuser - the provider that refuses every chat call with a meter the budgets cannot read: Synthetic as in
+ XingZ6020 (default), or Hyper where a case needs a refuser whose return would lift the benches
  @param ledgerPath - where NeuralWatt's energy ledger lives, in a throwaway directory
 
  @returns The rig, and the disposable that puts the real timers back
@@ -233,10 +255,12 @@ function rigOn(
   {
     sinon,
     wet,
+    refuser = 'synthetic',
     ledgerPath,
   }: {
     readonly sinon: DisposableSandbox;
     readonly wet: readonly Alternative[];
+    readonly refuser?: Refuser;
     readonly ledgerPath: string;
   },
 ): Rig & Disposable {
@@ -271,8 +295,8 @@ function rigOn(
    */
   const endings: string[] = [];
   /**
-   What the transport and the slices have counted: chat requests Synthetic was sent, the slices that sent one, and the
-   hold the first slice's refusal set.
+   What the transport and the slices have counted: chat requests the refusing provider was sent, the slices that sent
+   one, and the hold each such slice's refusal set.
    */
   const counted: {
     requests: number;
@@ -286,7 +310,7 @@ function rigOn(
   const client = runClientFrom({
     maxHoldMs: TEST_MAX_HOLD_MS,
     env: {
-      TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'tabby-not-a-real-key',
+      [REFUSER_KEY_VARIABLES[refuser]]: 'tabby-not-a-real-key',
       ...Object.fromEntries(wet.map(function keyOf(provider,): readonly [string, string,] {
         return [KEY_VARIABLES[provider], 'calico-not-a-real-key',];
       },),),
@@ -302,6 +326,13 @@ function rigOn(
       if (exchange.url.includes('api.deepseek.com',))
         return { status: 200, bodyText: DEEPSEEK_WET_BODY, };
       if (exchange.url.includes('hyper.charm.land',)) {
+        // A Hyper that refuses answers its balance with a body the budgets cannot read, and every chat call with 429.
+        if (refuser === 'hyper') {
+          if (exchange.method === 'GET')
+            return { status: 200, bodyText: UNREADABLE_QUOTA_BODY, };
+          counted.requests += 1;
+          return { status: 429, bodyText: '{"error":"rate limited"}', };
+        }
         return (exchange.method === 'GET')
           ? { status: 200, bodyText: HYPER_WET_BODY, }
           : { status: 400, bodyText: '{"error":"no stream scripted"}', };
@@ -319,21 +350,47 @@ function rigOn(
      Requests Synthetic had been sent before this slice.
      */
     const requestsBefore = counted.requests;
-    try {
-      await client.chatText({
-        modelId: SYNTHETIC_SEAT,
-        messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
-        signal: SIGNAL,
-      },);
-    } catch (error) {
-      // The ask ends in the refusal, or in the router's answer that no provider read wet serves the seat; the cases
-      // read what the budgets and the reader did next, not the ask's own ending. Anything that is no error is a defect.
-      if (!Error.isError(error,))
-        throw error;
+    /**
+     Whether the ask has ended.
+     */
+    const ask: { ended: boolean; } = { ended: false, };
+    /**
+     Asks for the seat and notes that the ask ended, however it ended.
+     */
+    async function askForTheSeat(): Promise<void> {
+      try {
+        await client.chatText({
+          modelId: SYNTHETIC_SEAT,
+          messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
+          signal: SIGNAL,
+        },);
+      } catch (error) {
+        // The ask ends in the refusal, or in the router's answer that no provider read wet serves the seat; the cases
+        // read what the budgets and the reader did next, not the ask's own ending. Anything that is no error is a defect.
+        if (!Error.isError(error,))
+          throw error;
+      }
+      ask.ended = true;
     }
+    /**
+     The ask, which ends in a few turns of the event loop unless the router waits out a hold because no writing provider
+     reads wet.
+     */
+    const asking = askForTheSeat();
+    for (const _turn of Array.from({ length: ASK_TURNS, },)
+      .keys()) {
+      if (ask.ended)
+        break;
+      // oxlint-disable-next-line no-await-in-loop -- a turn of the real event loop, which the fake clock does not move
+      await timersPromises.setImmediate();
+    }
+    // A ROUTER THAT WAITS OUT THE HOLD ITSELF needs the clock to pass it; the reader's own wait comes after the ask.
+    if (!ask.ended)
+      await clock.tickAsync(COOLDOWN_MS + POLL_MS,);
+    await asking;
     if (counted.requests > requestsBefore) {
       counted.slices += 1;
-      counted.holds.push(client.providerHolds().synthetic,);
+      counted.holds.push(client.providerHolds()[refuser],);
     }
     /**
      Reads the seats once and notes the name of the error that ended the entry, if one did. Its answer is not read, only
@@ -364,7 +421,7 @@ function rigOn(
     client,
     lines,
     endings,
-    slicesThatAskedSynthetic: function slicesThatAskedSynthetic(): number {
+    slicesThatAskedRefuser: function slicesThatAskedRefuser(): number {
       return counted.slices;
     },
     holdsAfterEachAsk: function holdsAfterEachAsk(): readonly number[] {
@@ -423,7 +480,7 @@ await describe({
         expect(rig.holdsAfterEachAsk().slice(0, 1,),).toEqual([COOLDOWN_MS,],);
         // The first wait is taken; the refusal right after it gives Synthetic up, and no later wait is.
         expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
-        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+        expect(rig.slicesThatAskedRefuser(),).toBe(2,);
         // The line that gives it up names the floors that stay unmet with Synthetic back.
         /**
          The lines that keep the give-up in force.
@@ -456,7 +513,15 @@ await describe({
 
         expect(rig.holdsAfterEachAsk().slice(0, 1,),).toEqual([COOLDOWN_MS,],);
         expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
-        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+        expect(rig.slicesThatAskedRefuser(),).toBe(2,);
+        // The entry cannot finish with DeepSeek alone, with Synthetic back or without it (the editors and the refiners
+        // stay below their floor either way), so the two slices after Synthetic was given up stop the lane on the
+        // translators' writing floor. That stop parks the entry; it is not the end of the run, which only a reading of
+        // every provider dry is.
+        expect(rig.endings,).toEqual([
+          'WritingBenchUnreachableError',
+          'WritingBenchUnreachableError',
+        ],);
       },
     },),
 
@@ -479,7 +544,7 @@ await describe({
 
         expect(rig.endings,).toEqual([],);
         expect(waitsIn({ lines: rig.lines, },).length,).toBe(1,);
-        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+        expect(rig.slicesThatAskedRefuser(),).toBe(2,);
       },
     },),
 
@@ -500,9 +565,66 @@ await describe({
           sinon: ctx.sinon,
         },);
 
-        expect(rig.slicesThatAskedSynthetic(),).toBe(2,);
+        expect(rig.slicesThatAskedRefuser(),).toBe(2,);
         expect(rig.endings,).toEqual([],);
         expect((await rig.client.providerDryness({ signal: SIGNAL, },)).synthetic,).toBe(true,);
+      },
+    },),
+
+    it({
+      name: '(b) WAITS FOR HYPER EVERY TIME when NeuralWatt is the only provider beside it: NeuralWatt alone leaves '
+        + 'benches short, and Hyper back meets every floor, so its return makes the entry finishable',
+      fn: async ctx => {
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          wet: ['neuralwatt',],
+          refuser: 'hyper',
+          ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
+        },);
+        await consoleLinesDuring({
+          run: function slices(): Promise<void> {
+            return runSlices({ rig, },);
+          },
+          sinon: ctx.sinon,
+        },);
+
+        // POSITIVE CONTROL FIRST: Hyper's refusal set the cooldown the case's clock counts.
+        expect(rig.holdsAfterEachAsk().slice(0, 1,),).toEqual([COOLDOWN_MS,],);
+        expect(rig.endings,).toEqual([],);
+        expect(waitsIn({ lines: rig.lines, },).length,).toBe(SLICES,);
+        expect(rig.slicesThatAskedRefuser(),).toBe(SLICES,);
+      },
+    },),
+
+    it({
+      name: '(a) WAITS FOR SYNTHETIC EVERY TIME, AND THE RUN IS NOT ENDED, when the only provider beside it is Xiaomi, '
+        + 'which writes nothing: Synthetic is the only writing provider not dry',
+      fn: async ctx => {
+        await using scratch = await scratchDir({ prefix: 'run-client-create-', },);
+        using rig = rigOn({
+          sinon: ctx.sinon,
+          wet: ['xiaomi',],
+          ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
+        },);
+        await consoleLinesDuring({
+          run: function slices(): Promise<void> {
+            return runSlices({ rig, },);
+          },
+          sinon: ctx.sinon,
+        },);
+
+        // POSITIVE CONTROL FIRST: the refusal set a cooldown, which the router that holds the ask has already spent part of.
+        expect(rig.holdsAfterEachAsk()[0] ?? 0,).toBeGreaterThan(0,);
+        expect(
+          rig.endings.filter(function isEndOfRun(name,): boolean {
+            return name === 'EveryProviderDryError';
+          },),
+        ).toEqual([],);
+        // Synthetic is not read dry for good: the router held the first ask through the cooldown and asked again, and the
+        // reader waited the second cooldown out, so no reading found every writing provider dry. (The seat is withheld
+        // at the door after four asks that threw, so later slices ask nobody; the reading is what the case reads.)
+        expect(waitsIn({ lines: rig.lines, },).length,).toBeGreaterThan(0,);
       },
     },),
   ],

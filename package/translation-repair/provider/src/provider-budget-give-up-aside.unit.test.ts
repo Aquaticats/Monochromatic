@@ -1,6 +1,8 @@
 /**
- Tests for the decision whether an entry's give-up of a provider is set aside: the give-ups hold while another writing
- provider reads wet, and are set aside when none does, so that giving a provider up never leaves every provider dry.
+ Tests for the decision whether an entry's give-up of a provider is set aside. Waiting for a given-up provider buys
+ something only when its return would make the entry finishable, so the give-up is set aside when the provider is the
+ only writing provider not dry, or when with the provider back no bench floor would be left unmet while without it one
+ is, and holds otherwise.
 
  The providers given up, the time each refusal still holds a provider out and the reading are numbers and sets the case
  moves by hand, and the logger is one that keeps its lines, so no case waits and nothing is asked.
@@ -60,6 +62,39 @@ function floorNeedsHyper({ dry, }: { readonly dry: ProviderRecord<boolean>; },):
 }
 
 /**
+ A floor source whose one floor needs Synthetic: its return alone lifts the floor.
+
+ @param dry - per provider, whether it cannot be asked in the view under question
+
+ @returns One clause while Synthetic cannot be asked, none while it can
+
+ @example
+ ```ts
+ const clauses = floorNeedsSynthetic({ dry: dryExcept({ wet: ['synthetic',], },), },);
+ // => []
+ ```
+ */
+function floorNeedsSynthetic({ dry, }: { readonly dry: ProviderRecord<boolean>; },): readonly string[] {
+  return dry.synthetic ? ['select 1 of 8 reachable, quorum 4',] : [];
+}
+
+/**
+ The writing roster of a run that keeps every provider going but Xiaomi, whose one seat is a checker.
+
+ @param provider - provider to check
+
+ @returns Whether the provider keeps the run going while it reads wet
+
+ @example
+ ```ts
+ const writing = providerRecord({ of: writesExceptXiaomi, },);
+ ```
+ */
+function writesExceptXiaomi(provider: ProviderName,): boolean {
+  return provider !== 'xiaomi';
+}
+
+/**
  A decision over sets and times the case moves, and the lines it writes.
 
  @param writing - the providers whose wet reading keeps the run going (default: every provider)
@@ -112,6 +147,7 @@ function decisionOver(
     lines,
     aside: createGiveUpAside({
       unmetFloors: unmetFloors ?? writingProviderFloor({ writing, },),
+      writing,
       given,
       left: function left({ provider, },): number {
         return remaining[provider];
@@ -132,67 +168,88 @@ await describe({
       name: 'SETS NOTHING ASIDE WHILE NO PROVIDER IS GIVEN UP, whatever the reading, and says nothing',
       fn: async () => {
         const { aside, lines, } = decisionOver({},);
-        expect(aside.isAside(),).toBe(false,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
         aside.noteReading({ dry: dryExcept({ wet: [], },), },);
-        expect(aside.isAside(),).toBe(false,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
         expect(lines,).toEqual([],);
       },
     },),
 
     it({
-      name: 'SETS A GIVE-UP ASIDE BEFORE ANY READING, when nothing is known of the other providers',
+      name: 'SETS A GIVE-UP ASIDE BEFORE ANY READING, when nothing is known of the other providers: a writing provider '
+        + 'given up is the only one not dry',
       fn: async () => {
         const { aside, given, } = decisionOver({},);
         given.add('synthetic',);
-        expect(aside.isAside(),).toBe(true,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
       },
     },),
 
     it({
-      name: 'KEEPS A GIVE-UP IN FORCE WHILE ANOTHER WRITING PROVIDER READS WET and is not held',
+      name: 'KEEPS A GIVE-UP IN FORCE WHILE ANOTHER WRITING PROVIDER READS WET and is not held, and says so once',
       fn: async () => {
         const { aside, given, lines, } = decisionOver({},);
         given.add('synthetic',);
-        aside.noteReading({ dry: dryExcept({ wet: ['neuralwatt',], },), },);
-        expect(aside.isAside(),).toBe(false,);
-        expect(lines,).toEqual([],);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'neuralwatt',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'neuralwatt',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
+        expect(lines.length,).toBe(1,);
+        expect(lines[0],).toContain('warn [reconsider] synthetic: entry CatEntry1 keeps its give-up in force',);
+        expect(lines[0],).toContain('meet every bench floor without synthetic',);
       },
     },),
 
     it({
-      name: 'COUNTS NO PROVIDER AS AN ALTERNATIVE THAT IS HELD OUT, GIVEN UP, OR NOT IN THE ROSTER',
+      name: 'COUNTS NO PROVIDER AS AN ALTERNATIVE THAT IS HELD OUT, GIVEN UP, OR NOT IN THE ROSTER: (a) the provider '
+        + 'given up is the only writing provider not dry',
       fn: async () => {
-        const { aside, given, remaining, } = decisionOver({
-          writing: providerRecord({
-            of: function writesExceptXiaomi(provider,): boolean {
-              return provider !== 'xiaomi';
-            },
-          },),
-        },);
+        const { aside, given, remaining, } = decisionOver({ writing: providerRecord({ of: writesExceptXiaomi, },), },);
         given.add('synthetic',);
-        aside.noteReading({
-          dry: dryExcept({
-            wet: [
-              'neuralwatt',
-              'xiaomi',
-              'hyper',
-            ],
-          },),
-        },);
-        expect(aside.isAside(),).toBe(false,);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'neuralwatt',
+                'synthetic',
+                'xiaomi',
+                'hyper',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
 
         remaining.neuralwatt = 60_000;
         given.add('hyper',);
-        expect(aside.isAside(),).toBe(true,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        expect(aside.isAside({ provider: 'hyper', },),).toBe(true,);
 
         remaining.neuralwatt = 0;
-        expect(aside.isAside(),).toBe(false,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
       },
     },),
 
     it({
-      name: 'SAYS WHEN A GIVE-UP IS SET ASIDE, once, with the entry and how each other writing provider reads, and '
-        + 'says when it is back in force',
+      name: 'SAYS WHEN A GIVE-UP IS SET ASIDE BECAUSE THE PROVIDER IS THE ONLY WRITING PROVIDER NOT DRY, once, with the '
+        + 'entry and how each other provider reads, and says when it is back in force',
       fn: async () => {
         const { aside, given, remaining, lines, } = decisionOver({
           writing: providerRecord({
@@ -203,14 +260,33 @@ await describe({
         },);
         given.add('synthetic',);
         remaining.hyper = 90_000;
-        aside.noteReading({ dry: dryExcept({ wet: ['hyper',], },), },);
-        aside.noteReading({ dry: dryExcept({ wet: ['hyper',], },), },);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'synthetic',
+                'hyper',
+              ],
+            },),
+          },
+        );
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'synthetic',
+                'hyper',
+              ],
+            },),
+          },
+        );
         aside.reconsider();
         expect(lines,).toEqual([
           'warn [reconsider] synthetic: entry CatEntry1 sets its give-up aside and waits out the cooldowns of synthetic as '
-            + 'before, because the providers left (neuralwatt dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, '
-            + 'hyper held for 90000ms, openrouter dry) cannot meet every bench floor without synthetic: no writing '
-            + 'provider can be asked; reading synthetic dry would cost the entry what waiting would have saved',
+            + 'before, because synthetic is the only writing provider not dry (neuralwatt dry, bedrock dry, deepseek dry, '
+            + 'xiaomi dry, anthropic dry, hyper held for 90000ms, openrouter dry), so reading it dry would end the run for '
+            + 'a provider that serves again after its cooldown; reading synthetic dry would cost the entry what waiting '
+            + 'would have saved',
         ],);
 
         lines.length = 0;
@@ -218,7 +294,9 @@ await describe({
         aside.reconsider();
         expect(lines,).toEqual([
           'info [reconsider] synthetic: entry CatEntry1 puts its give-up back in force, because the providers left '
-            + '(hyper) meet every bench floor again, so synthetic stays unreachable until the entry ends',
+            + '(neuralwatt dry, bedrock dry, deepseek dry, xiaomi dry, anthropic dry, hyper wet, openrouter dry) meet '
+            + 'every bench floor without synthetic, so its return buys nothing; synthetic stays unreachable until the '
+            + 'entry ends',
         ],);
         aside.reconsider();
         expect(lines.length,).toBe(1,);
@@ -226,22 +304,32 @@ await describe({
     },),
 
     it({
-      name: 'SAYS AGAIN AFTER AN ENTRY BEGINS: forgetting what was logged lets the next set-aside be written, and '
-        + 'names every provider set aside in spending order',
+      name: 'SAYS AGAIN AFTER AN ENTRY BEGINS: forgetting what was logged lets the next set-aside be written, with one '
+        + 'line for each provider set aside in spending order',
       fn: async () => {
         const { aside, given, lines, } = decisionOver({},);
         given.add('hyper',);
         given.add('synthetic',);
-        aside.noteReading({ dry: dryExcept({ wet: [], },), },);
-        expect(lines.length,).toBe(1,);
-        expect(lines[0],).toContain('synthetic, hyper: entry CatEntry1 sets its give-up aside',);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'synthetic',
+                'hyper',
+              ],
+            },),
+          },
+        );
+        expect(lines.length,).toBe(2,);
+        expect(lines[0],).toContain('synthetic: entry CatEntry1 sets its give-up aside',);
+        expect(lines[1],).toContain('hyper: entry CatEntry1 sets its give-up aside',);
 
         aside.forget();
         given.clear();
         given.add('hyper',);
-        aside.noteReading({ dry: dryExcept({ wet: [], },), },);
-        expect(lines.length,).toBe(2,);
-        expect(lines[1],).toContain('hyper: entry CatEntry1 sets its give-up aside',);
+        aside.noteReading({ dry: dryExcept({ wet: ['hyper',], },), },);
+        expect(lines.length,).toBe(3,);
+        expect(lines[2],).toContain('hyper: entry CatEntry1 sets its give-up aside',);
       },
     },),
 
@@ -251,45 +339,164 @@ await describe({
         const { aside, given, entry, lines, } = decisionOver({},);
         entry.words = 'the run';
         given.add('synthetic',);
-        aside.noteReading({ dry: dryExcept({ wet: [], },), },);
+        aside.noteReading({ dry: dryExcept({ wet: ['synthetic',], },), },);
         expect(lines[0],).toContain('synthetic: the run sets its give-up aside',);
       },
     },),
 
     it({
-      name: 'SETS A GIVE-UP ASIDE WHILE A BENCH FLOOR STAYS UNMET, though a writing provider reads wet, and keeps it in '
-        + 'force once the providers left meet every floor',
+      name: '(b) SETS A GIVE-UP ASIDE WHEN ITS RETURN WOULD LEAVE NO FLOOR UNMET WHERE WITHOUT IT ONE IS, though a writing '
+        + 'provider reads wet, and names the floor',
       fn: async () => {
-        const { aside, given, remaining, } = decisionOver({ unmetFloors: floorNeedsHyper, },);
+        const { aside, given, lines, } = decisionOver({ unmetFloors: floorNeedsSynthetic, },);
         given.add('synthetic',);
-        aside.noteReading({ dry: dryExcept({ wet: ['deepseek',], },), },);
-        expect(aside.isAside(),).toBe(true,);
-
-        aside.noteReading({
-          dry: dryExcept({
-            wet: [
-              'deepseek',
-              'hyper',
-            ],
-          },),
-        },);
-        expect(aside.isAside(),).toBe(false,);
-
-        // THE FLOOR IS LOST AGAIN WHEN THE PROVIDER THAT MET IT IS HELD, and found again when its hold ends.
-        remaining.hyper = 60_000;
-        expect(aside.isAside(),).toBe(true,);
-        remaining.hyper = 0;
-        expect(aside.isAside(),).toBe(false,);
-
-        // AND WHEN IT IS GIVEN UP TOO: a provider given up counts as unavailable, whatever the reading says.
-        given.add('hyper',);
-        expect(aside.isAside(),).toBe(true,);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        expect(lines.length,).toBe(1,);
+        expect(lines[0],).toContain('warn [reconsider] synthetic: entry CatEntry1 sets its give-up aside',);
+        expect(lines[0],).toContain(
+          'because with synthetic back no bench floor the entry needs would be left unmet, while without it these stay '
+            + 'unmet: select 1 of 8 reachable, quorum 4 (',
+        );
+        expect(lines[0],).toContain('deepseek wet',);
       },
     },),
 
     it({
-      name: 'ASKS THE FLOOR SOURCE ABOUT THE PROVIDERS LEFT ALONE: wet only where the reading is wet, the provider is not '
-        + 'held and the entry has not given it up',
+      name: 'KEEPS A GIVE-UP IN FORCE WHEN ITS RETURN WOULD STILL LEAVE A FLOOR UNMET, though a writing provider reads '
+        + 'wet: the line names the floors that stay unmet with the provider back',
+      fn: async () => {
+        const { aside, given, lines, } = decisionOver({ unmetFloors: floorNeedsHyper, },);
+        given.add('synthetic',);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
+        expect(lines,).toEqual([
+          'warn [reconsider] synthetic: entry CatEntry1 keeps its give-up in force and stops waiting for synthetic\'s '
+            + 'cooldowns, because with synthetic back the providers left (neuralwatt dry, bedrock dry, deepseek wet, '
+            + 'xiaomi dry, anthropic dry, hyper dry, openrouter dry) would still leave these bench floors unmet: '
+            + 'translators 0 of 8 reachable, floor 2; waiting for synthetic would not make the entry finishable',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'MOVES BETWEEN ASIDE AND HELD AS THE PROVIDERS LEFT CHANGE: a give-up whose return cures the floor is set '
+        + 'aside, put back in force once another provider meets the floor without it, and set aside again when that '
+        + 'provider is held',
+      fn: async () => {
+        const { aside, given, remaining, lines, } = decisionOver({
+          unmetFloors: function floorNeedsOneOfThem({ dry, },): readonly string[] {
+            return (dry.synthetic && dry.hyper) ? ['select 1 of 8 reachable, quorum 4',] : [];
+          },
+        },);
+        given.add('synthetic',);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'hyper',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
+        expect(lines.length,).toBe(2,);
+        expect(lines[1],).toContain(
+          'info [reconsider] synthetic: entry CatEntry1 puts its give-up back in force, because the providers left',
+        );
+        expect(lines[1],).toContain('meet every bench floor without synthetic',);
+
+        // Hyper is held: the floor is unmet without Synthetic again, and Synthetic's return cures it.
+        remaining.hyper = 60_000;
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        aside.reconsider();
+        expect(lines.length,).toBe(3,);
+        expect(lines[2],).toContain('warn [reconsider] synthetic: entry CatEntry1 sets its give-up aside',);
+      },
+    },),
+
+    it({
+      name: 'DECIDES FOR EACH PROVIDER GIVEN UP: Synthetic\'s return cures the floor and is set aside, Hyper\'s return '
+        + 'leaves it unmet and holds, though both are given up beside a wet DeepSeek',
+      fn: async () => {
+        const { aside, given, } = decisionOver({ unmetFloors: floorNeedsSynthetic, },);
+        given.add('synthetic',);
+        given.add('hyper',);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+                'hyper',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        expect(aside.isAside({ provider: 'hyper', },),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT ADD BACK A GIVEN-UP PROVIDER WHOSE OWN METER READS DRY: waiting does not bring it back, so its '
+        + 'return cures nothing and the give-up holds',
+      fn: async () => {
+        const { aside, given, } = decisionOver({ unmetFloors: floorNeedsSynthetic, },);
+        given.add('synthetic',);
+        // Its meter reads spendable: the return cures the floor.
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'deepseek',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+
+        // Its meter reads dry: no wait brings it back, so the floor stays unmet either way.
+        aside.noteReading({ dry: dryExcept({ wet: ['deepseek',], },), },);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE FLOOR SOURCE TWICE, with the providers left and then with the given-up provider back: wet only '
+        + 'where the reading is wet, the provider is not held and the entry has not given it up',
       fn: async () => {
         /**
          The views the floor source was asked about.
@@ -298,7 +505,7 @@ await describe({
         const { aside, given, remaining, } = decisionOver({
           unmetFloors: function unmetFloors({ dry, },): readonly string[] {
             views.push(dry,);
-            return [];
+            return ['select 1 of 8 reachable, quorum 4',];
           },
         },);
         given.add('synthetic',);
@@ -314,11 +521,18 @@ await describe({
           },),
         },);
         views.length = 0;
-        expect(aside.isAside(),).toBe(false,);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
         expect(views,).toEqual([
           dryExcept({
             wet: [
               'neuralwatt',
+              'xiaomi',
+            ],
+          },),
+          dryExcept({
+            wet: [
+              'neuralwatt',
+              'synthetic',
               'xiaomi',
             ],
           },),
@@ -327,55 +541,47 @@ await describe({
     },),
 
     it({
-      name: 'LETS THE FLOOR SOURCE REPLACE THE WRITING ROSTER: a wet provider outside the roster is counted where the '
+      name: '(a) READS THE ROSTER AND NOT THE FLOORS: a wet provider outside the roster is no alternative, though the '
         + 'floors say it carries a bench',
       fn: async () => {
-        const { aside, given, } = decisionOver({
-          writing: providerRecord({
-            of: function writesExceptXiaomi(provider,): boolean {
-              return provider !== 'xiaomi';
-            },
-          },),
+        const { aside, given, lines, } = decisionOver({
+          writing: providerRecord({ of: writesExceptXiaomi, },),
           unmetFloors: function xiaomiCarriesTheBench({ dry, },): readonly string[] {
             return dry.xiaomi ? ['checkers 0 of 3 reachable, quorum 2',] : [];
           },
         },);
         given.add('synthetic',);
-        aside.noteReading({ dry: dryExcept({ wet: ['xiaomi',], },), },);
-        expect(aside.isAside(),).toBe(false,);
+        aside.noteReading(
+          {
+            dry: dryExcept({
+              wet: [
+                'xiaomi',
+                'synthetic',
+              ],
+            },),
+          },
+        );
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(true,);
+        expect(lines[0],).toContain('because synthetic is the only writing provider not dry',);
       },
     },),
 
     it({
-      name: 'NAMES THE UNMET FLOORS in the line that sets a give-up aside, with how each other provider reads, and says '
-        + 'when the providers left meet every floor again',
+      name: '(a) NEEDS THE GIVEN-UP PROVIDER TO WRITE AND TO BE NOT DRY: Xiaomi given up writes nothing, and a provider '
+        + 'whose own meter reads dry is not the one not dry',
       fn: async () => {
-        const { aside, given, remaining, lines, } = decisionOver({ unmetFloors: floorNeedsHyper, },);
-        given.add('synthetic',);
-        remaining.hyper = 90_000;
-        aside.noteReading({ dry: dryExcept({ wet: ['deepseek',], },), },);
-        aside.noteReading({ dry: dryExcept({ wet: ['deepseek',], },), },);
-        expect(lines,).toEqual([
-          'warn [reconsider] synthetic: entry CatEntry1 sets its give-up aside and waits out the cooldowns of synthetic as '
-            + 'before, because the providers left (neuralwatt dry, bedrock dry, deepseek wet, xiaomi dry, anthropic dry, '
-            + 'hyper held for 90000ms, openrouter dry) cannot meet every bench floor without synthetic: translators 0 of 8 '
-            + 'reachable, floor 2; reading synthetic dry would cost the entry what waiting would have saved',
-        ],);
-
-        lines.length = 0;
-        remaining.hyper = 0;
-        aside.noteReading({
-          dry: dryExcept({
-            wet: [
-              'deepseek',
-              'hyper',
-            ],
-          },),
+        const { aside, given, } = decisionOver({
+          writing: providerRecord({ of: writesExceptXiaomi, },),
+          unmetFloors: floorNeedsHyper,
         },);
-        expect(lines,).toEqual([
-          'info [reconsider] synthetic: entry CatEntry1 puts its give-up back in force, because the providers left '
-            + '(deepseek, hyper) meet every bench floor again, so synthetic stays unreachable until the entry ends',
-        ],);
+        given.add('xiaomi',);
+        aside.noteReading({ dry: dryExcept({ wet: ['xiaomi',], },), },);
+        expect(aside.isAside({ provider: 'xiaomi', },),).toBe(false,);
+
+        given.clear();
+        given.add('synthetic',);
+        aside.noteReading({ dry: dryExcept({ wet: [], },), },);
+        expect(aside.isAside({ provider: 'synthetic', },),).toBe(false,);
       },
     },),
   ],

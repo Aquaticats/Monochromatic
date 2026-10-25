@@ -3,11 +3,12 @@
  provider's cooldowns up must never be the cause of a run ending).
 
  An entry gives a provider up after it refuses right after a cooldown the entry waited out. The give-up narrows where a
- call may go, so it holds only while another provider that keeps the run going reads wet. When the given-up provider is
- the only writing provider not dry, every other one being dry or held, the give-up is set aside: the provider's
- cooldown is waited out as before and the provider is asked again, because reading it dry would leave every provider
- dry and end the run for a provider that serves again after its cooldown. The give-up comes back in force when another
- writing provider reads wet again.
+ call may go, and waiting for the provider buys something only when its return would make the entry finishable. So the
+ give-up is set aside, the provider's cooldown waited out as before and the provider asked again, in two cases. (a) The
+ given-up provider is the only writing provider not dry, every other one being dry or held: reading it dry would leave
+ every provider dry and end the run for a provider that serves again after its cooldown. (b) With the provider back no
+ bench floor the entry needs would be left unmet, while without it at least one is. Otherwise the give-up holds, and the
+ cooldown counts for no wait. The give-up comes back in force when the providers left change so that neither case holds.
 
  The budgets are the real ones over stub meters on a clock the case moves, so no case waits. Fixtures are cat-themed
  invention; every meter is a stub and no HTTP is made.
@@ -321,7 +322,7 @@ await describe({
         expect(setAside.length,).toBe(1,);
         expect(setAside[0],).toContain('synthetic',);
         expect(setAside[0],).toContain('entry XingZ6020',);
-        expect(setAside[0],).toContain('cannot meet every bench floor without synthetic: no writing provider can be asked',);
+        expect(setAside[0],).toContain('because synthetic is the only writing provider not dry',);
         expect(setAside[0],).toContain('deepseek dry',);
       },
     },),
@@ -399,6 +400,48 @@ await describe({
     },),
 
     it({
+      name: '(b) SETS THE GIVE-UP ASIDE WHEN SYNTHETIC\'S RETURN WOULD LEAVE NO BENCH FLOOR UNMET WHERE WITHOUT IT ONE '
+        + 'IS, though DeepSeek reads wet: the cooldown Synthetic is held for counts, and the line says why',
+      fn: async ctx => {
+        const world: World = {
+          now: 1_000,
+          deepseekAvailable: true,
+        };
+        const budgets = budgetsOn({
+          world,
+          deepseek: true,
+          xiaomi: false,
+          unmetFloors: function oneSelectSeatNeedsSynthetic({ dry, },): readonly string[] {
+            return dry.synthetic ? ['select 1 of 8 reachable, quorum 4',] : [];
+          },
+        },);
+        const lines = await consoleLinesDuring({
+          run: async function refuseBesideAProviderThatNeedsIt(): Promise<void> {
+            budgets.beginEntry({ entryId: 'XingZ6020', },);
+            await refuseAtOnceAfterTheCooldown({
+              budgets,
+              world,
+            },);
+          },
+          sinon: ctx.sinon,
+        },);
+        expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
+        /**
+         The lines that set the give-up aside.
+         */
+        const setAside = lines.filter(function isSetAside(line,): boolean {
+          return line.includes('sets its give-up aside',);
+        },);
+        expect(setAside.length,).toBe(1,);
+        expect(setAside[0],).toContain(
+          'because with synthetic back no bench floor the entry needs would be left unmet, while without it these stay '
+            + 'unmet: select 1 of 8 reachable, quorum 4',
+        );
+        expect(setAside[0],).toContain('deepseek wet',);
+      },
+    },),
+
+    it({
       name: 'KEEPS THE GIVE-UP IN FORCE WHILE THE PROVIDERS LEFT MEET EVERY BENCH FLOOR: the cooldown Synthetic is held '
         + 'for counts for no wait',
       fn: async ctx => {
@@ -471,7 +514,8 @@ await describe({
           return line.includes('puts its give-up back in force',);
         },);
         expect(inForce.length,).toBe(1,);
-        expect(inForce[0],).toContain('the providers left (deepseek) meet every bench floor again',);
+        expect(inForce[0],).toContain('deepseek wet',);
+        expect(inForce[0],).toContain('meet every bench floor without synthetic, so its return buys nothing',);
       },
     },),
 

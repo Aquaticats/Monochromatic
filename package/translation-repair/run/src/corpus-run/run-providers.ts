@@ -158,12 +158,13 @@ export type ConfiguredProviders = {
  attempt can be billed; what it throws ends that call before the attempt is sent. A probe that holds an arm to an amount
  hands it here, since the client retries inside one call. Absent in a pass, whose Claude client then tells nobody
 
- @param writing - the providers whose wet reading keeps the run going, which the budgets read to decide whether an
- entry's give-up of a provider holds or is set aside where no `unmetFloors` is given; every provider counts where absent
+ @param writing - the providers whose wet reading keeps the run going, which the budgets read to set an entry's give-up
+ of a provider aside when that provider is the only one of them not dry, and as the floor where no `unmetFloors` is
+ given; every provider counts where absent
 
- @param unmetFloors - the bench floors the providers left must meet for an entry's give-up of a provider to hold, which
- the budgets read to decide whether it holds or is set aside (`unmetBenchFloors`, the seat reader's own floors); absent
- where the caller knows no roster
+ @param unmetFloors - the bench floors the entry's stages need, which the budgets read to set an entry's give-up of a
+ provider aside when with that provider back none would be left unmet where without it one is (`unmetBenchFloors`, the
+ seat reader's own floors); absent where the caller knows no roster
 
  @returns Clients present per key, plus the budgets
 
