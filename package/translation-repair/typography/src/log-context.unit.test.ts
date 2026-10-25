@@ -318,6 +318,77 @@ await describe({
           },
         },),
         it({
+          name: 'WRITES the attempt, lane and slice ONCE where a lane slice-tags its lines beneath a module root logger '
+            + 'instead of an entry logger, which is what `repairPreparedDocument` does when its caller hands it no '
+            + 'parent logger, and keeps the root\'s own order for a stage logger tagged over it (ledger B963)',
+          fn: async () => {
+            /**
+             Module root logger, as `repairPreparedDocument` defaults its parent logger to.
+             */
+            const rootLogger = contextRoot({ tag: 'translation-repair-pipeline', },);
+            /**
+             Lane logger over it, tagged with the lane's function and slice-tagged, as `repairPreparedDocument` builds it.
+             */
+            const laneLogger = sliceTagged({
+              l: tagged({
+                tag: 'repairPreparedDocument',
+                l: rootLogger,
+              },),
+            },);
+            /**
+             A stage logger over the root, tagged with a function only.
+             */
+            const stageLogger = tagged({
+              tag: 'editor',
+              l: rootLogger,
+            },);
+            /**
+             Lines printed inside one slice.
+             */
+            const lines = await infoLinesOf({
+              run: async () => {
+                await inEntryLogContext({
+                  entry: 'Tabby',
+                  generation: 'nap-3',
+                  attempt: 2,
+                  run: async () => {
+                    await inSliceLogContext({
+                      lane: 'repair',
+                      sliceIndex: 3,
+                      run: async () => {
+                        laneLogger.info('kneads',);
+                        stageLogger.info('stretches',);
+                      },
+                    },);
+                  },
+                },);
+              },
+            },);
+            /**
+             The printed lines one by one, since the logger hands a run of lines of one level to the console as one call.
+             */
+            const printed = lines.flatMap(function split(text,): readonly string[] {
+              return text.split('\n',);
+            },);
+            expect(printed.filter(function isLane(line,): boolean {
+              return line.includes(
+                '[translation-repair-pipeline] [Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',
+              );
+            },).length,).toBe(1,);
+            expect(printed.filter(function isStage(line,): boolean {
+              return line.includes(
+                '[translation-repair-pipeline] [Tabby] [attempt 2] [repair slice 3] [editor] stretches',
+              );
+            },).length,).toBe(1,);
+            expect(printed.map(function attemptTags(line,): number {
+              return line.split('[attempt 2]',).length - 1;
+            },),).toStrictEqual([
+              1,
+              1,
+            ],);
+          },
+        },),
+        it({
           name: 'PREFIXES EVERY LEVEL, not only info, and forwards a flush (ledger T8)',
           fn: async () => {
             /**
