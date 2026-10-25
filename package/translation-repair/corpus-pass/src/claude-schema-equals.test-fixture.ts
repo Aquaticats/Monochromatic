@@ -119,7 +119,7 @@ export function gatherImportEquals({ declaration, }: { readonly declaration: Tre
 
  @param declaration - export assignment
 
- @returns The export, none when the assignment writes something other than a name
+ @returns Export, none when the assignment writes something other than a name
 
  @example
  ```ts
