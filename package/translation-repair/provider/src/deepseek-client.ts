@@ -191,19 +191,22 @@ function jsonObjectFormat(): Readonly<Record<string, unknown>> {
 }
 
 /**
- Prices one finished DeepSeek call at the rate of the hour its request started in.
+ Prices one finished DeepSeek call at the rate of the hours it spanned: peak when its request started, or its reply
+ completed, inside a weekday peak window.
 
  @param extracted - completion whose usage block DeepSeek filled in, or did not
 
  @param bodyText - whole drained stream, whose last usage block names the cache split
 
- @param startedAt - instant the request started at, whose hour picks peak or off-peak rates
+ @param startedAt - instant the request started at, one of the two whose hours pick peak or off-peak rates
+
+ @param completedAt - instant the reply completed at, the other of the two
 
  @returns The cost and cache fields the spend line carries, each absent where the stream reported nothing
 
  @example
  ```ts
- const fields = deepSeekSpendFields({ extracted, bodyText, startedAt, },);
+ const fields = deepSeekSpendFields({ extracted, bodyText, startedAt, completedAt, },);
  ```
  */
 function deepSeekSpendFields(
@@ -211,10 +214,12 @@ function deepSeekSpendFields(
     extracted,
     bodyText,
     startedAt,
+    completedAt,
   }: {
     readonly extracted: ExtractedCompletion;
     readonly bodyText: string;
     readonly startedAt: Date;
+    readonly completedAt: Date;
   },
 ): ReturnType<DirectRoute['spendFieldsOf']> {
   /**
@@ -222,13 +227,14 @@ function deepSeekSpendFields(
    */
   const split = deepSeekCacheSplitOf({ bodyText, },);
   /**
-   The call priced at the rates of the hour it started in, or that nothing was reported.
+   The call priced at the rates of the hours it spanned, or that nothing was reported.
    */
   const cost = deepSeekCostOf({
     card: DEEPSEEK_MODELS['deepseek-flash'],
     extracted,
     split,
     startedAt,
+    completedAt,
   },);
   return {
     ...((cost === DIRECT_COST_UNREPORTED) ? {} : { costUsd: cost, }),
@@ -275,8 +281,8 @@ function deepSeekRoute({ baseUrl, }: { readonly baseUrl: string; },): DirectRout
 
  @param retryPolicy - transient-retry pacing; tests pass tiny backoffs
 
- @param now - clock each request's start is read from, whose hour picks peak or off-peak rates for the cost the spend
- line carries; the system clock outside a test
+ @param now - clock each request's start and the completion of its reply are read from, whose hours pick peak or
+ off-peak rates for the cost the spend line carries; the system clock outside a test
 
  @returns Client surface with chatText, chatJson and credits
 

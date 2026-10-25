@@ -115,14 +115,16 @@ export type DirectRoute = {
 
   /**
    The cost and cache fields the spend line carries for one finished call,
-   priced from the card, at the rate of the hour its request started in where
-   the provider's rate depends on the hour (`startedAt`).
+   priced from the card, at the rate of the hours the call spanned where the
+   provider's rate depends on the hour (`startedAt` is the first attempt's start,
+   `completedAt` the successful attempt's completion).
    */
   readonly spendFieldsOf: (
     args: {
       readonly extracted: ExtractedCompletion;
       readonly bodyText: string;
       readonly startedAt: Date;
+      readonly completedAt: Date;
     },
   ) => Pick<Parameters<typeof reportSpend>[0], 'costUsd' | 'cachedTokens'>;
 };
@@ -186,8 +188,8 @@ export type DirectClient = ModelCaller;
 
  @param retryPolicy - transient-retry pacing; tests pass tiny backoffs
 
- @param now - clock the start of each request is read from, which picks the rate of a provider that prices by the hour;
- the system clock outside a test
+ @param now - clock the start of each request and the completion of its reply are read from, which picks the rate of a
+ provider that prices by the hour; the system clock outside a test
 
  @returns Client surface with chatText and chatJson
 
@@ -333,10 +335,8 @@ export function createDirectClient(
         },);
 
       /**
-       Instant the request starts at, read once before the first attempt and
-       once only, so every retry of the call is priced at the hour the call
-       began in, and a reply that comes back after an edge of a rate window is
-       not priced by the hour it came back in.
+       Instant the request starts at, read once before the first attempt, so a
+       retry of the call keeps the start of the first attempt.
        */
       const startedAt = now();
 
@@ -361,6 +361,14 @@ export function createDirectClient(
         // so the ladder reads it inside its own try and retries the attempt.
         verify: requireWholeStream,
       },);
+
+      /**
+       Instant the reply completed at, read once the ladder has returned, so it
+       is the completion of the attempt that succeeded; a provider that prices
+       by the hour books a call at its dearer rate when this instant or the start
+       lies in a dear hour, as its page does not say which one decides.
+       */
+      const completedAt = now();
       if (!isSuccessStatus({ status: reply.status, },)) {
         rl.warn(`<- ${servedId}: HTTP ${String(reply.status,)}`,);
 
@@ -401,6 +409,7 @@ export function createDirectClient(
           extracted,
           bodyText: reply.bodyText,
           startedAt,
+          completedAt,
         },),
       },);
       return extracted;

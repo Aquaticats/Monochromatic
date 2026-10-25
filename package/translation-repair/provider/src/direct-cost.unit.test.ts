@@ -103,13 +103,20 @@ await describe({
             const card = DEEPSEEK_CARD;
             const extracted = HUNDRED_AND_TEN;
             const startedAt = WEDNESDAY_PEAK;
-            expect(deepSeekCostOf({ card, extracted, split: { hitTokens: 40, missTokens: 60, }, startedAt, },),)
+            const completedAt = WEDNESDAY_PEAK;
+            expect(deepSeekCostOf({
+              card,
+              extracted,
+              split: { hitTokens: 40, missTokens: 60, },
+              startedAt,
+              completedAt,
+            },),)
               .toBeCloseTo(((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
-            expect(deepSeekCostOf({ card, extracted, split: {}, startedAt, },),)
+            expect(deepSeekCostOf({ card, extracted, split: {}, startedAt, completedAt, },),)
               .toBeCloseTo(((100 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
-            expect(deepSeekCostOf({ card, extracted, split: { hitTokens: 40, }, startedAt, },),)
+            expect(deepSeekCostOf({ card, extracted, split: { hitTokens: 40, }, startedAt, completedAt, },),)
               .toBeCloseTo(((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
-            expect(deepSeekCostOf({ card, extracted: { text: '', }, split: {}, startedAt, },),)
+            expect(deepSeekCostOf({ card, extracted: { text: '', }, split: {}, startedAt, completedAt, },),)
               .toBe(DIRECT_COST_UNREPORTED,);
           },
         },),
@@ -124,6 +131,7 @@ await describe({
                 extracted: HUNDRED_AND_TEN,
                 split: { hitTokens: 150, },
                 startedAt: WEDNESDAY_PEAK,
+                completedAt: WEDNESDAY_PEAK,
               },),
             )
               .toBeCloseTo(((100 * 0.006) + (10 * 1.2)) / 1_000_000, 12,);
@@ -139,6 +147,7 @@ await describe({
               extracted: HUNDRED_AND_TEN,
               split: { hitTokens: 150, missTokens: 20, },
               startedAt: WEDNESDAY_PEAK,
+              completedAt: WEDNESDAY_PEAK,
             },),)
               .toBeCloseTo(((100 * 0.006) + (10 * 1.2)) / 1_000_000, 12,);
             expect(deepSeekCostOf({
@@ -146,6 +155,7 @@ await describe({
               extracted: HUNDRED_AND_TEN,
               split: { hitTokens: 40, missTokens: 150, },
               startedAt: WEDNESDAY_PEAK,
+              completedAt: WEDNESDAY_PEAK,
             },),)
               .toBeCloseTo(((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
             expect(
@@ -154,6 +164,7 @@ await describe({
                 extracted: HUNDRED_AND_TEN,
                 split: { missTokens: 150, },
                 startedAt: WEDNESDAY_PEAK,
+                completedAt: WEDNESDAY_PEAK,
               },),
             )
               .toBeCloseTo(((100 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
@@ -169,6 +180,7 @@ await describe({
                 extracted: HUNDRED_AND_TEN,
                 split: { missTokens: 60, },
                 startedAt: WEDNESDAY_PEAK,
+                completedAt: WEDNESDAY_PEAK,
               },),
             )
               .toBeCloseTo(((60 * 0.3) + (10 * 1.2)) / 1_000_000, 12,);
@@ -178,7 +190,13 @@ await describe({
           name: 'PRICES a zero-token usage block at zero, which is a reported cost and not an unreported one',
           fn: async () => {
             expect(
-              deepSeekCostOf({ card: DEEPSEEK_CARD, extracted: NO_TOKENS, split: {}, startedAt: WEDNESDAY_PEAK, },),
+              deepSeekCostOf({
+                card: DEEPSEEK_CARD,
+                extracted: NO_TOKENS,
+                split: {},
+                startedAt: WEDNESDAY_PEAK,
+                completedAt: WEDNESDAY_PEAK,
+              },),
             ).toBe(0,);
           },
         },),

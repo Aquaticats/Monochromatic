@@ -25,6 +25,7 @@ export {
   DIRECT_COST_UNREPORTED,
   deepSeekCostOf,
   isDeepSeekPeakAt,
+  isDeepSeekPeakDuring,
   xiaomiCostOf,
 } from './direct-cost.ts';
 export {

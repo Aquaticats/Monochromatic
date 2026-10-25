@@ -12,12 +12,16 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // figure, priced here, is the `cost=` the SPEND line carries and the one the
 // run's own meter adds up.
 //
-// DEEPSEEK IS PRICED AT THE RATE OF THE HOUR THE REQUEST STARTED IN: at the
-// card's peak rates when it started inside a weekday peak window (UTC), at half
-// of them otherwise. The page (`https://api-docs.deepseek.com/quick_start/pricing`,
-// read 2026-10-25 by the lead; this change fetched nothing) says:
+// DEEPSEEK IS PRICED AT THE RATE OF THE HOURS THE CALL SPANNED: at the card's
+// peak rates when the request started, or the reply completed, inside a weekday
+// peak window (UTC), at half of them only when both instants lie outside every
+// window. The page (`https://api-docs.deepseek.com/quick_start/pricing`, read
+// 2026-10-25 by the lead and by the reviewer) says:
 // `Peak hours are 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through Friday, excluding Chinese public holidays`
-// and halves every rate off peak, which is every other hour.
+// `Off-peak rates are half of the peak rates.`
+// `All other hours are off-peak, including weekends and Chinese public holidays in full.`
+// The page does not say whether the start or the end of a request decides its
+// rate, so a call that crosses a window edge is booked at peak.
 // Until 2026-10-25 every call was booked at peak, and a run that ran a Saturday
 // night booked 0.147093 USD while the account's balance fell 0.07.
 //
@@ -34,12 +38,17 @@ import type { DeepSeekCacheSplit, } from './direct-usage.ts';
 // ruling of the lead of 2026-10-25: 01:00:00 UTC is peak, 04:00:00 UTC is off
 // peak, and likewise 06:00:00 UTC and 10:00:00 UTC.
 //
-// WHAT IS NOT BOUNDED. The instant is the one the request started at, read once
-// before the first attempt: a call that spans an edge, or a retry that starts
-// after one, is booked at the rate of its first start, a gap of at most one
-// call's length. A Saturday that China makes a working day is off peak here,
-// since the page says "Monday through Friday", and the page's own wording is
-// the only bound on that.
+// THE TWO INSTANTS. The start is the one the client read before the first
+// attempt; the end is the one it read when the attempt that succeeded had
+// completed, so a retry is bracketed by its first start and its last
+// completion. Whichever of the two DeepSeek bills by, a call that crosses an
+// edge is not booked below what it was charged.
+//
+// WHAT IS NOT BOUNDED. A call that starts before a window and completes after
+// it, three hours at least, has both instants outside and books half. A
+// Saturday that China makes a working day is off peak here, since the page says
+// weekends are off peak in full; if DeepSeek bills such a day at peak, against
+// its own page, that call is under-read by up to half.
 //
 // A COUNT THE WIRE DID NOT SPLIT IS PRICED AT THE DEARER RATE, for the same
 // reason: a DeepSeek block with no cache fields prices the whole prompt as
@@ -60,7 +69,7 @@ const PRICE_UNIT_TOKENS = 1_000_000;
  Share of a peak rate DeepSeek charges outside a peak window.
 
  The page (`https://api-docs.deepseek.com/quick_start/pricing`, read 2026-10-25
- by the lead) states the off-peak rates as half of the peak rates, and the card
+ by the lead and by the reviewer) states the off-peak rates as half of the peak rates, and the card
  (`DEEPSEEK_V4_1_FLASH_ON_DEEPSEEK`) holds the peak rates only.
 
  @example
@@ -123,7 +132,7 @@ const SATURDAY_UTC_DAY = 6;
  AN INSTANT THAT IS NOT A TIME (an invalid date) IS PEAK, so a clock that
  fails prices a call at the dearer rate and never under-reads the balance.
 
- @param at - instant the request started at
+ @param at - instant to test, a request's start or a reply's completion
 
  @returns Whether it lies on a Monday to Friday (UTC) inside 01:00 to 04:00 UTC or 06:00 to 10:00 UTC, the end of each
  window excluded
@@ -154,8 +163,43 @@ export function isDeepSeekPeakAt({ at, }: { readonly at: Date; },): boolean {
 }
 
 /**
+ Whether a call is booked at peak: when the instant its request started at, or
+ the instant its reply completed at, lies in a weekday peak window.
+
+ The page does not say whether the start or the end of a request decides its
+ rate, so only a call with both instants outside every window is booked off
+ peak, and a call that crosses an edge is booked at peak.
+
+ @param startedAt - instant the request started at (the first attempt's)
+
+ @param completedAt - instant the reply completed at (the successful attempt's)
+
+ @returns Whether either instant lies in a weekday peak window; an instant that is not a time counts as peak
+
+ @example
+ ```ts
+ isDeepSeekPeakDuring({
+   startedAt: new Date('2026-10-26T00:59:50Z',),
+   completedAt: new Date('2026-10-26T01:00:10Z',),
+ },); // true, a Monday
+ ```
+ */
+export function isDeepSeekPeakDuring(
+  {
+    startedAt,
+    completedAt,
+  }: {
+    readonly startedAt: Date;
+    readonly completedAt: Date;
+  },
+): boolean {
+  return isDeepSeekPeakAt({ at: startedAt, },) || isDeepSeekPeakAt({ at: completedAt, },);
+}
+
+/**
  USD one completed DeepSeek exchange cost, at the peak rates when its request
- started inside a weekday peak window and at half of them otherwise.
+ started, or its reply completed, inside a weekday peak window and at half of
+ them otherwise.
 
  @param card - DeepSeek's side of the card, whose peak rates price the call
 
@@ -163,13 +207,23 @@ export function isDeepSeekPeakAt({ at, }: { readonly at: Date; },): boolean {
 
  @param split - cache split the stream's usage block reported
 
- @param startedAt - instant the request started at, from the client's clock, whose hour picks the rate
+ @param startedAt - instant the request started at, from the client's clock; the first attempt's when the call was
+ retried
+
+ @param completedAt - instant the reply completed at, from the same clock; the successful attempt's when the call was
+ retried
 
  @returns Cost in USD, or that no usage arrived to price
 
  @example
  ```ts
- const cost = deepSeekCostOf({ card, extracted, split: deepSeekCacheSplitOf({ bodyText, },), startedAt: new Date(), },);
+ const cost = deepSeekCostOf({
+   card,
+   extracted,
+   split: deepSeekCacheSplitOf({ bodyText, },),
+   startedAt: new Date(),
+   completedAt: new Date(),
+ },);
  ```
  */
 export function deepSeekCostOf(
@@ -178,11 +232,13 @@ export function deepSeekCostOf(
     extracted,
     split,
     startedAt,
+    completedAt,
   }: {
     readonly card: DeepSeekCard;
     readonly extracted: ExtractedCompletion;
     readonly split: DeepSeekCacheSplit;
     readonly startedAt: Date;
+    readonly completedAt: Date;
   },
 ): number | typeof DIRECT_COST_UNREPORTED {
   /**
@@ -216,7 +272,12 @@ export function deepSeekCostOf(
    Share of the card's peak rates this call is charged: all of them inside a
    weekday peak window, half of them outside.
    */
-  const rateShare = isDeepSeekPeakAt({ at: startedAt, },) ? 1 : DEEPSEEK_OFF_PEAK_MULTIPLIER;
+  const rateShare = isDeepSeekPeakDuring({
+    startedAt,
+    completedAt,
+  },)
+    ? 1
+    : DEEPSEEK_OFF_PEAK_MULTIPLIER;
 
   /**
    USD per million prompt tokens served from the cache that this call is charged.
