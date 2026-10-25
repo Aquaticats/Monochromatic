@@ -133,6 +133,10 @@ export {
   unitDraws,
 } from './corpus-run/editor-fidelity-paired.ts';
 export {
+  passScopeOf,
+  scopedToPass,
+} from './corpus-run/editor-fidelity-pass-scope.ts';
+export {
   type ArmCheckReport,
   checkEditorArms,
 } from './corpus-run/editor-fidelity-arm-check.ts';
@@ -191,6 +195,7 @@ export {
   guardLine,
   type GuardTotal,
   guardTotalLine,
+  RepliedWithoutCallError,
   spendGuardedClient,
 } from './corpus-run/editor-fidelity-spend-guard.ts';
 export {

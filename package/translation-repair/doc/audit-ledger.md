@@ -651,6 +651,12 @@ named for that subject and listed here.
   the exact test of the repeat warning with its measured rates,
   the lead's actions on two warnings,
   and the runbook blocks that each set the variables they read.
+- [Audit ledger: the editor bench's prompt reuse in repeat passes](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md):
+  The follow-up of B899 in round 11:
+  repeat passes answered by the prompt reuse layer instead of the model,
+  each reuse booked at its spend ceiling,
+  the guard and the read step that now refuse a row that made no call,
+  and the README's stop rule over rows that made a call.
 - [Audit ledger: blocks and quotes read off the parse](audit-ledger-blocks-and-quotes-read-off-the-parse.md):
   Blocks,
   quotes and code spans counted by a blank-line split or a scan of their own,

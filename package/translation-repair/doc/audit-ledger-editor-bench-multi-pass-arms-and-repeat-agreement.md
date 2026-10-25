@@ -12,7 +12,8 @@ which lists every file of this record.
 It is a new file of 2026-10-25,
 because [the paired rule file](audit-ledger-editor-bench-paired-rule-and-trials.md) stood at 1010 lines.
 B894 to B899 and the sections of B899 before round 8 are in that file.
-Round 10 is in [the exact repeat test file](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md).
+Round 10 is in [the exact repeat test file](audit-ledger-editor-bench-exact-repeat-test-and-self-contained-runbook.md),
+and round 11 in [the prompt reuse file](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md).
 
 ## B899, round 8: multi-pass arms, the false-pick bound under unequal repeat agreement, and the runbook
 
