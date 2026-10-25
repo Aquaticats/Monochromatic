@@ -10,7 +10,10 @@ Round 2 of the same work (B907 to B913) records the owner's answers of the same 
 "Two judges must name it" and
 "Ship the slate's wording")
 and the lead's rulings on the findings of the independent re-check.
-The addendum to round 2 (B909, B913 and B914) records the owner's answer
+The addendum to round 2
+(B909,
+B913 and B914)
+records the owner's answer
 "Ship the slate's pick (Recommended)"
 and the lead's ruling on the tie of a challenge round across every offered candidate.
 The rulings are quoted in
@@ -452,7 +455,9 @@ with the reading kept:
   when this entry was written.
   It is the same class of path as the declined round,
   a choice on which no judge decided,
-  and the lead's later ruling, settled by the owner's "Two judges must name it", put it under the same rule (B914).
+  and the lead's later ruling,
+  settled by the owner's "Two judges must name it",
+  put it under the same rule (B914).
 
 Edges the two-ballot count does not cover,
 neither new in kind (finding F7):
@@ -558,7 +563,8 @@ a challenge round whose top weight is tied across every offered candidate shippe
 (`breakRunoffTie`,
 the tenth addendum of `doc/decision/translation-repair-ineligible-standing.md`),
 and a control test pinned it.
-The lead ruled afterwards that it waits for two judges too, and B914 records the change.
+The lead ruled afterwards that it waits for two judges too,
+and B914 records the change.
 
 A test slip,
 recorded:
@@ -610,7 +616,8 @@ The brief for finding F5 rested on a wrong premise taken from the re-check,
 the five slices had one slate ballot each,
 and the lead confirmed that under "one judge alone never decides" they keep the archive text.
 
-The flawed-majority reading, resolved in the addendum.
+The flawed-majority reading,
+resolved in the addendum.
 Round 2 had adopted and flagged a narrower reading:
 a standing that passes the rule but was called flawed by a contest majority kept the standing
 when the gate heard fewer than two,
@@ -806,8 +813,8 @@ and nothing changes there.
 The lead confirmed it.
 
 The addendum reran the three replay scripts on the final tree.
-The panel tally and the downstream replays are byte-identical to the figures above (`diff` finds no difference),
-and so is the gate replay for every figure above:
+The panel tally and the downstream replays are byte-identical to the figures of this entry (`diff` finds no difference),
+and so is the gate replay for every one of those figures:
 slices 13,
 14,
 33,
@@ -871,7 +878,8 @@ beside direct cases of `settleAbsentDecline`:
 a three-way tie of one ballot each keeps the archive,
 the same tie raises the absence where the caller ships nothing past a decline,
 a tie of two ballots each still ships the repair lane's text (a positive control that passes on the old rule too),
-and a tie where only the translate lane's text drew two ballots ships it, not the repair lane's text.
+and a tie where only the translate lane's text drew two ballots ships it,
+not the repair lane's text.
 Four cases failed on the red commit.
 Three judging-level cases of `translate-retry.unit.test.ts` and one of `translate-runoff.unit.test.ts`
 pinned a one-ballot tie shipping by order over an absent incumbent

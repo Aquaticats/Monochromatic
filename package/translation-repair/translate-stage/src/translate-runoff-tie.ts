@@ -70,8 +70,8 @@ import type {
 // lane, translate lane and slate order only among the tied candidates two
 // judges named (the lead's ruling of 2026-10-25, settled by the same answer);
 // where none of them drew two ballots nothing ships by the order, and the
-// caller keeps the wording in place by the path above, or raises the absence
-// where the passage has none.
+// caller keeps the wording in place by the path of a declined round, or raises
+// the absence where the passage has none.
 
 /**
  How a run-off tie was broken, as the finding names it.
