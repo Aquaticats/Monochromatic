@@ -1,7 +1,7 @@
 name: env-local-json
 
 # Validates the encrypted-store reader, its search-fetch integration, and the
-# Node container matrix. The host job installs real sops and age through mise;
+# Node container matrix. The host job installs real sops and age directly;
 # the container job uses the runners' podman to prove the tools work inside
 # Ubuntu as root and non-root.
 on:
@@ -14,9 +14,9 @@ on:
     - 'package/mcp/search-fetch/**'
     - 'package/pi-plugin/search-fetch/**'
     - '.github/workflows/env-local-json.yml'
-    - 'mise.toml'
-    - 'mise.no-env.toml'
-    - 'mise.lock'
+    - 'task.ts'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
     - 'pnpm-lock.yaml'
     - 'pnpm-workspace.yaml'
   push:
@@ -28,9 +28,9 @@ on:
     - 'package/mcp/search-fetch/**'
     - 'package/pi-plugin/search-fetch/**'
     - '.github/workflows/env-local-json.yml'
-    - 'mise.toml'
-    - 'mise.no-env.toml'
-    - 'mise.lock'
+    - 'task.ts'
+    - 'pnpm-lock.yaml'
+    - 'pnpm-workspace.yaml'
     - 'pnpm-lock.yaml'
     - 'pnpm-workspace.yaml'
 
@@ -41,56 +41,54 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  MISE_AUTO_INSTALL: 'false'
-
 jobs:
   host:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-    - name: Set up mise
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up node, pnpm and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        minimum_release_age: 1d
-        install: false
-    - name: Install test tools
-      run: mise install node pnpm sops age
-    - name: Install workspace dependencies
-      run: mise exec node pnpm -- pnpm install --frozen-lockfile
+        node-version: '26.12.0'
+        pnpm-version: '12.14.0'
+    - name: Install sops and age
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends age
+        SOPS_VERSION=3.13.3
+        curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
+        sudo chmod +x /usr/local/bin/sops
     - name: Matrix runner unit tests
-      run: mise run //package/module/matrix:test
+      run: task-run //package/module/matrix:test
     - name: Build the reader
-      run: mise run //package/module/env-local-json:build
+      run: task-run //package/module/env-local-json:build
     - name: Reader unit tests with real sops and age
-      run: mise run //package/module/env-local-json:test:unit
+      run: task-run //package/module/env-local-json:test:unit
     - name: Build search-fetch shared
-      run: mise run //package/agent-harness-shared/search-fetch:build
+      run: task-run //package/agent-harness-shared/search-fetch:build
     - name: Search-fetch shared unit tests
-      run: mise run //package/agent-harness-shared/search-fetch:test:unit
+      run: task-run //package/agent-harness-shared/search-fetch:test:unit
     - name: MCP server build and tests
-      run: mise run //package/mcp/search-fetch:buildAndTest
+      run: task-run //package/mcp/search-fetch:buildAndTest
     - name: Pi extension verification
-      run: mise run //package/pi-plugin/search-fetch:verify:extension
+      run: task-run //package/pi-plugin/search-fetch:verify:extension
 
   container:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-    - name: Set up mise
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up node, pnpm and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        minimum_release_age: 1d
-        install: false
-    - name: Install node and pnpm
-      run: mise install node pnpm
-    - name: Install workspace dependencies
-      run: mise exec node pnpm -- pnpm install --frozen-lockfile
+        node-version: '26.12.0'
+        pnpm-version: '12.14.0'
     - name: Build the reader
-      run: mise run //package/module/env-local-json:build
+      run: task-run //package/module/env-local-json:build
     - name: Verify podman
       run: podman --version
     - name: Reader container matrix
-      run: mise run //package/module/env-local-json:test:container
+      run: task-run //package/module/env-local-json:test:container

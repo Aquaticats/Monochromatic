@@ -17,7 +17,6 @@ on:
 permissions: {}
 
 env:
-  MISE_AUTO_INSTALL: 'false'
   NPM_MODULE: ${{ inputs.module }}
 
 concurrency:
@@ -33,15 +32,14 @@ jobs:
       pnpm_config_dedupe_direct_deps: 'false'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node, pnpm and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          minimum_release_age: 1d
-          install: false
-      - run: mise install node pnpm
-      - run: mise exec node pnpm -- pnpm install --frozen-lockfile
-      - run: mise run "//package/module/$NPM_MODULE:build"
-      - run: mise run "//package/module/$NPM_MODULE:test:unit"
-      - run: mise run npm:module:pack
+          node-version: '26.12.0'
+          pnpm-version: '12.14.0'
+      - run: task-run "//package/module/$NPM_MODULE:build"
+      - run: task-run "//package/module/$NPM_MODULE:test:unit"
+      - run: task-run npm:module:pack
         env:
           NPM_PACK_DIR: ${{ runner.temp }}/npm-pack
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -58,15 +56,15 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Set up node and the task CLI
+        uses: ./.github/actions/task-cli-setup
         with:
-          minimum_release_age: 1d
-          install: false
-      - run: mise install node
+          node-version: '26.12.0'
+          install-dependencies: 'false'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: module-tarball
           path: ${{ runner.temp }}/npm-pack
-      - run: mise run npm:module:publish
+      - run: task-run npm:module:publish
         env:
           NPM_PACK_DIR: ${{ runner.temp }}/npm-pack
