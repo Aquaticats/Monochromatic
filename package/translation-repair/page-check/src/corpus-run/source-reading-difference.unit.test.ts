@@ -28,7 +28,7 @@ import {
 
  @param source - text of a run of slices
 
- @returns The comparison's answer
+ @returns Answer of the comparison
 
  @example
  ```ts
@@ -111,6 +111,18 @@ await describe({
          */
         const answer = encodedDifference({ source: '> [^1]: x\n> <q>\n> text\n> ===\n\n她说 {\n', },);
         expect(answer.kind,).toBe('undecided',);
+      },
+    },),
+    it({
+      name: 'SAYS UNDECIDED FOR A BLOCK THE PAGE\'S FOOTNOTE RUNS INTO FROM A BLOCK QUOTE, which no block of the source holds',
+      fn: async () => {
+        /**
+         A block quote whose footnote the page goes on with over the line of raw HTML that follows the quote, so the page has
+         one block where the source has two, though the second block starts after the footnote of the source.
+         */
+        const answer = encodedDifference({ source: '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n<script>\n', },);
+        expect(answer.kind,).toBe('undecided',);
+        expect(encodedDifference({ source: '> [^1]: x\n> <a href="x">\n> [r]: u{b}\n<details>\n', },).kind,).toBe('undecided',);
       },
     },),
   ],
