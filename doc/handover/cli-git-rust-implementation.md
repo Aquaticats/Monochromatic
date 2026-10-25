@@ -2134,7 +2134,16 @@ that is verification, not a decision for the user.
   `mise install` (cargo-binstall from the host mounted read-only), created `~/.local/bin/git`, `git --version` worked
   through it, and mise made a shim only for `cli-git-native`, none for `git`. C (mise shim named git) first attempt
   was an INVALID probe (a `path:` version produced no shim, so `git` was `/usr/bin/git`); a retry with a real
-  installed-version directory is in `~/temp/agent/podman-proof-1796-c.ts`.
+  installed-version directory is in `~/temp/agent/podman-proof-1796-c.ts` (also invalid: mise does not treat a
+  hand-made version directory as installed, so no shim). C2 (`podman-proof-1796-c2.ts`) used the real install from D
+  with a `git` link added to the tool's own `bin/`: mise made `shims/git -> mise`, and `git --version` through it
+  finished in about 70 ms with no loop. RETRACTION: the earlier claim that a mise `git` shim would be picked as real
+  Git and loop (from reading `classify_candidate`) is contradicted by that run. The likely reason (unverified) is that
+  mise removes its shims directory from `PATH` when it runs a tool through a shim, so the wrapper never sees the shim
+  as a candidate. The option text shown to the user cited the loop as a reason to reject the shim, and the user chose
+  the `~/.local/bin` link partly on that evidence, so the choice is being revalidated: C3
+  (`podman-proof-1796-c3.ts`) checks that the wrapper is engaged through the shim and measures per-call cost of plain
+  git, a direct link and the shim.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
