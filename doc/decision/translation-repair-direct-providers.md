@@ -518,7 +518,8 @@ both members returned `finish_reason` "length" with `completion_tokens` 64
 (`reasoning_tokens` 22 included).
 The two result lines,
 as the probe wrote them
-(each broken between its members here to fit the line limit, with no value changed):
+(each broken between its members here to fit the line limit,
+with no value changed):
 
 ```json
 {"field":"max_tokens","status":200,"finish":"length",
