@@ -779,6 +779,32 @@ The scratch drivers (`edr8-sim.ts`,
 `edr8-warn.ts`) are in the round's `scratch` directory and are not committed;
 a unit test pins that the fixture goes over 0.07 at 1/1/0 and stays at or under 0.05 at 1/1/1.
 
+The figures of the rule text come from two sources,
+which are two implementations of one model and are not interchangeable.
+The 192 cells,
+the 0.055 and the 0.035 of the equal-agreement claim,
+and every figure of the grid of 1344 cells,
+are from the scratch driver `edr8-sim.ts` (seed `edr8-sim`,
+a seed string of its own for each cell),
+which takes only the order of the pool's trials from the fixture.
+The 0.107 is from the committed fixture
+(`pickShares` in `editor-fidelity-paired-null.test-fixture.ts`,
+the units of three passes over 264 asks,
+fix rates 0.9 for the three arms,
+correlation 1,
+share 0,
+`armAgreements` `[1, 1, 0]`,
+4000 replicates,
+seed `edr8-sim/unequal 1/1/0 rate 0.9 corr 1`),
+and the same cell read 0.098 in the driver.
+The two readings differ by 0.009,
+which is about 1.3 standard deviations of the difference of two readings at 4000 replicates,
+so noise alone may explain it,
+and the two implementations were not compared further.
+The rule text cites the larger as what the committed fixture reaches
+and the grid as what the driver reached.
+The committed fixture was not run over the whole grid.
+
 The rule text now says the chance is at most 0.05 when every arm repeats itself alike
 (the worst of 192 cells was 0.055 at 800 replicates,
 within the noise of 0.008,
