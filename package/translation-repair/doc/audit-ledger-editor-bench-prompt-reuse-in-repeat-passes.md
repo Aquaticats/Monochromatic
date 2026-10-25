@@ -462,7 +462,8 @@ run the source scans before the first commit of a test that imports a fixture wr
 The independent re-check of round 13 (`editor-recheck10.md`) found no major,
 no minor and six nit,
 and each was ruled a fix.
-The code commits, oldest first:
+The code commits,
+oldest first:
 
 - `c91ba55fac66b02d5e8c4acbe2d29a2163bcd086`:
   red for nit 4.
@@ -471,23 +472,35 @@ The code commits, oldest first:
 - `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`:
   the lines over 120 characters wrapped in the two TypeScript files this round touches.
 
-The commit that holds this section changes the README and this ledger only.
+The commits after those change Markdown only.
+The first of them,
+`88b731cd2a5f321014c12f921fd894596d7816d3`,
+joined short lists onto fewer lines
+to keep the README at its bound,
+and the Markdown lint scan of the source scans fails on a line that holds a comma before its end.
+The next commit puts those lists back and moves the paragraph on the power of one pass against three
+to the simulations doc.
 
 - Nit 1:
   the claim that the changed code is not reachable from the entry is withdrawn.
   `editor-fidelity-arm-facts.ts` holds `isReuseBody` and `reusedRowFlags`,
-  and `editor-fidelity-decide.ts`, which the entry reaches, imports it;
+  and `editor-fidelity-decide.ts`,
+  which the entry reaches,
+  imports it;
   its change was a TSDoc line that the bundler strips.
   The claim now rests on the measured fact.
   Two scratch copies of the probe package were built with `rolldown` and the package's own config,
   one from the source of `85e21653a2ebb055ee807a6edc2fdf1248073abc`
   and one from `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`
-  (the source of this round's code; the commit after it changes Markdown only).
+  (the source of this round's code,
+  since the commits after it change Markdown only).
   The import closure of the built entry `editor-fidelity-probe.mjs` is nine files in each,
   with the same names,
   and all nine are byte for byte the same.
   Neither `index.mjs` nor `editor-fidelity-read.mjs` is in the closure.
-  Those two differ between the builds, and so does `index.d.mts`, which carries the TSDoc,
+  Those two differ between the builds,
+  and so does `index.d.mts`,
+  which carries the TSDoc,
   and nothing else differs.
   A high arm run from a frozen build of `85e21653a2` therefore runs the entry code of this head.
 - Nit 2:
@@ -496,15 +509,19 @@ The commit that holds this section changes the README and this ledger only.
   so the frozen copy and the bench directory are named for `85e21653a2` with no rename,
   and the launcher pins `SHA=85e21653a2` so a later checkout cannot rename the directory.
   The README now tells the operator to write the prepare block's `SHA` value into the later blocks
-  when `HEAD` may move between arms, in place of reading `HEAD` again.
+  when `HEAD` may move between arms,
+  in place of reading `HEAD` again.
 - Nit 3:
   on a log with no `PROMPT-REUSE` line and no `GUARD total=` line,
   the pre-launch block died in `awk` with `division by zero` (exit 2).
   It now refuses with `no GUARD total= line in <log>, so the spend is unknown` on standard error and exits 1.
   Run in a fresh `bash --noprofile --norc` shell on the logs of re-check 10:
   the log with no guard line exits 1 with that message and nothing on standard output;
-  the billed log gives 0.0071 USD a unit, 88 units left, medium 2487 and low 2064;
-  the constructed new-build log gives 0.0095 USD a unit, medium 1861 and low 1545;
+  the billed log gives 0.0071 USD a unit,
+  88 units left,
+  medium 2487 and low 2064;
+  the constructed new-build log gives 0.0095 USD a unit,
+  medium 1861 and low 1545;
   the dry run's log,
   the billed log with three `abandoned-bound` lines and the log with one reuse line still refuse as before.
 - Nit 4:
@@ -523,10 +540,12 @@ The commit that holds this section changes the README and this ledger only.
   after its positive control (the whole log warns `5 of 40 units`) passed.
 - Nit 5:
   the lines over 120 characters are wrapped in the files this round touches:
-  the ledger (four lines, two of them links that became reference links),
+  the ledger (four lines,
+  two of them links that became reference links),
   the README (two code lines of the pre-launch block),
   and the two TypeScript files.
-  The README has 999 lines.
+  The README has 1000 lines,
+  after the paragraph on the power of one pass against three moved to the simulations doc.
 - Nit 6:
   the commit messages named by re-check 10 are listed in the fixer report of round 14 and nothing is posted.
 

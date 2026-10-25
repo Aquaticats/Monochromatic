@@ -539,8 +539,7 @@ as the prepare block does.
 `SHA` is the ten characters of the commit the bench runs at,
 and the frozen copy and the bench directory are named for it.
 The blocks read it from `HEAD`,
-so a commit,
-a checkout or a merge between the prepare block and the last arm makes `SHA` name another directory:
+so moving `HEAD` between the prepare block and the last arm makes `SHA` name another directory:
 when `HEAD` may move,
 write the prepare block's `SHA` value into the later blocks in place of the `git rev-parse` line.
 
@@ -597,7 +596,8 @@ because the first arm decides how many units the bench has.
 `--max-usd 24` and `--passes 3`,
 which walks the whole pool three times,
 pass by pass
-(264 units, the trials of the pool asked three times each).
+(264 units,
+the trials of the pool asked three times each).
 If the guard ends it before the passes are done,
 it prints a `CAPPED at unit k` line,
 keeps the rows it finished and exits 0;
@@ -797,9 +797,6 @@ and the later arms may take one pass,
 which costs a third:
 `--passes 3 --trials 88` in place of `--passes 3 --trials "$N"` on the `TRIALS=` line of the launch block,
 the first 88 units being the pool once.
-At 88 units the smallest difference chosen with chance 0.8 is about 26 points when medium fixes half,
-against 25 points at 176 units where a repeat always gives the arm's first answer again,
-so a second pass buys the bench nothing when the arms repeat themselves so.
 That assumes the later arms repeat themselves as the high arm does,
 which one pass cannot show:
 the read step then prints `no trial was asked in more than one pass` for all three arms,
@@ -807,11 +804,8 @@ the high arm included,
 because every arm is read over the 88 shared units,
 so the 100 percent read from the high log alone is not repeated in that output.
 If they do not repeat themselves so,
-the one pass costs power:
-three passes over 264 units detect a difference of about 13.5 points where agreement is 0 (round 8 power table)
-and one pass over 88 units detects about 25 points,
-and the verdict is read over those 88 units whatever the high arm's 264,
-so the bench money the high arm spent on its passes 2 and 3 buys the verdict nothing.
+the one pass costs power,
+and the simulations doc gives how much in its section on the passes a bench walks.
 When the line says less than 100 percent,
 the later arms take `--trials "$N"` as the launch block has it,
 and the read step compares the arms' agreements after the last arm.
@@ -878,8 +872,11 @@ and weigh it against its cost before changing the default effort.
 
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.
-The checks are the exit status, the manifest line, the pool line,
-the planned line, the ceiling line,
+The checks are the exit status,
+the manifest line,
+the pool line,
+the planned line,
+the ceiling line,
 the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count against the units it completed
@@ -887,7 +884,9 @@ the row count against the units it completed
 and a failure for a row a `PROMPT-REUSE` line stands in front of,
 which made no call and is no trial),
 no `[error]` line,
-the `SEAT` line (`threw` stated, nothing unreachable, no withheld or dark seat),
+the `SEAT` line (`threw` stated,
+nothing unreachable,
+no withheld or dark seat),
 the identity of the `SPEND` lines' sum with the `GUARD total=`,
 and that every row line states how its asks ended.
 A unit in which an ask ended at the output-token cap or threw fails no arm:
@@ -908,8 +907,10 @@ and a verdict against an effort whose arm lost them
 or high or low picked while medium lost units)
 is reported as owed in part to the lost units and not wholly to worse edits.
 Across the arms the checks are
-three or four distinct logs at the cards high, medium,
-(a second medium if run) and low in the order run,
+three or four distinct logs at the cards high,
+medium,
+(a second medium if run)
+and low in the order run,
 each arm's stated `--bench-spent-usd` at least the `GUARD total=` of the arms before it,
 each later arm having walked the first arm's units in the first arm's order,
 the same manifest digest in every one,
