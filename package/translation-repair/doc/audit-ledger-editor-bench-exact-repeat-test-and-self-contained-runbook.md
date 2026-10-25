@@ -34,7 +34,7 @@ no conflict).
 
 ### The gap between 0.90 and the warning (finding 1, minor)
 
-The rule text states its bounds for true fix rates 0.30 to 0.90 and names the first reading above them at 0.93,
+The rule text states its bounds for true fix rates 0.30 to 0.90 and names the first reading past them at 0.93,
 and the high fix rate warning fired from an observed share of 0.93:
 a true rate of 0.91 or 0.92 had neither a bound nor a warning,
 where the fixture reads the false pick chance 0.108 and 0.123.
@@ -62,7 +62,8 @@ where the fixture reads the false pick chance 0.108 and 0.123.
   The independent re-implementation's 0.142 at 0.93,
   0.173 at 0.95 and 0.241 at 0.97 (`edrc5`) are named apart,
   in `FALSE_PICK_REIMPLEMENTATION_READINGS`.
-- Cases: 90 of 100 units warns and 89 of 100 does not;
+- Cases:
+  90 of 100 units warns and 89 of 100 does not;
   80 of 88 (90.9 percent) warns,
   79 of 88 (89.8) does not and 82 of 88 still does;
   133 of the 150 shared units (88.7 percent) does not warn though the arm fixes 93.6 percent of the 264 it walked;
@@ -257,7 +258,8 @@ The level is 0.05 divided by the number of other arms.
   re-check 6's three alike arms at 100 units) does not warn,
   7 of 12 (0.0186) does.
 - The warning line prints both counts and the p-value and the level.
-- Cases: the exact tails (15 of 20 against 20 of 20 is 0.0236,
+- Cases:
+  the exact tails (15 of 20 against 20 of 20 is 0.0236,
   16 of 20 is 0.0530,
   38 of 44 against 44 of 44 is 0.0130,
   30 of 44 against 38 of 44 is 0.0367),
