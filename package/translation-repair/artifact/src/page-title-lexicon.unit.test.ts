@@ -31,6 +31,7 @@ import {
 } from '../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_ONLY,
+  SEAT_HYPER_VISION,
   SEAT_OPENROUTER_ONLY,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -413,7 +414,8 @@ await describe({
           },
         },),
         it({
-          name: 'BREAKS A TIE BY THE EARLIEST SEAT ON THE ROSTER, so a resumed page reads the same answer',
+          name: 'LEAVES A TITLE UNSETTLED where two voices each gave a different rendering (a tie of one voice apiece), '
+            + 'since one judge alone never decides (the lead\'s ruling of 2026-10-25), and a finding says why',
           fn: async () => {
             const { lexicon, } = await settled({
               replies: {
@@ -421,8 +423,45 @@ await describe({
                 [SEAT_HYPER_ONLY]: { titles: [{ title: 2, rendering: 'The Fish Dream', },], },
               },
             },);
+            expect({
+              titles: lexicon.titles,
+              said: lexicon.findings.includes(
+                'page title lexicon left 1 repeated title unsettled, since no rendering was given by 2 voices',
+              ),
+            },).toEqual({
+              titles: [],
+              said: true,
+            },);
+          },
+        },),
+        it({
+          name: 'BREAKS A TIE OF TWO VOICES APIECE BY THE EARLIEST SEAT ON THE ROSTER, so a resumed page reads the same '
+            + 'answer (the positive control: a rendering two voices gave settles)',
+          fn: async () => {
+            /**
+             What a bench of four seats settled, two voices each for two renderings.
+             */
+            const lexicon = await settlePageTitles({
+              client: scriptedClient({
+                replies: {
+                  [SEAT_SYNTHETIC_TEXT_EVERYWHERE]: { titles: [{ title: 2, rendering: 'The Fish Dream', },], },
+                  [SEAT_HYPER_ONLY]: { titles: [{ title: 2, rendering: 'Dream of Fish', },], },
+                  [SEAT_OPENROUTER_ONLY]: { titles: [{ title: 2, rendering: 'the fish dream', },], },
+                  [SEAT_HYPER_VISION]: { titles: [{ title: 2, rendering: 'Dream of Fish', },], },
+                },
+                asked: [],
+              },),
+              modelIds: [SEAT_SYNTHETIC_TEXT_EVERYWHERE, SEAT_HYPER_ONLY, SEAT_OPENROUTER_ONLY, SEAT_HYPER_VISION,],
+              sourceText: SOURCE,
+              spans: SPANS,
+              signal: new AbortController().signal,
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l,
+              fanOut: 'whole-bench',
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
             expect(lexicon.titles,).toEqual([
-              { source: '鱼之梦', occurrences: 2, rendering: 'The Fish Dream', voices: 1, heard: 3, },
+              { source: '鱼之梦', occurrences: 2, rendering: 'The Fish Dream', voices: 2, heard: 4, },
             ],);
           },
         },),
@@ -432,6 +471,7 @@ await describe({
             const { lexicon, } = await settled({
               replies: {
                 [SEAT_HYPER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', }, { title: 2, rendering: '  ', },], },
+                [SEAT_OPENROUTER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], },
               },
             },);
             expect({
@@ -446,10 +486,45 @@ await describe({
           },
         },),
         it({
-          name: 'COUNTS NO VOICE FOR A RENDERING THAT SHOWS A READER NOTHING, as it counts none for an empty one: two '
-            + 'seats rendering a title as a zero-width space lose to the one seat rendering it in words, and a title '
-            + 'rendered only as a Hangul filler is left out',
+          name: 'LEAVES A TITLE UNSETTLED where only one voice of three rendered it, and the other two gave nothing '
+            + 'or only invisible text: one judge alone never decides, whoever it is',
           fn: async () => {
+            const { lexicon, } = await settled({
+              replies: {
+                [SEAT_HYPER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], },
+                [SEAT_OPENROUTER_ONLY]: { titles: [{ title: 1, rendering: '\u{200B}', },], },
+              },
+            },);
+            expect({
+              titles: lexicon.titles,
+              said: lexicon.findings.includes(
+                'page title lexicon left 1 repeated title unsettled, since no rendering was given by 2 voices',
+              ),
+            },).toEqual({
+              titles: [],
+              said: true,
+            },);
+          },
+        },),
+        it({
+          name: 'COUNTS NO VOICE FOR A RENDERING THAT SHOWS A READER NOTHING, as it counts none for an empty one: two '
+            + 'seats rendering a title as a zero-width space no longer outvote the seats rendering it in words, so '
+            + 'the one seat with words settles nothing alone, two seats with words settle it past the one showing '
+            + 'nothing, and a title rendered only as a Hangul filler is left out',
+          fn: async () => {
+            /**
+             One seat showing nothing, words from the other two.
+             */
+            const { lexicon: mixed, } = await settled({
+              replies: {
+                [SEAT_SYNTHETIC_TEXT_EVERYWHERE]: { titles: [{ title: 1, rendering: '\u{200B}', },], },
+                [SEAT_HYPER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], },
+                [SEAT_OPENROUTER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], },
+              },
+            },);
+            expect(mixed.titles,).toEqual([
+              { source: '猫之歌', occurrences: 2, rendering: 'Song of the Cat', voices: 2, heard: 3, },
+            ],);
             /**
              Renderings showing nothing from two seats, words from the third.
              */
@@ -479,9 +554,7 @@ await describe({
               },
             },);
             expect(padded,).toEqual(empty,);
-            expect(padded.titles,).toEqual([
-              { source: '猫之歌', occurrences: 2, rendering: 'Song of the Cat', voices: 1, heard: 3, },
-            ],);
+            expect(padded.titles,).toEqual([],);
           },
         },),
         it({
