@@ -2078,6 +2078,15 @@ that is verification, not a decision for the user.
   on other machines the user controls (postinstall of the tool entry in `mise.toml`, source per file-enforcer), a
   runbook with the hook snippet, `AGENTS.md` `APG`/`APQ` wording once the guarantee is settled, the server-side
   proposal for machines the user does not control, and a regular terminal (not Claude Code) `PATH` entry if wanted.
+  REVERTED 2026-10-25 on the user's instruction: the user-level link and the `SessionStart` hook above were removed
+  (link and its directories deleted; `~/.claude/settings.json` hooks head verified identical to the original). The
+  user's instructions: "I didn't tell you to do the implementation yet. We're still planning." A question phrased
+  "Why don't we ...?" is a question inviting an answer, never an action. "I find it extremely bad you just did it on my
+  host when you have podman": probes that would change the host (user-level config, links, `PATH`, settings) run in
+  podman, never on the host, and a plan is approved before anything is implemented. The probe results above stand as
+  evidence only. The user's open question, "Why not just install both globally and locally?", is the next planning
+  item: the intended shape is the wrapper installed at both scopes (per worktree by the repo, user-level by mise), to
+  be designed and approved before any change.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
