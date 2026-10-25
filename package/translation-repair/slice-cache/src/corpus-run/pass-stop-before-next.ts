@@ -1,3 +1,7 @@
+import {
+  lifecycleClockStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { runSpendUsd, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   SPEND_CEILING_PROVIDERS,
@@ -28,6 +32,9 @@ import {
  @param ceilingUsd - USD this run may spend on any one metered provider before
  no new entry starts
 
+ @param wallClock - clock the time of the line it prints is read on, printed as the line's last field `at=`; the wall
+ clock unless a test fixes it. The line belongs to the pass and carries no attempt (ledger B960)
+
  @returns Whether the queue must stop before its next attempt
 
  @example
@@ -40,14 +47,18 @@ export function stopBeforeNextEntry(
     elapsedMs,
     softBudgetMs,
     ceilingUsd,
+    wallClock = wallClockNow,
   }: {
     readonly elapsedMs: number;
     readonly softBudgetMs: number;
     readonly ceilingUsd: number;
+    readonly wallClock?: () => Date;
   },
 ): boolean {
   if (elapsedMs >= softBudgetMs) {
-    console.log(`SOFT budget reached after ${String(elapsedMs,)}ms; not starting new entries`,);
+    console.log(
+      `SOFT budget reached after ${String(elapsedMs,)}ms; not starting new entries ${lifecycleClockStamp({ wallClock, },)}`,
+    );
     return true;
   }
 
@@ -61,11 +72,15 @@ export function stopBeforeNextEntry(
       spentUsd,
       ceilingUsd,
     },)) {
-      console.log(spendCeilingNote({
-        provider,
-        spentUsd,
-        ceilingUsd,
-      },),);
+      console.log(
+        `${
+          spendCeilingNote({
+            provider,
+            spentUsd,
+            ceilingUsd,
+          },)
+        } ${lifecycleClockStamp({ wallClock, },)}`,
+      );
       return true;
     }
   }
