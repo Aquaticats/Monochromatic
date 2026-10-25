@@ -585,7 +585,7 @@ and every fix makes the failing places of its red commit pass):
   so following it was thought to list most of the consistency pass without naming a file that writes a schema.
   The commit body added that a seventh hop was left unmeasured.
   Fix round 18 follows the chain to its end,
-  and the measure it made refutes that reason (follow-up of fix round 18 below).
+  and the measure it made refutes that reason (follow-up of fix round 18 in this entry).
 - The inputs E01 and E02 are listed,
   not reported:
   the caller that supplies the arguments joins the list of files,
@@ -602,7 +602,8 @@ Follow-up of fix round 18
   Over the 1620 real sources there are 15 forwarders called from 9 files of the consistency pass,
   and the check reports none of the 1620.
   The reason B867 gave for stopping at the next hop did not bound the chain:
-  it ends at those 15.
+  it holds 15 forwarders,
+  added over eight rounds (follow-up of fix round 19 in this entry).
   The listing adds files that pass a schema's arguments on and write none,
   the over-listing that was predicted and the ruling accepts.
 - A forwarder written as an arrow,
@@ -644,6 +645,122 @@ Follow-up of fix round 18
 - A name that holds the sender and is assigned again is no call of the sender
   (red `b76fce0c79e090d8773758138c8f3bfe5df18d30`,
   fix `daafeec74b532c907b5c7a049c5cf7687c87e0eb`).
+
+Follow-up of fix round 19
+(red commit before each fix):
+
+- A forwarder is reported wherever it is read except as a callee
+  (red `d3e62082d4d9a11d115eedb94f19de41291394cf`,
+  fix `8039afa5afa902895438f338688bd82332801c5a`,
+  clean-up `773a6235186481f022efae6790bfc13bcf2e8b45`).
+  A wrapper held by an object,
+  an array,
+  an argument or a comma is reported where it sits,
+  and a forwarder held there was not,
+  so a file that took the function from the object could call it with the arguments of a schema
+  and no file was listed.
+  A forwarder is now read as the callee of a call,
+  of `new` or of a tagged template,
+  through `call`,
+  `apply` and `bind`,
+  as the whole value of an export assignment
+  and through the members `name` and `length`
+  (the logger tag of the repo is `fn.name`).
+  Any other place reports `forwarder-outside-a-read-position` with the node and the field.
+  Eleven cases hold it,
+  and ten of them failed on the red commit.
+- The 1620 real sources give one report of the new shape:
+  `corpus-pass/src/corpus-run/corpus-pass.ts` hands `settleEntry` to the pass as its `settle` dependency,
+  and `corpus-pass-run.ts` calls `input.settle(...)` with a corpus pair and the settings of the run.
+  The place is named in the test by file,
+  shape and position,
+  with the reason,
+  in `claude-schema-named-places.test-fixture.ts`,
+  and a second case fails when a name outlives its place.
+  This is a design choice that is open to the owner's veto:
+  the alternatives are to report the place and change the source so that no forwarder is handed over as a value,
+  or to read the callers of `input.settle` as callers of `settleEntry`.
+- A parameter property and a target under a type mark bind their names
+  (red `9b11871b4291139f4eae5e265c262d63023a83ad`,
+  fix `d54c1c4da72109841db003ad6f7c08fdb850af60`).
+  `constructor(private args)` binds `args` as a parameter,
+  and `(g as any) = other`,
+  `(g!) = other`,
+  `(g satisfies any) = other`
+  and `(<any>g) = other` assign `g`,
+  so a sender held by `g` that is assigned that way is no sender.
+  The compound forms `g ||= other` and `g ??= other` already assigned,
+  and two cases pin them.
+- The names made from a function's parameters follow more places
+  (red `074bc98b8a5757bd819b74d853e68910a75a0317`,
+  fix `3eec535445dc2b74d0e43b0efe545e0cba9e46be`):
+  a constant,
+  an assignment,
+  the head of a `for...in` or `for...of` loop over a value,
+  the parameter of a `catch` clause for a value that the `try` block throws itself,
+  and the `arguments` object,
+  and a chain is read at its head whether or not a member is computed
+  (`list[0]`,
+  `rec[key]`).
+  Two flows are not followed,
+  each with the reason the source shows.
+  A name that reaches the builder through a field of `this`
+  (`this.args = args` read as `this.args`)
+  is a read of `this` whose value the walk does not model,
+  and the check cannot tell it from any other field.
+  A value thrown by a function that the `try` block calls is thrown where the walk reads no function body.
+  Both are limits.
+  A case holds the first,
+  and a second case holds that a value no name of the parameters reaches lists nothing.
+  No case holds the second.
+- A callback written as a name is read as the function the file declares only when no scope around it binds the name again
+  (red `7c71cccda8146b66e556c9e541551428445ff68b`,
+  fix `512d81f6008e58d15254de0bd41593b3215b929d`):
+  a parameter,
+  a destructured parameter,
+  a constant of the function and a `catch` clause now make it a callback the search cannot read.
+- A qualified name that an import-equals declaration reads is a reference
+  (red `7e987c281d6d1fa6ed41046c52842198c82e5d92`,
+  fix `49cc0602d3d9d05d4017a1b64871bffa03f8f24c`).
+  `import U = A.FORMAT` read a member of a namespace through a node that is no member expression,
+  so a constant that the module exports and the declaration reads was never followed.
+  Its first name is a reference now,
+  and the constant is reported at the declaration whether `A` comes from `import * as A` or from `import A = require(path)`,
+  and whether the declaration is exported.
+  `import B = A` was reported already.
+- A function written as an argument of a method that is none of the eight is reported
+  (red `c1f5aeca8da411c03883fd08a2dbc85da6925389`,
+  fix `fe3967005565e46731910dc3b29236d8aafc6e73`)
+  as a callback that cannot be read:
+  `sort`,
+  `findLast`,
+  `findIndex`,
+  `reduceRight`,
+  `toSorted`
+  and a method of an object that holds the value.
+  A call with no function written as an argument still ends the walk without a report.
+  The case that returns a builder's call chained with `.then` has one report more.
+- The rounds of the search for forwarders are bounded
+  (`c03b9f77c843fff3dd2ff1ca5b244120fafa53f4`):
+  a round adds only functions no round added,
+  so no more rounds than the family declares functions can add one,
+  and a round that adds one after that throws with a message.
+  Fix round 18 saw the mutant that drops the test for a function already found as a hang
+  and counted it killed by not ending.
+- The rounds were measured on a copy of the head with a line that prints what each round adds,
+  over the 1620 real sources:
+  eight rounds add 3,
+  2,
+  2,
+  2,
+  2,
+  2,
+  1
+  and 1 forwarders,
+  and the ninth adds none.
+  The chain is eight hops long and holds 15 forwarders.
+  Fix round 18 wrote "15" for the length of the chain,
+  and 15 is the count.
 
 Prevention rule:
 a walk that follows a value ends in a destination the check lists,

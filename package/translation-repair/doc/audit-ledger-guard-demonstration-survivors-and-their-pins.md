@@ -695,7 +695,8 @@ and the cases that the first run of the round's own mutants called for are `7c19
 with the header clause `0c4eecc1ed`):
 
 - A check over the real sources.
-  `blindSpotsOf` reads the 1579 non-test sources of the family that the search reads
+  `blindSpotsOf` reads the non-test sources of the family that the search reads
+  (1579 when this entry was written)
   and reports,
   by file and line,
   each place that holds a shape the search leaves unread.

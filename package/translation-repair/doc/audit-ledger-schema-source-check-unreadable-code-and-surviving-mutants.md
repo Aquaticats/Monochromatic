@@ -60,7 +60,7 @@ and `8120c64c84581b9ea92f878ac60dc499a7e000c3`):
   the lockfile is read as the union of the dependencies of every package of the family,
   where one package's own dependencies would be exact;
   `.constructor` and `node:vm` were not reported when the check was written,
-  and are from fix round 18 (follow-up below).
+  and are from fix round 18 (follow-up of fix round 18 in this entry).
   `rg --word-regexp 'Function|eval|createRequire'` over the non-test sources of the family finds five hits,
   all prose,
   none code.
@@ -98,7 +98,7 @@ The sentence that followed,
 was wrong:
 the module is told by its specifier,
 and the constructor by a member named `constructor` or a `Reflect.get` with that string as its key.
-Fix round 18 reports them (follow-up below),
+Fix round 18 reports them (follow-up of fix round 18 in this entry),
 and the pins of this paragraph moved into a case that asks for the reports.
 
 Follow-up of fix round 18:
@@ -125,6 +125,33 @@ Follow-up of fix round 18:
   a key that is no literal,
   a pattern that takes `constructor` out of a value,
   and a `Reflect.get` with a key that is no literal.
+
+Follow-up of fix round 19
+(red commit before the fix):
+
+- The global object is reported where an export hands it out
+  (red `e14cc1c962051aa6e3e24ec082a172dc82dd1bbf`,
+  fix `564f767ad50507e70a91bd09b3c1d8c148d458c9`):
+  `export { globalThis as gt }` and `export default globalThis`.
+  Neither is a value position of a reference,
+  so a file could hand the object out
+  and another file could take the constructor of a function from it.
+  An export from another module names an export of that module and is not the global object.
+- Code made from text is told by `process.getBuiltinModule` with the specifier of `vm` as a literal,
+  and by `Object.getOwnPropertyDescriptor` and `Reflect.getOwnPropertyDescriptor` with the string `constructor` as the key.
+  A method of `Reflect` read through an alias
+  (`const R = Reflect; R.get(f, "constructor")`)
+  is not told.
+  The search reads names and does not follow what a constant holds,
+  so this is the stated limit of the reads of that key,
+  and a case holds it.
+- An import or an export of types only names no module.
+  `13987f2e08130e382ba257a0a95de6a5259ddfda` says a type is no code and nothing in it is reported,
+  and the code reported `import type { Script } from "node:vm"` as a load of `vm`.
+  The claim held for names in type positions and not for the specifier of a type import.
+  The code now agrees with the claim and with this entry,
+  which states that a type-only import or export is not read,
+  and a case holds it.
 
 Prevention rule:
 a whitelist that anchors at the module-load boundary also lists the ways to build a loader,
@@ -163,7 +190,7 @@ The fix:
   a default whose right side is not the value,
   a holder that is a call but takes the object other than as an argument).
   A probe that throws in each branch,
-  run over the suite and the 1579 real sources,
+  run over the suite and the 1579 real sources of that commit,
   reached none of them,
   and a control branch that must be reached was reached by one case.
   The structure of the tree gives the same.
@@ -278,6 +305,109 @@ Follow-up of fix round 18:
   whose expectation re-check 16 judged wrong).
   None is worse.
 
+Follow-up of fix round 19
+(red commit before each fix):
+
+- The mutant table has 292 rows on `757f5a4d601b6c04bea2a97d9e9d93ba374d3e89`:
+  the 246 of round 18 less one whose code is gone,
+  40 new ones for the branches this round added
+  and 7 of re-check 17 that still apply.
+  282 were killed by a failing case.
+  10 survived:
+  nine of round 18 and one of this round.
+  Each of the nine is argued equivalent in round 18
+  and was run again on this head with a control that gives the same output on the head and on the mutant
+  (the control of N-R5w differs in the count of entries it loads and not in the files found or the reports)
+  and a mutant that changes the same control.
+  The tenth is the test that a round has added a function twice,
+  which can fire only when the test for a function already found is gone,
+  so no input of the head reaches it.
+  Its controls are the forwarder case and the real sources,
+  and the mutant that changes the same control is the one that lists no callers of a forwarder.
+  The runs were sequential
+  in a user unit capped at 6 GiB of memory and 200% of the CPU.
+- A first run of 295 rows on `2ce2b9a729c9b9c06a479a30d529b93a441b6e51` left 25 open.
+  Nine are the equivalents of round 18.
+  Two rows (W1 and W4) were spoiled by a build in the source-scan package that removed the `dist` they read,
+  and the table killed them when it ran again.
+  One is the mutant that drops the test for a function already found,
+  which hung as in round 18.
+  The other 13 were live.
+  Ten got cases
+  (`90a67a35496c5954f8a3ab2c5fbd012274226faf`):
+  a forwarder as the tag of a tagged template,
+  as the callee of `new`,
+  bound and kept,
+  bound and called at once,
+  a member of it that is no call method,
+  a free name of a forwarder held by an object,
+  the last name of a qualified name,
+  an export of the name of the global object from another module,
+  `getBuiltinModule` of an object that is not `process`,
+  and a function under a type mark as the argument of `sort`.
+  Two were code the new readings had made dead:
+  the scope reader opened a parameter property itself,
+  and the function that names the names a parameter binds does so now,
+  and a call of a bound forwarder was tested for being a call,
+  where `new` and a tagged template are read the same way.
+  That code is gone
+  (`e36c5efdac444aeb75f497753631400c9782f1c7`).
+  The last was the bound of rounds,
+  which the next paragraph replaces.
+- The mutants of re-check 17 that survived are killed:
+  `g ||= other` and `g ??= other` by two cases that assign the held sender,
+  `namespace gatherThroughCache.Inner` inside a namespace by a case that reports the call,
+  `declare function gatherThroughCache` inside a namespace by a case that reports the call,
+  and a free name of a forwarder in a middle file with `declare const` by a case that lists the caller
+  (`9b11871b4291139f4eae5e265c262d63023a83ad` and `74c4c999514a9aba80822cab73202cd239b98af3`).
+  Of its two rows about dead code,
+  the strict comparison of a rest parameter is the code now
+  (`acfebf36e1c445ff6a9721a23defbf98ab585340`),
+  and the test of a constant with no value in the derived names is gone
+  (`3eec535445dc2b74d0e43b0efe545e0cba9e46be`).
+- The mutant that drops the test for a function already found was killed by not ending in round 18.
+  Over the real sources the bound of rounds by the count of declared functions
+  (`c03b9f77c843fff3dd2ff1ca5b244120fafa53f4`)
+  was 4710 rounds that each read every file,
+  so the mutant still ran past 300 s.
+  A round now throws when it adds a function an earlier round added
+  (`757f5a4d601b6c04bea2a97d9e9d93ba374d3e89`),
+  and that mutant is killed by 86 cases in the first round that repeats a function.
+- The work stack of the checks has a test of its own
+  (`5c24644ff289c719c9c14763c87ab5540581a5ae`),
+  which fails under the two mutants that take the first item or leave the last
+  and which the schema suite reached only through the walks that use it.
+- The 1620 real sources gave one report,
+  the named place of B867.
+  Of 430 adversarial inputs 173 were silent at the base of round 18 and 20 are silent after this round,
+  none is worse than at the base.
+  Of the 20,
+  16 are inputs whose expectation re-check 17 judged wrong
+  (C07,
+  C08,
+  D05,
+  G05,
+  G07,
+  G08,
+  G09,
+  G17,
+  H02,
+  A12,
+  H09,
+  J12,
+  K02,
+  K04,
+  K05
+  and L01),
+  3 are those of round 18 (RC21,
+  RK37
+  and RK40),
+  and G20 is the limit that a method of `Reflect` read through an alias is not told.
+- The lines of the files `claude-schema*` that passed 120 columns are wrapped
+  (`14fcc71ef1c66385a9403ac3026ddcf547bbe52e`),
+  and a doc tag with an article is fixed
+  (`2ce2b9a729c9b9c06a479a30d529b93a441b6e51`).
+
 Records corrected:
 the body of `4527b378c1` says its header "is rewritten in the next commit",
 and the header was rewritten in `35cea3a28b`,
@@ -343,15 +473,51 @@ Records corrected in fix round 18:
 
 Cache versions in fix round 18:
 none moved.
-The search over `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26..HEAD` for `package/translation-repair` prints nothing:
+The search over `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26..6b7244fbb8d243387b3a9ed6ccbecae3bac420fe`
+for `package/translation-repair` prints nothing:
 
 ```sh
-# package/translation-repair, over b6540001c6..HEAD
-git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' b6540001c6c69b843a69f4e7ba9cf13e0b37ae26..HEAD -- package/translation-repair
+# package/translation-repair, over b6540001c6..6b7244fbb8
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
+  b6540001c6c69b843a69f4e7ba9cf13e0b37ae26..6b7244fbb8d243387b3a9ed6ccbecae3bac420fe \
+  -- package/translation-repair
 ```
 
 The same search over `c265e8df95~1..c265e8df95` prints `c265e8df9525f4513b8229482d3e8d932ea630df`,
 so the search can print.
+
+Records corrected in fix round 19:
+
+- Eight commits of fix round 18 say `test:unit` of corpus-pass ran
+  where the schema suite was run directly with `node`:
+  `f3d581b26e9c6dccaae864720f06a21bf6afe86f`,
+  `781fab9e753ae3243a0cf8016da0a8a1a0f95cae`,
+  `4d82f4d8f7518f43835db77d429014ea7e8d4481`,
+  `3cfa3997012f02de46cdb4874fef843ce3b8966f`,
+  `cdf4516f463ff966890f7b73016a4e92fa87bc83`,
+  `7b29be99a4a0ef248c51e49f2ac61c6be380ca9f`,
+  `13987f2e08130e382ba257a0a95de6a5259ddfda`
+  and `daafeec74b532c907b5c7a049c5cf7687c87e0eb`.
+  `test:unit` ran on the final head of that round only.
+  Nothing was posted on those commits.
+- `3df86071764a0dc0e208ae06f9a3da0245cf0107` is typed `style` and is a `refactor`:
+  it splits the resolver into steps and takes the stacks through a generator.
+- `86a6fa40b6cd1bffb3f71d914f25256eee201b23` names a role,
+  "the reviewer",
+  where the repository holds none.
+- `494617aa611e4588878c0e8b05221e85aa87fa34` says the chain of forwarders ends at 15.
+  15 is the count of forwarders,
+  and the chain ends after eight rounds that add one or more (B867).
+  The sentence "it ends at those 15" of B867 is corrected there.
+- Four commit bodies of fix round 18 point by position and not by name:
+  `f3d581b26e9c6dccaae864720f06a21bf6afe86f` and `781fab9e753ae3243a0cf8016da0a8a1a0f95cae` say "the preceding commit",
+  `230854fb77a64f42a43ec59d619de18d7d4ba08c` says "the earlier cases"
+  and `e33e81212ab259bbd9575966208d044e76036115` says "the earlier re-check".
+  The ledger sentences that pointed "below" in B867 and B868 name the entry now.
+- `13987f2e08130e382ba257a0a95de6a5259ddfda` says a type is no code and nothing in it is reported.
+  The code reported the specifier of an `import type` of `vm`,
+  and `564f767ad50507e70a91bd09b3c1d8c148d458c9` makes the code agree (follow-up of fix round 19 in B868).
+- Present-tense counts of the real sources in B864 and B869 (1579) are dated to the commits that measured them.
 
 Recurrence:
 `mistake-prevention-guards-searches-and-claims.md`,
