@@ -25,9 +25,12 @@
  is left alone.
 
  FORMS THE SCAN CANNOT FOLLOW ARE FINDINGS OF THEIR OWN, so a reader the scan
- does not see can never pass silently: a default export, a namespace import
- and a dynamic `import()` of a relative path, in a test file or fixture. The
- package's tests use none of them.
+ does not see can never pass silently: a default export, and a namespace
+ import or a dynamic `import()` of a test file or fixture (a source that ends
+ in `.test.ts` or `.test-fixture.ts`), in a test file or fixture. The
+ package's tests use none of them. An import of anything else, such as a built
+ entry under `dist/` or package source, reads no name of a test file or
+ fixture, so there is nothing to follow and it is no finding.
 
  LEFT LOOSE: a nested binding that shadows a top-level name and is then read
  counts as reading the top-level declaration, and two unexported declarations
@@ -528,8 +531,24 @@ function importedNames({ files, }: { readonly files: readonly SourceText[]; },):
 }
 
 /**
- Forms in a file the scan cannot follow: a default export, a namespace
- import, and a dynamic `import()` of a relative path.
+ Whether an import source names a test file or a test fixture, the files whose names the scan tracks.
+
+ @param specifier - text of the import source
+
+ @returns Whether it ends in `.test.ts` or `.test-fixture.ts`
+
+ @example
+ ```ts
+ const tracked = namesTestFile({ specifier: './whisker-fixture.test-fixture.ts', },); // true
+ ```
+ */
+function namesTestFile({ specifier, }: { readonly specifier: string; },): boolean {
+  return specifier.endsWith('.test.ts',) || specifier.endsWith('.test-fixture.ts',);
+}
+
+/**
+ Forms in a file the scan cannot follow: a default export, and a namespace import or a dynamic `import()` of a test
+ file or test fixture.
 
  @param file - file read
 
@@ -547,10 +566,13 @@ function unfollowedFormsIn({ file, program, }: { readonly file: SourceText; read
     .flatMap(function form(node,): readonly string[] {
       if (node.type === 'ExportDefaultDeclaration')
         return [`${file.path}#default export`,];
-      if (node.type === 'ImportNamespaceSpecifier')
+      if ((node.type === 'ImportDeclaration') && namesTestFile({ specifier: literalText({ node: node.source, },), },)
+        && nodesIn({ value: node.specifiers, },)
+          .some(function isNamespace(specifier,): boolean {
+            return specifier.type === 'ImportNamespaceSpecifier';
+          },))
         return [`${file.path}#namespace import`,];
-      if ((node.type === 'ImportExpression') && literalText({ node: node.source, },)
-        .startsWith('.',))
+      if ((node.type === 'ImportExpression') && namesTestFile({ specifier: literalText({ node: node.source, },), },))
         return [`${file.path}#dynamic import`,];
       return [];
     },);

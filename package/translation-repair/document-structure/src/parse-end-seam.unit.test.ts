@@ -64,13 +64,6 @@ function isGrammarNamespace(value: unknown,): value is GrammarNamespace {
 }
 
 /**
- Where the built grammar stands, held in a constant so the dynamic import of `importGrammar` names no relative path: a
- namespace import and a literal relative dynamic import are forms the scan of dead test declarations does not follow,
- and the names this file takes from the namespace are the ones it imports by name from the same module.
- */
-const GRAMMAR_PATH = '../dist/final/node/index.mjs';
-
-/**
  Loads the module namespace of the built grammar, for the call that goes through it.
 
  @returns Namespace
@@ -86,7 +79,7 @@ async function importGrammar(): Promise<GrammarNamespace> {
   /**
    What the loader gave.
    */
-  const loaded: unknown = await import(GRAMMAR_PATH);
+  const loaded: unknown = await import('../dist/final/node/index.mjs');
   if (!isGrammarNamespace(loaded,))
     throw new Error('unreachable: the built grammar holds both parse functions',);
   return loaded;
