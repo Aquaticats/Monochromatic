@@ -2169,6 +2169,21 @@ that is verification, not a decision for the user.
   repository rule against pinning tools it publishes. The `@0.2.7` install in `podman-proof-1796-d.ts` is a test
   fixture inside the throwaway container only (it makes an older install exist so the relink to the newest version
   can be observed), and the proposal's TOML block already says `latest`.
+  Step (1) result 2026-10-25 (`podman-proof-1796-d.ts`, exact TOML block read from the proposal, fresh container HOME,
+  `~/temp/agent/podman-1796d/results.json`): PASSED on the second run. The first run failed with `cargo-binstall found
+  no prebuilt binary` then `cargo install` could not find the crate in crates.io, for both 0.2.7 and 0.2.8, about 62 s
+  each; the crates.io index lists 0.2.7 and 0.2.8 as published and not yanked, a standalone `cargo-binstall
+  --dry-run` and a verbose `mise install` both succeeded immediately after, so the cause is unproven and looks like a
+  transient network failure (do not claim a root cause). Passing run: installing 0.2.7 made `~/.local/bin/git` resolve
+  to 0.2.7 and work; a plain `mise install` installed 0.2.8 and repointed the link to 0.2.8; with the link deleted,
+  `mise install` printed "already installed" and still recreated the link (`when = "always"`); `ls -a` of
+  `~/.local/bin` showed only `git` (the atomic temp-then-move leaves no temporary file). `mise upgrade` itself was not
+  tested. FLAW found in the accepted text during review: the repository's own `mise.toml` entry for the same tool key
+  wins over the global entry inside the repository (mise merges configs, nearest wins), so an upgrade run inside the
+  repository runs only the repository's `postinstall`; the global link, which targets one version directory, would go
+  stale. mise keeps a `latest` symlink in the install parent directory (scratch listing: `latest -> ./0.2.8`, also
+  `0 -> ./0.2.8`, `0.2 -> ./0.2.8`), so a link through it would follow. `podman-proof-1796-e.ts` tests both. The host
+  config is NOT edited yet: the target change deviates from the accepted text, so it goes back to the user first.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
