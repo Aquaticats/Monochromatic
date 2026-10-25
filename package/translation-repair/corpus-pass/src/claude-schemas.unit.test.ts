@@ -102,6 +102,8 @@ import { TEXT_PIN_CASES, } from './claude-schema-text-pin-forms.test-fixture.ts'
 import { TEXT_CALL_CASES, } from './claude-schema-text-call-forms.test-fixture.ts';
 import { TEXT_KEY_CASES, } from './claude-schema-text-key-forms.test-fixture.ts';
 import { TEXT_STATIC_CASES, } from './claude-schema-text-static-forms.test-fixture.ts';
+import { TEXT_ARGUMENT_CASES, } from './claude-schema-text-argument-forms.test-fixture.ts';
+import { KEY_COLLISION_CASES, } from './claude-schema-key-collision-forms.test-fixture.ts';
 import { UNREAD_CALLBACK_CASES, } from './claude-schema-callback-unread-forms.test-fixture.ts';
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
@@ -870,6 +872,8 @@ await describe({
       ...TEXT_CALL_CASES,
       ...TEXT_KEY_CASES,
       ...TEXT_STATIC_CASES,
+      ...TEXT_ARGUMENT_CASES,
+      ...KEY_COLLISION_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
@@ -967,6 +971,8 @@ await describe({
       ...TEXT_CALL_CASES,
       ...TEXT_KEY_CASES,
       ...TEXT_STATIC_CASES,
+      ...TEXT_ARGUMENT_CASES,
+      ...KEY_COLLISION_CASES,
       ...UNREAD_CALLBACK_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
