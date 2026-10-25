@@ -223,6 +223,17 @@ which lists every file of these commitments.
   at its end (`page-check/src/corpus-run/source-ships-open-flow.ts`),
   since the strict grammar would end it at the next run's line
   and leave the text after that line outside it as code.
+  A carriage return that is not part of a Windows line ending is a line ending to the grammar,
+  and the readers of the encoder split lines on the line feed alone.
+  A run written as literal text therefore has each such carriage return written as a line feed
+  (`foldLoneCarriageReturns` in `page-check/src/corpus-run/source-ships-readable.ts`,
+  applied once where the encoder takes the text in, same length, so every offset stands),
+  and the checks that decide which runs are written so read the run folded in the same way.
+  A Windows line ending stays as it is,
+  and a run shipped as recorded keeps every ending it has.
+  The corpus reader folds CRLF to LF at the read (`slice-reading/src/line-endings.ts`)
+  and leaves a lone carriage return alone,
+  so the fold changes no page that the corpus brings today.
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,

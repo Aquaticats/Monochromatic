@@ -129,6 +129,12 @@ named for that subject and listed here.
   the sixth round after the re-check of round 4,
   and the seventh round,
   the module lines from the tokenizer and the footnote reading (B832 follow-ups).
+- [Audit ledger: the source text under a note, the ninth round of follow-ups](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md):
+  Lone carriage returns as line endings,
+  the sampled live-construct check over a wider pool at one pair in four,
+  the full pass over every pair and text,
+  the walk fixture's hook in the grammar,
+  and the limits and mutants of the round (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.
