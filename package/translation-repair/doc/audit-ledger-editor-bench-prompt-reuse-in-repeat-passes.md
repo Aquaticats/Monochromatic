@@ -315,7 +315,8 @@ and each was ruled a fix.
   the corrective comment on `1dba616f89e67b71c1ba18e054caed921021188b` is posted by the lead.
 - Nit 3:
   the commit list and the break of the scan B79 are in the section on the round 11 commits.
-  The fixes of this round broke the same scan a second time (see the section on the second break of that scan in round 13).
+  The fixes of this round broke the same scan a second time
+  (see the section on the second break of that scan in round 13).
 - Nit 4:
   the pointer by position names its heading.
 - Nit 5:
@@ -332,7 +333,8 @@ and each was ruled a fix.
 - Nit 7:
   see the section on the limit of the reuse check.
 
-The README went back under its bound by moving its paragraph on the smallest difference at 60 shared units to the simulations doc
+The README went back under its bound by moving its paragraph on the smallest difference at 60 shared units
+to the simulations doc
 and by cutting its restatement of the readings above 0.90,
 which the rule's text and the doc hold.
 
@@ -349,7 +351,7 @@ and the TSDoc of `spendGuardedClient` and the comment at the branch say so.
 
 ### Prevention of round 12
 
-[Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md)
+[Preventing mistakes: spend guards and the attempts a client makes][prevention]
 holds the rule:
 a repeat measurement proves that each repeat made its own call.
 
@@ -358,10 +360,16 @@ a repeat measurement proves that each repeat made its own call.
 The independent re-check of round 12 (`editor-recheck9.md`) found no major,
 one minor and six nit,
 and each was ruled a fix.
-The build the high arm runs is the frozen copy of `85e21653a2ebb055ee807a6edc2fdf1248073abc`,
+The build the high arm runs is the frozen copy of `85e21653a2ebb055ee807a6edc2fdf1248073abc`
+(the section on round 14 says how that copy is named),
 and the code changes of this round are in the read step only:
-`unusableWarning` and the TSDoc of `isReuseBody`,
-neither reachable from the entry the arms run (`editor-fidelity-probe`).
+`unusableWarning` and the TSDoc of `isReuseBody`.
+The built closure of the entry the arms run (`editor-fidelity-probe`) is the same in a build of that commit
+and in a build of this round's head,
+so the frozen copy runs what the head runs
+(the section on round 14 holds the measurement;
+this paragraph first said the changed code was not reachable from the entry,
+which is false of the file that holds `isReuseBody`).
 
 - Minor 1:
   the pre-launch block's subtraction of the `estimated=` lines is right only for the billed log.
@@ -444,7 +452,82 @@ The messages of those commits do not say so.
 
 ### Prevention of round 13
 
-[Preventing mistakes: spend guards and the attempts a client makes](mistake-prevention-spend-guards-and-client-retries.md)
+[Preventing mistakes: spend guards and the attempts a client makes][prevention]
 holds the limit of the guard on a client given as itself
 and the lesson of the scan:
 run the source scans before the first commit of a test that imports a fixture writer.
+
+## Round 14: the findings of re-check 10
+
+The independent re-check of round 13 (`editor-recheck10.md`) found no major,
+no minor and six nit,
+and each was ruled a fix.
+The code commits, oldest first:
+
+- `c91ba55fac66b02d5e8c4acbe2d29a2163bcd086`:
+  red for nit 4.
+- `bda28a5e72564956941c3e9594ec7a241fd3daf3`:
+  the fix for nit 4.
+- `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`:
+  the lines over 120 characters wrapped in the two TypeScript files this round touches.
+
+The commit that holds this section changes the README and this ledger only.
+
+- Nit 1:
+  the claim that the changed code is not reachable from the entry is withdrawn.
+  `editor-fidelity-arm-facts.ts` holds `isReuseBody` and `reusedRowFlags`,
+  and `editor-fidelity-decide.ts`, which the entry reaches, imports it;
+  its change was a TSDoc line that the bundler strips.
+  The claim now rests on the measured fact.
+  Two scratch copies of the probe package were built with `rolldown` and the package's own config,
+  one from the source of `85e21653a2ebb055ee807a6edc2fdf1248073abc`
+  and one from `a7c9ce80db9b4af0f9b984cd85dc10928256ee4c`
+  (the source of this round's code; the commit after it changes Markdown only).
+  The import closure of the built entry `editor-fidelity-probe.mjs` is nine files in each,
+  with the same names,
+  and all nine are byte for byte the same.
+  Neither `index.mjs` nor `editor-fidelity-read.mjs` is in the closure.
+  Those two differ between the builds, and so does `index.d.mts`, which carries the TSDoc,
+  and nothing else differs.
+  A high arm run from a frozen build of `85e21653a2` therefore runs the entry code of this head.
+- Nit 2:
+  the README blocks read `SHA` from `git rev-parse --short=10 HEAD`.
+  The prepare block of the high arm ran with the HEAD of the worktree the arm runs from at `85e21653a2`,
+  so the frozen copy and the bench directory are named for `85e21653a2` with no rename,
+  and the launcher pins `SHA=85e21653a2` so a later checkout cannot rename the directory.
+  The README now tells the operator to write the prepare block's `SHA` value into the later blocks
+  when `HEAD` may move between arms, in place of reading `HEAD` again.
+- Nit 3:
+  on a log with no `PROMPT-REUSE` line and no `GUARD total=` line,
+  the pre-launch block died in `awk` with `division by zero` (exit 2).
+  It now refuses with `no GUARD total= line in <log>, so the spend is unknown` on standard error and exits 1.
+  Run in a fresh `bash --noprofile --norc` shell on the logs of re-check 10:
+  the log with no guard line exits 1 with that message and nothing on standard output;
+  the billed log gives 0.0071 USD a unit, 88 units left, medium 2487 and low 2064;
+  the constructed new-build log gives 0.0095 USD a unit, medium 1861 and low 1545;
+  the dry run's log,
+  the billed log with three `abandoned-bound` lines and the log with one reuse line still refuse as before.
+- Nit 4:
+  `unusableWarning` wrote `3 of -1 units, over 10 percent` for a log whose pooled `EDITOR` line states
+  unusable and refused counts but no count of units.
+  It now writes `unusable plus refused is 3 of an unknown number of units (the log states none)`,
+  says nothing when none are unusable or refused,
+  and keeps the share rule for a known count.
+  The case that the fix commit of round 13 (`b84403bb13fa1c0de816558491dbafa21f6fa8d1`) came with
+  asserts no warning when nothing is unusable or refused,
+  and was named for warning of no units;
+  it is renamed to what it asserts.
+  The new case failed at its parent after a rebuild (the tests read `dist`),
+  with the actual line `is 5 of -1 units, over 10 percent`
+  and 2 failing lines (the case and its suite),
+  after its positive control (the whole log warns `5 of 40 units`) passed.
+- Nit 5:
+  the lines over 120 characters are wrapped in the files this round touches:
+  the ledger (four lines, two of them links that became reference links),
+  the README (two code lines of the pre-launch block),
+  and the two TypeScript files.
+  The README has 999 lines.
+- Nit 6:
+  the commit messages named by re-check 10 are listed in the fixer report of round 14 and nothing is posted.
+
+[prevention]: mistake-prevention-spend-guards-and-client-retries.md

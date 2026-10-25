@@ -537,8 +537,12 @@ and every block that reads the logs begins with the two lines that name the benc
 `SHA` and `BENCH`,
 as the prepare block does.
 `SHA` is the ten characters of the commit the bench runs at,
-so do not commit between the prepare block and the last arm,
-or `SHA` names another directory.
+and the frozen copy and the bench directory are named for it.
+The blocks read it from `HEAD`,
+so a commit,
+a checkout or a merge between the prepare block and the last arm makes `SHA` name another directory:
+when `HEAD` may move,
+write the prepare block's `SHA` value into the later blocks in place of the `git rev-parse` line.
 
 ```bash
 # README.md (editor fidelity bench): prepare, once, at the commit the bench runs
@@ -593,8 +597,7 @@ because the first arm decides how many units the bench has.
 `--max-usd 24` and `--passes 3`,
 which walks the whole pool three times,
 pass by pass
-(264 units,
-the trials of the pool asked three times each).
+(264 units, the trials of the pool asked three times each).
 If the guard ends it before the passes are done,
 it prints a `CAPPED at unit k` line,
 keeps the rows it finished and exits 0;
@@ -602,8 +605,7 @@ that is a shorter bench and not a failed arm.
 Each arm is the same command with its own name,
 card,
 cap,
-`--bench-spent-usd`
-and trials flag,
+`--bench-spent-usd` and trials flag,
 which the block sets from `ARM` on its first line.
 For `medium` and `low` it reads n from the high log
 (the section "Medium and low" says how to take one pass in place of three)
@@ -722,7 +724,8 @@ fewer than cap / s,
 for reasons the simulations doc gives in its section on the units a cap buys.
 The spend a unit is over the units that made a call.
 For a log with no `PROMPT-REUSE` line it is the `GUARD total`,
-which books no reuse.
+which books no reuse,
+and the block refuses a log that has no `GUARD total=` line.
 A log of the billed build books each reuse at its ceiling,
 so its spend is the `SPEND` lines without `estimated=`
 (0.0071 USD a unit over 88 calls where the `GUARD total` reads 0.27),
@@ -743,10 +746,15 @@ REUSED=$(rg --only-matching 'PROMPT-REUSE source=' "$BENCH/high.log" | wc --line
 THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
 if [ "$REUSED" -eq 0 ]; then
   HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
+  if [ -z "$HIGH" ]; then echo "no GUARD total= line in $BENCH/high.log, so the spend is unknown" >&2; exit 1; fi
 else
   CEILINGS=$(rg --only-matching ' SPEND provider=.* estimated=' "$BENCH/high.log" | wc --lines)
-  if [ "$CEILINGS" -ne "$REUSED" ]; then echo "$CEILINGS SPEND lines at a ceiling for $REUSED reuses: the log does not tell the spend" >&2; exit 1; fi
-  HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) { micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) } END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
+  if [ "$CEILINGS" -ne "$REUSED" ]; then
+    echo "$CEILINGS SPEND lines at a ceiling for $REUSED reuses: the log does not tell the spend" >&2; exit 1
+  fi
+  HIGH=$(awk '/ SPEND provider=/ && !/ estimated=/ && match($0, /cost=[0-9.]+/) {
+    micro += int(substr($0, RSTART + 5, RLENGTH - 5) * 1000000 + 0.5) }
+    END { printf "%.6f\n", micro / 1000000 }' "$BENCH/high.log")
 fi
 echo "$HIGH $N $THREW $REUSED" | awk '{ calls = $2 - $4; per = $1 / calls; left = calls - $3; reserve = 0.377;
   m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
@@ -870,11 +878,8 @@ and weigh it against its cost before changing the default effort.
 
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.
-The checks are the exit status,
-the manifest line,
-the pool line,
-the planned line,
-the ceiling line,
+The checks are the exit status, the manifest line, the pool line,
+the planned line, the ceiling line,
 the guard line (with the `--bench-spent-usd` it states),
 the arm's `EDITOR` line,
 the row count against the units it completed
@@ -882,16 +887,16 @@ the row count against the units it completed
 and a failure for a row a `PROMPT-REUSE` line stands in front of,
 which made no call and is no trial),
 no `[error]` line,
-the `SEAT` line (`threw` stated,
-nothing unreachable,
-no withheld or dark seat),
+the `SEAT` line (`threw` stated, nothing unreachable, no withheld or dark seat),
 the identity of the `SPEND` lines' sum with the `GUARD total=`,
 and that every row line states how its asks ended.
 A unit in which an ask ended at the output-token cap or threw fails no arm:
 the first scores as unusable for its arm
 and the second is left out of every arm and counted.
 A `WARN` line says that more than a tenth of the units of an arm were unusable or refused
-(`WARN low: unusable plus refused is 5 of 40 units, over 10 percent`).
+(`WARN low: unusable plus refused is 5 of 40 units, over 10 percent`),
+or that some were while the log states no count of units
+(`WARN low: unusable plus refused is 5 of an unknown number of units (the log states none)`).
 On that line the verdict stands as the rule computes it,
 since a unit that yielded no edit scores as not fixed for its arm.
 The lead reads the `ARM` and `STOPS` lines of that arm for how many units ended at the output-token cap,
@@ -903,17 +908,14 @@ and a verdict against an effort whose arm lost them
 or high or low picked while medium lost units)
 is reported as owed in part to the lost units and not wholly to worse edits.
 Across the arms the checks are
-three or four distinct logs at the cards high,
-medium,
-(a second medium if run)
-and low in the order run,
+three or four distinct logs at the cards high, medium,
+(a second medium if run) and low in the order run,
 each arm's stated `--bench-spent-usd` at least the `GUARD total=` of the arms before it,
 each later arm having walked the first arm's units in the first arm's order,
 the same manifest digest in every one,
 a bench total under 60 USD,
 and at least 60 units shared by every arm
 (a unit is a trial in one pass over the pool).
-
 
 ## Family dependencies
 
