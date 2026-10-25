@@ -154,6 +154,54 @@ Follow-up of fix round 19
   which states that a type-only import or export is not read,
   and a case holds it.
 
+Follow-up of fix round 20
+(red commit before each fix):
+
+- Text made by the `vm` module is told through a pattern,
+  the global object and the contextify binding
+  (red `482aadc10d64bbd530dfcbcbd4f500686b244a87`,
+  fix `f8b0868f52a247e274791c71e81ae995a68b3d6b`).
+  A call of `getBuiltinModule` with the specifier of `vm` is told when the callee path ends in `process`,
+  `getBuiltinModule`,
+  so `globalThis.process.getBuiltinModule("vm")` is reported,
+  and `loader.getBuiltinModule("vm")` still is not.
+  A pattern that takes `getBuiltinModule` out of a value (`const { getBuiltinModule, } = process`) is reported
+  where it sits,
+  since the function is then called by a free name that no read of the file tells from another call;
+  a pattern on another object is reported too,
+  which fails closed.
+  A call of `binding` or `internalBinding`,
+  read off any object or called by a free name,
+  with the string `contextify` is reported:
+  that binding makes the scripts of `vm.Script` without the module.
+  Re-check 18 found these three silent (TX-06,
+  TX-10 and the `contextify` variant of G09,
+  the `natives` binding that G09 used runs no code).
+  Stated limits that stay,
+  each with a case or a reason:
+  a loader that `process.getBuiltinModule` was assigned to and is called by another name
+  (`const load = process.getBuiltinModule; load("node:vm")`,
+  held by a case),
+  a specifier that is a variable,
+  a key of `constructor` that is no literal,
+  a pattern that takes `constructor` out of a value,
+  and the keys that `Reflect.ownKeys` lists.
+  The search reads names and does not follow what a constant holds.
+- Two places that the check reported and that cannot send a schema or run text are accepted
+  (red `6255705962162aa033fd53579d06d5a7cced8d98`,
+  fix `ca8630c191a8060874ed85a5d3f1ad5bb3e7d39b`).
+  A member written as a template literal with no substitution is the same string as one written in quotes,
+  so ``sender[`gatherThroughCache`](...)`` is a send as ``sender["gatherThroughCache"](...)`` was,
+  and ``[`call`]`` is the `call` method.
+  `memberNameOf` of the corpus-pass fixtures reads it;
+  `memberName` of source-scan is not changed,
+  because many scans of the package use it with their own controls.
+  A template with a substitution still names no member the search can read.
+  An import-equals declaration with the type mark (`import type Typed = require("node:vm")`) loads nothing,
+  as the import and export declarations with the type mark do.
+  Two conditions of the new code that no input reaches were removed
+  (`c20e309953903a7962ed6637651dd6c839a1ef91`).
+
 Prevention rule:
 a whitelist that anchors at the module-load boundary also lists the ways to build a loader,
 and a specifier it cannot resolve is a place it does not understand.
@@ -288,7 +336,10 @@ Follow-up of fix round 18:
   The four:
   a node that is no function never forwards.
   A spread callback has the same empty name either way.
-  A value used as the key of a computed member names no method.
+  A value used as the key of a computed member names no method
+  (true for a call with no function written as an argument and false for one with it:
+  the mutant is not equivalent,
+  and fix round 20 kills it).
   A non-name `export =` exports nothing.
   The runs were sequential
   in a user unit capped at 6 GiB of memory and 200% of the CPU.
@@ -354,7 +405,7 @@ Follow-up of fix round 19
   That code is gone
   (`e36c5efdac444aeb75f497753631400c9782f1c7`).
   The last was the bound of rounds,
-  which the next paragraph replaces.
+  which the bullet on the mutant that drops the test for a function already found replaces.
 - The mutants of re-check 17 that survived are killed:
   `g ||= other` and `g ??= other` by two cases that assign the held sender,
   `namespace gatherThroughCache.Inner` inside a namespace by a case that reports the call,
@@ -455,8 +506,10 @@ The change is to test fixtures and to the files of the check.
 The search over the commits of this fix prints nothing:
 
 ```sh
-# package/translation-repair, over edf6323eb3..HEAD
-git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' edf6323eb3..HEAD -- package/translation-repair
+# package/translation-repair, over edf6323eb3..b3eda4996e (the commit that closed the fix)
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
+  edf6323eb3..b3eda4996e706fcc81fc131e24240beb858527e6 \
+  -- package/translation-repair
 ```
 
 The same search over `c265e8df95~1..c265e8df95` prints one line,
@@ -464,7 +517,8 @@ so the search can print.
 
 Cache versions in fix round 17:
 none moved.
-The search over `b3eda4996e..HEAD` for `package/translation-repair` prints nothing,
+The search over `b3eda4996e..f79b4ac335` (the commit that closed the fix) for `package/translation-repair`
+prints nothing,
 although the range spans the merge of `origin/main` with the commits of the `ide` package,
 and the same search without the path prints nothing either.
 The same search over `c265e8df95~1..c265e8df95` prints the commit that moved `SLICE_CACHE_VERSION` from 43 to 44,
@@ -553,6 +607,192 @@ although the range spans the merge of `origin/main` with 247 of its commits:
 # package/translation-repair, over 6b7244fbb8..ad9daff2a2
 git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
   6b7244fbb8d243387b3a9ed6ccbecae3bac420fe..ad9daff2a2c0816ec7abf8811a669d91290ede21 \
+  -- package/translation-repair
+```
+
+The same search over `c265e8df95~1..c265e8df95` prints `c265e8df9525f4513b8229482d3e8d932ea630df`,
+so the search can print.
+
+Follow-up of fix round 20
+(red commit before each fix,
+except the pins):
+
+- The mutant table has 356 rows on `c20e309953903a7962ed6637651dd6c839a1ef91`:
+  the 291 of round 19 that still apply (nine of them at a new anchor,
+  because the code of this round moved the text),
+  17 of the 19 mutants of re-check 18
+  (the two that compared no file and no position are the rows S20-01 and S20-02 now),
+  and 48 for the branches and comparisons this round added.
+  The one row of round 19 whose code is gone is the throw in the search for forwarders (R19-N6a).
+  341 rows were killed by a failing case.
+  One was killed by not ending (N-R3e:
+  no exit within 300 s),
+  as it was in round 18.
+  14 survived.
+  Eight are equivalents argued in fix rounds 17 and 18:
+  X3,
+  X3b,
+  X11,
+  N-R5w,
+  N-R5x,
+  N-R3f,
+  Y-F5r and Y-E1g.
+  Each was run again with its control on a copy of the head and on a copy with the mutant,
+  and the output is the same
+  (N-R5w differs in the count of loader entries,
+  2 against 7,
+  and in nothing else:
+  the files found and the reports are the same),
+  and the mutant that changes the same control gives a different output.
+  Six were live and are killed by the cases of `48c96b8e229c3adf016fafe67e39ab3933bb84e7`:
+  a member as the target of an array pattern (S20-16),
+  of a rest element (S20-17),
+  and with a default inside an assignment pattern (S20-18),
+  a storing method written under a non-null assertion (S20-31),
+  a call of another function with the string `contextify` (S20-40),
+  and another method of `process` called with `vm` (S20-42).
+  They are killed by 2,
+  1,
+  1,
+  1,
+  1 and 1 cases.
+  The runs were sequential in a user unit capped at 8 GiB of memory and 800% of the CPU.
+- Y-F5v is not equivalent.
+  The argument of round 18 held for a call with no function written as an argument
+  and not for one with it:
+  the empty name of a key that is no method is in no entry of `VALUE_PARAMETERS`,
+  so `callbackOf` takes the branch that reports a function written as an argument.
+  `holder[contestResponseFormat(args)](() => 1)` is accepted by the head,
+  the mutant that asks every member holding the value for a callback reports it,
+  and the missing input is the case of `3b47f21768905ddea009bc02d60d07ea41c2d526`.
+  The two mutants of re-check 18 on the loop heads
+  (`for...in` is no link,
+  and a target assigned without a declaration binds nothing)
+  are killed by the cases of the same commit,
+  by 2 and 4 cases in the table.
+  The ten survivors of round 19 are eight now:
+  Y-F5v is killed,
+  and the throw whose code is gone leaves the table.
+- The adversarial inputs were run on the head of this round and on the three heads it is compared with.
+  The 430 inputs of re-check 17 and before are silent 173 times at `b6540001c6c69b843a69f4e7ba9cf13e0b37ae26`,
+  64 at `6b7244fbb8d243387b3a9ed6ccbecae3bac420fe`,
+  20 at `a50897193205a09db7f3a3d3af7ed6db9815492c`
+  and 20 at the head,
+  the same 20.
+  The 260 of re-check 18 are silent 126,
+  104,
+  43 and 32 times,
+  and its 7 probes 6,
+  0,
+  0 and 0 times.
+  46 inputs of this round,
+  the shapes of the container flows and their neighbours and the members written as templates,
+  are silent 29,
+  26,
+  26 and 1 times;
+  the one is the alias of an object,
+  a stated limit.
+  No input throws.
+  One input is silent at the head and was not at the three heads:
+  X3-09 of re-check 18,
+  ``(gatherThroughCache as any)[`call`](null, ...)``,
+  whose expectation was a report.
+  The member is the `call` method now,
+  as ``['call']`` was (re-check 18 corrected X3-06 the same way),
+  so the answer changed with the template fix and the expectation is the one that was wrong.
+  Twelve inputs of re-check 18 that were silent are reported now:
+  DN-01 to DN-05,
+  DN-09 and DN-25 (the container flows and the class field),
+  V-A12-object-field,
+  TX-06 and TX-10 (the pattern and the global object),
+  and V-G09-contextify and V-G09-internalBinding (the contextify binding).
+  X3-09 is the one added,
+  so 32 of the 260 are silent where 43 were.
+  The rest of the 32 are the inputs re-check 18 judged wrong,
+  the stated limits (a field of `this`,
+  an alias of `Reflect`,
+  a variable as the specifier or as the name of a binding,
+  keys that are no literal)
+  and imports of node:module,
+  which load nothing that runs text.
+- The 1689 real sources give one report,
+  the named place of B867,
+  which now holds the name `settleEntry`,
+  and 15 forwarders with the same callers in eight rounds that add 3,
+  2,
+  2,
+  2,
+  2,
+  2,
+  1 and 1 forwarders,
+  the ninth adding none.
+  The variants of `corpus-pass.ts` that re-check 18 ran leave one report each after the name.
+- `origin/main` is still `b6927f7ba93f5139fa0605ef160c6f44c60fa32d`,
+  merged in `ad9daff2a2c0816ec7abf8811a669d91290ede21`,
+  so this round has no merge.
+  In corpus-pass `build`,
+  `lint:types` and `lint:oxlint` (0 warnings,
+  0 errors) pass,
+  and `test:unit` has 220 markers of pass and none of fail.
+  In source-scan `test:unit` has 68 markers of pass and `source-scans` has 53,
+  with none of fail in either.
+
+Records corrected in fix round 20:
+
+- `49cc0602d3d9d05d4017a1b64871bffa03f8f24c` says "the 1620 real sources give the one named report of the commit before
+  this one".
+  The commit before it is the red commit `7e987c281d6d1fa6ed41046c52842198c82e5d92`,
+  and the named report is that of `8039afa5afa902895438f338688bd82332801c5a`:
+  a wrong referent,
+  and a word that points by position.
+- `c03b9f77c843fff3dd2ff1ca5b244120fafa53f4` says "the suite fails fast when the test is removed".
+  `757f5a4d601b6c04bea2a97d9e9d93ba374d3e89` refutes it:
+  the bound by the count of declared functions was 4710 rounds that each read every file,
+  and the mutant still ran past 300 s.
+  The follow-up of fix round 19 in B869 records the failure and did not list the commit among the records.
+- `757f5a4d601b6c04bea2a97d9e9d93ba374d3e89` says a round "now throws when a function it adds is one an earlier round
+  added,
+  which is the cause of a search that never ends".
+  No input of its head reaches that throw,
+  and `3ba7fcb5205a461614a90b750d04aa0d5baf85fe` removes it.
+  The sentence of the follow-up of fix round 19 that the mutant is "killed by 86 cases in the first round that repeats a
+  function" held for the code of that commit and not for the head of this round:
+  the mutant is killed by not ending again.
+- `d3e62082d4d9a11d115eedb94f19de41291394cf` says "the three forms of the middle function that re-checking found",
+  which is a review label.
+  The scan of fix round 19 looked for the word "re-check" and missed "re-checking".
+  Its unsaid red `lint:types` is recorded in fix round 19.
+- `e14cc1c962051aa6e3e24ec082a172dc82dd1bbf` and `c1f5aeca8da411c03883fd08a2dbc85da6925389` say `lint:types` and
+  `lint:oxlint` pass on the tree of the fix,
+  in the body of a commit written before that tree existed.
+  Re-check 18 ran both and found the statement true.
+- Re-check 18 checked the claim of fix round 19 that each red commit leaves only the schema suite red by reading the
+  trees (every named import of the added cases is exported there and every shape is in the union of the report type) and
+  not by running `tsc`.
+  It found `d3e62082d4d9a11d115eedb94f19de41291394cf` the only one that names a shape the type lacks.
+  The red commits of this round state the measured exit of `lint:types` in their bodies,
+  and each was 0 on its tree.
+- `3b47f21768905ddea009bc02d60d07ea41c2d526` says "the code of the last fix round" and
+  `c20e309953903a7962ed6637651dd6c839a1ef91` says "the last two fixes":
+  both point by position.
+  The first means fix round 19,
+  and the second means `f8b0868f52a247e274791c71e81ae995a68b3d6b` and `ca8630c191a8060874ed85a5d3f1ad5bb3e7d39b`.
+- The red commit `a3aef2b33efa77395fe4ec47c6ccb13a0a5ba7c3` added a line of a doc comment wider than 120 columns to a
+  `claude-schema*` file,
+  the slip of the two lines that `6b8ced38a5a11793c52ff0895bf53d8c75fe9234` wraps.
+  `83d4677bb572ad7220fa3ef85bdb167e12aaadae` wraps it.
+- Nothing is posted on these commits.
+
+Cache versions in fix round 20:
+none moved.
+The search over `a50897193205a09db7f3a3d3af7ed6db9815492c..48c96b8e229c3adf016fafe67e39ab3933bb84e7`
+for `package/translation-repair` prints nothing,
+and the same search without the path prints nothing either:
+
+```sh
+# package/translation-repair, over a508971932..48c96b8e22
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
+  a50897193205a09db7f3a3d3af7ed6db9815492c..48c96b8e229c3adf016fafe67e39ab3933bb84e7 \
   -- package/translation-repair
 ```
 

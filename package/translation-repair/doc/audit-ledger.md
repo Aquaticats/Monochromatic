@@ -295,7 +295,8 @@ named for that subject and listed here.
   and a prevention rule that replaces the one of B864 (B865),
   then a mutant called equivalent by an argument (B866),
   and a third total for where a builder's result goes (B867).
-- [Audit ledger: the check over the schema sources, code the search cannot read and the mutants that survived](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md):
+- [Audit ledger: the check over the schema sources, code the search cannot read and
+  the mutants that survived](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md):
   Code the search cannot read and specifiers the check cannot resolve (B868),
   and four surviving mutants with the cases they called for (B869).
   It continues B865 to B867.

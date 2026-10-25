@@ -214,8 +214,10 @@ The change is to test fixtures.
 The search for a moved cache version over the commits of this fix prints nothing:
 
 ```sh
-# package/translation-repair, over 6cc75dfbc9..HEAD
-git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 6cc75dfbc9..HEAD -- package/translation-repair
+# package/translation-repair, over 6cc75dfbc9..ade546868d (the commit that closed the fix)
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' \
+  6cc75dfbc9..ade546868dc2c2ceaef4b87357a46c4390f2725e \
+  -- package/translation-repair
 ```
 
 The same search over `c265e8df95~1..c265e8df95` prints one line,
@@ -680,6 +682,11 @@ Follow-up of fix round 19
   This is a design choice that is open to the owner's veto:
   the alternatives are to report the place and change the source so that no forwarder is handed over as a value,
   or to read the callers of `input.settle` as callers of `settleEntry`.
+  Fix round 20 keeps the place named,
+  makes the name hold the function as well as the file,
+  the shape and the position,
+  and makes a place stand for one report
+  (follow-up of fix round 20).
 - A parameter property and a target under a type mark bind their names
   (red `9b11871b4291139f4eae5e265c262d63023a83ad`,
   fix `d54c1c4da72109841db003ad6f7c08fdb850af60`).
@@ -713,6 +720,9 @@ Follow-up of fix round 19
   A case holds the first,
   and a second case holds that a value no name of the parameters reaches lists nothing.
   No case holds the second.
+  Fix round 20 reads the objects a value is stored in
+  (follow-up of fix round 20),
+  and the field of `this` stays a limit.
 - A callback written as a name is read as the function the file declares
   only when no scope around it binds the name again
   (red `7c71cccda8146b66e556c9e541551428445ff68b`,
@@ -749,6 +759,10 @@ Follow-up of fix round 19
   and a round that adds one after that throws with a message.
   Fix round 18 saw the mutant that drops the test for a function already found as a hang
   and counted it killed by not ending.
+  Fix round 20 removes the throw,
+  which no input could reach,
+  and the mutant is killed by not ending again
+  (follow-up of fix round 20).
 - The rounds were measured on a copy of the head with a line that prints what each round adds,
   over the 1620 real sources:
   eight rounds add 3,
@@ -763,6 +777,151 @@ Follow-up of fix round 19
   The chain is eight hops long and holds 15 forwarders.
   Fix round 18 wrote "15" for the length of the chain,
   and 15 is the count.
+
+Follow-up of fix round 20
+(red commit before each fix,
+except the pins,
+which are green because the code was right
+and the suite lacked the input):
+
+- The named place of fix round 19 is kept and fails closed
+  (refactor `88bc09529ac298002e797c3eee7467019d66c5cd`,
+  red `3ae45971fd760da211570b232b27dbe41216ae5d`,
+  fix `fbab5f01f19115dda54083b90b36a825467a6786`).
+  It was named by file,
+  shape and position,
+  so it also stood for a second forwarder handed over beside the first,
+  for the same forwarder handed over under a second key,
+  and for every other report at that position in that file.
+  Measured on the 1689 real sources with `corpus-pass.ts` edited:
+  a second forwarder as another property of the same object gave two reports and none left after the name,
+  and so did the same forwarder under a second key.
+  A report of a forwarder read in a place that is no call now holds the name of the function
+  as it is declared where it is declared (`held`),
+  so an import under another local name and a member of a namespace give the same name,
+  and the name of the place holds `settleEntry`.
+  The name is compared in all four parts,
+  and a place stands for one report:
+  each report is matched with the first place still free that stands for it,
+  and a second report that agrees in every part stays.
+  The reports of a forwarder are kept once for each node and no longer once for each line,
+  because two forwarders on one line were one report
+  and the name could stand for the one that hid the other.
+  On the same real sources the variants now leave one report each:
+  a second forwarder as another dependency,
+  on the line of the first,
+  as a callback,
+  and the same forwarder under a second key on another line and on the same line;
+  a move of the place to another line leaves none.
+  Negative cases hold each part:
+  a report in another file,
+  of another shape,
+  at another position,
+  of another function,
+  or holding a function where the name gives none is not named and leaves the name stale;
+  a move to another line keeps the name;
+  two names for one report leave one stale.
+  Eight cases over imaginary files hold the whole path from the report to the name,
+  among them an import under another local name and a member of a namespace import.
+  Two mutants of re-check 18 that compared no file and no position survived the suite;
+  the table of this round has them as S20-01 and S20-02,
+  with S20-03 (no shape) and S20-04 (no function),
+  and they are killed (B869).
+  The coordinator ruled on 2026-10-25 to keep the place named and to make it fail closed,
+  and the choice stays open to the owner's veto.
+- The check does not follow the type of the dependency or the object literal at the site,
+  and the reasons are measured.
+  Reading the type of the parameter (`input: CorpusPassInput`,
+  then the member `settle: typeof settleEntry`) needs readers for type positions,
+  which the check leaves out on purpose,
+  and it breaks where the member is a structural function type,
+  a `ReturnType`,
+  an intersection,
+  a `Pick`,
+  a generic,
+  or inferred.
+  Reading the object literal handed to a declared function needs an analysis of what happens to the parameter,
+  and `corpus-pass-run.ts` spreads it into a second call (`runCorpusPassOver({ ...input, })`),
+  a place the analysis would have to understand or fall back from.
+  The census of the real sources shows one site where a forwarder is handed over as a dependency.
+  The site-side follow is built when a second dependency-injected forwarder appears,
+  with the report kept as the fallback,
+  and the named place is deleted then.
+- The names made from a function's parameters follow the objects a value is stored in
+  (red `a3aef2b33efa77395fe4ec47c6ccb13a0a5ba7c3`,
+  fix `67808b5df75077b4153dc0169a3993bd2c1ed091`;
+  red `1268dfe21e1b8c9be110968d2508f3dca0c87fa8`,
+  fix `d0e3217f526770d3d67910cd33bc7d9f5d2c9868`).
+  The first name of the object becomes a name made from the parameter
+  when a value made from one is stored in it by an assignment to a field,
+  an index or a field of a field,
+  by a member as the target of a pattern or of a loop head,
+  by `add`,
+  `append`,
+  `fill`,
+  `push`,
+  `set`,
+  `splice` or `unshift`,
+  or by `Object.assign`,
+  `Object.defineProperty` or `Object.defineProperties`
+  (the first argument).
+  A class declaration and a function declaration inside the function hold what they read,
+  so a field made from the parameter reaches `new Box().a`
+  and a function that returns the parameter reaches `inner()`.
+  The default of a pattern is a value the pattern takes
+  (`const { a = args, } = {}`).
+  The first name is linked once any such value is stored,
+  whichever field the builder call reads,
+  which is wider than the stored field and fails closed:
+  more callers are listed,
+  none fewer.
+  Re-check 18 found seven of these silent
+  (a field of a local object,
+  an index,
+  `push`,
+  `Object.assign`,
+  `Map.set`,
+  a class field and a default of a pattern);
+  the function declarations were found while fixing them.
+  Four flows are not followed,
+  each with the reason and a case that holds it.
+  A call of a function or a method outside the list may store its arguments in an object it receives
+  (`store(holder, args)`,
+  `holder.put(args)`),
+  and reading it would need the body of every function and method the call can reach.
+  Another name for the object (`const alias = holder; alias.a = args`) stands for one object
+  that the search does not know to be one.
+  A value that one function stores in an object of the module and another function builds from
+  is a flow through the heap between two functions,
+  and the walk of one function does not see it.
+  A field of `this` stays the limit of fix round 19.
+- The loop heads and a callback have the pins re-check 18 asked for
+  (`3b47f21768905ddea009bc02d60d07ea41c2d526`):
+  a `for...in` over the parameter that builds from the key alone,
+  a `for...of` and a `for...in` that assign a name declared before the loop,
+  a `for...of` whose head is an array pattern,
+  and a builder's result as the key of a computed member that is called with a function.
+  The cases are green on the parent,
+  because the code was right.
+  The mutants that drop the `for...in` link,
+  that bind nothing for a loop target,
+  and that ask every member for a callback are killed by 2,
+  3 and 1 cases.
+  The ledger called the last one equivalent for a call with no function written as an argument only
+  (B869).
+- The bound of the search for forwarders
+  (`3ba7fcb5205a461614a90b750d04aa0d5baf85fe`):
+  the guard that threw when a round added a function a round had added could not be reached by any input,
+  because the filter that keeps a function out of a round and the guard compared the same sets.
+  The guard is removed.
+  The filter bounds the search,
+  since each round that continues adds a key no round added,
+  so the rounds are at most the number of functions the sources declare.
+  The bullet on the rounds in the follow-up of fix round 19
+  (`c03b9f77c843fff3dd2ff1ca5b244120fafa53f4`)
+  and the body of `757f5a4d601b6c04bea2a97d9e9d93ba374d3e89` are superseded:
+  the mutant that drops the filter is killed by not ending again,
+  and no throw fires.
 
 Prevention rule:
 a walk that follows a value ends in a destination the check lists,

@@ -439,8 +439,8 @@ which lists every file of this record.
 - [B865, the check over the real sources as a whitelist at the module-load boundary](audit-ledger-schema-source-check-as-a-whitelist.md)
 - [B866, the mutant G-C07a called equivalent by an argument](audit-ledger-schema-source-check-as-a-whitelist.md)
 - [B867, a builder's result that goes where nothing answers for it: a third total](audit-ledger-schema-source-check-as-a-whitelist.md)
-- [B868, code the search cannot read and specifiers the check cannot resolve](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md)
-- [B869, four surviving mutants and the cases the new code called for](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md)
+- [B868, code the search cannot read and specifiers the check cannot resolve][b868-ledger]
+- [B869, four surviving mutants and the cases the new code called for][b868-ledger]
 - [B870 to B893, probes that read one editor card](audit-ledger-editor-card-probes.md)
 - [B894 to B899, the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md)
 - [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement][l26]
@@ -671,6 +671,7 @@ which lists every file of this record.
 
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
+[b868-ledger]: audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md
 [l01]: audit-ledger-unreachable-branches-kept-as-quiet-answers.md
 [l02]: audit-ledger-consistency-pass-repeat-groups-and-the-carry.md
 [l03]: audit-ledger-consistency-pass-span-and-marks-beside-it.md
