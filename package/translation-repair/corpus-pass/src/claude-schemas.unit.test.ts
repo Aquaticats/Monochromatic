@@ -134,6 +134,8 @@ import { DERIVED_CONTAINER_CASES, } from './claude-schema-derived-container-form
 import { DERIVED_DECLARATION_CASES, } from './claude-schema-derived-declaration-forms.test-fixture.ts';
 import { DERIVED_TARGET_CASES, } from './claude-schema-derived-target-forms.test-fixture.ts';
 import { DERIVED_CALLBACK_CASES, } from './claude-schema-derived-callback-forms.test-fixture.ts';
+import { DERIVED_IIFE_CASES, } from './claude-schema-derived-iife-forms.test-fixture.ts';
+import { DERIVED_LIMIT_CASES, } from './claude-schema-derived-limit-forms.test-fixture.ts';
 import { CALLBACK_SCOPE_CASES, } from './claude-schema-callback-scope-forms.test-fixture.ts';
 import { PARAMETER_PROPERTY_CASES, } from './claude-schema-parameter-property-forms.test-fixture.ts';
 import { SENDER_NAMESPACE_CASES, } from './claude-schema-sender-namespace-forms.test-fixture.ts';
@@ -897,6 +899,8 @@ await describe({
       ...DERIVED_DECLARATION_CASES,
       ...DERIVED_TARGET_CASES,
       ...DERIVED_CALLBACK_CASES,
+      ...DERIVED_IIFE_CASES,
+      ...DERIVED_LIMIT_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
@@ -990,6 +994,8 @@ await describe({
       ...DERIVED_DECLARATION_CASES,
       ...DERIVED_TARGET_CASES,
       ...DERIVED_CALLBACK_CASES,
+      ...DERIVED_IIFE_CASES,
+      ...DERIVED_LIMIT_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
