@@ -302,6 +302,47 @@ await describe({
         },),
 
         it({
+          name: 'DOES NOT REGRESS on one worse ballot against the author\'s own fixed: the author is heard at '
+            + 'half a vote, so by weight the worse ballot wins, but it is one judge and the flag reorders '
+            + 'shippable candidates, so one judge alone never sets it (owner rule of 2026-10-25)',
+          fn: async function oneWorseAgainstSelfVoteDoesNotRegress() {
+            expect(fateOf({
+              votes: {
+                [AUTHOR]: 'fixed',
+                [OUTSIDER]: 'worse',
+              },
+              authorship: WROTE_WHISKER,
+            },),).toEqual({
+              fixed: 0.5,
+              notFixed: 0,
+              worse: 1,
+              resolved: false,
+              regressed: false,
+            },);
+          },
+        },),
+
+        it({
+          name: 'COUNTS A SELF-VOTED WORSE AS ONE OF THE TWO VOICES the flag needs: the author calling its own '
+            + 'work worse, with one independent agreeing, regresses it',
+          fn: async function selfVotedWorseCountsAsAVoice() {
+            expect(fateOf({
+              votes: {
+                [AUTHOR]: 'worse',
+                [OUTSIDER]: 'worse',
+              },
+              authorship: WROTE_WHISKER,
+            },),).toEqual({
+              fixed: 0,
+              notFixed: 0,
+              worse: 1.5,
+              resolved: false,
+              regressed: true,
+            },);
+          },
+        },),
+
+        it({
           name: 'COUNTS A SILENT CHECKER AS NOTHING, neither for nor against, so an author that cast no '
             + 'verdict adds no weight to either side',
           fn: async function silenceAddsNoWeight() {
