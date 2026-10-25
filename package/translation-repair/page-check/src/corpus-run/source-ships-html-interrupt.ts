@@ -40,7 +40,7 @@ const CONTAINERS: ReadonlySet<string> = new Set([
 /**
  Whether a block is a paragraph that ends on the line right before the one a block of raw HTML starts on.
 
- @param before - block before the raw HTML block, absent for the first block of its container
+ @param before - block before the raw HTML block
 
  @param block - block of raw HTML
 
@@ -56,11 +56,11 @@ function endsRightBefore(
     before,
     block,
   }: {
-    readonly before: TreeNode | undefined;
+    readonly before: TreeNode;
     readonly block: TreeNode;
   },
 ): boolean {
-  if (before?.type !== 'paragraph')
+  if (before.type !== 'paragraph')
     return false;
   if ((before.position === undefined) || (block.position === undefined))
     return false;
@@ -115,10 +115,10 @@ function blankLineBefore(
     lineStart,
     range.start,
   );
-  if ([...marks,].some(function isNoMark(character,): boolean {
-    return !CONTAINER_MARKS.includes(character,);
-  },))
-    return [];
+  for (let at = 0; at < marks.length; at += 1) {
+    if (!CONTAINER_MARKS.includes(marks.charAt(at,),))
+      return [];
+  }
   /**
    The line ending, with its carriage return when the text has one.
    */
@@ -202,15 +202,19 @@ export function htmlInterruptionEdits(
        The block right before this one.
        */
       const before = children[at - 1];
-      if ((block.type === 'html') && (before !== undefined) && endsRightBefore({
+      if (block.type !== 'html')
+        continue;
+      if (before === undefined)
+        continue;
+      if (!endsRightBefore({
         before,
         block,
-      },)) {
-        cutting.push({
-          block,
-          paragraph: before,
-        },);
-      }
+      },))
+        continue;
+      cutting.push({
+        block,
+        paragraph: before,
+      },);
     }
   }
   if (cutting.length === 0) {
