@@ -73,6 +73,36 @@ export const DERIVED_TARGET_CASES: readonly ShapeCase[] = [
     argument: 'holder[0]',
     isListed: true,
   },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `Object.assign` COPIES A FIELD MADE FROM ITS '
+      + 'PARAMETER INTO, with `Object` under a type assertion',
+    lines: [
+      HOLDER,
+      '  (Object as any).assign(holder, { a: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `Object.assign` COPIES A FIELD MADE FROM ITS '
+      + 'PARAMETER INTO, with `Object` read off the global object',
+    lines: [
+      HOLDER,
+      '  globalThis.Object.assign(holder, { a: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
+  storingCase({
+    name: 'LISTS THE CALLER OF A FUNCTION THAT BUILDS FROM AN OBJECT `Object.defineProperty` GIVES A VALUE MADE FROM '
+      + 'ITS PARAMETER, with `Object` under a non-null assertion',
+    lines: [
+      HOLDER,
+      '  Object!.defineProperty(holder, \'a\', { value: args, },);',
+    ],
+    argument: 'holder.a',
+    isListed: true,
+  },),
   {
     name: 'DOES NOT LIST THE CALLER OF A FUNCTION THAT STORES ITS PARAMETER IN AN OBJECT OF THE MODULE THAT ANOTHER '
       + 'FUNCTION BUILDS FROM, a limit of the reading',
