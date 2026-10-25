@@ -517,19 +517,11 @@ On `mimo-v2.6-flash` with a cap of 64,
 both members returned `finish_reason` "length" with `completion_tokens` 64
 (`reasoning_tokens` 22 included).
 The two result lines,
-as the probe wrote them
-(each broken between its members here to fit the line limit,
-with no value changed):
+as the probe wrote them:
 
-```json
-{"field":"max_tokens","status":200,"finish":"length",
-"usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,
-"completion_tokens_details":{"reasoning_tokens":22},
-"prompt_tokens_details":{"cached_tokens":0}}}
-{"field":"max_completion_tokens","status":200,"finish":"length",
-"usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,
-"completion_tokens_details":{"reasoning_tokens":22},
-"prompt_tokens_details":{"cached_tokens":0}}}
+```jsonl
+{"field":"max_tokens","status":200,"finish":"length","usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,"completion_tokens_details":{"reasoning_tokens":22},"prompt_tokens_details":{"cached_tokens":0}}}
+{"field":"max_completion_tokens","status":200,"finish":"length","usage":{"completion_tokens":64,"prompt_tokens":28,"total_tokens":92,"completion_tokens_details":{"reasoning_tokens":22},"prompt_tokens_details":{"cached_tokens":0}}}
 ```
 
 The limit of this evidence:
