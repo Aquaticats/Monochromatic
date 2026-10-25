@@ -172,17 +172,23 @@ export async function runPassQueue(
         attempts,
       },);
 
-      // Every line and ledger record written for this entry names it (ledger A11).
+      /**
+       Number of the attempt about to run, as the attempts file now holds it.
+       */
+      const attemptNumber = attemptsOf({
+        attempts,
+        id: entry.id,
+      },);
+
+      // Every line and ledger record written for this entry names it and the attempt (ledger A11, B960).
       return await inEntryLogContext({
         entry: entry.id,
         generation: pipelineDigest,
+        attempt: attemptNumber,
         run: async function settleInContext(): Promise<EntryOutcome> {
           return await settle({
             entry,
-            attempt: attemptsOf({
-              attempts,
-              id: entry.id,
-            },),
+            attempt: attemptNumber,
             wallClock,
           },);
         },

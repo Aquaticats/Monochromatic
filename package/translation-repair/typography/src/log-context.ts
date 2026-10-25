@@ -6,8 +6,8 @@ import {
 } from '@monochromatic-dev/module-logger/ts';
 
 //region Log context
-// WHICH ENTRY, LANE AND SLICE A LINE BELONGS TO, carried by the async call
-// rather than threaded through every stage (ledger A11).
+// WHICH ENTRY, ATTEMPT, LANE AND SLICE A LINE BELONGS TO, carried by the async
+// call rather than threaded through every stage (ledger A11, B960).
 //
 // The run client is built once per pass and shared by every entry, so its
 // lines could never name one: 3279 of 5943 lines of TianqiChen66616.log, SPEND
@@ -25,7 +25,7 @@ import {
 
  @example
  ```ts
- const context: LogContext = { entry: 'Tabby', generation: 'sha256-tree-v1:0', lane: 'repair', slice: '3', };
+ const context: LogContext = { entry: 'Tabby', generation: 'sha256-tree-v1:0', attempt: '2', lane: 'repair', slice: '3', };
  ```
  */
 export type LogContext = {
@@ -38,6 +38,12 @@ export type LogContext = {
    Built pipeline settling it.
    */
   readonly generation: string;
+
+  /**
+   Number of the entry's attempt as text, as the pass's attempts file holds it once the attempt is counted (ledger
+   B960): the lines the logger writes for an entry name the attempt as the pass's own lines for it do.
+   */
+  readonly attempt: string;
 
   /**
    Lane working the slice: `repair`, `translate`, `contest` or `consolidation`.
@@ -56,6 +62,7 @@ export type LogContext = {
 const NO_LOG_CONTEXT: LogContext = {
   entry: '',
   generation: '',
+  attempt: '',
   lane: '',
   slice: '',
 };
@@ -86,23 +93,28 @@ export function currentLogContext(): LogContext {
 
  @param generation - built pipeline settling it
 
+ @param attempt - number of the entry's attempt, whole and from 1, as the attempts file holds it once the attempt is
+ counted; required so a caller cannot forget it (ledger B960)
+
  @param run - the entry's work
 
  @returns What the work returned
 
  @example
  ```ts
- const outcome = await inEntryLogContext({ entry: 'Tabby', generation, run: async () => settle(), },);
+ const outcome = await inEntryLogContext({ entry: 'Tabby', generation, attempt: 2, run: async () => settle(), },);
  ```
  */
 export async function inEntryLogContext<ResultT,>(
   {
     entry,
     generation,
+    attempt,
     run,
   }: {
     readonly entry: string;
     readonly generation: string;
+    readonly attempt: number;
     readonly run: () => Promise<ResultT>;
   },
 ): Promise<ResultT> {
@@ -110,6 +122,7 @@ export async function inEntryLogContext<ResultT,>(
     {
       entry,
       generation,
+      attempt: String(attempt,),
       lane: '',
       slice: '',
     },
@@ -150,16 +163,34 @@ export async function inSliceLogContext<ResultT,>(
   const {
     entry,
     generation,
+    attempt,
   } = currentLogContext();
   return await store.run(
     {
       entry,
       generation,
+      attempt,
       lane,
       slice: String(sliceIndex,),
     },
     run,
   );
+}
+
+/**
+ The attempt as one tag's text.
+
+ @param context - context to render
+
+ @returns `attempt 2`, or empty outside an attempt
+
+ @example
+ ```ts
+ attemptText({ context: currentLogContext(), },); // 'attempt 2'
+ ```
+ */
+function attemptText({ context, }: { readonly context: LogContext; },): string {
+  return (context.attempt === '') ? '' : `attempt ${context.attempt}`;
 }
 
 /**
@@ -261,13 +292,13 @@ function prefixing(
 }
 
 /**
- Entry, lane and slice tags for the line being written.
+ Entry, attempt, lane and slice tags for the line being written.
 
- @returns `[entry] [lane slice n] `, or empty outside an entry
+ @returns `[entry] [attempt n] [lane slice n] `, or empty outside an entry
 
  @example
  ```ts
- const prefix = contextPrefix(); // '[Tabby] [repair slice 3] '
+ const prefix = contextPrefix(); // '[Tabby] [attempt 2] [repair slice 3] '
  ```
  */
 function contextPrefix(): string {
@@ -278,32 +309,42 @@ function contextPrefix(): string {
   return bracketed({
     texts: [
       context.entry,
+      attemptText({ context, },),
       laneSliceText({ context, },),
     ],
   },);
 }
 
 /**
- Lane and slice tag for the line being written.
+ Attempt, lane and slice tags for the line being written.
 
- @returns `[lane slice n] `, or empty outside a slice
+ @returns `[attempt n] [lane slice n] `, or empty outside an entry
 
  @example
  ```ts
- const prefix = slicePrefix(); // '[repair slice 3] '
+ const prefix = slicePrefix(); // '[attempt 2] [repair slice 3] '
  ```
  */
 function slicePrefix(): string {
-  return bracketed({ texts: [laneSliceText({ context: currentLogContext(), },),], },);
+  /**
+   Context the line is written in.
+   */
+  const context = currentLogContext();
+  return bracketed({
+    texts: [
+      attemptText({ context, },),
+      laneSliceText({ context, },),
+    ],
+  },);
 }
 
 /**
- A module's root logger, naming the entry, lane and slice of every line
- written inside one.
+ A module's root logger, naming the entry, attempt, lane and slice of every
+ line written inside one.
 
  @param tag - root tag
 
- @returns Logger writing `[tag] [entry] [lane slice n] message`
+ @returns Logger writing `[tag] [entry] [attempt n] [lane slice n] message`
 
  @example
  ```ts
@@ -318,12 +359,12 @@ export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
 }
 
 /**
- An entry's logger, naming the lane and slice of every line written inside
- one; the entry is already its tag.
+ An entry's logger, naming the attempt, lane and slice of every line written
+ inside one; the entry is already its tag.
 
  @param l - logger tagged with the entry
 
- @returns Logger writing `[entry] [lane slice n] message`
+ @returns Logger writing `[entry] [attempt n] [lane slice n] message`
 
  @example
  ```ts
