@@ -2087,6 +2087,36 @@ that is verification, not a decision for the user.
   evidence only. The user's open question, "Why not just install both globally and locally?", is the next planning
   item: the intended shape is the wrapper installed at both scopes (per worktree by the repo, user-level by mise), to
   be designed and approved before any change.
+  User answers 2026-10-25 after the three planning questions: the "who creates the global link" question was answered
+  "You're asking me when you're supposed to dig deeper and find out which option is better? And you didn't even use
+  the advisor?" and then, when I read that as permission to decide alone: "I didn't tell you to decide on your own. I
+  told you to bring the question back to me with better research, to the point you're sure one is much better." So:
+  research (and consult the advisor) until one option is clearly much better, then bring the question back to the
+  user with that evidence and a recommendation; never an evidence-free menu, never a unilateral decision. The "PATH
+  delivery" question was answered "." (no choice); the proof method is "Podman with a copy of the settings". Correction to the probe record: probe E (mise
+  global `_.path`) is an INVALID probe, not a negative result, because the probe base `PATH` stripped both the mise
+  activation hook and the shims directory; `_.path` is an activation feature. Research queue (read-only on the host):
+  why `doc/planning/cli-git-native-cutover.md` section `Install the published tool` avoids a global `git` shim; how
+  the wrapper locates real git (recursion risk for a shim); the user's real login `PATH` order and mise activation;
+  mise global `postinstall` and `MISE_CONFIG_ROOT` behavior (fetched docs); whether `~/.config/mise/config.toml` is
+  in a dotfiles repo. Then the podman proof (image with `claude`, the wrapper binary, throwaway settings, credentials
+  read-only, repeat the bare-remote push check), then one `doc/planning/` proposal with a single recommendation.
+  Research findings 2026-10-25 (read-only; advisor consulted before): (1) the user's login `PATH` from `$HOME` (clean
+  `env -i bash -lic`) is the mise tool directories, then `~/.local/share/mise/shims`, then `~/.local/bin`, `~/bin`,
+  `/usr/local/bin`, `/usr/bin`; no `git` exists in any directory before `/usr/bin` (`type -a git` prints only
+  `/usr/bin/git`), and `claude` itself lives in `~/.local/bin`; so a `git` link in `~/.local/bin` wins in terminals
+  and in any Claude Code session that inherits the shell `PATH`, with no hook. (2) `mise.toml:146` says the install
+  link avoids the tool's own `bin/` because mise would create a global `git` shim. A mise shim is a symlink to the
+  mise binary (`shims/gh -> ~/.local/bin/mise`); `classify_candidate` (`src/native/real_git_candidate.rs:375` to
+  `420`) calls a candidate a wrapper only for the same file, an identical copy, or a TypeScript-wrapper script, and a
+  native executable is real Git; so a `git` shim would be selected as real Git by the wrapper and loop
+  (wrapper, shim, mise, wrapper). That is an inference from code and the shim file type, not yet run (to prove in
+  podman). A plain link to the wrapper is safe by the same code (same-file identity), and the probe confirmed it.
+  (3) mise docs (fetched): `postinstall` runs on install or repair, `when = "always"` runs it on every `mise install`
+  and `mise use`, it receives `MISE_TOOL_INSTALL_PATH` and `MISE_CONFIG_ROOT` ("that file's config root", so for the
+  global config, not this repo), and a failing `postinstall` fails the install. Unproven: that global-config
+  `postinstall` runs as expected. (4) `~/.config/mise/config.toml` is a plain file (no symlink, no dotfiles repo
+  found), so other machines the user controls have no automatic path to it today.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
