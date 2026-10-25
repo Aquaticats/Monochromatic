@@ -4700,6 +4700,30 @@ ones for maps taller than 36,024 px by 72 px (the previous installed binary: 12 
 pointer, drag after a wheel, Ctrl+End and Ctrl+Home); its numbers follow here, then `final7` is removed. Running now:
 the `dragpress` agent (exact press and release log lines, drag-after-wheel check from the log) and the `early` agent
 ((a) early wheel loss, (b) the `bwrap` message row, (c) the unlimited tall map).
+The `dragpress` agent reported 2026-10-25 (branch `worktree-agent-a697d97d4b2ed8c01`, tip `3b7f212226`, gates on its own
+tree green: `test:native` 349 passed, `test` 811, `test:bin` 0): the drag-after-wheel mismatch seen on the installed
+binary was real and was the app handling input late, not the recorder (1,160 screenshots, gutter numbers read with
+tesseract, 0 unreadable; 580 trials). New log lines `source pointer press`, `drag start`, `drag`, `release`
+(`src/native/pointer_log.rs`, called from `src/native/input.rs`; fields y, x, view_y, offset, drawn_offset, shown_offset,
+held, row_y, line, line_number, column). Measured on the unfixed press path (`b951a5d005`): the window thread draws about
+8 frames per second while a far jump runs in this headless compositor (the compositor sends frame callbacks at the
+capture rate, as an earlier agent had found) and handles input once per frame, so a press is handled a median of 110
+to 121 ms after it was sent (extremes 1 and 259 ms) and is mapped through the offset of that later moment while the
+screen still shows the last frame: in 199 of 229 presses at delays 20 to 180 ms the press did not name the last frame's
+row (median 35 to 77 rows off, 2 at 180 ms); held presses agreed, as in the 2026-10-25 verification. Positive control
+(scratch build with `drawn-y` returning the pointer y): `view_y` wrong in exactly the 8 held presses. Fix `21441ae01e`
+(veto-open, revert-able): `shown_y` in `src/native/input.rs` maps press, drag, release and Ctrl+click
+(`src/native/language/actions.rs`) through the offset of the latest frame that began (`GpuTile::shown_offset`, set at
+`BeforeRendering` in `src/native/gpu_tile.rs`); press row equals the last frame's row in 189 of 190 at 20 to 180 ms and
+40 of 40 at 250 and 600 ms (the one miss was a taller row map, fixed in `ec7fe46251`); against the screenshot taken at
+once after the press the fix agrees in 29 of 30 at 50 ms, 29 of 30 at 80 ms and 30 of 30 at 110 ms (old build 5, 0, 0 of
+30), but still not at 20, 140, 150 and 180 ms, where the screen shows a frame older than the last one begun (the app
+has no presentation feedback). Limits: not a real 60 Hz compositor; why the thread draws only 8 frames per second in
+the one trial read closely (an 83 ms stretch without a log record after a finished frame) is not found. Merged by me
+with a doc conflict (both branches appended to the handover and the troubleshooting doc; resolved by keeping both,
+`~/temp/agent/keep-both.ts`) as `9558444611` in the scratch tree `land-press`; gates running; to be pushed, built and
+installed only after the verifier finishes with the installed `01d2c9454acda68f…` (installing under it would corrupt its
+runs), then verified on the installed binary.
 Installed: sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent is checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
