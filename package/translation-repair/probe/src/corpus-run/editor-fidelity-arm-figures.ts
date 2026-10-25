@@ -2,7 +2,9 @@ import {
   type ArmLog,
   bodyOf,
   firstStarting,
+  isRowBody,
   numberAfter,
+  reusedRowFlags,
   wordAfter,
 } from './editor-fidelity-arm-facts.ts';
 
@@ -132,9 +134,15 @@ export type ArmFigures = KindFigure & {
   readonly abandoned: number;
 
   /**
-   Each row line, in the order written.
+   Each row line of a row that made a call, in the order written. A row answered by the prompt reuse layer is no trial, so
+   it is left out of every count and comparison.
    */
   readonly rows: readonly RowStops[];
+
+  /**
+   Row lines left out of `rows` because the reply was a reuse and no call was made.
+   */
+  readonly reusedRows: number;
 };
 
 /**
@@ -304,6 +312,16 @@ export function armFiguresOf({ log, }: { readonly log: ArmLog; },): ArmFigures {
     bodies,
     marker: `SEAT ${card} `,
   },);
+  /**
+   The bodies of the row lines, in the order written.
+   */
+  const rowBodies = bodies.filter(function isRow(body,): boolean {
+    return isRowBody({ body, },);
+  },);
+  /**
+   Which of them made no call.
+   */
+  const reused = reusedRowFlags({ bodies, },);
   return {
     ...kindFigureOf({ line: pooled, },),
     card,
@@ -331,13 +349,20 @@ export function armFiguresOf({ log, }: { readonly log: ArmLog; },): ArmFigures {
       text: seat,
       marker: 'abandoned=',
     },),
-    rows: bodies
-      .filter(function isRow(body,): boolean {
-        return body.startsWith('row ',) && body.includes(' of ',);
+    rows: rowBodies
+      .filter(function madeACall(
+        _body,
+        at,
+      ): boolean {
+        return reused[at] !== true;
       },)
       .map(function stopsOf(body,): RowStops {
         return rowStopsOf({ body, },);
       },),
+    reusedRows: reused.filter(function isReused(flag,): boolean {
+      return flag;
+    },)
+      .length,
   };
 }
 

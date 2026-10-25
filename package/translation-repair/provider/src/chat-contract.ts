@@ -243,6 +243,16 @@ export type ChatTextRequest = {
    routes nowhere never tags a reply, so it is never asked to honour one.
    */
   readonly otherThan?: ProviderName;
+
+  /**
+   Names the repeat this exchange belongs to when a caller asks one prompt again on purpose, as a probe that measures
+   whether a model answers alike on a second pass does.
+   The prompt reuse layer (`promptUniqueClient`) keeps the scope in the identity it claims a prompt under, so the same
+   prompt under another scope is a new exchange, bought from the model, and under the same scope it is reused as ever.
+   Absent for every caller that wants the reuse, so the identity of its prompts does not change.
+   No client puts it on the wire.
+   */
+  readonly reuseScope?: string;
 };
 
 /**

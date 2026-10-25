@@ -18,6 +18,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  REPEAT_ALPHA,
   repeatAgreementTest,
   repeatShortfallsOf,
 } from '../../dist/final/node/index.mjs';
@@ -86,6 +87,18 @@ await describe({
             expect(repeatAgreementTest({ low, high, comparisons: 1, },).atMostLevel,).toBe(true,);
             expect(repeatAgreementTest({ low, high, comparisons: 2, },).atMostLevel,).toBe(false,);
             expect(repeatAgreementTest({ low, high, },).p,).toBeCloseTo(0.05, 10,);
+          },
+        },),
+
+        it({
+          name: 'DECIDES AT THE LEVEL THE WARNING PRINTS: REPEAT_ALPHA is 0.05, and the decision is made at one in twenty, '
+            + 'which the two spellings of the level must keep saying together, so 0 of 3 against 3 of 3 (exactly 0.05) '
+            + 'and 15 of 20 against 20 of 20 (0.0236) are at it and 16 of 20 against 20 of 20 (0.0530) is not',
+          fn: async () => {
+            expect(REPEAT_ALPHA,).toBe(0.05,);
+            expect(repeatAgreementTest({ low: { agreed: 0, repeated: 3, }, high: { agreed: 3, repeated: 3, }, },).atMostLevel,).toBe(true,);
+            expect(repeatAgreementTest({ low: { agreed: 15, repeated: 20, }, high: { agreed: 20, repeated: 20, }, },).atMostLevel,).toBe(true,);
+            expect(repeatAgreementTest({ low: { agreed: 16, repeated: 20, }, high: { agreed: 20, repeated: 20, }, },).atMostLevel,).toBe(false,);
           },
         },),
 

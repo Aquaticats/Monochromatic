@@ -120,3 +120,44 @@ read the guard's comments for "because",
 "only" and "one at a time",
 and for each,
 find the line of code that would fail if it stopped being true.
+
+## A repeat measurement proves each repeat made its own call
+
+What happened:
+the editor fidelity bench walks the pool of trials in three passes so that the money buys more units of evidence.
+The run client has a prompt reuse layer,
+which answers a prompt it has seen from the reply it kept,
+and the second and third passes asked the identical prompts.
+So 62 of the 150 rows of the billed high arm were answered by the layer in 0 ms,
+a repeat compared a reply with itself,
+and the spend guard booked each of them at its ceiling because a reply with usage and no line on the meter looks like
+an unmetered provider.
+The guard then reported 23.94 USD of 24 spent where 0.62 had been,
+and the arm ended early.
+Nothing in the arm's checks noticed:
+the rows were logged,
+each once (ledger B899 of round 11).
+
+The rule:
+a repeat measurement proves that each repeat made its own call.
+The repeat's identity includes what makes it a repeat (here the pass),
+so that a layer which reuses by identity cannot reuse across it,
+and the code that scores a repeat refuses a reply that no request produced and says so aloud.
+A guard books what was sent,
+so a reply with no attempt told to the guard books nothing.
+Any count of trials,
+units or rows that stands for evidence counts the ones that made a call.
+
+What enforces it:
+`probe/src/corpus-run/editor-fidelity-probe-run.unit.test.ts` runs two passes through the real reuse layer and its
+payload store and sees the model asked in each,
+and fails with a client that reuses across passes (`RepliedWithoutCallError`).
+`probe/src/corpus-run/editor-fidelity-spend-guard.unit.test.ts` holds the guard that books nothing for such a reply.
+`probe/src/corpus-run/editor-fidelity-arm-passes.unit.test.ts` holds the read step that fails an arm with such rows.
+No scan finds a measurement that repeats a prompt over a layer that reuses by identity.
+
+How to find the next one:
+for each measurement that asks the same thing more than once,
+list the layers between the asker and the wire and ask which of them can answer without sending.
+A positive control comes first:
+run two repeats through the real layers with a scripted transport and count the exchanges.

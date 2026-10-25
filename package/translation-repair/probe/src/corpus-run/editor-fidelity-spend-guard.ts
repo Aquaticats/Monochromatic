@@ -51,6 +51,13 @@ import {
 // throws `ConcurrentGuardCallError` before anything is sent, so a change that overlaps calls fails loudly and does not
 // quietly read one call's attempts as another's.
 //
+// A REPLY WITH NO REQUEST BEHIND IT COSTS NOTHING AND MEASURES NOTHING. A client built over the guard's admit tells the guard
+// of each attempt it sends. A call that returns a reply with no attempt told was answered by the prompt reuse layer from an
+// earlier reply, in no time, so no line is written for it, at the ceiling or otherwise: on the billed high arm of
+// `dd4b15b75c` 62 such replies were written at the ceiling and booked 23.31 USD that was never spent, and the arm ended at 150
+// of 264 units. It is no measurement either, since a repeat that is a replay compares an answer with itself, so the guard ends
+// the arm with `RepliedWithoutCallError` before the reply reaches a row.
+//
 // THE REFUSAL ENDS THE ARM, NOT ONE VOICE OF IT. The stage turns a call that throws into a lost voice and asks again, but
 // rethrows once the arm's signal has aborted. The guard aborts that signal with the refusal as its reason before it
 // throws, so every layer between the call and the probe carries the refusal out, and every later call is refused with the
@@ -84,6 +91,39 @@ export class ConcurrentGuardCallError extends Error {
     this.name = 'ConcurrentGuardCallError';
   }
 }
+
+/**
+ Thrown, and carried by the arm's signal, when a client that tells the guard of each attempt it sends returns a reply for a
+ call it told the guard of none: the reply came from the prompt reuse layer and not from the model.
+
+ @example
+ ```ts
+ throw new RepliedWithoutCallError();
+ ```
+ */
+export class RepliedWithoutCallError extends Error {
+  /**
+   The message is one sentence this class writes.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
+   Builds the error with its fixed message.
+   */
+  public constructor() {
+    super(
+      'a reply reached the spend guard with no request sent behind it: the prompt was answered from reuse, and not by the '
+        + 'model (the PROMPT-REUSE line of the log names the model and the digest of the prompt), so the probe will not score '
+        + 'it, nothing was booked for it, and the arm ends here',
+    );
+    this.name = 'RepliedWithoutCallError';
+  }
+}
+
+/**
+ What ended an arm: the guard's refusal of a call, or a reply that no request produced.
+ */
+type Ending = RepliedWithoutCallError | StatedRefusalError;
 
 /**
  What the guard counted, for the line that ends an arm.
@@ -265,6 +305,12 @@ async function attemptOf<ReplyT,>(
 /**
  Wraps a client so no call is made that could take the arm past its amount.
 
+ THE LIMIT OF THE REUSE CHECK: only a client built over the guard's admit tells the guard of its attempts, so only it can
+ prove that a reply came with no request behind it. A client given as itself tells the guard nothing, a reply of the
+ prompt reuse layer looks to the guard exactly like a reply whose provider wrote no line on the meter, and the guard counts it
+ at its ceiling as an unreported cost. Every construction in production passes a builder (`probe-run.ts`), so a reply
+ with no request behind it ends the arm there; an ungated client is given by tests alone.
+
  @param inner - client to wrap, or the builder of one that is handed the guard's admit and passes it to the client
  it builds, which then tells the guard before each attempt it sends and is held to the amount attempt by attempt
 
@@ -309,9 +355,9 @@ export function spendGuardedClient(
     atCeiling: 0,
   };
   /**
-   The refusal the arm ended with, at most one.
+   What the arm ended with, at most one.
    */
-  const refusals: StatedRefusalError[] = [];
+  const endings: Ending[] = [];
   /**
    Whether the client tells the guard of each attempt it sends, which it does when it was built over the guard's admit.
    */
@@ -370,12 +416,14 @@ export function spendGuardedClient(
    Refuses anything once the arm has ended.
 
    @throws StatedRefusalError the refusal an earlier call or attempt ended the arm with
+
+   @throws RepliedWithoutCallError ending that an earlier reply with no request behind it gave the arm
    */
   function throwStanding(): void {
     /**
-     The refusal an earlier call ended the arm with, absent while none has.
+     What an earlier call ended the arm with, absent while none has.
      */
-    const [standing,] = refusals;
+    const [standing,] = endings;
     if (standing !== undefined)
       throw standing;
   }
@@ -422,7 +470,7 @@ export function spendGuardedClient(
       } USD, this ${subject} can cost ${usdText({ usd: ceilingUsd, },)} USD at most, and together they pass `
         + `--max-usd ${usdText({ usd: maxUsd, },)}; the arm ends here, and the rows it finished stay in their files`,
     },);
-    refusals.push(refusal,);
+    endings.push(refusal,);
     controller.abort(refusal,);
     throw refusal;
   }
@@ -523,7 +571,7 @@ export function spendGuardedClient(
    ```
    */
   function throwIsFree({ error, }: { readonly error: unknown; },): boolean {
-    if ((error instanceof StatedRefusalError) && refusals.includes(error,))
+    if (((error instanceof StatedRefusalError) || (error instanceof RepliedWithoutCallError)) && endings.includes(error,))
       return true;
     // A CALL THAT NEVER LEFT, rejected by a layer above the client (a retained prompt claim, a withheld seat), sent no
     // attempt, so nothing was billed. Only a client that tells the guard of its attempts can say so.
@@ -640,6 +688,19 @@ export function spendGuardedClient(
         },);
       }
       throw attempt.error;
+    }
+    // A REPLY WITH NO ATTEMPT TOLD was not asked of the model. Only a gated client tells, so an ungated client's reuse is
+    // counted at the ceiling as an unreported cost (the limit in the TSDoc of spendGuardedClient). Nothing is booked here,
+    // the arm's signal carries the ending so the stage cannot take it for a lost voice and ask again, and the walk throws
+    // it out of the run without scoring the row.
+    if (gated && (told.attempts === 0)) {
+      /**
+       The ending the arm gets.
+       */
+      const ending = new RepliedWithoutCallError();
+      endings.push(ending,);
+      controller.abort(ending,);
+      throw ending;
     }
     /**
      What the client reported about the tokens of its reply.

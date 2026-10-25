@@ -11,8 +11,9 @@ Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 It is a new file of 2026-10-25,
 because [the multi-pass arms file](audit-ledger-editor-bench-multi-pass-arms-and-repeat-agreement.md) stood at 788 lines
-and this round's entry runs to about 380.
-The follow-ups of B899 of rounds 8 and 9 are in that file.
+and this round's entry ran to 396 lines when written (403 after round 11).
+The follow-ups of B899 of rounds 8 and 9 are in that file,
+and those of round 11 are in [the prompt reuse file](audit-ledger-editor-bench-prompt-reuse-in-repeat-passes.md).
 
 ## B899, round 10: the gap between the rule's region and the warnings, an exact repeat test, and a self-contained runbook
 
@@ -302,9 +303,12 @@ holding 12,
   0.0553 at a fix rate of 0.9,
   chance 0,
   correlation 1 and 176 units,
-  1.5 standard deviations of that many replicates (0.0036) over 0.05,
   where the two trials of an entry read as alike as the model allows
   and the independence the bound assumes fails most.
+  The round 10 text called it 1.5 standard deviations of that many replicates (0.0036) over 0.05 and within noise.
+  Re-check 7 showed that wrong,
+  and the round 11 file corrects it in its section on the 0.0553 reading:
+  the cell reads 0.0537 over 34000 replicates.
 - The default effort repeating itself less than high and low (which repeat on every trial) by 15 and 30 points of repeat
   agreement,
   the gap set for the passes of each size (two passes at 100 and 176 units,
@@ -329,9 +333,12 @@ holding 12,
 ### The README and a new doc
 
 The README held 944 lines and would have held 1064.
-The prose after the rule quote moved to `probe/doc/editor-fidelity-decision-rule-simulations.md` (204 lines),
+The prose after the rule quote moved to `probe/doc/editor-fidelity-decision-rule-simulations.md`
+(204 lines when written,
+212 when re-check 7 read it,
+233 after round 11),
 the README keeps the figures of this round in a short list and links the doc,
-and stands at 972 lines.
+and stands at 972 lines (999 after round 11).
 The README quote of the rule equals `decisionRuleText()` of the built package (4249 characters each,
 whitespace normalised,
 `quote-check2.ts`);
@@ -390,7 +397,7 @@ No cache version moves.
 - The fix of finding 5 was run against the four test files it touched,
   and left the ceiling check case of `editor-fidelity-arm-check.unit.test.ts` failing until the full run found it.
 - The new test file of the red commit of finding 6 changed in the fix commit (the array return),
-  where the earlier rounds kept red and fix tests byte-identical.
+  where rounds 8 and 9 kept red and fix tests byte-identical.
 - One `Edit` call on a path that does not exist.
 - The reasoning of the design check (the exact enumeration) ran in a capped unit as `edr10-design`;
   a smoke run of the simulation script with 5 replicates ran as `edr10-smoke` before the one run `edr10-sim`.

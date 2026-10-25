@@ -97,6 +97,95 @@ export function bodyOf({ line, }: { readonly line: string; },): string {
 }
 
 /**
+ Whether a body is a row line: the line of a trial the arm finished.
+
+ @param body - one line's body
+
+ @returns Whether it starts a row
+
+ @example
+ ```ts
+ const isRow = isRowBody({ body: 'row 2 of 40: card on tabby/insertion: clean fix exact; entry tabby; stopped ok', },);
+ ```
+ */
+export function isRowBody({ body, }: { readonly body: string; },): boolean {
+  return body.startsWith('row ',) && body.includes(' of ',);
+}
+
+/**
+ Whether a body is the line the run client logs for a reply it gives from an earlier reply and not from the model: the
+ words `PROMPT-REUSE` behind any number of bracketed tags, since a logger tagged at its function boundary writes one more
+ tag in front of them.
+
+ @param body - one line's body
+
+ @returns Whether tags aside it opens with the reuse marker
+
+ @example
+ ```ts
+ // yields true
+ const reused = isReuseBody({ body: '[claimedReply] PROMPT-REUSE source=memory model=m digest=d', },);
+ ```
+ */
+export function isReuseBody({ body, }: { readonly body: string; },): boolean {
+  // Each pass of the loop steps over one tag, which closes with a bracket and a space, and ends when the words begin.
+  for (let at = 0; ;) {
+    if (!body.startsWith(
+      '[',
+      at,
+    ))
+      return body.startsWith(
+        'PROMPT-REUSE ',
+        at,
+      );
+    /**
+     Where this tag closes.
+     */
+    const close = body.indexOf(
+      '] ',
+      at,
+    );
+    if (close === (-1))
+      return false;
+    at = close + '] '.length;
+  }
+}
+
+/**
+ Which rows made no call, in the order the row lines were written: a row follows a `PROMPT-REUSE` line written since the
+ row before it, which the run client logs for every reply it gives from an earlier reply and not from the model.
+
+ @param bodies - log's bodies
+
+ @returns One flag for each row line, true for a row whose reply was a reuse
+
+ @example
+ ```ts
+ // yields [false, true]
+ const flags = reusedRowFlags({ bodies: ['row 1 of 2: a', 'PROMPT-REUSE source=memory model=m digest=d', 'row 2 of 2: b',], },);
+ ```
+ */
+export function reusedRowFlags({ bodies, }: { readonly bodies: readonly string[]; },): readonly boolean[] {
+  /**
+   One flag for each row line met so far.
+   */
+  const flags: boolean[] = [];
+  /**
+   Whether a reuse line stands since the last row line.
+   */
+  let reuseSince = false;
+  for (const body of bodies) {
+    if (isReuseBody({ body, },))
+      reuseSince = true;
+    else if (isRowBody({ body, },)) {
+      flags.push(reuseSince,);
+      reuseSince = false;
+    }
+  }
+  return flags;
+}
+
+/**
  The first body that starts with a marker.
 
  @param bodies - the log's bodies
@@ -322,6 +411,11 @@ export type ArmFacts = {
    Whether the log says the spend guard capped the arm.
    */
   readonly capped: boolean;
+
+  /**
+   Row lines of rows that made no call, a reply of the prompt reuse layer standing in front of each.
+   */
+  readonly reusedRows: number;
 };
 
 /**
@@ -426,6 +520,11 @@ export function factsOf({ log, }: { readonly log: ArmLog; }): ArmFacts {
     capped: bodies.some(function isCapped(body,): boolean {
       return body.startsWith('CAPPED at unit ',);
     },),
+    reusedRows: reusedRowFlags({ bodies, },)
+      .filter(function isReused(flag,): boolean {
+        return flag;
+      },)
+      .length,
   };
 }
 
