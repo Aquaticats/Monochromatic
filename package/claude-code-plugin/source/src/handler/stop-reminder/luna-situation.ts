@@ -102,6 +102,18 @@ const LUNA_DEADLINE_MS = 5_000;
 const MAX_MESSAGE_CHARS = 16_000;
 
 /**
+ Characters kept from the end of each earlier stop sent as context on a repeated stop.
+ */
+const MAX_EARLIER_STOP_CHARS = 1_500;
+
+/**
+ Characters kept from the end of all earlier stops together.
+
+ Bounds the request on a long turn; the newest stops are the ones kept.
+ */
+const MAX_EARLIER_TOTAL_CHARS = 8_000;
+
+/**
  Largest accepted gap between the probabilities' sum and one.
 
  Responses round each probability to two decimals, so each label can drift by
@@ -219,6 +231,48 @@ class LunaResponseError extends LunaUnavailableError {
 //region Request
 
 /**
+ Wraps an input and instruction text in the single-question request shared by both builders.
+
+ @param input - text the question is asked about
+
+ @param instructions - instruction sent with the question
+
+ @returns JSON request body
+
+ @example
+ ```ts
+ requestBodyFor({ input: 'Done.', instructions: QUESTION_INSTRUCTIONS });
+ ```
+ */
+function requestBodyFor(
+  {
+    input,
+    instructions,
+  }: {
+    readonly input: string;
+    readonly instructions: string;
+  },
+): string {
+  return JSON.stringify({
+    model: LUNA_MODEL,
+    input,
+    questions: [
+      {
+        type: 'choice',
+        name: QUESTION_NAME,
+        instructions,
+        choices: SITUATIONS.map(function toChoice(value,) {
+          return {
+            value,
+            description: SITUATION_CRITERIA[value],
+          };
+        },),
+      },
+    ],
+  },);
+}
+
+/**
  Builds the Decisions request body for one final message.
 
  @param message - final assistant message; the tail beyond {@link MAX_MESSAGE_CHARS} is sent
@@ -231,24 +285,62 @@ class LunaResponseError extends LunaUnavailableError {
  ```
  */
 function situationRequestBody(message: string,): string {
-  return JSON.stringify({
-    model: LUNA_MODEL,
+  return requestBodyFor({
     input: message.slice(-MAX_MESSAGE_CHARS,),
-    questions: [
-      {
-        type: 'choice',
-        name: QUESTION_NAME,
-        instructions: QUESTION_INSTRUCTIONS,
-        choices: SITUATIONS.map(function toChoice(value,) {
-          return {
-            value,
-            description: SITUATION_CRITERIA[value],
-          };
-        },),
-      },
-    ],
+    instructions: QUESTION_INSTRUCTIONS,
   },);
 }
+
+/**
+ Builds the Decisions request body for a final message of a repeated stop, with the earlier stops of the turn.
+
+ The earlier stops are context for the same single question; Luna still classifies the final message. On repeated
+ stops this removed all three verified repeated false blocks and lowered the block score of six of seven repeated
+ misses, so callers send history on repeated stops only (see `doc/troubleshooting/claude-code-opus-5-premature-turn-end.md`).
+
+ @param message - final assistant message; the tail beyond {@link MAX_MESSAGE_CHARS} is sent
+
+ @param earlierStops - assistant text of the turn's earlier stops, oldest first; empty sends the message alone
+
+ @returns JSON request body
+
+ @example
+ ```ts
+ situationRequestBodyWithHistory({ message: 'Done.', earlierStops: ['Next: run the tests.'] });
+ ```
+ */
+function situationRequestBodyWithHistory(
+  {
+    message,
+    earlierStops,
+  }: {
+    readonly message: string;
+    readonly earlierStops: readonly string[];
+  },
+): string {
+  if (earlierStops.length === 0) {
+    return situationRequestBody(message,);
+  }
+  /**
+   Earlier stops numbered oldest first, each cut to its end and the whole cut to its end.
+   */
+  const earlier = earlierStops
+    .map(function numbered(
+      text,
+      index,
+    ) {
+      return `[stop ${String(index + 1,)}] ${text.slice(-MAX_EARLIER_STOP_CHARS,)}`;
+    },)
+    .join('\n\n',)
+    .slice(-MAX_EARLIER_TOTAL_CHARS,);
+  return requestBodyFor({
+    input: `Earlier assistant messages of the same turn, oldest first:\n${earlier}\n\nFinal message:\n${
+      message.slice(-MAX_MESSAGE_CHARS,)
+    }`,
+    instructions: `${QUESTION_INSTRUCTIONS} Earlier messages of the same turn are context; classify the final message.`,
+  },);
+}
+
 
 //endregion Request
 
@@ -580,6 +672,8 @@ async function exchange(
 
  @param deadlineMs - milliseconds before the request is abandoned
 
+ @param earlierStops - assistant text of the turn's earlier stops, oldest first; sent on repeated stops only
+
  @returns validated verdict
 
  @throws LunaKeyMissingError when `key` is empty
@@ -599,11 +693,13 @@ async function askLunaSituation(
     key,
     fetchImpl,
     deadlineMs = LUNA_DEADLINE_MS,
+    earlierStops = [],
   }: {
     readonly message: string;
     readonly key: string;
     readonly fetchImpl: typeof fetch;
     readonly deadlineMs?: number;
+    readonly earlierStops?: readonly string[];
   },
 ): Promise<SituationVerdict> {
   /**
@@ -619,7 +715,10 @@ async function askLunaSituation(
   /**
    Request body, built once so the credential check sees what is sent.
    */
-  const body = situationRequestBody(message,);
+  const body = situationRequestBodyWithHistory({
+    message,
+    earlierStops,
+  },);
   if (body.includes(key,)) {
     throw new LunaRequestError('Luna request contains its Gateway credential and was withheld',);
   }
@@ -653,8 +752,11 @@ export {
   LunaResponseError,
   LunaUnavailableError,
   lunaEnabled,
+  MAX_EARLIER_STOP_CHARS,
+  MAX_EARLIER_TOTAL_CHARS,
   MAX_MESSAGE_CHARS,
   parseSituationResponse,
   SITUATIONS,
   situationRequestBody,
+  situationRequestBodyWithHistory,
 };

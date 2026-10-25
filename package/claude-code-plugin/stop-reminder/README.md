@@ -113,6 +113,14 @@ The hook finds the notification in the transcript's queue records, and only when
 
 A label is acted on at probability 0.60 or higher (interim; revisit from the verdict log).
 The message is sent in full, the end kept when it exceeds 16000 characters, with no thinking blocks.
+On a repeated stop (the hook already blocked this turn, so `stop_hook_active` is true) the request also carries the
+assistant text of the turn's earlier stops, each cut to its last 1500 characters and all of them to the last 8000,
+as context for the same question.
+A first stop sends the final message alone.
+Measured on repeated stops, history removed all three verified repeated false blocks and also lowered the block score
+of six of seven repeated misses; see the troubleshooting document below.
+Each verdict record in the log carries `stopHookActive`, so repeated stops can be told apart from first stops
+(records before 2026-10-25 lack it).
 One request, 5 second deadline, no retry.
 Any failure falls back to the state-only behavior and adds a `Stop says:` notice.
 

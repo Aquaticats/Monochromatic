@@ -1342,8 +1342,17 @@ cannot be reproduced later, and the 0.60 cutoff was set on scores that have sinc
 The verdict log keeps the final message and the probabilities but not `stop_hook_active` or the text Luna was sent, so a
 repeated stop cannot be told apart from a first stop without rebuilding the turn from the transcript.
 
-Decision state: Luna's input is unchanged.
-Proposed, not done: log `stop_hook_active` in each verdict record, so repeated stops become first-class samples.
+Owner decisions: send the earlier stops to Luna on repeated stops only, and log `stop_hook_active` in every verdict
+record.
+Built as `turn-history.ts` (the earlier stops, read from the transcript since the last human turn, without the final
+message) and `situationRequestBodyWithHistory` (the request).
+A first stop sends the final message alone, so the measured lenient shift applies only where it removed false blocks.
+It also applies to repeated misses, which the sample showed moving the wrong way; the phrase checks and the
+parked-decision check remain the catch for those.
+Checked on the built bundle with the real gateway: a repeated stop and a first stop both returned a verdict, and
+the records carry `stopHookActive` true and false.
+The request body itself is checked in the unit tests with a stubbed `fetch`, not on the wire.
+Not yet known: whether the repeated-stop history changes outcomes in live use; the new field makes that measurable.
 
 ### Not yet known
 

@@ -39,6 +39,7 @@ import {
   type SituationAction,
   situationAction,
 } from './situation-action.ts';
+import { earlierStopTexts, } from './turn-history.ts';
 import {
   appendVerdict,
   verdictLogPath,
@@ -435,6 +436,7 @@ function createStopRemindersHandler(
       message,
       permissionMode: event.permission_mode,
       sessionCrons: (event.session_crons ?? []).length,
+      stopHookActive: event.stop_hook_active,
     };
     /**
      Where this stop's record is appended.
@@ -490,6 +492,13 @@ function createStopRemindersHandler(
         message,
         key,
         fetchImpl,
+        // History helped only on repeated stops (it removed repeated false blocks), so a first stop sends none.
+        earlierStops: event.stop_hook_active
+          ? earlierStopTexts({
+            transcriptLines: transcript.lines,
+            finalMessage: message,
+          },)
+          : [],
       },);
       /**
        Action the table assigns this verdict given the hook state.
