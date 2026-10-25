@@ -12,7 +12,7 @@ Provenance:
 the XingZ6021 read (its defect N8),
 the fix of 2026-10-25 (UTC),
 the second and third rounds after independent re-checks of that fix,
-and the wording round of B921 after the third re-check.
+and the wording rounds of B921 after the third and fourth re-checks.
 
 ### B920: every DeepSeek call was booked at peak rates, so an off-peak run booked twice what the balance fell
 
@@ -139,7 +139,9 @@ the XingZ6021 defects record and the state-after-k4 handover,
 carry dated notes beside the original text.
 The commits are `496f09c0aa` (cases),
 `f5aa75f982` (wording),
-`e7e7a82d15` (notes) and `764ddcc51b` (the repair of three source-scan findings in the notes and this file),
+`e7e7a82d15` (notes),
+`eca5ae92cf` (this entry)
+and `764ddcc51b` (the repair of three source-scan findings in the notes and this file),
 after the merge of `origin/main` at `9d234a763e` in `f3be7fd0ce`.
 
 What the booked figure bounds:
@@ -181,7 +183,8 @@ and no cache key reads either.
 
 Status:
 fixed on 2026-10-25 (UTC),
-found by the third independent re-check of B920 (a minor wording finding and four nits),
+found by the third independent re-check of B920 (a minor wording finding and five nits;
+the minor finding on commit messages stays open, since mending it would take an amend),
 a wording round with no change of behaviour.
 
 The defect:
@@ -221,9 +224,32 @@ The note of 2026-10-25 (UTC) in the XingZ6021 defects record
 used "crosses a window edge" for a call that starts outside every window and completes inside one;
 it now says that,
 because a call that spans a whole window also crosses window edges and is still booked as at its start.
-The phrase survives only as the quotation of the retired sentence in the B920 entry of this file.
+The words "crosses a window edge" remain in this file only where the B920 entry and this entry report the retired sentence,
+and in no statement of the rule.
 The B920 entry no longer points at a case by its place in the text,
 and its list of third-round commits names `764ddcc51b`.
+
+The fifth round,
+after a fourth independent re-check found no major finding,
+two minor ones and six nits,
+mended the "not bounded" sentences.
+Three of them said the figure is unbounded for a call that starts before a window and completes after it,
+in the comment of `provider/src/direct-cost.ts`,
+in the B920 entry of this file
+and in the Prices section of the decision record.
+A call from 00:30 UTC to 08:00 UTC on a Wednesday, or from 02:00 UTC to 11:00 UTC,
+starts or completes inside a window and books peak,
+which is an upper bound;
+only a call that spans a whole window with both instants outside it books half and is unbounded.
+The three now say that,
+in the words of `shared-contract/src/direct-card-sides.ts`.
+The same round wrapped a 124-column comment line,
+re-wrapped two 121-column test names without changing their text
+(`BOOKS the edges of the week by the UTC weekday: ...` and `READS an instant that is not a time as peak, ...`),
+put a dated in-place note on the sentence reworded in the XingZ6021 defects record,
+added `eca5ae92cf` to the B920 commit list,
+and completed the list below.
+The minor finding on commit messages stays open.
 
 Nothing in behaviour changed:
 no test was added or removed and no cache version moved.
@@ -231,6 +257,13 @@ The commits are `2266bb9b8a` (the source comments and the index line),
 `b1eea0a93d` (the card TSDoc),
 `f69dd3191c` (the suite name),
 `1ec534cbcd` (the defects note),
-`4828385b5e` (this entry)
-and `f1577c02da` (a line break in it that the Markdown linter found);
+`4828385b5e` (this entry),
+`f1577c02da` (a line break in it that the Markdown linter found),
+`2924577628` (its commit list),
+`a247a240f5` (a second line break),
+`004a60e557` (the sixth place),
+`0bb3f6d874` (the not-bounded sentences),
+`0d0f7618f2` (the note in the defects record),
+`366ca075f5` (the two test names)
+and the commit that holds this paragraph;
 the branch's `git log` holds any commit after those.
