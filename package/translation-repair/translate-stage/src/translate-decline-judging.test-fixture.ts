@@ -13,7 +13,6 @@
 
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
-import { expect, } from '@monochromatic-dev/module-test/ts';
 
 import type { Candidate, } from '@monochromatic-dev/translation-repair-house-rule';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
@@ -23,6 +22,7 @@ import {
   messageText,
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
+import { replyWith, } from '@monochromatic-dev/translation-repair-provider/ts/scripted-reply-outcome.test-fixture.ts';
 import {
   laneCandidate,
   type TranslateCandidateValue,
@@ -34,6 +34,12 @@ import {
   unmetClausesOf,
 } from '@monochromatic-dev/translation-repair-adjudication/ts/decline-consequence-clauses.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import {
+  SEAT_HYPER_ONLY,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 
 //region Translate decline judging
@@ -65,20 +71,33 @@ const SENTENCE_OPENS_AT = 'Declining is a real answer';
 const SENTENCE_CLOSES_AT = 'Reply with ONLY a JSON object';
 
 /**
+ What `indexOf` answers for a text the sheet does not carry.
+ */
+const NOT_FOUND = -1;
+
+/**
+ Line that opens a candidate block in a rendered selection sheet, before the candidate's number.
+ */
+const CANDIDATE_OPENS_AT = '\nCANDIDATE ';
+
+/**
+ How many candidates a slate of two holds.
+ */
+export const PAIR = 2;
+
+/**
+ How many candidates a slate of four holds.
+ */
+export const QUARTET = 4;
+
+/**
  Judges of the bench, in the order a plan names them.
  */
 export const JUDGES: readonly RosterModelId[] = [
-  'hf:cat/Cat-C',
-  'hf:cat/Cat-F',
-  'hf:cat/Cat-G',
-].map(function toId(id,) {
-  return id as unknown as RosterModelId;
-},);
-
-/**
- Writer of the fresh renderings, who is no judge.
- */
-const WRITER = 'hf:cat/Cat-A' as unknown as RosterModelId;
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+];
 
 /**
  A rendering by the writer, and so a candidate no judge has a stake in.
@@ -105,13 +124,13 @@ export const YAWNING = 'The cat yawns on the sill, tail resting against the pipe
 
  @param rendering - the rendering
 
- @param writer - model that wrote it, the writer of the fresh renderings unless a case gives a judge a stake
+ @param writer - model that wrote it
 
  @returns Candidate as the slate carries it
 
  @example
  ```ts
- const candidate = freshBy({ rendering: 'The cat dozes.', writer: WRITER, },);
+ const candidate = freshBy({ rendering: 'The cat dozes.', writer: SEAT_HYPER_ONLY, },);
  ```
  */
 function freshBy(
@@ -139,7 +158,7 @@ function freshBy(
 /**
  The slate a case judges: four renderings, or two.
 
- @param width - how many candidates the slate holds, four or two
+ @param width - how many candidates the slate holds, {@link QUARTET} or {@link PAIR}
 
  @param secondIsJudgesOwn - whether the second candidate was written by the second judge, whose vote for it then carries
  half weight, so that a plurality can stand over a vote the second judge cast for its own work
@@ -148,7 +167,7 @@ function freshBy(
 
  @example
  ```ts
- const candidates = slateOf({ width: 2, secondIsJudgesOwn: true, },);
+ const candidates = slateOf({ width: PAIR, secondIsJudgesOwn: true, },);
  ```
  */
 export function slateOf(
@@ -156,7 +175,7 @@ export function slateOf(
     width,
     secondIsJudgesOwn,
   }: {
-    readonly width: 2 | 4;
+    readonly width: typeof PAIR | typeof QUARTET;
     readonly secondIsJudgesOwn: boolean;
   },
 ): readonly Candidate<TranslateCandidateValue>[] {
@@ -166,14 +185,16 @@ export function slateOf(
   const fresh = [
     freshBy({
       rendering: DOZING,
-      writer: WRITER,
+      writer: SEAT_HYPER_ONLY,
     },),
     freshBy({
       rendering: NAPPING,
-      writer: secondIsJudgesOwn ? nonNullishOrThrow(JUDGES[1],) : WRITER,
+      writer: secondIsJudgesOwn
+        ? nonNullishOrThrow(JUDGES[1],)
+        : SEAT_HYPER_ONLY,
     },),
   ];
-  if (width === 2)
+  if (width === PAIR)
     return fresh;
   return [
     ...fresh,
@@ -189,6 +210,43 @@ export function slateOf(
 }
 
 /**
+ The text of one candidate block of a rendered selection sheet.
+
+ A block reads its number, the opening fence, the text, and the closing fence, which equals the opening one.
+
+ @param block - the sheet from the number after the opening of a candidate block to the opening of the next
+
+ @returns The text between the fences
+
+ @example
+ ```ts
+ const text = candidateTextOf({ block: '1\n=====\nThe cat naps.\n=====\n', },); // 'The cat naps.'
+ ```
+ */
+function candidateTextOf({ block, }: { readonly block: string; },): string {
+  /**
+   Lines of the block.
+   */
+  const lines = block.split('\n',);
+  /**
+   Fence the block opens with.
+   */
+  const fence = nonNullishOrThrow(lines[1],);
+  /**
+   Lines after the opening fence.
+   */
+  const body = lines.slice(2,);
+  /**
+   Lines before the closing fence.
+   */
+  const text = body.slice(
+    0,
+    body.indexOf(fence,),
+  );
+  return text.join('\n',);
+}
+
+/**
  The candidate texts a rendered selection sheet holds, in the order it numbers them.
 
  @param sheet - rendered selection sheet
@@ -201,9 +259,32 @@ export function slateOf(
  ```
  */
 export function candidatesIn({ sheet, }: { readonly sheet: string; },): readonly string[] {
-  return [...sheet.matchAll(/^CANDIDATE \d+\n(=+)\n([\s\S]*?)\n\1$/gm,),].map(function toText(found,): string {
-    return found[2] ?? '';
+  /**
+   The blocks after the first, which is the text before any candidate.
+   */
+  const blocks = sheet.split(CANDIDATE_OPENS_AT,)
+    .slice(1,);
+  return blocks.map(function textOf(block,): string {
+    return candidateTextOf({ block, },);
   },);
+}
+
+/**
+ Refuses a text call, which the translate stage never makes.
+
+ @throws {@link Error} on any invocation
+ */
+function unexpectedText(): never {
+  throw new Error('chatText unused by the translate stage',);
+}
+
+/**
+ Refuses a quota read, which fixtures cannot answer.
+
+ @throws {@link Error} on any invocation
+ */
+function unexpectedQuotas(): never {
+  throw new Error('quotas unused by the translate stage',);
 }
 
 /**
@@ -230,15 +311,12 @@ function votingClient(
   },
 ): ModelClient {
   return {
-    chatText: async () => {
-      throw new Error('chatText unused by the translate stage',);
-    },
-    quotas: async () => {
-      throw new Error('quotas unused by the translate stage',);
-    },
-    chatJson: async <ValueT,>(
-      request: ChatJsonRequest<ValueT>,
-    ): Promise<ChatJsonOutcome<ValueT>> => {
+    chatText: unexpectedText,
+    quotas: unexpectedQuotas,
+    /**
+     Answers with the ballot the plan scripts for this judge, through the wire guard.
+     */
+    chatJson: function chatJson<ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> {
       /**
        The sheet this judge was sent.
        */
@@ -249,27 +327,27 @@ function votingClient(
         .join('\n',);
       sheets.push(sheet,);
       /**
-       Text this judge votes for, absent when it declines or when the round does not hold it.
+       Text this judge votes for, absent when it declines.
        */
       const named = plan.get(request.modelId,);
       /**
-       Position of that text in this round's candidates, from one; zero declines every candidate.
+       Candidates this round holds, in the order it numbers them.
        */
-      const best = (named === undefined) ? 0 : (candidatesIn({ sheet, },).indexOf(named,) + 1);
+      const held = candidatesIn({ sheet, },);
       /**
-       Ballot this judge casts.
+       Number of the candidate voted for, from one; zero declines every candidate, as it does for a text the round does
+       not hold.
        */
-      const ballot: unknown = {
-        best,
-        assessment: `fixture ballot of ${request.modelId}`,
-      };
-      if (!request.validate(ballot,))
-        throw new Error('the fixture ballot failed the wire guard',);
-      return {
-        kind: 'ok',
-        value: ballot as ValueT,
-        rawText: JSON.stringify(ballot,),
-      };
+      const best = (named === undefined)
+        ? 0
+        : (held.indexOf(named,) + 1);
+      return Promise.resolve(replyWith({
+        report: {
+          best,
+          assessment: `fixture ballot of ${request.modelId}`,
+        },
+        request,
+      },),);
     },
   };
 }
@@ -289,7 +367,7 @@ function votingClient(
 
  @example
  ```ts
- const outcome = await judgedOver({ sheets: [], candidates: slateOf({ width: 4, secondIsJudgesOwn: false, },), },);
+ const outcome = await judgedOver({ sheets: [], candidates: slateOf({ width: QUARTET, secondIsJudgesOwn: false, },), },);
  ```
  */
 export async function judgedOver(
@@ -333,6 +411,7 @@ export async function judgedOver(
     },);
   }
   catch (error) {
+    l.info(`the judging raised ${String(error,)}, which the case reads`,);
     return error;
   }
 }
@@ -343,6 +422,8 @@ export async function judgedOver(
  @param sheet - rendered selection sheet
 
  @returns The text between the line that calls declining a real answer and the line that asks for the reply
+
+ @throws {@link Error} when the sheet carries neither line, or the reply line stands before the sentence
 
  @example
  ```ts
@@ -358,8 +439,8 @@ export function sentenceOf({ sheet, }: { readonly sheet: string; },): string {
    Where the line that asks for the reply stands.
    */
   const closes = sheet.indexOf(SENTENCE_CLOSES_AT,);
-  expect(opens,).toBeGreaterThanOrEqual(0,);
-  expect(closes,).toBeGreaterThan(opens,);
+  if ((opens === NOT_FOUND) || (closes < opens))
+    throw new Error('the sheet does not carry the sentence about declining between its two lines',);
   return sheet.slice(
     opens,
     closes,

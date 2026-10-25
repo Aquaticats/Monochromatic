@@ -28,6 +28,7 @@ import {
   failuresOf,
   JUDGES,
   judgedOver,
+  QUARTET,
   slateOf,
 } from './translate-decline-judging.test-fixture.ts';
 
@@ -45,7 +46,7 @@ await describe({
         await judgedOver({
           sheets,
           candidates: slateOf({
-            width: 4,
+            width: QUARTET,
             secondIsJudgesOwn: false,
           },),
         },);
@@ -69,7 +70,7 @@ await describe({
         await judgedOver({
           sheets,
           candidates: slateOf({
-            width: 4,
+            width: QUARTET,
             secondIsJudgesOwn: false,
           },),
         },);
@@ -92,7 +93,7 @@ await describe({
         await judgedOver({
           sheets,
           candidates: slateOf({
-            width: 4,
+            width: QUARTET,
             secondIsJudgesOwn: false,
           },),
           shipPastDecline: false,
@@ -120,7 +121,7 @@ await describe({
         const outcome = await judgedOver({
           sheets,
           candidates: slateOf({
-            width: 4,
+            width: QUARTET,
             secondIsJudgesOwn: false,
           },),
           shipPastDecline: false,

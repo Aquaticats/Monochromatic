@@ -32,6 +32,8 @@ import {
   JUDGES,
   judgedOver,
   NAPPING,
+  PAIR,
+  QUARTET,
   sheetOfRound,
   slateOf,
 } from './translate-decline-judging.test-fixture.ts';
@@ -48,7 +50,7 @@ type ShapeCase = {
   /**
    How many candidates the slate holds.
    */
-  readonly width: 2 | 4;
+  readonly width: typeof PAIR | typeof QUARTET;
 
   /**
    Whether the second candidate was written by the second judge, so that its vote for it weighs half.
@@ -63,7 +65,7 @@ type ShapeCase = {
   /**
    How many candidates the challenge is put to.
    */
-  readonly challengeIsOver: number;
+  readonly challengeIsOver: typeof PAIR | typeof QUARTET;
 };
 
 /**
@@ -88,7 +90,7 @@ function judgeAt(position: number,): RosterModelId {
 const SHAPE_CASES: readonly ShapeCase[] = [
   {
     shape: 'tied-at-top',
-    width: 4,
+    width: QUARTET,
     secondIsJudgesOwn: false,
     plan: new Map([
       [
@@ -100,11 +102,11 @@ const SHAPE_CASES: readonly ShapeCase[] = [
         NAPPING,
       ],
     ],),
-    challengeIsOver: 2,
+    challengeIsOver: PAIR,
   },
   {
     shape: 'leader-and-runner-up',
-    width: 4,
+    width: QUARTET,
     secondIsJudgesOwn: true,
     plan: new Map([
       [
@@ -116,11 +118,11 @@ const SHAPE_CASES: readonly ShapeCase[] = [
         NAPPING,
       ],
     ],),
-    challengeIsOver: 2,
+    challengeIsOver: PAIR,
   },
   {
     shape: 'whole-slate-tied',
-    width: 2,
+    width: PAIR,
     secondIsJudgesOwn: false,
     plan: new Map([
       [
@@ -132,18 +134,18 @@ const SHAPE_CASES: readonly ShapeCase[] = [
         NAPPING,
       ],
     ],),
-    challengeIsOver: 2,
+    challengeIsOver: PAIR,
   },
   {
     shape: 'every-judge-declined',
-    width: 4,
+    width: QUARTET,
     secondIsJudgesOwn: false,
     plan: new Map(),
-    challengeIsOver: 4,
+    challengeIsOver: QUARTET,
   },
   {
     shape: 'leader-alone',
-    width: 4,
+    width: QUARTET,
     secondIsJudgesOwn: false,
     plan: new Map([
       [
@@ -151,11 +153,11 @@ const SHAPE_CASES: readonly ShapeCase[] = [
         DOZING,
       ],
     ],),
-    challengeIsOver: 4,
+    challengeIsOver: QUARTET,
   },
   {
     shape: 'slate-of-two',
-    width: 2,
+    width: PAIR,
     secondIsJudgesOwn: true,
     plan: new Map([
       [
@@ -167,7 +169,7 @@ const SHAPE_CASES: readonly ShapeCase[] = [
         NAPPING,
       ],
     ],),
-    challengeIsOver: 2,
+    challengeIsOver: PAIR,
   },
 ];
 
