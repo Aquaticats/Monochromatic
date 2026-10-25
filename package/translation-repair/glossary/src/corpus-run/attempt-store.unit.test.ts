@@ -87,16 +87,16 @@ async function readWritten(
 
  @param contents - exact file bytes
 
- @returns Warnings the read printed
+ @returns Warnings the read printed, beside the path of the file it read
 
  @example
  ```ts
- const warned = await warningsReading({ contents: '{"Kitten":', },);
+ const { lines, attemptsPath, } = await warningsReading({ contents: '{"Kitten":', },);
  ```
  */
 async function warningsReading(
   { contents, }: { readonly contents: string; },
-): Promise<readonly string[]> {
+): Promise<{ readonly lines: readonly string[]; readonly attemptsPath: string; }> {
   await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
   /**
    Warnings the read printed.
@@ -119,7 +119,13 @@ async function warningsReading(
     directory: scratch.path,
     contents,
   },);
-  return lines;
+  return {
+    lines,
+    attemptsPath: join(
+      scratch.path,
+      'attempts.json',
+    ),
+  };
 }
 
 await describe({
@@ -250,6 +256,35 @@ await describe({
         },),
 
         it({
+          name: 'READS A COUNT THAT IS NOT A NON-NEGATIVE WHOLE NUMBER AS ZERO (1.5, -3, 1e999 and 1e20), keeping the '
+            + 'entry and its neighbours, since the pass adds one to a count it reads and a stamp refuses a count that '
+            + 'is not a whole number from 1, which a hand-edited file would otherwise turn into a crash at every launch',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
+
+            // Written as text: `JSON.stringify` writes the 1e999 that parses to Infinity as null.
+            const maps = await Promise.all([
+              '1.5',
+              '-3',
+              '1e999',
+              '1e20',
+            ].map(async function toMap(written, index,) {
+              return await readWritten({
+                directory: scratch.path,
+                contents: `{"Mittens": ${written}, "Marmalade": 5}`,
+                name: `hand-edited-${String(index,)}.json`,
+              },);
+            },),);
+
+            for (const map of maps)
+              expect(map,).toStrictEqual(new Map([
+                ['Mittens', 0,],
+                ['Marmalade', 5,],
+              ],),);
+          },
+        },),
+
+        it({
           name: 'THROWS on a read fault that is neither absence nor malformed '
             + 'JSON. Pointing the path at a directory is the shape a misconfigured '
             + 'runs directory produces, and swallowing it would make every run '
@@ -290,27 +325,79 @@ await describe({
           name: 'SAYS it starts the counts over for malformed JSON and for JSON that is no object, and names a '
             + 'count it read as zero, since each silently forgets which entries kept failing (ledger A11)',
           fn: async () => {
-            expect((await warningsReading({ contents: '{"Mittens": 2,', },)).length,).toBe(1,);
-            expect((await warningsReading({ contents: '42', },)).length,).toBe(1,);
+            expect((await warningsReading({ contents: '{"Mittens": 2,', },)).lines.length,).toBe(1,);
+            expect((await warningsReading({ contents: '42', },)).lines.length,).toBe(1,);
 
             /**
              Warnings for a count that is no number.
              */
-            const coerced = await warningsReading({
+            const coerced = (await warningsReading({
               contents: JSON.stringify({
                 Mittens: 'many',
                 Marmalade: 5,
               },),
-            },);
+            },)).lines;
             expect(coerced.length,).toBe(1,);
             expect(coerced[0],).toContain('Mittens',);
+          },
+        },),
+        it({
+          name: 'NAMES THE ENTRY, THE FILE AND THE VALUE of a count it reads as zero because it is no non-negative '
+            + 'whole number, since a reader of the log cannot tell which hand-edited count was thrown away from a '
+            + 'warning that names only the entry',
+          fn: async () => {
+            for (
+              const [
+                written,
+                shown,
+              ] of [
+                [
+                  '1.5',
+                  '1.5',
+                ],
+                [
+                  '-3',
+                  '-3',
+                ],
+                [
+                  '1e999',
+                  'Infinity',
+                ],
+                [
+                  '1e20',
+                  '100000000000000000000',
+                ],
+              ] as const
+            ) {
+              /* oxlint-disable no-await-in-loop -- each read diverts the one global console.warn, so they run in turn */
+              /**
+               What the read of this file printed, and the file's path.
+               */
+              const { lines, attemptsPath, } = await warningsReading({
+                contents: `{"Mittens": ${written}, "Marmalade": 5}`,
+              },);
+              /* oxlint-enable no-await-in-loop */
+              expect(lines.length,).toBe(1,);
+              expect(lines[0],).toContain('Mittens',);
+              expect(lines[0],).toContain(attemptsPath,);
+              expect(lines[0],).toContain(shown,);
+            }
           },
         },),
         it({
           name: 'STAYS QUIET for a well-formed map, so the warnings the "SAYS it starts the counts over" case '
             + 'reads are worth reading',
           fn: async () => {
-            expect(await warningsReading({ contents: '{"Mittens": 2}', },),).toStrictEqual([],);
+            expect((await warningsReading({ contents: '{"Mittens": 2}', },)).lines,).toStrictEqual([],);
+          },
+        },),
+        it({
+          name: 'STAYS QUIET for the smallest and the largest count a file can hold, so the whole-number rule does not '
+            + 'throw away a count that is one',
+          fn: async () => {
+            expect(
+              (await warningsReading({ contents: '{"Mittens": 0, "Marmalade": 9007199254740991}', },)).lines,
+            ).toStrictEqual([],);
           },
         },),
       ],
