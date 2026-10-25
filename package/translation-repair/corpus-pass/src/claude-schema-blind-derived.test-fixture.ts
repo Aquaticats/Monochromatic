@@ -59,7 +59,7 @@ function readsOneOf(
 
  @param derived - names so far
 
- @returns The names, and the names so far, once no later round adds a name
+ @returns Names, and the names so far, once no later round adds a name
 
  @example
  ```ts

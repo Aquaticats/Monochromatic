@@ -8,6 +8,8 @@ import {
   unwrapped,
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import { drained, } from './claude-schema-drain.test-fixture.ts';
+
 //region The syntax tree of a source file, read for answer schemas
 // What `claude-schema-module.test-fixture.ts` and `claude-schema-sources.test-fixture.ts` read a parsed file through:
 // walks over the tree that leave out types, the object literal that is an answer schema's format, the function an
@@ -262,7 +264,7 @@ export function visitsUnder(
       field: '',
     },
   ];
-  for (let visit = pending.pop(); visit !== undefined; visit = pending.pop()) {
+  for (const visit of drained({ stack: pending, },)) {
     if (!skips(visit,)) {
       met.push(visit,);
       for (const [field, value,] of Object.entries(visit.node,)) {

@@ -12,6 +12,7 @@ import {
   namesBoundBy,
 } from './claude-schema-blind-positions.test-fixture.ts';
 import { readsOfName, } from './claude-schema-blind-reads.test-fixture.ts';
+import { drained, } from './claude-schema-drain.test-fixture.ts';
 import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
   isNoNode,
@@ -165,7 +166,7 @@ function plainMemberOf(
 
  @param local - name of the namespace import
 
- @param exported - the export read
+ @param exported - export read
 
  @returns Readers: the member of that name where it is read as one, the name alone where it is read as a whole or by a
  computed member, and none where another member is read
@@ -231,11 +232,11 @@ function namespaceReadersOf(
 
  @param context - what the importing module's names are read against
 
- @param importer - the importer
+ @param importer - importer
 
- @param item - the export followed
+ @param item - export followed
 
- @returns The places the importer reads it and the exports that carry it on
+ @returns Places the importer reads it and the exports that carry it on
 
  @example
  ```ts
@@ -340,7 +341,7 @@ function stepOfImporter(
 
  @param contextOf - what the names of a file are read against
 
- @returns The places the constant is read, each with the context of its file and the node that holds the value there
+ @returns Places the constant is read, each with the context of its file and the node that holds the value there
 
  @example
  ```ts
@@ -402,7 +403,7 @@ export function constantReadersOf(
           exported,
         };
       },);
-    for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    for (const item of drained({ stack: pending, },)) {
       if (!followed.has(`${item.file}#${item.exported}`,)) {
         followed.add(`${item.file}#${item.exported}`,);
         for (const importer of importers.get(item.file,) ?? []) {

@@ -178,28 +178,6 @@ export function isPureTypeVisit({ node, }: Visit,): boolean {
 }
 
 /**
- The names a file's code refers to as values, each as a path: `build`, `ns.build`, `kit.build`. A reference is a name
- or a chain of members that sits where a value does; types, keys, declared names and import or export list entries are
- left out, and so is the part of a chain that is only its start.
-
- @param root - node to look under
-
- @returns One path per reference
-
- @example
- ```ts
- const references = referencesIn({ root: program, },);
- // => [['contestResponseFormat'], ['contest', 'contestResponseFormat']]
- ```
- */
-export function referencesIn({ root, }: { readonly root: TreeNode; },): readonly (readonly string[])[] {
-  return referencesUnder({
-    root,
-    skips: isTypeVisit,
-  },);
-}
-
-/**
  The visits under a root that start a reference: a name or a chain of members that sits where a value does, with the
  chain kept whole whatever its members are.
 
@@ -281,6 +259,28 @@ function referencesUnder(
       const path = pathOf({ node, },);
       return (path.length === 0) ? [] : [path,];
     },);
+}
+
+/**
+ The names a file's code refers to as values, each as a path: `build`, `ns.build`, `kit.build`. A reference is a name
+ or a chain of members that sits where a value does; types, keys, declared names and import or export list entries are
+ left out, and so is the part of a chain that is only its start.
+
+ @param root - node to look under
+
+ @returns One path per reference
+
+ @example
+ ```ts
+ const references = referencesIn({ root: program, },);
+ // => [['contestResponseFormat'], ['contest', 'contestResponseFormat']]
+ ```
+ */
+export function referencesIn({ root, }: { readonly root: TreeNode; },): readonly (readonly string[])[] {
+  return referencesUnder({
+    root,
+    skips: isTypeVisit,
+  },);
 }
 
 //endregion The names a file's code refers to

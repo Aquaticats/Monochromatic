@@ -236,7 +236,7 @@ function spotsOf(
 
  @param constants - where the other files read a constant a file exports
 
- @returns The context, with no parents and no references yet
+ @returns Context, with no parents and no references yet
 
  @example
  ```ts
@@ -383,7 +383,7 @@ export function blindSpotsOf(
 
    @param file - path of the file
 
-   @returns The context of the file
+   @returns Context of the file
    */
   function contextOfFile({ file, }: { readonly file: string; },): BlindContext {
     /**

@@ -87,7 +87,7 @@ function endOfChainAt({ hop, }: { readonly hop: number; },): SourceFile {
 
  @param length - number of functions in the chain, from two
 
- @returns The sender's file, the first function's file, one file for each function after it, and the file that calls
+ @returns Sender's file, the first function's file, one file for each function after it, and the file that calls
  the last
 
  @example

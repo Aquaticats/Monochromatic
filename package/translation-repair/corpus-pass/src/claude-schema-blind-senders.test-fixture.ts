@@ -152,7 +152,8 @@ const NO_ARGUMENT = -2;
 
  @example
  ```ts
- const read = argumentReadBy({ members: ['call',], },); // 1
+ const read = argumentReadBy({ members: ['call',], },);
+ // => 1
  ```
  */
 function argumentReadBy({ members, }: { readonly members: readonly string[]; },): number {

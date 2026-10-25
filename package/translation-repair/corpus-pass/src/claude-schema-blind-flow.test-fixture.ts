@@ -11,6 +11,7 @@ import {
 } from './claude-schema-blind-positions.test-fixture.ts';
 import { readsOfName, } from './claude-schema-blind-reads.test-fixture.ts';
 import { stepOf, } from './claude-schema-blind-step.test-fixture.ts';
+import { drained, } from './claude-schema-drain.test-fixture.ts';
 import {
   isNoNode,
   NO_NODE,
@@ -132,7 +133,7 @@ export function destinationsOf(
    The functions left by that the search does not know, in the order they were met, with the context of their file.
    */
   const leavers: Pending[] = [];
-  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+  for (const item of drained({ stack: pending, },)) {
     /**
      What the names of the node's file are read against.
      */

@@ -233,7 +233,7 @@ function referringTo(
 
  @param found - forwarders found by the rounds before
 
- @returns The forwarders found before, then those this round and the rounds after it add, in the order of the sources
+ @returns Forwarders found before, then those this round and the rounds after it add, in the order of the sources
 
  @example
  ```ts

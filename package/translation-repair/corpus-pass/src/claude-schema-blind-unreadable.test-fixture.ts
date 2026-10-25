@@ -86,11 +86,12 @@ const UNREADABLE_NAMES: ReadonlyMap<string, string> = new Map(Object.entries({
 
  @param node - member expression read
 
- @returns The name that stands for it among the unreadable names, empty for any other member
+ @returns Name that stands for it among the unreadable names, empty for any other member
 
  @example
  ```ts
- const name = computedGlobalNameOf({ node, },); // COMPUTED_GLOBAL_KEY for globalThis[key]
+ const name = computedGlobalNameOf({ node, },);
+ // => COMPUTED_GLOBAL_KEY for globalThis[key]
  ```
  */
 function computedGlobalNameOf({ node, }: { readonly node: TreeNode; },): string {

@@ -149,7 +149,7 @@ function reflectsConstructor({ node, }: { readonly node: TreeNode; },): boolean 
 
  @param node - node read, of any kind
 
- @returns The report text for a node that loads `vm` or reads a constructor, empty for any other node
+ @returns Report text for a node that loads `vm` or reads a constructor, empty for any other node
 
  @example
  ```ts
