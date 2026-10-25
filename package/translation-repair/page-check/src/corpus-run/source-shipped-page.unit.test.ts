@@ -361,31 +361,37 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
 
 /**
  Two runs of which the first leaves a fence or display math open at its end and a line of the second would close it,
- with the slices the first step writes as literal text.
+ with the slices the first step writes as literal text, and the defects the page ships with: a comment that never closes
+ is read by a reader of plain Markdown as raw HTML to the end of the text, which the page does not show, so the
+ comparison of the two readings reports it.
  */
 const OPEN_FLOW_PAIRS: readonly {
   readonly name: string;
   readonly first: string;
   readonly second: string;
   readonly slices: string;
+  readonly checks: readonly string[];
 }[] = [
   {
     name: 'a display math the first run opens, a comment that never closes beside it, and one the second run opens',
     first: '$$\n{x\n\n<!--\n',
     second: '$$\nx < {y}\n',
     slices: 'slices [1, 3]',
+    checks: ['source-reads-differently',],
   },
   {
     name: 'a display math the first run opens and a second run holding a comment that never closes',
     first: '$$\n{y\n',
     second: '$$\nz < {w}\n<!--\n',
     slices: 'slices [1, 3]',
+    checks: ['source-reads-differently',],
   },
   {
     name: 'a fence after a byte order mark in the first run, which the page reads as text, and a fence in the second',
     first: '\uFEFF```\n{\n```\n',
     second: '`a\n{b` {c\n\uFEFF```\n{\n```\n<Foo />\n',
     slices: 'slices [1, 3]',
+    checks: [],
   },
 ];
 
@@ -884,7 +890,7 @@ await describe({
           },
         },),
 
-        ...OPEN_FLOW_PAIRS.map(function toCase({ name, first, second, slices, },) {
+        ...OPEN_FLOW_PAIRS.map(function toCase({ name, first, second, slices, checks: expected, },) {
           return it({
             name: `SHIPS NO CODE FROM THE RUNS OF ${name.toUpperCase()}: the flow the first run leaves open is closed `
               + 'at its end, so the opening line of the second run does not close it and expose the text after that '
@@ -905,7 +911,7 @@ await describe({
                 ],
               },);
               expect(liveConstructsOf({ pageText: page, },),).toEqual([],);
-              expect(checks,).toEqual([],);
+              expect(checks,).toEqual(expected,);
               const lines = compositionLines({ warnings, },);
               expect(lines.length,).toBe(1,);
               expect(lines[0],).toContain('step 1 of 3',);

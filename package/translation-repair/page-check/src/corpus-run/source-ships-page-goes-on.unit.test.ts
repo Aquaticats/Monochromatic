@@ -22,12 +22,12 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { encodeAsLiteralMdx, } from '../../dist/final/node/index.mjs';
 import {
+  encodeAsLiteralMdx,
   readerOfPage,
   readerOfSource,
   withoutLinkTargets,
-} from './source-reader-text.test-fixture.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Texts a reader must see as the source shows them: what the case is, and the text.

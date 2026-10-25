@@ -1,28 +1,49 @@
 import {
   commentRegionsOf,
   maskHtmlComments,
+  parseGfmMathBody,
   parseMdxBody,
   type TreeNode,
-} from '@monochromatic-dev/translation-repair-document-structure';
-import {
-  parseGfmMathBody,
-} from '@monochromatic-dev/translation-repair-document-structure/ts/gfm-math-reading.test-fixture.ts';
+} from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { UNTRANSLATED_PASSAGE_NOTE, } from './source-ships.ts';
 
-//region Reader text of a source run
+//region Reading account of a source run
 // WHAT A READER OF A PAGE SEES OF A TEXT, put side by side for the text as the artifact records it and the text as the
 // page carries it. A page is read the way the package admits it (HTML comments masked, then the strict MDX grammar),
 // the source the way any Markdown reader would read it in the flavour the package parses pages in (CommonMark with GFM
-// and the site's math, no MDX; `gfm-math-reading.test-fixture.ts` in `document-structure`), and both are reduced to the
+// and the site's math, no MDX; `parseGfmMathBody` in `document-structure`), and both are reduced to the
 // same account: the text of every leaf, with a link's target marked where the link stands and the formula of a math
 // node as it is. The account of a page that holds a construct the strict grammar reads as syntax (an expression, a tag)
-// is refused rather than guessed at, since such a page does not show the source text.
-//
-// TEST SUPPORT, NOT PACKAGE SOURCE.
+// is refused rather than guessed at, since such a page does not show the source text. It moved out of the test fixture
+// `source-reader-text.test-fixture.ts` on 2026-10-25, when the page check began to compare the two readings.
 
 /**
  The note a run of untranslated slices carries, which the shipped page puts before the original.
  */
-const NOTE = '> This passage has not been translated yet. The original text follows.';
+const NOTE = UNTRANSLATED_PASSAGE_NOTE;
+
+/**
+ Refusal when the page holds a construct the strict grammar reads as syntax, which shows a reader other than the text.
+
+ @example
+ ```ts
+ throw new PageSyntaxError({ type: 'mdxTextExpression', },);
+ ```
+ */
+export class PageSyntaxError extends Error {
+  /**
+   Message names the node type and nothing of the page.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
+   @param type - type of the node the strict grammar built
+   */
+  public constructor({ type, }: { readonly type: string; },) {
+    super(`the page holds a ${type} node, which the strict grammar reads as syntax`,);
+    this.name = 'PageSyntaxError';
+  }
+}
 
 /**
  The byte order mark a text may open with, which a parser drops from the start of its input.
@@ -91,7 +112,7 @@ function childrenLeaves({ node, }: { readonly node: TreeNode; },): string {
 
  @returns Text of the leaves, a link's target in marks, a footnote's label in brackets
 
- @throws {@link Error} for a node the strict grammar reads as syntax
+ @throws {@link PageSyntaxError} for a node the strict grammar reads as syntax
 
  @example
  ```ts
@@ -104,7 +125,7 @@ function leavesOf({ node, }: { readonly node: TreeNode; },): string {
    */
   const type: string = node.type;
   if (SYNTAX_TYPES.has(type,))
-    throw new Error(`the page holds a ${type} node, which the strict grammar reads as syntax`,);
+    throw new PageSyntaxError({ type, },);
   if (VALUE_TYPES.has(type,) && ('value' in node))
     return node.value;
   if (((type === 'inlineMath') || (type === 'math')) && ('value' in node))
@@ -155,8 +176,8 @@ function accountOf({ root, }: { readonly root: TreeNode; },): string {
 
  @returns Account of everything after the note
 
- @throws {@link Error} when the page holds syntax the reader would not see as text, and whatever the strict grammar
- raises when the page does not parse
+ @throws {@link PageSyntaxError} when the page holds syntax the reader would not see as text, and whatever the strict
+ grammar raises when the page does not parse
 
  @example
  ```ts
@@ -272,4 +293,4 @@ export function withoutLinkTargets({ account, }: { readonly account: string; },)
   return kept.join('',);
 }
 
-//endregion Reader text of a source run
+//endregion Reading account of a source run

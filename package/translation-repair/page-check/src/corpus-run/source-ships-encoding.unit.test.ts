@@ -8,7 +8,7 @@
 
  EVERY CASE OF THE SECOND GROUP COMPARES WHAT A READER SEES: the text of the page's leaves after the note, read by
  the strict grammar, against the text of the source's leaves read as plain Markdown
- (`source-reader-text.test-fixture.ts`). A pinned string says what the encoder wrote; only the comparison says a
+ (`source-reading-account.ts`). A pinned string says what the encoder wrote; only the comparison says a
  reader sees the source text.
 
  Fixtures are cat-themed invention. No corpus content appears here.
@@ -25,18 +25,16 @@ import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-con
 
 import {
   encodeAsLiteralMdx,
+  readerOfPage,
+  readerOfSource,
   readPageGrammar,
+  withoutLinkTargets,
 } from '../../dist/final/node/index.mjs';
 import {
   liveConstructsOf,
   liveConstructsOfCarried,
 } from './source-live-constructs.test-fixture.ts';
 import { containerFootnoteTexts, } from './source-live-container-footnotes.test-fixture.ts';
-import {
-  readerOfPage,
-  readerOfSource,
-  withoutLinkTargets,
-} from './source-reader-text.test-fixture.ts';
 
 /**
  Page text standing before the encoded text in the parse cases, the way the note stands before an original.

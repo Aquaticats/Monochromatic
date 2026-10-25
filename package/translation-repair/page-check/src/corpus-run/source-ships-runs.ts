@@ -4,7 +4,10 @@ import {
   type PageGrammarReading,
   readPageGrammar,
 } from './page-grammar.ts';
-import { textOnPage, } from './source-ships.ts';
+import {
+  textOnPage,
+  UNTRANSLATED_PASSAGE_NOTE,
+} from './source-ships.ts';
 import {
   type WouldShipSlice,
   type WouldShipSource,
@@ -106,6 +109,55 @@ export function runTextOf(
       : [];
   },);
   return `${texts.join('\n\n',)}\n`;
+}
+
+/**
+ Text a run of slices puts on the page after the note, the slices one blank line apart.
+
+ @param run - slice indices of the run, which opens with a slice that opens a run
+
+ @param slices - every slice's reading, in comparison-row order
+
+ @param encoding - how the originals are written
+
+ @returns The originals alone, without the note and the line ending the page text ends with
+
+ @throws {@link Error} when the text of the run does not open with the note, which a run of slices does by its definition
+
+ @example
+ ```ts
+ const body = runBodyOf({ run: [88, 89,], slices, encoding: 'literal', },);
+ ```
+ */
+export function runBodyOf(
+  {
+    run,
+    slices,
+    encoding,
+  }: {
+    readonly run: readonly number[];
+    readonly slices: readonly WouldShipSlice[];
+    readonly encoding: 'as-written' | 'literal';
+  },
+): string {
+  /**
+   The note and the blank line after it.
+   */
+  const opening = `${UNTRANSLATED_PASSAGE_NOTE}\n\n`;
+  /**
+   The text the run would make of a page of its own.
+   */
+  const text = runTextOf({
+    run,
+    slices,
+    encoding,
+  },);
+  if (!text.startsWith(opening,))
+    throw new Error('a run of slices shipping their original does not open with the note',);
+  return text.slice(
+    opening.length,
+    -1,
+  );
 }
 
 /**

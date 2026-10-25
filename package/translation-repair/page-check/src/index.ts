@@ -269,6 +269,7 @@ export {
 } from './corpus-run/source-ships-tiling.ts';
 export {
   droppedRunSets,
+  runBodyOf,
   type GrammarReader,
   holdsOpenComment,
   namedSlices,
@@ -292,5 +293,7 @@ export {
   wouldShipTextFor,
   wouldShipTextPerSlice,
 } from './corpus-run/would-ship-text.ts';
+
+export * from './index-reading.ts';
 
 //endregion Public index

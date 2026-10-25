@@ -15,6 +15,7 @@ import type { PublishDefect, } from './publish-defects.ts';
 import { shippableReplacements, } from './shippable-replacements.ts';
 import { withoutSourceRecordAt, } from './source-ships.ts';
 import { runsUnfitForCompany, } from './source-ships-company.ts';
+import { differenceDefectsOf, } from './source-ships-differences.ts';
 import {
   droppedRunSets,
   type GrammarReader,
@@ -407,7 +408,13 @@ export function composeSourcePage(
         ...candidate,
         step: attempt.step,
         slices: attempt.encoded,
-        defects: [],
+        defects: differenceDefectsOf({
+          runs,
+          encoded: attempt.encoded,
+          slices: readings,
+          entryId,
+          l,
+        },),
       };
     }
     last.pageText = candidate.pageText;
@@ -464,6 +471,15 @@ export function composeSourcePage(
             namedSlices({ indices: dropped, },)
           }, since the page did not parse with it as written or as literal text`,
         },
+        ...differenceDefectsOf({
+          runs,
+          encoded: failingAlone.filter(function stillOnPage(slice,): boolean {
+            return !dropped.includes(slice,);
+          },),
+          slices: readings,
+          entryId,
+          l,
+        },),
       ],
     };
   }
