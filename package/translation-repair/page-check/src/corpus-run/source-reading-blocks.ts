@@ -101,6 +101,15 @@ type Segment = {
 };
 
 /**
+ The blocks a range reaches when there are none: nothing shown, no block.
+ */
+const NO_BLOCKS: Segment = {
+  reached: true,
+  words: [],
+  blocks: 0,
+};
+
+/**
  The words an account is made of.
 
  @param account - what a block shows
@@ -213,41 +222,31 @@ function segmentsOf(
 }
 
 /**
- Where a list of words stands in another from an index on.
+ Where a run of words stands in a list of words, at every place.
 
  @param page - words to look in
 
- @param words - words to find, a run of them
+ @param words - run of words to find
 
- @param from - first index to look at
-
- @param mustEnd - whether the run must be the last words of the list
-
- @returns Index of the first place the run stands, -1 when it stands nowhere
+ @returns Index of the first word of each place the run stands, in order
 
  @example
  ```ts
- const at = placeOf({ page: ['a', 'b',], words: ['b',], from: 0, mustEnd: false, },); // 1
+ const places = placesOf({ page: ['a', 'b', 'a',], words: ['a',], },); // [0, 2]
  ```
  */
-function placeOf(
-  {
-    page,
-    words,
-    from,
-    mustEnd,
-  }: {
-    readonly page: readonly string[];
-    readonly words: readonly string[];
-    readonly from: number;
-    readonly mustEnd: boolean;
-  },
-): number {
+function placesOf({
+  page,
+  words,
+}: {
+  readonly page: readonly string[];
+  readonly words: readonly string[]
+},): readonly number[] {
   /**
-   Index of the last place a run of that many words can start.
+   Places found.
    */
-  const last = page.length - words.length;
-  for (let at = mustEnd ? last : from; at <= last; at += 1) {
+  const places: number[] = [];
+  for (let at = 0; (at + words.length) <= page.length; at += 1) {
     if (sameWords({
       left: page.slice(
         at,
@@ -255,11 +254,101 @@ function placeOf(
       ),
       right: words,
     },))
-      return at;
-    if (mustEnd)
-      return -1;
+      places.push(at,);
   }
-  return -1;
+  return places;
+}
+
+/**
+ How far the page is read once the words of the blocks no range reaches are placed in it, and what it cost: for each place
+ the last such block can end at, the fewest blocks the readings cannot be asked about on the way there.
+ */
+type Placings = ReadonlyMap<number, number>;
+
+/**
+ Places the words of one block no range reaches after each place the blocks before it can end at.
+
+ @param page - words the page shows
+
+ @param placings - where the blocks before can end, with their cost
+
+ @param segment - the block's words, and how many blocks a range reaches stand since the last such block
+
+ @param held - what the blocks a range reaches show since the last block no range reaches
+
+ @param isLast - whether no block of the source follows
+
+ @returns Where the block can end, with the cost; none when the page shows its words nowhere it can come
+
+ @example
+ ```ts
+ const next = placedAfter({ page, placings: new Map([[0, 0,],],), segment, held, isLast: false, },);
+ ```
+ */
+function placedAfter(
+  {
+    page,
+    placings,
+    segment,
+    held,
+    isLast,
+  }: {
+    readonly page: readonly string[];
+    readonly placings: Placings;
+    readonly segment: Segment;
+    readonly held: Segment;
+    readonly isLast: boolean;
+  },
+): Placings {
+  /**
+   Where the block's words stand in the page.
+   */
+  const places = placesOf({
+    page,
+    words: segment.words,
+  },);
+  /**
+   Where the block can end, with the cost.
+   */
+  const next = new Map<number, number>();
+  for (const [from, cost,] of placings) {
+    for (const place of places) {
+      if ((place < from) || ((held.blocks === 0) && (place !== from)))
+        continue;
+      if (isLast && ((place
+        + segment.words
+          .length) !== page.length))
+        continue;
+      /**
+       The words of the page between the last block and this one.
+       */
+      const gap = page.slice(
+        from,
+        place,
+      );
+      /**
+       What the gap costs: the blocks a range reaches, when they do not show what the page shows there.
+       */
+      const gapCost = ((held.blocks > 0) && (!sameWords({
+        left: gap,
+        right: held.words,
+      },))) ? held.blocks : 0;
+      /**
+       Where the block ends.
+       */
+      const end = place
+        + segment.words
+          .length;
+      next.set(
+        end,
+        Math.min(
+          next.get(end,) ?? Number.POSITIVE_INFINITY,
+          cost + gapCost,
+        ),
+      );
+    }
+  }
+  return next;
 }
 
 /**
@@ -330,80 +419,83 @@ export function blockDifferenceOf(
     reached,
   },);
   /**
-   Where the reading is: the next word of the page to look at, what the blocks reached since the last text found show and
-   how many they are, and what has been found.
+   How many blocks of the source a range reaches.
    */
-  const found: {
-    at: number;
-    held: readonly string[];
-    heldBlocks: number;
-    differs: boolean;
-    undecidedBlocks: number;
-  } = {
-    at: 0,
-    held: [],
-    heldBlocks: 0,
-    differs: false,
-    undecidedBlocks: 0,
-  };
-
+  const reachedBlocks = segments.reduce(
+    function counted(
+      sum,
+      segment,
+    ): number {
+      return sum + segment.blocks;
+    },
+    0,
+  );
   /**
-   Compares what the blocks reached show with the words of the page that stand in their place.
-
-   @param gap - words of the page between the last text found and the next
-
-   @example
-   ```ts
-   settleGap({ gap: ['a',], });
-   ```
+   Where the blocks no range reaches can end, and what that cost, as the segments are read in order.
    */
-  function settleGap({ gap, }: { readonly gap: readonly string[]; },): void {
-    if (found.heldBlocks === 0) {
-      found.differs ||= gap.length > 0;
-    }
-    else if (!sameWords({
-      left: gap,
-      right: found.held,
-    },))
-      found.undecidedBlocks += found.heldBlocks;
-    found.held = [];
-    found.heldBlocks = 0;
-  }
-
+  const reading: {
+    placings: Placings;
+    held: Segment
+  } = {
+    placings: new Map([[
+      0,
+      0,
+    ],],),
+    held: NO_BLOCKS,
+  };
   for (const [index, segment,] of segments.entries()) {
     if (segment.reached) {
-      found.held = segment.words;
-      found.heldBlocks = segment.blocks;
+      reading.held = segment;
       continue;
     }
-    /**
-     Where the words of the block that no range reaches stand: at once after the last text found when nothing is held
-     between, and for the last block at the end of the page.
-     */
-    const place = placeOf({
+    reading.placings = placedAfter({
       page,
-      words: segment.words,
-      from: found.at,
-      mustEnd: index === (segments.length - 1),
+      placings: reading.placings,
+      segment,
+      held: reading.held,
+      isLast: index === (segments.length - 1),
     },);
-    if ((place === (-1)) || ((found.heldBlocks === 0) && (place !== found.at))) {
-      found.differs = true;
-      continue;
-    }
-    settleGap({
-      gap: page.slice(
-        found.at,
-        place,
-      ),
-    },);
-    found.at = place
-      + segment.words
-        .length;
+    reading.held = NO_BLOCKS;
   }
-  settleGap({ gap: page.slice(found.at,), },);
+  /**
+   What the blocks a range reaches show after the last block no range reaches.
+   */
+  const trailing = reading.held;
+  /**
+   For each place the last block can end, what the page shows after it against what the trailing blocks show.
+   */
+  const ends = [...reading.placings
+    .keys(),].map(function costAtEnd(from,): number {
+    /**
+     What the blocks cost up to that place.
+     */
+      const cost = reading.placings
+        .get(from,)
+        ?? 0;
+    /**
+     What the page shows after it.
+     */
+      const rest = page.slice(from,);
+      if (trailing.blocks === 0)
+        return (rest.length === 0) ? cost : Number.POSITIVE_INFINITY;
+      return sameWords({
+        left: rest,
+        right: trailing.words,
+      },) ? cost : (cost + trailing.blocks);
+    },);
+  /**
+   The fewest blocks the readings cannot be asked about over every way the words can be placed.
+   */
+  const cheapest = Math.min(...ends,);
+  if (Number.isFinite(cheapest,)) {
+    return {
+      differs: false,
+      undecidedBlocks: cheapest,
+    };
+  }
   return {
-    differs: found.differs,
-    undecidedBlocks: found.undecidedBlocks,
+    differs: true,
+    undecidedBlocks: reachedBlocks,
   };
 }
 

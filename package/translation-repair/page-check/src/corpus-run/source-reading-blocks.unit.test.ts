@@ -177,6 +177,29 @@ await describe({
       },
     },),
     it({
+      name: 'PLACES THE WORDS OF A BLOCK WHERE THE BLOCKS AFTER IT CAN BE PLACED, not at the first place the same words stand',
+      fn: async () => {
+        /**
+         A block a range reaches whose words end with a tag, the block after it that is the same tag, and one more block.
+         */
+        const sourceBlocks = [
+          blockAt({ account: 'quote <a>', at: 0, },),
+          blockAt({ account: '<a>', at: 1, },),
+          blockAt({ account: 'end', at: 2, },),
+        ];
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['quote <a> [r]:', '<a>', 'end',],
+          disagreements: [{ start: 0, end: 1, },],
+        },),).toEqual({ differs: false, undecidedBlocks: 1, },);
+        expect(blockDifferenceOf({
+          sourceBlocks,
+          pageBlocks: ['quote <a> [r]:', '<a>', 'end', 'more',],
+          disagreements: [{ start: 0, end: 1, },],
+        },),).toEqual({ differs: true, undecidedBlocks: 1, },);
+      },
+    },),
+    it({
       name: 'COUNTS EVERY BLOCK UNDECIDED WHEN A DISAGREEMENT STANDS IN NO BLOCK, since none can be set apart',
       fn: async () => {
         expect(blockDifferenceOf({
