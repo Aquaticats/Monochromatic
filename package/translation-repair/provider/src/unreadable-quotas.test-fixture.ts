@@ -10,8 +10,6 @@
 /**
  Reads Synthetic's quotas and fails the way an unexpected body does.
 
- @returns A rejected read
-
  @example
  ```ts
  const budgets = createProviderBudgets({ maxHoldMs: 86_400_000, synthetic: { quotas: unreadableQuotas, }, },);
