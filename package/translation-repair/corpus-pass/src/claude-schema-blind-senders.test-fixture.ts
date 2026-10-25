@@ -383,7 +383,7 @@ export function isSenderProperty(
     context,
     object,
   },);
-  if ((key === '') || isNoNode({ node: call, },))
+  if (isNoNode({ node: call, },))
     return false;
   return callsSender({
     context,
