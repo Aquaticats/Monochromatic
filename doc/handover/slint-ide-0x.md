@@ -4327,9 +4327,38 @@ the request counts (1 request plus 1 skip, then 0) and the wheel case (request s
 stored 402 to 421 ms) all measured as intended on the installed binary; the gap above line 96 was 82 px in all
 1,483 frames with line 96 visible (4 runs), the old binary showed 130 px in 16 and 178 px in 5 of 374.
 The nested compositor recorded only 17 to 22 fps under a load average of 21 to 23.
-An agent diagnoses and fixes the blank code column with a failing test first (or proposes the skip rule's removal
-with evidence); until it lands, the installed binary is a release of `76f7818e8f` (re-aim, no skip rule)
-so that the owner's flow is not blank. Next action: verify its report, land it, reinstall from the fixed tree.
+Cause and fix (landed 2026-10-24 as merge `b38b14cc49`, agent tip `52941e580b`, fix commit `433856b8a6`):
+`outcome.apply(&active)` in the rendering notifier of `bind` (`src/native/gpu_tile.rs`) replaced `source-slices`
+inside the frame that draws the tile when a tile's textures differ in height from the last tile's
+(`tile_textures_fit`, `gpu_tile/source.rs`); a slice list set inside a frame is not shown by that frame,
+and an idle window draws no other frame.
+Before the skip rule the answer to the second hint request repainted the source and drew that frame,
+so the defect was a transient blank (143 of 741 frames of the 88-click recording on `cr/base`);
+a skipped request has no answer, so the blank became permanent until the next input.
+`GpuTile::submit_tile` now takes the window and `Inner::prepare_tile` gives the window the slices at hand-over,
+outside any frame; the very first tile (no device yet) keeps the in-frame path and asks for one more frame,
+and that path has no test.
+Why the real window shows nothing in that frame while the test harness snapshot shows the slices in it:
+not found; the harness cannot show the blank frame, so the tests assert that the window holds the slices before any frame.
+Proof: `a_tile_of_another_size_gives_the_window_its_slices_before_any_frame` and
+`a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile` fail without the fix,
+5 `tile-slices-*` guard cases, 14 runs accepted; gates on the merged tree: `lint` 0, `test:native` 308 passed and
+5 skipped, `test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0.
+Interim: the installed binary was a re-aim release (`01cf04773425e1bc`) between the regression and the fix.
+Installed now: sha256 `26801fc497df68e3…` from `b38b14cc49`, prints 0.1.1; the previous binary is `.previous`.
+Verified on that installed release binary by a separate agent (nested compositor, 1080x1880 logical, scale 2, RX 7600):
+five-press sequence code means 0.511073, 0.509927, 0.511073, 0.510496, 0.509927 in 3 of 3 fresh runs
+(none blank; the old binary was blank after presses 2, 3 and 5);
+88-click recordings of 714 and 713 frames (21.7 and 21.9 fps against 60 requested, load average 7 to 21):
+0 blank code frames (old binary 349 of 707), gap above line 96 exactly 82 px in all 372 and 374 frames showing it;
+first y=1700 press and the later one both `first_line=223`, minimap crops 0 px apart,
+whole frames about 2.2 px apart (sub-pixel residue, not located);
+requests 1 plus 1 skip for the first press, 0 plus 1 skip for the two later presses;
+the wheel case request sent 376 to 434 ms and stored 396 to 454 ms after the wheel;
+minimap picture, gutter and sidebar never blank in about 1,427 frames.
+Not covered: the minimap picture also gets its slices inside a frame (not blank in those frames, so no defect seen);
+the first-tile path has no test; the 60 fps recording rate was not reached on this loaded host.
+Cleanup done: agent worktrees and branches (local and remote) removed, 14 GB of recording frames deleted.
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
