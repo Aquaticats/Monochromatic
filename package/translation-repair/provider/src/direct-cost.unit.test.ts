@@ -63,23 +63,28 @@ const PEAK_USD = ((40 * 0.006) + (60 * 0.3) + (10 * 1.2)) / 1_000_000;
 const OFF_PEAK_USD = PEAK_USD / 2;
 
 /**
- Prices the 40-hit, 60-miss, 10-output call as if it started at an instant.
+ Prices the 40-hit, 60-miss, 10-output call as if it started at an instant and its reply completed at another.
 
  @param startedAt - ISO 8601 instant, in UTC, the request started at
+
+ @param completedAt - ISO 8601 instant, in UTC, the reply completed at; the start where the call did not outlast it
 
  @returns USD the call cost, or that nothing was reported
 
  @example
  ```ts
- const usd = costStartedAt({ startedAt: '2026-10-24T02:00:00.000Z', },); // a Saturday
+ const usd = costStartedAt({ startedAt: '2026-10-24T02:00:00.000Z', },); // a Saturday, the reply completing at once
  ```
  */
-function costStartedAt({ startedAt, }: { readonly startedAt: string; },): number | typeof DIRECT_COST_UNREPORTED {
+function costStartedAt(
+  { startedAt, completedAt = startedAt, }: { readonly startedAt: string; readonly completedAt?: string; },
+): number | typeof DIRECT_COST_UNREPORTED {
   return deepSeekCostOf({
     card: DEEPSEEK_CARD,
     extracted: HUNDRED_AND_TEN,
     split: { hitTokens: 40, missTokens: 60, },
     startedAt: new Date(startedAt,),
+    completedAt: new Date(completedAt,),
   },);
 }
 
@@ -224,6 +229,144 @@ await describe({
             expect(costStartedAt({ startedAt: '2026-10-23T23:59:00.000Z', },),).toBeCloseTo(OFF_PEAK_USD, 12,);
             expect(costStartedAt({ startedAt: '2026-10-26T00:59:59.999Z', },),).toBeCloseTo(OFF_PEAK_USD, 12,);
             expect(costStartedAt({ startedAt: '2026-10-26T01:00:00.000Z', },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'DeepSeek rate of a call that crosses a window edge',
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'BOOKS a call at peak when it started on a Monday at 00:59:50 UTC, outside the window, and its reply '
+            + 'completed at 01:00:10 UTC, inside it',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-26T00:59:50.000Z',
+              completedAt: '2026-10-26T01:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at peak when it started at 03:59:50 UTC, inside the first window, and its reply '
+            + 'completed at 04:00:10 UTC, outside it',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-21T03:59:50.000Z',
+              completedAt: '2026-10-21T04:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at peak when it started at 05:59:50 UTC, outside the second window, and its reply '
+            + 'completed at 06:00:10 UTC, inside it, and one that started at 09:59:50 UTC and completed at 10:00:10 UTC',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-21T05:59:50.000Z',
+              completedAt: '2026-10-21T06:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-21T09:59:50.000Z',
+              completedAt: '2026-10-21T10:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at half the peak rates only when its start and its reply both lie outside every '
+            + 'weekday peak window',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-21T04:00:10.000Z',
+              completedAt: '2026-10-21T04:00:40.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-21T10:00:00.000Z',
+              completedAt: '2026-10-21T10:00:30.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-26T00:59:10.000Z',
+              completedAt: '2026-10-26T00:59:50.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at half the peak rates when it started on a Friday evening and completed on the '
+            + 'Saturday, and one that crossed from Saturday 09:59:50 UTC to 10:00:10 UTC, no weekend hour being peak',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-23T23:59:50.000Z',
+              completedAt: '2026-10-24T00:00:10.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-24T09:59:50.000Z',
+              completedAt: '2026-10-24T10:00:10.000Z',
+            },),).toBeCloseTo(OFF_PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at peak when it started on a Friday at 09:59:50 UTC and completed after 10:00 UTC, and '
+            + 'one that started on a Sunday at 23:59:50 UTC and completed on the Monday at 01:00:10 UTC',
+          fn: async () => {
+            expect(costStartedAt({
+              startedAt: '2026-10-23T09:59:50.000Z',
+              completedAt: '2026-10-23T10:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+            expect(costStartedAt({
+              startedAt: '2026-10-25T23:59:50.000Z',
+              completedAt: '2026-10-26T01:00:10.000Z',
+            },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS a call at peak when either instant is not a time, the dearer rate, whichever side it is on',
+          fn: async () => {
+            expect(deepSeekCostOf({
+              card: DEEPSEEK_CARD,
+              extracted: HUNDRED_AND_TEN,
+              split: { hitTokens: 40, missTokens: 60, },
+              startedAt: new Date('2026-10-24T02:00:00.000Z',),
+              completedAt: new Date(Number.NaN,),
+            },),).toBeCloseTo(PEAK_USD, 12,);
+            expect(deepSeekCostOf({
+              card: DEEPSEEK_CARD,
+              extracted: HUNDRED_AND_TEN,
+              split: { hitTokens: 40, missTokens: 60, },
+              startedAt: new Date(Number.NaN,),
+              completedAt: new Date('2026-10-24T02:00:00.000Z',),
+            },),).toBeCloseTo(PEAK_USD, 12,);
+          },
+        },),
+        it({
+          name: 'BOOKS each weekday, Monday 2026-10-19 to Friday 2026-10-23, at peak at 02:00 UTC and at 07:00 UTC, and '
+            + 'Saturday 2026-10-24 and Sunday 2026-10-25 at half the peak rates at the same hours',
+          fn: async () => {
+            /**
+             Dates of the week of 2026-10-19 paired with whether their 02:00 UTC and 07:00 UTC calls are peak.
+             */
+            const week: readonly (readonly [string, boolean])[] = [
+              ['2026-10-19', true,],
+              ['2026-10-20', true,],
+              ['2026-10-21', true,],
+              ['2026-10-22', true,],
+              ['2026-10-23', true,],
+              ['2026-10-24', false,],
+              ['2026-10-25', false,],
+            ];
+            /**
+             Instant of each call mapped to the USD it booked, so a failure names the day that was wrongly priced.
+             */
+            const booked: Record<string, number | typeof DIRECT_COST_UNREPORTED> = {};
+            /**
+             Instant of each call mapped to the USD it must book.
+             */
+            const expected: Record<string, number> = {};
+            for (const [date, peak,] of week) {
+              for (const time of ['02:00:00.000', '07:00:00.000',]) {
+                booked[`${date}T${time}Z`] = costStartedAt({ startedAt: `${date}T${time}Z`, },);
+                expected[`${date}T${time}Z`] = peak ? PEAK_USD : OFF_PEAK_USD;
+              }
+            }
+            expect(booked,).toEqual(expected,);
           },
         },),
       ],
