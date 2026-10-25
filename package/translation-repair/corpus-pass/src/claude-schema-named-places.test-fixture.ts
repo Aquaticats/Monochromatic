@@ -1,4 +1,5 @@
 import type { BlindSpot, } from './claude-schema-blind-spots.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region Places in the family's source that the check reports and the test names
 // The check behind the schema search reports every place it does not understand, and a place it reports is answered
@@ -48,7 +49,10 @@ export const NAMED_PLACES: readonly NamedPlace[] = [
     file: 'corpus-pass/src/corpus-run/corpus-pass.ts',
     shape: 'forwarder-outside-a-read-position',
     position: 'Property.value',
-    held: 'settleEntry',
+    held: keyOf({
+      file: 'corpus-pass/src/corpus-run/pass-entry-settle.ts',
+      name: 'settleEntry',
+    },),
     reason: '`settleEntry` is handed to the pass as its `settle` dependency, and `corpus-pass-run.ts` calls '
       + '`input.settle({ client, entry, ... })`. The arguments there are a corpus pair and the settings of the run, '
       + 'not the arguments of a schema, which `settleEntry` makes inside from the pair; the wide reading of a '

@@ -6,6 +6,7 @@ import {
   SENDER_IMPORT,
 } from './claude-schema-forwarder-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region The places a forwarder is read that the first cases of its position did not separate
 // A forwarder is read as the callee of a call, of `new` or of a tagged template, and as a function bound by `bind` that
@@ -34,6 +35,8 @@ const POS_ARGUMENTS = '{ schemaName: \'pos\', verdicts: [], asksArchive: false, 
 
  @param position - kind of the node that holds the forwarder and the field, or the member text
 
+ @param held - name the report holds for the forwarder, the key of the function in its declaring file by default
+
  @returns Report
 
  @example
@@ -45,9 +48,14 @@ function positionSpotAt(
   {
     line,
     position,
+    held = keyOf({
+      file: STAGE,
+      name: 'mk',
+    },),
   }: {
     readonly line: number;
     readonly position: string;
+    readonly held?: string;
   },
 ): BlindSpot {
   return {
@@ -55,7 +63,7 @@ function positionSpotAt(
     line,
     shape: 'forwarder-outside-a-read-position',
     position,
-    held: 'mk',
+    held,
   };
 }
 
@@ -189,6 +197,7 @@ export const FORWARDER_POSITION_CASES: readonly ShapeCase[] = [
     spots: [positionSpotAt({
       line: 2,
       position: 'Property.value',
+      held: 'mk',
     },),],
     isListed: true,
   },),

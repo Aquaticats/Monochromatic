@@ -7,6 +7,7 @@ import {
 } from './claude-schema-forwarder-forms.test-fixture.ts';
 import type { NamedPlace, } from './claude-schema-named-places.test-fixture.ts';
 import type { SourceFile, } from './claude-schema-sources.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region What a name of a place stands for when the check reads files
 // The reports the check makes over imaginary files, held to one name: a forwarder handed over as the value of a
@@ -39,6 +40,11 @@ export type NamedFlowCase = {
 const PLACE_STAGE = 'imaginary/src/place-stage.ts';
 
 /**
+ The path of the file that declares a second forwarder with the name of the first, in another module.
+ */
+const PLACE_OTHER_STAGE = 'imaginary/src/place-other-stage.ts';
+
+/**
  The path of the file that hands the forwarders over as the values of an object.
  */
 const PLACE_DEPENDENCIES = 'imaginary/src/place-dependencies.ts';
@@ -50,7 +56,10 @@ export const FLOW_PLACE: NamedPlace = {
   file: PLACE_DEPENDENCIES,
   shape: 'forwarder-outside-a-read-position',
   position: 'Property.value',
-  held: 'mk',
+  held: keyOf({
+    file: PLACE_STAGE,
+    name: 'mk',
+  },),
   reason: 'a case',
 };
 
@@ -59,22 +68,26 @@ export const FLOW_PLACE: NamedPlace = {
 
  @param line - line of the property
 
- @param held - name of the forwarder
+ @param name - name of the forwarder
+
+ @param stage - file that declares the forwarder
 
  @returns Report
 
  @example
  ```ts
- const spot = flowSpotAt({ line: 4, held: 'other', },);
+ const spot = flowSpotAt({ line: 4, name: 'other', },);
  ```
  */
 function flowSpotAt(
   {
     line,
-    held,
+    name,
+    stage = PLACE_STAGE,
   }: {
     readonly line: number;
-    readonly held: string;
+    readonly name: string;
+    readonly stage?: string;
   },
 ): BlindSpot {
   return {
@@ -82,7 +95,10 @@ function flowSpotAt(
     line,
     shape: 'forwarder-outside-a-read-position',
     position: 'Property.value',
-    held,
+    held: keyOf({
+      file: stage,
+      name,
+    },),
   };
 }
 
@@ -93,7 +109,8 @@ function flowSpotAt(
 
  @param lines - lines of the dependencies file after the import, the first of which is line two
 
- @param imports - the import of the forwarders the dependencies file starts with
+ @param imports - the import of the forwarders the dependencies file starts with; where it holds two lines, the lines
+ after it start at line three
 
  @param unnamed - reports no name stands for
 
@@ -135,6 +152,16 @@ function flowCaseOf(
         ],),
       },
       {
+        file: PLACE_OTHER_STAGE,
+        text: textOf([
+          CONTEST_IMPORT,
+          SENDER_IMPORT,
+          'export async function mk(args: Parameters<typeof contestResponseFormat>[0],) {',
+          '  return await gatherThroughCache({ responseFormat: contestResponseFormat(args,), },);',
+          '}',
+        ],),
+      },
+      {
         file: PLACE_DEPENDENCIES,
         text: textOf([
           imports,
@@ -156,7 +183,7 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     unnamed: [
       flowSpotAt({
         line: 2,
-        held: 'other',
+        name: 'other',
       },),
     ],
   },),
@@ -171,7 +198,7 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     unnamed: [
       flowSpotAt({
         line: 4,
-        held: 'other',
+        name: 'other',
       },),
     ],
   },),
@@ -186,7 +213,7 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     unnamed: [
       flowSpotAt({
         line: 4,
-        held: 'mk',
+        name: 'mk',
       },),
     ],
   },),
@@ -196,7 +223,7 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     unnamed: [
       flowSpotAt({
         line: 2,
-        held: 'other',
+        name: 'other',
       },),
     ],
   },),
@@ -206,7 +233,7 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     unnamed: [
       flowSpotAt({
         line: 2,
-        held: 'mk',
+        name: 'mk',
       },),
     ],
   },),
@@ -221,6 +248,36 @@ export const NAMED_FLOW_CASES: readonly NamedFlowCase[] = [
     imports: 'import * as stage from \'./place-stage.ts\';',
     lines: ['export const deps = { settle: stage.mk, };',],
     unnamed: [],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF A FORWARDER OF THE SAME NAME THAT ANOTHER MODULE DECLARES, since the name is that of '
+      + 'the function and the module that declares it',
+    imports: 'import { mk, } from \'./place-other-stage.ts\';',
+    lines: ['export const deps = { settle: mk, };',],
+    unnamed: [
+      flowSpotAt({
+        line: 2,
+        name: 'mk',
+        stage: PLACE_OTHER_STAGE,
+      },),
+    ],
+  },),
+  flowCaseOf({
+    name: 'LEAVES THE REPORT OF THE FORWARDER OF ANOTHER MODULE HANDED OVER BESIDE THE NAMED ONE, under a local name',
+    imports: 'import { mk, } from \'./place-stage.ts\';\nimport { mk as again, } from \'./place-other-stage.ts\';',
+    lines: [
+      'export const deps = {',
+      '  settle: mk,',
+      '  again,',
+      '};',
+    ],
+    unnamed: [
+      flowSpotAt({
+        line: 5,
+        name: 'mk',
+        stage: PLACE_OTHER_STAGE,
+      },),
+    ],
   },),
   flowCaseOf({
     name: 'LEAVES NO REPORT WHEN THE NAMED FORWARDER IS HANDED OVER ONCE',

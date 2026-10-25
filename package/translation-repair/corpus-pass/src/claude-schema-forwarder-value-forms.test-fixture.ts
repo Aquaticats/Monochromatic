@@ -6,6 +6,7 @@ import {
   SENDER_IMPORT,
 } from './claude-schema-forwarder-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
+import { keyOf, } from './claude-schema-usage.test-fixture.ts';
 
 //region A forwarder read anywhere but as the callee of a call
 // The files that call a forwarder are listed, because they write the arguments of its schema. A file that gets the
@@ -71,7 +72,10 @@ function valueSpotAt(
     line,
     shape: 'forwarder-outside-a-read-position',
     position,
-    held: 'mk',
+    held: keyOf({
+      file: STAGE,
+      name: 'mk',
+    },),
   };
 }
 
