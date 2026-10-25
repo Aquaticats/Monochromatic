@@ -277,9 +277,10 @@ export function unreadConstructAround(
 }
 
 /**
- Every name a pattern or a plain name binds, the targets inside nested patterns, rests and defaults included.
+ Every name a pattern or a plain name binds, the targets inside nested patterns, rests and defaults included, under the
+ marks that leave a target the same and in a parameter property.
 
- @param node - id of a declaration, of any kind or none
+ @param node - id of a declaration or target of an assignment, of any kind or none
 
  @returns Names in order
 
@@ -313,6 +314,10 @@ export function namesBoundBy({ node, }: { readonly node: unknown; },): readonly 
   }
   if (node.type === 'RestElement')
     return namesBoundBy({ node: node.argument, },);
+  if (node.type === 'TSParameterProperty')
+    return namesBoundBy({ node: node.parameter, },);
+  if (TRANSPARENT_KINDS.has(node.type,))
+    return namesBoundBy({ node: node.expression, },);
   return (node.type === 'AssignmentPattern') ? namesBoundBy({ node: node.left, },) : [];
 }
 
