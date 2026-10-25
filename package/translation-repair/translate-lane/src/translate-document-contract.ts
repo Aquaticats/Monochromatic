@@ -502,8 +502,22 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  stands at 31 is not known (the number was set a few commits before and no search of a slice-cache directory was made),
  and the change cannot ride inside it, so the number moves. The consolidate version (39) moves for the same sheet;
  the repair slice (48) and refine (18) versions move for the regressed flag (re-check 3, M1) and not for this sentence.
+
+ Version 33 covers the sheet sentence told per round (`adjudication/src/select-decline-consequence.ts`,
+ `declineConsequenceFor`, re-check 4 finding F1): the sentence of version 32 promised the ship or the stay in every
+ round, but the first ask of a pair settles nothing and asks the same judges again, and the challenge of this lane's
+ first call does not ship past a decline and sends the passage back for new proposals (`translate-stage-repair.ts`).
+ The first ask now reads `SETTLES_NOTHING_AND_ASKS_AGAIN`, the challenge of the first call
+ `SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN`, and the challenge that ships past a decline keeps the sentence of version 32.
+ The rule the code applies is the same; the judges are told it differently, and a stored slice holds ballots cast under
+ the old sentence. The key hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 32 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (40) moves for the same sheet; the
+ repair slice (49) and refine (19) versions move for the strip and the rollback (owner, 2026-10-25, "Two ballots for
+ undo too") and not for this sentence.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 32;
+export const TRANSLATE_SLICE_CACHE_VERSION = 33;
 
 /**
  Models the translate lane seats.

@@ -94,11 +94,12 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  capitalization as the listed value.
  Version 28 removes every weight floor (owner, 2026-10-25): two ballots decide a selection whatever their weight.
  Version 29 ships a declined round's candidate only when two judges named it (owner, 2026-10-25, "Two judges must name it").
+ Version 33 tells the judges the sentence about a declined round per round (re-check 4, F1), which moved this literal.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = 'd6e5fd18a8d6b1e92a01ea7fd2126a262d130c506a5dff4812a232ee4251eca4';
+const LEGACY_WINDOWLESS_KEY = 'a8cca93b15accb4f5b6bad60a9c18f6861ac5cca6ceb48740b48f0f4e8ff5934';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -131,16 +132,18 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 32: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+      name: 'IS AT VERSION 33: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
         + 'ships a candidate only when two judges named it (29), a tie across every candidate ships by the fixed '
         + 'preference only among candidates two judges named (30), the sentence the judges read about a declined '
         + 'round over wording that cannot ship stopped contradicting itself (31) and then said that declining does not '
-        + 'by itself keep the wording and that a judge\'s own decline names no candidate (32, re-check 3, M3), so a '
+        + 'by itself keep the wording and that a judge\'s own decline names no candidate (32, re-check 3, M3) and was '
+        + 'then told per round, the first ask settling nothing and the challenge of the first call sending the '
+        + 'passage back for new proposals (33, re-check 4, F1), so a '
         + 'stored slice may hold ballots cast under the old sentence, and the key hashes the version, the shape of '
         + 'the run and the texts, not the sheet, so only this number retires a record written '
         + 'under the old sentence before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(32,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(33,);
       },
     },),
     it({
