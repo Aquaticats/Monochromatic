@@ -183,8 +183,9 @@ and no cache key reads either.
 
 Status:
 fixed on 2026-10-25 (UTC),
-found by the third independent re-check of B920 (a minor wording finding and five nits;
-the minor finding on commit messages stays open, since mending it would take an amend),
+found by the third independent re-check of B920,
+which gave a minor wording finding and five nits
+and a minor finding on commit messages that stays open, since mending it would take an amend,
 a wording round with no change of behaviour.
 
 The defect:
@@ -237,7 +238,8 @@ Three of them said the figure is unbounded for a call that starts before a windo
 in the comment of `provider/src/direct-cost.ts`,
 in the B920 entry of this file
 and in the Prices section of the decision record.
-A call from 00:30 UTC to 08:00 UTC on a Wednesday, or from 02:00 UTC to 11:00 UTC,
+A call from 00:30 UTC to 08:00 UTC on a Wednesday,
+or from 02:00 UTC to 11:00 UTC,
 starts or completes inside a window and books peak,
 which is an upper bound;
 only a call that spans a whole window with both instants outside it books half and is unbounded.
@@ -248,7 +250,7 @@ re-wrapped two 121-column test names without changing their text
 (`BOOKS the edges of the week by the UTC weekday: ...` and `READS an instant that is not a time as peak, ...`),
 put a dated in-place note on the sentence reworded in the XingZ6021 defects record,
 added `eca5ae92cf` to the B920 commit list,
-and completed the list below.
+and completed the commit list that ends this entry.
 The minor finding on commit messages stays open.
 
 Nothing in behaviour changed:
@@ -265,5 +267,5 @@ The commits are `2266bb9b8a` (the source comments and the index line),
 `0bb3f6d874` (the not-bounded sentences),
 `0d0f7618f2` (the note in the defects record),
 `366ca075f5` (the two test names)
-and the commit that holds this paragraph;
+and `ed47454f8b` (this paragraph);
 the branch's `git log` holds any commit after those.
