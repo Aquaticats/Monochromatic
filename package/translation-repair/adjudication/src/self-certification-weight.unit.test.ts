@@ -38,7 +38,7 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 
 /**
- Issue the ballots below all speak about.
+ Issue that every ballot in this file speaks about.
  */
 const WHISKER = 'adjudicated/whisker';
 

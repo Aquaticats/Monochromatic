@@ -32,6 +32,14 @@ in this same file,
 at the next free ids B944 to B947,
 under the heading "Round 9 at a glance".
 
+Round 10 answers the nits that the eighth and ninth re-checks left,
+in [its own file](audit-ledger-weight-floors-removed-round-ten.md),
+at the next free ids B948 to B950,
+since this file would pass the limit of a thousand lines.
+Round 11 answers the items that the review of round 10 left,
+in the same file of round 10,
+at B951.
+
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
@@ -510,6 +518,43 @@ The scan matches words and not grammar,
 so another word that is both a noun and a verb,
 added to the list later,
 can let a pointer through.
+That sentence was incomplete when it was written
+(re-check 8,
+nit A):
+words already in the list were verbs too,
+the quantifiers all,
+both,
+each and some floated away from their noun and read as objects,
+and "that" opening a clause read as an object.
+The scan now reads a listed word with the word after it:
+a verb or a clause opener compares unless a determiner,
+a quantifier or a pronoun follows,
+and a floating quantifier compares only when a word that names what is compared follows.
+It still lets a listed word before a bare verb pass
+("the lines below that write it"),
+and a quantifier before "of".
+B949 states both in full.
+Correction in place (2026-10-25,
+round 11):
+the first of the two is narrower since B951.
+"that" before a verb the scan names is found,
+and the two pointers of that shape in the texts are reworded;
+a verb the scan does not name still passes,
+and a quantifier before "of" still passes.
+Correction in place (2026-10-25,
+round 12):
+B952 replaces the list of verbs by the inverse reading.
+After a position,
+"that" compares only before a noun the scan knows (floor,
+speed,
+size,
+opening,
+calibration,
+percentile and "of"),
+and any other word after it,
+a verb in any form included,
+reads the position as a pointer.
+The one limit that remains is a quantifier before "of".
 
 ## B939: the closing sentence of B935 overstated what the plants showed (round 8)
 
@@ -675,6 +720,18 @@ All four are defects of the test and none of the code.
 `origin/main` did not move during the round (`6457f1f09c`),
 so no merge was made.
 
+Correction (2026-10-25,
+round 11):
+the statements that `origin/main` did not move and that no merge was made
+were true when the round ended and were stale when the branch landed.
+`origin/main` moved to `16c2c7ddb1336eaabfd44d633a37bc883b88fff7`,
+two handover commits (`51113b9f783ad56ba765c0fe90fcef6ca5d677c6` and that head),
+and the landing merged it in `1362f15c40c72d721e13a6beab11c12e334e03e7`,
+whose parents are `d76cb95cee1121b336b25a7a4b9cd21c5d690d7a` (the round) and `16c2c7ddb1`.
+Re-check 9 found the staleness before the landing,
+and its `git merge-tree` check of the two heads reported no conflict.
+The statements stand as the record of what was true then.
+
 The archive case that held back the fourth seat is B944.
 The chunk case that had the fourth judge name a candidate is B945.
 The two refine cases that read the refiner's self-vote are B946.
@@ -754,6 +811,30 @@ the log line,
 and the cause control,
 and the two-point check at `1dee3ca797` and its parent was not run.
 
+Closed by re-check 9 (2026-10-25),
+which ran the two-point check on single files with the sweep's hook,
+the three files of B944 to B946 for each of salts 0 to 9:
+at the parent of `1dee3ca797be87bd6f8c59e796cb9f3176ac7e59`,
+`976d973367833b7ea3f7d15e495618b8a340d9fe`,
+all 30 runs pass;
+at `1dee3ca797` they fail exactly the sweep's salts
+(archive 1,
+3,
+5,
+7 and 9;
+chunk 2 and 6;
+refine 1,
+3,
+5,
+7 and 9).
+The positive control at `b37685721e9ccf9d21b392d0ba3b578f6bd40e65` reproduced the sweep's failure values,
+and the mechanism control on `1dee3ca797` with only `selectionFanOut` planted to return `'whole-bench'`
+passed the archive and chunk files at their failing salts.
+So the attribution to `1dee3ca797` is confirmed,
+and the stated cause is true.
+The refine cases were rotation-dependent from the day `1dee3ca797` wrote their expectations,
+and are not a later regression.
+
 ## B945: the chunk decline case had a seat name the candidate that the window may leave out (round 9)
 
 Status:
@@ -782,7 +863,9 @@ so the round is always two declines and one name.
 The sheet says "only when every judge declines";
 on a bench the window does not cover,
 that means every judge asked,
-as it did before this branch for benches of seven.
+as it did before this branch for benches of five and over
+(corrected in round 10 from "benches of seven";
+the paragraph that starts "Correction of round 10" says why).
 
 Evidence:
 - Before:
@@ -796,6 +879,17 @@ Evidence:
   with indecision planted to ship the rejection fallback (`editor-ensemble.ts`),
   the case fails at salt 2 and the other two cases pass.
   The plant was restored.
+
+Correction of round 10
+(re-check 9,
+nit 2).
+The sentence about the sheet said benches of seven.
+The window applied from a bench of five at `b6927f7ba9`
+(it arrived with `b71a553855`,
+which B948 names),
+where the deleted test named `THINNEST_WINDOWED_BENCH` as 5,
+and nothing in the docs ties production to seven.
+It reads benches of five and over.
 
 ## B946: the two refine cases read a self-vote that holds only when the refiner is asked (round 9)
 
@@ -867,8 +961,21 @@ and `test:unit` passed 65 and 149 suites with none failed.
 The first oxlint run of archive found the counter of the new predicate (`no-function-root-let`),
 which `5553a18d38` removes.
 Source-scan `test:unit` passed 68 and `source-scans` 53 on the tree with this text.
-The full rotation sweep ran once after this text was committed,
-and its result line is in the hand-back of the round.
+The full rotation sweep ran once after this text was committed.
+This entry had named the hand-back of the round as the place of its result;
+round 10
+(re-check 9,
+nit 5)
+puts the lines of the log here,
+with the first line wrapped at its semicolon:
+
+```text
+// rotation sweep of round 9, result lines
+rotation sweep: test files 1321, packages 26, salts 0 1 2 3 4 5 6 7 8 9;
+the canary saw each salt move the stage package's rotation
+rotation sweep: cases failing under a salt that salt 0 passes 0, cases red with no shift 0
+rotation sweep: clean
+```
 
 Commit-message slips of this round:
 - `a62c92771ab60c85630054efdc355701c4d77ae2` states the cause of all four as fact from the diff of the fan-out,

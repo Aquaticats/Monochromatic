@@ -170,12 +170,11 @@ export const SETTLES_NOTHING_AND_ASKS_AGAIN: string = [
 /**
  What a decline does in a challenge whose caller defers to a later production (the translate lane's first call, whose
  follow-up round ships past a decline): a tie or a leader that leaves candidates behind sends the panel to a run-off
- first, and a round that leaves nothing to narrow asks no such question (re-check 6, M-B; re-check 7, nit 1); once
- none is left, a
- candidate ships only where every candidate drew equal weight and two or more judges named it (`breakRunoffTie`), the
- preferred of those by the fixed order; otherwise the round raises its absence and the lane produces again, shown the
- rejected renderings and the findings, and judges again. It names no stay, since the wording in place stays only in
- the round that ships past a decline (re-check 4, F1; re-check 5, M-B).
+ first, and a round that leaves nothing to narrow asks no such question (re-check 6, M-B; re-check 7, nit 1); once none
+ is left, a candidate ships only where every candidate drew equal weight and two or more judges named it
+ (`breakRunoffTie`), the preferred of those by the fixed order; otherwise the round raises its absence and the lane
+ produces again, shown the rejected renderings and the findings, and judges again. It names no stay, since the wording
+ in place stays only in the round that ships past a decline (re-check 4, F1; re-check 5, M-B).
 
  @example
  ```ts

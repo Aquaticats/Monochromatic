@@ -80,6 +80,11 @@ export const PACKAGE_EXEMPTIONS: readonly PositionExemption[] = [
     reason: 'a blank line of the stub being built, an element of the data',
   },
   {
+    path: 'page-check/corpus-run/archive-stub.ts',
+    holds: 'ORIGINAL below that and',
+    reason: 'the part of the archive page that follows the stub marker, a position in the page\'s own text',
+  },
+  {
     path: 'artifact/corpus-run/artifact-two-lane-read-pairing.ts',
     holds: 'Section before this one, absent at the first position',
     reason: 'the section the loop read before this one, an element of the data',
@@ -138,6 +143,21 @@ export const PACKAGE_EXEMPTIONS: readonly PositionExemption[] = [
     path: 'adjudication/select-candidate.unit.test.ts',
     holds: 'preservation above ties',
     reason: 'a ranking of two selection criteria, a comparison; "ties" is the noun',
+  },
+  {
+    path: 'archive/reference-precedence.unit.test.ts',
+    holds: 'protection above both reference rules',
+    reason: 'a ranking of one rule over two others, a comparison; "both" names the rules compared',
+  },
+  {
+    path: 'run/corpus-run/cap-override.ts',
+    holds: 'entries above some slice count',
+    reason: 'entries past a count of slices, a comparison; "some" is the count',
+  },
+  {
+    path: 'stage/stage-quorum.unit.test.ts',
+    holds: 'voice below half an even roster',
+    reason: 'a count under a fraction of the roster, a comparison; "half" is the fraction',
   },
   {
     path: 'page-check/consolidation-polish.unit.test.ts',

@@ -817,7 +817,7 @@ and the version bump belongs to the commit that lifts it.
 
 Update of 2026-10-21 (UTC),
 at the lift:
-the claim above that the lift changes the roster `imageReadingKey` hashes,
+the claim of the cache-versions paragraph that the lift changes the roster `imageReadingKey` hashes,
 and that a version bump belongs to the lifting commit,
 was wrong,
 and no version moved.

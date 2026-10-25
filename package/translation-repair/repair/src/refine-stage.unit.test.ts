@@ -111,6 +111,11 @@ const JUDGES_ALL_ASKED: readonly RosterModelId[] = JUDGES.slice(
 );
 
 /**
+ Seats the window of quorum plus one asks on a bench of four.
+ */
+const WINDOW_OF_A_BENCH_OF_FOUR = 3;
+
+/**
  Refiners proposing rewrites.
  */
 const REFINERS: readonly RosterModelId[] = [SEAT_HYPER_OPENROUTER_VISION_EDITOR,];
@@ -267,6 +272,41 @@ function scriptedRefiner(
     },
     quotas: async () => {
       throw new Error('quotas unused by refinement',);
+    },
+  };
+}
+
+/**
+ Client that records the judge of every selection exchange before answering through another client.
+
+ @param client - client that answers
+
+ @param judges - sink receiving the judge of each selection exchange, in the order asked
+
+ @returns Client that answers as the given one does
+
+ @example
+ ```ts
+ const client = recordingJudges({ client: scriptedRefiner({ ballot: 1, },), judges: [], },);
+ ```
+ */
+function recordingJudges(
+  {
+    client,
+    judges,
+  }: {
+    readonly client: ModelClient;
+    readonly judges: RosterModelId[];
+  },
+): ModelClient {
+  return {
+    ...client,
+    chatJson: async <ValueT,>(
+      request: ChatJsonRequest<ValueT>,
+    ): Promise<ChatJsonOutcome<ValueT>> => {
+      if (request.responseFormat?.json_schema.name !== 'refine_report')
+        judges.push(request.modelId,);
+      return client.chatJson(request,);
     },
   };
 }
@@ -764,6 +804,74 @@ await describe({
               'refine-selected (weight 2.5 of 3 ballots)',
             ],);
             expect(result.refinedText,).toBe(`${REPAIRED_TEXT}\n\n${smoothed}`,);
+          },
+        },),
+
+        it({
+          name: 'LEAVES OUT THE SELF-VOTE FINDING AND THE DISCOUNT WHEN THE WINDOW OF QUORUM PLUS ONE LEFT THE REFINER '
+            + 'OUT of a bench of four, and carries both when it asked the refiner: seated at each place of the bench '
+            + 'in turn, the refiner is left out exactly once, whatever rotation the sheet or the sweep gives',
+          fn: async () => {
+            /**
+             The bench's judges other than the refiner, in the file's order.
+             */
+            const others = JUDGES.filter(function isNotTheRefiner(judge,): boolean {
+              return judge !== SEAT_HYPER_OPENROUTER_VISION_EDITOR;
+            },);
+            /**
+             The run of each seating, in the order of the seatings: the judges the window asked and the findings.
+             */
+            const seatings = await Promise.all(JUDGES.map(async function runSeating(_judge, seat,) {
+              /**
+               Judges the window asked in this run.
+               */
+              const asked: RosterModelId[] = [];
+              /** Run whose refiner smooths the one paragraph and every judge asked names it. */
+              const result = await runFixture(
+                recordingJudges({
+                  client: scriptedRefiner({
+                    newText: SMOOTH_TEXT,
+                    ballot: 1,
+                  },),
+                  judges: asked,
+                },),
+                {
+                  judgeModelIds: [
+                    ...others.slice(0, seat,),
+                    SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+                    ...others.slice(seat,),
+                  ],
+                },
+              );
+              return {
+                asked,
+                findings: result.findings,
+              };
+            },),);
+            // The window of quorum plus one asks three of the four seats in every run.
+            expect(seatings.map(function widthOf({ asked, },): number {
+              return asked.length;
+            },),).toEqual(JUDGES.map(function windowWidth(): number {
+              return WINDOW_OF_A_BENCH_OF_FOUR;
+            },),);
+            // One seating in four leaves the refiner out, so both outcomes run under every rotation.
+            expect(seatings.filter(function asksTheRefiner({ asked, },): boolean {
+              return asked.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,);
+            },).length,).toBe(JUDGES.length - 1,);
+            expect(seatings.map(function findingsOf({ findings, },): readonly string[] {
+              return findings;
+            },),).toEqual(seatings.map(function expectedFindings({ asked, },): readonly string[] {
+              return asked.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,)
+                ? [
+                  'refine-candidates (1/1 heard, 1 proposing)',
+                  `select-self-vote (${SEAT_HYPER_OPENROUTER_VISION_EDITOR})`,
+                  'refine-selected (weight 2.5 of 3 ballots)',
+                ]
+                : [
+                  'refine-candidates (1/1 heard, 1 proposing)',
+                  'refine-selected (weight 3 of 3 ballots)',
+                ];
+            },),);
           },
         },),
 

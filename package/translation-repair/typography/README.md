@@ -6,7 +6,7 @@ semantic line wrapping through the pinned lint binary,
 prose masks,
 log context,
 and small process helpers.
-It is its own package because the text packages above all need it and it needs only `markup`,
+It is its own package because every text package that builds on it needs it and it needs only `markup`,
 `document-structure` and `shared-contract` below it.
 It also owns `src/semantic-wrap.config.jsonc`,
 the only non-TypeScript file under any family `src`,
