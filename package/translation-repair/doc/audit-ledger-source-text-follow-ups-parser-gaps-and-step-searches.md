@@ -62,11 +62,16 @@ the encoder then closed each hole.
   and no longer catches the parse error for it,
   so no caught value goes unused.
 
-The reader of the source text in the cases (`page-check/src/corpus-run/source-reader-text.test-fixture.ts`)
+The reader of the source text in the cases
+(`page-check/src/corpus-run/source-reader-text.test-fixture.ts`,
+now `source-reading-account.ts` in the same directory,
+moved on 2026-10-25)
 reads the source in the flavour the package parses pages in,
 CommonMark with GFM and the site's math,
 no MDX
-(`document-structure/src/gfm-math-reading.test-fixture.ts`),
+(`document-structure/src/gfm-math-reading.test-fixture.ts`,
+now `gfm-math-body.ts`,
+moved on 2026-10-25),
 and no longer re-wraps a math node in `$`.
 `parseMarkdownMathBody` has no GFM,
 so a footnote definition made of one address was a link reference definition there and a footnote on the page;
@@ -372,8 +377,12 @@ The merge of `origin/main` at `d8ac654323` (`a997614532`) had no conflict.
   the label of the GFM and math reading:
   it is "the flavour the package parses pages in (CommonMark with GFM and the site's math,
   no MDX)"
-  in `gfm-math-reading.test-fixture.ts`,
+  in `gfm-math-reading.test-fixture.ts`
+  (now `gfm-math-body.ts`,
+  moved on 2026-10-25),
   in `source-reader-text.test-fixture.ts`
+  (now `source-reading-account.ts`,
+  moved on 2026-10-25)
   and in the follow-up named "Follow-up:
   the holes between the plain parse and the strict grammar".
   Whether the site's own compiler,

@@ -583,7 +583,8 @@ which pinned a definition line right after indented code at the top as shown tex
 to the cases that compare what a reader sees.
 In a block quote or a list item the same blank line is not written,
 because it needs the marks of the container.
-That is a named limit.
+That is a named limit,
+closed in the fourth round.
 
 On the final code,
 `a5faefbb71`,
@@ -631,7 +632,9 @@ in the draws and the shapes named,
 outside a block quote and a list item.
 Whether to add a reader comparison to the page check,
 which would refuse or drop those pages,
-is a choice for the owner.
+is a choice for the owner;
+the owner decided on 2026-10-25 to add it,
+and the fourth round did.
 
 #### Third round: the full task, the merge and the checks
 
@@ -677,3 +680,215 @@ No cache version moved:
 and the same command over `c265e8df95~1..c265e8df95` names `c265e8df95`.
 No new B id was taken:
 the next free one is B842.
+
+#### Fourth round: the owner's decision to add the comparison, and the comparison
+
+The coordinator ruled on 2026-10-25 that the page check compares the reading of the page with the reading of the source,
+and the owner then answered the same day "Add the comparison (Recommended)".
+That is the owner's decision and no longer a ruling open to a veto.
+It answers the question the third round left to the owner,
+whether to add a reader comparison to the page check.
+
+THE COMPARISON is `readingDifferenceOf` (`page-check/src/corpus-run/source-reading-difference.ts`).
+It reduces the page,
+read by the strict grammar,
+and the source,
+read as plain Markdown with GFM,
+math and raw HTML,
+to the text of their leaves,
+as the oracle of the unit tests did (`source-reading-account.ts`,
+moved out of the test fixture
+`source-reader-text.test-fixture.ts` on 2026-10-25),
+and answers `same`,
+`differs` or `undecided`.
+The composition runs it over every run it writes as literal text (`source-ships-differences.ts`)
+and ships the page with one defect,
+`source-reads-differently`,
+which names the slices and no text of the page.
+A run always ships,
+so the defect never stops a page.
+A run that ships as recorded is not compared,
+since what the site compiles is what the original is upstream.
+`parseGfmMathBody` moved from the test fixture `gfm-math-reading.test-fixture.ts`
+to `document-structure/src/gfm-math-body.ts`
+(the fixture is named in the ledger of the parser gaps,
+which keeps its old text).
+
+THE TWO-READINGS RULE decides what the source's reading is.
+At the top of a text the footnote reading comes from the source,
+so a difference there is reported.
+Inside a block quote or a list item,
+and after a footnote's last block,
+it comes from the page.
+The comparison cannot give the page's reading of a footnote,
+so a difference between the accounts is not reported when the
+source's footnote ranges and the page's differ at a place a block quote or a list holds
+(`footnoteRangesDifferInContainer`).
+After a footnote the page is made to read as the source does (the blank line of `separatingEdits`),
+so no difference is left there.
+
+THE CASES IT CANNOT DECIDE,
+with the reason of each:
+
+- A footnote in a block quote or a list item whose ranges the two readings disagree on,
+  and whose accounts differ:
+  `undecided`,
+  because the ruling takes the page's reading and a reader of plain Markdown cannot give it.
+  The function logs the run at the info level and reports nothing.
+- A run the page does not carry as text:
+  a text nested past the bound of the plain reading,
+  which the strict grammar refuses.
+  The comparison throws,
+  the composition logs the run at the warn level and reports nothing,
+  and such a run is left off the page by the third step of the composition,
+  where `page-source-unparseable` names it.
+- A run that ships as recorded:
+  not asked.
+
+THE SEARCH,
+repeated on the final code with the same texts as the third round (132260,
+both seeds,
+the footnote product texts,
+the shapes),
+and with every text now put to the production comparison:
+114358 texts read the same by the oracle and by the comparison,
+and 0 of them is reported (the false-positive rate is 0 of 114358),
+11392 read differently and are reported as `differs`,
+1207 read differently and are `undecided`,
+and 5303 are nested past the bound,
+where the page does not parse and the comparison throws.
+Of the 1407 texts of the third round that read differently with the page check silent,
+36 now read the same and the other 1371 are reported,
+none of them undecided.
+The search over the generated texts ran in a capped unit,
+`dx1f2-topdiff6`.
+
+THE COMMITS:
+`76d1c2e53a` is the red cases (`red-r21-failing-lines.txt`),
+`dedb7886c0` moves `parseGfmMathBody` into `document-structure` and adds `footnoteRangesDifferInContainer`,
+`9d0d9d5dc7` adds the comparison and the defect,
+and `2797c8f871` adds the unit tests of the modules and the findings of the source scans.
+The two cases of `source-shipped-page.unit.test.ts` that hold a comment which never closes now expect the defect.
+The unit tests of `dedb7886c0` were written with the code and not before it;
+the comparison's behaviour was red first.
+
+#### Fourth round: the real corpus
+
+The corpus is the pinned clone `one-among-us/data` under the home directory,
+at `a41fc607ea5a70d8a7625cc67d5ed8c444f53379`,
+read with `git cat-file` and never written,
+and the settled pages of the artifacts the passes wrote.
+The units are the 274 files `page.md`,
+`page.en.md` and `page.zh_hant.md` of the entries (each text once),
+their 1026 heading chunks,
+their 7360 top-level blocks,
+and the 56 settled English pages of the artifacts of the
+`translation-repair` worktree.
+A text counts as shipped as literal text when the page grammar refuses it as recorded
+or it holds a comment that never closes
+(the first step of the composition);
+the others ship as recorded and are not compared.
+
+- 61 of the 7360 blocks would ship as literal text,
+  and 0 of the 61 read differently;
+  no file and no chunk would.
+- 1 text reads differently by the oracle and is not compared:
+  the front matter of `people/Kotori/page.en.md`,
+  which holds
+  comment lines of the YAML that plain Markdown reads as headings.
+  It counts once in each of four units (the file,
+  the chunk,
+  the block and the settled page that holds it) and ships as recorded.
+- Per residual class,
+  the count of real texts is 0 for each:
+  a comment that never closes,
+  an image whose alternative text is an
+  angle autolink,
+  an indent-4 footnote start in a paragraph,
+  a footnote that opens with a tag alone,
+  an indented fence mark beside a
+  footnote,
+  and any other class.
+  No text of any unit holds the lexical trigger of any of them.
+  Comment openers occur (118 blocks,
+  77 chunks,
+  55 files,
+  12 settled pages) and every one closes;
+  footnote label openers occur in 296 blocks,
+  135 chunks,
+  68 files and 13 settled pages.
+- None of the 56 settled pages carries the note of an untranslated passage,
+  since the artifacts on this machine are of the
+  repair stage and hold no record of the lanes.
+  The pages the source-ships rule wrote are not here,
+  so a count over them is not made.
+
+The script is `corpus-measure.ts` in the run directory,
+outside the repository,
+and ran in the capped unit `dx1f2-corpus1`.
+
+#### Fourth round: the residual classes
+
+FIXED,
+red first.
+A footnote that opens with a tag alone (`d887680218` red,
+7 cases in `red-r22-failing-lines.txt`;
+`bdbbd2b0a3` fix):
+`rootWithFreshTails` parses the text from the line after a top-level footnote's end,
+with the lines before it blank,
+where a paragraph of the plain parse starts at that line;
+a tag alone there is raw HTML to a reader of the source.
+34 of the 37 texts of the class read the same now.
+The blank line in a block quote or a list item (`9afaf60506` red,
+10 cases in `red-r23-failing-lines.txt`;
+`1f40b76acd` fix):
+`afterLiteralBlockEdits` takes `inContainer` and writes the blank line with the marks of the next line,
+so the named limit of
+the third round is closed.
+Two cases of `source-ships-encoding.unit.test.ts` that pinned the page's text in a container
+now compare what a reader sees.
+
+NOT FIXED,
+with the reason,
+and each is reported by the comparison:
+
+- An indent-4 footnote start that cuts a code span (384 of the 1407).
+  The strict grammar starts the footnote at the indented line and the page shows the backticks as characters;
+  the source pairs them across the lazy line.
+  No writing keeps both:
+  a backslash before the label shows inside a code span,
+  and no character can be added.
+  The encoder makes the page safe (no live construct),
+  the comparison reports it.
+- A comment that never closes (925).
+  A reader of the source takes the rest of the text for the comment's raw HTML and the page shows it,
+  since the encoder writes
+  the opener as `&lt;!--` by the owner's ruling that the page carries the original.
+  Dropping the text after the opener would remove source text the ruling keeps,
+  so the difference is the ruling's own,
+  and the comparison reports it.
+- An image whose alternative text is an angle autolink (55):
+  a known finding,
+  recorded in
+  `audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md`
+  ("An angle autolink in the alternative text of an
+  image"),
+  left reported.
+- An indented fence mark in the paragraph a footnote start cuts (7).
+  A paragraph cut at a footnote start is read again alone and loses the indentation of its first line,
+  so a code span that opens with an indented fence mark reads as a fence that never closes,
+  and the encoder lengthens its
+  opening only.
+  The page then shows the rest of the text as the code of that fence.
+  A fix reads the cut paragraph in its context,
+  which the module that cuts it does not keep;
+  it is not made here.
+  The comparison reports it,
+  and the count in the real corpus is 0.
+
+Of the 1407,
+36 now read the same,
+1371 are reported (925 comments,
+55 images,
+384 indent-4 footnote starts,
+7 fence marks).
