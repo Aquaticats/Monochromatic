@@ -469,8 +469,11 @@ await describe({
         // Version 42 (2026-10-25) tells the judges the run-off is asked only where
         // it leaves some candidates behind (re-check 6, M-B), which moved this
         // literal.
+        // Version 43 (2026-10-25) tells the judges a round that leaves nothing to
+        // narrow asks no such question, in place of a round that leaves no
+        // candidate behind (re-check 7, nit 1), which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '52b4539249bb485f11cb61a5fe49a9239f53a68342f6eca7c958226b48a27657',
+          '20703993fb84bf425d445d9758dd8ca12509e2bda339ca5bed96d78c26181b22',
         );
       },
     },),
