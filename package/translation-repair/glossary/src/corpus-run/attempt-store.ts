@@ -46,13 +46,14 @@ export type AttemptMap = Map<string, number>;
  Whether a value read from the attempts file can stand as an entry's attempt count.
 
  A COUNT IS A NON-NEGATIVE WHOLE NUMBER THE PASS CAN ADD ONE TO. The pass adds one to the count it reads and the
- lifecycle stamp of the lines it prints for the attempt refuses anything that is not a whole number from 1 (ledger B960),
- so a hand-edited 1.5, -3, 1e999 (which parses to Infinity) or 1e20 passed through would end the pass at its first
- entry, outside any `try`, and again at every launch since the file keeps it.
+ lifecycle stamp of the lines it prints for the attempt refuses anything that is not a safe integer from 1 (ledger
+ B960), so a hand-edited 1.5, -3, 1e999 (which parses to Infinity), 1e20 or 9007199254740991 (whose successor is the
+ first integer a number cannot hold exactly) passed through would end the pass at its first entry, outside any `try`,
+ and again at every launch since the file keeps it.
 
  @param value - what the file holds for one entry
 
- @returns Whether it is a safe integer of at least zero
+ @returns Whether it is a safe integer of at least zero whose successor is a safe integer too
 
  @example
  ```ts
@@ -62,7 +63,40 @@ export type AttemptMap = Map<string, number>;
 function isAttemptCount(value: unknown,): value is number {
   if ((typeof value) !== 'number')
     return false;
-  return Number.isSafeInteger(value,) && (value >= 0);
+  return Number.isSafeInteger(value,) && (value >= 0) && Number.isSafeInteger(value + 1,);
+}
+
+/**
+ An entry's attempt count that one more attempt would take past the safe integers.
+
+ @example
+ ```ts
+ throw new AttemptCountError({ id: 'Kitten', count: Number.MAX_SAFE_INTEGER, },);
+ ```
+ */
+export class AttemptCountError extends Error {
+  /**
+   Names the entry and the count it was asked to add one to.
+
+   @param id - entry whose attempt was being counted
+
+   @param count - count the entry holds
+   */
+  public constructor(
+    {
+      id,
+      count,
+    }: {
+      readonly id: string;
+      readonly count: number;
+    },
+  ) {
+    super(
+      `${id} holds an attempt count of ${String(count,)}, and one more is no safe integer, which the attempts file `
+        + 'and the stamp of a lifecycle line cannot hold; the count is kept as it is',
+    );
+    this.name = 'AttemptCountError';
+  }
 }
 
 /**
@@ -71,8 +105,8 @@ function isAttemptCount(value: unknown,): value is number {
 
  @param attemptsPath - location of the attempts JSON
 
- @returns Entry-id to attempt-count map, empty when absent or unreadable, each count that is no non-negative whole
- number read as 0 beside a warning naming the entry, the file and the value
+ @returns Entry-id to attempt-count map, empty when absent or unreadable, each count that is no whole number from 0 to
+ the largest safe integer less one read as 0 beside a warning naming the entry, the file and the value
 
  @throws {@link Error} when the file exists and is readable but fails for any
  reason other than absence or malformed JSON
@@ -125,7 +159,9 @@ export async function readAttemptMap(attemptsPath: string,): Promise<AttemptMap>
           rl.warn(
             `attempts file ${attemptsPath} counts ${id} as ${
               (typeof value) === 'number' ? String(value,) : JSON.stringify(value,)
-            }, which is no non-negative whole number; read as 0, so ${id} sorts first`,
+            }, which is no whole number from 0 to ${
+              String(Number.MAX_SAFE_INTEGER - 1,)
+            }; read as 0, so ${id} sorts first`,
           );
           return [
             id,
@@ -182,6 +218,8 @@ export function attemptsOf(
 
  @mutates attempts - sets this entry's count to one past what it held
 
+ @throws {@link AttemptCountError} when one past the count is no safe integer, which leaves the count as it was
+
  @example
  ```ts
  countAttempt({ attempts, id: 'Kitten', },);
@@ -196,12 +234,21 @@ export function countAttempt(
     readonly id: string;
   },
 ): void {
+  /**
+   Count the entry holds now.
+   */
+  const count = attemptsOf({
+    attempts,
+    id,
+  },);
+  if (!Number.isSafeInteger(count + 1,))
+    throw new AttemptCountError({
+      id,
+      count,
+    },);
   attempts.set(
     id,
-    attemptsOf({
-      attempts,
-      id,
-    },) + 1,
+    count + 1,
   );
 }
 
