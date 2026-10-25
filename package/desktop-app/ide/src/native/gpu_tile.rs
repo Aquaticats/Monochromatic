@@ -136,8 +136,16 @@ pub(super) struct GpuTile {
 impl GpuTile {
     /// Make the scenes of the tile the ones to draw at the next frame;
     /// a tile not drawn yet is replaced.
-    pub(super) fn submit_tile(&self, stack: TileStack) {
-        self.inner.borrow_mut().pending_tile = Some(stack);
+    /// A tile whose textures differ in size from the last one's gets its new textures,
+    /// and the window its new slices,
+    ///  here and not in the frame,
+    /// because the window does not show a slice list it was given inside the frame that draws the tile.
+    pub(super) fn submit_tile(&self, window: &AppWindow, stack: TileStack) {
+        let mut inner = self.inner.borrow_mut();
+        let outcome = inner.prepare_tile(&stack);
+        inner.pending_tile = Some(stack);
+        drop(inner);
+        outcome.apply(window);
     }
 
     /// Make the scene of the wrap indicator the one to draw at the next frame.
@@ -438,7 +446,24 @@ pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
             _ => return,
         };
         if let Some(active) = weak.upgrade() {
+            // What: New textures for the tile reach the window's list of slices inside the frame that made them,
+            //       and that frame does not show them; the window asks for the frame that does.
+            // Why: Nothing else asks for it. The window draws no frame by itself, and before the hint skip rule the
+            //      answer to a hint request repainted the source a moment later and so drew one by chance.
+            //      A press whose request is skipped has no answer, and its code column stayed blank.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const replaced = outcome.tile !== undefined; apply(outcome, window); if (replaced) window.requestRedraw();
+            // ```
+            let replaced = outcome.tile.is_some();
             outcome.apply(&active);
+            if replaced {
+                tracing::debug!(
+                    "replaced the slices of the source tile inside a frame, so asking for the next"
+                );
+                active.window().request_redraw();
+            }
         }
     });
     if let Err(error) = installed {

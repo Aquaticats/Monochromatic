@@ -163,10 +163,13 @@ const RESERVED_OUTCOME_KEYS: readonly string[] = ['acceptedText',];
 
  @param path - dotted path for error message
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Outcome as version 2 describes it
 
  @throws {@link ArtifactParseError} when the discriminator names no member of
- this version, when a member carries a field belonging to another, or when a
+ this version, when a member carries a field belonging to another, when the mark is anything but true, or when a
  decision carries no wording
 
  @example
@@ -179,10 +182,12 @@ export function parseSliceOutcome(
     value,
     unknownKeys,
     path,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly unknownKeys: UnknownKeyPolicy;
     readonly path: string;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactSliceOutcome {
   /**
@@ -205,7 +210,12 @@ export function parseSliceOutcome(
   /**
    Keys this member may carry.
    */
-  const allowed = OUTCOME_KEYS[kind];
+  const allowed = ((kind === 'unfilled') && benchFloorRecorded)
+    ? [
+      ...OUTCOME_KEYS[kind],
+      'benchBelowFloor',
+    ]
+    : OUTCOME_KEYS[kind];
   if (unknownKeys === 'refuse') {
     requireExactKeys({
       record,
@@ -234,6 +244,22 @@ export function parseSliceOutcome(
         path: `${path}.acceptedText`,
       },),
     };
+  }
+  if (kind === 'unfilled') {
+    if (record.benchBelowFloor === undefined)
+      return { kind, };
+    if (benchFloorRecorded && (record.benchBelowFloor === true)) {
+      return {
+        kind,
+        benchBelowFloor: true,
+      };
+    }
+    if (benchFloorRecorded) {
+      throw new ArtifactParseError({
+        path: `${path}.benchBelowFloor`,
+        reason: 'true or absent',
+      },);
+    }
   }
   return { kind, };
 }

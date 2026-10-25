@@ -41,6 +41,77 @@ The groups that follow name the main ones.
   `UnansweredContestSliceError`,
   `WouldShipReading`.
   Declared in `corpus-run/would-ship-text.ts`.
+- Source text under a note:
+  read a slice with no archive text and no backed wording as shipping the original passage,
+  one block-quote note before each contiguous run (owner,
+  2026-10-23,
+  "Source text + note").
+  The text is each slice's original as the artifact records it,
+  the slices of a run joined by one blank line,
+  and text between slices is not carried.
+  Names:
+  `UNTRANSLATED_PASSAGE_NOTE`,
+  `carryingSource`,
+  `markRuns`,
+  `carriesText`,
+  `textOnPage`,
+  `withoutSourceRecordAt`.
+  Declared in `corpus-run/source-ships.ts`.
+- Page composition under the grammar:
+  ship each source run as recorded whenever the page parses,
+  and otherwise write the runs that do not parse alone (and any run holding a comment that never closes,
+  a fence mark
+  indented four spaces or more,
+  or a name an earlier run still declares) as literal text,
+  then every run,
+  then ship the page without the runs no writing makes parse (without every run where that does not help)
+  and report `page-source-unparseable` naming the slices.
+  The literal text is read off a CommonMark parse of the run with the site's math
+  (`parseMarkdownMathBody` of `translation-repair-document-structure`),
+  so a fence in a list item,
+  a code span across lines,
+  math,
+  a link destination and an escape the original wrote are copied,
+  and only a `{`,
+  `}` or `<` the parse reads as text is escaped.
+  A footnote definition that CommonMark takes for a link reference definition is read as the footnote it is,
+  its body as blocks of its own,
+  and a bare address that a less-than sign ends is written as a link with the same text and target.
+  A page on disk is judged by the same composition run over what the artifact records,
+  so a page shipped without runs reads as agreed
+  (`PageAgreement.sourceDropped` names the slices).
+  Names:
+  `composeSourcePage`,
+  `composeOverTiling`,
+  `tilingOf`,
+  `sourceRunsOf`,
+  `slicesRefusedAsLiteral`,
+  `droppedRunSets`,
+  `spansOf`,
+  `bareAddresses`,
+  `addressAsLink`,
+  `explicitLink`,
+  `encodeAsLiteralMdx`,
+  `SourcePageCompositionError`,
+  `readPageGrammar`.
+  Declared in `corpus-run/source-ships-compose.ts`,
+  `corpus-run/source-ships-runs.ts`,
+  `corpus-run/source-ships-tiling.ts`,
+  `corpus-run/source-ships-spans.ts`,
+  `corpus-run/source-ships-addresses.ts`,
+  `corpus-run/source-ships-links.ts`,
+  `corpus-run/source-ships-encoding.ts`
+  and `corpus-run/page-grammar.ts`.
+  `corpus-run/source-ships-footnote.ts`,
+  `corpus-run/source-ships-module-line.ts`
+  and `corpus-run/source-ships-ranges.ts` hold the helpers of the reading and are exported for their own tests.
+- Shippable replacements:
+  turn a settled entry's per-slice readings into the replacements that assemble its page.
+  The original of a slice that ships it is left out unless the caller passes `includeSource: true`,
+  which only the writer of the published page does.
+  Names:
+  `shippableReplacements`.
+  Declared in `corpus-run/shippable-replacements.ts`.
 - Page assembly guards:
   run the composed page through the guards each lane runs,
   and refuse a page that does not parse or breaks its footnotes.
@@ -49,10 +120,16 @@ The groups that follow name the main ones.
   `assertPageParses`,
   `UnparseablePageError`,
   `assertPageFootnotesIntact`,
+  `assertPageFootnotesResolve`,
+  `PageFootnoteResolutionError`,
   `assertFrontMatterComplete`.
+  The integrity guard weighs the page against its archive;
+  the resolve check reads the page alone and is reported as a publish defect,
+  never a refusal.
   Declared in `corpus-run/page-assembly-guard.ts`,
   `corpus-run/page-grammar.ts`,
   `corpus-run/page-footnote-integrity.ts`,
+  `corpus-run/page-footnote-resolution.ts`,
   and `corpus-run/front-matter-completeness.ts`.
 - Destinations:
   find the link destinations of the source that a page no longer carries,

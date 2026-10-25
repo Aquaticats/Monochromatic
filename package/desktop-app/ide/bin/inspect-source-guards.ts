@@ -2014,6 +2014,54 @@ const cases: Guard[] = [
     test: 'opening_the_file_again_forgets_the_lines_asked_about',
     failure: 'the scripted server did not receive the expected hint request'
   },
+  // New textures for the code tile, and the slices that show them, are made when the tile is handed over, not inside the
+  // frame that draws it: a slice list the window is given inside a frame is not shown by that frame, and an idle window
+  // draws no other, so the code column stayed blank beside the new rows.
+  {
+    name: 'tile-slices-prepared',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {',
+    after: '        if true {',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier tile after the press'
+  },
+  {
+    name: 'tile-slices-prepared-skipped',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        if Self::oversize(stack, limit) || self.tile_textures_fit(stack) {',
+    after: '        if true {',
+    native: true,
+    test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
+    failure: 'the window still holds the slices of the tile before the press'
+  },
+  {
+    name: 'tile-slices-replaced',
+    file: 'src/native/gpu_tile/source.rs',
+    before: '        self.replace_tile_textures(&device, stack, &mut outcome);',
+    after: '        let _ = &mut outcome;',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the window holds the slices of the earlier tile after the press'
+  },
+  {
+    name: 'tile-slices-applied',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    native: true,
+    test: 'a_tile_of_another_size_gives_the_window_its_slices_before_any_frame',
+    failure: 'the start drew no tile'
+  },
+  {
+    name: 'tile-slices-applied-skipped',
+    file: 'src/native/gpu_tile.rs',
+    before: '        outcome.apply(window);',
+    after: '        let _ = (outcome, window);',
+    native: true,
+    test: 'a_press_whose_request_is_skipped_gives_the_window_the_slices_of_its_tile',
+    failure: 'the window still holds the slices of the tile before the press'
+  },
 ];
 // An optional comma-separated list reruns only the named guards, for example after adding one.
 const only = process.env

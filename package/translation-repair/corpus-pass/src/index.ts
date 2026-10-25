@@ -74,6 +74,10 @@ export {
   runPassLanes,
 } from './corpus-run/pass-lanes.ts';
 export {
+  floorLimitedByEntry,
+  type FloorLimitedByEntry,
+} from './corpus-run/pass-floor-limited.ts';
+export {
   outsideReadsFrom,
   type PassCorpusNameReader,
   type PassOutsideReads,

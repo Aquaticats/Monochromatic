@@ -46,6 +46,14 @@ export type ConsolidateSliceSeating = {
    stands.
    */
   readonly roster?: ConsolidateRoster;
+
+  /**
+   Slate judges a wet provider would serve as of the reading, which an
+   eligible standing is held to the selection's floor by before a slate is
+   bought; absent where the hook did not count. Kept beside the roster rather
+   than in it, since the roster is folded into every key and a count is not.
+   */
+  readonly slateReachable?: number;
 };
 
 //endregion Consolidation slice seating

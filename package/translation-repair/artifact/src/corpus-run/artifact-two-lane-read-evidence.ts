@@ -105,6 +105,9 @@ function requireIndexList(
 
  @param keys - spelling the artifact's own generation gave the renamed keys
 
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
+
  @returns Rows in the order the file lists them
 
  @throws {@link ArtifactParseError} when the value is not an array, or a row
@@ -120,10 +123,12 @@ function requireEvidenceRows(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): readonly ArtifactEvidenceRow[] {
   return requireArray({
@@ -138,6 +143,7 @@ function requireEvidenceRows(
         value: row,
         path: `${path}[${String(position,)}]`,
         keys,
+        benchFloorRecorded,
       },);
     },);
 }
@@ -152,6 +158,9 @@ function requireEvidenceRows(
  @param keys - spelling the artifact's own generation gave the renamed keys,
  so a version 2 file is read under `chunk` and a version 3 file under `slice`
  without either being tried against the other
+
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
 
  @returns Evidence core, with the rest of the record left where it is
 
@@ -168,10 +177,12 @@ export function parseRepairEvidence(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactRepairEvidence {
   /**
@@ -203,6 +214,7 @@ export function parseRepairEvidence(
       value: record.sliceTexts,
       path: `${path}.sliceTexts`,
       keys,
+      benchFloorRecorded,
     },),
   };
 }
@@ -217,6 +229,9 @@ export function parseRepairEvidence(
  @param keys - spelling the artifact's own generation gave the renamed keys,
  so a version 2 file is read under `chunk` and a version 3 file under `slice`
  without either being tried against the other
+
+ @param benchFloorRecorded - whether the generation records the mark of an unfilled outcome the select bench never
+ bought a candidate for
 
  @returns Evidence core, with the rest of the record left where it is
 
@@ -233,10 +248,12 @@ export function parseTranslateEvidence(
     value,
     path,
     keys,
+    benchFloorRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
     readonly keys: ArtifactKeyVocabulary;
+    readonly benchFloorRecorded?: boolean;
   },
 ): ArtifactTranslateEvidence {
   /**
@@ -276,6 +293,7 @@ export function parseTranslateEvidence(
       value: record.sliceTexts,
       path: `${path}.sliceTexts`,
       keys,
+      benchFloorRecorded,
     },),
   };
 }

@@ -9,22 +9,24 @@ import {
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   PROVIDER_ORDER,
+  type ProviderName,
+  type ProviderRecord,
   providerRecord,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { RunClient, } from './run-client-contract.ts';
 import { judgeSeatsFor, } from './run-seats.ts';
+import { ceilingWordsOf, } from './run-seats-ceiling.ts';
 import {
   holdsThatCureShortBenches,
+  meterDryOf,
   shortBenchesWithCure,
-  noWaitWordsOf,
-  unmetBenchNames,
 } from './run-seats-hold-need.ts';
+import { seatWithoutWaiting, } from './run-seats-no-wait.ts';
 import {
   holdsWithinPass,
   passBoundOf,
 } from './run-seats-pass-bound.ts';
 import {
-  belowFloorWritingBenches,
   benchesOf,
   PHASES_WITHOUT_WRITER_STOP,
   unreachableWritingBenches,
@@ -34,8 +36,8 @@ import {
   withNeuralWattReturn,
   writtenRefusal,
 } from './run-seats-refusal.ts';
+import { readMeterStates, } from './run-seats-states.ts';
 import {
-  type BenchName,
   type JudgeSeatPhase,
   phaseBenches,
   shortBenches,
@@ -84,12 +86,6 @@ export type WarnedState = {
    */
   signature: string;
 };
-
-/**
- What a reading that stops waiting says of the returns, said of NeuralWatt's too when its return lies past what the pass
- has left: no provider has one the reader can wait for.
- */
-const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for';
 
 /**
  The view when the budgets could not be read: nothing is dry.
@@ -187,6 +183,36 @@ export async function readDrynessPastShortBench(
     }
   }
   /**
+   Reads which providers the meters keep dry, only while a hold runs: the meters say whether a hold ending can bring
+   its provider back, so a reading with no hold has nothing to ask them. NeuralWatt is left out while its hold is its
+   day start, since the day starting again is what turns its meter wet.
+
+   @param running - how long each provider's refusal still holds it out
+
+   @returns Providers dry by their meter whose hold ending brings no return, none when no hold runs
+   */
+  async function readMeterDry(running: ProviderRecord<number>,): Promise<ReadonlySet<ProviderName>> {
+    if (!PROVIDER_ORDER.some(function isHeld(provider,): boolean {
+      return running[provider] > 0;
+    },))
+      return new Set();
+    /**
+     Providers the meters say are dry.
+     */
+    const dryByMeter = meterDryOf({
+      meters: await readMeterStates({
+        client,
+        signal,
+        l,
+      },),
+    },);
+    if (client.neuralwattHeldByReturn?.({ returnBoundMs: passBoundOf({ client, }), },) ?? true)
+      return new Set([...dryByMeter,].filter(function isNotNeuralWatt(provider,): boolean {
+        return provider !== 'neuralwatt';
+      },),);
+    return dryByMeter;
+  }
+  /**
    Dryness as first read.
    */
   const first = await readDryness();
@@ -203,12 +229,17 @@ export async function readDrynessPastShortBench(
    */
   const running = holdsWithinPass({ client, },);
   /**
-   How long each provider's refusal still holds it out, for the providers whose return would help cure a bench that
-   stands short; a hold on any other provider cannot bring such a bench back and is not waited for.
+   Providers the meters keep dry, whose holds ending bring no return.
+   */
+  const meterDry = await readMeterDry(running,);
+  /**
+   How long each provider's refusal still holds it out, for the providers whose return would lift a bench that stands
+   short across its floor or its quorum; a hold on any other provider cannot change such a bench and is not waited for.
    */
   const holds = holdsThatCureShortBenches({
     holds: running,
     dry: first,
+    meterDry,
     names,
   },);
   /**
@@ -246,121 +277,20 @@ export async function readDrynessPastShortBench(
     };
   }
   if (shortest === 0) {
-    /**
-     What the reading says in place of a wait: the running holds it skipped and why, or that no return was named.
-     */
-    const noWait = noWaitWordsOf({
-      running,
-      counted: holds,
-      dry: first,
-      nothingHeld: NO_WAITABLE_RETURN,
-    },);
-    /**
-     What this state is: which providers are held and which benches stand unmet.
-     */
-    const signature = `${
-      PROVIDER_ORDER.filter(function isHeld(provider,): boolean {
-        return running[provider] > 0;
-      },)
-        .join(',',)
-    }|${
-      [
-        ...unmetBenchNames({
-          dry: first,
-          names,
-        },),
-      ].join(',',)
-    }`;
-    /**
-     Whether the last line this caller let through was about the same state, so it is not said again.
-     */
-    const repeated = warned?.signature === signature;
-    if (warned !== undefined)
-      warned.signature = signature;
-    /**
-     The unreachable benches with why NeuralWatt reads dry, so a refusal states the true cause.
-     */
-    const stated = withNeuralWattReturn({
-      clauses: unreachable,
-      dry: first,
+    return seatWithoutWaiting({
       client,
-      refusalFollows: !goesOn,
-    },);
-    if (unreachable.length > 0) {
-      // THE FIFTEENTH CLASS: a writing bench below its floor with nothing to wait for stops the entry rather than
-      // writing a one-writer page. A PHASE THAT GOES ON WITHOUT ITS WRITERS says so once, naming the bench, and never
-      // says the entry stops, since it does not.
-      if (!(goesOn && repeated)) {
-        l.error(
-          `JUDGE SEATS phase=${phase} writing bench unreachable: ${stated.join('; ',)}; ${
-            goesOn
-              ? `${noWait}, so the phase goes on without its writers`
-              : 'stopping the entry'
-          }`,
-        );
-      }
-      if (!goesOn) {
-        throw writtenRefusal({
-          phase,
-          clauses: stated,
-          dry: first,
-          client,
-        },);
-      }
-    }
-    /**
-     Writing benches below the floor, which the error line of a phase that goes on has named.
-     */
-    const belowFloor = new Set(belowFloorWritingBenches({
-      benches,
+      phase,
+      l,
+      ...((warned === undefined) ? {} : { warned, }),
+      dry: first,
+      running,
+      holds,
+      meterDry,
       names,
-      dry: first,
-    },)
-      .map(function nameOf({ name, },): BenchName {
-        return name;
-      },),);
-    /**
-     Benches whose shortfall no error line has named.
-     */
-    const namesElsewhere = names.filter(function isNotNamedAbove(name,): boolean {
-      return !(goesOn && belowFloor.has(name,));
-    },);
-    /**
-     Benches short of quorum that no error line has named.
-     */
-    const shortElsewhere = shortBenches({
       benches,
-      names: namesElsewhere,
-      dry: first,
+      unreachable,
+      goesOn,
     },);
-    if ((shortElsewhere.length > 0) && (!repeated)) {
-      // SAID EVEN WHEN THERE IS NOTHING TO WAIT FOR. The seventh hakureico
-      // launch (2026-09-08, Bedrock alone) printed `readers=4 roster=10
-      // withheld=none` at the pictures with three providers dry, since
-      // `withheld=` names only the seats the slowness and cost rules take, and
-      // stopped INCOMPLETE twenty seconds later with no reader reachable. A
-      // spent balance names no return, so the phase runs on what is reachable;
-      // the line says so before it starts.
-      l.warn(
-        `JUDGE SEATS phase=${phase} short of quorum: ${
-          withNeuralWattReturn({
-            clauses: shortBenchesWithCure({
-              dry: first,
-              names: namesElsewhere,
-            },),
-            dry: first,
-            client,
-            refusalFollows: false,
-          },)
-            .join('; ',)
-        }; ${noWait}, so the phase runs on what is reachable`,
-      );
-    }
-    return {
-      dry: first,
-      waitMs: 0,
-      unreachableWriters: unreachable,
-    };
   }
   /**
    What the waits have read so far: the dryness, the benches short of quorum, and the holds still running.
@@ -368,6 +298,8 @@ export async function readDrynessPastShortBench(
   const waiting = {
     dry: first,
     short,
+    running,
+    meterDry,
     holds,
     shortest,
     waitedMs: 0,
@@ -390,8 +322,17 @@ export async function readDrynessPastShortBench(
       neuralwattHeldByReturn: client.neuralwattHeldByReturn?.({ returnBoundMs: passBoundOf({ client, }), },) ?? true,
     },);
     l.warn(
-      `JUDGE SEATS phase=${phase} short of quorum: ${waiting.short
-        .join('; ',)}; holds ${held.join(', ',)}; `
+      `JUDGE SEATS phase=${phase} short of quorum: ${
+        [
+          ...waiting.short,
+          ...ceilingWordsOf({
+            running: waiting.running,
+            dry: waiting.dry,
+            meterDry: waiting.meterDry,
+            names,
+          },),
+        ].join('; ',)
+      }; holds ${held.join(', ',)}; `
         + `waiting ${
           String(waiting.shortest,)
         }ms for the shortest hold to end, ${reason}, rather than seating a bench short of its quorum`,
@@ -406,8 +347,10 @@ export async function readDrynessPastShortBench(
     l.info(
       `JUDGE SEATS phase=${phase} waited ${String(waiting.shortest,)}ms for ${reason}; the benches are read again`,
     );
-    // Dryness after the wait.
+    // Dryness after the wait, the holds still running, and what the meters keep dry.
     waiting.dry = await readDryness();
+    waiting.running = holdsWithinPass({ client, },);
+    waiting.meterDry = await readMeterDry(waiting.running,);
     /* oxlint-enable no-await-in-loop */
     /**
      Benches as read after the wait.
@@ -434,8 +377,9 @@ export async function readDrynessPastShortBench(
     // NeuralWatt return behind a rate-limit hold) is waited for too, bounded by the entry's abort, by the holds that
     // serve a short bench, and by the pass bound the client carries (a return past it is not a hold).
     waiting.holds = holdsThatCureShortBenches({
-      holds: holdsWithinPass({ client, },),
+      holds: waiting.running,
       dry: waiting.dry,
+      meterDry: waiting.meterDry,
       names,
     },);
     waiting.shortest = shortestHold({ holds: waiting.holds, },);

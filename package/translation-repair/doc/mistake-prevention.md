@@ -1,7 +1,7 @@
 # Preventing this package's mistakes
 
 The audit of 2026-09-27 and 2026-09-28 recorded every mistake made while fixing this package
-as an M entry in [the audit ledger](audit-ledger.md#process-mistakes-in-this-audit),
+as an M entry in [the audit ledger][process-mistakes-ledger],
 and every defect found while fixing as an X entry.
 The ledger is the record,
 in the order things happened.
@@ -90,6 +90,12 @@ named for that subject and listed here.
   - [Globals a case replaces](mistake-prevention-tests-clocks-and-arrival-order.md#globals-a-case-replaces)
   - [Output decided by arrival order](mistake-prevention-tests-clocks-and-arrival-order.md#output-decided-by-arrival-order)
   - [Orders and seats that a prompt hash decides](mistake-prevention-tests-clocks-and-arrival-order.md#orders-and-seats-that-a-prompt-hash-decides)
+- [Preventing mistakes: fake clocks and native timers](mistake-prevention-fake-clocks-and-native-timers.md):
+  Rules for tests that replace the clock:
+  which timers the fake clock owns,
+  and what happens to a timer it did not make.
+  Sections:
+  - [Fake clocks that leave native timers](mistake-prevention-fake-clocks-and-native-timers.md#fake-clocks-that-leave-native-timers)
 - [Preventing mistakes: comparing text and reading structure](mistake-prevention-text-comparison-and-structure.md):
   Rules for comparing text and reading a document's structure:
   code points,
@@ -99,7 +105,8 @@ named for that subject and listed here.
   escapes,
   paired marks,
   the parse,
-  positions and quotes.
+  lists of shapes where the parser decides,
+  and quotes.
   Sections:
   - [Text by code point](mistake-prevention-text-comparison-and-structure.md#text-by-code-point)
   - [Words inside words](mistake-prevention-text-comparison-and-structure.md#words-inside-words)
@@ -109,9 +116,13 @@ named for that subject and listed here.
   - [Escapes and the layer that reads them](mistake-prevention-text-comparison-and-structure.md#escapes-and-the-layer-that-reads-them)
   - [Paired marks](mistake-prevention-text-comparison-and-structure.md#paired-marks)
   - [Structure read off the parse](mistake-prevention-text-comparison-and-structure.md#structure-read-off-the-parse)
-  - [Pairing by position](mistake-prevention-text-comparison-and-structure.md#pairing-by-position)
-  - [Offsets and positions](mistake-prevention-text-comparison-and-structure.md#offsets-and-positions)
+  - [Lists of shapes where the parser decides](mistake-prevention-text-comparison-and-structure.md#lists-of-shapes-where-the-parser-decides)
   - [Quotes a judge gives back](mistake-prevention-text-comparison-and-structure.md#quotes-a-judge-gives-back)
+- [Preventing mistakes: pairing and offsets by position](mistake-prevention-pairing-and-offsets-by-position.md):
+  Rules for pairing items of two texts by their place and for offsets compared or carried between texts.
+  Sections:
+  - [Pairing by position](mistake-prevention-pairing-and-offsets-by-position.md#pairing-by-position)
+  - [Offsets and positions](mistake-prevention-pairing-and-offsets-by-position.md#offsets-and-positions)
 - [Preventing mistakes: sheets, quorums and outcome rules](mistake-prevention-sheets-quorums-and-outcome-rules.md):
   Rules for what each model is shown,
   what a sheet rule names as outside its reach,
@@ -228,19 +239,27 @@ not a memory of having done it.
     M45).
 4.  Every cache version is accounted for (M25,
     M28):
-    `mise run //package/translation-repair/slice-cache:cache-account-audit` lists every constant the source declares,
+    `mise run //package/translation-repair/slice-cache:cache-account-audit -- --runs-under "${HOME}/temp/agent"`
+    lists every constant the source declares,
     the commit that set each value,
     and every non-test source commit since the earliest of them that no version's account names;
     read each unnamed commit against the files its stage's sheets and floors import,
     the house rules and prose ranges included;
     a change that alters what the stage asks or accepts moves the version,
-    unless no cache file was written after the change
-    (`find <runs dir> -path '*slice-cache*' -type f -newermt '<time>'`,
-    with the time in ISO 8601 (`2026-09-27T04:26:30Z`),
-    since this host's `find` is bfs and refuses `… UTC` as an invalid timestamp (M57),
-    its errors written to a file that is read,
-    a control time that must find files,
-    and an output file named so the pattern cannot match it).
+    unless no cache file was written after the change.
+    The `--runs-under` argument is there because a launch that follows the runbook writes its runs there
+    and the default roots do not reach them.
+    Its `slice-cache records under N runs directories` line must end in a count above zero;
+    a zero count prints a `WARNING:` line and means the audit read nothing about the caches a launch would resume,
+    and a `WARNING:` line naming the runbook's runs root beside a count above zero means the roots searched do not
+    cover that root,
+    so the count speaks for other runs.
+    Its `newest slice-cache record` line gives the time of the cache file written last,
+    and its `cache versions set after it` line counts the versions whose current value was set after that time.
+    A change made after the newest record is one that no cache file was written after,
+    which is the exception in the rule this step opens with;
+    the `cache versions set after it` count is that case for the versions themselves.
+    The hand-written `find` with a control time is no longer the check.
 5.  No source file holds control bytes (M40):
     `rg --text --files-with-matches '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]' src` prints nothing,
     after the same search has found a scratch file written with one.
@@ -318,3 +337,6 @@ not a memory of having done it.
 
 [fleet-shape]:
   mistake-prevention-sheets-quorums-and-outcome-rules.md#a-test-fleet-models-every-provider-shape-of-the-live-roster
+
+[process-mistakes-ledger]:
+  audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit

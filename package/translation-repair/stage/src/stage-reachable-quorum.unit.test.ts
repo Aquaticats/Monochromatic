@@ -5,6 +5,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 import {
+  benchBelowFloorStageFinding,
   MIN_STAGE_VOICES,
   reachableQuorum,
   rosterQuorumSize,
@@ -147,6 +148,25 @@ await describe({
               quorum: reachableQuorum({ benchSize: 11, unreachable: 7, },),
               benchSize: 11,
             },),).toBe('stage-short-bench (archive-block-review reachable 4 of 11, quorum 2)',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: benchBelowFloorStageFinding.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES the stage, the reachable seats against the bench and the floor, in wording apart from the '
+            + 'short-bench finding, so a stage that made no call is told from one that closed on a thin bench',
+          fn: async () => {
+            expect(benchBelowFloorStageFinding({
+              stage: 'lane-contest',
+              reachable: 1,
+              benchSize: 7,
+              floor: 2,
+            },),).toBe('stage-bench-below-floor (lane-contest reachable 1 of 7, floor 2, no call made)',);
           },
         },),
       ],

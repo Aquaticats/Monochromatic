@@ -756,6 +756,55 @@ await describe({
       },
     },),
     it({
+      name: 'HANDS EACH ENTRY THE PASS\'S MEMORY OF SLICES THAT ENDED UNFILLED ON A BENCH BELOW ITS FLOOR, one for '
+        + 'the entry, empty at the first attempt, so a later attempt of the same pass finds what an earlier one left',
+      fn: async (ctx) => {
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [
+          {
+            id: 'tabby',
+            sourceText: '猫睡觉。\n',
+            targetText: 'The cat naps.\n',
+          },
+        ], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        /**
+         The memory the entry's settlement was handed.
+         */
+        const seen: { memory?: unknown; } = {};
+
+        await runPass({
+          typed: [],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {
+            settle: async function settle({ entry, artifactsDir, floorLimited, },): Promise<EntryOutcome> {
+              seen.memory = floorLimited;
+              await writeFile(
+                join(
+                  artifactsDir,
+                  `${entry.id}.json`,
+                ),
+                '{}',
+              );
+              return { kind: 'settled', };
+            },
+          },
+        },);
+
+        expect({
+          isMap: seen.memory instanceof Map,
+          size: (seen.memory instanceof Map) ? seen.memory.size : -1,
+        },).toEqual({
+          isMap: true,
+          size: 0,
+        },);
+      },
+    },),
+    it({
       name: 'COUNTS THE SOFT BUDGET DOWN ON THE PASS\'S CLOCK in what the client is handed: the first entry reads the '
         + '420 min hard cap (the soft budget is far longer), and once the pass\'s clock has run to 320 min short of '
         + 'the soft budget the bound is exactly what the soft budget has left, falling with the clock',

@@ -336,5 +336,35 @@ await describe({
         expect(slice.gate.kind,).toBe('not-asked',);
       },
     },),
+
+    it({
+      name: 'RECORDS A SLICE THE SLATE FLOOR KEPT with the mark, and a slate that declined without it, so a reader '
+        + 'of the record alone tells a slate never bought from one the judges refused',
+      fn: async () => {
+        /**
+         Slice as the stage settles it when the floor keeps the standing, and one the judges declined.
+         */
+        const records = {
+          skipped: describeConsolidateSlice({
+            sliceIndex: 3,
+            settlement: {
+              ...settledAs({ terminal: 'incumbent-only', text: STANDING_TEXT, },),
+              benchBelowFloor: true,
+            },
+          },),
+          declined: describeConsolidateSlice({
+            sliceIndex: 3,
+            settlement: settledAs({ terminal: 'incumbent-only', text: STANDING_TEXT, },),
+          },),
+        };
+        expect({
+          skipped: records.skipped.benchBelowFloor,
+          declinedHasKey: 'benchBelowFloor' in records.declined,
+        },).toEqual({
+          skipped: true,
+          declinedHasKey: false,
+        },);
+      },
+    },),
   ],
 },);

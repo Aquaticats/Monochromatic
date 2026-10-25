@@ -20,6 +20,13 @@ export type BenchSeating = {
    Bench read since the phase started, absent while the given one stands.
    */
   readonly modelIds?: readonly RosterModelId[];
+
+  /**
+   Seats of that bench a wet provider would serve as of the reading, which a
+   phase with a floor on its voices compares to the floor before it asks
+   (the lane contest does); absent where the phase did not count.
+   */
+  readonly reachable?: number;
 };
 
 /**

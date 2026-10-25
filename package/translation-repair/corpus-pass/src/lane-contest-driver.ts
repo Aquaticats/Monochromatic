@@ -433,6 +433,8 @@ export async function contestDocumentLanes(
                   // Conditional spread keeps the knob absent instead of undefined.
                   ...((fanOut === undefined) ? {} : { fanOut, }),
                   stageSettings,
+                  // The hook's reach is the floor check: fewer seats than voices opens no round.
+                  ...((seating.reachable === undefined) ? {} : { reachable: seating.reachable, }),
                 },);
                 /**
                  Effective result after inadmissible raw choices are excluded.

@@ -2,6 +2,7 @@
 // The names `@monochromatic-dev/translation-repair-translate-lane` gives its siblings and its own tests, each from the module that declares it.
 // Production siblings import it through `/ts`; tests and fixtures through the built entry, so a process loads one copy.
 
+export { logAlignmentFindings, } from './alignment-findings-log.ts';
 export {
   type DocumentLanesResult,
   runDocumentLanes,
@@ -35,7 +36,18 @@ export {
   type UnfilledSlice,
 } from './translate-document-contract.ts';
 export { translateDocument, } from './translate-document.ts';
+export {
+  type AskDecision,
+  type FloorLimitedMemory,
+  type FloorLimitedRecord,
+  notAskedAgain,
+  rememberFloorLimited,
+} from './translate-floor-limited.ts';
 export { translateLaneWordings, } from './translate-lane-wordings.ts';
+export {
+  carriedElsewhere,
+  notCorroborated,
+} from './translate-slice-unbought.ts';
 export {
   attemptTranslateSlice,
   type SliceAttempt,

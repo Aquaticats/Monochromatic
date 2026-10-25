@@ -1,6 +1,7 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact/ts';
+import { contestStandingMayShip, } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { ArtifactDeliveryRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import {
   type WouldShipReading,
@@ -65,6 +66,85 @@ function changedSlices(
       === 'replacement-shipped';
   },);
   return changed.length;
+}
+
+/**
+ Counts the consolidation slices that kept a standing text the contest never
+ endorsed, read off the artifact's contest and consolidation records.
+
+ READ OFF THE RECORD, so it is the slices the stage's own rule names: the
+ contest backed no lane and did not endorse the archive
+ (`contestStandingMayShip`), and the consolidation did not write fresh wording
+ over the standing. A slice that kept the archive for want of any valid
+ wording is the defects line's, and is left out. The stage's log lines are a
+ little more than this count, since the standing verdict warns before the
+ slate is judged and a slice the slate then rewrote has been warned about too
+ (XingZ6020: 58 lines, 56 slices in this count). Where a standing failed the
+ deterministic rule and the incumbent stood in, the stage writes another line
+ and this count still includes the slice, because the artifact does not record
+ which standing was valid.
+
+ @param artifact - settled entry whose contest and consolidation records are read
+
+ @returns Slices whose consolidation kept an unendorsed standing, none when the consolidation did not run
+
+ @example
+ ```ts
+ const kept = standingsKeptUnendorsed({ artifact, },);
+ ```
+ */
+function standingsKeptUnendorsed(
+  { artifact, }: { readonly artifact: SettledArtifact; },
+): number {
+  /**
+   What the stages left on record, either of which may not have run.
+   */
+  const {
+    consolidation,
+    laneSelection,
+  } = artifact;
+  if ((consolidation.kind !== 'settled') || (laneSelection.kind !== 'contested'))
+    return 0;
+
+  /**
+   Slices the contest ran over, by index.
+   */
+  const contests = new Map(laneSelection.slices
+    .map(function toEntry(contest,) {
+      return [
+        contest.sliceIndex,
+        contest.verdict,
+      ] as const;
+    },),);
+  return consolidation.slices
+    .filter(function keptUnendorsed(slice,): boolean {
+      /**
+       What the consolidation shipped here.
+       */
+      const { kind: shippedKind, } = slice.shipped;
+      if ((slice.terminal === 'consolidated') || (shippedKind === 'archive'))
+        return false;
+      /**
+       What the contest recorded here, absent for a slice it never ran over.
+       */
+      const verdict = contests.get(slice.sliceIndex,);
+      if (verdict === undefined)
+        return false;
+      return !contestStandingMayShip({
+        // A LANE BACKED BY THE CONTEST IS ENDORSED; the choice is the verdict's lane or neither, as the driver
+        // reads it.
+        choice: ((verdict.kind === 'lane-won') || (verdict.kind === 'sole-lane')) ? verdict.lane : 'neither',
+        verdict,
+        // THE ARTIFACT KEEPS NO RECORD OF WHETHER THE STANDING PASSED THE DETERMINISTIC RULE: the stage's findings
+        // are not projected per slice (`describeConsolidateSlice`), and a shipped kind `incumbent` is written both
+        // where an ineligible standing was replaced by the incumbent (no "remains retryable" line, a different
+        // warn) and where an archive dispute made the incumbent stand in over a valid standing (the line is
+        // written). So every kept standing is read as valid here, and the count can exceed the stage's lines by the
+        // first kind.
+        standingValid: true,
+      },);
+    },)
+    .length;
 }
 
 /**
@@ -191,6 +271,20 @@ export function settledTallyLine(
     return reading.kind === 'nothing-ships';
   },);
 
+  /**
+   Slices whose page carries the original text of a passage nobody translated, under a note (the owner,
+   2026-10-23, "Source text + note").
+
+   COUNTED BESIDE `pageSilent` AND NOT INSIDE IT, because the two say opposite things: a silent slice is a
+   passage the page does not carry at all, and this is one it carries untranslated. Folding them together
+   would have kept a run that ships its whole tail as the original reading as a run that lost the tail,
+   and a reader of the line could not tell the gap from the page that names it. A later run replaces these
+   once a wording is backed.
+   */
+  const pageSourceShipped = shipped.filter(function pageCarriesTheOriginal({ reading, }: ShippedSlice,): boolean {
+    return reading.kind === 'source-ships';
+  },);
+
   return [
     `TALLY ${artifact.id}`,
     'status=SETTLED',
@@ -213,6 +307,8 @@ export function settledTallyLine(
     `documentsDiffer=${String(differing.length,)}`,
     `pageChanged=${String(pageChanged.length,)}`,
     `pageSilent=${String(pageSilent.length,)}`,
+    `pageSourceShipped=${String(pageSourceShipped.length,)}`,
+    `standingUnendorsed=${String(standingsKeptUnendorsed({ artifact, },),)}`,
     `alignmentFindings=${String(artifact.preparation
       .alignmentFindings
       .length,)}`,

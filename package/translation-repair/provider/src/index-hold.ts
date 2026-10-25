@@ -52,6 +52,10 @@ export {
   refuseDarkModel,
 } from './model-dark-reason.ts';
 export { isCredentialRefusal, } from './provider-budget-refusal.ts';
+export {
+  createPaymentMarks,
+  type PaymentMarks,
+} from './provider-budget-payment-marks.ts';
 export { reachPastHoldsOrRefusal, } from './reach-past-holds.ts';
 
 //endregion Hold public index

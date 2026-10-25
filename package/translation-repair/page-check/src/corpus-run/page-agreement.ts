@@ -1,4 +1,7 @@
 import type { ParsedArchiveText, } from '@monochromatic-dev/translation-repair-artifact/ts';
+import { withoutSourceRecordAt, } from './source-ships.ts';
+import type { GrammarReader, } from './source-ships-runs.ts';
+import { composeOverTiling, } from './source-ships-tiling.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 import {
   type PageLengthCheck,
@@ -78,24 +81,29 @@ export type PageAgreement = {
    Whether the length says text no slice decided on was lost or added.
    */
   readonly wrongLength: boolean;
+
+  /**
+   Slices whose original the page was shipped without because no writing of it parses (`page-source-unparseable`), none
+   for a page that carries what its artifact says or lost something else.
+   */
+  readonly sourceDropped: readonly number[];
 };
 
 /**
- Judges one page against its artifact.
+ Judges one page against one reading of its artifact.
 
- @param artifact - settled artifact, read for what each slice ships and the
- archive text it stored
+ @param artifact - settled artifact, read for what each slice ships and the archive text it stored
 
  @param pageText - page as it sits on disk
 
- @returns The verdict and what decided it
+ @returns Verdict and what decided it, with no slice recorded as left off
 
  @example
  ```ts
- if (pageAgreement({ artifact, pageText, },).agreement === 'disagreed') republish();
+ const judged = judgeAgainst({ artifact, pageText, },);
  ```
  */
-export function pageAgreement(
+function judgeAgainst(
   {
     artifact,
     pageText,
@@ -146,7 +154,82 @@ export function pageAgreement(
     wording,
     weight,
     wrongLength,
+    sourceDropped: [],
   };
+}
+
+/**
+ Judges one page against its artifact.
+
+ A PAGE SHIPPED WITHOUT SOURCE RUNS IS JUDGED AGAINST THE ARTIFACT WITHOUT THEIR ORIGINALS, when the composition says
+ it would be. The composition ships such a page (`source-ships-compose.ts`) when no writing of the originals makes the
+ grammar accept it. This function runs that composition over what the artifact records (`source-ships-tiling.ts`), and
+ only a page that disagrees as recorded is judged again, so a page agreeing with every original costs no grammar read.
+ A page that never carried originals, as the pages shipped before they were carried, still disagrees wherever the
+ composition keeps them. THE RESIDUAL: the composition runs over the archive the slices tile and not over the archive
+ itself, so a page whose archive text between slices matters to the grammar can be judged by a composition that
+ differs from the one that wrote it; and a page that lost every original it should carry, where the composition would
+ also ship without them, reads as shipped without them (the report names the slices) and not as lost.
+
+ @param artifact - settled artifact, read for what each slice ships and the
+ archive text it stored
+
+ @param pageText - page as it sits on disk
+
+ @param readGrammar - what the grammar says of a text, the strict MDX grammar the site compiles with by default
+
+ @returns Verdict and what decided it
+
+ @example
+ ```ts
+ if (pageAgreement({ artifact, pageText, },).agreement === 'disagreed') republish();
+ ```
+ */
+export function pageAgreement(
+  {
+    artifact,
+    pageText,
+    readGrammar,
+  }: {
+    readonly artifact: AgreementSource;
+    readonly pageText: string;
+    readonly readGrammar?: GrammarReader;
+  },
+): PageAgreement {
+  /**
+   The page against every original the artifact records.
+   */
+  const asRecorded = judgeAgainst({
+    artifact,
+    pageText,
+  },);
+  if (asRecorded.agreement !== 'disagreed')
+    return asRecorded;
+  /**
+   The composition of the page the artifact says would ship.
+   */
+  const composed = composeOverTiling({
+    artifact,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
+  },);
+  if (composed.step !== 'dropped')
+    return asRecorded;
+  /**
+   The page against the artifact without the originals the composition leaves off.
+   */
+  const judged = judgeAgainst({
+    artifact: withoutSourceRecordAt({
+      artifact,
+      slices: composed.slices,
+    },),
+    pageText,
+  },);
+  return (judged.agreement === 'disagreed')
+    ? asRecorded
+    : {
+      ...judged,
+      sourceDropped: composed.slices,
+    };
 }
 
 //endregion Page agreement

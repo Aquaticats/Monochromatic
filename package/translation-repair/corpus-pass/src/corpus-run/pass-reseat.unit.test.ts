@@ -23,7 +23,10 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
-import { judgeSeatsFor, } from '@monochromatic-dev/translation-repair-run';
+import {
+  judgeSeatsFor,
+  reachableSeats,
+} from '@monochromatic-dev/translation-repair-run';
 import { configuredConsolidationPolish, } from '@monochromatic-dev/translation-repair-consolidate';
 import {
   type BudgetView,
@@ -75,6 +78,21 @@ const NEURALWATT_AND_BEDROCK: BudgetView = {
   bedrock: false,
   deepseek: true,
   xiaomi: true,
+  anthropic: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ The XingZ6020 view at the lane contest (2026-10-22): NeuralWatt, DeepSeek and Xiaomi wet, the other four dry, which
+ left one seat of the seven late judges reachable.
+ */
+const XINGZ6020_VIEW: BudgetView = {
+  neuralwatt: false,
+  synthetic: true,
+  bedrock: true,
+  deepseek: false,
+  xiaomi: false,
   anthropic: true,
   hyper: true,
   openrouter: true,
@@ -643,15 +661,100 @@ await describe({
              What a reading of this view seats on the translate lane.
              */
             const { translateModels, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            /**
+             Select judges of that reading a wet provider would serve.
+             */
+            const selectReachable = reachableSeats({
+              seats: translateModels.judgeModelIds,
+              dry: BEDROCK_AND_OPENROUTER,
+            },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
             },).toEqual({
-              underHold: { translateModels, },
-              afterHold: { translateModels, },
+              underHold: { translateModels, selectReachable, },
+              afterHold: { translateModels, selectReachable, },
               reads: 1,
             },);
+          },
+        },),
+        it({
+          name: 'HANDS THE TRANSLATE LANE THE SELECT REACH IT STARTED ON while nothing is held and the reach meets the '
+            + 'floor, with no dryness read',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 5,
+            },);
+            expect({
+              handed: await hooks.beforeSlice({ lane: 'translate', },),
+              repair: await hooks.beforeSlice({ lane: 'repair', },),
+              reads: rig.counter.reads,
+            },).toEqual({
+              handed: { selectReachable: 5, },
+              repair: {},
+              reads: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'READS THE TRANSLATE LANE\'S BENCH AGAIN while the select reach it hands is below the floor, though no '
+            + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one '
+            + 'select judge reachable of eight seats and the slice is handed that reading, '
+            + 'not the reach it started on',
+          fn: async () => {
+            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 1,
+            },);
+            /**
+             Select bench of that view and the judges of it a wet provider would serve.
+             */
+            const { translateModels, } = judgeSeatsFor({ dry: XINGZ6020_VIEW, },);
+            expect({
+              handed: await hooks.beforeSlice({ lane: 'translate', },),
+              repair: await hooks.beforeSlice({ lane: 'repair', },),
+              readsOnce: rig.counter.reads > 0,
+              benchSize: translateModels.judgeModelIds.length,
+              reachable: reachableSeats({ seats: translateModels.judgeModelIds, dry: XINGZ6020_VIEW, },).length,
+            },).toEqual({
+              handed: { translateModels, selectReachable: 1, },
+              repair: {},
+              readsOnce: true,
+              benchSize: 8,
+              reachable: 1,
+            },);
+          },
+        },),
+        it({
+          name: 'LIFTS THE FLOOR FOR THE SLICES AFTER A PROVIDER THAT CAME BACK AFTER ITS HOLD ENDED: the translate '
+            + 'lane started on a select reach of one, no hold runs, and the next slice is handed the fresh reading',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = lanesHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+              startedSelectReachable: 1,
+            },);
+            const { translateModels, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({
+              seats: translateModels.judgeModelIds,
+              dry: BEDROCK_AND_OPENROUTER,
+            },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect(await hooks.beforeSlice({ lane: 'translate', },),).toEqual({
+              translateModels,
+              selectReachable: fresh,
+            },);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
           },
         },),
         it({
@@ -774,14 +877,18 @@ await describe({
              */
             const reseatLine = `JUDGE SEATS phase=consolidation slice re-seated under a hold: writers=${seats.writers.join(',',)} `
               + `slateJudges=${seats.slateJudges.join(',',)} polishGate=${seats.lateJudges.join(',',)}`;
+            /**
+             Slate judges of that reading a wet provider would serve.
+             */
+            const slateReachable = reachableSeats({ seats: seats.slateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
               logged: lines.includes(reseatLine,),
             },).toEqual({
-              underHold: { roster, },
-              afterHold: { roster, },
+              underHold: { roster, slateReachable, },
+              afterHold: { roster, slateReachable, },
               reads: 1,
               logged: true,
             },);
@@ -800,6 +907,41 @@ await describe({
             },);
             expect(await hooks.beforeSlice(),).toEqual({},);
             expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'HANDS THE STARTING SLATE REACH to a slice while nothing is held and the slate bench meets the '
+            + 'floor: no dryness read, the reach the consolidation started on',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = consolidationHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              prepared: PREPARED,
+              l,
+              startedSlateReachable: 5,
+            },);
+            expect(await hooks.beforeSlice(),).toEqual({ slateReachable: 5, },);
+            expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'READS THE BENCH AGAIN while the slate reach it hands is below the floor, though no hold runs, so '
+            + 'a provider that came back after its hold ended lifts the floor for the slices after it',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = consolidationHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              prepared: PREPARED,
+              l,
+              startedSlateReachable: 1,
+            },);
+            const { slateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({ seats: slateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect((await hooks.beforeSlice()).slateReachable,).toBe(fresh,);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
           },
         },),
       ],
@@ -837,14 +979,18 @@ await describe({
              Judges a reading of this view seats.
              */
             const { lateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            /**
+             Seats of those judges a wet provider would serve.
+             */
+            const reachable = reachableSeats({ seats: lateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
             expect({
               underHold,
               afterHold,
               reads: rig.counter.reads,
               logged: lines.includes(`JUDGE SEATS phase=lane contest slice re-seated under a hold: judges=${lateJudges.join(',',)}`,),
             },).toEqual({
-              underHold: { modelIds: lateJudges, },
-              afterHold: { modelIds: lateJudges, },
+              underHold: { modelIds: lateJudges, reachable, },
+              afterHold: { modelIds: lateJudges, reachable, },
               reads: 1,
               logged: true,
             },);
@@ -862,6 +1008,97 @@ await describe({
             },);
             expect(await hooks.beforeSlice(),).toEqual({},);
             expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'HANDS THE STARTING REACH to a slice while nothing is held and the bench meets the contest\'s floor: '
+            + 'no dryness read, the reach the contest started on',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 5,
+            },);
+            expect(await hooks.beforeSlice(),).toEqual({ reachable: 5, },);
+            expect(rig.counter.reads,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'READS THE BENCH AGAIN while the reach it hands is below the contest\'s floor, though no hold runs, '
+            + 'so a provider that came back after its hold ended lifts the floor for the slices after it',
+          fn: async () => {
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 1,
+            },);
+            const { lateJudges, } = judgeSeatsFor({ dry: BEDROCK_AND_OPENROUTER, },);
+            const fresh = reachableSeats({ seats: lateJudges, dry: BEDROCK_AND_OPENROUTER, },).length;
+            expect(fresh,).toBeGreaterThanOrEqual(2,);
+            expect(await hooks.beforeSlice(),).toEqual({ modelIds: lateJudges, reachable: fresh, },);
+            expect(rig.counter.reads,).toBeGreaterThan(0,);
+          },
+        },),
+        it({
+          name: 'READS EACH SLICE AGAIN WITHOUT A HOLD while the reach stays below the floor, and says so quietly: '
+            + 'one reading line a read, the no-wait warning once for the state, and no line naming a hold that '
+            + 'is not there',
+          fn: async () => {
+            const rig = viewClient({ view: XINGZ6020_VIEW, },);
+            /**
+             Every line the hook and its readings wrote.
+             */
+            const lines: string[] = [];
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l: capturingLogger({ messages: lines, },),
+              startedReachable: 1,
+            },);
+            await hooks.beforeSlice();
+            await hooks.beforeSlice();
+            await hooks.beforeSlice();
+            expect({
+              reads: rig.counter.reads,
+              readingLines: lines.filter(function isReading(line,): boolean {
+                return line.startsWith('JUDGE SEATS phase=lane contest',) && line.includes('waited=',);
+              },).length,
+              holdLines: lines.filter(function namesAHold(line,): boolean {
+                return line.includes('re-seated under a hold',);
+              },).length,
+              noWaitWarnings: lines.filter(function isNoWait(line,): boolean {
+                return line.includes('no provider has named a return the pass can wait for',);
+              },).length,
+            },).toEqual({
+              reads: 3,
+              readingLines: 3,
+              holdLines: 0,
+              noWaitWarnings: 1,
+            },);
+          },
+        },),
+        it({
+          name: 'HANDS THE FLOOR-BLIND SLICE ONE SEAT OF SEVEN on the XingZ6020 view, which the contest reads as '
+            + 'short of its floor of two',
+          fn: async () => {
+            // THE HOLD ENDS WITH THE FIRST WAIT: Synthetic's return lifts the late bench, the one the contest reads,
+            // from 1 to 2 of 7, the floor of two voices, so the reading waits for it, and a hold that never ends is
+            // not a hold. The view stays the same after it, which is the XingZ6020 pass where Synthetic was refused
+            // again as soon as it returned.
+            const rig = viewClient({ view: XINGZ6020_VIEW, holdEndsAtRead: 2, },);
+            rig.holds.synthetic = SHORT_HOLD_MS;
+            const hooks = contestHooksFor({
+              client: rig.client,
+              signal: new AbortController().signal,
+              l,
+              startedReachable: 1,
+            },);
+            const { lateJudges, } = judgeSeatsFor({ dry: XINGZ6020_VIEW, },);
+            expect(await hooks.beforeSlice(),).toEqual({ modelIds: lateJudges, reachable: 1, },);
           },
         },),
       ],
@@ -1064,7 +1301,10 @@ await describe({
             + 'before it ends, and reads again and seats once it has',
           fn: async (ctx) => {
             /** The fake clock the production wait sleeps on. */
-            const clock = ctx.sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout',], },);
+            const clock = ctx.sinon.useFakeTimers({
+              toFake: ['setTimeout', 'clearTimeout',],
+              shouldClearNativeTimers: true,
+            },);
             /** Rig whose padded view is short of quorum, reporting the hold whole. */
             const rig = viewClient({ view: NEURALWATT_AND_BEDROCK, capMs: DRY_HOLD_MS, holdEndsAtRead: 2, },);
             rig.holds.synthetic = DRY_HOLD_MS;

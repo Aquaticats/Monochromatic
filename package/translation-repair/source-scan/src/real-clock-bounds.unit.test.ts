@@ -559,6 +559,32 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: SCRIPTED_CLOCK,
   },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: freshForMs: FRESH_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: rateLimitBackoffMs: FRESH_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: cooldownMs: 30 * FRESH_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-held-meters.unit.test.ts#<module>: statedWaitMs: 5 * FRESH_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: STATED_HOLD_MS': {
+    count: 1,
+    bound: 'other',
+    reason: 'the wait a refusal states, counted down on a fake clock that the case ticks past: the control case\'s '
+      + 'reading sleeps it on that clock and the payment case\'s never waits for it, so no real time passes in either',
+  },
   'provider/provider-budget-defaults.unit.test.ts#cut: statedWaitMs: STATED_MS': {
     count: 1,
     bound: 'other',
@@ -863,7 +889,7 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: FAKE_NAP,
   },
   'test-fixture/fake-clock-walk.unit.test.ts#<module>: sleepFor of node:timers/promises NAP_MS': {
-    count: 3,
+    count: 4,
     bound: 'other',
     reason: FAKE_NAP,
   },
@@ -980,6 +1006,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: CALL_CONFIG,
   },
   'artifact/corpus-run/settled-artifact.test-fixture.ts#settledArtifactOverRows: perCallTimeoutMs: 600_000': {
+    count: 1,
+    bound: 'read back',
+    reason: CALL_CONFIG,
+  },
+  'artifact/corpus-run/settled-artifact.test-fixture.ts#settledArtifactWithGap: perCallTimeoutMs: 600_000': {
     count: 1,
     bound: 'read back',
     reason: CALL_CONFIG,

@@ -13,7 +13,6 @@ import {
   neighbouringSource,
 } from '@monochromatic-dev/translation-repair-repair/ts';
 import {
-  absenceFinding,
   armSliceCost,
   type IncumbentKind,
   resumedSliceDiscardFinding,
@@ -34,7 +33,19 @@ import {
   type BoughtSlice,
   buyTranslateSlice,
 } from './translate-slice-buy.ts';
+import {
+  floorLimitedKey,
+  type FloorLimitedMemory,
+  notAskedAgain,
+  rememberFloorLimited,
+  selectBelowFloor,
+  skippedBelowFloor,
+} from './translate-floor-limited.ts';
 import { translateSliceKey, } from './translate-slice-key.ts';
+import {
+  carriedElsewhere,
+  notCorroborated,
+} from './translate-slice-unbought.ts';
 import {
   heardNobody,
   unheardCacheDiscardFinding,
@@ -178,6 +189,13 @@ export type TranslateSliceSettlement = {
 
  @param twins - memo of purchases in this run, shared by every slice
 
+ @param floorLimited - what earlier attempts of this pass left for slices that
+ ended unfilled on a select bench below its floor, absent for a caller that
+ keeps none
+
+ @param selectReachable - select judges a wet provider would serve now, which
+ a floor-limited slice is asked again only when it has grown past
+
  @param signal - entry deadline and caller abort
 
  @param perCallTimeoutMs - deadline per exchange
@@ -210,6 +228,8 @@ export async function resumeReuseOrBuyTranslateSlice(
     runShape,
     sliceCache,
     twins,
+    floorLimited,
+    selectReachable,
     archiveDispute,
     signal,
     perCallTimeoutMs,
@@ -228,6 +248,8 @@ export async function resumeReuseOrBuyTranslateSlice(
     readonly runShape: string;
     readonly sliceCache?: SliceCache<TranslateSliceRecord>;
     readonly twins: TwinMemo<TranslateSliceRecord>;
+    readonly floorLimited?: FloorLimitedMemory;
+    readonly selectReachable?: number;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -239,42 +261,17 @@ export async function resumeReuseOrBuyTranslateSlice(
    */
   const { sliceIndex, } = slice.target;
 
-  if (isInsertionChunk(slice.target,) && insertionCarried) {
-    l.info(`slice ${String(sliceIndex,)}: source passage already carried elsewhere`,);
-    return {
-      outcome: {
-        kind: 'carried',
-        sliceIndex,
-      },
-      refusedCacheFindings: [],
-      unfilledFindings: [],
-    };
-  }
+  if (isInsertionChunk(slice.target,) && insertionCarried)
+    return carriedElsewhere({
+      sliceIndex,
+      l,
+    },);
 
-  if (isInsertionChunk(slice.target,) && (!insertionAdmitted)) {
-    // NOTHING IS BOUGHT HERE. The pairing says this original went unrendered,
-    // but the page carries at least as much English as its source predicts, so
-    // the likelier reading is that the passage was merged into a neighbour and
-    // writing it in would put a second rendering of it into the document.
-    l.warn(
-      `slice ${String(sliceIndex,)}: an original with no translation beside it, but the page `
-        + 'has no room to be missing it; nothing was bought and the passage stays as it is',
-    );
-    return {
-      outcome: {
-        kind: 'unfilled',
-        unfilled: {
-          sliceIndex,
-          reason: 'not-corroborated',
-          findings: [],
-        },
-      },
-      refusedCacheFindings: [],
-      unfilledFindings: [
-        `${absenceFinding({ reason: 'not-corroborated', },)} chunk ${String(sliceIndex,)}`,
-      ],
-    };
-  }
+  if (isInsertionChunk(slice.target,) && (!insertionAdmitted))
+    return notCorroborated({
+      sliceIndex,
+      l,
+    },);
 
   /**
    What this slice cost, reported however this function is left.
@@ -423,12 +420,65 @@ export async function resumeReuseOrBuyTranslateSlice(
   }
 
   /**
+   Question this slice answers for the pass's memory of floor-limited slices.
+   */
+  const floorKey = floorLimitedKey({
+    sliceIndex,
+    sourceText: slice.source
+      .text,
+    incumbentText: standIn ?? pageWording,
+  },);
+  /**
+   The pass's memory and this slice's select reach, each absent where the caller kept or counted none.
+   */
+  const floorFacts = {
+    ...((floorLimited === undefined) ? {} : { memory: floorLimited, }),
+    ...((selectReachable === undefined) ? {} : { reachable: selectReachable, }),
+  };
+  /**
+   Whether an earlier attempt of this pass left the slice its outcome while its bench has not grown.
+   */
+  const decision = notAskedAgain({
+    ...floorFacts,
+    key: floorKey,
+    benchSize: models.judgeModelIds
+      .length,
+    sliceIndex,
+    l,
+  },);
+  if (decision.kind === 'kept') {
+    cost.left({ exit: 'unfilled', },);
+    return {
+      ...decision.settlement,
+      refusedCacheFindings,
+    };
+  }
+
+  /**
+   Whether this passage's select bench reads under the floor, so nothing bought for it could be backed. Asked after the
+   cache and the pass's memory have answered what they can, and acted on only where a purchase would start: a twin's
+   stored record is reused before it.
+   */
+  const belowFloor = selectBelowFloor({
+    incumbentKind,
+    ...((selectReachable === undefined) ? {} : { reachable: selectReachable, }),
+  },);
+  /**
    A twin's stored record, or this slice's own purchase.
    */
   const asked = await reuseTwinOrBuy({
     key,
     memo: twins,
     buy: async function buyThisSlice(): Promise<BoughtSlice> {
+      if (belowFloor && (selectReachable !== undefined)) {
+        return skippedBelowFloor({
+          reachable: selectReachable,
+          benchSize: models.judgeModelIds
+            .length,
+          sliceIndex,
+          l,
+        },);
+      }
       return await buyTranslateSlice({
         client,
         slice,
@@ -471,6 +521,12 @@ export async function resumeReuseOrBuyTranslateSlice(
    This slice's own purchase.
    */
   const { bought, } = asked;
+  rememberFloorLimited({
+    ...floorFacts,
+    key: floorKey,
+    bought,
+    toldWhy: belowFloor,
+  },);
   if (bought.kind === 'unfilled') {
     cost.left({ exit: 'unfilled', },);
     return {

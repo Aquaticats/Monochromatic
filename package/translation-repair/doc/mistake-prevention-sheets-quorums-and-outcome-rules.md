@@ -536,7 +536,7 @@ a reviewer who drops or adds a line has not written a malformed revision.
 The composite now reads each revision as the hunks a line diff makes to the block,
 and refuses only where hunks collide.
 Position pairing is for lists parallel by construction
-("Pairing by position" in the doc on comparing text and reading structure).
+("Pairing by position" in [the doc on pairing and offsets by position](mistake-prevention-pairing-and-offsets-by-position.md)).
 
 The rule:
 a step that can refuse on input a page can carry refuses as its sibling refusals do,

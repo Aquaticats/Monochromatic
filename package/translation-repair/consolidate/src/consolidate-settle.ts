@@ -316,6 +316,17 @@ export type ConsolidationSettlement = {
    would ship the refused text.
    */
   readonly archiveKept?: true;
+
+  /**
+   Present where the slate bench read fewer reachable judges than the ballots
+   a winner needs, so no slate was bought and the standing was kept without a
+   call; absent on every other settlement.
+
+   NEVER CACHED (`consolidationWorthResuming`): the shortfall is the hour, not
+   the slice, and a copy resumed on a healthier bench would keep the standing
+   unasked.
+   */
+  readonly benchBelowFloor?: true;
 };
 
 /**

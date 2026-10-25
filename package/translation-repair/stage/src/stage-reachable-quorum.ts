@@ -174,4 +174,43 @@ export function shortBenchStageFinding(
     String(quorum.needed,)
   })`;
 }
+
+/**
+ Finding a stage carries when it made no call because the seats a wet provider
+ would serve were fewer than the voices it needs, told apart from a gather
+ that closed on a thin bench.
+
+ @param stage - stage that was not asked
+
+ @param reachable - seats a wet provider would serve when the stage was read
+
+ @param benchSize - seats the stage seated
+
+ @param floor - voices the stage needs to settle anything
+
+ @returns Finding in scorecard-stable wording
+
+ @example
+ ```ts
+ benchBelowFloorStageFinding({ stage: 'lane-contest', reachable: 1, benchSize: 7, floor: 2, },);
+ // => 'stage-bench-below-floor (lane-contest reachable 1 of 7, floor 2, no call made)'
+ ```
+ */
+export function benchBelowFloorStageFinding(
+  {
+    stage,
+    reachable,
+    benchSize,
+    floor,
+  }: {
+    readonly stage: string;
+    readonly reachable: number;
+    readonly benchSize: number;
+    readonly floor: number;
+  },
+): string {
+  return `stage-bench-below-floor (${stage} reachable ${String(reachable,)} of ${String(benchSize,)}, floor ${
+    String(floor,)
+  }, no call made)`;
+}
 //endregion Reachable quorum
