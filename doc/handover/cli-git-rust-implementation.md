@@ -2184,6 +2184,16 @@ that is verification, not a decision for the user.
   stale. mise keeps a `latest` symlink in the install parent directory (scratch listing: `latest -> ./0.2.8`, also
   `0 -> ./0.2.8`, `0.2 -> ./0.2.8`), so a link through it would follow. `podman-proof-1796-e.ts` tests both. The host
   config is NOT edited yet: the target change deviates from the accepted text, so it goes back to the user first.
+  `podman-proof-1796-e.ts` result (`~/temp/agent/podman-1796e/results.json`): with the global entry and a
+  repository-style entry for the same tool key, installing the newest version from the project directory ran only the
+  project `postinstall`; afterwards the versioned link still resolved to 0.2.7 (stale) and the `latest` link resolved
+  to 0.2.8. The user then chose "Use the latest symlink, then apply" (2026-10-25). The proposal was amended
+  (`doc/planning/cli-git-global-install.md`: target `$(dirname "$MISE_TOOL_INSTALL_PATH")/latest/bin/cli-git-native`,
+  new evidence subsection, status line). Remaining sequence: re-verify the amended block in podman
+  (`podman-proof-1796-d.ts`, unit `cli-git-podman-1796d3`), then edit the host `~/.config/mise/config.toml`, run
+  `mise install cargo:monochromatic-git-policy-cli` from the home directory only for this tool (a bare `mise install`
+  would install every missing global tool), then user-boundary verification, runbook and `AGENTS.md` wording, issue
+  1796.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
