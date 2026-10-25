@@ -169,22 +169,20 @@ await describe({
         },),
 
         it({
-          name: 'REFUSES two checkers, which is exactly what widening the producing roles to four would '
-            + 'have left behind: one fixed against one not-fixed decides nothing, so checking would run '
-            + 'and return no verdict',
+          name: 'ACCEPTS two checkers (the owner\'s answer of 2026-10-25, "Allow two checkers"): two answering '
+            + 'checkers are two ballots, which decide a unanimous two-nil, and a split one-one resolves '
+            + 'nothing rather than anything',
           fn: async () => {
-            expect(function cannotDecide() {
-              assertCheckerQuorumReachable({ checkerModelIds: [
-                SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-                SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-              ], },);
-            },).toThrow(CheckerQuorumError,);
+            assertCheckerQuorumReachable({ checkerModelIds: [
+              SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+              SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            ], },);
           },
         },),
 
         it({
-          name: 'REFUSES one checker and an empty roster, so the floor covers the case the empty-role '
-            + 'guard already caught as well as the ones it never did',
+          name: 'REFUSES one checker and an empty roster, since one judge alone never decides, so the floor '
+            + 'covers the case the empty-role guard already caught as well as the ones it never did',
           fn: async () => {
             expect(function onlyOne() {
               assertCheckerQuorumReachable({ checkerModelIds: [SEAT_SYNTHETIC_VISION_NO_OPENROUTER,], },);
@@ -196,9 +194,46 @@ await describe({
         },),
 
         it({
-          name: 'REFUSES a roster of two that is ALSO permitted to self-certify, since the floor and '
+          name: 'NAMES the floor of two in the refusal, so a reader of a refused roster is told the number that '
+            + 'holds now',
+          fn: async () => {
+            /**
+             What the refusal says about a roster of one.
+             */
+            const message = (() => {
+              try {
+                assertCheckerQuorumReachable({ checkerModelIds: [SEAT_SYNTHETIC_VISION_NO_OPENROUTER,], },);
+                return '';
+              }
+              catch (error) {
+                return (error instanceof Error) ? error.message : '';
+              }
+            })();
+            expect(message.includes('against a floor of 2',),).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES a roster of one that is ALSO permitted to self-certify, since the floor and '
             + 'the switch answer different questions and permission to overlap is not permission to '
             + 'shrink below a decidable panel',
+          fn: async () => {
+            /** One writer checking its own work, which passes independence under the switch. */
+            const oneWriter: readonly RosterModelId[] = [SEAT_SYNTHETIC_VISION_WITHHELD,];
+            assertCheckerIndependence({
+              editorModelIds: WRITERS,
+              checkerModelIds: oneWriter,
+              selfCertificationPermitted: true,
+            },);
+            expect(function stillTooFew() {
+              assertCheckerQuorumReachable({ checkerModelIds: oneWriter, },);
+            },).toThrow(CheckerQuorumError,);
+          },
+        },),
+
+        it({
+          name: 'ACCEPTS a roster of two that is ALSO permitted to self-certify, the discount halving both '
+            + 'sides of the tally so two writers still resolve a unanimous two-nil',
           fn: async () => {
             /** Two writers checking their own work, which passes independence under the switch. */
             const twoWriters: readonly RosterModelId[] = [
@@ -210,9 +245,7 @@ await describe({
               checkerModelIds: twoWriters,
               selfCertificationPermitted: true,
             },);
-            expect(function stillTooFew() {
-              assertCheckerQuorumReachable({ checkerModelIds: twoWriters, },);
-            },).toThrow(CheckerQuorumError,);
+            assertCheckerQuorumReachable({ checkerModelIds: twoWriters, },);
           },
         },),
       ],
