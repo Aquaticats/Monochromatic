@@ -5,6 +5,7 @@
 export { nodeEntries, } from './build-entries.ts';
 export * from './index-attribution.ts';
 export * from './index-draw.ts';
+export * from './index-editor-fidelity.ts';
 export * from './index-probes.ts';
 export * from './index-recall.ts';
 export * from './index-score.ts';

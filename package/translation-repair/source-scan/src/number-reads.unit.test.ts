@@ -120,6 +120,36 @@ const HELD_READS: Readonly<Record<string, {
   readonly calls: number;
   readonly why: string;
 }>> = {
+  'probe/corpus-run/editor-fidelity-arm-facts.ts#numberAfter: Number': {
+    calls: 1,
+    why: 'reads only text isUnsignedNumberText took, the digits and the point a probe writer printed after a marker',
+  },
+  'probe/corpus-run/editor-fidelity-arm-repeat-test.ts#grow: BigInt': {
+    calls: 2,
+    why: 'turns a running product and a step of the binomial coefficient, numbers the function holds, into whole numbers for '
+      + 'an exact count; no text is read',
+  },
+  'probe/corpus-run/editor-fidelity-arm-repeat-test.ts#repeatAgreementTest: BigInt': {
+    calls: 1,
+    why: 'turns the count of comparisons, a number the function holds, into a whole number for the exact level; no text is read',
+  },
+  'probe/corpus-run/editor-fidelity-arm-repeat-test.ts#repeatAgreementTest: Number': {
+    calls: 2,
+    why: 'turns two exact whole-number tallies back into doubles for a ratio; no text is read',
+  },
+  'probe/corpus-run/editor-fidelity-paired.ts#pairedPermutationTest: BigInt': {
+    calls: 2,
+    why: 'turns a count of arms and a count of entries, numbers the function holds, into whole numbers for an exact tally; '
+      + 'no text is read',
+  },
+  'probe/corpus-run/editor-fidelity-paired.ts#pairedPermutationTest: Number': {
+    calls: 2,
+    why: 'turns two exact whole-number tallies back into doubles for a ratio; no text is read',
+  },
+  'probe/corpus-run/editor-fidelity-read.ts#exitRecordBeside: Number': {
+    calls: 1,
+    why: WHOLE_NUMBER,
+  },
   'provider/retry-after-header.ts#retryAfterHeaderMsOf: Number': {
     calls: 1,
     why: 'reads the seconds figure Anthropic writes in retry-after, and a value that is not finite and positive reads '
@@ -184,6 +214,10 @@ const HELD_READS: Readonly<Record<string, {
   'run/corpus-run/command-flags.ts#wholeNumberFlag: Number': {
     calls: 1,
     why: WHOLE_NUMBER,
+  },
+  'run/corpus-run/command-flags.ts#usdFlag: Number': {
+    calls: 1,
+    why: PLAIN_DECIMAL,
   },
   'corpus-pass/corpus-run/corpus-pass-order.ts#byResumeThenBandThenAttempts: Number': {
     calls: 2,

@@ -46,6 +46,7 @@ const NAMED_READERS: Readonly<Record<string, string>> = {
   'provider-stream/exchange-failure-text.ts': 'reads it for log lines alone, labelled as the provider\'s and quoted onto one line',
   'provider/provider-budget-refusal.ts': 'classifies a refusal by what the excerpt names and reads a wait out of it, text never kept',
   'provider/decision-context-refusal.ts': 'classifies a refusal by the error type the excerpt names, text never kept',
+  'probe/corpus-run/editor-fidelity-spend-guard.ts': 'asks only whether the excerpt is empty, to know an error status delivered no body to bill, text never kept',
 };
 
 /**

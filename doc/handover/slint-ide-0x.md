@@ -4365,6 +4365,44 @@ Owner answer (question tool, 2026-10-24): clear the captures now. Removed `~/tem
 Started the same day at the owner's standing instruction to do open follow-ups now: an agent writes the test of the
 first-tile path (no device yet, in-frame hand-over) and measures whether the minimap picture can be blank after a
 hand-over inside a frame (fixing it the same way if so); its report is verified, landed and the IDE reinstalled.
+Result, landed 2026-10-24 as merge `b5595e2d17` (agent tip `4e67aafcb1`, fix commit `04935e5ede`):
+(A) the first-tile path has two native tests (`src/native/tile_slice_frame_tests.rs`, observable: the window's
+`request_redraw`, recorded by `take_frame_wanted` in `src/native/gpu_snapshot.rs`) and 4 `first-tile-*` guard cases.
+(B) the minimap picture can be blank for 0.1 to 0.35 s after a file switch: a switch empties the slice list
+(`forget_minimap`, `ModelRc::default()`), the first picture of the new file sets a new list inside a frame, and that
+frame does not show it; every switch hands over a second picture soon after, so the blank was never permanent.
+Before the fix 304 of 2,126 frames of 48 file switches were blank, 46 of 1,317 frames of 30 key actions
+(all in 12 Ctrl+End or Ctrl+Home), 9 of 2,343 frames of 45 resizes; none in 32 minimap clicks, 12 wheel actions,
+6 scale changes; the last blank frame came 0.129 to 0.466 s after the first picture's frame (median 0.22 s,
+17 of 32 over 0.2 s) and 0.062 to 0.116 s after the fix (16 switches, none over 0.2 s).
+Fix: `GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` gives it the slices and the picture's
+place at hand-over, outside any frame. 2 native tests (`src/native/minimap_slice_frame_tests.rs`), 6 `minimap-slices-*`
+guard cases (14 runs accepted). Gates on the merged tree: `lint` 0, `test:native` 312 passed and 5 skipped,
+`test` 811 passed, `test:bin` 0, `inspect:no-software-renderer` 0.
+Open: why a slice list changed in place is shown by the frame for the minimap but not for the code tile
+(not found); no regression test for the in-place minimap case (the harness cannot show the blank).
+Installed: sha256 `1c6aafb396c36604…` from `b5595e2d17`, prints 0.1.1; the check of the installed release binary
+for the code column and the minimap on file switches was run by a separate agent (nested compositor, 1080x1880 logical,
+scale 2, RX 7600; 17.6 to 24.3 fps against 60 requested, load average 10 to 54):
+earlier checks unchanged: five-press code means 0.511073, 0.509927, 0.511073, 0.510496, 0.509927 in 3 of 3 runs,
+88-click recordings of 672 and 676 frames with 0 blank code frames and an 82 px gap in all 355 and 356 frames showing
+line 96, `first_line=223` for both y=1700 presses, minimap crops 0 px apart, requests 1 plus 1 skip then 0 plus 1 skip;
+minimap picture area never blank in those recordings.
+File switches, detector: fraction of pixels with chroma above 0.08 in the minimap column (blank below 0.002; launch
+frames before the first picture 0, drawn 0.0289, 0.0227 and 0.0051 for the three test files; the mean-grey and
+bright-pixel detectors were rejected because the viewport box hides a missing picture):
+16 of 16 tree-click switches and 9 of 9 Ctrl+digit switches showed 1 or 2 blank minimap frames (0 to 41 ms after the
+first frame of the new code, frame interval 41 ms), 12 of 12 Ctrl+End or Ctrl+Home jumps on the 3000-line file 1 blank
+frame each, 6 of 12 resizes 1 blank frame (5 in the main recording), 0 of 12 scale changes;
+54 of 2,771 frames blank in total, every one inside a transition of at most 9 frames, none 1 s after a switch.
+So a switch is not blank-free (the new file's picture is built after the switch), but the 0.1 to 0.47 s blank is gone.
+Owner answer after that report (2026-10-24): "Unexplained? Test gap? Just do it. 2 frames of blank for minimap is acceptable."
+So the 1 to 2 blank minimap frames at a file switch are accepted and need no work, and an agent now finds why a slice
+list set inside the frame that draws a tile is not shown by that frame (Slint and femtovg source, a minimal repro)
+and builds a regression test that can fail for the in-frame hand-over of the code tile and the minimap, with guards;
+its report is verified, landed and the IDE reinstalled.
+Capture-to-file lag was not measured. Cleaned: agent worktree and branches, scratch trees, `~/temp/agent/lp`, `ft`
+(34 GB), `verify` and the disposable projects (see below).
 Lesson: the gates and the agent's counts all passed while the picture was blank; the check that found it was
 screenshots of the real binary after each press, so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
@@ -4439,6 +4477,62 @@ Unmeasured:
 whether the minimap picture,
 which also gets its slices inside a frame,
 can show the same defect.
+
+First tile and minimap picture,
+2026-10-24 (branch `worktree-agent-afeb07ef78b842b5a`,
+from `141c226c28`;
+record:
+`doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
+section "The first tile and the
+minimap picture"):
+the first tile of a window (no device yet,
+slices made inside the first frame,
+the notifier asks for one more frame)
+now has two native tests that read the ask from the harness adapter (`take_frame_wanted`),
+shown to fail with the `request_redraw` line replaced and by four `first-tile-*` guard cases (10 runs accepted).
+The minimap picture can show the same blank:
+a file switch empties the window's list (`forget_minimap`,
+`ModelRc::default()`),
+so the first picture of the new file sets a new list inside the frame,
+which the frame does not show
+(why an in-place change of the tile's list was not shown while the minimap's was is not known);
+17 of 32 recorded switches (debug build of `c1509291c8`,
+nested compositor,
+1080x1880 at scale 2,
+load average 8 to
+12) kept the minimap blank more than 0.2 s after the frame that drew the first picture (0.129 to 0.466 s,
+median 0.22,
+against 0.07 to 0.13 s of file-time lag when one picture is handed over);
+a second picture follows within a few tenths of
+a second in every switch (48 of 48) and hid it from the first screenshot-based check (173 actions,
+9,095 frames,
+all
+settled drawn).
+Fix `04935e5ede`:
+`GpuTile::submit_minimap` takes the window and `Inner::prepare_minimap` makes the textures and gives the
+window the slices at hand-over,
+outside any frame;
+0 of 16 switches after it (0.062 to 0.116 s),
+63 actions and 3,259
+frames on the fixed binary,
+71 blank frames,
+the last of each action 0.051 to 0.116 s after the first picture's frame
+(the file-time lag of 0.07 to 0.13 s).
+Two native tests and six `minimap-slices-*` guard cases (14 runs accepted).
+Not shown:
+a permanent blank (no switch handed over a single picture);
+the minimap's first picture before the first
+frame still has no frame asked (launch recordings 7 to 28 blank frames before the first drawn frame,
+spread larger than
+any difference).
+Scratch:
+`~/temp/agent/ft` (scripts,
+jsonl results,
+two debug binaries `ide-base` and `ide-fix`,
+a 32 GB target copy
+`gcache`),
+no frames kept;
+the owner can delete it.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

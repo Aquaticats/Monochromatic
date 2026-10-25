@@ -103,6 +103,24 @@ depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "judge-fidelity-probe"
 run = "node dist/final/node/judge-fidelity-probe.mjs"
 
+[tasks."editor-fidelity-probe"]
+description = "Seat named Claude cards alone as the editor of hash-verified seeded defects that have a known fix and score each patched text by comparison with the clean reference text, over the frozen pool of at least forty trials; SPENDS QUOTA on the named cards only, each call held to --max-usd by the measured spend, an arm the guard caps ends as capped with the rows it finished (pass --only pool-entry-ids, --cap n or --trials n for the leading units to walk, --passes n for the number of times the pool is walked, --damage insertion|alteration, --candidates seatable,ids, --candidates-alone, --max-usd dollars, --bench-spent-usd dollars, after --; --cap 0 is metadata-only preflight)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-probe"
+run = "node dist/final/node/editor-fidelity-probe.mjs"
+
+[tasks."editor-fidelity-read"]
+description = "Check the logs of the editor fidelity arms before any figure of them is read, one PASS or FAIL line for each check, and refuse when any fails; spends nothing (pass the arm logs after --, each beside an arm.exit file holding the status its launch returned)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-read"
+run = "node dist/final/node/editor-fidelity-read.mjs"
+
+[tasks."editor-fidelity-pool-draw"]
+description = "Draw the editor fidelity pool from the pinned corpus clone by a seeded rule, keyless: writes only ids, offsets and hashes (pass --seed text, --want trials, --out directory, --check to compare the files in --out with a fresh draw and replay the committed pool against the clone, after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "editor-fidelity-pool-draw"
+run = "node dist/final/node/editor-fidelity-pool-draw.mjs"
+
 [tasks."damage-sample"]
 description = "Draw shipped regions at random and ask a human the same source-anchored damage question the probe asks, with the probe's verdict kept in the manifest"
 depends = ["build"]

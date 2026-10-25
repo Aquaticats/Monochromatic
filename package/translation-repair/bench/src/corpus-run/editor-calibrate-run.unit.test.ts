@@ -22,7 +22,10 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import { RUN_ROSTER, } from '@monochromatic-dev/translation-repair-run';
+import {
+  RUN_ROSTER,
+  RUN_WRITERS,
+} from '@monochromatic-dev/translation-repair-run';
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source';
 import {
@@ -536,6 +539,135 @@ await describe({
               `editor-calibrate: 1 slice, ${EDITORS} models editing and ${JUDGES} judging each, 4 slices in flight`,
               'straggler window 300000ms (calibration default)',
             ],);
+          },
+        },),
+
+        it({
+          name: 'SEATS EXACTLY THE ONE CARD --candidates-alone names, prints it and says what one editor can show, '
+            + 'then refuses in the client build, asking no model',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            /**
+             What the run reached for.
+             */
+            const reaches = noReaches();
+
+            /**
+             What the run refused with when no key is set.
+             */
+            const refusal = await rejectionOf(async function keyMissing() {
+              await calibrateWith({
+                typed: ['2', '--candidates', 'claude-sonnet-5-5-effort-low', '--candidates-alone',],
+                overlap: 4,
+                grace: DEFAULT_GRACE,
+                writers: ROUND_WINDOW_WRITERS,
+                newClient: function withoutKey(): ModelClient {
+                  throw new StatedRefusalError({ says: 'no provider key is set', },);
+                },
+                reaches,
+              },);
+            },);
+
+            expect(String(refusal,),).toBe('StatedRefusalError: no provider key is set',);
+            expect(reaches.events,).toEqual(['overlap', 'draw', 'grace', 'writer-grace', 'client',],);
+            expect(reaches.counts,).toEqual([2,],);
+            expect(printed.lines,).toEqual([
+              `editor-calibrate: 1 slice, 1 model editing and ${JUDGES} judging each, 4 slices in flight`,
+              'editor-calibrate: editors claude-sonnet-5-5-effort-low',
+              'editor-calibrate: one editor is seated, so every slate holds one candidate and ships without a vote; '
+                + 'the editor standing will hold no judged round, and EDITORS SHIPPED, which is not a preference, '
+                + 'is the only reading',
+              'straggler window 300000ms (calibration default)',
+            ],);
+          },
+        },),
+
+        it({
+          name: 'PRINTS the writers and the card as editors when the card is named without --candidates-alone, and no '
+            + 'note about one editor',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+
+            await rejectionOf(async function keyMissing() {
+              await calibrateWith({
+                typed: ['--candidates', 'claude-sonnet-5-5-effort-low',],
+                overlap: 4,
+                grace: DEFAULT_GRACE,
+                writers: ROUND_WINDOW_WRITERS,
+                newClient: function withoutKey(): ModelClient {
+                  throw new StatedRefusalError({ says: 'no provider key is set', },);
+                },
+                reaches: noReaches(),
+              },);
+            },);
+
+            expect(printed.lines.slice(0, 2,),).toEqual([
+              `editor-calibrate: 1 slice, ${String(RUN_WRITERS.length + 1,)} models editing and ${JUDGES} judging each, `
+                + '4 slices in flight',
+              `editor-calibrate: editors ${[...RUN_WRITERS, 'claude-sonnet-5-5-effort-low',].join(', ',)}`,
+            ],);
+            expect(printed.lines.length,).toBe(3,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES a card the roster does not know before the overlap is read, the sample drawn or anything '
+            + 'printed, in the words the fidelity probe refuses it in',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            /**
+             What the run reached for.
+             */
+            const reaches = noReaches();
+
+            /**
+             What the run refused with.
+             */
+            const refusal = await rejectionOf(async function unknownCard() {
+              await calibrateWith({
+                typed: ['--candidates', 'nobody/such-model', '--candidates-alone',],
+                overlap: 4,
+                grace: DEFAULT_GRACE,
+                writers: ROUND_WINDOW_WRITERS,
+                newClient: shippingLaneClient,
+                reaches,
+              },);
+            },);
+
+            expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+            expect(String(refusal,),).toContain(
+              '--candidates names "nobody/such-model", which is not seatable; the roster knows ',
+            );
+            expect(reaches.events,).toEqual([],);
+            expect(printed.lines,).toEqual([],);
+          },
+        },),
+
+        it({
+          name: 'CREDITS ONLY THE CARD it seats alone with the shipped edit, and reads the lone slate as no judged round',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+
+            await calibrateWith({
+              typed: ['--candidates', 'claude-sonnet-5-5-effort-low', '--candidates-alone',],
+              overlap: 4,
+              grace: DEFAULT_GRACE,
+              writers: ROUND_WINDOW_WRITERS,
+              newClient: shippingLaneClient,
+              reaches: noReaches(),
+              // A BENCH OF ONE HAS ONE START: the pinned start of the six-seat bench would fall outside it.
+              editorBenchStart: 0,
+            },);
+
+            expect(printed.lines,).toContain('  claude-sonnet-5-5-effort-low: wrote shipping text on 1 of 1 slice',);
+            expect(printed.lines,).toContain(
+              '\nEDITOR standing over 0 judged rounds, from 0 of 1 slice; 1 round drew no ballot',
+            );
+            expect(
+              printed.lines.filter(function creditsAWriter(line,): boolean {
+                return line.includes('wrote shipping text',);
+              },),
+            ).toEqual(['  claude-sonnet-5-5-effort-low: wrote shipping text on 1 of 1 slice',],);
           },
         },),
       ],

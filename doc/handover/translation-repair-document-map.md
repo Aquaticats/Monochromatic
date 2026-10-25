@@ -71,7 +71,13 @@ are filed in the
 `XingZ6019` ended on a short writing bench while NeuralWatt was dry
 (ledger B826,
 open),
-and `XingZ6020` was running when this status was last written.
+`XingZ6020` was running when the record of `XingZ6019` was filed
+(its read is not filed),
+and `XingZ6021` on the build `bcff23b8ce` settled in 2 h 5 min 45 s on 2026-10-25 (UTC)
+with a page whose Shinonome section ships archive text that the source lacks;
+the owner's rulings on the floors behind it are of 2026-10-25 and the change is in progress.
+The read of `XingZ6021` starts at
+[its run file](../planning/translation-repair-openrouter-2026-09-03-2026-10-22-answers-restart-xingz6021-run.md).
 
 The finite redesign stopped after Candidate M failed on 2026-09-01.
 No Candidate A through M is production-eligible,

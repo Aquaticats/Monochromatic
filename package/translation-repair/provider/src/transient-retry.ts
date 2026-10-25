@@ -481,11 +481,19 @@ function statedWaitOf({ reply, }: { readonly reply: TransportReply; },): number 
  and then failed, the retried ones included, so a caller can record what the
  endpoint billed for it (ledger P1)
 
+ @param beforeAttempt - told before every attempt, the first and each retry
+ (after the backoff that precedes it), and ahead of the transport; what it
+ throws ends the exchange there with nothing sent, and escapes unretried,
+ because it is the caller's refusal and not a transport failure, so a caller
+ that holds a run to an amount can look again before each attempt it would pay for
+
  @mutates exchange - delegated transport attempts may invoke getters while
  serializing, and the exchange's `signal` rides into each attempt;
  see the transport's own contract
 
  @returns First success or first non-retryable reply
+
+ @throws Whatever `beforeAttempt` throws, before the attempt it refused
 
  @throws {@link ProviderHttpError} when a caller abort stops the ladder after a retryable status
 
@@ -502,6 +510,7 @@ export async function exchangeWithRetry(
     policy = DEFAULT_RETRY_POLICY,
     verify,
     onAbandonedAttempt,
+    beforeAttempt,
   }: {
     readonly provider: ProviderName;
     readonly transport: ModelTransport;
@@ -509,6 +518,7 @@ export async function exchangeWithRetry(
     readonly policy?: RetryPolicy;
     readonly verify?: (reply: Awaited<ReturnType<ModelTransport>>,) => void;
     readonly onAbandonedAttempt?: (attempt: AbandonedAttempt,) => Promise<void>;
+    readonly beforeAttempt?: () => Promise<void>;
   },
 ): Promise<Awaited<ReturnType<ModelTransport>>> {
   /**
@@ -536,6 +546,9 @@ export async function exchangeWithRetry(
     attempt += 1
   ) {
     /* oxlint-disable no-await-in-loop -- attempts are inherently sequential; each retry depends on the previous failure */
+    // TOLD OUTSIDE `attemptExchange`, on purpose: inside its try, a refusal thrown here would land in the catch that
+    // turns a transport failure into a retry, and the ladder would send the very attempt the caller refused.
+    await beforeAttempt?.();
     /**
      Reply or captured failure of this attempt.
      */

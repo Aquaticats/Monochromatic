@@ -198,7 +198,8 @@ await describe({
             expect(run.code,).toBe(REFUSED_AS_STATED,);
             expect(run.stdout,).toBe('',);
             expect(run.stderr,).toBe(
-              'editor-calibrate: --bogus is not a flag this command reads. Usage: editor-calibrate [<slices>]\n',
+              'editor-calibrate: --bogus is not a flag this command reads. Usage: editor-calibrate '
+                + '[--candidates <seatable ids>] [--candidates-alone] [<slices>]\n',
             );
           },
         },),

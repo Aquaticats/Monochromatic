@@ -23,7 +23,8 @@ import { runSpendUsd, } from '@monochromatic-dev/translation-repair-shared-contr
  */
 export type ClaudeSpend = {
   /**
-   USD the SPEND lines of this process's Claude calls priced, a floor over the calls whose usage block arrived.
+   USD the SPEND lines of this process's Claude calls priced: the calls whose usage block arrived at what it reported,
+   and each attempt that delivered a stream and failed at its bound (`claude-abandoned-spend.ts`).
    */
   readonly spentUsd: number;
 

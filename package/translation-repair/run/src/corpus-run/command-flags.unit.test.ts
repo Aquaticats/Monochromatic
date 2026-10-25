@@ -23,6 +23,7 @@ import {
   askedAmong,
   type FlagValue,
   idListFlag,
+  usdFlag,
   wholeNumberFlag,
   writtenOr,
 } from '../../dist/final/node/index.mjs';
@@ -166,6 +167,66 @@ await describe({
               },);
             },),).toEqual(mistyped.map(function expectedOf(value,): string {
               return `--naps needs a whole number written in digits, at most ${LARGEST}, and ${JSON.stringify(value,)} is not one`;
+            },),);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: usdFlag.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'TAKES THE CALLER\'S AMOUNT when the flag is not written',
+          fn: async () => {
+            expect(usdFlag({
+              asked: UNWRITTEN,
+              unwritten: 2,
+            },),).toBe(2,);
+          },
+        },),
+        it({
+          name: 'READS a plain amount of dollars, a whole number, a decimal and zero among them',
+          fn: async () => {
+            expect(['0', '2', '0.5', '1.25', '007.50',].map(function readsAmount(value,): number {
+              return usdFlag({
+                asked: written({ value, },),
+                unwritten: 2,
+              },);
+            },),).toEqual([0, 2, 0.5, 1.25, 7.5,],);
+          },
+        },),
+        it({
+          name: 'REFUSES what is no plain amount: a sign, a point missing a digit, an exponent, a radix, a word, a '
+            + 'space, a comma and a digit run past the largest double',
+          fn: async () => {
+            /**
+             Amounts as an operator mistypes them.
+             */
+            const mistyped = [
+              '-1',
+              '+1',
+              '.5',
+              '5.',
+              '1e1',
+              '0x4',
+              'two',
+              ' 2',
+              '1,5',
+              `1${'0'.repeat(400,)}`,
+            ];
+            expect(mistyped.map(function readsMistyped(value,): string {
+              return statedRefusalMessage({
+                read: function read(): void {
+                  usdFlag({
+                    asked: written({ value, },),
+                    unwritten: 2,
+                  },);
+                },
+              },);
+            },),).toEqual(mistyped.map(function expectedOf(value,): string {
+              return `--naps needs a plain amount of dollars written in digits with at most one decimal point, and ${JSON.stringify(value,)} is not one`;
             },),);
           },
         },),

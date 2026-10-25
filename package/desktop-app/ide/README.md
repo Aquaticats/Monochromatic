@@ -5657,6 +5657,31 @@ the GPU turns outlines and paths into pixels.
   before any frame is drawn,
   that the window holds the slices of the new textures;
   the `inspect:source-guards` cases `tile-slices-*` remove the lines that make and apply them.
+  The first tile of a window,
+  handed over before any frame,
+  has its slices made and given inside the first frame;
+  the notifier then asks for one more frame.
+  `the_first_tile_of_a_window_gets_its_slices_in_the_first_frame_and_asks_for_the_next` and
+  `a_frame_that_makes_no_slices_in_it_asks_for_no_frame` (`src/native/tile_slice_frame_tests.rs`) read the ask from the
+  harness's window adapter (`take_frame_wanted`),
+  and the `first-tile-*` guard cases remove the lines that give the slices and ask for the frame.
+  The minimap's picture is handed over the same way:
+  `GpuTile::submit_minimap` makes the textures and gives the window the slices and the picture's place when the
+  textures differ in size from the last picture's (`Inner::prepare_minimap`,
+  `src/native/gpu_tile/slice.rs`).
+  Before this the first picture of a file,
+  whose list of slices is a new one after a file switch,
+  was not shown by the frame that drew it,
+  and the minimap stayed blank until the next picture's frame:
+  17 of 32 recorded switches showed it more than 0.2 s after the first picture's frame,
+  none of 16 after the fix.
+  `the_first_picture_of_a_file_gives_the_window_its_slices_before_any_frame` and
+  `a_picture_of_another_shape_gives_the_window_its_slices_before_any_frame` (`src/native/minimap_slice_frame_tests.rs`)
+  check the slices before any frame,
+  and the `minimap-slices-*` guard cases remove the lines that make,
+  give,
+  and place them.
+  Both records are in `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`.
 - Selection fills and the boxes of find matches are Slint rectangles behind the tile image (`ui/app.slint`),
   drawn by FemtoVG on the GPU as before.
   Their edges and the clip edges of the selected ink lie on whole pixels,

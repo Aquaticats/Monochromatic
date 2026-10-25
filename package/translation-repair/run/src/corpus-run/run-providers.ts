@@ -2,6 +2,7 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import {
   type BedrockClient,
+  type ClaudeAttemptAsk,
   type ClaudeClient,
   bedrockLedgerFromEnv,
   createBedrockClient,
@@ -149,6 +150,10 @@ export type ConfiguredProviders = {
  @param maxHoldMs - longest a wait a refusal states for itself may hold a provider out (REQUIRED); the pass hands its
  hard cap, the longest a hold can matter, and a probe hands the probe bound of `run-probe-client.ts`
 
+ @param admitClaudeAttempt - told by the Claude client before each attempt it makes, with the card and the most the
+ attempt can be billed; what it throws ends that call before the attempt is sent. A probe that holds an arm to an amount
+ hands it here, since the client retries inside one call. Absent in a pass, whose Claude client then tells nobody
+
  @returns Clients present per key, plus the budgets
 
  @throws {@link RunConfigError} when every provider key variable is unset or empty
@@ -168,11 +173,13 @@ export function configureProviders(
     transport,
     off = PROVIDERS_LEFT_OFF,
     maxHoldMs,
+    admitClaudeAttempt,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
+    readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
   },
 ): ConfiguredProviders {
   /**
@@ -412,6 +419,8 @@ export function configureProviders(
     : createClaudeClient({
       apiKey: claudeKey,
       transport,
+      // Conditional spread keeps the hook absent instead of undefined.
+      ...((admitClaudeAttempt === undefined) ? {} : { admitAttempt: admitClaudeAttempt, }),
     },);
 
   /**
