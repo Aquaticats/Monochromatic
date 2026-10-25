@@ -94,31 +94,26 @@ function stragglerHeldOn(
 /**
  Holds back the last judge the selection round asks, whichever seat the bench's rotation puts there. The selection round asks
  three of the four seats (quorum plus one), so the seat that is left out moves with the rotation; the case holds a ballot by its
- place in the order of call, which the rotation does not change, and reads the seat it held from the record.
+ place in the order of call, which the rotation does not change, and reads the seats asked from the record.
 
- @param held - sink receiving the seat whose ballot was held
+ @param asked - sink receiving each seat a ballot was asked of, in the order of call
 
- @returns Predicate telling whether a request is the third ballot asked
+ @returns Predicate telling whether a request is the last ballot of the window
 
  @example
  ```ts
- const held: string[] = [];
- const heldFor = lastBallotHeld({ held, },);
+ const asked: string[] = [];
+ const heldFor = lastBallotHeld({ asked, },);
  ```
  */
 function lastBallotHeld(
-  { held, }: { readonly held: string[]; },
+  { asked, }: { readonly asked: string[]; },
 ): (request: { readonly modelId: string; readonly schema: string; },) => boolean {
-  /** Ballots asked so far. */
-  let ballotsAsked = 0;
-  return function isThirdBallot({ modelId, schema, },): boolean {
+  return function isLastBallot({ modelId, schema, },): boolean {
     if (schema !== 'candidate_ballot')
       return false;
-    ballotsAsked += 1;
-    if (ballotsAsked !== SELECTION_WINDOW)
-      return false;
-    held.push(modelId,);
-    return true;
+    asked.push(modelId,);
+    return asked.length === SELECTION_WINDOW;
   };
 }
 
@@ -196,16 +191,16 @@ await describe({
       name: 'KEEPS THE READERS\' WINDOW IN THE SELECTION ROUND (ledger B713): a judge reading text that exists is '
         + 'one ballot in several, so the straggler that answers after quorum is cut and said lost',
       fn: async () => {
-        /** Seats whose ballot the case held. */
-        const held: string[] = [];
+        /** Seats a ballot was asked of, in the order of call. */
+        const asked: string[] = [];
         /** Review over a straggler in the selection round. */
         const outcome = await reviewWith({
-          heldFor: lastBallotHeld({ held, },),
+          heldFor: lastBallotHeld({ asked, },),
           prompts: [],
         },);
-        // One seat held: the case saw exactly one ballot held, not none.
-        expect(held,).toHaveLength(1,);
-        expect(outcome.findings,).toContain(`stage-voice-lost (select ${held[0] ?? ''})`,);
+        // The window asked three seats, so the last of them was the one held.
+        expect(asked,).toHaveLength(SELECTION_WINDOW,);
+        expect(outcome.findings,).toContain(`stage-voice-lost (select ${asked.at(-1,) ?? ''})`,);
       },
     },),
   ],
