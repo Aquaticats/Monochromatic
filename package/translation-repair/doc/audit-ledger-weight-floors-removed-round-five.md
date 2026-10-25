@@ -208,8 +208,7 @@ A tie that narrows the question asks the panel again over the candidates it back
 before anything ships.
 The first ask's sentence says so,
 and the challenge sentences state what the round ships or keeps when no run-off is left.
-They do not mention a run-off,
-because it changes no judge's answer.
+They do not mention a run-off.
 
 ## B924: the clause reader refuses swapped outcomes and a decline said to keep the wording (round 5)
 
