@@ -325,6 +325,32 @@ await describe({
     },),
 
     it({
+      name: 'COUNTS A GIVEN-UP PROVIDER AS DRY FOR ANOTHER: with two providers given up and every other one dry, both '
+        + 'read wet by their meters but neither is the other\'s alternative, so both are set aside',
+      fn: async () => {
+        const { refusals, clock, } = holdsOnAClock({
+          wet: [
+            'synthetic',
+            'hyper',
+          ],
+        },);
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.hold({ provider: 'hyper', holdMs: COOLDOWN_MS, cooldown: true, },);
+        clock.now += COOLDOWN_MS;
+        refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
+        refusals.hold({ provider: 'hyper', holdMs: COOLDOWN_MS, cooldown: true, },);
+        expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
+        expect(refusals.givenUp({ provider: 'hyper', },),).toBe(true,);
+        expect(refusals.waitedLeft({ provider: 'synthetic', },),).toBe(COOLDOWN_MS,);
+        expect(refusals.waitedLeft({ provider: 'hyper', },),).toBe(COOLDOWN_MS,);
+
+        clock.now += COOLDOWN_MS;
+        expect(refusals.keepsOut({ provider: 'synthetic', },),).toBe(false,);
+        expect(refusals.keepsOut({ provider: 'hyper', },),).toBe(false,);
+      },
+    },),
+
+    it({
       name: 'SAYS WHEN A GIVE-UP IS SET ASIDE, once, with the entry and how the other writing providers read, and '
         + 'when it is back in force',
       fn: async () => {
