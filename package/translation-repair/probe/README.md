@@ -280,7 +280,7 @@ and each task sets it to its own name.
   when the spend so far plus its ceiling would pass `--max-usd`.
   An arm the guard ends that way is capped,
   not failed:
-  it prints a `CAPPED at trial k` line and a `TRIALS completed k of p` line,
+  it prints a `CAPPED at unit k` line and a `TRIALS completed k of p units` line,
   keeps the rows it finished,
   and exits 0.
   The guard admits one call at a time and throws if a second is asked while one is in flight.
@@ -340,6 +340,15 @@ and each task sets it to its own name.
   (the paired estimate for each kind of defect,
   secondary and vetoing nothing),
   and last the `VERDICT` of the decision rule.
+  It also prints before the `CHECKS` line,
+  even when a check failed and even for one log read alone,
+  a `REPEAT` line for each arm (the share of the trials the arm was asked in more than one pass whose passes all read
+  alike,
+  over the units every arm holds when several logs are read),
+  a `WARN repeat agreement` line for each arm of the default effort that repeats itself more than 15 points less than
+  another arm,
+  and a `WARN high fix rate` line for each arm of the default effort that cleanly fixed 93 percent
+  or more of the units every arm holds.
   Pass the three or four arm logs after `--`.
   The exit status of an arm is read from `<arm>.exit` beside `<arm>.log`.
   Spends nothing.
@@ -389,26 +398,22 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > counted trial by trial.
 > A trial in which an ask ended at the output-token cap scores as unusable for its arm,
 > and a unit in which an ask of any arm threw is left out of every arm's comparison and counted,
-> where a unit is a trial in one pass over the pool
-> (an arm may walk the pool several times,
+> where a unit is a trial in one pass over the pool (an arm may walk the pool several times,
 > pass by pass).
 > The arms are compared over the units every arm completed,
 > which are the leading units of one fixed seeded order,
 > grouped by the entry each comes from,
 > so a trial asked again joins the cluster of its entry.
-> Each of the low and the high effort is tested against the default (medium)
-> by a one-sided exact paired permutation test,
+> Each of the low and the high effort is tested against the default
+> (medium) by a one-sided exact paired permutation test,
 > permuting the arm labels within each entry,
 > with entries as the units,
-> at 0.025 for each effort
-> (a second medium arm,
+> at 0.025 for each effort (a second medium arm,
 > if one is run,
 > joins the labels and is read as one control).
-> The paired difference is printed per shared unit
-> with a 95 percent interval from a seeded bootstrap over entries
+> The paired difference is printed per shared unit with a 95 percent interval from a seeded bootstrap over entries
 > (10000 resamples,
-> seed editor-fidelity-bench/interval/v1)
-> and the exact p-value.
+> seed editor-fidelity-bench/interval/v1) and the exact p-value.
 > An effort other than the default is chosen only when its test is at or under 0.025.
 > When both efforts are shown better,
 > the one with the larger estimate is chosen;
@@ -419,29 +424,39 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 > The estimates for each kind of defect (insertion,
 > alteration) are printed beside it and veto nothing.
 > With fewer than 60 shared units the read step refuses to give a verdict.
-> By simulation over the committed pool
-> (editor-fidelity-paired-null.test-fixture.ts,
+> By simulation over the committed pool (editor-fidelity-paired-null.test-fixture.ts,
 > seeds edr7-sim and edr8-sim),
-> at true fix rates from 0.30 to 0.95,
-> within-entry correlations from 0 to 1
-> and an agreement of a repeat with the arm's first answer from 0 to 1,
-> the chance of choosing another effort when none is better is at most 0.05
-> when every arm repeats itself alike
+> at true fix rates from 0.30 to 0.90,
+> within-entry correlations from 0 to 1 and an agreement of a repeat with the arm's first answer from 0 to 1,
+> the chance of choosing another effort when none is better is at most 0.05 when every arm repeats itself alike
 > (the worst of 192 cells was 0.055 at 800 replicates,
 > within the noise of 0.008,
 > and the four cells over 0.05 were at most 0.035 at 4000),
-> and up to 0.107 when the default effort repeats itself far less than the others
-> (a true fix rate of 0.9,
-> three passes);
-> the read step prints each arm's repeat agreement and warns when they differ by more than 15 points;
-> over the 88 trials walked once the smallest difference chosen with chance 0.8
-> is about 26 points when medium fixes half,
+> and 0.107 when the default effort repeats itself far less than the others (a true fix rate of 0.9,
+> three passes,
+> 4000 replicates of the committed fixture).
+> Both figures hold for fix rates up to 0.90 and no higher.
+> Above 0.90 the chance when the default effort repeats itself far less than the others was higher:
+> 0.142 at 0.93,
+> 0.173 at 0.95 and 0.241 at 0.97 by an independent re-implementation of the model (reviewer seed edrc5,
+> 4000 replicates,
+> 264 units),
+> and 0.130 at 0.93 and 0.175 at 0.95 by the committed fixture (seed edr9-fx,
+> 4000 replicates,
+> three passes of 264 units,
+> correlation 1).
+> The read step prints each arm's repeat agreement over the units every arm holds
+> and warns when the default effort repeats itself more than 15 points less than another arm,
+> a warning calibrated for fix rates up to 0.90,
+> and prints WARN high fix rate when the default effort fixes 93 percent or more of the shared units,
+> since the repeat warning cannot see unequal repeats there and a verdict of high or low then stands under the caveat.
+> Over the 88 trials walked once the smallest difference chosen with chance 0.8 is about 26 points when medium fixes
+> half,
 > 20 points when it fixes seven in ten and 14 points when it fixes eighty-five in a hundred,
 > and over 176 units (two passes) 25,
 > 21 and 14 points where a repeat always gives the arm's first answer again,
 > 21,
-> 17 and 12 points where it does so half the time
-> and 17,
+> 17 and 12 points where it does so half the time and 17,
 > 14 and 10 points where it never does,
 > and a smaller difference cannot be told apart.
 > The insertion trials measure locating an added sentence among its neighbours and copying the neighbours verbatim,
@@ -449,25 +464,60 @@ and the read step prints the verdict `decideEffort` reaches over the trials ever
 
 Two efforts are each tested at 0.025,
 so the chance of picking either when neither is better is under 0.05 where the test holds its level.
-It holds it when every arm repeats itself alike:
+It holds it when every arm repeats itself alike and the true fix rate is no higher than 0.9:
 the simulation read 0.055 at the worst of 192 such cells at 800 replicates,
 which is inside the noise of that many replicates (0.008),
 and the four cells over 0.05 read 0.035 at most when run again at 4000.
+The grid stopped at a true fix rate of 0.9,
+so the figures are not stated above it.
 It does not hold it when the arms repeat themselves unlike one another.
 With the high and the low effort giving a trial their first answer again in every pass
 and the default effort asked afresh each pass,
 at a true fix rate of 0.9 over 264 units,
-the chance of choosing another effort when none is better was 0.098 at the worst cell of the grid run at 4000 replicates
-and 0.107 by the committed fixture at 4000 replicates.
+the chance of choosing another effort when none is better was 0.098 at the worst cell of the grid run at 4000
+replicates and 0.107 by the committed fixture at 4000 replicates.
+Both are readings at 0.9 and not a ceiling:
+the chance rises with the fix rate.
+Above 0.9 an independent re-implementation of the model (re-check 5,
+4000 replicates,
+264 units,
+correlation 1) read 0.142 at 0.93,
+0.173 at 0.95 and 0.241 at 0.97,
+and 0.126 at 0.95 at a correlation of 0.5.
+The committed fixture,
+run once and seeded (`edr9-fx`,
+4000 replicates,
+three passes of 264 units),
+read 0.1298 at 0.93 and 0.1750 at 0.95 at a correlation of 1,
+and 0.0975 and 0.1365 at a correlation of 0.5;
+at 0.9 under the round 8 seed it read 0.1072.
 Of the unequal-agreement cells that screened at 0.05 or more and were run again at 4000 replicates,
 none of the 28 at a true fix rate of 0.3 or 0.5 read over 0.05,
 6 of 32 at 0.7 did (0.066 at most),
 and 47 of 59 at 0.9 did.
 A single effort alone read 0.054 at the worst.
 The excess was found by simulation and not derived.
-So the read step prints the repeat agreement of each arm
-and warns when the arms differ by more than 15 points,
+The default effort repeating itself more than the others read 0.011 in the re-check's control,
+so the read step prints the repeat agreement of each arm
+and warns only when the default effort repeats itself more than 15 points less than another arm,
 and a pick of high or low under that warning is less sure than the level of 0.025 says.
+The warning is calibrated for true fix rates up to 0.9
+(it fired on 4.5 percent of the benches of the grid whose arms repeat alike,
+a mean over the grid,
+and on 9.9 percent at the cell of a fix rate of 0.9 where no arm repeats itself).
+Above 0.9 it cannot see unequal repeats:
+an arm that gives a fresh reading in each pass reads three passes alike with chance r^3 + (1-r)^3 for a fix rate r,
+so the expected gap to an arm that always repeats is 27 points at 0.9,
+19.5 at 0.93,
+14.3 at 0.95 and 8.7 at 0.97,
+against the 15 points the warning needs,
+and the re-check saw it fire on 99,
+81,
+40 and 3 percent of its benches at those rates.
+So when the default effort cleanly fixes 93 percent or more of the units every arm holds,
+the read step prints `WARN high fix rate`,
+and a verdict of high or low stands under the caveat whether or not a `WARN repeat agreement` line printed.
+
 The simulation plays the bench over the committed pool in its order,
 pass by pass:
 three arms fix each trial with a stated chance,
@@ -566,7 +616,7 @@ pass by pass
 (264 units,
 the trials of the pool asked three times each).
 If the guard ends it before the passes are done,
-it prints a `CAPPED at trial k` line,
+it prints a `CAPPED at unit k` line,
 keeps the rows it finished and exits 0;
 that is a shorter bench and not a failed arm.
 Each arm is the same command with its own name,
@@ -595,7 +645,7 @@ echo $? > "$BENCH/$ARM.exit"
 
 Read n,
 the number of units the high arm completed,
-from the `TRIALS completed n of p` line of `$BENCH/high.log`.
+from the `TRIALS completed n of p units` line of `$BENCH/high.log`.
 The command prints the number alone,
 and prints nothing and exits 1 for a log with no such line,
 as the output of a dry run is,
@@ -609,11 +659,27 @@ echo "$N"
 
 #### Stop rule
 
-When n is under 60,
+When n less the rows of the high arm in which an ask threw is under 60,
 do not launch medium or low.
-Record n and the `CAPPED at trial k` line of the high arm in the ledger and stop:
+A row in which an ask threw is left out of every arm,
+so it cannot be shared,
+and n counts it.
+The command counts the high arm's rows whose stop words include `threw` and prints what is left:
+
+```bash
+# README.md (editor fidelity bench): n less the rows of the high arm in which an ask threw, the units it can still share
+THREW=$(rg --only-matching '; stopped [a-z+-]*threw[a-z+-]*$' "$BENCH/high.log" | wc --lines)
+echo "$((N - THREW))"
+```
+
+`rg` exits 1 and prints nothing when no row threw,
+`wc` then counts 0,
+and the pipeline prints the count with status 0 (do not set `pipefail` here).
+Under 60,
+record n,
+the count and the `CAPPED at unit k` line of the high arm in the ledger and stop:
 the read step refuses a verdict under 60 shared units,
-and a later arm shares at most the units the high arm completed.
+and a later arm shares at most the units the high arm completed less those rows.
 
 #### Before medium and low
 
@@ -625,17 +691,26 @@ A lower effort asks for fewer output tokens,
 so the high arm's spend a unit is taken as the most a later arm spends a unit;
 this is an assumption the bench has not measured,
 and the guard still ends an arm that spends faster.
-The hard bound is the `ceiling` line of the dry run,
-which for the current pool is 0.377 USD an ask,
-so the caps buy 47 asks at 18 USD and 39 at 15 USD
-and an arm whose asks run near the ceiling stops under 60 units:
+The guard admits an ask only while the spend so far plus the ask's ceiling is at most the cap,
+and the ceiling is the `ceiling` line of the dry run over its asks,
+which for the current pool is 0.377 USD an ask.
+An arm that spends s a unit therefore completes floor((cap - 0.377) / s) + 1 units,
+which is fewer than cap / s:
+about 21 fewer at 0.0167 USD a unit,
+and one fewer at the margin of 60 units (0.3 USD a unit at 18 USD).
+The block counts that reserve and also checks n,
+less the rows in which an ask threw,
+against the floor of 60,
+which the cap alone does not:
 
 ```bash
-# README.md (editor fidelity bench): what each later cap buys at the high arm's spend a unit
+# README.md (editor fidelity bench): the units each later cap completes, the guard's reserve counted
 HIGH=$(rg --only-matching --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log")
-echo "$HIGH $N" | awk '{ per = $1 / $2; m = 18 / per; l = 15 / per;
-  printf "spend a unit %.4f USD; medium buys %d units, low buys %d units; %s\n", per, m, l,
-  (m >= 60 && l >= 60) ? "both reach the floor of 60" : "under the floor of 60: do not launch" }'
+echo "$HIGH $N $THREW" | awk '{ per = $1 / $2; left = $2 - $3; reserve = 0.377;
+  m = int((18 - reserve) / per) + 1; l = int((15 - reserve) / per) + 1;
+  printf "units left after thrown rows %d; spend a unit %.4f USD; ", left, per;
+  printf "medium completes %d units, low completes %d units; %s\n", m, l,
+  (left >= 60 && m >= 60 && l >= 60) ? "all reach the floor of 60" : "under the floor of 60: do not launch" }'
 ```
 
 When either cap buys fewer than 60 units,
@@ -676,6 +751,12 @@ so a second pass buys the bench nothing when the arms repeat themselves so.
 That assumes the later arms repeat themselves as the high arm does,
 which one pass cannot show:
 the read step then prints `no trial was asked in more than one pass` for them.
+If they do not repeat themselves so,
+the one pass costs power:
+three passes over 264 units detect a difference of about 13.5 points where agreement is 0 (round 8 power table)
+and one pass over 88 units detects about 25 points,
+and the verdict is read over those 88 units whatever the high arm's 264,
+so the bench money the high arm spent on its passes 2 and 3 buys the verdict nothing.
 When the line says less than 100 percent,
 the later arms take `--trials <n>` as the section "Medium and low" has it,
 and the read step compares the arms' agreements after the last arm.
@@ -689,23 +770,28 @@ each with `--passes 3 --trials n`
 so that each walks the same first n units in the same order.
 The first line of their commands,
 with n and the measured spend written in.
-`<spent so far>` is the sum of the `GUARD total=` of the arms already run,
+`SPENT` is the sum of the `GUARD total=` of the arms already run,
 rounded up to the cent,
-which this command prints for the arms named
-(the high log alone for medium,
-the high and medium logs for low):
+which this command prints for every log in `$BENCH` (the high log alone before medium,
+the high and medium logs before low);
+run it before launching the arm,
+since the arm's own log joins the sum once it exists:
 
 ```bash
-# README.md (editor fidelity bench): the sum of the GUARD total= lines, rounded up to the cent
-rg --only-matching --no-filename --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH/high.log" "$BENCH/medium.log" \
-  | awk '{ micro += int($1 * 1000000 + 0.5) } END { printf "%.2f\n", int((micro + 9999) / 10000) / 100 }'
+# README.md (editor fidelity bench): the sum of the GUARD total= lines of the logs so far, to the cent
+SPENT=$(rg --only-matching --no-filename --replace '$1' 'GUARD total=([0-9.]+)' "$BENCH"/*.log \
+  | awk '{ micro += int($1 * 1000000 + 0.5) } END { printf "%.2f\n", int((micro + 9999) / 10000) / 100 }')
+echo "$SPENT"
 ```
 
 ```bash
 # README.md (editor fidelity bench): the first line of arms 2 and 3
-ARM=medium; CARD=claude-sonnet-5-5-effort-medium; MAXUSD=18; SPENT=<spent so far>; TRIALS=(--passes 3 --trials "$N")
-ARM=low; CARD=claude-sonnet-5-5-effort-low; MAXUSD=15; SPENT=<spent so far>; TRIALS=(--passes 3 --trials "$N")
+ARM=medium; CARD=claude-sonnet-5-5-effort-medium; MAXUSD=18; TRIALS=(--passes 3 --trials "$N")
+ARM=low; CARD=claude-sonnet-5-5-effort-low; MAXUSD=15; TRIALS=(--passes 3 --trials "$N")
 ```
+
+The command then takes `--bench-spent-usd "$SPENT"`,
+the value of the sum just printed.
 
 After the last arm,
 check all three together:
@@ -719,9 +805,26 @@ mise run //package/translation-repair/probe:editor-fidelity-read -- \
 The read step prints a `REPEAT` line for each arm,
 the share of the trials the arm was asked in more than one pass whose passes all read the same way
 (a clean fix in each or in none),
-and a `WARN` line when the arms differ by more than 15 points.
+over the units every arm holds,
+and a `WARN repeat agreement` line for each arm of the default effort that repeats itself more than 15 points less
+than another arm,
+naming that arm,
+its figure,
+the arm it is under and the gap.
 The rule's bound on choosing another effort when none is better holds when the arms repeat themselves alike,
 and a verdict of high or low printed under that warning is less sure than the level of 0.025 says.
+
+When the default effort cleanly fixes 93 percent or more of the units every arm holds,
+it also prints `WARN high fix rate: medium cleanly fixed k of u shared units (p percent), ...`.
+On that line,
+do not read the absence of a `WARN repeat agreement` line as clearing the verdict,
+because the repeat warning cannot see unequal repeats at that fix rate.
+Report a verdict of high or low as shown better under the caveat that the chance of a false pick may be 0.13 to 0.24
+(the readings above 0.9,
+in the section on the decision rule),
+and weigh it against its cost before changing the default effort.
+A verdict of medium is not under the caveat,
+since the chance concerns choosing another effort when none is better.
 
 An arm with a `FAIL` line is not evidence,
 whatever its clean fix count says.
