@@ -230,14 +230,14 @@ and not off a time window,
 is the operational meaning of "waited out" here:
 a window would have to outlast the transport's retry ladder,
 whose length no measurement fixes.
-While another writing provider reads wet,
+While the providers left can meet every bench floor the entry's stages need (see below),
 a given-up provider reads dry to the router and to the seat reader until the entry ends,
 its cooldowns count for no wait,
 and the reader seats the other providers' seats without waiting.
 One warn line from `hold` says it:
 `synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between;
 entry <id> stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends,
-unless it is the only writing provider not dry`.
+unless the providers left cannot meet every bench floor without it`.
 Each attempt of an entry starts with nothing given up (`beginEntry`,
 called by `settleEntry`),
 so the next entry waits once and decides on its own evidence,
@@ -253,29 +253,71 @@ and the waits the benches take for the judges they count.
 A provider that served after its cooldown is waited for each time,
 however often it refuses later.
 
-The give-up never ends the run:
-when the given-up provider is the only writing provider not dry,
-every other one being dry,
-held or itself given up,
-the give-up is set aside.
-Reading it dry would leave every provider dry,
-and the router and the seat reader would raise `EveryProviderDryError`,
-which ends the run,
-for a provider that serves again after its cooldown.
-So the reader and the router wait its cooldown out and ask it again,
+The give-up never costs the entry what waiting would have saved:
+the lead's rulings of 2026-10-25,
+open to the owner's veto.
+It holds only while the providers left (not dry by their meter,
+not held by a refusal,
+not given up)
+can still meet every bench floor the entry's stages need.
+Otherwise the give-up is set aside:
+the reader and the router wait the cooldown out and ask the provider again,
 as they did before the give-up existed,
 and the entry's own abort is again the only bound on that loop.
-A wet provider that writes nothing (Xiaomi,
-whose one seat is a checker) is no alternative,
-as it is none against "every provider dry";
-the roster of writing providers reaches the budgets through `configureProviders` (`writing`).
+Two earlier forms of the rule each cost an entry something waiting would have kept.
+The first read a given-up provider dry whatever else was wet,
+so when it was the last provider not dry the router and the seat reader raised `EveryProviderDryError`,
+which ends the run,
+for a provider that serves again after its cooldown.
+The second set the give-up aside only when the given-up provider was the only writing provider not dry,
+and a wet DeepSeek,
+which serves one of the eight translators against a floor of two,
+ended the entry with `WritingBenchUnreachableError` instead.
+
+The floors are the seat reader's own,
+not copies:
+`unmetBenchFloors` (`run-seats-give-up-floors.ts`) asks `judgeSeatsFor`,
+`unreachableWritingBenches` and `shortBenches` about a dryness view in which only the providers left are wet,
+for the union of the benches of all phases (`BENCHES_ANY_PHASE_LEANS_ON`).
+That is the writing floor (`WRITING_BENCH_FLOOR`) for the editors,
+refiners and translators,
+and the quorum of every bench any phase reads,
+the judging benches and the readers among them.
+The budgets take that source as `unmetFloors` and the set-aside warn line names the floors that would stay unmet.
+`run-config.ts` takes it as a required parameter,
+because the seat reader imports that file for the roster and a dependency cycle is refused by the lint;
+`run-client-create.ts` hands it over for `createRunClient` and `runClientFrom`.
+A caller that knows no roster of benches gets the first floor,
+that some writing provider can be asked (`writingProviderFloor`),
+with a wet provider that writes nothing (Xiaomi,
+whose one seat is a checker) no alternative,
+as it is none against "every provider dry".
 The decision is `provider-budget-give-up-aside.ts`'s,
 taken from each meter reading and from the holds as they stand.
 One warn line from it says when the give-up is set aside,
 naming the provider,
-the entry and how each other writing provider reads,
+the entry,
+how each other provider reads and the floors that would stay unmet,
 and one info line says when it is back in force,
-which happens the moment another writing provider reads wet again.
+which happens the moment the providers left meet every floor again.
+
+What the rule costs,
+measured on the roster of 2026-10-25 with Bedrock off and Synthetic given up:
+of the 64 sets of the six other providers that can be wet beside it,
+48 meet every floor,
+and every one of them holds Hyper or OpenRouter (the smallest sets are Hyper alone and OpenRouter alone).
+NeuralWatt,
+DeepSeek,
+Xiaomi and the Claude key together do not.
+So a give-up of Synthetic holds only while Hyper or OpenRouter reads wet and is not held.
+Where it holds,
+no bench is short without the given-up provider,
+so the seat reader would not have waited for its cooldown anyway:
+what the give-up saves there is the asks,
+each a retry ladder of requests ending in a refusal.
+Where it does not,
+the cooldown is waited out once for every slice that is refused right after it,
+which is the shape of XingZ6020 and is the price of the rule.
 
 Where the give-up holds,
 a call for a model only the given-up provider serves ends at the router as `NoProviderForModelError`,
@@ -286,11 +328,11 @@ and the quorum and bench rules decide from there
 (the trace is in ledger B965).
 
 The limit that remains:
-an entry whose bench the give-up leaves below its floor,
-with a wet provider too small to lift it,
-ends that entry with `WritingBenchUnreachableError`,
-which does not end the run and which a re-attempt starts again with nothing given up.
-The rule is the lead's of 2026-10-25 and is open to the owner's veto;
+the decision reads the last meter reading,
+which is up to the freshness window (60 s) old,
+and the holds as they stand,
+so a provider that went dry inside that window is counted wet until the next reading.
+The rules are the lead's of 2026-10-25 and are open to the owner's veto;
 the owner kept the gather quorums above two and the bench waits as they were the same day.
 The record is ledger B965.
 

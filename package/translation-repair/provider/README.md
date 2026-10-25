@@ -39,6 +39,7 @@ The groups that follow name the main ones.
   `createProviderBudgets`,
   `createRefusalHolds`,
   `createGiveUpAside`,
+  `writingProviderFloor`,
   `readEveryMeter`,
   `EveryProviderDryError`,
   `createRequestPace`.

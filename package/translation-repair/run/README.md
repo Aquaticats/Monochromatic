@@ -31,10 +31,13 @@ The groups that follow name the main ones.
   `readHeadSha`,
   `judgeSeatsFor`,
   `readJudgeSeats`,
+  `unmetBenchFloors`,
   `WritingBenchUnreachableError`.
   Declared in `corpus-run/run-config.ts`,
+  `corpus-run/run-client-create.ts`,
   `corpus-run/run-seats.ts`,
   `corpus-run/run-seats-read.ts`,
+  `corpus-run/run-seats-give-up-floors.ts`,
   and `corpus-run/run-seats-floor.ts`.
 - Runs directory and lock:
   lay out the runs directory and allow only one pass at a time per directory.

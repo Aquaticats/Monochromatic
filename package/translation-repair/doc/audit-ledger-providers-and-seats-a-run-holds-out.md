@@ -588,12 +588,12 @@ refusal named no return),
 that hold has ended,
 it ended after the entry began,
 and the provider has served nothing since.
-While another writing provider reads wet,
+While the providers left can meet every bench floor the entry's stages need,
 a given-up provider reads dry in the budgets' view and its meter word,
 its cooldown counts for no wait in `holds`,
 and one warn line names the provider,
 the entry and the cooldown that ran out.
-When no other writing provider reads wet the give-up is set aside (see "The give-up never ends the run" in this entry).
+Otherwise the give-up is set aside (see "The give-up never costs the entry what waiting would have saved" in this entry).
 The router reports each served call (`markServed`,
 from `callOn` and the decisions route),
 the run client carries `beginEntry`,
@@ -620,37 +620,110 @@ it would have to outlast the transport's retry ladder,
 whose length no measurement fixes,
 and it would give up a provider that served for a minute and then refused.
 
-The give-up never ends the run:
-the ruling is the lead's of 2026-10-25 and is open to the owner's veto.
+The give-up never costs the entry what waiting would have saved:
+the rulings are the lead's of 2026-10-25 and are open to the owner's veto.
 Giving a provider's cooldowns up narrows where a call may go,
-and it must never be the cause of the run ending,
+and it must never be the cause of the run ending or of the entry losing a bench,
 because the owner's rule is that a run always ships.
 The give-up as first landed read a given-up provider dry for the rest of the entry,
 so when that provider was the only writing provider not dry the seat reader and the router raised `EveryProviderDryError`,
 which `pass-dry-stop.ts` turns into the end of the run,
-for a provider that serves again after its cooldown.
-So the give-up holds only while another writing provider reads wet.
-When the given-up provider is the only writing provider not dry,
-every other one being dry,
-held or itself given up,
-the give-up is set aside:
+for a provider that serves again after its cooldown (round 2 set it aside for that case).
+Round 3 widened the ruling after round 2 found the case it left:
+the give-up held beside a wet DeepSeek,
+which serves one of the eight translators against a writing floor of two,
+and the entry ended with `WritingBenchUnreachableError`.
+So the give-up holds only while the providers left (not dry by their meter,
+not held by a refusal,
+not given up)
+can still meet every bench floor the entry's stages need,
+the writing floors and the judging quorums,
+counted the way the seat reader counts them.
+Otherwise the give-up is set aside:
 the reader and the router treat its cooldown as before it existed,
 wait it out and ask again,
 and the entry's abort is again the only bound on that loop.
-A provider that is wet but writes nothing (Xiaomi) is no alternative,
-as it is none against "every provider dry" (`WritingReach`).
+The floors are the seat reader's own and are not copied:
+`unmetBenchFloors` (`run-seats-give-up-floors.ts`) asks `judgeSeatsFor`,
+`unreachableWritingBenches` and `shortBenches` about a dryness view in which only the providers left are wet,
+for the union of the benches of all phases (`BENCHES_ANY_PHASE_LEANS_ON`).
+The writing floor is `WRITING_BENCH_FLOOR` and the quorum of a bench is `rosterQuorumSize` of its seats
+(a pair for the readers).
+The writing floor never adds an unmet floor the quorum does not already name
+(the quorum is at least the floor for every writing bench of the roster),
+so it changes the clauses the warn line prints and not the decision.
 The decision is the budget layer's (`provider-budget-give-up-aside.ts`),
 taken from each meter reading and from the holds as they stand,
 so the router and the seat reader,
 which read only the dryness and the holds,
 change nothing.
-It comes back in force when another writing provider reads wet again.
+It comes back in force when the providers left meet every floor again.
 One warn line says when it is set aside,
 naming the provider,
-the entry and how each other writing provider reads,
+the entry,
+how each other provider reads and the floors that would stay unmet,
 and one info line says when it is back in force.
-The roster of writing providers reaches the budgets through `configureProviders` (`writing`),
-which `runClientFrom` fills with `RUN_WRITING_PROVIDERS`.
+The budgets take the floors as `unmetFloors`.
+`run-config.ts` takes them as a required parameter of `runClientFrom` and `createRunClient`,
+because the seat reader imports that file for the roster and the lint refuses a dependency cycle,
+and `run-client-create.ts` hands them over for the two functions the package exports.
+A caller that knows no roster of benches gets the round-2 floor,
+that some writing provider can be asked (`writingProviderFloor`,
+over `WritingReach`:
+a provider that is wet but writes nothing,
+Xiaomi,
+is no alternative).
+`runClientFrom` no longer gives the budgets the writing roster:
+the floors decide,
+and the router still gets `RUN_WRITING_PROVIDERS` for "every provider dry".
+
+What the widened rule costs,
+measured on the roster of 2026-10-25 with Bedrock off and Synthetic given up
+(scratch script over `unmetBenchFloors`,
+all 64 sets of the six other providers):
+48 sets meet every floor,
+and every one of them holds Hyper or OpenRouter;
+the smallest are Hyper alone and OpenRouter alone,
+and no set without both meets them.
+Beside Synthetic and Bedrock,
+NeuralWatt alone meets the writing floors and not the judging quorums
+(it serves two of the eight translators,
+one of the eight wide seats,
+and so on),
+and DeepSeek alone meets neither.
+So a give-up of Synthetic holds only while Hyper or OpenRouter reads wet and is not held.
+Where it holds,
+no bench is short without the given-up provider,
+so the seat reader would not have waited for its cooldown anyway,
+and what the give-up saves is the asks
+(each a retry ladder of requests ending in a refusal).
+Where it does not hold,
+the cooldown is waited once for every slice that is refused right after it,
+which is the shape of XingZ6020 and the price of the rule.
+XingZ6020 itself is such a pass.
+Its 518 `METERS` lines all read NeuralWatt,
+DeepSeek and Xiaomi wet,
+and none reads Hyper,
+OpenRouter or Bedrock wet:
+
+```sh
+# METERS readings in the log, then those with Hyper, OpenRouter or Bedrock wet (the last two print nothing)
+rg --count-matches '\[takeReading\] METERS ' /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log
+rg --count-matches '\[takeReading\] METERS .* (hyper|openrouter|bedrock)=wet' /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log
+rg --count-matches '\[takeReading\] METERS neuralwatt=wet .* deepseek=wet xiaomi=wet' \
+  /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log
+```
+
+The first prints 518,
+the second prints nothing (no match),
+and the third prints 518.
+No set of providers without Hyper and OpenRouter meets every floor,
+so under this rule the give-up of Synthetic would not have held once in that pass,
+and its waits would have been taken as they were.
+The rule does what the ruling asks (it costs the entry nothing waiting would have saved) and,
+on the evidence of that pass,
+does not stop the loop that prompted the work.
+That is for the lead and the owner to weigh.
 
 Where the give-up applies and a call names a model only the given-up provider serves,
 the call ends at the router as `NoProviderForModelError` with no request sent.
@@ -683,12 +756,14 @@ and the voice is unheard,
 unanswered and unreachable.
 
 The limit that remains:
-an entry whose bench the give-up leaves below its floor,
-with a wet provider that is too small to lift it (NeuralWatt serves two translators and DeepSeek one,
-against a floor of two),
-ends that entry with `WritingBenchUnreachableError`,
-which the queue re-attempts or stalls on and which does not end the run.
-The re-attempt begins the entry again with nothing given up.
+the decision reads the last meter reading,
+which is up to the freshness window (60 s) old,
+and the holds as they stand.
+A provider that went dry inside that window is counted wet until the next reading,
+and a change caused only by a hold ending is applied at once but logged at the next reading.
+Round 2 left another limit,
+an entry ended with `WritingBenchUnreachableError` beside a wet provider too small to lift a bench,
+and round 3 removed it.
 
 The red case of the give-up:
 `dd85fdefb2`,
@@ -750,9 +825,100 @@ the holds unit file did not catch it until the two-given-up case was added,
 which does),
 a held provider counted as an alternative (the held case of the holds unit file),
 and `configureProviders` not passing the roster on (the roster case of the run package).
-`runClientFrom`'s own argument (`RUN_WRITING_PROVIDERS`) is read,
+`runClientFrom`'s own argument (`RUN_WRITING_PROVIDERS`) was read in round 2,
 not exercised by a case,
-because a run client exposes no refusal to drive the budgets with.
+because the cases drove the budgets directly and a run client exposes no refusal to drive them with.
+Round 3 found the way:
+the cases of the widening build the run client itself over a scripted transport,
+a Synthetic quota body the meter cannot read and HTTP 429 to every chat call,
+with the retry ladder's sleeps spent at once (`node:timers/promises` is not on the fake clock)
+and `performance` on it,
+so a refused call sets the cooldown through the router as it does in a pass.
+
+Two records of round 2 that its commits did not make.
+The red `92088c6a8e` failed `lint:types` as well as its assertions:
+its Xiaomi case passes `writing` to `createProviderBudgets`,
+which did not take it until `4988ea3d5c`.
+A red must fail by assertion and not by types alone;
+that was a slip,
+and its body named only the type error.
+Two stub errors were also wrong in it,
+a Xiaomi stub that returned a value where a Promise is typed
+and a log case that stubbed the console twice (the second stub failed with "already wrapped"),
+so that case would have failed on the fix for that reason too.
+Both were corrected in `4988ea3d5c`,
+which the commit body did not say.
+And the subject of `8ba3f07c3f` is 106 columns,
+over the limit of 100.
+Neither commit was amended.
+
+The red cases of the widening (round 3):
+`cbd38bd7aa` adds `run/src/corpus-run/run-seats-cooldown-floors.unit.test.ts`.
+It builds the run client (`runClientFrom`) over a scripted transport on a fake clock,
+so the test is the same text before and after the fix and the red type-checks on the parent.
+Beside the refusing Synthetic it lets one provider read wet.
+DeepSeek serves one of the eight translators where the floor is two:
+on `79182398c5` two of the three readings end with `WritingBenchUnreachableError`
+(the assertion on the endings fails with two names in the list).
+NeuralWatt meets the writing floors and not the judging quorums:
+on `79182398c5` the reader waits once where three waits are needed (`expected 1 to equal 3`).
+Hyper meets every floor on its own and passes there:
+Synthetic is asked in two slices and reads dry after the cooldown the entry gave it up on.
+That case pins what stays.
+The fix `c15b734fb5` makes the first two pass.
+The cases of the round-1 and round-2 rig (`run-seats-cooldown-repeat.unit.test.ts`) keep NeuralWatt as the wet provider:
+the rig builds the budgets with no floor source,
+so any wet writing provider is an alternative there and the cases pin the marks and not the floors.
+`844cf137f8` adds `run/src/corpus-run/run-client-writing-roster.unit.test.ts`:
+the writing roster that `runClientFrom` gives the router is the line of `run-config.ts` the mutant below drops.
+
+The provider package gained cases for the floor source
+(`provider-budget-give-up-aside.unit.test.ts`,
+`provider-budget-cooldown-set-aside.unit.test.ts`),
+the run package a unit test of the floors (`run-seats-give-up-floors.unit.test.ts`)
+and a case that `configureProviders` hands the floors on (`run-providers-writing.unit.test.ts`).
+The set-aside warn line changed its wording to name the floors,
+so the exact-line cases of the round-2 files changed with it.
+
+Mutants of round 3,
+each built and run on the final code,
+each restored,
+each failed the cases named:
+the served check removed (the served case of the rig and of the holds unit file),
+the entry-start check removed (the second entry case of both),
+a stated return counted as a cooldown (the stated return case of the rig),
+a cooldown still waited after the give-up (cases of the rig,
+the holds unit file,
+the set-aside file and `run-providers-writing.unit.test.ts`),
+the set-aside never applying (cases of every file of the cooldown family in both packages,
+the DeepSeek case and the pinned case of the rig among them),
+the fallback floor ignoring the roster (cases of the aside unit file,
+the holds unit file,
+the set-aside file and `run-providers-writing.unit.test.ts`),
+a given-up provider counted as an alternative (cases of the aside unit file,
+the set-aside file and the pinned case of the rig,
+and the two-given-up case of the holds unit file),
+a held provider counted as an alternative (cases of the aside unit file and the holds unit file),
+`configureProviders` not handing the floors on
+(the DeepSeek case and the floors case of `run-providers-writing.unit.test.ts`),
+`runClientFrom` handing no floors (the DeepSeek and the NeuralWatt cases),
+the router's writing roster dropped from `runClientFrom` (the roster case of round 3 and no other:
+the ten test files of the run package around the client,
+the holds,
+the seat reader's refusal and the cooldown cases,
+did not notice),
+the floors without the judging quorums (the NeuralWatt case and cases of the floors unit file),
+the floors without the writing floors (the floors unit file only:
+the quorum is at least the floor for every writing bench,
+so the decision does not move,
+the clause does),
+and the floors read for one phase only (the floors unit file only).
+After the last,
+the tree equalled the commit again (`git status` and `git diff` empty).
+`runClientFrom` no longer hands the budgets `RUN_WRITING_PROVIDERS`,
+so round 2's mutant of that argument has no line to drop;
+the argument that replaced it is the floors,
+and handing none fails the DeepSeek and the NeuralWatt cases.
 
 Prevention rule:
 a wait that repeats an ask is judged by what the first wait bought,

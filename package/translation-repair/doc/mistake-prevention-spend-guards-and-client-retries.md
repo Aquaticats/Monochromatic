@@ -222,15 +222,19 @@ and by its entry's abort only as the last resort.
 
 The rule for a give-up:
 giving a provider up narrows where a call may go,
-and it never ends the run.
-The give-up holds only while another provider that keeps the run going reads wet.
-When the given-up provider is the only writing provider not dry,
-every other one being dry,
-held or itself given up,
-the give-up is set aside:
+and it never costs the entry what waiting would have saved.
+The give-up holds only while the providers left (not dry,
+not held,
+not given up) can meet every bench floor the
+entry's stages need,
+the writing floors and the judging quorums,
+read from the seat reader's own helpers over every bench any phase leans on.
+Otherwise the give-up is set aside:
 the reader and the router wait its cooldown out and ask it again,
-since the other way leaves every provider dry and ends the run for a provider that serves again after its cooldown.
-A wet provider that writes nothing is no alternative.
+since the other way ends the run when the given-up provider was the last one not dry,
+and ends the entry with a writing bench error when a wet provider is too small to lift the bench,
+for a provider that serves again after its cooldown.
+A wet provider that cannot lift a bench is no alternative to it.
 Where the give-up holds,
 a call for a model only the given-up provider serves must end as that seat unreachable,
 with no request sent,
@@ -248,6 +252,12 @@ and a stated return counted as a cooldown.
 `provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves,
 `provider/src/provider-budget-give-up-aside.unit.test.ts` those of the set-aside,
 and `provider/src/provider-budget-cooldown-set-aside.unit.test.ts` the budgets and the router's wait over it.
+`run/src/corpus-run/run-seats-cooldown-floors.unit.test.ts` builds the run client itself (`runClientFrom`) over a
+scripted transport on a fake clock,
+and fails when the entry ends with `WritingBenchUnreachableError` beside a wet DeepSeek,
+or waits fewer cooldowns than it is refused beside a wet NeuralWatt;
+`run/src/corpus-run/run-seats-give-up-floors.unit.test.ts` holds the floors,
+and `run/src/corpus-run/run-client-writing-roster.unit.test.ts` the roster the router is handed.
 `stage/src/stage-call-given-up-provider.unit.test.ts` runs the real router over the real budgets and fails when the
 seat only the given-up provider serves is anything but unreachable.
 No scan finds a loop that waits and asks again.
