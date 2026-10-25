@@ -21,6 +21,7 @@ import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup
 import {
   carryChoiceOf,
   carryOffersOf,
+  carryRunOffFinalistsOf,
   type ConsistencyChoiceVoice,
 } from '../dist/final/node/index.mjs';
 
@@ -207,6 +208,25 @@ await describe({
           },
         },),
         it({
+          name: 'CHOOSES NOTHING ON ONE USABLE CHOICE though the gather closed on a quorum of one (a bench of one or two '
+            + 'seats), since one judge alone never decides (the lead\'s ruling of 2026-10-25), and runs nothing off; two '
+            + 'usable choices under the same quorum decide, the positive control',
+          fn: async () => {
+            const labels = ['CANDIDATE 1', 'CANDIDATE 2',];
+            const one = [voiceOf({ seat: 'a', choice: 'CANDIDATE 2', },),];
+            const two = [voiceOf({ seat: 'a', choice: 'CANDIDATE 2', },), voiceOf({ seat: 'b', choice: 'CANDIDATE 2', },),];
+            expect([
+              carryChoiceOf({ voices: one, labels, quorum: 1, },),
+              carryRunOffFinalistsOf({ voices: one, labels, quorum: 1, },),
+              carryChoiceOf({ voices: two, labels, quorum: 1, },),
+            ],).toEqual([
+              { usable: 1, choice: { kind: 'none', reason: 'no-quorum', }, },
+              [],
+              { usable: 2, choice: { kind: 'chosen', label: 'CANDIDATE 2', }, },
+            ],);
+          },
+        },),
+        it({
           name: 'DOES NOT COUNT A CHOICE OF A LABEL THE SHEET NEVER SHOWED or one with a blank reason',
           fn: async () => {
             const decided = carryChoiceOf({
@@ -214,11 +234,12 @@ await describe({
                 voiceOf({ seat: 'a', choice: 'CANDIDATE 9', },),
                 { seat: 'b', reason: '', choice: 'CANDIDATE 2', },
                 voiceOf({ seat: 'c', choice: 'CANDIDATE 1', },),
+                voiceOf({ seat: 'd', choice: 'CANDIDATE 1', },),
               ],
               labels: ['CANDIDATE 1', 'CANDIDATE 2',],
               quorum: 1,
             },);
-            expect(decided,).toEqual({ usable: 1, choice: { kind: 'chosen', label: 'CANDIDATE 1', }, },);
+            expect(decided,).toEqual({ usable: 2, choice: { kind: 'chosen', label: 'CANDIDATE 1', }, },);
           },
         },),
       ],
