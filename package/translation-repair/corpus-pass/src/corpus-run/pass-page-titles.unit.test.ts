@@ -104,9 +104,15 @@ function titleClient(
   {
     asked,
     usable,
+    answering,
   }: {
     readonly asked: RosterModelId[];
     readonly usable: boolean;
+
+    /**
+     The only seats whose replies read, every seat when absent.
+     */
+    readonly answering?: readonly RosterModelId[];
   },
 ): ModelClient {
   return {
@@ -119,7 +125,7 @@ function titleClient(
        Every seat's reply.
        */
       const value: unknown = { titles: [{ title: 1, rendering: 'Song of the Cat', },], };
-      return (usable && request.validate(value,))
+      return (usable && ((answering === undefined) || answering.includes(request.modelId,)) && request.validate(value,))
         ? { kind: 'ok', value, rawText: JSON.stringify(value,), }
         : { kind: 'schema-mismatch', rawText: '{}', detail: 'fixture refuses the sheet', };
     },
@@ -184,11 +190,13 @@ async function lexiconRun(
     usable,
     resumed,
     reseat,
+    answering,
   }: {
     readonly sourceText: string;
     readonly usable: boolean;
     readonly resumed: ReadonlyMap<string, PageTitleLexiconRecord>;
     readonly reseat: boolean;
+    readonly answering?: readonly RosterModelId[];
   },
 ) {
   /**
@@ -207,7 +215,12 @@ async function lexiconRun(
    What the lexicon added.
    */
   const added = await passPageTitles({
-    client: titleClient({ asked, usable, },),
+    client: titleClient({
+      asked,
+      usable,
+      // Conditional spread keeps the field absent where every seat answers.
+      ...((answering === undefined) ? {} : { answering, }),
+    },),
     modelIds: ROSTER,
     beforeItem: async (): Promise<BenchSeating> => {
       hook.reads += 1;
@@ -354,6 +367,32 @@ await describe({
               askedAny: silent.asked.length > 0,
               lines: silent.added.lines,
               stored: silent.persisted.size,
+            },).toEqual({
+              askedAny: true,
+              lines: [],
+              stored: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'SETTLES AND STORES NOTHING when one seat of two answered, since one judge alone never decides (the '
+            + 'lead\'s ruling of 2026-10-25): the page keeps its current titles, and a later run with a healthier '
+            + 'bench asks again rather than resuming a thin round',
+          fn: async () => {
+            /**
+             Round where only the first seat's reply read.
+             */
+            const thin = await lexiconRun({
+              sourceText: REPEATING,
+              usable: true,
+              resumed: new Map(),
+              reseat: false,
+              answering: [ROSTER[0] ?? SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+            },);
+            expect({
+              askedAny: thin.asked.length > 0,
+              lines: thin.added.lines,
+              stored: thin.persisted.size,
             },).toEqual({
               askedAny: true,
               lines: [],

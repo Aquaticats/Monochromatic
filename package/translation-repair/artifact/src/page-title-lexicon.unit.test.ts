@@ -287,6 +287,85 @@ await describe({
           },
         },),
         it({
+          name: 'SETTLES NOTHING from one heard voice, whatever it rendered, since one judge alone never decides '
+            + '(the lead\'s ruling of 2026-10-25, on the owner\'s rule): every repeated title keeps its current '
+            + 'rendering, and a finding says why',
+          fn: async () => {
+            /**
+             Seat of every call.
+             */
+            const asked: RosterModelId[] = [];
+            /**
+             What a bench of one seat settled.
+             */
+            const lexicon = await settlePageTitles({
+              client: scriptedClient({
+                replies: { [SEAT_HYPER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], }, },
+                asked,
+              },),
+              modelIds: [SEAT_HYPER_ONLY,],
+              sourceText: SOURCE,
+              spans: SPANS,
+              signal: new AbortController().signal,
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l,
+              fanOut: 'whole-bench',
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+            expect({
+              asked: asked.length,
+              titles: lexicon.titles,
+              heard: lexicon.heard,
+              said: lexicon.findings.includes(
+                'page title lexicon heard fewer than 2 voices, so no title settles and every repeated title keeps its '
+                  + 'current rendering',
+              ),
+            },).toEqual({
+              asked: 1,
+              titles: [],
+              heard: 1,
+              said: true,
+            },);
+          },
+        },),
+        it({
+          name: 'SETTLES A TITLE two heard voices rendered alike, on a bench of two (the positive control: two '
+            + 'voices decide)',
+          fn: async () => {
+            /**
+             Seat of every call.
+             */
+            const asked: RosterModelId[] = [];
+            /**
+             What a bench of two seats settled.
+             */
+            const lexicon = await settlePageTitles({
+              client: scriptedClient({
+                replies: {
+                  [SEAT_HYPER_ONLY]: { titles: [{ title: 1, rendering: 'Song of the Cat', },], },
+                  [SEAT_OPENROUTER_ONLY]: { titles: [{ title: 1, rendering: 'song of the cat', },], },
+                },
+                asked,
+              },),
+              modelIds: [SEAT_HYPER_ONLY, SEAT_OPENROUTER_ONLY,],
+              sourceText: SOURCE,
+              spans: SPANS,
+              signal: new AbortController().signal,
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l,
+              fanOut: 'whole-bench',
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+            expect({
+              titles: lexicon.titles,
+              heard: lexicon.heard,
+            },).toEqual({
+              titles: [{ source: '猫之歌', occurrences: 2, rendering: 'Song of the Cat', voices: 2, heard: 2, },],
+              heard: 2,
+            },);
+          },
+        },),
+        it({
           name: 'KEEPS THE RENDERING MOST VOICES GAVE, comparing without case, spacing or wrapping quotes',
           fn: async () => {
             const { lexicon, } = await settled({
