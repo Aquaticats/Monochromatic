@@ -93,11 +93,12 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  Version 27 reads a reply value that differs from a listed enum or const value only in
  capitalization as the listed value.
  Version 28 removes every weight floor (owner, 2026-10-25): two ballots decide a selection whatever their weight.
+ Version 29 ships a declined round's candidate only when two judges named it (owner, 2026-10-25, "Two judges must name it").
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '50cb2a5f2f58cfb2ca1c805762c033abf80c4afc6d0f629c1960f2e7d77957ec';
+const LEGACY_WINDOWLESS_KEY = '7f54c3ddd8d7454881435887b308635e6f1f72c3143ef5c95c1c2feb2cf52c58';
 
 /**
  One slice's key, with whatever this case wants to vary.
