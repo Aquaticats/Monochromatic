@@ -771,7 +771,7 @@ await describe({
             + 'the opener starts when it starts a line, and a definition cannot interrupt a paragraph when it does not',
           fn: async () => {
             expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n\\[r\\]: u\\{b "t \\{"\n',);
-            expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  [r]: u\\{b\n',);
+            expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  \\[r\\]: u\\{b\n',);
           },
         },),
 

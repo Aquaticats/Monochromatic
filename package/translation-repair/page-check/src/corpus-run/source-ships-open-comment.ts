@@ -5,64 +5,15 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // the rest of the text is the block's content, so a quote mark, a label, a definition, a heading mark or a list marker in it
 // is text, shown as it stands. The package's own parser hides everything after the four characters of such an opener, so the
 // page cannot carry them, and the encoder writes the opener as a character reference (`source-ships-encoding.ts`). The parse
-// that finds where the page needs rewriting is given the opener as it stands where it starts a block, so it reads the one
-// raw HTML block a reader of the source reads, and the rest of the text is written as the text of such a block is. An opener
-// after other text on its line is not a block start and is text to both readers, as one in a block quote or a list item is.
+// that finds where the page needs rewriting is given the openers as they stand where they start a block
+// (`source-ships-open-block.ts` says which do), so it reads the raw HTML blocks a reader of the source reads, and the rest of
+// the text is written as the text of such a block is. An opener after other text on its line is not a block start and is
+// text to both readers.
 
 /**
  What opens an HTML comment.
  */
 export const COMMENT_OPEN = '<!--';
-
-/**
- How many spaces a line may open with before the opener still starts a block of raw HTML.
- */
-const MOST_INDENT = 3;
-
-/**
- Finds the first opener of a comment that never closes when it starts a block of raw HTML.
-
- @param text - whole text
-
- @param starts - index of the `<` of each opener of a comment that never closes, in text order
-
- @returns Index of the first opener when only spaces, at most three, stand before it on its line; -1 otherwise
-
- @example
- ```ts
- const start = blockOpenerStart({ text: '猫\n\n  <!-- a\n', starts: [5,], },);
- ```
- */
-export function blockOpenerStart(
-  {
-    text,
-    starts,
-  }: {
-    readonly text: string;
-    readonly starts: readonly number[];
-  },
-): number {
-  /**
-   The first opener, absent when the list is empty.
-   */
-  const [first = -1,] = starts;
-  if (first === (-1))
-    return -1;
-  /**
-   Index of the first character of the opener's line.
-   */
-  const lineStart = (first === 0) ? 0 : (text.lastIndexOf(
-    '\n',
-    first - 1,
-  ) + 1);
-  if ((first - lineStart) > MOST_INDENT)
-    return -1;
-  for (let at = lineStart; at < first; at += 1) {
-    if (text.charAt(at,) !== ' ')
-      return -1;
-  }
-  return first;
-}
 
 /**
  What an opener of a comment that never closes is, in characters.

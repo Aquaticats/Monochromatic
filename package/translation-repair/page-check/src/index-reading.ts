@@ -3,8 +3,8 @@
 // text after a footnote on its own, give their siblings and their own tests, split out of `index.ts` to keep that file
 // under the line bound.
 
+export { blockOpenerStarts, } from './corpus-run/source-ships-open-block.ts';
 export {
-  blockOpenerStart,
   openerStarts,
   rangesWithoutOpeners,
 } from './corpus-run/source-ships-open-comment.ts';

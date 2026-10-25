@@ -10,8 +10,8 @@ import {
   bareAddresses,
 } from './source-ships-addresses.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import { blockOpenerStarts, } from './source-ships-open-block.ts';
 import {
-  blockOpenerStart,
   openerStarts,
   rangesWithoutOpeners,
 } from './source-ships-open-comment.ts';
@@ -264,24 +264,28 @@ function readText({ text, }: { readonly text: string; },): TextReading {
     return end - 1;
   },);
   /**
-   The opener that starts a block of raw HTML to the end of the text, which the parse is given as it stands.
+   The text with its comments that close blanked, so what stands inside them is not parsed.
    */
-  const rawHtmlStart = blockOpenerStart({
+  const blanked = blanking({
     text,
+    ranges: closedComments,
+  },);
+  /**
+   The openers that start a block of raw HTML to a reader of the source, which the parse is given as they stand.
+   */
+  const blockStarts = blockOpenerStarts({
+    text: blanked,
     starts: openerStartsInText,
   },);
   /**
-   The text as the parse reads it: comments that close blanked, so what stands inside them is not parsed, and the
-   openers of comments that never close written as text, except the one that starts a block of raw HTML.
+   The text as the parse reads it: comments that close blanked, and the openers of comments that never close written as
+   text, except those that start a block of raw HTML.
    */
   const readable = asTheParseReadsIt({
     text: standingIn({
-      text: blanking({
-        text,
-        ranges: closedComments,
-      },),
+      text: blanked,
       starts: openerStartsInText.filter(function notRawHtml(start,): boolean {
-        return start !== rawHtmlStart;
+        return !blockStarts.includes(start,);
       },),
     },),
   },);
