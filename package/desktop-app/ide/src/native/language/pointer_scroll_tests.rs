@@ -13,6 +13,8 @@ use super::test_support::{
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
+/// The identity of the displayed text.
+use ide_app::language::identity::DocumentStamp;
 /// Timers of the toolkit.
 use slint::platform::update_timers_and_animations;
 /// Instants for a rest that began long ago.
@@ -20,6 +22,12 @@ use std::time::Instant;
 
 /// Logical pixels of one code row.
 pub(super) const ROW: f32 = 24.0;
+
+/// The text the unit tests of `Rest` say is displayed.
+pub(super) const TEXT: DocumentStamp = DocumentStamp {
+    file: 1,
+    revision: 0,
+};
 
 /// `lines` lines:
 ///  `alphaNNN beta` on even lines,
@@ -196,6 +204,7 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
         x: 20.0,
         offset: 500.0,
         extent: 9000.0,
+        text: TEXT,
     };
     let mut rest = Rest::default();
     rest.moved(Some(7), spot);
@@ -206,11 +215,13 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
     rest.follow(View {
         offset: 500.4,
         extent: 9000.0,
+        text: TEXT,
     });
     assert_eq!(rest.due(), Some(spot), "rounding restarted the rest");
     rest.follow(View {
         offset: 620.0,
         extent: 9000.0,
+        text: TEXT,
     });
     assert_eq!(rest.due(), None, "a moved view did not restart the rest");
     rest.at = Some((Some(7), Instant::now() - REST * 2));
@@ -218,6 +229,7 @@ fn a_moving_view_restarts_a_rest_that_was_not_asked_for() {
     rest.follow(View {
         offset: 900.0,
         extent: 9000.0,
+        text: TEXT,
     });
     assert!(rest.asked, "a request already made was forgotten");
     assert_eq!(rest.due(), None);
