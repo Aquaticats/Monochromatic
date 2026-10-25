@@ -17,7 +17,10 @@ import {
   type ArchiveOriginalReading,
   archiveOriginalReadingOf,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  rethrowUnlessMissingPath,
+  sliceTagged,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   declinedEntryIds,
@@ -198,9 +201,9 @@ export async function recordEntryDecline(
   },
 ): Promise<EntryOutcome> {
   /**
-   Entry logger.
+   Entry logger, which names the attempt the decline is recorded in (ledger B963).
    */
-  const el = tagged({ tag: entry.id, },);
+  const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
   if (await removeLeftoverPage({
     publishDir,
     entryId: entry.id,
@@ -288,7 +291,7 @@ export async function removeDeclinedPages(
       return entryId;
     },), },);
   for (const entryId of removed) {
-    tagged({ tag: entryId, },)
+    sliceTagged({ l: tagged({ tag: entryId, },), },)
       .warn(`entry ${entryId}: removed a page standing for a declined entry, since the archive's note says the archive ships`,);
   }
   return removed;
