@@ -32,6 +32,11 @@ in this same file,
 at the next free ids B944 to B947,
 under the heading "Round 9 at a glance".
 
+Round 10 answers the nits that the eighth and ninth re-checks left,
+in [its own file](audit-ledger-weight-floors-removed-round-ten.md),
+at the next free ids B948 to B950,
+since this file would pass the limit of a thousand lines.
+
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
@@ -510,6 +515,15 @@ The scan matches words and not grammar,
 so another word that is both a noun and a verb,
 added to the list later,
 can let a pointer through.
+That sentence was incomplete when it was written
+(re-check 8,
+nit A):
+words already in the list were verbs too,
+the quantifiers all,
+both,
+each and some floated away from their noun and read as objects,
+and "that" opening a clause read as an object.
+B949 states what the scan reads since round 10 and what it still does not.
 
 ## B939: the closing sentence of B935 overstated what the plants showed (round 8)
 
@@ -782,7 +796,9 @@ so the round is always two declines and one name.
 The sheet says "only when every judge declines";
 on a bench the window does not cover,
 that means every judge asked,
-as it did before this branch for benches of seven.
+as it did before this branch for benches of five and over
+(corrected in round 10 from "benches of seven";
+the note closes this entry).
 
 Evidence:
 - Before:
@@ -796,6 +812,15 @@ Evidence:
   with indecision planted to ship the rejection fallback (`editor-ensemble.ts`),
   the case fails at salt 2 and the other two cases pass.
   The plant was restored.
+
+Correction of round 10
+(re-check 9,
+nit 2).
+The sentence about the sheet said benches of seven.
+The window applied from a bench of five at `b6927f7ba9`,
+where the deleted test named `THINNEST_WINDOWED_BENCH` as 5,
+and nothing in the docs ties production to seven.
+It reads benches of five and over.
 
 ## B946: the two refine cases read a self-vote that holds only when the refiner is asked (round 9)
 
@@ -867,8 +892,21 @@ and `test:unit` passed 65 and 149 suites with none failed.
 The first oxlint run of archive found the counter of the new predicate (`no-function-root-let`),
 which `5553a18d38` removes.
 Source-scan `test:unit` passed 68 and `source-scans` 53 on the tree with this text.
-The full rotation sweep ran once after this text was committed,
-and its result line is in the hand-back of the round.
+The full rotation sweep ran once after this text was committed.
+This entry had named the hand-back of the round as the place of its result;
+round 10
+(re-check 9,
+nit 5)
+puts the lines of the log here,
+with the first line wrapped at its semicolon:
+
+```text
+// rotation sweep of round 9, result lines
+rotation sweep: test files 1321, packages 26, salts 0 1 2 3 4 5 6 7 8 9;
+the canary saw each salt move the stage package's rotation
+rotation sweep: cases failing under a salt that salt 0 passes 0, cases red with no shift 0
+rotation sweep: clean
+```
 
 Commit-message slips of this round:
 - `a62c92771ab60c85630054efdc355701c4d77ae2` states the cause of all four as fact from the diff of the fan-out,

@@ -679,6 +679,13 @@ named for that subject and listed here.
   the two refine cases that read a self-vote (B946),
   and the cache versions,
   the gates and the lesson (B947).
+- [Audit ledger: the weight floors removed, round 10](audit-ledger-weight-floors-removed-round-ten.md):
+  The nits the eighth and ninth re-checks left:
+  a split four-seat bench settled by the seat the rotation leaves out (B948),
+  the position scan that read a verb,
+  a floating quantifier and "that" as the object of a comparison (B949),
+  and the refiner left out of the window,
+  the cache versions and the gates (B950).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
