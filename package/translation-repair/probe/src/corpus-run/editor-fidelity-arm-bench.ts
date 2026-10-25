@@ -131,7 +131,7 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
       },): string {
         return lineOfCheck({
           scope: arm,
-          check: 'trials in the first arm\'s order',
+          check: 'units in the first arm\'s order',
           answer: trialOrderAnswer({
             first,
             later: figures,
@@ -150,7 +150,7 @@ export function checkEditorBench({ arms, }: { readonly arms: readonly ArmLog[]; 
         },),
         lineOfCheck({
           scope: arm,
-          check: 'trials at the output cap or thrown',
+          check: 'units at the output cap or thrown',
           answer: trialEndsAnswer({ figures, },),
         },),
       ];

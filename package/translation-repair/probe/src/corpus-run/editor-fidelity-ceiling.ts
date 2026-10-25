@@ -286,7 +286,13 @@ export function usdText({ usd, }: { readonly usd: number; },): string {
  ```
  */
 export function ceilingLine({ ceiling, }: { readonly ceiling: EditorCeiling; },): string {
-  return `ceiling ${ceiling.cardId}: ${String(ceiling.trials,)} ${ceiling.trials === 1 ? 'trial' : 'trials'}, one ask each, `
+  return `ceiling ${ceiling.cardId}: ${String(ceiling.trials,)} ${
+    wordForCount({
+      count: ceiling.trials,
+      one: 'unit',
+      many: 'units',
+    },)
+  }, one ask each, `
     + `at most ${usdText({ usd: ceiling.firstPassUsd, },)} USD; with ${String(MAX_ASKS_PER_TRIAL,)} ${
       wordForCount({
         count: MAX_ASKS_PER_TRIAL,
