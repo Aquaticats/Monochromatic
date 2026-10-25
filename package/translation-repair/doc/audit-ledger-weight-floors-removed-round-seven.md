@@ -364,9 +364,16 @@ to 36 and 43.
 The seventh independent re-check of round 7 found no major finding,
 one minor finding and five nits,
 and round 8 fixes all of them.
-`origin/main` was still `96ed19a2b1` when the round started,
-an ancestor of the branch,
-so landing is a fast-forward and no merge was made in round 8.
+`origin/main` moved from `96ed19a2b1` to `6457f1f09c` during the round
+(one commit,
+touching only `doc/handover/slint-ide-0x.md`,
+none in `package/translation-repair`),
+and the branch merged it in `e73f350789` with no conflict.
+`6457f1f09c` is an ancestor of the branch,
+so landing is a fast-forward.
+The first version of this paragraph said no merge was made in round 8;
+it was written before the merge and corrected in the same round,
+the pattern B942 records for round 7.
 
 The phrase that gave the word behind two meanings is B937.
 The position scan that passed a positional comment is B938.
