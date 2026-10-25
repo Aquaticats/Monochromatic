@@ -61,31 +61,35 @@ export const POSITION_MARKERS: ReadonlySet<string> = wordSet({
 /**
  Words that, after a position, make it a comparison rather than a pointer:
  "ranks the house rules above its own", "a rate above one", "the threshold
- below which", "a voice below half".
+ below which", "a voice below quorum".
 
  A WORD THAT IS ALSO A VERB DOES NOT BELONG HERE ALONE (re-check 7, nit 2). "ties" stood in this list for "preservation
  above ties", and let "the asked count below ties the script" pass, the verb read as the object. It left the list, and
  the one comparison in the texts that used the noun is in the exemptions, with its reason.
 
- WHAT THE SCAN READS BEYOND THE WORD (re-check 8, nit A). Three groups of words in this list are something else as
- well, and each is read with the word after it, joined to it by spaces alone:
+ WHAT THE SCAN READS BEYOND THE WORD (re-check 8, nit A). Two groups of words in this list are something else as well,
+ and each is read with the word after it, joined to it by spaces alone:
  `COMPARED_UNLESS_OBJECT_FOLLOWS` holds the words that are verbs or open a clause ("the lines below zero the counter",
  "the statement above that a run-off keeps its key holds"), which compare unless a determiner, a quantifier or a
  pronoun follows; `COMPARED_ONLY_BEFORE_NAMED_THING` holds the quantifiers that float away from their noun ("the cases
- below all pass", "the checks below both fail"), which compare only when a determiner, "of", "else", "other" or
- "others" follows or nothing joins them to a next word ("above all, it naps").
+ below all pass", "the checks below each assert a whisker"), which compare only when a determiner, "of", "else",
+ "other" or "others" follows or nothing joins them to a next word ("above all, it naps").
+
+ THIRTEEN WORDS LEFT THE LIST because no text the guard reads needed them: an, his, her, some, half, exact, both and the
+ numbers four, six, seven, eight, nine and ten. The count is of raw findings, with no exemption applied, that appear
+ when one word alone is deleted; "regression" adds one, a true comparison, and stays. A position before a word that
+ left is a pointer: "the lines below exact a fixed count", "the bowls below half the set" and "the checks below both
+ fail" are found, and so is a comparison such as "a rate above four", which then needs an exemption with its reason.
 
  WHAT IT STILL DOES NOT READ. A word of the list that is a verb or opens a clause and is followed by a word outside
  `OBJECT_OPENERS` reads as a comparison: "the lines below that write it" and "the paragraphs above that explain" pass,
- since the scan cannot tell a verb from a noun. A quantifier followed by "of" reads as a comparison too ("the cases
- below some of which fail", "the persist below each of them"). A comparison that the groups send to a pointer ("votes
- below half the bowl", "a cat above both reference rules") needs an exemption with its reason. Any other word that is
- both a noun and a verb, added to the list later, lets a pointer through unless it joins a group.
+ since the scan cannot tell a verb from a noun. A quantifier followed by "of" reads as a comparison too ("the persist
+ below each of them"), which hides "the cases below all of which fail". Any other word that is both a noun and a verb,
+ added to the list later, lets a pointer through unless it joins a group.
  */
 export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
-  words: 'the a an its their his her one zero it that this what any every each some all which baseline threshold '
-    + 'quorum half twice hard exact total regression both anything two three four five six seven eight nine ten '
-    + 'sixteen',
+  words: 'the a its their one zero it that this what any every each all which baseline threshold quorum twice hard '
+    + 'total regression anything two three five sixteen',
 },);
 
 /**
@@ -94,14 +98,14 @@ export const COMPARED_OBJECTS: ReadonlySet<string> = wordSet({
  opens an object or a clause follows it.
  */
 export const COMPARED_UNLESS_OBJECT_FOLLOWS: ReadonlySet<string> = wordSet({
-  words: 'exact baseline zero threshold half total that',
+  words: 'baseline zero threshold total that',
 },);
 
 /**
  Words in the compared list that float away from the noun they count: "the cases below all pass", "the checks below
- both fail". After a position, one of these compares only when what follows names the thing compared.
+ each assert a whisker". After a position, one of these compares only when what follows names the thing compared.
  */
-export const COMPARED_ONLY_BEFORE_NAMED_THING: ReadonlySet<string> = wordSet({ words: 'all both each some', },);
+export const COMPARED_ONLY_BEFORE_NAMED_THING: ReadonlySet<string> = wordSet({ words: 'all each', },);
 
 /**
  Words that open an object or a clause after a word of the compared list: a determiner, a quantifier or a pronoun.

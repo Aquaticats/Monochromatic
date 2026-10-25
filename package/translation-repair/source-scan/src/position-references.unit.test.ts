@@ -33,10 +33,11 @@
  none.
 
  A COMPARED WORD THAT IS ALSO SOMETHING ELSE IS READ WITH THE WORD AFTER IT (re-check 8, nit A). A verb of the list
- ("the lines below zero the counter", with exact, baseline, threshold, half and total) and "that" opening a clause
+ ("the lines below zero the counter", with baseline, threshold and total) and "that" opening a clause
  ("the statement above that a run-off keeps its key holds") compare unless a determiner, a quantifier or a pronoun
- follows; a quantifier that floats away from its noun ("the cases below all pass", with both, each and some) compares
- only when a determiner, "of", "else", "other" or "others" follows. What the scan still lets through, a bare verb
+ follows; a quantifier that floats away from its noun ("the cases below all pass", with each) compares
+ only when a determiner, "of", "else", "other" or "others" follows. Thirteen words that no text needed left the list
+ (an, his, her, some, half, exact, both and four to ten), so a position before one is a pointer. What the scan still lets through, a bare verb
  after "that" ("the lines below that write it") and a quantifier before "of", is stated in the TSDoc of
  `COMPARED_OBJECTS` and in ledger B938.
 
