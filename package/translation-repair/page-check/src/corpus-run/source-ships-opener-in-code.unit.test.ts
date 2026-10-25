@@ -160,7 +160,7 @@ await describe({
       name: 'CARRIES THE QUOTE MARKS ON EACH LINE IT WRITES FOR A FENCE IN A BLOCK QUOTE',
       fn: async () => {
         expect(encodeAsLiteralMdx({ text: '> ```\n> x {a}\n> <!-- never\n> y {b}\n', },),).toBe(
-          '> ```\n> x {a}\n> ```\n>\n> &lt;\\!\\-\\- never\n>\n> ```\n> y {b}\n> ```',
+          '> ```\n> x {a}\n> ```\n>\n> &lt;\\!\\-\\- never\n>\n> ```\n> y {b}\n',
         );
       },
     },),

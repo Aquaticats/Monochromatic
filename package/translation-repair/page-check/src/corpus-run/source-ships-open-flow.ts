@@ -131,7 +131,7 @@ function runOf({ line, }: { readonly line: string; },): MarkOrNone {
  const mark = openingMark({ line: '```js', },);
  ```
  */
-function openingMark({ line, }: { readonly line: string; },): MarkOrNone {
+export function openingMark({ line, }: { readonly line: string; },): MarkOrNone {
   /**
    The run the line starts with.
    */

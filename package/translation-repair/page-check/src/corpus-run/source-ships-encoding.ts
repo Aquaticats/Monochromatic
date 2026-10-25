@@ -21,6 +21,7 @@ import {
   closerOfWritten,
   NO_MARK,
 } from './source-ships-open-flow.ts';
+import { editsWithOpeners, } from './source-ships-opener-in-code.ts';
 import {
   asTheParseReadsIt,
   blanking,
@@ -149,8 +150,10 @@ import {
 // comment that never closes is read on the page as Markdown, where the package's own mask would hide it, so the shown
 // cases compare such a run up to the opener. The reach of a bare address is taken as up to the next space or less-than
 // sign, as the GFM autolink-literal pattern does. An opener of a comment that never closes is written as a character
-// reference wherever it stands, inside code too, where it shows as written. A fence indented under a footnote
-// definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
+// reference, and where it stands in a fence, a display math, a code span or inline math what holds it is taken out of the
+// code first (`source-ships-opener-in-code.ts`), since the reference shows as written in code; one in a code span that only
+// the reading of a footnote in a block quote pairs is not found, and the comparison reports the page. A fence indented
+// under a footnote definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
 // takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
 // backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
 // opens a run is an ordinary character on the page, where a fence mark after it opens no fence, so the encoder reads
@@ -357,15 +360,19 @@ function readText({ text, }: { readonly text: string; },): TextReading {
     };
   }
   /**
+   The parse of the readable text, with the tails of the footnotes read on their own.
+   */
+  const root = rootWithFreshTails({
+    readable,
+    root: parseMarkdownMathBody({ body: readable, },),
+  },);
+  /**
    What the parse says of the readable text.
    */
   const spans = spansOf({
     source: text,
     readable,
-    root: rootWithFreshTails({
-      readable,
-      root: parseMarkdownMathBody({ body: readable, },),
-    },),
+    root,
   },);
   return {
     text: spans.text,
@@ -373,14 +380,13 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       ranges: spans.literal,
       starts: openerStartsInText,
     },),
-    edits: [
-      ...spans.edits,
-      ...openers,
-    ].toSorted(function byStart(
-      left,
-      right,
-    ): number {
-      return left.start - right.start;
+    edits: editsWithOpeners({
+      source: text,
+      root,
+      starts: openerStartsInText,
+      edits: spans.edits,
+      openers,
+      closed: closedComments,
     },),
     insideLinks: spans.insideLinks,
     streamStarts: spans.streamStarts,

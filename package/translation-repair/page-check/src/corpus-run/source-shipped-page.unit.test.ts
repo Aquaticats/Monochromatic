@@ -362,8 +362,8 @@ const HOSTILE_SOURCES: readonly HostileSource[] = [
 /**
  Two runs of which the first leaves a fence or display math open at its end and a line of the second would close it,
  with the slices the first step writes as literal text, and the defects the page ships with: a comment that never closes
- is read by a reader of plain Markdown as raw HTML to the end of the text, which the page does not show, so the
- comparison of the two readings reports it.
+ inside a display math is taken out of it (`source-ships-opener-in-code.ts`), so the page shows it as the source does and
+ ships no defect.
  */
 const OPEN_FLOW_PAIRS: readonly {
   readonly name: string;
@@ -377,14 +377,14 @@ const OPEN_FLOW_PAIRS: readonly {
     first: '$$\n{x\n\n<!--\n',
     second: '$$\nx < {y}\n',
     slices: 'slices [1, 3]',
-    checks: ['source-reads-differently',],
+    checks: [],
   },
   {
     name: 'a display math the first run opens and a second run holding a comment that never closes',
     first: '$$\n{y\n',
     second: '$$\nz < {w}\n<!--\n',
     slices: 'slices [1, 3]',
-    checks: ['source-reads-differently',],
+    checks: [],
   },
   {
     name: 'a fence after a byte order mark in the first run, which the page reads as text, and a fence in the second',
