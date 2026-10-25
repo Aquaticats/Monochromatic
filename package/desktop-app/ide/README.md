@@ -2240,6 +2240,21 @@ Two changes since 2026-10-25 remove the blank.
   a placement releases the follow,
   and rows that arrive during the ease ask for the tile of the same end again under the new map (`wheel::refit`).
 
+The wheel path writes at debug level
+`the windowing system turned the wheel` for every wheel event with a line delta that reaches the window
+(`wheel::note_event`,
+before the toolkit sees it,
+whatever the displayed tile holds)
+and `a wheel turn began an ease` for every turn the scroll reports within 50 ms of it (`wheel::turn`,
+`covered=true` when the displayed tile holds the end).
+A turn the window state could not note,
+and a note older than 50 ms,
+write a record of their own.
+A session whose log has no such line received no wheel event:
+a wheel sent before the window has its real size (up to a second after the language server is ready under a one-core limit)
+reached no surface (13 of 210 sessions),
+and all of those showed the top of the file.
+
 Measured on 2026-10-25 in the nested compositor (1080 by 1880 logical px at scale 2,
 the hardware GPU,
 a 1,500-line TypeScript file with TypeScript 7.1.0-beta as the server,
@@ -2419,6 +2434,33 @@ Anything else that moved is handled by `ShapedView::rebase`.
 A tile built on the window thread (an edit,
 a selection,
 a jump) measures its lines first in the same way.
+
+The window thread measures a tile's lines in rounds (`measure_requested`,
+`src/native/render/measure.rs`):
+each round measures the lines the tile asks for,
+the map follows what it found,
+and the tile asked for next can reach further down the text,
+because lines that were corrected are shorter.
+The rounds go on until one changes no height (at most `ROUNDS`,
+and the warn-level record `the heights of the tile were still changing` if the bound is ever reached),
+so that every line of the tile built next has the height the map holds for it.
+Until 2026-10-25 there were three rounds,
+and the lines the last round asked for were only paid for,
+never taken into the table.
+The table holds heights from the narrow first width of a window (about 173 px,
+before the window has its real size) wherever a pass chunk was applied before the real width arrived,
+and that stands inside the tile of the real width too:
+in 19 of 320 sessions with no input under a one-core limit,
+the last 3 lines of a tile of 155 lines (150 to 152,
+the three `export const` lines of one period of the generated file) kept two rows,
+and the pass never sends the lines of the displayed tile again,
+so the row map stayed 72 px taller than the text until a tile that covered those lines was built.
+`apply_pass` logs a line of the displayed tile whose rows differ from what the pass measured
+(`the measurement found rows in the displayed tile that differ from the map`).
+`a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`)
+and the guard case `measure-rounds-capped` hold the rule;
+the account is in `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
+section "A row map taller than the text".
 
 A new wrap width,
 from a window or sidebar resize,

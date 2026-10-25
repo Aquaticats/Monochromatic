@@ -5134,6 +5134,40 @@ subsections "The first far scroll of a fresh session with no character under the
   OCR of the gutter,
   CPU-limited sessions) was kept only in the session scratch and removed.
 
+## The taller row map and the missing wheel log lines, 2026-10-25 (branch worktree-agent-a02a1c558c302127c)
+
+Both unexplained items of the open-items agent are explained;
+the full account with counts is the section "A row map taller than the text" of
+`doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`.
+
+- The taller row map:
+  the window thread measured the lines of a new width's tile in three rounds and discarded the last measurement,
+  so lines 150 to 152 of the 1,500-line file kept the two rows a pass chunk at the narrow first width (173 px) had left in the table,
+  and `apply_pass` never applies the lines of the displayed tile.
+  Reproduced (input-free sessions,
+  one-core limit):
+  `origin/main` 12 of 160,
+  a second copy 7 of 160,
+  the fix 0 of 160.
+  It does not correct itself without input;
+  a resize or a tile that covers the lines does.
+- Fix:
+  `measure_requested` (`src/native/render/measure.rs`) repeats its rounds until no height changes (at most 64) and absorbs the last measurement.
+  Test `a_tile_taken_at_once_for_a_new_width_holds_only_measured_lines` (`src/native/wrap_measure_tests.rs`;
+  before the fix 4 stale lines),
+  guard case `measure-rounds-capped`.
+  A debug record names rows of the displayed tile that differ from the pass.
+- Missing wheel lines:
+  the wheel records are written for every turn,
+  covered by the tile or not;
+  the 13 of 210 sessions without a line never received the event (the wheel was sent before the real window size,
+  and the gutter showed the top of the file).
+  Two silent branches of the wheel path now write a debug record.
+- Not explained:
+  where a wheel sent before the real size is dropped (compositor or toolkit);
+  the taller map in the one session of 1,160 without a limit (logs gone).
+- The harness was kept only in the session scratch (`~/temp/agent/rowmap`) and is removed with its throwaway builds.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
