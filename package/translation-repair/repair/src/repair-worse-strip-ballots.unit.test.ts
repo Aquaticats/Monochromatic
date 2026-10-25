@@ -114,22 +114,22 @@ const REWRITTEN: EditorStageResult = {
 /**
  Accepted issue served by one envelope.
 
- @param suffix - which envelope's issue
+ @param envelopeName - which envelope's issue, `first` or `second`
 
  @returns The issue
 
  @example
  ```ts
- const first = acceptedIssue({ suffix: 'first', },);
+ const first = issueServedBy({ envelopeName: 'first', },);
  ```
  */
-function acceptedIssue({ suffix, }: { readonly suffix: string; },): AdjudicatedIssue {
+function issueServedBy({ envelopeName, }: { readonly envelopeName: string; },): AdjudicatedIssue {
   return {
-    issueId: `adjudicated/${suffix}`,
-    status: 'accepted',
-    severity: 'major',
     claims: [],
     tallies: {},
+    severity: 'major',
+    status: 'accepted',
+    issueId: `adjudicated/${envelopeName}`,
   };
 }
 
@@ -169,8 +169,8 @@ function stripUnder(
     editor: REWRITTEN,
     envelopes: ENVELOPES,
     creditableIssues: [
-      acceptedIssue({ suffix: 'first', },),
-      acceptedIssue({ suffix: 'second', },),
+      issueServedBy({ envelopeName: 'first', },),
+      issueServedBy({ envelopeName: 'second', },),
     ],
     tallies: tallyResolutionChecks({
       issueIds: ISSUE_IDS,

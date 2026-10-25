@@ -88,26 +88,26 @@ const WRITER = 'hf:cat/Cat-A' as unknown as RosterModelId;
 /**
  A fresh rendering written by a model.
 
- @param text - the rendering
+ @param rendering - the rendering
 
  @returns Candidate as the slate carries it
 
  @example
  ```ts
- const candidate = writtenCandidate({ text: 'The cat dozes.', },);
+ const candidate = freshByWriter({ rendering: 'The cat dozes.', },);
  ```
  */
-function writtenCandidate({ text, }: { readonly text: string; },): Candidate<TranslateCandidateValue> {
+function freshByWriter({ rendering, }: { readonly rendering: string; },): Candidate<TranslateCandidateValue> {
   return {
+    rendered: rendering,
     producer: {
       kind: 'model',
       modelId: WRITER,
     },
     value: {
-      text,
       origin: 'fresh',
+      text: rendering,
     },
-    rendered: text,
   };
 }
 
@@ -185,8 +185,8 @@ async function judgedDeclining(
         client: decliningClient({ sheets, },),
         produced: {
           candidates: [
-            writtenCandidate({ text: 'The cat dozes on the windowsill, tail draped beside the radiator.', },),
-            writtenCandidate({ text: 'A cat naps on the sill, its tail hanging near the heater.', },),
+            freshByWriter({ rendering: 'The cat dozes on the windowsill, tail draped beside the radiator.', },),
+            freshByWriter({ rendering: 'A cat naps on the sill, its tail hanging near the heater.', },),
             laneCandidate({
               lane: 'repair',
               text: 'The cat curls up on the ledge, tail tucked by the warmth.',

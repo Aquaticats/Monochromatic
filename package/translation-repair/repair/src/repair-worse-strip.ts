@@ -27,7 +27,7 @@ import type { IssueResolutionTally, } from '@monochromatic-dev/translation-repai
 //
 // TWO BALLOTS FOR UNDO TOO (the owner's answer of 2026-10-25, "Two ballots
 // for undo too", under the rule that one judge alone never decides): the ruling
-// above said "at least one worse ballot" and now reads as the condition that
+// of 2026-09-28 said "at least one worse ballot" and now reads as the condition that
 // sets `regressed` on the issue's tally (`tallyResolutionChecks`, the one
 // definition): two or more ballots name worse and the worse weight exceeds
 // the fixed and not-fixed weight together. One worse ballot strips nothing,
@@ -130,8 +130,8 @@ export function stripWorseVotedEdits(
     .filter(function isWorseVoted([issueId, tally,]: ReadonlyEntry<string, IssueResolutionTally>,): boolean {
       if (!creditableIds.has(issueId,))
         return false;
-      // `regressed` excludes `resolved` (worse above fixed plus the rest cannot
-      // sit with fixed above worse plus the rest), so it alone is the condition.
+      // `regressed` excludes `resolved` (worse outweighing fixed plus the rest cannot
+      // sit with fixed outweighing worse plus the rest), so it alone is the condition.
       return tally.regressed;
     },)
     .map(function toId([issueId,]: ReadonlyEntry<string, IssueResolutionTally>,): string {
