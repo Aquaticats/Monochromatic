@@ -578,7 +578,7 @@ Four commits change Markdown only:
 ## Round 15: the findings of re-check 11 and the outcome of the bench
 
 The independent re-check of round 14 (`editor-recheck11.md`) found no major,
-no minor and five nit,
+no minor and five nits,
 and each was ruled a fix.
 The bench had finished,
 so this round also records what it found.
@@ -752,5 +752,49 @@ with the link text broken at a comma or a space and the target kept whole on the
 with the definitions at the end of the file.
 `b3d7e293b1f95652e3c6f5b851b75842fd5cf06e` breaks a clause that `b27c7bb93dc6d450086be48c8942a8058a3b8f0e`
 left running on past a comma in the decision record.
+
+## Round 16: the findings of re-check 12
+
+The independent re-check of round 15 (`editor-recheck12.md`) found no major,
+one minor and seven nits;
+each was ruled a fix,
+or a message slip to correct by a commit comment.
+It confirmed every figure of the outcome file and of the section for round 15 against the read step's output,
+and rendered every touched Markdown file with micromark.
+Two commits came after the one that holds the section for round 15 and are named here:
+`d2d9ad9a84e26a7900219cdd6c09e1ecb86b51b6` merges `origin/main` at `a50c2875a2`,
+and `2e6c835d273e36794febe984533488bfa757b4fb` wraps the one line over 120 characters that the merge brought.
+
+- The minor:
+  `b27c7bb93dc6d450086be48c8942a8058a3b8f0e` broke the two probe result lines of the decision record
+  between their members
+  and tagged the fence `json`,
+  so the fence held two root objects that no JSON reader parses,
+  and the lines were no longer as the probe wrote them.
+  The fence is `jsonl` again with each result on one line,
+  verbatim:
+  the 120-character bound is a rule for prose,
+  and the linter passes the fence with its long lines.
+  The section for round 15 counts those 2 JSON lines among the 133 wrapped;
+  they are wrapped no longer.
+- The outcome file pointed at "the last block of the README",
+  which names a block by position,
+  and that block reads `SHA` from `HEAD`,
+  so from any later checkout it names a bench directory that does not exist.
+  The file now names the block by its title and its section,
+  and says to set `SHA=85e21653a2` by hand.
+- The `@returns` of `unusableWarning` said "Warning lines" and then "one line";
+  it now says "Lines" and "one".
+- This file said "five nit";
+  it says "five nits".
+- The commit list of round 15 left out `d2d9ad9a84` and `2e6c835d27`;
+  this section names them.
+- Message slips,
+  to correct by a commit comment once the branch lands:
+  `b27c7bb93dc6d450086be48c8942a8058a3b8f0e` says a link cannot be broken across lines,
+  but `2e3a508520060aa38117d7d7e886b765bd4d86b3` breaks the text of 54 links and each renders;
+  `7f3ca7257bf139c44806d81a48e1a8aefb3311bb` says "three Markdown commits of round 14" where this file names four;
+  `2e6c835d273e36794febe984533488bfa757b4fb` says the wrapped line was 122 characters,
+  and it measured 121 (the coordinator wrote the figure before measuring it).
 
 [prevention]: mistake-prevention-spend-guards-and-client-retries.md
