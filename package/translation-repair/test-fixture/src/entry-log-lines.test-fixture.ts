@@ -3,14 +3,16 @@ import { format, } from 'node:util';
 import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
 
 //region Entry log lines
-// THE LINES AN ENTRY'S LOGGERS WRITE WHILE WORK RUNS, read off `console.info` and `console.warn`, where the tagged
-// logger's `info` and `warn` sinks resolve, through stubs on the calling case's own sandbox (`ctx.sinon`), which
-// module-test restores when the case ends. The caller runs the work inside the log context it wants (this fixture
-// imports no production code, so it cannot set one), and the lines that name the entry in a bracket come back for the
-// case to read, one line each (the logger hands a run of lines of one level to the console as one call). `console.debug`
-// is not read, because the logger writes debug records to the process's stderr.
+// THE LINES AN ENTRY'S LOGGERS WRITE WHILE WORK RUNS, read off every console method the tagged logger writes to:
+// `console.info`, `console.warn`, `console.error` (where a fatal line goes too) and `console.trace`, through stubs on
+// the calling case's own sandbox (`ctx.sinon`), which module-test restores when the case ends. The caller runs the work
+// inside the log context it wants (this fixture imports no production code, so it cannot set one), and the lines that
+// name the entry in a bracket come back for the case to read, one line each (the logger hands a run of lines of one
+// level to the console as one call). `console.debug` is not read, because the logger writes debug records to the
+// process's stderr, and only those a verbose run lets through (`LEVEL_TO_CONSOLE_METHOD` in the logger's console sink
+// maps the levels).
 //
-// SEQUENTIAL CASES ONLY. `console.info` is one global, and a case running beside this one would be captured.
+// SEQUENTIAL CASES ONLY. The console methods are globals, and a case running beside this one would be captured.
 
 /**
  Runs work and collects the lines the loggers wrote that name an entry.
@@ -21,7 +23,7 @@ import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
 
  @param run - the work, run inside whatever log context the caller sets
 
- @returns Lines from `console.info` then `console.warn`, each holding `[entryId]`
+ @returns Lines from `console.info`, `console.warn`, `console.error` and `console.trace`, each holding `[entryId]`
 
  @example
  ```ts
@@ -53,13 +55,29 @@ export async function entryLinesWritten(
     console,
     'warn',
   );
+  /**
+   Stub on `console.error`, recording each call's arguments.
+   */
+  const errored = sinon.stub(
+    console,
+    'error',
+  );
+  /**
+   Stub on `console.trace`, recording each call's arguments.
+   */
+  const traced = sinon.stub(
+    console,
+    'trace',
+  );
   await run();
   /**
-   Arguments of every call the work made to either method, `console.info` first.
+   Arguments of every call the work made to any of the four methods, `console.info` first.
    */
   const calls: readonly (readonly unknown[])[] = [
     ...informed.args,
     ...warned.args,
+    ...errored.args,
+    ...traced.args,
   ];
   return calls
     .flatMap(function linesOf(parts,): readonly string[] {
