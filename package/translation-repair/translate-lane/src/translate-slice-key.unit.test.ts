@@ -136,7 +136,7 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 35: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
+      name: 'IS AT VERSION 36: the owner\'s rulings of 2026-10-25 removed every weight floor (28), a declined round '
         + 'ships a candidate only when two judges named it (29), a tie across every candidate ships by the fixed '
         + 'preference only among candidates two judges named (30), the sentence the judges read about a declined '
         + 'round over wording that cannot ship stopped contradicting itself (31) and then said that declining does not '
@@ -144,12 +144,14 @@ await describe({
         + 'then told per round, the first ask settling nothing and the challenge of the first call sending the '
         + 'passage back for new proposals (33, re-check 4, F1) and then said what a tie backing only some candidates does '
         + 'and that the panel, not the same judges, is asked again (34, re-check 5, M-B and M-D) and then said that the '
-        + 'run-off is asked only where it leaves some candidates behind (35, re-check 6, M-B), so a '
+        + 'run-off is asked only where it leaves some candidates behind (35, re-check 6, M-B) and then said that a round '
+        + 'with nothing to narrow asks no such question, in place of a round that leaves no candidate behind (36, '
+        + 're-check 7, nit 1), so a '
         + 'stored slice may hold ballots cast under the old sentence, and the key hashes the version, the shape of '
         + 'the run and the texts, not the sheet, so only this number retires a record written '
         + 'under the old sentence before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(35,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(36,);
       },
     },),
     it({
