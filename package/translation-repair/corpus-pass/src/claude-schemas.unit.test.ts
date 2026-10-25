@@ -113,6 +113,7 @@ import { IMPORT_CHAIN_CASES, } from './claude-schema-import-chain-forms.test-fix
 import { FORWARDER_VALUE_CASES, } from './claude-schema-forwarder-value-forms.test-fixture.ts';
 import { DERIVED_NAME_CASES, } from './claude-schema-derived-forms.test-fixture.ts';
 import { DERIVED_LOOP_CASES, } from './claude-schema-derived-loop-forms.test-fixture.ts';
+import { DERIVED_CONTAINER_CASES, } from './claude-schema-derived-container-forms.test-fixture.ts';
 import { CALLBACK_SCOPE_CASES, } from './claude-schema-callback-scope-forms.test-fixture.ts';
 import { PARAMETER_PROPERTY_CASES, } from './claude-schema-parameter-property-forms.test-fixture.ts';
 import { SENDER_NAMESPACE_CASES, } from './claude-schema-sender-namespace-forms.test-fixture.ts';
@@ -864,6 +865,7 @@ await describe({
       ...FORWARDER_VALUE_CASES,
       ...DERIVED_NAME_CASES,
       ...DERIVED_LOOP_CASES,
+      ...DERIVED_CONTAINER_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
@@ -945,6 +947,7 @@ await describe({
       ...FORWARDER_VALUE_CASES,
       ...DERIVED_NAME_CASES,
       ...DERIVED_LOOP_CASES,
+      ...DERIVED_CONTAINER_CASES,
       ...CALLBACK_SCOPE_CASES,
       ...PARAMETER_PROPERTY_CASES,
       ...MUTANT_PIN_CASES,
