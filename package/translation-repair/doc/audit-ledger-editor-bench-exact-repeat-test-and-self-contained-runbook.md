@@ -307,7 +307,7 @@ holding 12,
   and the independence the bound assumes fails most.
   The round 10 text called it 1.5 standard deviations of that many replicates (0.0036) over 0.05 and within noise.
   Re-check 7 showed that wrong,
-  and the round 11 file has the section "The 0.0553 reading, corrected":
+  and the round 11 file corrects it in its section on the 0.0553 reading:
   the cell reads 0.0537 over 34000 replicates.
 - The default effort repeating itself less than high and low (which repeat on every trial) by 15 and 30 points of repeat
   agreement,

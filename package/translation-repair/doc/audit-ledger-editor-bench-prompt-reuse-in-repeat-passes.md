@@ -66,7 +66,10 @@ The seam chosen puts the pass in the request identity.
   `5d94598d27a56145bd58cd6eb45cee47ccc3928da84613ae69cf53b6c4ab70aa`).
 - `scopedToPass` (`probe/src/corpus-run/editor-fidelity-pass-scope.ts`) wraps the client a row asks through
   and names the pass,
-  counted from one (`pass 1`, `pass 2`, ...).
+  counted from one:
+  `pass 1`,
+  `pass 2`,
+  and so on.
   The probe run wraps the client of each pair with it.
 
 The reuse layer then still reuses within a pass and across the retries of one ask,
@@ -84,7 +87,7 @@ it cannot.
 The payload store lives at `runDir/payloads`,
 and `runDir` is a fresh `mkdtemp` of every invocation (`probe/src/corpus-run/editor-fidelity-probe-run.ts`,
 the runs directory resolved at `run/src/corpus-run/run-config.ts`),
-so a second arm or a rerun of an arm reads a new, empty store.
+so a second arm or a rerun of an arm reads a new empty store.
 `source=disk` reuse needs a prior run directory of the same invocation,
 which a probe never has.
 No further change was needed.
