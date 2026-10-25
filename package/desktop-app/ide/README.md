@@ -1663,6 +1663,11 @@ Deliberate differences:
 - The hover popup sits beside the hovered line at the hovered character,
   not 8 px below the pointer,
   and an empty answer for a new character closes it instead of leaving the previous content.
+- The 350 ms rest also starts again while the view moves under the pointer
+  (editord's debounce restarts only on a mouse move),
+  so a hover after a wheel jump is asked for 0.54 to 0.83 s after the wheel,
+  once the view has stood still for the rest time,
+  and names the row drawn under the pointer then.
 - Notes stay until dismissed instead of disappearing after 2 seconds,
   name a remedy,
   and are declared as a live region for assistive technologies.

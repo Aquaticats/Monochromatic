@@ -643,7 +643,10 @@ and before the hold.
   55 to 56 lines off),
   and none in the other 8 trials (the pointer was over no character);
   before the hold sent none in 11 trials,
-  because the view then showed no rows of the displayed tile under the pointer and `character_at` found none.
+  most likely because the view then showed no rows of the displayed tile under the pointer and `character_at` found none
+  (inferred from the code,
+  not logged:
+  the build before the hold has no probe).
   New:
   the hold makes the rows drawn under the pointer reachable by `character_at`
   (`drawn-y` maps the move into the held tile),
@@ -671,6 +674,13 @@ fires,
 and,
 like editord,
 asks nothing after a scroll for a rest that was already asked for.
+One difference from editord is deliberate:
+its debounce restarts only on a mouse move,
+and a rest here also starts again while the drawn offset moves,
+so a request after a wheel jump lands 0.54 to 0.83 s after the wheel in the fixed build
+(5 requests in each of the first two cells above),
+against 0.35 to 0.40 s before,
+because it waits for the view to stand still for the rest time.
 
 Native tests (`src/native/language/pointer_scroll_tests.rs`) and the guard cases `hover-*` of
 `bin/inspect-source-guards.ts`:
