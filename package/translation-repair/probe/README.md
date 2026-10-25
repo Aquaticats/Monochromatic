@@ -469,7 +469,7 @@ the simulation read 0.055 at the worst of 192 such cells at 800 replicates,
 which is inside the noise of that many replicates (0.008),
 and the four cells over 0.05 read 0.035 at most when run again at 4000.
 The grid stopped at a true fix rate of 0.9,
-so the figures are not stated above it.
+so the figures are not stated for higher fix rates.
 It does not hold it when the arms repeat themselves unlike one another.
 With the high and the low effort giving a trial their first answer again in every pass
 and the default effort asked afresh each pass,
@@ -697,7 +697,9 @@ which for the current pool is 0.377 USD an ask.
 An arm that spends s a unit therefore completes floor((cap - 0.377) / s) + 1 units,
 which is fewer than cap / s:
 about 21 fewer at 0.0167 USD a unit,
-and one fewer at the margin of 60 units (0.3 USD a unit at 18 USD).
+and one fewer at the margin of 60 units
+(0.25 USD a unit at 15 USD gives 59,
+where 15 / 0.25 says 60).
 The block counts that reserve and also checks n,
 less the rows in which an ask threw,
 against the floor of 60,
