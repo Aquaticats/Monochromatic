@@ -767,11 +767,11 @@ await describe({
     },),
 
     it({
-      name: 'ROLLS BACK a rewrite one checker of three found worse on the open issue, naming the issue, '
-        + 'though the other two answered not-fixed',
+      name: 'ROLLS BACK a rewrite two checkers of three found worse on the open issue, naming the issue, '
+        + 'though the third answered not-fixed (owner, 2026-10-25, "Two ballots for undo too")',
       fn: async () => {
         /**
-         Settlement of a round with one worse ballot beside two not-fixed.
+         Settlement of a round with two worse ballots beside one not-fixed.
          */
         const settled = await settleWith({
           nonTranslationStanding: false,
@@ -781,6 +781,10 @@ await describe({
               ...everyCheckerSays({ verdict: 'not-fixed', },),
               [
                 SEAT_SYNTHETIC_VISION_WITHHELD,
+                'worse',
+              ],
+              [
+                SEAT_SYNTHETIC_TEXT_EVERYWHERE,
                 'worse',
               ],
             ],),
@@ -806,17 +810,17 @@ await describe({
               },
               {
                 modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-                verdict: 'not-fixed',
+                verdict: 'worse',
                 wroteTheText: false,
               },
             ],
             configuredCheckers: 3,
             tally: {
               fixed: 0,
-              notFixed: 2,
-              worse: 1,
+              notFixed: 1,
+              worse: 2,
               resolved: false,
-              regressed: false,
+              regressed: true,
             },
           },
         },);

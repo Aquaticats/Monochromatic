@@ -132,7 +132,7 @@ await describe({
           ],
           tallies: {
             'adjudicated/first': { fixed: 3, notFixed: 0, worse: 0, resolved: true, regressed: false, },
-            'adjudicated/second': { fixed: 1, notFixed: 1, worse: 1, resolved: false, regressed: false, },
+            'adjudicated/second': { fixed: 1, notFixed: 0, worse: 2, resolved: false, regressed: true, },
           },
           targetText: TARGET_TEXT,
         },);
@@ -176,7 +176,7 @@ await describe({
           ],
           tallies: {
             'adjudicated/first': { fixed: 3, notFixed: 0, worse: 0, resolved: true, regressed: false, },
-            'adjudicated/second': { fixed: 1, notFixed: 1, worse: 1, resolved: false, regressed: false, },
+            'adjudicated/second': { fixed: 1, notFixed: 0, worse: 2, resolved: false, regressed: true, },
           },
           targetText: TARGET_TEXT,
         },);

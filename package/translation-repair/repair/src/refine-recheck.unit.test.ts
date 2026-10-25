@@ -622,8 +622,9 @@ await describe({
     },),
 
     it({
-      name: 'ROLLS BACK on one worse ballot of three on an open issue, naming the issue, though the other '
-        + 'two say not-fixed',
+      name: 'PASSES a round with one worse ballot of three on an open issue, though the other two say '
+        + 'not-fixed: one worse ballot is one voice, and one voice rolls nothing back (owner, 2026-10-25, '
+        + '"Two ballots for undo too")',
       fn: async () => {
         /**
          Round with one worse ballot, from the second seat.
@@ -648,8 +649,8 @@ await describe({
             verdicts,
           },),
         ).toEqual({
-          retained: false,
-          findings: [`refine-rolled-back (${SUNBATHING_ISSUE.issueId})`,],
+          retained: true,
+          findings: ['refine-recheck-passed (1 issue)',],
           readings: {
             [SUNBATHING_ISSUE.issueId]: {
               ballots: ballotsCast({ verdicts, },),
@@ -668,8 +669,196 @@ await describe({
     },),
 
     it({
-      name: 'WARNS ONCE when it rolls a slice back on a worse ballot, naming the slice, the refiner, the issue '
-        + 'and every ballot cast on that issue',
+      name: 'PASSES a round with one worse ballot beside one fixed and one not-fixed on an open issue: the '
+        + 'worse ballot does not outweigh the rest, and a fixed ballot beside it does not make it two',
+      fn: async () => {
+        /**
+         Round with one worse ballot, from the first seat.
+         */
+        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
+          [
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_VISION_WITHHELD,
+            'fixed',
+          ],
+          [
+            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            'not-fixed',
+          ],
+        ],);
+        expect(
+          await recheck({
+            issues: [SUNBATHING_ISSUE,],
+            verdicts,
+          },),
+        ).toEqual({
+          retained: true,
+          findings: ['refine-recheck-passed (1 issue)',],
+          readings: {
+            [SUNBATHING_ISSUE.issueId]: {
+              ballots: ballotsCast({ verdicts, },),
+              configuredCheckers: 3,
+              tally: {
+                fixed: 1,
+                notFixed: 1,
+                worse: 1,
+                resolved: false,
+                regressed: false,
+              },
+            },
+          },
+        },);
+      },
+    },),
+
+    it({
+      name: 'ROLLS BACK on two worse ballots of three on an open issue, naming the issue, though the third '
+        + 'says not-fixed: two voices name the rewrite damaging and outweigh the rest',
+      fn: async () => {
+        /**
+         Round with two worse ballots, from the first two seats.
+         */
+        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
+          [
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_VISION_WITHHELD,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            'not-fixed',
+          ],
+        ],);
+        expect(
+          await recheck({
+            issues: [SUNBATHING_ISSUE,],
+            verdicts,
+          },),
+        ).toEqual({
+          retained: false,
+          findings: [`refine-rolled-back (${SUNBATHING_ISSUE.issueId})`,],
+          readings: {
+            [SUNBATHING_ISSUE.issueId]: {
+              ballots: ballotsCast({ verdicts, },),
+              configuredCheckers: 3,
+              tally: {
+                fixed: 0,
+                notFixed: 1,
+                worse: 2,
+                resolved: false,
+                regressed: true,
+              },
+            },
+          },
+        },);
+      },
+    },),
+
+    it({
+      name: 'ROLLS BACK on two worse ballots against one fixed on an open issue, the control that a fixed '
+        + 'ballot beside the worse ones does not stop the rollback',
+      fn: async () => {
+        /**
+         Round with two worse ballots and one fixed.
+         */
+        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
+          [
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_VISION_WITHHELD,
+            'fixed',
+          ],
+          [
+            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            'worse',
+          ],
+        ],);
+        expect(
+          await recheck({
+            issues: [SUNBATHING_ISSUE,],
+            verdicts,
+          },),
+        ).toEqual({
+          retained: false,
+          findings: [`refine-rolled-back (${SUNBATHING_ISSUE.issueId})`,],
+          readings: {
+            [SUNBATHING_ISSUE.issueId]: {
+              ballots: ballotsCast({ verdicts, },),
+              configuredCheckers: 3,
+              tally: {
+                fixed: 1,
+                notFixed: 0,
+                worse: 2,
+                resolved: false,
+                regressed: true,
+              },
+            },
+          },
+        },);
+      },
+    },),
+
+    it({
+      name: 'PASSES a round of two worse ballots level with two fixed ballots on an open issue: the worse '
+        + 'weight has to strictly outweigh the rest as well as come from two checkers',
+      fn: async () => {
+        /**
+         Round on the five-seat bench in which four seats answer, two worse and
+         two fixed, and the fifth never does.
+         */
+        const verdicts = new Map<RosterModelId, ResolutionVerdict>([
+          [
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_VISION_WITHHELD,
+            'worse',
+          ],
+          [
+            SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+            'fixed',
+          ],
+          [
+            SEAT_HYPER_ONLY,
+            'fixed',
+          ],
+        ],);
+        /**
+         What the recheck returned.
+         */
+        const verdict = await recheck({
+          issues: [SUNBATHING_ISSUE,],
+          verdicts,
+          checkerModelIds: FIVE_SEATS,
+        },);
+        expect({
+          retained: verdict.retained,
+          tally: verdict.readings[SUNBATHING_ISSUE.issueId]?.tally,
+        },).toEqual({
+          retained: true,
+          tally: {
+            fixed: 2,
+            notFixed: 0,
+            worse: 2,
+            resolved: false,
+            regressed: false,
+          },
+        },);
+      },
+    },),
+
+    it({
+      name: 'WARNS ONCE when it rolls a slice back on two worse ballots, naming the slice, the refiner, the '
+        + 'issue and every ballot cast on that issue',
       fn: async () => {
         /**
          Warnings the recheck wrote, in order.
@@ -697,7 +886,7 @@ await describe({
             ],
             [
               SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-              'not-fixed',
+              'worse',
             ],
           ],),
           logger: capturing,
@@ -706,7 +895,7 @@ await describe({
           `slice 0: refine-rolled-back (${SUNBATHING_ISSUE.issueId}); rewrite by `
             + `${SEAT_HYPER_OPENROUTER_VISION_EDITOR}; ballots on ${SUNBATHING_ISSUE.issueId}: `
             + `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} not-fixed, ${SEAT_SYNTHETIC_VISION_WITHHELD} worse, `
-            + `${SEAT_SYNTHETIC_TEXT_EVERYWHERE} not-fixed; keeping the text before the rewrite`,
+            + `${SEAT_SYNTHETIC_TEXT_EVERYWHERE} worse; keeping the text before the rewrite`,
         ],);
       },
     },),
@@ -792,12 +981,11 @@ await describe({
     },),
 
     it({
-      name: 'CARRIES the checker stage\'s own findings into a rollback: one worse ballot of the two heard '
-        + 'rolls back, and the lost checker and the short roster are named beside the issue',
+      name: 'CARRIES the checker stage\'s own findings into a rollback: two worse ballots of the two heard '
+        + 'roll back, and the lost checker and the short roster are named beside the issue',
       fn: async () => {
         /**
-         Round the first seat calls worse, the second not-fixed, and the
-         third never answers.
+         Round the first two seats call worse and the third never answers.
          */
         const verdicts = new Map<RosterModelId, ResolutionVerdict>([
           [
@@ -806,7 +994,7 @@ await describe({
           ],
           [
             SEAT_SYNTHETIC_VISION_WITHHELD,
-            'not-fixed',
+            'worse',
           ],
         ],);
         expect(
@@ -826,10 +1014,10 @@ await describe({
               configuredCheckers: 3,
               tally: {
                 fixed: 0,
-                notFixed: 1,
-                worse: 1,
+                notFixed: 0,
+                worse: 2,
                 resolved: false,
-                regressed: false,
+                regressed: true,
               },
             },
           },
@@ -951,11 +1139,11 @@ await describe({
     },),
 
     it({
-      name: 'NAMES both an issue heard short of quorum and an issue one checker found worse, in one round: '
+      name: 'NAMES both an issue heard short of quorum and an issue two checkers found worse, in one round: '
         + 'refine-recheck-unheard for the second issue and refine-rolled-back for the first',
       fn: async () => {
         /**
-         Round with one worse ballot on the first issue, from the second seat.
+         Round with two worse ballots on the first issue, from the last two seats.
          */
         const verdicts = new Map<RosterModelId, ResolutionVerdict>([
           [
@@ -968,7 +1156,7 @@ await describe({
           ],
           [
             SEAT_SYNTHETIC_TEXT_EVERYWHERE,
-            'not-fixed',
+            'worse',
           ],
         ],);
         /**
@@ -1000,10 +1188,10 @@ await describe({
               configuredCheckers: 3,
               tally: {
                 fixed: 0,
-                notFixed: 2,
-                worse: 1,
+                notFixed: 1,
+                worse: 2,
                 resolved: false,
-                regressed: false,
+                regressed: true,
               },
             },
             [AFTERNOON_ISSUE.issueId]: {
