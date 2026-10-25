@@ -4,6 +4,7 @@ import {
   CONTEST_IMPORT,
   spotAt,
 } from './claude-schema-destination-forms.test-fixture.ts';
+import type { SourceFile, } from './claude-schema-sources.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region A function that hands a sender a builder call made from its own parameters
@@ -15,13 +16,13 @@ import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture
 /**
  The import of the sender the cases use, as a specifier written in a file under `imaginary/src`.
  */
-const SENDER_IMPORT =
+export const SENDER_IMPORT =
   'import { gatherThroughCache, } from \'../../corpus-pass/src/corpus-run/pass-consistency-gather.ts\';';
 
 /**
  The sender the cases use, as the family declares it.
  */
-const SENDER_FILE = {
+export const SENDER_FILE: SourceFile = {
   file: 'corpus-pass/src/corpus-run/pass-consistency-gather.ts',
   text: textOf([
     'export async function gatherThroughCache({ responseFormat, }: { readonly responseFormat: unknown; },) {',
