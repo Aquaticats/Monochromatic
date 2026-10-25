@@ -1,5 +1,9 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
+import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { readAttemptOutcome, } from './entry-reattempt.ts';
 import type { EntryOutcome, } from './pass-entry-contract.ts';
@@ -87,9 +91,18 @@ async function noWait(): Promise<void> {
  starts further along; when the run then ends before that attempt, a NOT RESUMED line names the entry. Absent, no
  attempt is cut by a pause
 
+ @param attemptOf - number of the entry's latest attempt, as the caller counts and persists it (the pass's attempts
+ file), asked after each attempt and when a NOT RESUMED line is printed; every line this queue prints for an entry
+ carries it as `attempt=`, so a REATTEMPT, STALLED, INCOMPLETE or NOT RESUMED line names the attempt it belongs to and
+ matches the TALLY line of the same attempt (ledger B960)
+
+ @param wallClock - clock the lines' time is read on, printed as `at=`; the wall clock unless a test fixes it
+
+ @throws `LifecycleAttemptError` when `attemptOf` answers a number that is not a whole number from 1
+
  @example
  ```ts
- await runAttemptQueue({ pending, cachedCountFor, attempt, stopBeforeNext, },);
+ await runAttemptQueue({ pending, cachedCountFor, attempt, stopBeforeNext, attemptOf, },);
  ```
  */
 export async function runAttemptQueue<EntryT extends QueueableEntry,>(
@@ -98,6 +111,8 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     cachedCountFor,
     attempt,
     stopBeforeNext,
+    attemptOf,
+    wallClock = wallClockNow,
     runHasStopped = neverStopped,
     beforeNext = noWait,
     interrupted = neverStopped,
@@ -106,6 +121,8 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     readonly cachedCountFor: (args: { readonly entry: EntryT; },) => Promise<number>;
     readonly attempt: (args: { readonly entry: EntryT; },) => Promise<EntryOutcome>;
     readonly stopBeforeNext: () => boolean;
+    readonly attemptOf: (args: { readonly entry: EntryT; },) => number;
+    readonly wallClock?: () => Date;
     readonly runHasStopped?: () => boolean;
     readonly beforeNext?: () => Promise<void>;
     readonly interrupted?: () => boolean;
@@ -121,6 +138,16 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
    */
   const cutShort = new Set<string>();
 
+  /**
+   The clock time and attempt a line about this entry carries, read when the line is printed.
+   */
+  function stampOf({ entry, }: { readonly entry: EntryT; },): string {
+    return lifecycleStamp({
+      attempt: attemptOf({ entry, },),
+      wallClock,
+    },);
+  }
+
   while (queue.length > 0) {
     /**
      Next attempt, taken from the front.
@@ -133,8 +160,8 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     if (stopBeforeNext()) {
       if (cutShort.has(entry.id,)) {
         console.log(
-          `NOT RESUMED ${entry.id}: a pause cut its attempt short and the pass ended after the pause, so it was not `
-            + 'attempted again in this invocation and stays resumable',
+          `NOT RESUMED ${entry.id} ${stampOf({ entry, },)}: a pause cut its attempt short and the pass ended after the `
+            + 'pause, so it was not attempted again in this invocation and stays resumable',
         );
       }
       return;
@@ -187,7 +214,7 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
 
     if ((verdict.kind === 'earned') && (!runEnded)) {
       console.log(
-        `REATTEMPT ${entry.id} queued: ${String(verdict.gained,)} more cache ${
+        `REATTEMPT ${entry.id} queued ${stampOf({ entry, },)}: ${String(verdict.gained,)} more cache ${
           wordForCount({
             count: verdict.gained,
             one: 'record',
@@ -199,7 +226,7 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     }
     if ((verdict.kind === 'stalled') && (!runEnded)) {
       console.log(
-        `STALLED ${entry.id}: its ${String(verdict.cached,)} cache ${
+        `STALLED ${entry.id} ${stampOf({ entry, },)}: its ${String(verdict.cached,)} cache ${
           wordForCount({
             count: verdict.cached,
             one: 'record is',
@@ -210,7 +237,8 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     }
     if (verdict.kind === 'stopped') {
       console.log(
-        `INCOMPLETE ${entry.id}: stage-local work remains; whole entry will not restart in this invocation`,
+        `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}: stage-local work remains; whole entry will not restart in `
+          + 'this invocation',
       );
     }
   }

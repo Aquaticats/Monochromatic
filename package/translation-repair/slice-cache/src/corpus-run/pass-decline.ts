@@ -1,7 +1,9 @@
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
+  lifecycleStamp,
   monotonicMs,
   textsInCodePointOrder,
+  wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rm, } from 'node:fs/promises';
 
@@ -155,11 +157,19 @@ async function removeLeftoverPage(
 
  @param startedAt - `monotonicMs` reading when the entry started, for the tally's duration
 
+ @param attempt - number of the entry's attempt the decline belongs to, as the pass's attempts file holds it, which the
+ tally line carries beside its clock time (ledger B960)
+
+ @param wallClock - clock the tally line's time is read on; the wall clock unless a test fixes it
+
  @returns The declined outcome
+
+ @throws `LifecycleAttemptError` when the attempt is not a whole number from 1, after the decline record is
+ written and before the tally line is printed
 
  @example
  ```ts
- return recordEntryDecline({ entry, declinedDir, publishDir, tip, pipelineDigest, corpusSha: pin.commitSha, note, startedAt: t0, },);
+ return recordEntryDecline({ entry, declinedDir, publishDir, tip, pipelineDigest, corpusSha: pin.commitSha, note, startedAt: t0, attempt, },);
  ```
  */
 export async function recordEntryDecline(
@@ -172,6 +182,8 @@ export async function recordEntryDecline(
     corpusSha,
     note,
     startedAt,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entry: CorpusPair;
     readonly declinedDir: string;
@@ -181,6 +193,8 @@ export async function recordEntryDecline(
     readonly corpusSha: string;
     readonly note: string;
     readonly startedAt: number;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -209,7 +223,12 @@ export async function recordEntryDecline(
       + `English (${note}), so the pipeline declines to repair it and the archive stands`,
   );
   console.log(
-    `TALLY ${entry.id} status=DECLINED reason=archive-original ms=${String(monotonicMs() - startedAt,)}`,
+    `TALLY ${entry.id} status=DECLINED ${
+      lifecycleStamp({
+        attempt,
+        wallClock,
+      },)
+    } reason=archive-original ms=${String(monotonicMs() - startedAt,)}`,
   );
   return { kind: 'declined', };
 }

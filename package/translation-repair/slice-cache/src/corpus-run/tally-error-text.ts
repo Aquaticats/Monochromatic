@@ -110,7 +110,7 @@ export function cappedFailureText(
 
  @example
  ```ts
- console.log(`TALLY ${id} status=ERROR error=${tallyErrorText({ error, },)}`,);
+ console.log(`TALLY ${id} status=ERROR ${lifecycleStamp({ attempt, },)} error=${tallyErrorText({ error, },)}`,);
  ```
  */
 export function tallyErrorText({ error, }: { readonly error: unknown; },): string {
