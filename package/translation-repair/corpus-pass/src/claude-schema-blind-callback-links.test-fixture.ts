@@ -94,13 +94,13 @@ function parameterNamesOf({ node, }: { readonly node: TreeNode; },): readonly st
  */
 function calledFunctionLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
   /**
-   The callee without the type marks and parentheses around it.
+   The callee, which `isFunctionValue` and `parameterNamesOf` read without the type marks and parentheses around it.
    */
-  const { inner: callee, } = unwrapped({ node: nodeAt({
+  const callee = nodeAt({
     node,
     field: 'callee',
-  },), },);
-  if ((!isTreeNode(callee,)) || (!isFunctionValue({ node: callee, },)))
+  },);
+  if (!isFunctionValue({ node: callee, },))
     return [];
   /**
    The names the parameters of the called function bind.
