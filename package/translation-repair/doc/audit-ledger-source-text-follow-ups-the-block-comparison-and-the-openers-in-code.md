@@ -149,7 +149,10 @@ and none is a load error:
 - `e5f5231dea`,
   `456f0ad9c6` and `25aebef5a9` (F2,
   three measurements):
-  one case each fails for the stated reason.
+  one case,
+  two cases and one case fail for the stated reason
+  (the sixth round corrected "one case each",
+  which was wrong for `456f0ad9c6`).
 - The pins of F3,
   of F4 and of the line ending (`e3ee3725ab`,
   `17e405688f`,

@@ -258,12 +258,15 @@ which lists every file of these commitments.
   which a reader of plain Markdown cannot give,
   so a block that a footnote range the two readings disagree on reaches is `undecided`,
   and every other block is compared on its own.
+  The whole texts differ whenever this is asked,
+  so the answer is `differs` or `undecided` and never `same`.
   Three defects carry the answers,
   each naming slices and no text of the page:
   `source-reads-differently` for a block that shows other text than the source,
   `source-reading-undecided` for a block the comparison cannot decide,
   and `source-reading-not-compared` for a run the comparison could not be made for,
-  a page that parses and cannot be read against its source.
+  a page that parses and cannot be read against its source,
+  such as one holding a link target that is no text in UTF-8.
   The composition reports them,
   not a publish check that throws:
   a run always ships,

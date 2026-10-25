@@ -160,6 +160,15 @@ named for that subject and listed here.
   and the pins,
   mutants,
   search and real-corpus counts of the fifth round (B832 follow-ups).
+- [Audit ledger: the source text under a note, the sixth round, tables, emphasis and raw HTML after a paragraph](audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md):
+  The footnote start indented four columns after a table row,
+  in emphasis and link text and after a backslash hard break,
+  the comment openers that cut a paragraph or stand in a footnote's fence,
+  the block of raw HTML that cuts a paragraph,
+  the pins,
+  mutants,
+  differentials,
+  search and real-corpus counts of the sixth round (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

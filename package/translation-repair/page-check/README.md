@@ -108,7 +108,12 @@ The groups that follow name the main ones.
   `corpus-run/source-ships-opener-in-code.ts` takes a comment that never closes out of the fence,
   display math,
   code span or inline math it is opened in,
-  and `corpus-run/source-ships-lines.ts` joins the lines of a span
+  `corpus-run/source-ships-opener-footnote.ts` does so for a fence or display math that a footnote definition holds,
+  `corpus-run/source-ships-html-interrupt.ts` ends a paragraph before a block of raw HTML that interrupts it,
+  and `corpus-run/source-ships-lines.ts` joins the lines of a span,
+  emphasis,
+  the text of a link or an image,
+  or a hard break written with a backslash
   that a footnote start indented four columns would cut.
 - Reading comparison:
   say whether a reader of the page sees what a reader of the source sees,
@@ -125,16 +130,17 @@ The groups that follow name the main ones.
   the two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
   which a reader of plain Markdown cannot give,
   so a block that the range reaches is `undecided`
-  and every other block is compared on its own,
-  which makes the answer `differs`,
-  `undecided` or `same`.
+  and every other block is compared on its own.
+  The whole texts differ whenever this is asked,
+  so the answer is `differs` or `undecided` and never `same`.
   A run always ships,
   so the answers are reported and never stop a page,
   in three defects that name slices and no text of the page:
   `source-reads-differently` for a block that shows other text than the source,
   `source-reading-undecided` for a block the comparison cannot decide,
   and `source-reading-not-compared` for a run the comparison could not be made for
-  (a page that parses and cannot be read against its source).
+  (a page that parses and cannot be read against its source,
+  such as one holding a link target that is no text in UTF-8).
   Names:
   `readingDifferenceOf`,
   `differenceDefectsOf`,
