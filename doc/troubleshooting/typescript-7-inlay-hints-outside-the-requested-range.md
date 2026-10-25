@@ -995,8 +995,9 @@ and no picture differing between the two screenshots.
   heights,
   and check before any frame that the window holds the slices of the GPU's textures and the picture's height;
   the second also checks that a picture of the same shape at another place is placed by its frame and not before.
-  The harness shows the blank minimap too, and the pixel test of the section "The frame after a hand-over, counted in
-  pixels" fails when the picture is handed over inside the frame again.
+  The harness shows the blank minimap too,
+  and the pixel test of the section "The frame after a hand-over,
+  counted in pixels" fails when the picture is handed over inside the frame again.
 - Six `inspect:source-guards` cases remove one line each in a disposable copy:
   `minimap-slices-prepared` and `minimap-slices-prepared-shape` (the shape check that makes the hand-over a no-op),
   `minimap-slices-same-shape` (the same check inverted,
@@ -1069,21 +1070,28 @@ Four `inspect:source-guards` cases remove one line each in a disposable copy:
 `tile-slices-applied-drawn` (the call that gives the window the slices),
 `minimap-slices-prepared-drawn`,
 and `minimap-slices-applied-drawn`.
-Each case ran in three phases (baseline, line removed, line restored)
+Each case ran in three phases
+(baseline,
+line removed,
+line restored)
 and all four were accepted in all three phases:
-the baseline and the restored run passed (status 0), and the run with the line removed failed (status 100).
+the baseline and the restored run passed (status 0),
+and the run with the line removed failed (status 100).
 The failures with the line removed read:
 
 - `tile-slices-prepared-drawn`:
   `the frame that followed the hand-over of a tile of the textures [40, 24] drew 0 pixels of the tile and the next frame 4056`
 - `tile-slices-applied-drawn`:
   `the frame after the frame of a tile of the textures [40, 24] drew 0 of its 4096 pixels, so the test counts nothing`
-  (with the call removed the window never holds the slices, so the settled frame is blank too)
+  (with the call removed the window never holds the slices,
+  so the settled frame is blank too)
 - `minimap-slices-prepared-drawn` and `minimap-slices-applied-drawn`:
   `the first picture: the frame that followed the hand-over drew 0 pixels of the picture and the next frame 4096`
-  (with the call removed from the hand-over, the notifier's own step still gives the window the slices inside the
-  frame, which is the old behavior this test exists for)
+  (with the call removed from the hand-over,
+  the notifier's own step still gives the window the slices inside the frame,
+  which is the old behavior this test exists for)
 
 The first run of the tile case failed at its baseline because the test required an exact area:
-4056 of 4096 pixels are the colour, the rest blend at the texture edges.
+4056 of 4096 pixels are the color,
+the rest blend at the texture edges.
 The test compares the two frames and a 95 percent floor instead.

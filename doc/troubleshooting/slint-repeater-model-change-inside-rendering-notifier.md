@@ -88,7 +88,8 @@ and what the frame shows depends on how the change reaches the repeater:
   ```
 
   The instances are gone and `ensure_updated` has already run for this frame,
-  so the frame visits no instance (`Repeater::visit`, `model/repeater.rs:814`,
+  so the frame visits no instance (`Repeater::visit`,
+  `model/repeater.rs:814`,
   walks `inner.instances`).
   The repeater draws nothing.
 - A new model set in the window's property leaves the old instances in place
@@ -107,9 +108,11 @@ unsafe { *self.holder.dep_nodes.get() = Default::default() };
 
 The notifier's change is therefore made while the tracker depends on nothing,
 so it marks no tracker dirty and the window never calls `request_redraw` on the adapter
-(`WindowRedrawTracker::notify`, `window.rs:503`).
+(`WindowRedrawTracker::notify`,
+`window.rs:503`).
 `Repeater::visit` registers the model and dirty flag as dependencies again
-(`track_model_changes`, `model/repeater.rs:650`,
+(`track_model_changes`,
+`model/repeater.rs:650`,
 called at `:819`),
 but after the change,
 and the end of `evaluate_as_dependency_root` marks the tracker clean (`properties.rs:1365`).
@@ -135,14 +138,16 @@ a window with `for shade in shades : Rectangle { background: shade }`
 whose model holds one red color,
 a rendering notifier that changes the model to blue inside the first frame after it is armed,
 and the center pixel of that frame,
-of the window's ask for another frame (`take_frame_wanted`, the harness adapter's `request_redraw`),
+of the window's ask for another frame (`take_frame_wanted`,
+the harness adapter's `request_redraw`),
 and of the next frame.
 It runs on the hardware Vulkan device through
 `mise run //package/desktop-app/ide:test:native 'test(/repeater_frame_tests/)'`.
 
 Changes that work (the frame that holds them draws them):
 
-- `set_row_data(0, blue)` inside the frame: that frame draws blue.
+- `set_row_data(0, blue)` inside the frame:
+  that frame draws blue.
 - Any change made before the frame starts (new model,
   `set_vec` of the same or another length,
   `set_row_data`):
@@ -167,17 +172,23 @@ the very next frame draws 0 of the tile's pixels after a hand-over that changes 
 and all of them when only the heights change.
 The shapes tried are in the test
 `the_frame_that_follows_a_hand_over_shows_the_tile_whatever_the_number_of_textures`
-(two textures, then three, then one, then two, then two of other heights).
+(two textures,
+then three,
+then one,
+then two,
+then two of other heights).
 
 ## The real window
 
 The harness and the real window differ only in the adapter around `draw_contents`:
 the winit adapter calls it from `WinitWindowAdapter::draw`
 (`i-slint-backend-winit-1.18.1/winitwindowadapter.rs:841`)
-and decides by `pending_redraw` (`:846`, `:1849`) whether another frame follows.
+and decides by `pending_redraw` (`:846`,
+`:1849`) whether another frame follows.
 The renderer is the same `FemtoVGRenderer::render`.
 
-Measured on 2026-10-24 with a debug build of the IDE in the nested compositor (headless, hardware Vulkan device,
+Measured on 2026-10-24 with a debug build of the IDE in the nested compositor (headless,
+hardware Vulkan device,
 window 1080 by 1880 logical px at scale 2) on a disposable plain text.
 The build logged each change of a slice list
 (`show_slices` in `src/native/gpu_tile/types.rs`,
@@ -185,24 +196,36 @@ the debug lines `gave the window a new list of slices`,
 `reset the window's list of slices to another number of rows`,
 and `replaced rows of the window's list of slices`),
 and an environment switch in a scratch build (not committed) handed the tile and the picture over inside the frame
-again, with or without the ask for the next frame.
+again,
+with or without the ask for the next frame.
 
-- With the hand-over outside the frame (the shipped code), the first tile of a 1500-line text logged the reset
+- With the hand-over outside the frame (the shipped code),
+  the first tile of a 1500-line text logged the reset
   (`before=1`) before the frame that drew it and the code column was drawn;
   presses on the minimap afterwards replaced one row of a list (`replaced=1`) when the tile or the picture changed
-  height, outside the frame.
-- With the hand-over inside the frame (scratch build, 2 alternating pairs of runs, 12 presses each, 1500 lines),
+  height,
+  outside the frame.
+- With the hand-over inside the frame (scratch build,
+  2 alternating pairs of runs,
+  12 presses each,
+  1500 lines),
   every list change the presses made was a replaced row
   (the tile and the picture kept their number of textures),
   and every press was drawn in the screenshot taken 1.5 s later.
   In a 287-line text,
-  6 presses (bottom, top, middle, bottom, top, middle) recorded at 20 frames per second with the ask for the next
+  6 presses (bottom,
+  top,
+  middle,
+  bottom,
+  top,
+  middle) recorded at 20 frames per second with the ask for the next
   frame switched off made 40 frames each,
   and the mean grey of the code column's crop stayed between 0.5425 and 0.5435 in all 240 frames
   (a value for a blank column was not calibrated in this setup,
   so this measures no change of the picture and does not count blank frames);
   each tile replacement in them was a replaced row (`replaced=1`).
-  This is the same-count half of the rule, in the real window.
+  This is the same-count half of the rule,
+  in the real window.
 - The count-changing half was not reproduced in the real window on a plain text.
   The only reset inside a frame was the first tile of the window,
   which the notifier follows by asking for the next frame,
@@ -210,7 +233,8 @@ again, with or without the ask for the next frame.
   (the minimap picture's hand-over a few milliseconds later draws one).
   A tile's number of textures follows its height
   (`tile_texture_rows` in `src/shaped_text/limit.rs`:
-  at a code width of 1300 px, 3226 rows by the byte rule and 10752 by the bin rule,
+  at a code width of 1300 px,
+  3226 rows by the byte rule and 10752 by the bin rule,
   so a full three-view tile of a 3760 px view is 4 textures and a tile clipped by the start of the text fewer),
   and in the 287-line and 1500-line plain texts every press kept its number.
   The blank code column that the verification agent saw came with TypeScript files whose hint rows change a
