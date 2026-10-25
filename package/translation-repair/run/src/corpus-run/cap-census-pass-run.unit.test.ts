@@ -1,7 +1,7 @@
 /**
  Tests for which logs the cap census counts: a log is a pass run when a line
- among its first two thousand opens `START tip=`, and only then are its calls
- read.
+ among its first two thousand opens `START tip=` followed by a commit id a
+ repository could give, and only then are its calls read.
 
  Every log is written into a scratch directory, from invented, cat-themed
  lines.
@@ -43,6 +43,40 @@ const HEAD_LINES = 2_000;
 const FORMER_HEAD_BYTES = 4_096;
 
 /**
+ A commit id as a repository gives one: forty hexadecimal digits that are not one digit repeated.
+ */
+const REAL_TIP = '2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815';
+
+/**
+ The START line of a real pass: its commit id, the digest of the pipeline it ran and the figures a pass prints
+ (`corpus-pass-lines.ts`).
+ */
+const REAL_START = `START tip=${REAL_TIP} `
+  + 'pipeline=sha256-tree-v1:5d4265e1c0a37b8f9d2e6a4c1b07f3e58d9a2c4b6e1f0a7d3c5b8e92f4a6d1c0 files=156 pending=2 '
+  + 'done=0 soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms '
+  + 'at=2026-09-28T09:59:00.000Z';
+
+/**
+ The START line a test suite prints from a fixture pass, which no real pass can print: its commit id is one digit
+ repeated forty times and its digest covers the one file of a scratch directory (ledger B963).
+ */
+const FIXTURE_START = `START tip=${'f'.repeat(40,)} `
+  + 'pipeline=sha256-tree-v1:9ae510cf8a857e770845eabe23f4b2b24d4a2b36a317fbc6cec8d995a7fb834f files=1 pending=1 '
+  + 'done=0 soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms '
+  + 'at=2026-09-28T09:59:00.000Z';
+
+/**
+ Lines of build output a mise task prints before the pass it runs starts, as a real pass log holds them (the most
+ seen before START in a real log is 254).
+ */
+const BUILD_LINES = Array.from(
+  { length: 254, },
+  function buildLine(_unused, index,): string {
+    return `[//package/translation-repair/corpus-pass:build] chunk ${String(index,)} size: 112.36 kB`;
+  },
+);
+
+/**
  The two lines of one completed call, five content characters delivered.
  */
 const CALL_LINES = [
@@ -72,21 +106,24 @@ const CALL_READING = {
 
  @param directory - scratch directory
  @param lines - the log's lines
+ @param name - file name, so logs written side by side never share a file
 
  @returns Path written
 
  @example
  ```ts
- const path = await writeLog({ directory: scratch.path, lines: ['START tip=tabby',], },);
+ const path = await writeLog({ directory: scratch.path, lines: [REAL_START,], },);
  ```
  */
 async function writeLog(
   {
     directory,
     lines,
+    name = 'nap.log',
   }: {
     readonly directory: string;
     readonly lines: readonly string[];
+    readonly name?: string;
   },
 ): Promise<string> {
   /**
@@ -94,7 +131,7 @@ async function writeLog(
    */
   const path = join(
     directory,
-    'nap.log',
+    name,
   );
   await writeFile(
     path,
@@ -116,7 +153,7 @@ await describe({
           path: await writeLog({
             directory: scratch.path,
             lines: [
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
@@ -133,7 +170,7 @@ await describe({
             directory: scratch.path,
             lines: [
               'a banner line',
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
@@ -164,7 +201,7 @@ await describe({
             directory: scratch.path,
             lines: [
               ...pageAbsent,
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
@@ -187,7 +224,7 @@ await describe({
             directory: scratch.path,
             lines: [
               wide,
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
@@ -216,7 +253,7 @@ await describe({
           path: await writeLog({
             directory: scratch.path,
             lines: [
-              'a suite wrote START tip=tabby0001 here',
+              `a suite wrote ${REAL_START} here`,
               ...CALL_LINES,
             ],
           },),
@@ -238,7 +275,7 @@ await describe({
                   return 'a banner line';
                 },
               ),
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
@@ -261,11 +298,86 @@ await describe({
                   return 'a banner line';
                 },
               ),
-              'START tip=tabby0001',
+              REAL_START,
               ...CALL_LINES,
             ],
           },),
         },),).toBe('not-a-pass-run',);
+      },
+    },),
+    it({
+      name: 'READS A REAL PASS LOG BEHIND 254 BUILD LINES, the most a real log held before START, since the build '
+        + 'output a mise task prints first is no reason to count the pass out (ledger B963)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [
+              ...BUILD_LINES,
+              REAL_START,
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toEqual(CALL_READING,);
+      },
+    },),
+    it({
+      name: 'SAYS A TEST-SUITE LOG IS NO PASS RUN where its START line is the one a fixture pass prints, however deep '
+        + 'in the head it sits, since a suite log opens that line at line 267 or later and a head counted in lines '
+        + 'admitted 515 of them as pass runs (ledger B963)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        expect(await capCensusPassRunReading({
+          path: await writeLog({
+            directory: scratch.path,
+            lines: [
+              ...BUILD_LINES,
+              '[info] [2026-10-22T20:02:04.809Z] [lane-contest-driver-test] a fixture lane purrs',
+              FIXTURE_START,
+              ...CALL_LINES,
+            ],
+          },),
+        },),).toBe('not-a-pass-run',);
+      },
+    },),
+    it({
+      name: 'SAYS A LOG IS NO PASS RUN where the commit id of its START line is no commit id: one digit repeated, '
+        + 'a word, uppercase, or not forty digits long',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
+
+        /**
+         Commit ids no pass reads from a repository, each as a log's START line would carry it.
+         */
+        const tips = [
+          '0'.repeat(40,),
+          'a'.repeat(40,),
+          'tabby0001',
+          '2A336603BF5D1F0A8C7E94B1D62E0A3F77C9D815',
+          '2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d81',
+          '2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d8150',
+          '',
+        ];
+        expect(await Promise.all(tips.map(async function readWith(tip, index,): Promise<unknown> {
+          return await capCensusPassRunReading({
+            path: await writeLog({
+              directory: scratch.path,
+              name: `tip-${String(index,)}.log`,
+              lines: [
+                REAL_START.replace(
+                  REAL_TIP,
+                  tip,
+                ),
+                ...CALL_LINES,
+              ],
+            },),
+          },);
+        },),),).toStrictEqual(tips.map(function none(): string {
+          return 'not-a-pass-run';
+        },),);
       },
     },),
     it({
