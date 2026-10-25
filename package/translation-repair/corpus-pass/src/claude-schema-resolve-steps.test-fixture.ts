@@ -373,9 +373,9 @@ export function nameStep(
     .has(EXPORT_ASSIGNMENT,)
     ?? false;
   /**
-   Whether the require form meets a module that has an `export =`, whose value is what the name stands for.
+   Whether the module is taken as a whole and has an `export =`, whose value is what the name stands for.
    */
-  const isAssigned = (binding.imported === REQUIRE_FORM) && hasAssignment;
+  const isAssigned = isWhole && hasAssignment;
   if (isWhole && (!isAssigned)) {
     return {
       kind: 'namespace',

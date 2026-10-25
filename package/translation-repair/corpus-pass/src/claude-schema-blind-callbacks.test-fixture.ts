@@ -10,7 +10,10 @@ import {
   namesBoundBy,
   outermostValueOf,
 } from './claude-schema-blind-positions.test-fixture.ts';
-import { isBoundAround, } from './claude-schema-blind-scopes.test-fixture.ts';
+import {
+  isBoundAround,
+  isDeclaredAtTop,
+} from './claude-schema-blind-scopes.test-fixture.ts';
 import {
   isFunctionNode,
   NO_NODE,
@@ -294,11 +297,26 @@ export function callbackOf(
     parents: context.parents,
   },);
   /**
-   Whether the file binds the name at its top level.
+   The program of the file.
    */
-  const isBoundAtTop = context.facts
+  const { program, } = context.facts;
+  /**
+   Whether the file binds the name as an import, a function or an object.
+   */
+  const isBoundAsBinding = context.facts
     .bindings
     .has(name,);
+  /**
+   Whether the file binds the name at its top level, by any declaration.
+   */
+  const isDeclared = isDeclaredAtTop({
+    program,
+    name,
+  },);
+  /**
+   Whether the file binds the name at its top level.
+   */
+  const isBoundAtTop = isBoundAsBinding || isDeclared;
   /**
    Whether the callback is a conversion function nothing binds again.
    */

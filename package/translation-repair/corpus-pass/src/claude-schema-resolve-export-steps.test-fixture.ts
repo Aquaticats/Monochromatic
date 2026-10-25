@@ -1,3 +1,4 @@
+import { EXPORT_ASSIGNMENT, } from './claude-schema-equals.test-fixture.ts';
 import type {
   Family,
   Resolved,
@@ -55,11 +56,14 @@ export function exportStep(
    */
   const place = `${file}#export:${name}`;
   /**
-   What the module exports under the name, absent when it exports none.
+   What the module exports, absent when the file is none of the sources.
    */
-  const entry = family.get(file,)
-    ?.exports
-    .get(name,);
+  const exports = family.get(file,)
+    ?.exports;
+  /**
+   What the module exports under the name, absent when it exports none; the `export =` of a module gives its default.
+   */
+  const entry = exports?.get(name,) ?? ((name === 'default') ? exports?.get(EXPORT_ASSIGNMENT,) : undefined);
   if (seen.has(place,))
     return NONE;
   /**

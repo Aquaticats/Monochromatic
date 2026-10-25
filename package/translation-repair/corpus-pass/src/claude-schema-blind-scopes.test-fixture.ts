@@ -224,6 +224,39 @@ function boundByScope({ scope, }: { readonly scope: TreeNode; },): readonly stri
 }
 
 /**
+ Whether a declaration at the top level of a file binds a name: a function, a class, an enum, a namespace, an
+ import-equals declaration, or a constant, whatever its value.
+
+ @param program - program of the file
+
+ @param name - name
+
+ @returns Whether some statement of the program declares it
+
+ @example
+ ```ts
+ const isDeclared = isDeclaredAtTop({ program, name: 'Boolean', },);
+ ```
+ */
+export function isDeclaredAtTop(
+  {
+    program,
+    name,
+  }: {
+    readonly program: TreeNode;
+    readonly name: string;
+  },
+): boolean {
+  return declaredByStatements({
+    statements: nodesAt({
+      node: program,
+      field: 'body',
+    },),
+  },)
+    .includes(name,);
+}
+
+/**
  Whether a scope around a node binds a name, so the name written there is not the one the top level of the file holds.
 
  @param node - node read
