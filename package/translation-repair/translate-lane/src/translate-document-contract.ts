@@ -447,8 +447,20 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  the fold, so the change cannot ride inside it and the number moves. A build whose pipeline digest differs discards
  the namespace before it reads it (`openNamespacedCache`), and the number is the belt beside that brace. The account
  of every cache is in the header of `provider/src/enum-case-fold.ts`.
+
+ Version 28 covers the owner's rulings of 2026-10-25 that removed every weight floor ("floor of 3 - don't set a floor.",
+ "Two ballots decide (Recommended)" and "Every weight floor"): the lane's candidate selection names a winner two ballots
+ named whatever their weight, where it declined against a summed weight of 2 (a self-vote and a full vote, 1.5, is a
+ winner), the run-off and condemned-fallback exceptions that existed to get around that weight are gone, and a bench of
+ four is asked the window of quorum plus one (`translate-stage/src/candidate-select.ts`,
+ `translate-stage/src/candidate-select-fanout.ts`). A stored slice may hold a declined slate, or a run-off, the same
+ texts now settle on the first round. The key hashes the version, the shape of the run and the texts, not the rule that
+ reads the ballots, so a record written before would be served after. The previous number was set in `2aceac0487`; no
+ slice-cache directory was searched for a record written by code that holds it, so records may stand at 27 and the change
+ cannot ride inside it, and the number moves. The repair slice (47), refine (17) and consolidate (35) versions move for
+ the same rules. No record has been written at 28, which this change sets first.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 27;
+export const TRANSLATE_SLICE_CACHE_VERSION = 28;
 
 /**
  Models the translate lane seats.

@@ -92,11 +92,12 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  third review of the Claude route).
  Version 27 reads a reply value that differs from a listed enum or const value only in
  capitalization as the listed value.
+ Version 28 removes every weight floor (owner, 2026-10-25): two ballots decide a selection whatever their weight.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '3aafcd70beafc75dd298bc1c1f9ef3aa58bc95bbe69cbfe076d2eddb55e3bb44';
+const LEGACY_WINDOWLESS_KEY = '50cb2a5f2f58cfb2ca1c805762c033abf80c4afc6d0f629c1960f2e7d77957ec';
 
 /**
  One slice's key, with whatever this case wants to vary.
@@ -129,11 +130,12 @@ await describe({
   name: translateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 27: the reader of a model\'s reply takes a value that differs from a listed enum or const '
-        + 'value only in capitalization as the listed value, and the key hashes the version, the shape of the run and '
-        + 'the texts, not the reader, so only this number retires a record written under the reader before',
+      name: 'IS AT VERSION 28: the owner\'s rulings of 2026-10-25 removed every weight floor, so a stored slice may '
+        + 'hold a declined slate the same texts now settle on two ballots, and the key hashes the version, the shape of '
+        + 'the run and the texts, not the rule that reads the ballots, so only this number retires a record written '
+        + 'under the floors before (27 was the reader taking a capitalization-only difference as the listed value)',
       fn: async () => {
-        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(27,);
+        expect(TRANSLATE_SLICE_CACHE_VERSION,).toBe(28,);
       },
     },),
     it({
