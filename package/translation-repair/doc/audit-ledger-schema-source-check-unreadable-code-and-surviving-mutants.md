@@ -536,6 +536,11 @@ Records corrected in fix round 19:
 - `13987f2e08130e382ba257a0a95de6a5259ddfda` says a type is no code and nothing in it is reported.
   The code reported the specifier of an `import type` of `vm`,
   and `564f767ad50507e70a91bd09b3c1d8c148d458c9` makes the code agree (follow-up of fix round 19 in B868).
+- `d3e62082d4d9a11d115eedb94f19de41291394cf` says the schema suite is the one check it leaves red.
+  `lint:types` of corpus-pass was red there too:
+  the cases name the shape `forwarder-outside-a-read-position`,
+  which the type of a report gains in the fix `8039afa5afa902895438f338688bd82332801c5a`,
+  whose body says so.
 - Present-tense counts of the real sources in B864 and B869 (1579) are dated to the commits that measured them.
 
 Cache versions in fix round 19:
