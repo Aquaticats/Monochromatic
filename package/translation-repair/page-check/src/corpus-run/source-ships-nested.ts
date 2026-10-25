@@ -9,6 +9,11 @@ import {
 } from './source-ships-footnote.ts';
 import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
+  isIndentedFourOrMore,
+  PARAGRAPH_LEAD,
+  spansWithoutLead,
+} from './source-ships-paragraph-lead.ts';
+import {
   indicesOf,
   originalStretches,
   type SourceSpans,
@@ -89,34 +94,43 @@ export function nestedSpans(
     readable,
     indices,
     readSpans,
+    asParagraph = false,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly indices: readonly number[];
     readonly readSpans: SpansReader;
+    readonly asParagraph?: boolean;
   },
 ): SourceSpans {
   /**
+   What is put before the block so that the parse reads the paragraph it stood in.
+   */
+  const lead = asParagraph ? PARAGRAPH_LEAD : '';
+  /**
    The block as a text of its own.
    */
-  const body = charactersAt({
+  const body = lead + charactersAt({
     text: source,
     indices,
   },);
   /**
    The same with its comments blanked.
    */
-  const bodyReadable = charactersAt({
+  const bodyReadable = lead + charactersAt({
     text: readable,
     indices,
   },);
   /**
-   What the parse of the block says of it.
+   What the parse of the block says of it, at the offsets of the block without the lead.
    */
-  const inner = readSpans({
-    source: body,
-    readable: bodyReadable,
-    root: parseMarkdownMathBody({ body: bodyReadable, },),
+  const inner = spansWithoutLead({
+    spans: readSpans({
+      source: body,
+      readable: bodyReadable,
+      root: parseMarkdownMathBody({ body: bodyReadable, },),
+    },),
+    by: lead.length,
   },);
   return {
     text: inner
@@ -429,6 +443,10 @@ export function footnoteInParagraphSpans(
           start: range.start,
           end: split,
         },
+      },),
+      asParagraph: isIndentedFourOrMore({
+        source,
+        at: range.start,
       },),
     },),
     second: footnoteBodySpans({

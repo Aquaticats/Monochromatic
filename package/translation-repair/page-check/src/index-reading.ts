@@ -8,6 +8,11 @@ export {
   openerStarts,
   rangesWithoutOpeners,
 } from './corpus-run/source-ships-open-comment.ts';
+export {
+  isIndentedFourOrMore,
+  PARAGRAPH_LEAD,
+  spansWithoutLead,
+} from './corpus-run/source-ships-paragraph-lead.ts';
 export { rootWithFreshTails, } from './corpus-run/source-ships-fresh-tails.ts';
 export { differenceDefectsOf, } from './corpus-run/source-ships-differences.ts';
 export {
