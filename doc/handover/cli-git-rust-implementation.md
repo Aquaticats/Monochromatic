@@ -2117,6 +2117,24 @@ that is verification, not a decision for the user.
   global config, not this repo), and a failing `postinstall` fails the install. Unproven: that global-config
   `postinstall` runs as expected. (4) `~/.config/mise/config.toml` is a plain file (no symlink, no dotfiles repo
   found), so other machines the user controls have no automatic path to it today.
+  DECISION (user, 2026-10-25, chosen from the researched options): the global link is `~/.local/bin/git`, created by
+  an entry for the wrapper crate in the user's own global `~/.config/mise/config.toml` with a `postinstall`; the repo
+  keeps only its per-worktree link and never writes outside the repo. Rejected: the repo's postinstall also writing
+  `~/.local/bin/git`, a mise `git` shim (loop risk, to prove in podman), and a Claude Code hook alone. Nothing is
+  changed on the host until the plan is approved. Next: the podman proof (copy of settings, credentials read-only,
+  `claude -p`, bare remote), including whether a global-config `postinstall` runs and the shim loop claim; then one
+  `doc/planning/` proposal. Machines the user does not control remain a separate server-side question.
+  Podman proof 2026-10-25 (`~/temp/agent/podman-proof-1796.ts`, image `git-policy-native-test:m028c` Debian 13 with
+  git 2.56.0, `--memory=4g --cpus=2`, throwaway HOME `~/temp/agent/podman-1796/home`, host `claude`, `mise` and wrapper
+  binaries and `.credentials.json` mounted read-only, settings copy with only the `env` block because the real hooks
+  name host paths; `--security-opt label=disable` because the first run could not write the SELinux-unlabelled
+  mounts). Results: A baseline `command -v git` is `/usr/bin/git`; B with only `~/.local/bin/git` linked to the
+  wrapper and no hook, `claude -p` resolved to the link and a pathspec commit reached the bare remote (local and remote
+  `247ab88`); D a global-config entry `cargo:monochromatic-git-policy-cli` with `postinstall` ran under
+  `mise install` (cargo-binstall from the host mounted read-only), created `~/.local/bin/git`, `git --version` worked
+  through it, and mise made a shim only for `cli-git-native`, none for `git`. C (mise shim named git) first attempt
+  was an INVALID probe (a `path:` version produced no shim, so `git` was `/usr/bin/git`); a retry with a real
+  installed-version directory is in `~/temp/agent/podman-proof-1796-c.ts`.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
