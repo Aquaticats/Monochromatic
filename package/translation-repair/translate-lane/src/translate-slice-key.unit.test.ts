@@ -99,11 +99,13 @@ const INCUMBENT_TEXT = 'The cat sleeps on the windowsill.\n';
  and M-D), which moved this literal.
  Version 35 tells the judges the run-off is asked only where it leaves some candidates behind (re-check 6, M-B), which
  moved this literal.
+ Version 36 tells the judges a round that leaves nothing to narrow asks no such question, in place of a round that
+ leaves no candidate behind (re-check 7, nit 1), which moved this literal.
 
  The roster feeding {@link RUN_SHAPE} is invented, so a production roster change
  leaves this alone.
  */
-const LEGACY_WINDOWLESS_KEY = '508eb67b3fe089af1d85d73b5c253e6453f6f24d4bf19f2be94aecfc454fbb3b';
+const LEGACY_WINDOWLESS_KEY = '5925d39143526917de216c16675d54c6363800d37061a511a7b939c0a305ddd6';
 
 /**
  One slice's key, with whatever this case wants to vary.

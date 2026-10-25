@@ -542,8 +542,21 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  search of a slice-cache directory was made), and the change cannot ride inside it, so the number moves. The
  consolidate version (42) moves for the same sheets; the repair slice (49) and refine (19) versions stay, since neither
  reads these sentences.
+
+ Version 36 covers one phrase of the challenge sentences (`adjudication/src/select-decline-consequence.ts`, re-check 7,
+ nit 1): the part about the rounds that ask no run-off said "a round that leaves no candidate behind", while the
+ run-off part counts a candidate that drew no ballot as behind, so a lone leader of a wide slate was listed under a
+ phrase that did not fit it. It now says "a round that leaves nothing to narrow", which is what the code does in each
+ of the four shapes it lists (`runoffFinalists` returns the whole slate). The rule the code applies is the same; the
+ judges are told it differently, and a slice stored at 35 would hold ballots cast under the old sentences. The key
+ hashes the version, the shape of the run and the texts, not the sheet
+ (`source-scan/src/cache-key-sheet-blindness.unit.test.ts`), so only the number retires a record. Whether a record
+ stands at 35 is not known (the number was set in this same branch and no search of a slice-cache directory was made),
+ and the change cannot ride inside it, so the number moves. The consolidate version (43) moves for the same sheets; the
+ repair slice (49) and refine (19) versions stay, since neither reads these sentences. The first ask does not carry the
+ phrase, so its text is the same as at 35.
  */
-export const TRANSLATE_SLICE_CACHE_VERSION = 35;
+export const TRANSLATE_SLICE_CACHE_VERSION = 36;
 
 /**
  Models the translate lane seats.
