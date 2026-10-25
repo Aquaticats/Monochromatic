@@ -185,7 +185,8 @@ Status:
 fixed on 2026-10-25 (UTC),
 found by the third independent re-check of B920,
 which gave a minor wording finding and five nits
-and a minor finding on commit messages that stays open, since mending it would take an amend,
+and a minor finding on commit messages that stays open,
+since mending it would take an amend,
 a wording round with no change of behaviour.
 
 The defect:
