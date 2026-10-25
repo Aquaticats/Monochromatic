@@ -90,6 +90,50 @@ fn another_failure_points_at_what_mise_names() {
 }
 
 #[test]
+fn a_sandbox_that_stopped_before_mise_is_not_blamed_on_the_mise_configuration() {
+    let state = MiseState::Failed(Failed {
+        message: "bwrap: Can't bind mount /oldroot/cache/proj-1/mise/tmp on /newroot/tmp: Unable to mount source on destination: No such file or directory"
+            .to_string(),
+        untrusted: None,
+    });
+    let paragraphs = state.advisory(Path::new("/work/project"));
+    assert_eq!(paragraphs.len(), 3);
+    assert!(paragraphs[0].contains("/work/project"), "{paragraphs:?}");
+    assert!(
+        paragraphs[0].contains("sandbox that runs mise"),
+        "the notice blamed mise for a sandbox that stopped: {paragraphs:?}"
+    );
+    assert!(
+        paragraphs[0].contains("not the cause"),
+        "the notice blamed mise for a sandbox that stopped: {paragraphs:?}"
+    );
+    assert!(
+        !paragraphs.iter().any(|paragraph| paragraph.contains("mise doctor") || paragraph.contains("mise said")),
+        "the notice blamed mise for a sandbox that stopped: {paragraphs:?}"
+    );
+    assert!(paragraphs[1].contains("bwrap --version"), "{paragraphs:?}");
+    assert!(paragraphs[1].contains("monochromatic-ide/language"), "{paragraphs:?}");
+    assert!(
+        paragraphs[2].starts_with("bubblewrap said: bwrap: Can't bind mount"),
+        "{paragraphs:?}"
+    );
+}
+
+#[test]
+fn only_a_message_that_begins_with_bubblewraps_prefix_is_the_sandbox() {
+    for (message, sandbox) in [
+        ("bwrap: No permissions to create new namespace", true),
+        ("  bwrap: leading blanks", true),
+        ("mise ERROR Config files are not trusted", false),
+        ("`mise bin-paths` did not finish within 10 s and was stopped", false),
+        ("mise ERROR the word bwrap: appears later", false),
+    ] {
+        let failed = Failed { message: message.to_string(), untrusted: None };
+        assert_eq!(failed.stopped_by_sandbox(), sandbox, "{message}");
+    }
+}
+
+#[test]
 fn no_notice_is_given_when_mise_worked_or_did_not_apply() {
     for state in [
         provided(),

@@ -171,13 +171,65 @@ pub fn prepare(
     }
     for directory in &launch.scratch {
         check_below_state(directory, state)?;
-        if directory.exists()
-            && let Err(error) = std::fs::remove_dir_all(directory)
-        {
-            return Err(format!("cannot empty {}: {error}", directory.display()));
-        }
+        empty_in_place(directory)?;
         if let Err(error) = std::fs::create_dir_all(directory) {
             return Err(format!("cannot create {}: {error}", directory.display()));
+        }
+    }
+    return Ok(());
+}
+
+/// What:
+///  Remove everything inside a scratch directory and keep the directory itself.
+///  A path that is a symbolic link or a file is replaced by a real directory
+///  and never followed.
+/// Why:
+///  The directory is the source of a `--bind` of the sandbox.
+///  Another process on the same project (a second window, or a server and a mise run starting together)
+///  prepares the same path while this process is about to start bubblewrap,
+///  and a directory removed and made again is missing in between:
+///  bubblewrap then stops with `Can't bind mount ... No such file or directory`.
+///  A directory emptied in place is never missing,
+///  and the sandbox that already holds it keeps a directory that exists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function emptyInPlace(directory: string): void // throws a reason
+/// ```
+fn empty_in_place(directory: &Path) -> Result<(), String> {
+    let Ok(found) = std::fs::symlink_metadata(directory) else {
+        // Nothing there yet (or nothing readable): the caller creates it.
+        return Ok(());
+    };
+    if !found.is_dir() {
+        // A link or a file where the directory belongs: remove the name only, never what a link points at.
+        return std::fs::remove_file(directory)
+            .map_err(|error| format!("cannot empty {}: {error}", directory.display()));
+    }
+    let entries = match std::fs::read_dir(directory) {
+        Ok(entries) => entries,
+        // Removed by another process since the check: the caller creates it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("cannot empty {}: {error}", directory.display())),
+    };
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("cannot empty {}: {error}", directory.display()))?;
+        let path = entry.path();
+        let is_directory = entry
+            .file_type()
+            .map_err(|error| format!("cannot empty {}: {error}", path.display()))?
+            .is_dir();
+        let removed = if is_directory {
+            std::fs::remove_dir_all(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+        match removed {
+            Ok(()) => {}
+            // Another process emptied it at the same time.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("cannot empty {}: {error}", path.display())),
         }
     }
     return Ok(());
