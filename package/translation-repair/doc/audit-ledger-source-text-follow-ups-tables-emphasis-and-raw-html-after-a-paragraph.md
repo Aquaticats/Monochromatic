@@ -341,7 +341,7 @@ with `ea368918c3` for the first two:
   quotes and lists (seed 99,
   the re-check's generator):
   against `ea368918c3`,
-  same to throw 0 and same to differs 0 (19 and 2 at `242d4d14fd`);
+  same to throw 0 and same to differs 0 over this family (19 and 2 at `242d4d14fd`);
   the answers for the final code are 5858 same,
   104 undecided,
   38 differs.
@@ -351,7 +351,7 @@ with `ea368918c3` for the first two:
   tables and references (seed 11):
   against `ea368918c3`,
   same to differs 0,
-  same to throw 0;
+  same to throw 0 over this family;
   against `242d4d14fd`,
   53 throws to same,
   343 differs to same,
@@ -361,9 +361,24 @@ with `ea368918c3` for the first two:
   a block of raw HTML and a tail (seed 5):
   against `242d4d14fd`,
   same to differs 0,
-  same to throw 0,
+  same to throw 0 over this family,
   differs to same 1229,
   undecided to same 30.
+
+Correction of 2026-10-25, after the re-check of the seventh round.
+"Same to differs 0" and "same to throw 0" hold over the families named in this list,
+and were never shown for texts in general.
+The re-check's containers family
+(40000 texts of two to five lines under eight prefixes:
+none, a block quote, a list item, an ordered list item and nested ones)
+found 52 texts that read the same at `04237d882e` and differ now,
+and 108 that read the same there and are undecided now.
+The pool of the search holds 0 of them and the real corpus holds 0 files with any trigger of them.
+Two of its minimal texts:
+```` >[^1]:<!-- r\n>     ```\n ````
+and ```` <!r\n[^1]:\n    ```\n    <!--\n ````.
+The details and the stated limits are in
+[the file on the plain reading with tables and the containers][plain-file].
 
 ### The real corpus
 
@@ -524,11 +539,19 @@ The classes that [the file on the plain reading with tables and the containers][
   follows and ends it,
   so a code span,
   a list marker or a heading mark that follows it reads differently on the page.
-  Closed for every opener of the kind,
-  and for the fence,
+  Closed for the shapes named here:
+  the openers of a comment that never closes at the start of a line in a quote or a list item,
+  and the fence,
   the display math and the openers under a footnote in a
   container (`6d041dc1b1eb8ee49d3611cfc4d14541bcd36451`,
   `5fe683e2f2335374a8dcb5c61e531291d8351fa9` and the fixes that follow it).
+  Correction of 2026-10-25, after the re-check of the seventh round:
+  "every opener of the kind" was too wide.
+  It holds for the shapes named here,
+  and the re-check found other shapes in a container that read the same before and are reported or undecided now,
+  for example a footnote whose label line holds a comment opener that never closes,
+  followed by a fence mark indented four columns.
+  They are stated limits in [the file on the plain reading with tables and the containers][plain-file].
 - The container footnotes the two-readings ruling decides (278 of the 30000 widened texts,
   1119 of the search),
   each shipping `source-reading-undecided`.

@@ -120,9 +120,10 @@ A run that differs and also holds an undecided block ships the first two.
 
 ### What was red first, and what was not
 
-The reds of this round fail on their parent for the stated reason (`dx1f3/red-*-failing-lines.txt` in the run
-directory,
-outside the repository),
+The reds of this round fail on their parent for the stated reason (the failing lines of the test run of each red,
+which the entries of this section quote,
+and which were read from scratch output files of the run;
+that scratch output is not kept in the repository),
 and none is a load error:
 
 - `b8e339c879` (F7):
@@ -257,9 +258,12 @@ All of these die:
 The texts are those of the third and fourth rounds (132260:
 every run of both seeds' 40000 pairs,
 the footnote product texts and the shapes),
-each put to the production comparison (`dx1f3/scratch/search5.ts`,
-in a capped unit with `MemoryMax=8G` and `CPUQuota=800%`,
-five times:
+each put to the production comparison by a scratch script that asked the oracle and the comparison about every text
+and counted the answers
+(the script and its output are not kept in the repository,
+and the counts of this section are what its last run printed;
+the unit was capped with `MemoryMax=8G` and `CPUQuota=800%`,
+and the search ran five times:
 after each of the fixes that the search itself called for,
 and a last time on the head `d57b80ea0ab4c4c2541ed43d2a87f2db4642aeaf`,
 whose code is that of `4f1ba3055b8d288e320bfed893d06889ff487927`;
@@ -318,8 +322,10 @@ so the text stays undecided and is reported.
 ### The real corpus
 
 The pinned clone `one-among-us/data` at `a41fc607ea5a70d8a7625cc67d5ed8c444f53379`,
-read with `git cat-file` and never written (`dx1f3/scratch/corpus5.ts`,
-in a capped unit with `MemoryMax=4G` and `CPUQuota=200%`).
+read with `git cat-file` and never written, by a scratch script that listed the blocks of each file and counted the
+openers and the comparison's answers
+(the script and its output are not kept in the repository;
+the unit was capped with `MemoryMax=4G` and `CPUQuota=200%`).
 Counts only;
 no text of the corpus is written here.
 It ran twice,

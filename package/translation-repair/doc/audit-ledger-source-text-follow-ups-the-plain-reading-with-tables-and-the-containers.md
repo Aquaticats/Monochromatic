@@ -408,6 +408,20 @@ that let the last block end anywhere and that move the binary search by one die;
 the one that reads the index from the start of the page instead of the first place survives and is equivalent
 (a place before the first place the blocks before can end at has no cost to reach it).
 
+Correction of 2026-10-25, after the re-check of this round:
+the two survivors argued equivalent are not the whole list.
+A third survivor of the new code is not equivalent and was left out because the suites of this round did not run it.
+In `source-ships-footnote-container.ts` at line 96,
+the condition `(character === ' ') || (character === '\t')`, made `character === ' '`,
+survives all 39 suites of the round.
+Over 252644 texts (the search pool, 120000 container texts and 384 tab shapes) the encoding changes for 11 of them,
+all tab-indented fences under a footnote in a quote or a list item.
+The verdict is `differs` at both codes, because those texts already differ,
+so no verdict separates the mutant from the code:
+the tab path of the prefix match has no pin.
+It is a stated limit and a later item: a case with a tab where the pattern has a space,
+once the tab shapes of the footnote read the same.
+
 On the final code (`069dcc58e1`) for the new code of the round,
 11 mutants,
 8 dead at the first run and 3 pinned in `244a4b54b285add3e5744bef36b838baf5bd0352`:
@@ -559,7 +573,7 @@ each against the same code of `04237d882e`:
   quotes and lists (seed 99):
   5858 same to same,
   104 undecided to same and 38 differs to same;
-  same to differs 0 and same to throw 0.
+  same to differs 0 and same to throw 0 over this family.
 - 30000 texts with the leads widened (seed 11):
   29634 same to same,
   278 undecided to same,
@@ -567,7 +581,7 @@ each against the same code of `04237d882e`:
   and the same generator at seed 5:
   29615,
   289 and 96;
-  same to differs 0 and same to throw 0 in both.
+  same to differs 0 and same to throw 0 in both, over this family.
 - 30000 texts of a paragraph,
   a block of raw HTML and a tail (seed 5):
   28934 same to same,
@@ -575,7 +589,7 @@ each against the same code of `04237d882e`:
   789 differs to differs,
   244 differs to same,
   13 undecided to same and 10 undecided to undecided;
-  same to differs 0 and same to throw 0.
+  same to differs 0 and same to throw 0 over this family.
 - The table grid of 87360 texts:
   87306 same to same and 54 undecided to same;
   0 differs and 0 throw.
@@ -592,6 +606,26 @@ each against the same code of `04237d882e`:
   and 110880 of the raw HTML family
   (109397 same to same and 1483 differs to same;
   the 35 that still differed after the first fix of the round were the tab shapes of a list item and are fixed).
+
+Correction of 2026-10-25, after the re-check of this round.
+"Same to differs 0" and "same to throw 0" hold over the families named in this list,
+and in the same words in [the file on tables, emphasis and raw HTML after a paragraph][tables-file]:
+they were never shown for texts in general.
+The re-check ran a family of its own, the containers family
+(40000 texts of two to five lines under eight prefixes:
+none, a block quote, a list item, an ordered list item and nested ones),
+and it found 52 texts that read the same at `04237d882e` and differ now,
+and 108 that read the same there and are undecided now.
+The writer's pool of 132260 texts holds 0 of them and the real corpus holds 0 files with any trigger of them,
+so the exposure today is none that has been found, but the regression is real in kind.
+Two of its minimal texts:
+```` >[^1]:<!-- r\n>     ```\n ````
+(a footnote whose label line holds a comment opener that never closes, then a fence mark indented four columns in a
+quote: the encoder now copies the mark where it wrote it with backslashes, and the page shows an empty fence)
+and `a||\n-|-\n[^1]:\n    $$\n`
+(a footnote label line right after a table row: the plain parse reads a table there and the page does not).
+The classes are stated limits in the section "Stated limits after the re-check" of this file,
+and are a later item.
 
 The real corpus,
 the pinned clone `a41fc607ea5a70d8a7625cc67d5ed8c444f53379` read with `git cat-file` only,
@@ -661,6 +695,111 @@ The 5303 that cannot be compared are pages nested past the bound of the grammar.
 None of these is a text that read the same before.
 The proof that a fix is impossible is not claimed for any of them:
 each is a limit not reached in the time of this round.
+
+### Stated limits after the re-check
+
+Dated 2026-10-25.
+The owner's stopping rule is that a branch lands once a re-check finds no major issue
+and nothing that changes behaviour on real sources or the real corpus,
+and that gaps shown only by invented inputs become stated limits and a later item.
+The re-check of this round (the seventh) found the limits that follow.
+None is fixed by this branch,
+each is a later item,
+and none changes an answer on the real corpus as the re-check measured it
+(274 distinct texts of the pinned clone `a41fc607ea5a70d8a7625cc67d5ed8c444f53379`,
+where every class of text shape named in this section is 0 files, with a positive control for each).
+
+The work of the placing is quadratic on one shape.
+`placedAfter` in `source-reading-places.ts` costs the square of the blocks when every block shows the same two words
+and every fourth block is reached.
+The re-check's times on one CPU, in milliseconds, by number of blocks:
+400 blocks 7 to 19;
+800 blocks 17 to 36;
+1600 blocks 84 to 168;
+3200 blocks 484 to 500;
+6400 blocks 1532 to 2017;
+12800 blocks 8043 to 8103;
+25600 blocks 36757.
+From 3200 blocks on, twice the blocks cost 4.0 to 4.6 times the time.
+Other shapes are near linear:
+words found nowhere else took 6, 156, 115, 278 and 690 ms at 800, 3200, 6400, 12800 and 25600 blocks,
+and a vocabulary of 50 words took 8, 47, 189, 324 and 1664 ms
+(the re-check lists five sizes for it without repeating them,
+and they are read here as the same five).
+The real pages are far smaller than the sizes measured:
+the pinned corpus holds 8423 top-level blocks in 276 files, about 31 a file on average
+(the largest file was not measured here),
+and the shape that costs most needs every block to show the same words.
+The answer is an optimisation and not a decision:
+the placing keeps, for each place, the fewest reached blocks that the readings cannot be asked about,
+and the caller reports that count.
+A greedy leftmost match is linear for the decision whether the blocks can be placed in order
+and does not give the cost.
+The re-check's direction for a linear or n log n method is to stop rebuilding a row per anchor:
+row k is the smaller of the prefix minimum of row k-1 plus the blocks held,
+and row k-1 shifted by the words held,
+so the rows can be one persistent structure
+(a prefix minimum and sparse exact chains with a lazy offset)
+and not one map per anchor.
+It was not built or proved,
+and this branch does not do it.
+
+The 1748 texts of the search that still differ are reported by the comparison and not fixed,
+and the re-check counted them by lexical class in priority order:
+
+- An image whose alternative text holds an angle autolink or a code span holding one:
+  1295 (the writer's count is the same).
+- A footnote that opens with a tag alone, followed by a fence or a display math:
+  173 to 182 (the writer's count is 176).
+- A fence mark indented four columns after a line of text:
+  235 (the writer's count is 244).
+- An indented code line before a list marker or a star:
+  31 (the writer's count is 19).
+- Other shapes:
+  14 (the writer's count is 14).
+
+The sums are 1748 both ways,
+and the counts differ from the writer's by the rules for overlap between three lexical classes only.
+Indented `$$` after a paragraph line has 0 rows in the search and 0 texts of that shape in the pool.
+All five classes are 0 in the real corpus.
+
+The re-check found a page that reads the same for four of the five classes:
+the image alternative text written without the brackets of the autolink (and a code span written unescaped),
+which touches `source-ships-spans.ts` and the alternative-text stretch of `source-ships-ranges.ts`;
+the marker of the list item escaped when the encoder writes its blank line after an indented code line
+(`    注\n\n2\.\n` and `    注\n2\.\n` read the same),
+which touches the encoder's blank-line write;
+the text of an indented display math after a paragraph line copied as it stands,
+because the encoder escapes the braces inside the math,
+which touches the escape of that math;
+and the footnote with a tag alone written with its fence marks as text,
+which extends `source-ships-footnote-html.ts`.
+For a fence mark indented four columns after a line of text
+(```` [b]:x\n    ```\na```\n ````, whose source account is `a`)
+the re-check found no page that reads the same,
+so that class is neither shown fixable nor shown impossible.
+The fix of the image class moves the known-differs examples of
+`source-reading-difference.unit.test.ts`,
+`source-reading-defect.unit.test.ts`,
+`source-ships-differences.unit.test.ts`,
+the pin of the current escape in `source-ships-encoding.unit.test.ts`
+and the pool fixture `source-live-sample-pool.test-fixture.ts`,
+and moves the search counts by 1295.
+
+The classes of the correction of 2026-10-25 in the section on the searches are of the same standing.
+They are texts of the re-check's containers family that read the same at `04237d882e` and not now:
+a comment opener on the label line of a footnote followed by a fence mark in a container,
+which `footnoteOpensRawHtml` in `source-ships-footnote-html.ts` does not see,
+because the opener is written as text first;
+a footnote body whose first line the nested reading takes for a table header;
+a footnote label line right after a table row that the plain parse takes for a table row;
+a declaration-like line such as `<!r` that starts a block of raw HTML holding the footnote line;
+and a quote mark left unescaped in a deep quote.
+Their direction is to make `footnoteOpensRawHtml` see the opener as the readable text gives it,
+to stop the nested reading from reading a table on the first line of a footnote body,
+and to stop the plain parse from taking the label line of a footnote as a table row.
+The writer's generator does not yet hold the re-check's containers family,
+so the next search will not see them until it does.
 
 ### The merges, the gates and the full task
 
