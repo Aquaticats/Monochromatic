@@ -84,6 +84,7 @@ import { DEFAULT_EXPORT_CASES, RE_EXPORT_CASES, } from './claude-schema-re-expor
 import { CONSTANT_END_CASES, } from './claude-schema-constant-end-forms.test-fixture.ts';
 import { CONSTANT_PIN_CASES, } from './claude-schema-constant-pin-forms.test-fixture.ts';
 import { CONSTANT_READER_CASES, } from './claude-schema-constant-reader-forms.test-fixture.ts';
+import { IMPORT_EQUALS_CASES, } from './claude-schema-import-equals-forms.test-fixture.ts';
 import { FORWARDER_CHAIN_CASES, } from './claude-schema-forwarder-chain-forms.test-fixture.ts';
 import {
   FORWARDER_CASES,
@@ -812,6 +813,7 @@ await describe({
       ...SURVIVOR_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
+      ...IMPORT_EQUALS_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
       ...UNDECLARED_FORWARDER_CASES,
@@ -872,6 +874,7 @@ await describe({
       ...SURVIVOR_CASES,
       ...CONSTANT_END_CASES,
       ...CONSTANT_READER_CASES,
+      ...IMPORT_EQUALS_CASES,
       ...FORWARDER_CASES,
       ...FORWARDER_CHAIN_CASES,
       ...UNDECLARED_FORWARDER_CASES,
