@@ -241,8 +241,8 @@ await describe({
           },
         },),
         it({
-          name: 'BOOKS the edges of the week by the UTC weekday: Friday 09:59 at peak, Friday 10:00 and 23:59 off-peak, '
-            + 'Monday 00:59 off-peak and Monday 01:00 at peak',
+          name: 'BOOKS the edges of the week by the UTC weekday: Friday 09:59 at peak, Friday 10:00 and 23:59 '
+            + 'off-peak, Monday 00:59 off-peak and Monday 01:00 at peak',
           fn: async () => {
             expect(costStartedAt({ startedAt: '2026-10-23T09:59:59.999Z', },),).toBeCloseTo(PEAK_USD, 12,);
             expect(costStartedAt({ startedAt: '2026-10-23T10:00:00.000Z', },),).toBeCloseTo(OFF_PEAK_USD, 12,);
@@ -254,7 +254,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'DeepSeek rate of a call that crosses a window edge',
+      name: 'DeepSeek rate of a call by where its start and its completion fall against the windows',
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
@@ -517,8 +517,8 @@ await describe({
           },
         },),
         it({
-          name: 'READS an instant that is not a time as peak, the dearer rate, so a failing clock never books less than '
-            + 'the account may have been charged',
+          name: 'READS an instant that is not a time as peak, the dearer rate, so a failing clock never books '
+            + 'less than the account may have been charged',
           fn: async () => {
             expect(isDeepSeekPeakAt({ at: new Date(Number.NaN,), },),).toBe(true,);
           },
