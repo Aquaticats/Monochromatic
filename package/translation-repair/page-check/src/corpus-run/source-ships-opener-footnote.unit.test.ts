@@ -17,7 +17,6 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
-import { parseMarkdownMathBody, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
   openerStarts,
@@ -39,7 +38,6 @@ import {
 function splitOf({ source, }: { readonly source: string; },): ReturnType<typeof openersInFootnoteFlowsOf> {
   return openersInFootnoteFlowsOf({
     source,
-    root: parseMarkdownMathBody({ body: source, },),
     starts: openerStarts({
       text: source,
       from: 0,
@@ -103,6 +101,40 @@ await describe({
       },
     },),
     it({
+      name: 'CARRIES THE MARKS AND THE INDENTATION OF A CONTAINER ON EVERY LINE IT WRITES, in a block quote and a list item',
+      fn: async () => {
+        /**
+         A block quote and a list item whose footnote holds a fence with an opener on its second line.
+         */
+        const quote = '> [^1]: x\n>\n>     ```\n>     <!-- never\n>     ```\n';
+        const item = '- [^1]: x\n\n      ```\n      <!-- never\n      ```\n';
+        expect(openersInFootnoteFlowsOf({
+          source: quote,
+          starts: [quote.indexOf('<!--',),],
+          closed: [],
+          footnotes: [{ start: 2, end: quote.length - 1, },],
+        },).edits,).toEqual([
+          {
+            start: quote.indexOf('>     <!--',),
+            end: quote.indexOf('>     <!--',) + 16,
+            replacement: '>     ```\n>\n>     &lt;\\!\\-\\- never\n>\n>     ```',
+          },
+        ],);
+        expect(openersInFootnoteFlowsOf({
+          source: item,
+          starts: [item.indexOf('<!--',),],
+          closed: [],
+          footnotes: [{ start: 2, end: item.length - 1, },],
+        },).handled,).toEqual([item.indexOf('<!--',),],);
+      },
+    },),
+    it({
+      name: 'READS A FENCE RIGHT AFTER THE FOOTNOTE LINE, with no blank line, and takes the opener out of it',
+      fn: async () => {
+        expect(splitOf({ source: '[^1]: x\n    ```\n    x <!-- never\n    ```\n', },).handled,).toEqual([22,],);
+      },
+    },),
+    it({
       name: 'LEAVES AN OPENER OUTSIDE A FENCE ALONE, in a paragraph of the footnote after a closed fence',
       fn: async () => {
         expect(splitOf({
@@ -119,22 +151,29 @@ await describe({
         const source = '```\n<!-- never\n```\n\n[^1]: x\n';
         expect(openersInFootnoteFlowsOf({
           source,
-          root: parseMarkdownMathBody({ body: source, },),
           starts: [source.indexOf('<!--',),],
           closed: [],
           footnotes: [{ start: source.indexOf('[^1]',), end: source.length, },],
         },),).toEqual({ edits: [], handled: [], },);
         expect(openersInFootnoteFlowsOf({
           source: '[^1]: x\n\n    ```\n    a\n    ```\n',
-          root: parseMarkdownMathBody({ body: '[^1]: x\n\n    ```\n    a\n    ```\n', },),
           starts: [],
           closed: [],
           footnotes: [{ start: 0, end: 30, },],
         },),).toEqual({ edits: [], handled: [], },);
+        /**
+         An indented fence at the top that no footnote holds, with an opener on its second line and a footnote after it.
+         */
+        const indented = '    ```\n    <!-- never\n    ```\n\n[^2]: w\n';
         expect(openersInFootnoteFlowsOf({
-          source: '    ```\n    <!-- never\n    ```\n',
-          root: parseMarkdownMathBody({ body: '    ```\n    <!-- never\n    ```\n', },),
-          starts: [14,],
+          source: indented,
+          starts: [indented.indexOf('<!--',),],
+          closed: [],
+          footnotes: [{ start: indented.indexOf('[^2]',), end: indented.length, },],
+        },),).toEqual({ edits: [], handled: [], },);
+        expect(openersInFootnoteFlowsOf({
+          source: indented,
+          starts: [indented.indexOf('<!--',),],
           closed: [],
           footnotes: [],
         },),).toEqual({ edits: [], handled: [], },);

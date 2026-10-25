@@ -257,6 +257,7 @@ export function footnoteRead(
           end: reach.end,
         }
         : range,
+      prefixLength: (opensFootnoteHere || isRootChild) ? 0 : state.prefixLength,
     },),
   };
 }

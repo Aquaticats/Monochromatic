@@ -1,9 +1,9 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   endLineOf,
-  isIndentedCode,
   isLazyDefinition,
 } from './source-ships-footnote.ts';
+import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
 import {
   contentStretches,
   lineJoinsOf,
@@ -246,13 +246,13 @@ export function spansOf(
      Whether the node is indented code under a footnote definition, which the
      strict grammar reads as the blocks of the definition.
      */
-    const continuesFootnote = isRootChild
-      && footnote.open
-      && isIndentedCode({
-        source,
-        node,
-        range,
-      },);
+    const continuesFootnote = continuesTheFootnote({
+      source,
+      node,
+      range,
+      state: footnote,
+      isRootChild,
+    },);
     /**
      What the block read last in the parent is once this one is read.
      */

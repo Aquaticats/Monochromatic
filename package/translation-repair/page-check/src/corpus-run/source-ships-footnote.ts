@@ -104,7 +104,7 @@ export function hasFootnoteLabel(
 /**
  How many columns a block under a footnote definition is indented by.
  */
-const FOOTNOTE_INDENT = 4;
+export const FOOTNOTE_INDENT = 4;
 
 /**
  What {@link footnoteStartInside} answers for a paragraph no footnote definition starts inside.
@@ -466,7 +466,7 @@ type LinePrefix = {
  }, },);
  ```
  */
-function linesWithoutPrefix(
+export function linesWithoutPrefix(
   {
     source,
     range,
@@ -521,7 +521,7 @@ function linesWithoutPrefix(
  const count = indentationOf({ source: '  a', line: { start: 0, end: 3, }, },);
  ```
  */
-function indentationOf(
+export function indentationOf(
   {
     source,
     line,
@@ -549,7 +549,7 @@ const MOST_COLUMNS_BEFORE_MARK = 3;
 /**
  Columns a tab counts for before the mark of a block quote.
  */
-const TAB_COLUMNS = 4;
+export const TAB_COLUMNS = 4;
 
 /**
  How many characters of block quote marks a line starts with: each mark with up to three columns of white space before

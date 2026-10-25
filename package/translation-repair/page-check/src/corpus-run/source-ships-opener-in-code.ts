@@ -31,10 +31,11 @@ import {
 // opener as the character reference, and the block is opened again with the same mark; the info string of the opening is
 // not repeated, which no reader of the text sees. A CODE SPAN OR INLINE MATH is closed before the opener, and the rest of
 // its content is written as text, the closing mark dropped; where nothing but white space stands before the opener the
-// whole span is written as text. An opener in a fence or display math that a footnote definition holds at the top is
-// found in `source-ships-opener-footnote.ts`, since the plain reading takes the lines of that fence for indented code. An
-// opener first on a line right after a paragraph is the start of a block of raw HTML that ends the paragraph to a reader of
-// the source, and `source-ships-html-interrupt.ts` puts a blank line before it, as before any such block.
+// whole span is written as text, the white space before the opener after the closing mark. An opener in a fence or display
+// math that a footnote definition holds, at the top or in a container, is found in `source-ships-opener-footnote.ts`,
+// since the plain reading takes the lines of that fence for indented code or for a code span. An opener first on a line
+// right after a paragraph is the start of a block of raw HTML that ends the paragraph to a reader of the source, and
+// `source-ships-html-interrupt.ts` puts a blank line before it, as before any such block.
 
 /**
  What a code span or inline math starts with: the run of its delimiter.
@@ -433,24 +434,30 @@ export function editsWithOpeners(
   },
 ): readonly TextEdit[] {
   /**
-   What holds an opener inside code or math, written outside it.
-   */
-  const atTop = openersInCodeOf({
-    source,
-    root,
-    starts,
-    edits,
-    closed,
-  },);
-  /**
    What holds an opener inside a fence or display math under a footnote definition, written outside it.
    */
   const underFootnotes = openersInFootnoteFlowsOf({
     source,
-    root,
     starts,
     closed,
     footnotes,
+  },);
+  /**
+   The openers the footnotes' lines took.
+   */
+  const { handled: taken, } = underFootnotes;
+  /**
+   What holds an opener inside code or math elsewhere, written outside it: the openers a footnote's lines took are left to
+   them, since the plain reading may read the same lines as a code span or as indented code.
+   */
+  const atTop = openersInCodeOf({
+    source,
+    root,
+    starts: starts.filter(function notTaken(start,): boolean {
+      return !taken.includes(start,);
+    },),
+    edits,
+    closed,
   },);
   /**
    Both, together.

@@ -66,6 +66,12 @@ export type FootnoteState = {
    Whether the block ends in a raw HTML block or indented code, after which a definition line is a lazy line too.
    */
   readonly endsInLiteral: boolean;
+
+  /**
+   How many characters the container puts before the label of the footnote definition on its line, the marks of a block
+   quote and the indentation of a list item, which each later line of the footnote carries as many of; none at the top.
+   */
+  readonly prefixLength: number;
 };
 
 /**
@@ -75,6 +81,7 @@ const NO_BLOCK_READ: FootnoteState = {
   open: false,
   endLine: 0,
   endsInLiteral: false,
+  prefixLength: 0,
 };
 
 /**
@@ -153,6 +160,16 @@ export function stateAfter(
       source,
       node,
     },),
+    prefixLength: opensFootnote({
+      source,
+      node,
+      range,
+    },)
+      ? (range.start - (source.lastIndexOf(
+        '\n',
+        range.start - 1,
+      ) + 1))
+      : before.prefixLength,
   };
 }
 
@@ -400,6 +417,7 @@ export function takeFootnote(
         fallback: state.endLine,
       },),
       endsInLiteral: false,
+      prefixLength: state.prefixLength,
     },
   };
 }

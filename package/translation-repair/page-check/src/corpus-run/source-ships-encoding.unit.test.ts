@@ -1128,14 +1128,13 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARKS OF A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR '
-            + 'A BLOCK QUOTE, and the page shows the marks (a limit the module comment names): the lines the nested '
-            + 'reading takes carry the prefix of the container, which it does not strip',
+          name: 'COPIES A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR A BLOCK QUOTE, as at the top: the '
+            + 'lines the nested reading takes carry the prefix of the container, which it strips with the four columns',
           fn: async () => {
             expect(encoded({ text: '- [^1]: x {\n\n      ```\n      {a}\n      ```\n', },),)
-              .toBe('- [^1]: x \\{\n\n      \\`\\`\\`\n      \\{a\\}\n      \\`\\`\\`\n',);
+              .toBe('- [^1]: x \\{\n\n      ```\n      {a}\n      ```\n',);
             expect(encoded({ text: '> [^1]: x {\n>\n>     ```\n>     {a}\n>     ```\n', },),)
-              .toBe('> [^1]: x \\{\n>\n>     \\`\\`\\`\n>     \\{a\\}\n>     \\`\\`\\`\n',);
+              .toBe('> [^1]: x \\{\n>\n>     ```\n>     {a}\n>     ```\n',);
           },
         },),
 

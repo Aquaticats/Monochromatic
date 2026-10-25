@@ -30,6 +30,12 @@ export {
 } from './corpus-run/source-reading-blocks.ts';
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
 export {
+  containerCharactersAt,
+  continuesAsParagraph,
+  continuesTheFootnote,
+  withoutContainerAndIndentation,
+} from './corpus-run/source-ships-footnote-container.ts';
+export {
   footnoteReadingsOf,
   NO_PAGE_ONLY_DEFINITION,
   pageOnlyDefinitionWritten,

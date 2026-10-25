@@ -31,6 +31,7 @@ const OPEN = {
   open: true,
   endLine: 1,
   endsInLiteral: false,
+  prefixLength: 0,
 };
 
 /**

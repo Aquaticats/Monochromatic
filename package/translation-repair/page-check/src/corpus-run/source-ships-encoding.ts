@@ -157,9 +157,9 @@ import {
 // reference, and where it stands in a fence, a display math, a code span or inline math what holds it is taken out of the
 // code first (`source-ships-opener-in-code.ts`), since the reference shows as written in code; one in a code span that only
 // the reading of a footnote in a block quote pairs is not found, and the comparison reports the page. A fence indented
-// under a footnote definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
-// takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
-// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
+// under a footnote definition is copied, at the top and in a block quote or a list item: the lines the nested reading
+// takes carry the prefix of the container, which it strips with the four columns the footnote takes
+// (`source-ships-footnote-container.ts`; `source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
 // opens a run is an ordinary character on the page, where a fence mark after it opens no fence, so the encoder reads
 // the run with a letter in its place (`source-ships-readable.ts`), and a fence that this leaves open at the end of the
 // run is closed like any other. An angle autolink inside the alternative text of an image is written with a backslash
