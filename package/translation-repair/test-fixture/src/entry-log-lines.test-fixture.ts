@@ -125,7 +125,11 @@ export function linesRepeatingAttempt(
   },
 ): readonly string[] {
   return lines.filter(function repeatsAttempt(line,): boolean {
-    return line.split(`[attempt ${String(attempt,)}]`,).length > 2;
+    /**
+     The pieces of the line around each bracket, one more than the brackets.
+     */
+    const pieces = line.split(`[attempt ${String(attempt,)}]`,);
+    return pieces.length > 2;
   },);
 }
 
