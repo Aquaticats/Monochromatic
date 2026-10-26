@@ -579,9 +579,8 @@ INH:
  and installs it touched before acting.
 
 UPN:
- Upgrades name their tool (`mise upgrade <tool>`,
- never bare):
- a bare upgrade installs unrelated toolchains and rewrites lockfiles that every session's builds share.
+ Upgrades name their tool (`mpm upgrade <package>`):
+ a bare `mpm upgrade --all` moves every manager's packages and rewrites the toolchain state all sessions' builds share.
 
 TRB:
  External tool fails with a diagnostic:
@@ -752,6 +751,11 @@ CM6:
  run `mise run //package/<path>:lint:types`;
  nothing type-checks automatically.
 
+CM7:
+ Provision tools with `mise run toolchain:sync`;
+ `toolchain.lock.json` pins every version,
+ and ad-hoc installs or lock edits bypass the checked-in toolchain.
+
 ## Before editing code
 
 ### Match action scope to the request verb
@@ -831,7 +835,7 @@ NMJ:
 PIN:
  Pin tool versions only with a comment explaining why;
  never pin tools this repository publishes,
- since `mise.lock` records them.
+ since `toolchain.lock.json` records them.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
