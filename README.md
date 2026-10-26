@@ -152,13 +152,18 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise](https://mise.jdx.dev/) (task runner and tool version manager).
-All other tools (Node,
+Install [Mise][mise-home] as the task runner and a system Node,
+which executes the toolchain sync entry.
+Mise runs tasks only;
+every tool version this repository pins (Node,
 pnpm,
 dprint,
 Rust nightly,
 Java,
-and Bun for explicit Bun islands) are installed automatically by Mise.
+Bun for explicit Bun islands,
+and the rest) is provisioned from `toolchain.lock.json` by the repository
+toolchain,
+recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
 
 ### Clone and bootstrap
 
@@ -167,11 +172,9 @@ git clone https://github.com/Aquaticat/Monochromatic.git
 cd Monochromatic
 ```
 
-On first entry,
-Mise warns about missing tools.
 Trust the configuration so Mise evaluates environment variables,
 templates,
-and the `enter` hook:
+and tasks:
 
 ```sh
 mise trust
@@ -182,16 +185,49 @@ under `package/`.
 See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
-The `enter` hook is a `bootstrap` task that runs `mise install` then `mise upgrade`,
-so entering the trusted directory installs and updates the pinned tools
-automatically;
-it is plain cross-platform Mise with no separate task-runner shell to install
-first.
+Provision the toolchain,
+converging every tool to the versions `toolchain.lock.json` pins:
+
+```sh
+mise run toolchain:sync
+```
+
+The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
+and `node package/dev-script/file-enforcer/src/toolchain/sync.ts`
+runs the same work without the task wrapper.
+The sync entry installs [mpm][mpm-home] itself first (a pinned standalone
+release binary,
+SHA-256 checked),
+then the remaining tools,
+and rebuilds the gitignored `.cache/toolchain-bin` directory that the
+generated `mise.toml` `[env]` puts first on `PATH`.
 Then install dependencies and build all packages:
 
 ```sh
 mise run prepareAndBuild
 ```
+
+### Tool inventory and drift
+
+- `mise run toolchain:status` prints observed versus locked versions and exits
+  non-zero on drift
+  (`node package/dev-script/file-enforcer/src/toolchain/status.ts` runs the
+  same check).
+- `mpm installed` lists what every package manager on the machine holds,
+  `mpm outdated` lists available upgrades,
+  and `mpm sbom` exports the inventory as SPDX or CycloneDX.
+- `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` prints the
+  exposure directory and each tool's link targets as JSON,
+  which is what IDE integrations read.
+
+Version bumps change the typed tool plan in
+`package/dev-script/file-enforcer/src/toolchain/` and the generated
+`toolchain.lock.json`,
+never a hand-edited lock.
+Upgrades of a single machine package name their tool
+(`mpm upgrade <package>`);
+a bare `mpm upgrade --all` moves every manager's packages and rewrites the
+toolchain state all sessions' builds share.
 
 ## Essential commands
 
@@ -292,9 +328,19 @@ package-deprecated/         Deprecated packages retained for reference
 ## Technical stack
 
 - **Task runner**:
-  [Mise](https://mise.jdx.dev/) with Node
+  [Mise][mise-home] with Node
   (`shell = "node --input-type=module-typescript -e"`)
   for cross-platform task logic
+- **Toolchain manager**:
+  [mpm][mpm-home] (Meta Package Manager) for the tool manifest,
+  machine inventory,
+  outdated detection,
+  upgrade coordination,
+  release-age cooldown,
+  and SBOM export,
+  plus file-enforcer's typed tool plan and focused providers for exact-pin
+  installs,
+  all pinned in `toolchain.lock.json`
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
   Bun stays installed only for explicit Bun islands,
@@ -344,3 +390,6 @@ some tools (e.g. Zellij) have no native Windows support.
 [LGPL-3.0-or-later](LICENSE) for code,
 with root package metadata also declaring
 [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) for shareable documentation and content.
+
+[mpm-home]: https://mpm.run/
+[mise-home]: https://mise.jdx.dev/
