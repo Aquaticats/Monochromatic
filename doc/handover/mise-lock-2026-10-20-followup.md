@@ -38,6 +38,13 @@ Changes:
   `doc/decision/mise-free-ci.md`),
   so no workflow pin remains to remove.
 
+Update 2026-10-26:
+`doc/decision/mpm-toolchain-adoption.md` retires `mise.lock`,
+so the remaining steps below are moot for that file.
+The macOS and Windows artifact-resolution gap this stopgap tracked
+carries to `toolchain.lock.json` and stays open work
+in `doc/decision/mpm-toolchain-adoption.md`.
+
 Remaining steps,
 once a release containing `b2e0c56` exists:
 1. `mise self-update <version>`;
