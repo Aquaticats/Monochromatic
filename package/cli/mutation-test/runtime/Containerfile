@@ -21,6 +21,11 @@ COPY . /baked
 # exist yet in a fresh container, so that bootstrap fails with ENOENT. Force npm
 # (bundled with node) as the package manager for this install step only; pnpm is
 # used directly for the frozen-lockfile install once it exists.
+# Node and pnpm versions resolve from the baked mise.toml/mise.lock until the
+# cutover. `toolchain.lock.json` (repository root) is the source of truth for every
+# tool version (doc/decision/mpm-toolchain-adoption.md): `tools.node` and
+# `tools.pnpm` record the archived artifacts this step fetches and verifies in
+# place of `mise install` once the lock lands.
 RUN export MISE_NPM_PACKAGE_MANAGER=npm \
   && mise trust /baked/mise.toml \
   && mise install --yes node npm:pnpm \
