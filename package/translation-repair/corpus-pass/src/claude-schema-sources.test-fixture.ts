@@ -6,18 +6,19 @@ import { join, } from 'node:path';
 
 import { parseSource, } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
+import {
+  forwardersIn,
+  type FunctionAt,
+} from './claude-schema-blind-forwarders.test-fixture.ts';
 import type {
   DeclaredFunction,
   ModuleFacts,
 } from './claude-schema-facts.test-fixture.ts';
 import { moduleFactsOf, } from './claude-schema-module.test-fixture.ts';
-import {
-  type Family,
-  resolvePath,
-} from './claude-schema-resolve.test-fixture.ts';
+import type { Family, } from './claude-schema-resolve.test-fixture.ts';
 import {
   keyOf,
-  NOTHING_FOLLOWED,
+  standsForKnown,
   usagesIn,
   usersIn,
 } from './claude-schema-usage.test-fixture.ts';
@@ -41,31 +42,131 @@ import {
 //
 // A function is declared by `function` or `async function`, exported or not, by a constant that holds an arrow
 // function, a function expression or a call that takes one first, and, as `object.member`, by a method or a property
-// that holds one in an object a constant holds. A static method, a getter, a member with a computed name, a member of an
-// object nested in that object and an anonymous default export declare no function.
+// that holds one in an object a constant holds. A static method, a getter, a member with a computed name, a member of
+// an object nested in that object and an anonymous default export declare no function.
 //
-// A wrapper is a function that returns the call of a builder, however the call is wrapped: awaited, in parentheses, with
-// type arguments, under a type mark or after an optional chain, as the body of an arrow function or in a `return`. A
-// function that returns the call of a wrapper is a wrapper, until no function is added. A function that returns more
-// than the call (a promise chain, a fallback, a conditional, an object, an array) or that calls without returning the
-// result is no wrapper.
+// A wrapper is a function that returns the call of a builder, however the call is wrapped: awaited, in parentheses,
+// with type arguments, under a type mark or after an optional chain, as the body of an arrow function or in a
+// `return`. A function that returns the call of a wrapper is a wrapper, until no function is added. A function that
+// returns more than the call (a promise chain, a fallback, a conditional, an object, an array) or that calls without
+// returning the result is no wrapper.
 //
 // A use is a name, or a chain of members, that sits where a value does: a call, also with type arguments, optional or
-// as a tagged template, a function handed over by reference, a spread. A key, a member name, a longer name, a name under
-// `typeof` or in a type is no use.
+// as a tagged template, a function handed over by reference, a spread. A key, a member name, a longer name, a name
+// under `typeof` or in a type is no use.
 //
 // A use is followed through an import, an alias, a namespace import and a member taken out by destructuring, through a
-// dynamic `import()` or a `require` with a literal path, and through a module that exports the builder again by name,
-// under another name, with `export *`, as a namespace or as the default, however the default is written. An `import()`
-// or a `require` with a path that is no literal is not followed.
+// dynamic `import()` that is awaited or a `require` with a literal path, and through a module that exports the builder
+// again by name, under another name, with `export *`, as a namespace or as the default, however the default is written.
+// A name that a declaration inside a function or a block binds to a loaded module or to another name is read as the
+// file's own. The first binding of a name in the text is the one kept, and a binding at the top of the file wins over
+// one below it. A member read off a load in place, as in `(await import(path)).name(...)` and
+// `require(path).name(...)`, is followed like one read off a name that holds the module. An `import()` that is not
+// awaited yields a promise and is followed to no name. `.call`, `.apply` and `.bind` read off a builder are the
+// builder. A member named `call` of an object the file declares is that member. Two files that export everything of
+// each other, and two constants that are each other's value, end the search and name nothing. An `import()` or a
+// `require` with a path that is no literal, or that joins two literals, is not followed.
 //
 // A name the file neither declares nor imports from a file of the sources is read as the builder of that name. So is a
 // name imported from a specifier that names no file of the sources, and so is a parameter that shares the builder's
-// name; the scan over-reads there. A function of the builder's name that the file declares, or imports from another file
-// of the sources, is that function and not the builder.
+// name; the scan over-reads there. A function of the builder's name that the file declares, or imports from another
+// file of the sources, is that function and not the builder.
+//
+// The scan over-reads where a class or a constant that is no function has the builder's name. It over-reads where a
+// constant, a function or a `catch` parameter inside a function has it. It over-reads where a function has a second
+// `return` that holds the call, and reads that function as a wrapper. It over-reads where a constant holds
+// `items.map((x) => build(x))`, and reads the constant as a wrapper.
 //
 // The file that declares a builder and the producer list are not its users. A file is listed when it holds a format,
 // names the type of one or uses a builder.
+//
+// A forwarder is a function that calls a sender (`claude-schema-blind-senders.test-fixture.ts`) and calls a builder
+// with an argument that reads one of its own parameters, or a constant made from one
+// (`claude-schema-blind-forwarders.test-fixture.ts`). It is no builder, since what it gives back is the sender's
+// answer, but the files that use it write the arguments of the schema, so they are listed too. A function that calls a
+// forwarder with an argument that reads one of its own parameters is a forwarder as well, and the forwarders are the
+// fixpoint of that reading, so a chain of any length is followed to its end. The search lists the callers of a
+// forwarder a declaration names; a function of that kind that no declaration names (a class method, a static method,
+// a constructor, a getter or setter, a member of a nested object, an anonymous default export) has no name another
+// file could write, and the check reports it (`forwarder-in-undeclared-function`).
+//
+// The search reads exactly these positions, and the check `blindSpotsOf`, in
+// `claude-schema-blind-spots.test-fixture.ts`, reports every other reference to a module that carries a builder or to a
+// binding that comes from one. The check reads every non-test source of the family; the real sources hold no such
+// reference. It makes three totals.
+//
+// The first total is the module-load boundary. A string that names a module that carries a builder (one that declares
+// a builder, or exports one by its own names, by `export *`, as a namespace or as an object with builder members) is
+// read as the source of an import or of an export from, as the one literal path of an `import()` or a `require`, or
+// inside a type. Any other such string is reported (`module-path-outside-a-load`): a literal handed to
+// `createRequire(...)`, `require.resolve`, `import.meta.resolve` or `new URL`, held by a constant, or named by an
+// import-equals declaration. An `import()` or a `require` whose path is not one literal is reported
+// (`computed-load-path`). A load of such a module with a literal path is followed when it is awaited or required and
+// held by a constant or a pattern the search binds name by name, or read in place with a member; any other load is
+// reported (`load-in-unfollowed-form`): an un-awaited one, a rest or a computed key or a nested pattern, a load that
+// is stored, handed to a call, chained with `.then` or dropped. Code that can load a module with no path to read is
+// reported (`code-the-search-cannot-read`), in `claude-schema-blind-unreadable.test-fixture.ts`: `createRequire` in any
+// form, `require` anywhere but as the callee of a direct call (`module.require`, an alias, `require.call`), `eval`,
+// `Function` with or without `new`, and a member of `globalThis`, `window`, `self` or `global` whose key is not a
+// string literal (`globalThis['ev' + 'al']`) or that is the global object under another name (`const g = globalThis`,
+// a pattern, a conditional, an array, a default); the `vm` and `node:vm` modules in any form of import, export from,
+// `require` or `import()`, a member named `constructor` (also written as the string `'constructor'`), and
+// `Reflect.get` with that string as its key, make code from text too and are reported
+// (`claude-schema-blind-text-code.test-fixture.ts`). A key that is no string literal, and a pattern that takes
+// `constructor` out of a value, reach code with no name the search could tell, and a `Reflect.get` with a key that is
+// no literal does too; these are limits of the search that the ledger states. A specifier that is no built-in module,
+// no package the lockfile holds for the family and no file is reported (`unresolved-module-specifier`), in
+// `claude-schema-blind-specifiers.test-fixture.ts`: an alias that begins with `#`, a package nothing holds, a relative
+// path to a file that does not exist; a type-only import or export and a type are left out. The lockfile gives the
+// packages of every package of the family together, and the check reads it from the root of the repository.
+//
+// The second total is every chain of names that stands for a builder, or for a module or object that carries one. A
+// builder is read as the callee of a call, of `new` or of a tagged template, after any of `.call`, `.apply` and
+// `.bind`, and as the value of a constant the search binds to it, or an alias of one. Every other place that holds one
+// is reported (`builder-outside-a-read-position`), with the kind of node and the field: a class field, an argument, a
+// default, an array, a conditional, a logical operand, a sequence, a getter, an assignment, a member that is no call
+// method (`.name`, `.length`, `.toString`) or a member computed from a name. A module or an object that carries a
+// builder is read as the object of a member the search reads, or as the value of a constant or a pattern that the
+// search binds; used as a whole (a computed member, an argument, a property, a spread, a rest, a default import that
+// the module does not export) it is reported (`module-binding-outside-a-read-position`). A namespace, an enum, a
+// parameter property, an export assignment or an import-equals declaration that holds either is walked and reported
+// (`builder-in-typescript-value-construct`). A function that holds a format and that no declared function holds, as a
+// static method, a getter or an anonymous default export does, is reported (`format-in-undeclared-function`); the
+// check leaves that one out for the four files the unit test names as writing the format without building a stage's
+// answer schema (`NOT_STAGE_SCHEMAS`: the model health probe of `bench` and `anthropic-tool.ts`, `chat-contract.ts`
+// and `claude-body.ts` of `provider`).
+//
+// The third total is where the value of a builder's call goes, read by `claude-schema-blind-flow.test-fixture.ts`.
+// The value is followed through objects, arrays, spreads, fallbacks, conditionals, sequences, awaits, members,
+// methods, locals, patterns, defaults and names assigned, and into the parameters of the callback of an array method
+// called on it, and it must end in one of three places. The first is a
+// `return`, an arrow function's body or a `yield` of a function the search lists as a builder; in any other function
+// the value leaves it, and the function is reported (`builder-result-returned-outside-a-wrapper`). The second is the
+// property of the object argument of a sender, a function named by module and by parameter in
+// `claude-schema-blind-senders.test-fixture.ts`; a name that the file assigns again anywhere is no sender, whatever
+// it was first bound to. The third is a constant, a pattern, a default, a name assigned, or a parameter of the callback
+// of `every`, `filter`, `find`, `flatMap`, `forEach`, `map`, `reduce` or `some` called on the value
+// (`claude-schema-blind-callbacks.test-fixture.ts`), whose every reference ends in one of the three in turn, also at
+// the top level of a file, and for a constant a file exports also in every other file of the family that reads it, by
+// its name, by an alias, through a module that exports it again (by name or by `export *`), through a member of a
+// namespace import, or through an `import()` or a `require` of the file
+// (`claude-schema-blind-constants.test-fixture.ts`). A namespace import read as a whole, a namespace export and a load
+// of the file are reported at once, and a place in another file is reported with that file after it. The one function
+// that only checks each schema of a list of producers is sendable is a sender too (`assertSchemasSendable`), since the
+// list of producers holds every schema. Any other place that takes the value is reported
+// (`builder-result-outside-a-destination`) with the kind of node and the field: an argument of a call that is no
+// sender, an argument of `new`, a substitution of a tagged template (the arguments of the tag function), a store into a
+// member, a field or `this`, a pattern an assignment takes the value apart into, a thrown value, a loop that iterates
+// it. A place that reads the value and gives back nothing the schema could travel in ends the walk without a report:
+// the test of a conditional or a loop, a computed key, an operand of an operator, a substitution in a plain template, a
+// statement that drops it, an element of a sequence that is not the last, and the target of an assignment. A callback
+// the search cannot read (one that is a parameter, a name from another file, or a computed member) is reported as code
+// it cannot read. A method that is none of the eight and is given a function written as an argument is reported the
+// same way; one given no such function ends the walk without a report, a limit the ledger states.
+//
+// The check is a net, not a second search: it reports every place it does not understand, whether or not a producer
+// hides there, and a place it reports is answered by reading the place in the search or by naming the place in the
+// test.
 
 /**
  One source file of the family.
@@ -171,7 +272,7 @@ const READ_MODULES = new Map<string, ModuleFacts>();
 
  @param text - text of the file
 
- @returns The module
+ @returns Module
 
  @throws {@link Error} when the file does not parse, since a file a search cannot read hides what it holds
 
@@ -223,7 +324,7 @@ function moduleOf({
 
  @param sources - files read
 
- @returns The modules, by path
+ @returns Modules, by path
 
  @throws {@link Error} when a file does not parse, since a file a search cannot read hides what it holds
 
@@ -232,7 +333,7 @@ function moduleOf({
  const family = familyOf({ sources: await familySources(), },);
  ```
  */
-function familyOf({ sources, }: { readonly sources: readonly SourceFile[]; },): Family {
+export function familyOf({ sources, }: { readonly sources: readonly SourceFile[]; },): Family {
   return new Map(sources.map(function entryOf(source,): readonly [
     string,
     ModuleFacts,
@@ -250,7 +351,7 @@ function familyOf({ sources, }: { readonly sources: readonly SourceFile[]; },): 
 /**
  A declared function as a builder.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param candidate - function and the file that declares it
 
@@ -284,7 +385,7 @@ function builderOf({
 /**
  Every function the searched files declare.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param notStageSchemas - paths of files that write the format without building a stage's answer schema
 
@@ -324,7 +425,7 @@ function candidatesIn(
 /**
  The builders and every function that returns the call of one of them, and so on until no function is added.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
  @param candidates - every function the searched files declare
 
@@ -367,17 +468,15 @@ function withWrappers(
     return (!knownKeys.has(keyOf(candidate,),))
       && returnedCalleesOf({ fn: candidate.fn, },)
         .some(function callsKnown(path,): boolean {
-          /**
-           What the callee stands for in the file that declares the candidate.
-           */
-          const callee = resolvePath({
+          return standsForKnown({
             family,
             file: candidate.file,
             path,
-            seen: NOTHING_FOLLOWED,
+            known: {
+              keys: knownKeys,
+              names: knownNames,
+            },
           },);
-          return (callee.kind === 'function') ? knownKeys.has(keyOf(callee,),) : (callee.kind === 'free')
-            && knownNames.has(callee.name,);
         },);
   },);
   return (wrappers.length === 0)
@@ -390,6 +489,151 @@ function withWrappers(
         ...wrappers,
       ],
     },);
+}
+
+/**
+ The builders already found, by the modules that were searched and the files named as no stage schema, so the suite
+ searches the family's builders once however many questions it asks of them.
+ */
+const FOUND_BUILDERS = new Map<string, readonly SchemaBuilder[]>();
+
+/**
+ Numbers given to the modules, in the order the key of a search first meets them.
+ */
+const MODULE_NUMBERS = new Map<ModuleFacts, number>();
+
+/**
+ The key of a search: the modules searched, in order, and the files named as no stage schema.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns String that two searches share when they read the same modules, in the same order, with the same names
+
+ @example
+ ```ts
+ const key = searchKeyOf({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+function searchKeyOf(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): string {
+  return [
+    ...[...family.entries(),].map(function numberedModule([file, facts,],): string {
+      if (!MODULE_NUMBERS.has(facts,)) {
+        MODULE_NUMBERS.set(
+          facts,
+          MODULE_NUMBERS.size,
+        );
+      }
+      return `${file}=${String(MODULE_NUMBERS.get(facts,),)}`;
+    },),
+    '--',
+    ...[...notStageSchemas,].toSorted(),
+  ].join('\n',);
+}
+
+/**
+ The builders of a family that is read already, searched afresh.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap
+
+ @example
+ ```ts
+ const builders = searchBuildersIn({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+function searchBuildersIn(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): readonly SchemaBuilder[] {
+  /**
+   Every function the searched files declare.
+   */
+  const candidates = candidatesIn({
+    family,
+    notStageSchemas,
+  },);
+  return withWrappers({
+    family,
+    candidates,
+    known: candidates.filter(function writesFormat({ holder, },): boolean {
+      return holdsFormatValue({ root: holder, },);
+    },),
+  },)
+    .map(function builder(candidate,): SchemaBuilder {
+      return builderOf({
+        family,
+        candidate,
+      },);
+    },);
+}
+
+/**
+ The builders of a family that is read already.
+
+ @param family - modules of the sources
+
+ @param notStageSchemas - paths of files that write the format without building a stage's answer schema
+
+ @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap; the same
+ array for the same modules and names
+
+ @example
+ ```ts
+ const builders = buildersIn({ family, notStageSchemas: new Set(), },);
+ ```
+ */
+export function buildersIn(
+  {
+    family,
+    notStageSchemas,
+  }: {
+    readonly family: Family;
+    readonly notStageSchemas: ReadonlySet<string>;
+  },
+): readonly SchemaBuilder[] {
+  /**
+   What this search and an earlier one share when they read the same modules.
+   */
+  const key = searchKeyOf({
+    family,
+    notStageSchemas,
+  },);
+  /**
+   The builders an earlier search found.
+   */
+  const found = FOUND_BUILDERS.get(key,);
+  if (found !== undefined)
+    return found;
+  /**
+   The builders this search finds.
+   */
+  const builders = searchBuildersIn({
+    family,
+    notStageSchemas,
+  },);
+  FOUND_BUILDERS.set(
+    key,
+    builders,
+  );
+  return builders;
 }
 
 /**
@@ -429,56 +673,11 @@ export function buildersOf(
 }
 
 /**
- The builders of a family that is read already.
-
- @param family - the modules of the sources
-
- @param notStageSchemas - paths of files that write the format without building a stage's answer schema
-
- @returns One entry per builder, in the order of the sources, the wrappers after the functions they wrap
-
- @example
- ```ts
- const builders = buildersIn({ family, notStageSchemas: new Set(), },);
- ```
- */
-function buildersIn(
-  {
-    family,
-    notStageSchemas,
-  }: {
-    readonly family: Family;
-    readonly notStageSchemas: ReadonlySet<string>;
-  },
-): readonly SchemaBuilder[] {
-  /**
-   Every function the searched files declare.
-   */
-  const candidates = candidatesIn({
-    family,
-    notStageSchemas,
-  },);
-  return withWrappers({
-    family,
-    candidates,
-    known: candidates.filter(function writesFormat({ holder, },): boolean {
-      return holdsFormatValue({ root: holder, },);
-    },),
-  },)
-    .map(function builder(candidate,): SchemaBuilder {
-      return builderOf({
-        family,
-        candidate,
-      },);
-    },);
-}
-
-/**
  The files that use a builder, the one that declares it and the producer list left out.
 
  @param sources - files searched
 
- @param builder - builder whose uses are looked for
+ @param builder - builder, wrapper or forwarder whose uses are looked for
 
  @returns Paths, in the order of the sources
 
@@ -486,7 +685,7 @@ function buildersIn(
 
  @example
  ```ts
- const callers = callersOf({ sources, builder: { name: 'build', file: 'a.ts', exportedAsDefault: false, }, },);
+ const callers = callersOf({ sources, builder: { name: 'build', file: 'a.ts', }, },);
  ```
  */
 export function callersOf(
@@ -495,7 +694,7 @@ export function callersOf(
     builder,
   }: {
     readonly sources: readonly SourceFile[];
-    readonly builder: SchemaBuilder;
+    readonly builder: FunctionAt;
   },
 ): readonly string[] {
   return usersIn({
@@ -538,20 +737,33 @@ export function declaringFilesOf(
    */
   const usages = usagesIn({ family, },);
   /**
-   Files that use some builder.
+   The builders and wrappers of the sources.
    */
-  const using = new Set(
-    buildersIn({
-      family,
-      notStageSchemas,
-    },)
-      .flatMap(function usersOfBuilder(builder,): readonly string[] {
-        return usersIn({
-          usages,
-          builder,
-        },);
-      },),
-  );
+  const builders = buildersIn({
+    family,
+    notStageSchemas,
+  },);
+  /**
+   The functions that hand a sender a builder call made from their own parameters, whose callers write the arguments of
+   the schema.
+   */
+  const forwarders = forwardersIn({
+    family,
+    builders,
+    usages,
+  },);
+  /**
+   Files that use some builder, or some function that forwards a builder's call to a sender.
+   */
+  const using = new Set([
+    ...builders,
+    ...forwarders,
+  ].flatMap(function usersOfBuilder(builder,): readonly string[] {
+    return usersIn({
+      usages,
+      builder,
+    },);
+  },),);
   return [...family.values(),]
     .filter(function writesOrUses({
       file,

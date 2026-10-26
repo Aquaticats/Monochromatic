@@ -16,7 +16,7 @@ import {
 /**
  The lines of an imaginary builder's format with the line that names its type written another way.
 
- @param typeLine - the property that names the type, as the source writes it, without its indentation
+ @param typeLine - property that names the type, as the source writes it, without its indentation
 
  @returns Lines of an object literal, indented for a function body
 
@@ -165,6 +165,34 @@ export const FORMAT_LIMIT_CASES: readonly FormCase[] = [
       },
     ],
     found: ['imaginary/src/format-type.ts',],
+    builders: [],
+  },
+  {
+    name: 'NAMES A FILE THAT HOLDS ONLY AN INTERFACE WITH THE TYPE OF THE FORMAT, as in `interface Envelope { '
+      + 'readonly type: \'json_schema\'; }`, and no function',
+    files: [
+      {
+        file: 'imaginary/src/format-interface.ts',
+        text: textOf([
+          'export interface Envelope {',
+          '  readonly type: \'json_schema\';',
+          '}',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/format-interface.ts',],
+    builders: [],
+  },
+  {
+    name: 'NAMES NOTHING IN A type PROPERTY THAT HOLDS AN ARRAY OF THE STRING json_schema, since the value is no '
+      + 'string',
+    files: [
+      {
+        file: 'imaginary/src/format-array-value.ts',
+        text: textOf(['export const KINDS = { type: [\'json_schema\',], };',],),
+      },
+    ],
+    found: [],
     builders: [],
   },
   {

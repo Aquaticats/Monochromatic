@@ -529,6 +529,17 @@ promise chains
 and a counting function).
 The design that landed is open to the owner's veto.
 
+Superseded in part by B864:
+the sentences of this entry that the search follows "a dynamic `import()` or `require` of a literal path"
+(it follows an `import()` only under `await`,
+a `require`,
+and the same loads bound inside a function or read in place),
+that the scan keeps three over-reads
+(it keeps nine),
+and that the installed TypeScript has no `createSourceFile` and no `createProgram`
+(true of the root export only).
+This entry is otherwise left as it was written.
+
 The defect:
 B861 and B862 widened a search over the text of the family's source one shape at a time,
 and each re-check found shapes the search read wrongly or claimed to read.
@@ -612,6 +623,219 @@ The search for a moved cache version over the commits of this fix prints nothing
 ```sh
 # package/translation-repair, over ac5808a20b~1..HEAD
 git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' ac5808a20b~1..HEAD -- package/translation-repair
+```
+
+The same search over `c265e8df95~1..c265e8df95` prints one line,
+so the search can print.
+
+Recurrence:
+`mistake-prevention-guards-searches-and-claims.md`,
+"Guards that cannot fail".
+
+## B864: the producer-list search missed shapes its header claimed, and nothing named the shapes it leaves unread
+
+Status:
+fixed on 2026-10-24 (UTC),
+found by the re-check of fix round 13 of the Claude route
+(re-check 12:
+its surviving mutants of the header's claims,
+its probes of loads inside functions,
+loads read in place and call methods,
+and its list of over-reads).
+The design that landed is open to the owner's veto.
+
+Superseded in part by B865 (in `audit-ledger-schema-source-check-as-a-whitelist.md`):
+the check of seven named shapes is a whitelist anchored at the module-load boundary with eight shapes,
+the sentence that the check "reports a place whether or not a producer hides there"
+holds only of the places the whitelist does not read,
+the check costs about 1.0 s over the real sources once the builders are found
+(2.0 s without them),
+and the prevention rule of this entry
+(a header that lists unread shapes,
+paired with a check that names them)
+is replaced by the rule of B865.
+
+The defect:
+five re-checks in a row found shapes that the header of `claude-schema-sources.test-fixture.ts` claims the search reads
+and it does not,
+and each round closed the shapes named and the next re-check found more.
+Re-check 12 ran 39 mutations of the header's sentences:
+2 changed nothing on any input,
+17 of the 37 effective ones failed a case,
+and 20 passed every case.
+Its probes found that a dynamic `import()` or `require` bound to a name inside a function body,
+a member read off a load in place
+(`(await import(path)).name(...)`,
+`require(path).name(...)`)
+and `.call`,
+`.apply` and `.bind` read off a builder were not followed,
+so a file that reaches a builder that way was not listed,
+though B863 and the header said a dynamic `import()` and `require` of a literal path were read.
+It also found five over-reads the header did not name:
+a top-level class or constant that is no function and has the builder's name,
+a local constant of that name,
+a `catch` parameter of that name,
+a function with a second `return` that holds the call,
+and a constant that holds the result of mapping a builder over items.
+Cases for the shapes named so far cannot end that,
+because a shape nobody wrote a case for outruns the header.
+An `rg` of the names of the three shared builders over the family's non-test source
+still finds them only as plain calls,
+import and export list entries and documentation,
+so no producer was missing from the list.
+
+The fix
+(the cases for the survivors are `df6934f822`;
+the red cases for the parser message are `af02390820` and the fix is `0132780b9c`;
+the red cases for the loads and call methods are `0bd5ab4428` and the fix is `a23335df23`;
+the red cases for the check are `9324804e42` and the check is `69115bfd87`;
+the style pass is `e0afa3df57`,
+the header is `aa81a922c9`,
+and the cases that the first run of the round's own mutants called for are `7c19efc06d` (red) and `0b43d4f849` (fix),
+with the header clause `0c4eecc1ed`):
+
+- A check over the real sources.
+  `blindSpotsOf` reads the non-test sources of the family that the search reads
+  (1579 when this entry was written)
+  and reports,
+  by file and line,
+  each place that holds a shape the search leaves unread.
+  It is a net and not a second search:
+  it reports a place whether or not a producer hides there.
+  Seven shapes:
+  a load whose path is a name,
+  a joined path or a template with a substitution;
+  a load held un-awaited,
+  chained with `.then` or handed to a call;
+  a builder stored as the value of an object;
+  a builder handed to a call that a constant holds,
+  as in `memoize(build)`;
+  a builder's result returned through a local;
+  a builder called in a namespace,
+  an enum initializer or a parameter property;
+  and a function that holds a format and that no declared function holds
+  (a static method,
+  a getter,
+  a computed or nested member,
+  an anonymous default export).
+  Ten cases,
+  one scratch fixture file per shape,
+  failed against a stub at the red commit
+  and pass at the check;
+  the case over the real sources expects none and passes,
+  so no source holds an unread shape today,
+  and a source that gains one fails that case with the file and the line.
+  It costs about 0.8 s over the real sources.
+  The first mutants of the check itself showed what its cases lacked:
+  no case said that a followed load is reported as nothing,
+  and when one was added it failed,
+  because a property of a destructuring pattern was reported as a builder stored in an object.
+  The check now leaves the properties of patterns out,
+  and that case,
+  one for a file named as no stage schema
+  and one for a returned `await` of a local hold the check.
+- Shapes now followed:
+  a name a declaration inside a function or a block binds to a loaded module or to another name,
+  the first binding of a name in the text being kept and the top of the file winning over a function;
+  a member read off a load in place;
+  and `.call`,
+  `.apply` and `.bind` read off a builder,
+  or off a name the file neither declares nor imports,
+  as the builder,
+  while a member named `call` of a declared object stays that member.
+  A load counts only when it yields the module itself
+  (a `require`,
+  or an `import()` under `await`),
+  so an `import()` held un-awaited is followed to no name,
+  which also corrects a reading in which a pending `import()` bound to a constant was taken as the module.
+- Shapes named and not followed:
+  the seven of the check.
+  Each is a sentence of the header,
+  a case that states what the search lists of it,
+  and an entry of the check.
+- Over-reads:
+  the header now names the five of the defect,
+  a sixth that the header and the case on a constant inside a function name beside them
+  (a function declared inside a function that has the builder's name),
+  and the three of B863
+  (a name the file neither declares nor imports,
+  a name imported from a specifier that names no file of the sources,
+  a parameter of the builder's name),
+  nine in all,
+  each with a case in `claude-schema-over-read-forms.test-fixture.ts` or `claude-schema-binding-forms.test-fixture.ts`.
+- Cases for the survivors:
+  each surviving mutant of re-check 12 has a case that states the answer the search gives,
+  including two cases for the cycle guards
+  (`export *` between two files,
+  `const a = b; const b = a;`).
+  The mutant S02b is near-equivalent
+  (a type annotation that names the builder's exact name)
+  and has no case.
+- `parseSource` reports the `message` of each error the parser returns,
+  where it printed `[object Object]`.
+- The sentence of B863 on the TypeScript API is corrected:
+  the root export of `typescript` 7.1.0-beta,
+  `./lib/version.cjs`,
+  holds `version` and `versionMajorMinor` and nothing else.
+  `typescript/ast/factory` exports a function named `createSourceFile`
+  (`dist/ast/factory.generated.d.ts:372`),
+  but it assembles a node from statements that are already parsed,
+  and `typescript/ast/scanner` has `createScanner`,
+  which reads tokens.
+  `typescript/sync` and `typescript/async` have the client methods `createSourceFile(fileName, sourceText, options)`
+  (`dist/api/sync/api.d.ts:144`,
+  `dist/api/async/api.d.ts:119`)
+  and `createProgram`
+  (`dist/api/sync/api.d.ts:236`,
+  `dist/api/async/api.d.ts:167`),
+  whose declarations describe a source file created and retained "remotely"
+  (`dist/api/sync/api.d.ts:141-147`)
+  and a program created from the file system
+  (`dist/api/sync/api.d.ts:235`),
+  so the one method of the package that takes a text is a client call,
+  and no subpath exposes a parser that runs in the process that asks.
+  Those methods were read in their declarations and not run here.
+  The oxc parser through `source-scan` stays the reader:
+  it is in process,
+  it yields plain ESTree objects,
+  and `source-scan` already wraps it.
+- Declared before use:
+  `buildersIn` and `familyOf` precede their callers,
+  and the four resolver functions that call one another keep one call before its declaration,
+  with a comment that says so.
+  `@param` and `@returns` lines carry no articles,
+  and no line of the claude-schema fixtures passes 120 characters.
+- The header states 41 sentences,
+  each held by named cases and by mutants,
+  listed one against the other in the report of the round:
+  147 mutants in all,
+  of which 145 changed what the code does and 144 fail at least one case.
+  The one that does not is S02b,
+  which is near-equivalent;
+  the other two changed nothing on any input.
+
+The test file takes 2.75 to 3.31 s before and 4.16 to 4.56 s after,
+three runs each,
+alternating.
+The check over the real sources accounts for about 0.8 s of the difference;
+the rest is the added cases and the larger reading of each file,
+which was not measured on its own.
+
+Prevention rule:
+a header that lists shapes as unread is paired with a check over the real sources that fails,
+naming the file and line,
+when any of them holds one,
+so an unread shape can enter the family only with a loud failure;
+and a shape cheap to follow is followed rather than named.
+
+Cache versions:
+none moved.
+The change is to test fixtures and to one scan fixture.
+The search for a moved cache version over the commits of this fix prints nothing:
+
+```sh
+# package/translation-repair, over df6934f822~1..HEAD
+git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' df6934f822~1..HEAD -- package/translation-repair
 ```
 
 The same search over `c265e8df95~1..c265e8df95` prints one line,

@@ -1,0 +1,341 @@
+import {
+  nodesUnder,
+  type TreeNode,
+} from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
+
+import { callbackLinksOf, } from './claude-schema-blind-callback-links.test-fixture.ts';
+import { namesBoundBy, } from './claude-schema-blind-positions.test-fixture.ts';
+import {
+  headNameOf,
+  type Link,
+  namesStoredInto,
+  storeLinksOf,
+} from './claude-schema-blind-stores.test-fixture.ts';
+import {
+  isPureTypeVisit,
+  referenceVisitsUnder,
+} from './claude-schema-reference.test-fixture.ts';
+import type { Family, } from './claude-schema-resolve.test-fixture.ts';
+import {
+  isNoNode,
+  nodeAt,
+  nodesAt,
+  pathOf,
+} from './claude-schema-tree.test-fixture.ts';
+import {
+  type KnownFunctions,
+  standsForKnown,
+} from './claude-schema-usage.test-fixture.ts';
+
+//region Names made from a function's parameters, and the calls that take them
+// What `claude-schema-blind-forwarders.test-fixture.ts` reads a function for: the names its own parameters bind, the
+// names inside it that are made from them (`claude-schema-blind-stores.test-fixture.ts` reads the objects a value is
+// stored in; `claude-schema-blind-callback-links.test-fixture.ts` reads the parameters of a function written as an
+// argument), and whether a call of a known function takes an argument that reads one of those names.
+
+/**
+ Whether the code under a node reads a name of the set, at the head of a chain of members.
+
+ @param root - node to look under
+
+ @param names - names looked for
+
+ @returns Whether some reference under the node starts with one of them
+
+ @example
+ ```ts
+ const reads = readsOneOf({ root: argument, names: new Set(['args',],), },);
+ ```
+ */
+function readsOneOf(
+  {
+    root,
+    names,
+  }: {
+    readonly root: TreeNode;
+    readonly names: ReadonlySet<string>;
+  },
+): boolean {
+  return referenceVisitsUnder({
+    root,
+    skips: isPureTypeVisit,
+  },)
+    .some(function startsWithName({ node, },): boolean {
+      return names.has(headNameOf({ node, },),);
+    },);
+}
+
+/**
+ The names the left side of a loop head binds: the names of the declaration it makes, or the targets it assigns, a
+ member among them stored in.
+
+ @param left - left side of a `for...in` or `for...of` head
+
+ @returns Names in order
+
+ @example
+ ```ts
+ const names = namesOfLoopHead({ left: loop.left, },);
+ ```
+ */
+function namesOfLoopHead({ left, }: { readonly left: TreeNode; },): readonly string[] {
+  return (left.type === 'VariableDeclaration')
+    ? nodesAt({
+      node: left,
+      field: 'declarations',
+    },)
+      .flatMap(function boundByDeclarator(declarator,): readonly string[] {
+        return namesBoundBy({ node: declarator.id, },);
+      },)
+    : namesStoredInto({ node: left, },);
+}
+
+/**
+ The links a node makes where a name takes the value of other code: a constant, an assignment, the head of a loop over a
+ value, and the parameter of a `catch` clause for what the `try` block throws.
+
+ @param node - node read
+
+ @returns One link for the node, one for each throw of a `try` block with a `catch` clause, none for any other node
+
+ @example
+ ```ts
+ const links = bindingLinksOf({ node, },);
+ ```
+ */
+function bindingLinksOf({ node, }: { readonly node: TreeNode; },): readonly Link[] {
+  if (node.type === 'VariableDeclarator') {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'init',
+        },),
+        bound: namesBoundBy({ node: node.id, },),
+      },
+    ];
+  }
+  if (node.type === 'AssignmentExpression') {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'right',
+        },),
+        bound: namesStoredInto({ node: node.left, },),
+      },
+    ];
+  }
+  if ((node.type === 'ForInStatement') || (node.type === 'ForOfStatement')) {
+    return [
+      {
+        read: nodeAt({
+          node,
+          field: 'right',
+        },),
+        bound: namesOfLoopHead({ left: nodeAt({
+          node,
+          field: 'left',
+        },), },),
+      },
+    ];
+  }
+  if ((node.type !== 'TryStatement') || isNoNode({ node: nodeAt({
+    node,
+    field: 'handler',
+  },), },))
+    return [];
+  /**
+   The names the `catch` clause binds.
+   */
+  const caught = namesBoundBy({ node: nodeAt({
+    node: nodeAt({
+      node,
+      field: 'handler',
+    },),
+    field: 'param',
+  },), },);
+  return nodesUnder({ root: nodeAt({
+    node,
+    field: 'block',
+  },), },)
+    .filter(function isThrow({ type, },): boolean {
+      return type === 'ThrowStatement';
+    },)
+    .map(function linkOfThrow(thrown,): Link {
+      return {
+        read: nodeAt({
+          node: thrown,
+          field: 'argument',
+        },),
+        bound: caught,
+      };
+    },);
+}
+
+/**
+ The places in a function where a name takes the value of other code: a constant, an assignment, the head of a loop
+ over a value, the parameter of a `catch` clause for what the `try` block throws, a call that stores its arguments in
+ an object, a class, the default of a pattern, and the parameters of a function written as an argument of a call.
+
+ @param fn - function
+
+ @returns One link per place, nested functions included
+
+ @example
+ ```ts
+ const links = linksIn({ fn, },);
+ ```
+ */
+function linksIn({ fn, }: { readonly fn: TreeNode; },): readonly Link[] {
+  return nodesUnder({ root: fn, },)
+    .flatMap(function linksOfNode(node,): readonly Link[] {
+      return [
+        ...bindingLinksOf({ node, },),
+        ...storeLinksOf({ node, },),
+        ...callbackLinksOf({ node, },),
+      ];
+    },);
+}
+
+/**
+ The names a round adds to the names made from a function's parameters: those that a link binds when the code it reads
+ reads one of the names so far.
+
+ @param links - every place in the function where a name takes a value
+
+ @param derived - names so far
+
+ @returns Names, and the names so far, once no later round adds a name
+
+ @example
+ ```ts
+ const names = derivedFrom({ links, derived: new Set(['args',],), },);
+ ```
+ */
+function derivedFrom(
+  {
+    links,
+    derived,
+  }: {
+    readonly links: readonly Link[];
+    readonly derived: ReadonlySet<string>;
+  },
+): ReadonlySet<string> {
+  /**
+   The names the links bind from a name made from a parameter, which are not known yet.
+   */
+  const added = links.flatMap(function addedBy({
+    read,
+    bound,
+  },): readonly string[] {
+    return readsOneOf({
+      root: read,
+      names: derived,
+    },)
+      ? bound.filter(function isNew(name,): boolean {
+        return !derived.has(name,);
+      },)
+      : [];
+  },);
+  return (added.length === 0)
+    ? derived
+    : derivedFrom({
+      links,
+      derived: new Set([
+        ...derived,
+        ...added,
+      ],),
+    },);
+}
+
+/**
+ The names a function's own parameters bind, the `arguments` object, and the names made from either through a constant,
+ an assignment, a loop over a value or a `catch` clause, to the end of the chain.
+
+ @param fn - function
+
+ @returns Names, the parameters' first
+
+ @example
+ ```ts
+ const derived = derivedNamesOf({ fn, },);
+ ```
+ */
+export function derivedNamesOf({ fn, }: { readonly fn: TreeNode; },): ReadonlySet<string> {
+  return derivedFrom({
+    links: linksIn({ fn, },),
+    derived: new Set([
+      'arguments',
+      ...nodesAt({
+        node: fn,
+        field: 'params',
+      },)
+        .flatMap(function boundByParameter(parameter,): readonly string[] {
+          return namesBoundBy({ node: parameter, },);
+        },),
+    ],),
+  },);
+}
+
+/**
+ Whether a call is a call of a known function with an argument that reads a name made from the function's parameters.
+
+ @param family - modules of the sources
+
+ @param file - path of the file that declares the function
+
+ @param known - functions the callee is looked for among
+
+ @param derived - names made from the function's parameters
+
+ @param call - call
+
+ @returns Whether the callee stands for one of them and an argument reads a derived name
+
+ @example
+ ```ts
+ const isFromParameter = callsFromParameter({ family, file, known, derived, call, },);
+ ```
+ */
+export function callsFromParameter(
+  {
+    family,
+    file,
+    known,
+    derived,
+    call,
+  }: {
+    readonly family: Family;
+    readonly file: string;
+    readonly known: KnownFunctions;
+    readonly derived: ReadonlySet<string>;
+    readonly call: TreeNode;
+  },
+): boolean {
+  /**
+   The names the callee is written with.
+   */
+  const callee = pathOf({ node: call.callee, },);
+  if (callee.length === 0)
+    return false;
+  if (!standsForKnown({
+    family,
+    file,
+    path: callee,
+    known,
+  },))
+    return false;
+  return nodesAt({
+    node: call,
+    field: 'arguments',
+  },)
+    .some(function readsDerived(argument,): boolean {
+      return readsOneOf({
+        root: argument,
+        names: derived,
+      },);
+    },);
+}
+
+//endregion Names made from a function's parameters, and the calls that take them

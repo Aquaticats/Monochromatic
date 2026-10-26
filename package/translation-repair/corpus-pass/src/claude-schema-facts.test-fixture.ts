@@ -7,8 +7,8 @@ import { stringValueOf, } from './claude-schema-tree.test-fixture.ts';
 
 //region What one module declares, imports and exports
 // The facts `claude-schema-resolve.test-fixture.ts` resolves names through, and the shapes the reading of one file adds
-// them up from: the functions a file declares at the top level, the names its top level binds (a function, an object, an
-// import, an alias, a destructured member, a dynamic import), what it exports and the names its code refers to.
+// them up from: the functions a file declares at the top level, the names its top level binds (a function, an object,
+// an import, an alias, a destructured member, a dynamic import), what it exports and the names its code refers to.
 
 /**
  A function a module declares at its top level, or a member of an object a top-level constant holds.
@@ -143,6 +143,11 @@ export type ModuleFacts = {
   readonly file: string;
 
   /**
+   The file's program node, kept so that a second read of the file does not parse it again.
+   */
+  readonly program: TreeNode;
+
+  /**
    Whether the file writes a format or names the type of one.
    */
   readonly holdsFormat: boolean;
@@ -171,6 +176,11 @@ export type ModuleFacts = {
    The names the file's code refers to, each as a path.
    */
   readonly references: readonly (readonly string[])[];
+
+  /**
+   The names the file assigns anywhere, which a declaration's keyword does not make fixed.
+   */
+  readonly assigned: ReadonlySet<string>;
 };
 
 /**
@@ -221,7 +231,7 @@ export const NOTHING: Gathered = {
 
  @param second - facts to add
 
- @returns The first, then the second
+ @returns First, then the second
 
  @example
  ```ts
@@ -262,7 +272,7 @@ function joined(
 
  @param parts - facts to join, in order
 
- @returns The parts, one after the other
+ @returns Parts, one after the other
 
  @example
  ```ts
@@ -287,9 +297,9 @@ export function joinedAll({ parts, }: { readonly parts: readonly Gathered[]; },)
 /**
  The name an import or an export writes, as a plain name or a string in quotes.
 
- @param node - the node that holds the name, of any kind or none
+ @param node - node that holds the name, of any kind or none
 
- @returns The name, empty for any other node
+ @returns Name, empty for any other node
 
  @example
  ```ts

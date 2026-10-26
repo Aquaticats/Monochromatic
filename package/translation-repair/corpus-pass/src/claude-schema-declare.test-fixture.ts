@@ -6,6 +6,10 @@ import {
 } from '@monochromatic-dev/translation-repair-source-scan/ts/source-scan.test-fixture.ts';
 
 import {
+  gatherExportAssignment,
+  gatherImportEquals,
+} from './claude-schema-equals.test-fixture.ts';
+import {
   type Binding,
   type DeclaredFunction,
   type Gathered,
@@ -21,55 +25,20 @@ import {
   nodeAt,
   nodesAt,
   pathOf,
-  stringValueOf,
+  settledSpecifierOf,
 } from './claude-schema-tree.test-fixture.ts';
 
 //region What the declarations of a module add
 // What a top-level declaration adds to the facts of its module: a function declaration, and each constant a variable
-// declaration names, whether the constant holds a function, an object, a loaded module, a name or a chain of members, or
-// is taken apart into members.
-
-/**
- The module a dynamic `import()` or a `require` loads, when its path is a literal.
-
- @param node - expression read, of any kind or none
-
- @returns The path as the call writes it, empty for any other expression and for a path that is no literal
-
- @example
- ```ts
- const specifier = loadedModuleOf({ node: declarator.init, },);
- ```
- */
-function loadedModuleOf({ node, }: { readonly node: unknown; },): string {
-  /**
-   The expression without the type marks and parentheses around it.
-   */
-  const { inner, } = unwrapped({ node, },);
-  if (!isTreeNode(inner,))
-    return '';
-  if (inner.type === 'AwaitExpression')
-    return loadedModuleOf({ node: inner.argument, },);
-  if (inner.type === 'ImportExpression')
-    return stringValueOf({ node: inner.source, },);
-  if ((inner.type !== 'CallExpression') || (identifierName({ node: inner.callee, },) !== 'require'))
-    return '';
-  /**
-   The first argument of the call.
-   */
-  const [first = NO_NODE,] = nodesAt({
-    node: inner,
-    field: 'arguments',
-  },);
-  return stringValueOf({ node: first, },);
-}
+// declaration names, whether the constant holds a function, an object, a loaded module, a name or a chain of members,
+// or is taken apart into members.
 
 /**
  The object literal an expression is, once the type marks around it are taken off.
 
  @param node - expression read, of any kind or none
 
- @returns The object literal, `NO_NODE` for any other expression
+ @returns Object literal, `NO_NODE` for any other expression
 
  @example
  ```ts
@@ -89,7 +58,7 @@ function objectIn({ node, }: { readonly node: unknown; },): TreeNode {
 
  @param owner - name of the constant that holds the object
 
- @param object - the object literal
+ @param object - object literal
 
  @returns One entry per member that is a method or a property holding a function; a getter, a setter and a member with
  a computed name are not
@@ -142,11 +111,11 @@ function membersOf(
 /**
  What a declarator that names a constant adds: a function, an object and its members, a module, or an alias.
 
- @param declarator - the declarator, whose id is a plain name
+ @param declarator - declarator, whose id is a plain name
 
- @param name - the constant's name
+ @param name - constant's name
 
- @returns The declared functions and the binding
+ @returns Declared functions and the binding
 
  @example
  ```ts
@@ -180,7 +149,7 @@ function gatherConstant(
   /**
    The module a dynamic import or a require of a literal path loads.
    */
-  const specifier = loadedModuleOf({ node: init, },);
+  const specifier = settledSpecifierOf({ node: init, },);
   /**
    The names the value is read through when it is a name or a chain of members.
    */
@@ -247,9 +216,9 @@ function gatherConstant(
  What a declarator that takes a value apart adds: for each plain member it names, the name it binds to and where the
  value comes from.
 
- @param declarator - the declarator, whose id is an object pattern
+ @param declarator - declarator, whose id is an object pattern
 
- @returns The bindings
+ @returns Bindings
 
  @example
  ```ts
@@ -274,7 +243,7 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
   /**
    The module a dynamic import or a require of a literal path loads.
    */
-  const specifier = loadedModuleOf({ node: init, },);
+  const specifier = settledSpecifierOf({ node: init, },);
   /**
    The names the value is read through when it is a name or a chain of members.
    */
@@ -342,11 +311,12 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
 }
 
 /**
- What a declaration adds: a function, or each constant a variable declaration names.
+ What a declaration adds: a function, an import-equals declaration, an export assignment, or each constant a variable
+ declaration names.
 
- @param declaration - the function declaration or the variable declaration
+ @param declaration - function declaration, import-equals declaration, export assignment or the variable declaration
 
- @returns The declared functions and the bindings
+ @returns Declared functions, the bindings and the exports
 
  @example
  ```ts
@@ -354,6 +324,10 @@ function gatherPattern({ declarator, }: { readonly declarator: TreeNode; },): Ga
  ```
  */
 export function gatherDeclaration({ declaration, }: { readonly declaration: TreeNode; },): Gathered {
+  if (declaration.type === 'TSImportEqualsDeclaration')
+    return gatherImportEquals({ declaration, },);
+  if (declaration.type === 'TSExportAssignment')
+    return gatherExportAssignment({ declaration, },);
   if (declaration.type === 'FunctionDeclaration') {
     /**
      The function's name, empty for an anonymous default export.

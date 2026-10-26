@@ -227,6 +227,60 @@ fn a_tool_cache_checkout_is_exempt_from_the_linked_worktree_rule() {
     remove(&fixture);
 }
 
+/// A plugin clone inside mise's data directory is exempt from linked-worktree-only,
+///  so `mise plugins update` can force-checkout its own clone;
+///  a sibling directory with a similar name and an ordinary repository are not.
+#[test]
+fn a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule() {
+    let fixture: Fixture = fixture("builtin-mise");
+    // The fixture's home directory is the caller's `HOME`; mise keeps plugin clones below its data directory.
+    std::fs::create_dir_all(fixture.root.join("home/.local/share/mise/plugins")).expect("mise data");
+    std::fs::create_dir_all(fixture.root.join("home/.local/share/mise-other")).expect("sibling");
+    let plugin: PathBuf = repository(&fixture, OsStr::new("home/.local/share/mise/plugins/cmake"));
+    let sibling: PathBuf = repository(&fixture, OsStr::new("home/.local/share/mise-other/cmake"));
+    let ordinary: PathBuf = repository(&fixture, OsStr::new("ordinary"));
+    for repo in [&plugin, &sibling, &ordinary] {
+        std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+        git(&fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=tracked"],
+        );
+        std::fs::write(repo.join("tracked.txt"), b"two\n").expect("modify tracked file");
+    }
+    // The form mise runs on a plugin: a forced checkout that discards local changes.
+    assert_eq!(
+        run_wrapped(
+            &fixture,
+            plugin.as_path(),
+            &["checkout", "--force", "--quiet", "HEAD"],
+        ),
+        silent_success()
+    );
+    assert_eq!(
+        std::fs::read(plugin.join("tracked.txt")).expect("tracked file"),
+        b"one\n"
+    );
+    // Positive controls: the same command elsewhere is rejected and changes nothing.
+    for (repo, label) in [(&sibling, "sibling directory"), (&ordinary, "ordinary repository")] {
+        assert_rejected_by(
+            &run_wrapped(
+                &fixture,
+                repo.as_path(),
+                &["checkout", "--force", "--quiet", "HEAD"],
+            ),
+            "linked-worktree-only",
+            label,
+        );
+        assert_eq!(
+            std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+            b"two\n"
+        );
+    }
+    remove(&fixture);
+}
+
 /// branch-worktree-only stops branch creation,
 ///  including the branch Git would guess from a remote.
 #[test]

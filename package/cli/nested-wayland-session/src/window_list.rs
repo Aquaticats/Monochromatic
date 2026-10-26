@@ -2,6 +2,8 @@
 //!  `focus`,
 //!  and `close` answers:
 //!  which toplevels the clients have mapped and which one has keyboard focus.
+//!  A toplevel is mapped once its client has committed a buffer;
+//!  before that it has no extent, no pointer hits it, and the answers do not list it.
 
 /// Standard library items.
 use std::sync::PoisonError;
@@ -151,6 +153,47 @@ fn focused_surface(state: &Compositor) -> Option<WlSurface> {
     return state.seat.get_keyboard().and_then(|keyboard| return keyboard.current_focus())
 }
 
+/// Whether a toplevel has content the pointer can hit.
+///
+/// What:
+///      `pub fn is_mapped(window: &Window) -> bool`.
+///  True once the client has committed a buffer,
+///  which gives the window an extent.
+/// Why:
+///       A client creates its toplevel,
+///  then spends tens to hundreds of milliseconds starting its renderer before the first buffer.
+///  In that time the toplevel exists but no point of the screen belongs to it,
+///  so `wheel` and `scroll` are refused and `click` and `move` reach nobody.
+///  A driver that waits for `windows` to list a window must find input working when it does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isMapped = (window: Window) => window.bbox.width > 0 && window.bbox.height > 0;
+/// ```
+#[must_use]
+pub fn is_mapped(window: &Window) -> bool {
+    return !window.bbox().is_empty()
+}
+
+/// The mapped toplevels,
+///  first mapped first.
+///
+/// What:
+///      `fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window>`.
+/// Why:
+///       `windows`,
+///  `focus`,
+///  and `close` number the same list,
+///  so an index from one names the same window in another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mappedWindows = (state: Compositor) => state.space.elements().filter(isMapped);
+/// ```
+fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window> {
+    return state.space.elements().filter(|window| return is_mapped(window))
+}
+
 /// Describe every mapped toplevel,
 ///  first mapped first.
 ///
@@ -166,9 +209,7 @@ fn focused_surface(state: &Compositor) -> Option<WlSurface> {
 #[must_use]
 pub fn describe_windows(state: &Compositor) -> Vec<WindowInfo> {
     let focused = focused_surface(state);
-    return state
-        .space
-        .elements()
+    return mapped_windows(state)
         .map(|window| {
             let (app_id, title) = read_names(window);
             let is_focused = match (window.toplevel(), focused.as_ref()) {
@@ -237,7 +278,7 @@ pub fn close_response(state: &Compositor, index: Option<usize>) -> Response {
             None => return Response::Err("no window has keyboard focus".to_string()),
         },
     };
-    let Some(window) = state.space.elements().nth(target) else {
+    let Some(window) = mapped_windows(state).nth(target) else {
         return Response::Err(format!("window {target} disappeared"))
     };
     let Some(toplevel) = window.toplevel() else {

@@ -45,13 +45,6 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     env:
-      # The root mise config sets auto_install=true and lists heavy dev tools:
-      # cargo:slint-ui/slint (slint-lsp and slint-viewer) builds from a git rev
-      # and needs system fontconfig the runner lacks, so it fails to compile.
-      # Disabling auto-install makes every `mise run`/`mise exec` use only the
-      # tools this job installs explicitly below, instead of rebuilding slint on
-      # each command. The toml-edit tasks need only node, pnpm, and toml-test.
-      MISE_AUTO_INSTALL: 'false'
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -61,7 +54,7 @@ jobs:
 
     - name: Scope to toml-edit changes
       id: scope
-      # Runner-provided Node executes this before mise or dependency installation.
+      # Runner-provided Node executes this before the task CLI or dependency installation.
       # The launcher remains CommonJS because Actions writes an extensionless file.
       # All decisions live in the dependency-free, subprocess-tested source entry.
       shell: node {0}
@@ -75,70 +68,53 @@ jobs:
           { stdio: 'inherit' },
         )
 
-    - name: Set up mise (skip auto-install of all tools)
+    - name: Set up node, pnpm and the task CLI
       if: steps.scope.outputs.run == 'true'
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # mise-action defaults to install:true, which runs `mise install` over
-        # the whole root toolset (slint included) before any step. Matches
-        # publish.yml and cargo-publish.yml.
-        install: false
-
-    - name: Install only the tools this workflow needs
-      if: steps.scope.outputs.run == 'true'
-      # toml-test feeds the conformance task (mise exec github:toml-lang/toml-test
-      # inside test:conformance); with auto-install off it must be present.
-      run: mise install node pnpm 'github:toml-lang/toml-test@latest'
-
-    - name: Install dependencies
-      if: steps.scope.outputs.run == 'true'
-      run: mise exec node pnpm -- pnpm install --frozen-lockfile
+        node-version: '26.12.0'
+        pnpm-version: '12.14.0'
 
     - name: Build the bundle
       if: steps.scope.outputs.run == 'true'
       # Build before type-check: the test, conformance, and sidecar files import
       # the built `@monochromatic-dev/module-toml-edit`, so its dist .d.mts must
       # exist for tsgo to resolve them on a fresh checkout.
-      run: mise run //package/module/toml-edit:build
+      run: task-run //package/module/toml-edit:build
 
     - name: Type-check
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/toml-edit:lint:types
+      run: task-run //package/module/toml-edit:lint:types
 
     - name: Type-check the sidecar
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/toml-edit.fuzz:lint:types
+      run: task-run //package/module/toml-edit.fuzz:lint:types
 
     - name: Unit suite (fixtures)
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/toml-edit:test:unit
+      run: task-run //package/module/toml-edit:test:unit
 
     - name: Unit suite (sidecar, bounded property runs)
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/toml-edit.fuzz:test:unit
+      run: task-run //package/module/toml-edit.fuzz:test:unit
 
     - name: Fuzz smoke (short per-property campaign)
       if: steps.scope.outputs.run == 'true'
       # A short per-property budget, not the 60s local default, keeps the smoke
       # bounded while still exploring well past the bounded-mode run count.
-      run: mise run //package/module/toml-edit.fuzz:fuzz --budget 3000
+      run: task-run //package/module/toml-edit.fuzz:fuzz -- --budget 3000
 
     - name: Conformance (toml-test decode and encode for 1.0 and 1.1)
       if: steps.scope.outputs.run == 'true'
-      # Follows the latest upstream toml-test runner through mise (a deliberate
+      # Follows the latest upstream toml-test runner through npx (a deliberate
       # moving oracle); the task logs the resolved runner version.
-      run: mise run //package/module/toml-edit:test:conformance
+      run: task-run //package/module/toml-edit:test:conformance
 
     - name: Coverage gate (no per-file src reachability regression)
       if: steps.scope.outputs.run == 'true'
       # The committed baseline is a V8-coverage artifact. This repo always tracks
       # the latest node, so a node release that shifts V8 coverage is handled by
       # refreezing the baseline with
-      # `mise run //package/module/toml-edit.fuzz:fuzz:coverage --write`, not by
+      # `task-run //package/module/toml-edit.fuzz:fuzz:coverage -- --write`, not by
       # pinning node.
-      run: mise run //package/module/toml-edit.fuzz:fuzz:coverage
+      run: task-run //package/module/toml-edit.fuzz:fuzz:coverage
