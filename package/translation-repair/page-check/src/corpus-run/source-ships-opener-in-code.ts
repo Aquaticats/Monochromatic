@@ -2,6 +2,7 @@ import type {
   BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { readsAsDisplayMath, } from './source-ships-display-math.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import { openersInFootnoteFlowsOf, } from './source-ships-opener-footnote.ts';
 import {
@@ -334,7 +335,11 @@ export function openersInCodeOf(
      Where the node stands.
      */
     const range = rangeOf({ node, },);
-    if ((type === 'inlineCode') || (type === 'inlineMath')) {
+    // Inline math that is display math to the strict grammar (`source-ships-display-math.ts`) is split as a display math is.
+    if (((type === 'inlineCode') || (type === 'inlineMath')) && (!readsAsDisplayMath({
+      source,
+      range,
+    },))) {
       /**
        What the span comes to.
        */
