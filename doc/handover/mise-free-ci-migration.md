@@ -86,32 +86,48 @@ What to inspect:
 - `fs-id` re-runs its three-OS matrix on this push and exercises the new setup
   action and the task-run shims on Linux, macOS and Windows.
 
+Completed follow-ups (2026-10-26, the user's three picks):
+- `logger.fuzz`'s file-sink property is repaired (`299ce2fcd1` and the
+  empty-batch fix after it). It was red since 2026-10-22 on three stale
+  fixture assumptions around a sink whose 0.4.5 write path moved log files
+  under a UTC day directory, dropped the verify probe record, and started
+  honouring `MONOCHROMATIC_LOG_DIRECTORY` (which `test:unit` sets): the
+  throwaway package now clears that override, the reader collects
+  `*.log.jsonl` under the day directories and treats zero files as the empty
+  round trip the sink documents, and the property expects no probe line. A
+  four-case control (message empty or not, log-directory override on or
+  off) pinned each cause; the sink itself was correct throughout.
+- The `toml-edit.fuzz` coverage gate is green (`75a1f2dfb2`): the
+  `src/parse-toml-edit.ts` 186 to 143 drop was the parser-error helper's move
+  into `src/safe-parse.ts` (`e2924f2564`), and the same run covers both files
+  at 100%, so the baseline was refrozen as the gate instructs for an intended
+  drop.
+- The `music-player` task ports are repaired (`e53e86bc80` and the
+  empty-batch-adjacent fixes): node-inline bodies run under node again,
+  `dir = {{config_root}}/rust` is honoured through the new `dir` field,
+  `{{vars.android_clippy_dispatch}}` is inlined, `{{config_root}}` and
+  `{{arg(...)}}` map to the `TASK_REPO_ROOT`/`TASK_PACKAGE_PATH` and
+  `usage_*` forms, multi-line `run = [` arrays keep their steps (the port
+  had collapsed them to zero, so `notices` silently did nothing), and Gradle
+  packages resolve in `//package/...` names. The regenerated bodies come
+  from `translate-tasks.ts` in
+  `${HOME}/temp/agent/nsc-mise-elim/translate-tasks.ts`, kept for future
+  mise ports.
+- The user decided to keep the remaining platform actions (`actions/checkout`,
+  `actions/cache`, the artifact and attestation actions, `changesets/action`,
+  `rust-lang/crates-io-auth-action`, `github/codeql-action`,
+  `ossf/scorecard-action`, `anthropics/claude-code-action`); they are
+  SHA-pinned, user-approved and implement GitHub platform services.
+
 Open items:
-- `logger.fuzz`'s file-sink property is red on its own cause since 2026-10-22:
-  `task-run //package/module/logger.fuzz:fuzz -- --budget 3000` fails with
-  `Property failed after 1 tests`, counterexample
-  `[[{"level":"debug","message":"","timestamp":0}]]`, at
-  `package/module/logger.fuzz/src/sink-boundary-harness.ts:219`
-  (`ENOENT .../node_modules/.monochromatic`). GitHub run 39772015585
-  (2026-10-22, `68415aeb53`) failed identically, so it predates this
-  migration; it keeps the `logger-fuzz` fuzz smoke step red.
-- `package/music-player/desktop-app/task.ts` and
-  `package/music-player/android-app/task.ts` still carry port defects: JS
-  bodies are bare `run:` strings (they must be `{ shell: 'node
-  --input-type=module-typescript -e', run: ... }` steps or bash parses them),
-  `{{vars.android_clippy_dispatch}}` is unexpanded, the `runAndroidClippy`
-  helper the prelude needs was never ported, and one android body is a shell
-  string containing `${process.env...}`. `music-player-release` has not run
-  these since the port.
 - `package/dev-script/task-cli` has no README, tests, `lint` or `build` tasks;
-  only `lint:types` landed here.
+  only `lint:types` landed.
 - `readonly-semantic-bridge` and `env-local-json` were red from this migration
   (Windows shim, missing `node_modules/.bin` on `PATH`) and re-run on their
   next path touch; their causes are fixed and proven.
 - The action allow-list can drop `jdx/mise-action` and `actions/setup-node`;
   `actions/setup-java` never had a pinned SHA to list.
-- Whether to keep replacing the remaining platform actions (`actions/checkout`,
-  `actions/cache`, artifact and attestation actions, `changesets/action`,
-  `rust-lang/crates-io-auth-action`, `github/codeql-action`,
-  `ossf/scorecard-action`, `anthropics/claude-code-action`) is an open user
-  decision.
+- One `logger.fuzz` file-sink property failure was observed once at 835 tests
+  before the empty-batch fix and never reproduced in ten replays (eight 3s,
+  one 30s, one 60s campaign); the empty-batch cause is fixed and covered.
+  If the property fails again, keep the counterexample line.
