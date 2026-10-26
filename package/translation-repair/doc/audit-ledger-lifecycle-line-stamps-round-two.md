@@ -203,6 +203,14 @@ Two more slips of round 3's commits,
 recorded by re-check 3 and not amendable:
 the subject of `7257b0ffb4` is exactly 100 columns where the rule is under 100,
 and the body of `0c5f71edbf` quotes the phrase that the position-reference scan had flagged in a source comment.
+Round 4 adds three of its own:
+the red `555f01970e` passes `attemptsPath` to a `countAttempt` whose type on that commit does not take it,
+so `lint:types` fails there besides the assertion,
+and its test file carried an indentation warning that the fix commit `c15e8b73ac` cleaned;
+the body of `504ab3cd7c` repeats a figure of the re-check that the round's own measure replaces (B963);
+and the first version of the entry-logger scan was committed with a redundant check and one gap,
+which `205d6fa263` closes (mutants S3 and S4).
+None is amendable.
 The raised count of 12 in `real-clock-bounds.unit.test.ts`,
 the dropped allow-list entry of `pass-entry-persist.ts`
 and the `attemptText` line of `blank-text-tests.unit.test.ts` are scan bookkeeping,
@@ -436,6 +444,15 @@ The limit is recorded in the TSDoc:
 a fixture that printed the repository's own head,
 or invented a varied forty-digit id,
 would pass the test.
+One such printer exists in the tree:
+the recall benchmark prints `START tip=<head> entries=...` (`probe/src/corpus-run/recall-benchmark-report.ts`),
+and its tests print the same shape (`recall-benchmark*.unit.test.ts`),
+so a log of a benchmark run would count as a pass run,
+as it did under the marker alone.
+No log of a suite of those tests is under the agent root
+(every one of the 552 logs with `[PASS]` lines carries the placeholder),
+so it is a limit and not a finding;
+checking the `pipeline=` field of the line too would close it.
 The cases that wrote `tip=tabby` now carry a real-shaped id.
 
 Round 4 (re-check 3,
