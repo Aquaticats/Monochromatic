@@ -126,6 +126,9 @@ await describe({
               .toBe('1.3.2',);
             expect(normalizeVersion('nightly-2026-10-21',),)
               .toBe('nightly-2026-10-21',);
+            // Release tags carry name prefixes (the bin registry records them).
+            expect(normalizeVersion('bun-v1.3.14',),)
+              .toBe('1.3.14',);
           },
         },),
         it({

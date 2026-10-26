@@ -88,6 +88,50 @@ export function artifactForHost(entry: ToolPlanEntry,): {
 //region Tool resolution
 
 /**
+ Cached GitHub token for `bin` release lookups; the unauthenticated API
+ quota cannot cover one full sync.
+ */
+let githubToken: string | null | undefined;
+
+/**
+ Resolves a GitHub token: the environment when present, else the `gh`
+ login on this machine (best effort).
+ 
+ @param options - Environment to read `GITHUB_TOKEN` from
+ 
+ @returns Token string, or null when none is available
+ */
+async function resolveGithubToken(
+  {
+    env,
+  }: {
+    readonly env: PathEnv;
+  },
+): Promise<string | null> {
+  if (githubToken !== undefined)
+    return githubToken;
+  /**
+   Token from the environment, which CI and interactive shells set.
+   */
+  const fromEnv = env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN;
+  if (fromEnv !== undefined && fromEnv !== '') {
+    githubToken = fromEnv;
+    return fromEnv;
+  }
+  /**
+   Token from the machine's `gh` login, when it has one.
+   */
+  const viaGh = await run({
+    command: 'gh',
+    args: ['auth', 'token'],
+  },);
+  githubToken = viaGh.code === 0 && viaGh.stdout.trim() !== ''
+    ? viaGh.stdout.trim()
+    : null;
+  return githubToken;
+}
+
+/**
  Absolute path of the `bin` CLI at the bootstrap's own install directory.
 
  The archive route stages the CLI under `<root>/bin/<version>/`; install and
@@ -477,15 +521,15 @@ export async function installBinSourced(
      */
     const attempts = [
       [
-        '-n',
+        '--name',
         `${asset}/**/${name}`,
       ],
       [
-        '-n',
+        '--name',
         `${asset}/${name}`,
       ],
       [
-        '-n',
+        '--name',
         asset,
         name,
       ],
@@ -495,16 +539,25 @@ export async function installBinSourced(
      */
     let installed = false;
     for (const attempt of attempts) {
+      /**
+       `bin` environment: the seeded home plus a GitHub token so release
+       lookups do not hit the unauthenticated API quota.
+       */
+      const token = await resolveGithubToken({ env, },);
       result = await run({
         command: cli,
         args: [
           'install',
+          '--force',
           tagUrl,
           ...attempt,
         ],
         env: {
           ...process.env,
           HOME: homeDirFromEnv({ env, }),
+          ...(token === null
+            ? {}
+            : { GITHUB_TOKEN: token, }),
         },
       },);
       if (result.code === 0) {
@@ -557,10 +610,9 @@ export async function installCargoBinstall(
     entry.version,
   ];
   for (const feature of entry.options.cargoFeatures ?? []) {
-    args.push(
-      '--features',
-      feature,
-    );
+    // The equals form keeps the crate positional from being consumed as
+    // another `--features` value (clap multi-value parsing).
+    args.push(`--features=${feature}`);
   }
   args.push(entry.packageId ?? entry.id,);
   /**

@@ -273,12 +273,28 @@ export function managerNativeBinDirs(
   const npmPrefixBin = e.npm_config_prefix !== undefined && e.npm_config_prefix !== ''
     ? join(resolve(e.npm_config_prefix,), 'bin',)
     : undefined;
+  /**
+   pnpm global bin directory (`pnpm add --global` refuses to install
+   unless it is on `PATH`).
+   */
+  const pnpmGlobalBin = join(
+    e.PNPM_HOME !== undefined && e.PNPM_HOME !== ''
+      ? resolve(e.PNPM_HOME,)
+      : join(
+        home,
+        '.local',
+        'share',
+        'pnpm',
+      ),
+    'bin',
+  );
   return [
     // The exposure directory leads, matching the documented bin-paths contract.
     paths.exposureDir,
     paths.toolchainBinDir,
     cargoBin,
     uvToolBin,
+    pnpmGlobalBin,
     ...(npmPrefixBin === undefined
       ? []
       : [npmPrefixBin]),

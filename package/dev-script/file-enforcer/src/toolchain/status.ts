@@ -43,7 +43,12 @@ import type { ToolPlanEntry, } from './types.ts';
  @returns Normalized version text
  */
 export function normalizeVersion(version: string,): string {
-  return version.replace(/^v/u, '',);
+  // Release tags carry prefixes (`v1.9.0`, `bun-v1.3.14`); the lock holds
+  // the bare version. Anything without a v-before-digit stays as written.
+  return version.replace(
+    /^(?:[A-Za-z][A-Za-z0-9._-]*-)?v(?=\d)/u,
+    '',
+  );
 }
 
 /**

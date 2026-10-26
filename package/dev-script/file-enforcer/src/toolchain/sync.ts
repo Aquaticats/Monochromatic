@@ -42,7 +42,10 @@ import {
   installRustToolchain,
   type ProviderContext,
 } from './providers.ts';
-import { observeTool, } from './status.ts';
+import {
+  observeTool,
+  versionMatches,
+} from './status.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Staging order
@@ -188,9 +191,10 @@ export async function syncToolchain(
       env: e,
     },);
     if (observed !== null
-      && observed === entry.version
-      || (observed !== null
-        && observed.startsWith(`${entry.version}-`,))) {
+      && versionMatches({
+        observed,
+        locked: entry.version,
+      },)) {
       unchanged.push(entry.id,);
       continue;
     }

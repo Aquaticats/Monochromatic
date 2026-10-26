@@ -233,7 +233,7 @@ await describe({
               ),
               body: [
                 'const args = process.argv.slice(2);',
-                'const pattern = args[3] ?? \'\';',
+                'const pattern = args[4] ?? \'\';',
                 "if (!pattern.includes('/**/')) process.exit(1);",
                 "const path = require('node:path');",
                 "fs.writeFileSync(" + JSON.stringify(join(
@@ -278,16 +278,22 @@ await describe({
               .toBe(1,);
             expect(log[0]?.[0],)
               .toBe('install',);
-            expect(log[0]?.[1],)
-              .toBe(
-                'https://github.com/example/demo/releases/tag/v1.2.3',
-              );
             expect(log[0]?.slice(
-              2,
-              4,
+              1,
+              3,
             ),)
               .toEqual(
-                ['-n', 'demo.tar.gz/**/alpha'],
+                [
+                  '--force',
+                  'https://github.com/example/demo/releases/tag/v1.2.3',
+                ],
+              );
+            expect(log[0]?.slice(
+              3,
+              5,
+            ),)
+              .toEqual(
+                ['--name', 'demo.tar.gz/**/alpha'],
               );
             expect(
               existsSync(join(
@@ -317,8 +323,8 @@ await describe({
               ),
               body: [
                 'const args = process.argv.slice(2);',
-                'const pattern = args[3] ?? \'\';',
-                'const rename = args[4];',
+                'const pattern = args[4] ?? \'\';',
+                'const rename = args[5];',
                 "if (rename === undefined) process.exit(1);",
                 "const path = require('node:path');",
                 "fs.writeFileSync(path.join(path.dirname(process.argv[1]), rename), '#!/bin/sh\\n');",
@@ -355,20 +361,23 @@ await describe({
                 [
                   [
                     'install',
+                    '--force',
                     'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '-n',
+                    '--name',
                     'demo-linux-amd64/**/rawbin',
                   ],
                   [
                     'install',
+                    '--force',
                     'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '-n',
+                    '--name',
                     'demo-linux-amd64/rawbin',
                   ],
                   [
                     'install',
+                    '--force',
                     'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '-n',
+                    '--name',
                     'demo-linux-amd64',
                     'rawbin',
                   ],
@@ -626,10 +635,8 @@ await describe({
                     '--no-confirm',
                     '--version',
                     '9.9.9',
-                    '--features',
-                    'unix',
-                    '--features',
-                    'extra',
+                    '--features=unix',
+                    '--features=extra',
                     'fixture-crate',
                   ],
                 ],
