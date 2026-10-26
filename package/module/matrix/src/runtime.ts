@@ -10,47 +10,49 @@ import type { Runtime, } from './types.ts';
 //region Runtime install scripts
 
 /**
- Shell fragment that installs mise, the version manager used to install node.
- */
-const MISE_INSTALL = 'curl -fsSL https://mise.run | sh';
+ Shell command installing the Node release `toolchain.lock.json` pins.
 
-/**
- Puts mise on `PATH` for the rest of the container shell;
- `mise.run` installs the binary under `$HOME/.local/bin`.
+ Mirrors the root Dockerfile's verified pattern: `jq` reads the current
+ platform's `linux-<arch>` artifact row from the mounted
+ `/workspace/toolchain.lock.json`, the archive is fetched and its SHA-256
+ checked against the lock before extraction into `$HOME/node`. Nothing here
+ resolves a version ad hoc: the lock is the only version source.
  */
-const MISE_PATH = 'export PATH="$HOME/.local/bin:$PATH"';
-
-/**
- mise flags shared by the node install and exec commands.
- `MISE_TRUSTED_CONFIG_PATHS` trusts the repo mount so mise reads `mise.toml`;
- `MISE_SOPS_STRICT` keeps a checkout with a gitignored `.env.local.json`
- from failing when the age key that decrypts it is absent in the container.
- */
-const MISE_CONFIG_ENV = 'MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace';
+const NODE_LOCKED_INSTALL = [
+  'cd /workspace',
+  'node_platform=$(case "$(uname -m)" in aarch64) echo linux-arm64;; *) echo linux-x64;; esac)',
+  'node_url="$(jq --raw-output --arg p "$node_platform" \'.tools.node.artifacts[$p].url\' toolchain.lock.json)"',
+  'node_sum="$(jq --raw-output --arg p "$node_platform" \'.tools.node.artifacts[$p].sha256\' toolchain.lock.json)"',
+  'curl --fail --silent --show-error --location --output /tmp/node.tar.gz "$node_url"',
+  'echo "$node_sum  /tmp/node.tar.gz" | sha256sum --check',
+  'mkdir -p "$HOME/node"',
+  'tar --extract --file /tmp/node.tar.gz --directory "$HOME/node" --strip-components=1',
+]
+  .join(' && ',);
 
 /**
  Install commands for each supported runtime.
- All use curl to fetch an installer script and pipe to a shell.
+ Bun and deno use their upstream installer scripts; node is the locked
+ release from `toolchain.lock.json` (see {@link NODE_LOCKED_INSTALL}).
 
- Post-install, the runtime binary is available at a predictable path
- under `$HOME` (bun: `$HOME/.bun/bin/bun`, deno: `$HOME/.deno/bin/deno`).
- The node entry instead bootstraps mise in `/workspace` and installs node
- from the mounted repo config, never from a hardcoded version.
+ Post-install, every runtime binary lives at a predictable path under `$HOME`
+ (bun: `$HOME/.bun/bin/bun`, deno: `$HOME/.deno/bin/deno`,
+ node: `$HOME/node/bin/node`).
  */
 const RUNTIME_INSTALL: Record<Runtime, string> = {
   bun: 'curl -fsSL https://bun.sh/install | bash',
   deno: 'curl -fsSL https://deno.land/install.sh | sh',
-  node: `${MISE_INSTALL} && ${MISE_PATH} && cd /workspace && ${MISE_CONFIG_ENV} mise install node`,
+  node: NODE_LOCKED_INSTALL,
 };
 
 /**
  Absolute path to the runtime binary after installation.
- Uses `$HOME` variable so it resolves correctly for both root and non-root users.
- Node has no such fixed path: it runs through `mise exec`, see {@link runtimeExecCommand}.
+ Uses `$HOME` so it resolves correctly for both root and non-root users.
  */
-const RUNTIME_BIN: Record<Exclude<Runtime, 'node'>, string> = {
+const RUNTIME_BIN: Record<Runtime, string> = {
   bun: '$HOME/.bun/bin/bun',
   deno: '$HOME/.deno/bin/deno',
+  node: '$HOME/node/bin/node',
 };
 
 /**
@@ -66,7 +68,7 @@ const RUNTIME_BIN: Record<Exclude<Runtime, 'node'>, string> = {
  // 'curl -fsSL https://bun.sh/install | bash'
 
  runtimeInstallCommand('node');
- // 'curl -fsSL https://mise.run | sh && export PATH="$HOME/.local/bin:$PATH" && cd /workspace && MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace mise install node'
+ // 'cd /workspace && node_platform=... && node_url="$(jq ...)" && ... && tar --extract ...'
  ```
  */
 export function runtimeInstallCommand(runtime: Runtime,): string {
@@ -76,8 +78,8 @@ export function runtimeInstallCommand(runtime: Runtime,): string {
 /**
  Returns the shell command to execute a file with the given runtime.
 
- Node is executed through `mise exec`, which resolves the version installed
- from the repo config and runs it against the file.
+ Every runtime runs its own locked binary under `$HOME`: node is the release
+ `toolchain.lock.json` pins, extracted by {@link runtimeInstallCommand}.
 
  @param runtime - Runtime to use
 
@@ -91,7 +93,7 @@ export function runtimeInstallCommand(runtime: Runtime,): string {
  // '$HOME/.bun/bin/bun run /workspace/test.ts'
 
  runtimeExecCommand({ runtime: 'node', filePath: '/workspace/test.ts' });
- // 'MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace $HOME/.local/bin/mise exec node -- node /workspace/test.ts'
+ // '$HOME/node/bin/node /workspace/test.ts'
  ```
  */
 export function runtimeExecCommand({
@@ -101,14 +103,13 @@ export function runtimeExecCommand({
   readonly runtime: Runtime;
   readonly filePath: string;
 },): string {
-  if (runtime === 'node') {
-    return `${MISE_CONFIG_ENV} $HOME/.local/bin/mise exec node -- node ${filePath}`;
-  }
-
   /**
-   Captured for reuse across the deno-specific and default branches below.
+   Absolute runtime binary inside the container.
    */
   const bin = RUNTIME_BIN[runtime];
+
+  if (runtime === 'node')
+    return `${bin} ${filePath}`;
 
   if (runtime === 'deno')
     return `${bin} run --allow-all ${filePath}`;
