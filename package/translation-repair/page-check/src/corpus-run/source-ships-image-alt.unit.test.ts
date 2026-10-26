@@ -99,7 +99,7 @@ await describe({
           kind: 'same',
         },);
         expect(encodedReading({ source: '![`{x}` y {z}](u.png)', },),).toEqual({
-          written: String.raw`![` + '`{x}`' + String.raw` y \{z\}](u.png)`,
+          written: String.raw`![${ '`{x}`' } y \{z\}](u.png)`,
           kind: 'same',
         },);
       },

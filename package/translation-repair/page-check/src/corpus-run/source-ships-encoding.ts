@@ -162,10 +162,10 @@ import {
 // (`source-ships-footnote-container.ts`; `source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
 // opens a run is an ordinary character on the page, where a fence mark after it opens no fence, so the encoder reads
 // the run with a letter in its place (`source-ships-readable.ts`), and a fence that this leaves open at the end of the
-// run is closed like any other. An angle autolink inside the alternative text of an image is written with a backslash
-// before its less-than sign, as any text is, and the page shows the brackets there: the alternative text of an image
-// is a string to the plain parse, which holds no autolink node to write as its address
-// (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so the plain reading, which
+// run is closed like any other. An angle autolink inside the alternative text of an image is written as its address
+// alone, and a code span in it is copied as it stands, since the alternative text of an image is a string to the plain
+// parse, which holds the address of an autolink and the content of a code span in it
+// (`source-ships-image-alt.ts`; an alternative text that is not one paragraph on its own is written as text). A table cuts a cell at every pipe, so the plain reading, which
 // reads tables, cuts an address there as the source does, and a pipe written with a backslash in an address written as a
 // link is written with a backslash in its text and its target (`source-ships-links.ts`). A footnote label that holds a brace or a less-than sign is
 // written with a backslash in the reference, as any text is, and left as it stands in the definition, where the page

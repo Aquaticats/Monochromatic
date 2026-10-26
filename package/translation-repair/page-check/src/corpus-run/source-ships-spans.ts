@@ -10,6 +10,7 @@ import {
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
+import { imageAltReading, } from './source-ships-image-alt.ts';
 import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
 import {
   footnoteReadingsOf,
@@ -27,7 +28,6 @@ import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
   FENCE_MARKS,
-  imageTextRanges,
   rangeOf,
   secondLabel,
   type SourceSpans,
@@ -323,11 +323,16 @@ export function spansOf(
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
     if ((node.type === 'image') || (node.type === 'imageReference')) {
-      text.push(...imageTextRanges({
+      /**
+       What the alternative text holds: text, code spans copied as they stand, and angle autolinks written as addresses.
+       */
+      const alternative = imageAltReading({
         source,
         node,
         range,
-      },),);
+      },);
+      text.push(...alternative.text,);
+      edits.push(...alternative.edits,);
       continue;
     }
     // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the

@@ -26,6 +26,7 @@ import {
   composeSourcePage,
   type ComposedPage,
 } from '../../dist/final/node/index.mjs';
+import { compareWithBracketedAlt, } from './source-reading-bracketed-alt.test-fixture.ts';
 import {
   sourceShippedArchive,
   sourceShippedArtifact,
@@ -92,7 +93,9 @@ function composeRows(
     compareReadings,
   }: {
     readonly rows: readonly SourceShippedRow[];
-    readonly compareReadings?: () => { readonly kind: 'differs'; readonly reason: string; };
+    readonly compareReadings?: (
+      input: { readonly source: string; readonly carried: string; },
+    ) => ReturnType<typeof compareWithBracketedAlt>;
   },
 ): ComposedPage {
   /**
@@ -135,7 +138,8 @@ await describe({
       name: 'REPORTS A DEFECT NAMING THE SLICE FOR A RUN WRITTEN AS LITERAL TEXT THAT THE PAGE SHOWS DIFFERENTLY',
       fn: async () => {
         /**
-         The page of a run with a bare brace and an image whose alternative text is an angle autolink.
+         The page of a run with a bare brace and an image whose alternative text is an angle autolink, compared with a page
+         built by hand that shows the brackets the source does not.
          */
         const composed = composeRows({
           rows: [
@@ -145,6 +149,7 @@ await describe({
               sourceText: '![<https://example.net/a>](u.png) {然后走了。\n',
             },
           ],
+          compareReadings: compareWithBracketedAlt,
         },);
         expect(composed.step,).toBe('encoded-failing-runs',);
         expect(composed.defects.map(function checkOf({ check, },): string {
@@ -285,7 +290,8 @@ await describe({
       fn: async () => {
         /**
          The page of a run nested past what the grammar admits, which no writing makes parse, and a later run with an image
-         whose alternative text is an angle autolink, which the page shows differently from the source.
+         whose alternative text is an angle autolink, compared with a page built by hand that shows the brackets the source
+         does not.
          */
         const composed = composeRows({
           rows: [
@@ -303,6 +309,7 @@ await describe({
               sourceText: '![<https://example.net/a>](u.png) {x\n',
             },
           ],
+          compareReadings: compareWithBracketedAlt,
         },);
         expect(composed.step,).toBe('dropped',);
         expect(composed.defects.map(function checkOf({ check, },): string {

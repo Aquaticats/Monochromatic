@@ -22,6 +22,7 @@ import {
   encodeAsLiteralMdx,
   readingDifferenceOf,
 } from '../../dist/final/node/index.mjs';
+import { compareWithBracketedAlt, } from './source-reading-bracketed-alt.test-fixture.ts';
 
 /**
  The comparison of a source with the page carrying it as the encoder writes it.
@@ -40,6 +41,23 @@ function encodedDifference({ source, }: { readonly source: string; },): ReturnTy
     source,
     carried: encodeAsLiteralMdx({ text: source, },),
   },);
+}
+
+/**
+ The comparison of a source with a page built by hand that shows the brackets of an angle autolink in the alternative text
+ of an image, which the source shows as the address alone.
+
+ @param source - text of a run of slices
+
+ @returns Answer of the comparison
+
+ @example
+ ```ts
+ const answer = bracketedDifference({ source: '![<https://example.net/a>](u.png)\n', },);
+ ```
+ */
+function bracketedDifference({ source, }: { readonly source: string; },): ReturnType<typeof readingDifferenceOf> {
+  return compareWithBracketedAlt({ source, },);
 }
 
 await describe({
@@ -65,10 +83,17 @@ await describe({
       },
     },),
     it({
-      name: 'SAYS DIFFERS FOR AN IMAGE WHOSE ALTERNATIVE TEXT IS AN ANGLE AUTOLINK, which the page shows with its brackets',
+      name: 'SAYS DIFFERS FOR A PAGE THAT SHOWS THE BRACKETS OF AN ANGLE AUTOLINK THE SOURCE SHOWS AS AN ADDRESS, a page built by hand',
       fn: async () => {
-        expect(encodedDifference({ source: '![<https://example.net/a>](u.png)\n', },).kind,).toBe('differs',);
-        expect(encodedDifference({ source: '> a\n\n![<https://example.net/a>](u.png)\n', },).kind,).toBe('differs',);
+        expect(bracketedDifference({ source: '![<https://example.net/a>](u.png)\n', },).kind,).toBe('differs',);
+        expect(bracketedDifference({ source: '> a\n\n![<https://example.net/a>](u.png)\n', },).kind,).toBe('differs',);
+      },
+    },),
+    it({
+      name: 'SAYS SAME FOR AN IMAGE WHOSE ALTERNATIVE TEXT IS AN ANGLE AUTOLINK, which the encoder writes as its address',
+      fn: async () => {
+        expect(encodedDifference({ source: '![<https://example.net/a>](u.png)\n', },),).toEqual({ kind: 'same', },);
+        expect(encodedDifference({ source: '> a\n\n![<https://example.net/a>](u.png)\n', },),).toEqual({ kind: 'same', },);
       },
     },),
     it({
@@ -96,7 +121,7 @@ await describe({
          footnote that a tag ends, and an image after it whose alternative text is an angle autolink. The page holds the mark
          as a character, so the line is a paragraph, the quote after it holds no footnote, and the image differs on its own.
          */
-        const answer = encodedDifference({
+        const answer = bracketedDifference({
           source: '\uFEFF> [^1]: x\n> <q>\n> text\n> ===\n![<https://example.net/a>](u.png)\n',
         },);
         expect(answer.kind,).toBe('differs',);
@@ -112,7 +137,7 @@ await describe({
          A block quote whose footnote the two readings end at different places, and after it an image whose alternative text
          is an angle autolink, which the page shows with its brackets whatever stands beside it.
          */
-        const after = encodedDifference({
+        const after = bracketedDifference({
           source: '> [^1]: x\n> <q>\n> text\n> ===\n\n![<https://example.net/a>](u.png)\n',
         },);
         expect(after.kind,).toBe('differs',);
@@ -120,7 +145,7 @@ await describe({
         /**
          The same two blocks in the other order.
          */
-        const before = encodedDifference({
+        const before = bracketedDifference({
           source: '![<https://example.net/a>](u.png)\n\n> [^1]: x\n> <q>\n> text\n> ===\n',
         },);
         expect(before.kind,).toBe('differs',);
@@ -186,7 +211,7 @@ await describe({
       fn: async () => {
         // An image whose alternative text is an angle autolink, which the page shows with its brackets whatever stands beside it.
         expect(
-          encodedDifference({ source: '> x\n[^1]: }\n<div\n-\n\n![<https://example.net/a>](u.png)\n', },).kind,
+          bracketedDifference({ source: '> x\n[^1]: }\n<div\n-\n\n![<https://example.net/a>](u.png)\n', },).kind,
         ).toBe('differs',);
       },
     },),
