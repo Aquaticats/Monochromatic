@@ -218,7 +218,7 @@ await describe({
               body: [
                 "const path = require('node:path');",
                 "const args = process.argv.slice(2);",
-                "const dest = args[4] ?? 'fixture-tool';",
+                "const dest = args[5] ?? 'fixture-tool';",
                 "fs.writeFileSync(path.join(path.dirname(process.argv[1]), '..', '..', 'bin', dest), '#!/bin/sh\\n');",
                 'process.exit(0);',
               ].join('\n',),

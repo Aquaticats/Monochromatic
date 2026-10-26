@@ -45,6 +45,7 @@ const MONOREPO_ROOT = resolve(
   '..',
   '..',
   '..',
+  '..',
 );
 
 /**
