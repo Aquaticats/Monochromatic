@@ -11,7 +11,13 @@
 import { existsSync, readdirSync, } from 'node:fs';
 import { join, } from 'node:path';
 import { run, } from './exec.ts';
-import { parseBinList, parseCargoBinstallList, } from './providers.ts';
+import { findToolBin, } from './layout.ts';
+import {
+  binCliPath,
+  parseBinList,
+  parseCargoBinstallList,
+  toolchainPathEnv,
+} from './providers.ts';
 import {
   homeDirFromEnv,
   resolveToolchainPaths,
@@ -21,7 +27,10 @@ import {
   isMainModule,
 } from './paths.ts';
 import { toolInstallDir, } from './paths.ts';
-import { ALL_TOOLS, } from './plan.ts';
+import {
+  ALL_TOOLS,
+  toolById,
+} from './plan.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Version comparison
@@ -110,10 +119,10 @@ export async function observeTool(
        `bin list` output.
        */
       const listed = await run({
-        command: join(
-          paths.toolchainBinDir,
-          'bin',
-        ),
+        command: binCliPath({
+          paths,
+          env,
+        },),
         args: ['list'],
         env: {
           ...process.env,
@@ -144,6 +153,10 @@ export async function observeTool(
           'binstall',
           '--list',
         ],
+        env: toolchainPathEnv({
+          paths,
+          env,
+        },),
       },);
       return parseCargoBinstallList(listed.stdout,).get(entry.packageId ?? entry.id,) ?? null;
     }
@@ -151,14 +164,29 @@ export async function observeTool(
       /**
        `pnpm list --global --depth=0 --json` output.
        */
+      /**
+       Toolchain `pnpm` that owns the global package list.
+       */
+      const pnpmBin = findToolBin({
+        entry: toolById('pnpm',),
+        name: 'pnpm',
+        paths,
+        env,
+      },);
+      if (pnpmBin === null)
+        return null;
       const listed = await run({
-        command: 'pnpm',
+        command: pnpmBin,
         args: [
           'list',
           '--global',
           '--depth=0',
           '--json',
         ],
+        env: toolchainPathEnv({
+          paths,
+          env,
+        },),
       },);
       try {
         /**
@@ -176,13 +204,24 @@ export async function observeTool(
       /**
        `uv tool list` output.
        */
+      /**
+       Toolchain `uv` that owns the tool list.
+       */
+      const uvBin = findToolBin({
+        entry: toolById('uv',),
+        name: 'uv',
+        paths,
+        env,
+      },);
+      if (uvBin === null)
+        return null;
       const listed = await run({
-        command: 'uv',
+        command: uvBin,
         args: ['tool', 'list'],
-        env: {
-          ...process.env,
-          HOME: home,
-        },
+        env: toolchainPathEnv({
+          paths,
+          env,
+        },),
       },);
       for (const line of listed.stdout.split('\n',)) {
         /**
@@ -246,10 +285,16 @@ export async function observeTool(
       /**
        Installed version directory names.
        */
-      const dirs = readdirSync(toolRoot,)
+      const dirs = readdirSync(toolRoot, { withFileTypes: true, },)
         .filter(
-          function isVersionDir(name,): boolean {
-            return !name.startsWith('.',);
+          function isVersionDir(entryDir,): boolean {
+            return entryDir.isDirectory()
+              && !entryDir.name.startsWith('.',);
+          },
+        )
+        .map(
+          function dirName(entryDir,): string {
+            return entryDir.name;
           },
         );
       return dirs.includes(entry.version,)

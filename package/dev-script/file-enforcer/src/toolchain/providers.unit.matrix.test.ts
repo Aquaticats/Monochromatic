@@ -27,7 +27,7 @@ import {
 } from 'node:fs';
 import { createServer, type Server, } from 'node:http';
 import { tmpdir, } from 'node:os';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
 import {
   describe,
   expect,
@@ -36,7 +36,12 @@ import {
 import { run, sha256File, } from './exec.ts';
 import { rebuildExposure, runPostinstallLinks, } from './exposure.ts';
 import { hostPlatformId, } from './layout.ts';
-import { resolveToolchainPaths, type ToolchainPaths, } from './paths.ts';
+import {
+  resolveToolchainPaths,
+  toolInstallDir,
+  type ToolchainPaths,
+} from './paths.ts';
+import { BIN_BOOTSTRAP, } from './plan.ts';
 import {
   installArchive,
   installBinSourced,
@@ -112,18 +117,24 @@ function writeFakeCli(
     fixture,
     name,
     body,
+    dir,
   }: {
     readonly fixture: Fixture;
     readonly name: string;
     readonly body: string;
+    readonly dir?: string | undefined;
   },
 ): string {
   /**
    Absolute path of the fake CLI.
    */
   const cliPath = join(
-    fixture.paths.toolchainBinDir,
+    dir ?? fixture.paths.toolchainBinDir,
     name,
+  );
+  mkdirSync(
+    dirname(cliPath,),
+    { recursive: true },
   );
   writeFileSync(
     cliPath,
@@ -213,12 +224,22 @@ await describe({
             writeFakeCli({
               fixture,
               name: 'bin',
+              dir: join(
+                toolInstallDir({
+                  toolchainRoot: fixture.paths.toolchainRoot,
+                  id: BIN_BOOTSTRAP.id,
+                  version: BIN_BOOTSTRAP.version,
+                },),
+              ),
               body: [
                 'const args = process.argv.slice(2);',
                 'const pattern = args[3] ?? \'\';',
                 "if (!pattern.includes('/**/')) process.exit(1);",
                 "const path = require('node:path');",
-                "fs.writeFileSync(path.join(path.dirname(process.argv[1]), 'alpha'), '#!/bin/sh\\n');",
+                "fs.writeFileSync(" + JSON.stringify(join(
+                  fixture.paths.toolchainBinDir,
+                  'alpha',
+                ),) + ", '#!/bin/sh\\n');",
                 'process.exit(0);',
               ].join('\n',),
             },);
@@ -287,6 +308,13 @@ await describe({
             writeFakeCli({
               fixture,
               name: 'bin',
+              dir: join(
+                toolInstallDir({
+                  toolchainRoot: fixture.paths.toolchainRoot,
+                  id: BIN_BOOTSTRAP.id,
+                  version: BIN_BOOTSTRAP.version,
+                },),
+              ),
               body: [
                 'const args = process.argv.slice(2);',
                 'const pattern = args[3] ?? \'\';',

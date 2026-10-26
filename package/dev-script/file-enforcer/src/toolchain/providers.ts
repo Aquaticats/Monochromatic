@@ -15,6 +15,7 @@ import {
 } from 'node:fs';
 import { homedir, } from 'node:os';
 import { basename, dirname, join, } from 'node:path';
+import { gunzipSync, } from 'node:zlib';
 import {
   downloadVerified,
   extractArchive,
@@ -28,10 +29,16 @@ import {
 } from './layout.ts';
 import {
   homeDirFromEnv,
+  managerNativeBinDirs,
   toolInstallDir,
   type PathEnv,
   type ToolchainPaths,
 } from './paths.ts';
+import {
+  BIN_BOOTSTRAP,
+  MPM_BOOTSTRAP,
+  toolById,
+} from './plan.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Context
@@ -77,6 +84,95 @@ export function artifactForHost(entry: ToolPlanEntry,): {
 }
 
 //endregion Context
+
+//region Tool resolution
+
+/**
+ Absolute path of the `bin` CLI at the bootstrap's own install directory.
+
+ The archive route stages the CLI under `<root>/bin/<version>/`; install and
+ status calls must not assume the flat `<root>/bin/<name>` layout the CLI
+ itself uses for the tools it downloads.
+
+ @param options - Path set and environment
+
+ @returns Absolute CLI path
+
+ @throws Error when the CLI is not installed
+ */
+export function binCliPath(
+  {
+    paths,
+    env,
+  }: {
+    readonly paths: ToolchainPaths;
+    readonly env?: PathEnv | undefined;
+  },
+): string {
+  /**
+   Resolved CLI from the bootstrap entry's install directory.
+   */
+  const resolved = findToolBin({
+    entry: BIN_BOOTSTRAP,
+    name: 'bin',
+    paths,
+    env,
+  },);
+  if (resolved === null) {
+    throw new Error(
+      `bin CLI is not installed; expected it under ${
+        toolInstallDir({
+          toolchainRoot: paths.toolchainRoot,
+          id: BIN_BOOTSTRAP.id,
+          version: BIN_BOOTSTRAP.version,
+        },)
+      }`,
+    );
+  }
+  return resolved;
+}
+
+/**
+ Environment for manager commands: the toolchain's own bin directories lead
+ `PATH`, so retired machine shims cannot divert an install run.
+
+ @param options - Path set and environment
+
+ @returns Environment whose `PATH` starts with the toolchain directories
+ */
+export function toolchainPathEnv(
+  {
+    paths,
+    env,
+  }: {
+    readonly paths: ToolchainPaths;
+    readonly env?: PathEnv | undefined;
+  },
+): Record<string, string> {
+  /**
+   Effective environment.
+   */
+  const e = env ?? process.env;
+  /**
+   Environment with unset variables dropped.
+   */
+  const merged: Record<string, string> = {};
+  for (const [key, value,] of Object.entries(process.env,)) {
+    if (value !== undefined)
+      merged[key] = value;
+  }
+  merged.HOME = homeDirFromEnv({ env: e, });
+  merged.PATH = [
+    ...managerNativeBinDirs({
+      paths,
+      env: e,
+    },),
+    e.PATH ?? '',
+  ].join(':',);
+  return merged;
+}
+
+//endregion Tool resolution
 
 //region Archive provider
 
@@ -141,17 +237,28 @@ export async function installArchive(
    Destination file name: the tool's first declared bin.
    */
   const name = entry.bins[0] ?? basename(artifact.url,);
-  copyFileSync(
-    downloadPath,
-    join(
-      installDir,
-      name,
-    ),
-  );
-  makeExecutable(join(
+  /**
+   Destination path of the payload inside the install directory.
+   */
+  const target = join(
     installDir,
     name,
-  ),);
+  );
+  if (artifact.url.endsWith('.gz',)) {
+    // Gzip single-file payloads (taplo ships a .gz binary) must be
+    // decompressed before the file can run.
+    writeFileSync(
+      target,
+      gunzipSync(readFileSync(downloadPath,),),
+    );
+  }
+  else {
+    copyFileSync(
+      downloadPath,
+      target,
+    );
+  }
+  makeExecutable(target,);
   return installDir;
 }
 
@@ -251,19 +358,38 @@ export function seedBinConfig(
       'config.json',
     ),
   ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate,))
-      return candidate;
-  }
   /**
-   First candidate `bin` would resolve on a clean machine.
+   File `bin` resolves first: the first candidate that exists (an empty
+   `~/.bin/config.json` shadows the later ones), else the first candidate.
+   The seed converges that file instead of leaving a shadowing empty one.
    */
-  /**
-   First candidate `bin` resolves on a clean machine.
-   */
-  const target = candidates.at(-2) ?? candidates.at(-1);
+  const target = candidates.find(
+    function exists(candidate,): boolean {
+      return existsSync(candidate,);
+    },
+  ) ?? candidates[0];
   if (target === undefined)
     throw new Error('no bin configuration path is derivable from the environment',);
+  /**
+   Existing settings kept, with `default_path` converged to the toolchain.
+   */
+  const existing: Record<string, unknown> = {};
+  if (existsSync(target,)) {
+    try {
+      Object.assign(
+        existing,
+        JSON.parse(readFileSync(
+          target,
+          'utf8',
+        ),) as Record<string, unknown>,
+      );
+    }
+    catch (error) {
+      // Only a malformed file reaches here; it is replaced below.
+      if (!(error instanceof SyntaxError))
+        throw error;
+    }
+  }
   mkdirSync(
     dirname(target,),
     { recursive: true },
@@ -273,8 +399,9 @@ export function seedBinConfig(
     `${
       JSON.stringify(
         {
+          ...existing,
           default_path: downloadDir,
-          bins: {},
+          bins: existing.bins ?? {},
         },
         null,
         4,
@@ -329,6 +456,13 @@ export async function installBinSourced(
     downloadDir: paths.toolchainBinDir,
   },);
   /**
+   Absolute `bin` CLI at the bootstrap's install directory.
+   */
+  const cli = binCliPath({
+    paths,
+    env,
+  },);
+  /**
    Last observed run result.
    */
   let result: RunResult = {
@@ -362,10 +496,7 @@ export async function installBinSourced(
     let installed = false;
     for (const attempt of attempts) {
       result = await run({
-        command: join(
-          paths.toolchainBinDir,
-          'bin',
-        ),
+        command: cli,
         args: [
           'install',
           tagUrl,
@@ -381,8 +512,17 @@ export async function installBinSourced(
         break;
       }
     }
-    if (!installed)
-      return result;
+    if (!installed) {
+      throw new Error(
+        `bin install failed for ${
+          entry.id
+        } (${
+          name
+        }): ${
+          result.stderr || result.stdout
+        }`,
+      );
+    }
   }
   return result;
 }
@@ -402,7 +542,11 @@ export async function installBinSourced(
 export async function installCargoBinstall(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, } = context;
+  const {
+    entry,
+    paths,
+    env,
+  } = context;
   /**
    `cargo binstall` arguments with the exact locked version.
    */
@@ -419,10 +563,27 @@ export async function installCargoBinstall(
     );
   }
   args.push(entry.packageId ?? entry.id,);
-  return run({
+  /**
+   Install run result through the toolchain's own manager directories.
+   */
+  const result = await run({
     command: 'cargo',
     args,
+    env: toolchainPathEnv({
+      paths,
+      env,
+    },),
   },);
+  if (result.code !== 0) {
+    throw new Error(
+      `cargo binstall failed for ${
+        entry.id
+      }: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+  return result;
 }
 
 //endregion cargo-binstall provider
@@ -441,15 +602,53 @@ export async function installCargoBinstall(
 export async function installMpmPnpm(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, } = context;
-  return run({
-    command: 'pnpm',
+  const {
+    entry,
+    paths,
+    env,
+    extraDirs,
+  } = context;
+  /**
+   Toolchain `pnpm` the install must run through; retired machine shims
+   must never receive the install.
+   */
+  const pnpmBin = findToolBin({
+    entry: toolById('pnpm',),
+    name: 'pnpm',
+    paths,
+    env,
+    extraDirs,
+  },);
+  if (pnpmBin === null) {
+    throw new Error(
+      'pnpm is not installed in the toolchain; the pnpm stage must run first',
+    );
+  }
+  /**
+   Global install run result.
+   */
+  const result = await run({
+    command: pnpmBin,
     args: [
       'add',
       '--global',
       `${entry.packageId ?? entry.id}@${entry.version}`,
     ],
+    env: toolchainPathEnv({
+      paths,
+      env,
+    },),
   },);
+  if (result.code !== 0) {
+    throw new Error(
+      `pnpm add --global failed for ${
+        entry.id
+      }: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+  return result;
 }
 
 /**
@@ -463,7 +662,28 @@ export async function installMpmPnpm(
 export async function installMpmUvx(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+    extraDirs,
+  } = context;
+  /**
+   Toolchain `uv` the install must run through; retired machine shims must
+   never receive the install.
+   */
+  const uvBin = findToolBin({
+    entry: toolById('uv',),
+    name: 'uv',
+    paths,
+    env,
+    extraDirs,
+  },);
+  if (uvBin === null) {
+    throw new Error(
+      'uv is not installed in the toolchain; the uv stage must run first',
+    );
+  }
   if (entry.options.bootstrap?.distribution === 'wheel') {
     // The pinned `mpm` wheel is downloaded and SHA-256 checked first.
     /**
@@ -483,32 +703,58 @@ export async function installMpmUvx(
       target: wheelPath,
       sha256: artifact.sha256,
     },);
-    return run({
-      command: 'uv',
+    /**
+     Wheel install run result.
+     */
+    const wheelInstall = await run({
+      command: uvBin,
       args: [
         'tool',
         'install',
         '--force',
         wheelPath,
       ],
-      env: {
-        ...process.env,
-        HOME: homeDirFromEnv({ env, }),
-      },
+      env: toolchainPathEnv({
+        paths,
+        env,
+      },),
     },);
+    if (wheelInstall.code !== 0) {
+      throw new Error(
+        `uv tool install failed for ${
+          entry.id
+        }: ${
+          wheelInstall.stderr || wheelInstall.stdout
+        }`,
+      );
+    }
+    return wheelInstall;
   }
-  return run({
-    command: 'uv',
+  /**
+   Registry install run result.
+   */
+  const installed = await run({
+    command: uvBin,
     args: [
       'tool',
       'install',
       `${entry.packageId ?? entry.id}==${entry.version}`,
     ],
-    env: {
-      ...process.env,
-      HOME: homeDirFromEnv({ env, }),
-    },
+    env: toolchainPathEnv({
+      paths,
+      env,
+    },),
   },);
+  if (installed.code !== 0) {
+    throw new Error(
+      `uv tool install failed for ${
+        entry.id
+      }: ${
+        installed.stderr || installed.stdout
+      }`,
+    );
+  }
+  return installed;
 }
 
 //endregion pnpm and uvx providers
@@ -527,35 +773,66 @@ export async function installMpmUvx(
 export async function installRustToolchain(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+    extraDirs,
+  } = context;
   /**
-   `mpm restore` limited to the rustup manager.
+   Toolchain `mpm`, when the mpm bootstrap staged it.
    */
-  const viaMpm = await run({
-    command: join(
-      paths.toolchainBinDir,
-      'mpm',
-    ),
-    args: [
-      '--rustup',
-      'restore',
-      paths.mpmPackagesFile,
-    ],
-    env: {
-      ...process.env,
-      HOME: homeDirFromEnv({ env, }),
-    },
+  const mpmBin = findToolBin({
+    entry: MPM_BOOTSTRAP,
+    name: 'mpm',
+    paths,
+    env,
+    extraDirs,
   },);
-  if (viaMpm.code === 0)
-    return viaMpm;
-  return run({
+  if (mpmBin !== null) {
+    /**
+     `mpm restore` limited to the rustup manager.
+     */
+    const viaMpm = await run({
+      command: mpmBin,
+      args: [
+        '--rustup',
+        'restore',
+        paths.mpmPackagesFile,
+      ],
+      env: toolchainPathEnv({
+        paths,
+        env,
+      },),
+    },);
+    if (viaMpm.code === 0)
+      return viaMpm;
+  }
+  /**
+   Direct rustup fallback for the same locked channel.
+   */
+  const viaRustup = await run({
     command: 'rustup',
     args: [
       'toolchain',
       'install',
       entry.packageId ?? entry.version,
     ],
+    env: toolchainPathEnv({
+      paths,
+      env,
+    },),
   },);
+  if (viaRustup.code !== 0) {
+    throw new Error(
+      `rustup toolchain install failed for ${
+        entry.id
+      }: ${
+        viaRustup.stderr || viaRustup.stdout
+      }`,
+    );
+  }
+  return viaRustup;
 }
 
 /**
@@ -568,7 +845,11 @@ export async function installRustToolchain(
 export async function installRustComponents(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, } = context;
+  const {
+    entry,
+    paths,
+    env,
+  } = context;
   /**
    Last observed run result.
    */
@@ -587,9 +868,22 @@ export async function installRustComponents(
         '--toolchain',
         entry.version,
       ],
+      env: toolchainPathEnv({
+        paths,
+        env,
+      },),
     },);
-    if (result.code !== 0)
-      return result;
+    if (result.code !== 0) {
+      throw new Error(
+        `rustup component add failed for ${
+          entry.id
+        } (${
+          component
+        }): ${
+          result.stderr || result.stdout
+        }`,
+      );
+    }
   }
   for (const target of entry.options.rustTargets ?? []) {
     result = await run({
@@ -601,9 +895,22 @@ export async function installRustComponents(
         '--toolchain',
         entry.version,
       ],
+      env: toolchainPathEnv({
+        paths,
+        env,
+      },),
     },);
-    if (result.code !== 0)
-      return result;
+    if (result.code !== 0) {
+      throw new Error(
+        `rustup target add failed for ${
+          entry.id
+        } (${
+          target
+        }): ${
+          result.stderr || result.stdout
+        }`,
+      );
+    }
   }
   return result;
 }
@@ -700,7 +1007,10 @@ export async function installAndroidSdk(
     'bin',
     'android',
   );
-  return run({
+  /**
+   SDK install run result.
+   */
+  const result = await run({
     command: androidCli,
     args: [
       'sdk',
@@ -708,12 +1018,24 @@ export async function installAndroidSdk(
       ...(entry.options.androidPackages ?? []),
     ],
     env: {
-      ...process.env,
+      ...toolchainPathEnv({
+        paths,
+        env,
+      },),
       ANDROID_HOME: sdkRoot,
       ANDROID_SDK_ROOT: sdkRoot,
-      HOME: homeDirFromEnv({ env, }),
     },
   },);
+  if (result.code !== 0) {
+    throw new Error(
+      `android sdk install failed for ${
+        entry.id
+      }: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+  return result;
 }
 
 //endregion Rust and Android providers

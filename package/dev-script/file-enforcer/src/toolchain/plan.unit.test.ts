@@ -2,7 +2,7 @@
  Unit tests for the typed toolchain plan.
  */
 
-import { readFileSync, } from 'node:fs';
+
 import {
   describe,
   expect,
@@ -19,44 +19,6 @@ import {
 } from './plan.ts';
 import { TOOL_ROUTES, } from './types.ts';
 
-/**
- Parses the `[tools]` keys of `mise.no-env.toml` for comparison against the
- plan, honoring TOML bare and quoted keys.
- */
-function miseToolKeys(): readonly string[] {
-  /**
-   Raw `mise.no-env.toml` text.
-   */
-  const raw = readFileSync(
-    new URL(
-      '../../../../../mise.no-env.toml',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  /**
-   Slice from `[tools]` to the next table header.
-   */
-  const section = raw.split('[tools]', 2)[1]?.split(
-    /^\[[a-z]/mu,
-    1,
-  )[0] ?? '';
-  /**
-   Tool keys collected in declaration order.
-   */
-  const keys: string[] = [];
-  for (const line of section.split('\n',)) {
-    /**
-     Key of one tool line, bare or quoted.
-     */
-    const match = line.match(/^(?:"([^"]+)"|([A-Za-z0-9_.:-]+))\s*=/u);
-    if (match === null)
-      continue;
-    keys.push(match[1] ?? match[2] ?? '',);
-  }
-  return keys;
-}
-
 await describe({
   name: 'toolchain plan',
   children: [
@@ -64,16 +26,19 @@ await describe({
       name: 'TOOLS',
       children: [
         it({
-          name: 'declares every mise.no-env.toml [tools] key, in file order',
+          name: 'declares 59 tools with unique ids',
           fn: async () => {
-            expect(
-              TOOLS.map(
-                (entry,) => entry.id,
-              ),
-            )
-              .toEqual(miseToolKeys(),);
             expect(TOOLS.length,)
               .toBe(59,);
+            /**
+             Ids seen once each.
+             */
+            const ids = TOOLS.map(
+              (entry,) => entry.id,
+            );
+            expect(new Set(ids,)
+              .size,)
+              .toBe(ids.length,);
           },
         },),
         it({

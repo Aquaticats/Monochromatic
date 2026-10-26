@@ -476,7 +476,11 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     packageId: null,
     bins: ['taplo', 'taplo-linux-x86_64'],
     os: null,
-    options: {},
+    options: {
+      // The gzip payload installs as `taplo`; the asset-name bin resolves
+      // to the same file through the alias.
+      binAliases: { 'taplo-linux-x86_64': 'taplo' },
+    },
     env: {},
     artifacts: artifacts('taplo'),
   },
@@ -875,7 +879,6 @@ export const TOOLS: readonly ToolPlanEntry[] = [
       'resourceshrinker',
       'retrace',
       'screenshot2',
-      'android-sdk',
       'adb',
       'etc1tool',
       'fastboot',

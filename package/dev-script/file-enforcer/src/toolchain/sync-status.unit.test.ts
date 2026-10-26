@@ -238,7 +238,7 @@ await describe({
       name: 'seedBinConfig',
       children: [
         it({
-          name: 'writes default_path at the location bin resolves, exactly once',
+          name: 'converges default_path at the location bin resolves',
           fn: async () => {
             /**
              Disposable home for the fixture.
@@ -266,12 +266,33 @@ await describe({
                 default_path: '/fixture/toolchain/bin',
                 bins: {},
               },);
-            // A second run must respect the seeded file instead of rewriting.
+            // A second run with the same toolchain bin dir is idempotent.
             expect(seedBinConfig({
               env: { HOME: home, },
-              downloadDir: '/other',
+              downloadDir: '/fixture/toolchain/bin',
             },),)
               .toBe(seeded,);
+            expect(
+              (JSON.parse(readFileSync(
+                seeded,
+                'utf8',
+              ),) as { default_path: string; })
+                .default_path,
+            )
+              .toBe('/fixture/toolchain/bin',);
+            // A stale default_path converges back to the toolchain bin dir.
+            writeFileSync(
+              seeded,
+              JSON.stringify({
+                default_path: '/stale',
+                bins: {},
+              },),
+              'utf8',
+            );
+            seedBinConfig({
+              env: { HOME: home, },
+              downloadDir: '/fixture/toolchain/bin',
+            },);
             expect(
               (JSON.parse(readFileSync(
                 seeded,
