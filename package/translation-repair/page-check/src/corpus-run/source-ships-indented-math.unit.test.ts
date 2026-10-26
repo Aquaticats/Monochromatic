@@ -83,6 +83,23 @@ await describe({
     },),
 
     it({
+      name: 'WRITES A COMMENT OPENER THAT NEVER CLOSES IN AN INDENTED DISPLAY MATH AS TEXT BETWEEN TWO DISPLAY MATHS, '
+        + 'so the page shows the opener and hides nothing',
+      fn: async () => {
+        for (
+          const source of [
+            'a\n    $$\n    <!-- never\n    $$\n',
+            'a\n    $$\n    x <!-- never\n    $$\n',
+            'a\n    $$\n    {a}\n    <!-- never\n    $$\n',
+            '> y~~ z {d}\n>     $$\n>     <!-- never\n>     $$\n',
+            '- a\n      $$\n      <!-- never\n      $$\n',
+          ] as const
+        )
+          expect(encodedReading({ source, },).kind,).toBe('same',);
+      },
+    },),
+
+    it({
       name: 'STILL JOINS THE LINES OF MATH THAT THE PAGE DOES NOT READ AS DISPLAY MATH, inline math a brace cuts among them',
       fn: async () => {
         for (
