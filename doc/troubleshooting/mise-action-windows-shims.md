@@ -1,5 +1,17 @@
 # `mise run` cannot find installed tools on Windows with mise-action 4.0.1
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so the `mise install node pnpm` exposure story in the `Symptom` and `Root cause`
+>  sections is historical.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`,
+>  which exposes binaries through `.cache/toolchain-bin`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`);
+>  Windows provisioning parity is unverified
+>  (`doc/planning/mise-removal-coverage.md`,
+>  section `Tool acquisition, versions, and bootstrap prerequisite`).
+
 ## Symptom
 
 A Windows GitHub Actions job installed Node and pnpm successfully through `mise install node pnpm`,

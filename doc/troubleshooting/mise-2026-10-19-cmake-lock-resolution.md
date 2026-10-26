@@ -1,5 +1,12 @@
 # mise 2026.10.19 fails lock resolution here: a stale vfox cmake backend and lock platforms that ignore a tool's `os`
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 ## Symptom
 
 The `cargo-publish` workflow failed at the step "Install only the tools this workflow needs" (`mise install rust`)

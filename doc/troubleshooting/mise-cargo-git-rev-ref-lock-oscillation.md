@@ -4,6 +4,13 @@
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 mise 2026.6.13,
  cargo backend,
  `mise lock`,
