@@ -279,7 +279,8 @@ Rust components,
 JDK and Android tooling,
 and platform-specific binaries.
 
-Owner, selected 2026-10-26
+Owner,
+selected 2026-10-26
  ([`doc/decision/mpm-toolchain-adoption.md`](../decision/mpm-toolchain-adoption.md)):
  Meta Package Manager owns the restore manifest (`mpm.packages.toml`),
 machine inventory (`mpm installed`),

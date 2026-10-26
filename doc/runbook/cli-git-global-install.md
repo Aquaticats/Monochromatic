@@ -10,7 +10,8 @@ Inside this checkout `mise run toolchain:sync` installs the wrapper and links `g
 and the generated `mise.toml` `[env]` puts the tool exposure directory
 (`.cache/toolchain-bin`) first on `PATH`.
 The steps that follow configure the user's global mise;
-the toolchain migration (`doc/decision/mpm-toolchain-adoption.md`, 2026-10-26)
+the toolchain migration accepted in `doc/decision/mpm-toolchain-adoption.md`
+on 2026-10-26
 removes tool management from the repository's `mise.toml`
 but leaves this user-global setup unchanged.
 
