@@ -579,8 +579,10 @@ INH:
  and installs it touched before acting.
 
 UPN:
- Upgrades name their tool (`mpm upgrade <package>`):
- a bare `mpm upgrade --all` moves every manager's packages and rewrites the toolchain state all sessions' builds share.
+ Upgrades name their tool (`mpm upgrade <package>`);
+ repository tools move through `toolchain:update`,
+ whose lock diff is the review surface.
+ Never run bare `mpm upgrade --all`.
 
 TRB:
  External tool fails with a diagnostic:

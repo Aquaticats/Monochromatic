@@ -15,6 +15,29 @@ Read that decision first;
 - `mise run toolchain:status`:
  print observed versus locked versions and exit non-zero on drift.
  Also runnable as `node package/dev-script/file-enforcer/src/toolchain/status.ts`.
+- `mise run toolchain:update`:
+ re-resolve the floating requests and channel stamps to their current
+ upstream versions,
+ rewrite `toolchain.lock.json`,
+ regenerate the manifests,
+ and print `id old -> new` per tool.
+ `--check` reports and exits 1 when anything would move,
+ writing nothing.
+ Explicit pins never move without a plan edit.
+ Also runnable as `node package/dev-script/file-enforcer/src/toolchain/update.ts`.
+ Resolution sources per family
+ (each probe-verified,
+ maintainer policy 2026-10-26):
+ npm-family tools follow the registry's `latest` dist-tag,
+ so a publisher rollback can move a tool down in the update diff;
+ `cargo:` follows crates.io's highest stable version,
+ `mpm-uvx` follows PyPI,
+ the GitHub families follow release tags and asset digests,
+ node follows its SHASUMS256 files,
+ `java` follows the Adoptium `temurin-21` stamp,
+ `rust` follows the rustup nightly channel date,
+ and `android-sdk` follows Google's cmdline-tools revision
+ (its `androidPackages` pins stay fixed).
 - `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts`:
  print the exposure directory,
  PATH directories,

@@ -217,6 +217,12 @@ mise run prepareAndBuild
 
 ### Tool inventory and drift
 
+- `mise run toolchain:update` re-resolves the floating requests and the
+  channel stamps to their current upstream versions and rewrites
+  `toolchain.lock.json` as a reviewable diff
+  (`node package/dev-script/file-enforcer/src/toolchain/update.ts`,
+  `--check` reports without writing);
+  explicit pins never move without a plan edit.
 - `mise run toolchain:status` prints observed versus locked versions and exits
   non-zero on drift
   (`node package/dev-script/file-enforcer/src/toolchain/status.ts` runs the

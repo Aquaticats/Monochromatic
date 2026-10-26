@@ -159,6 +159,17 @@ The maintainer confirmed the migration forks after the capability research lande
  MPM's `pnpm` and `uvx` manager ids,
  with boundary installs at the locked versions wherever an adapter drops the
  version parameter.
+- npm "latest" semantics (maintainer 2026-10-26):
+ `toolchain:update` follows the registry's `latest` dist-tag,
+ so a publisher rollback can move a tool down in the update diff;
+ the alternative ("highest published version") was offered and declined.
+- Update flow (2026-10-26):
+ `toolchain:update`,
+ the `pnpm update` analogue,
+ is implemented and verified in a disposable tree.
+ The committed lock still holds the migration-time resolutions
+ (`--check` reported `16 updated` that day);
+ the maintainer triggers the real re-resolution.
 - Rust pieces:
  MPM's `rustup` adapter plus direct component and target calls.
 - Android SDK:
