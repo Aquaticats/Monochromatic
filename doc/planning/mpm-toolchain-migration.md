@@ -357,13 +357,17 @@ Shape additions and clarifications the implementation needed;
  and `mpm`.
  `mpm`'s distribution is the PyPI wheel `meta-package-manager` 8.2.0,
  SHA-256 checked against PyPI's published digest
- and installed with `uv tool install`:
- on 2026-10-26 every GitHub route to the standalone release assets returned
- 404
- (REST API,
- git transport,
- direct download),
- so no release digest could be recorded.
+ and installed with `uv tool install`.
+ Corrected 2026-10-26:
+ an earlier draft of this record said the GitHub release assets returned
+ 404;
+ those probes addressed a misspelled repository
+ (`kdeldyde` instead of `kdeldycke`),
+ and `gh repo view kdeldycke/meta-package-manager` reports the repository
+ public.
+ The wheel route stands as implemented because it is verified and matches
+ mpm.run's own PyPI-first install guidance,
+ not because GitHub is absent.
  `uv` is staged before `mpm` for that reason.
 - Staging order is `bin`,
  `uv`,
