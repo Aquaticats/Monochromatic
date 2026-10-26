@@ -41,13 +41,6 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     env:
-      # The root mise config sets auto_install=true and lists heavy dev tools:
-      # cargo:slint-ui/slint (slint-lsp and slint-viewer) builds from a git rev
-      # and needs system fontconfig the runner lacks, so it fails to compile.
-      # Disabling auto-install makes every `mise run`/`mise exec` use only the
-      # tools this job installs explicitly below, instead of rebuilding slint on
-      # each command. The logger tasks need only node and pnpm.
-      MISE_AUTO_INSTALL: 'false'
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -72,54 +65,39 @@ jobs:
         fi
         echo "run=$run" >> "$GITHUB_OUTPUT"
 
-    - name: Set up mise (skip auto-install of all tools)
+    - name: Set up node, pnpm and the task CLI
       if: steps.scope.outputs.run == 'true'
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # mise-action defaults to install:true, which runs `mise install` over
-        # the whole root toolset (slint included) before any step. Matches
-        # publish.yml and toml-edit-fuzz.yml.
-        install: false
-
-    - name: Install only the tools this workflow needs
-      if: steps.scope.outputs.run == 'true'
-      run: mise install node pnpm
-
-    - name: Install dependencies
-      if: steps.scope.outputs.run == 'true'
-      run: mise exec node pnpm -- pnpm install --frozen-lockfile
+        node-version: '26.12.0'
+        pnpm-version: '12.14.0'
 
     - name: Build the runtime package
       if: steps.scope.outputs.run == 'true'
       # Build before type-check: the sidecar imports the built
       # `@monochromatic-dev/module-logger` entry points, so their dist .d.mts
       # must exist for tsgo to resolve them on a fresh checkout.
-      run: mise run //package/module/logger:build
+      run: task-run //package/module/logger:build
 
     - name: Type-check the sidecar
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/logger.fuzz:lint:types
+      run: task-run //package/module/logger.fuzz:lint:types
 
     - name: Unit suite (bounded property runs plus fake-sink and model tests)
       if: steps.scope.outputs.run == 'true'
-      run: mise run //package/module/logger.fuzz:test:unit
+      run: task-run //package/module/logger.fuzz:test:unit
 
     - name: Fuzz smoke (short per-property campaign)
       if: steps.scope.outputs.run == 'true'
       # A short per-property budget, not the 60s local default, keeps the smoke
       # bounded while still exploring well past the bounded-mode run count.
-      run: mise run //package/module/logger.fuzz:fuzz --budget 3000
+      run: task-run //package/module/logger.fuzz:fuzz -- --budget 3000
 
     - name: Coverage gate (no per-file src reachability regression)
       if: steps.scope.outputs.run == 'true'
       # The committed baseline is a V8-coverage artifact. This repo always tracks
       # the latest node, so a node release that shifts V8 coverage is handled by
       # refreezing the baseline with
-      # `mise run //package/module/logger.fuzz:fuzz:coverage --write`, not by
+      # `task-run //package/module/logger.fuzz:fuzz:coverage -- --write`, not by
       # pinning node.
-      run: mise run //package/module/logger.fuzz:fuzz:coverage
+      run: task-run //package/module/logger.fuzz:fuzz:coverage

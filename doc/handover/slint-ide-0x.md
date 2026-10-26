@@ -4835,6 +4835,85 @@ or the owner says otherwise. The rerun of the failed job (run 40242360125) is on
 (run 40242357783) is green; the IDE's own workflow pins mise 2026.10.9 and is not affected; a real IDE release
 (0.1.1 to 0.1.2) is held with the compositor's so both releases carry the same state, until the mise question is
 answered. Nothing else is waiting on this session.
+OWNER ANSWER 2026-10-25 (question tool, to "should the IDE release wait for the compositor release or go now"): "I got
+the other session to pin mise to 2026.10.17 in CIs as a stopgap measure. Release everything you own now." So the hold
+above is lifted. Main has `3e16deb852` (pin mise 2026.10.17 in all six `jdx/mise-action` steps of `cargo-publish.yml`,
+because 2026.10.19 cannot resolve cmake for linux-arm64, Refs #1791); `ide-release.yml` keeps its own pin 2026.10.9.
+Dry runs before the releases: IDE `ide-release.yml` run 40242357783 green at `8c60a4afb3` (IDE sources unchanged since);
+compositor `cargo-publish.yml` run 40244877203 green at `3e16deb852` (`nws-publish-crate` and both `nws-build-binary`
+legs green, `nws-create-release` skipped as in a dry run). Version bumps in the scratch tree `release-prep`: IDE 0.1.1
+to 0.1.2 (`mise run //package/desktop-app/ide:fetch`, exactly one changed line in `Cargo.lock`), compositor 0.6.1 to
+0.6.2 (the compositor has no `fetch` task and its tasks do not use `--locked`, so `mise run //package/cli/nested-wayland-
+session:build` refreshed `Cargo.lock`: exactly one changed line; the README heading "Changes after 0.6.1 (not
+released)" became "Changes in 0.6.2"). Commits `f5e1a3f44c` `chore(ide): release 0.1.2` and `eb60defb1d`
+`chore(nested-wayland-session): release 0.6.2` (explicit pathspecs), pushed with a merge as `5750e0b9c3` at ancestry 0.
+The real runs started by that push: `ide-release.yml` run 40245539422 and `cargo-publish.yml` run 40245539506. Next
+(runbooks: `doc/runbook/release-the-ide.md` "Cut a release" steps 5 to 7 and "Verifying attestations";
+`doc/runbook/publish-crate-first-time.md` "Cut the release" steps 2 to 4): read both runs to the end; the IDE release
+`ide-v0.1.2` must hold four files (both archives, the notices, `SHA256SUMS`) and be a pre-release; the compositor release
+`monochromatic-nested-wayland-session-v0.6.2` must hold two archives and the checksums file, the crate must be on
+crates.io; verify with `gh release view`, `gh attestation verify`, `sha256sum --check` and `cargo binstall --dry-run`
+for the compositor. A failed release job after publishing cannot be repaired (immutable): release the next patch
+version and say in its notes that the previous is broken. Then install the released IDE archive? No: the installed
+binary is the local build `d60a2272574c0a64…` from `8c60a4afb3`, whose IDE sources equal the release's.
+RESULT of the two real runs started by the push `5750e0b9c3` (2026-10-25): COMPOSITOR RELEASED. `cargo-publish.yml` run
+40245539506 green end to end (`nws-publish-crate`, both `nws-build-binary` legs, `nws-create-release`);
+`monochromatic-nested-wayland-session-v0.6.2` is published at 23:40:17Z (not a draft; tag on `5750e0b9c3`) with the three
+expected files (the two archives and `...-0.6.2-sha256sums.txt`, 3,738,900 and 3,960,700 bytes plus 283); verified:
+`sha256sum --check` OK for both archives, `gh attestation verify` exit 0 for both and the JSON of the x86_64 archive
+names workflow `.github/workflows/cargo-publish.yml` at `refs/heads/main` of this repository, crates.io lists version
+0.6.2 (id 3607508, created 23:38:41Z, not yanked; the API needs a `User-Agent`, a bare curl gets a 4xx), and `cargo
+binstall --dry-run --no-confirm --disable-strategies compile,quick-install monochromatic-nested-wayland-session@0.6.2`
+in an empty directory exits 0 with 'downloaded from github.com' and the binary name. The compositor fix for the early
+wheel therefore reaches users of the crate and the archives; the local copies used by the drivers are still 0.6.1.
+IDE NOT YET RELEASED: `ide-release.yml` run 40245539422 built both architectures and the checksums, but its `release`
+job failed twice (first attempt and `gh run rerun --failed`) at the last step with `HTTP 403: Resource not accessible by
+integration (https://api.github.com/repos/Aquaticats/Monochromatic/releases)` at the first call of `gh release create`
+(the job's token showed `Contents: write`, runner image 20261012.334.1 and token lines identical to run 39905451031 that
+created `ide-v0.1.1` on 2026-10-23; the command differs from the compositor job's only by `--prerelease` and
+`--notes-file`; the `release` job text is unchanged since 0.1.1 and the one workflow change since, `38cb13b4d1`, touches
+only the `build` job; no tag ruleset exists (one branch ruleset 'Copilot review'); the repository default workflow
+permission is `read`, which the job overrides). Nothing was published for the IDE: no `ide-v0.1.2` tag and no release
+(checked with `git ls-remote --tags` and `gh release view`). Per the runbook the remedy is a new dispatch:
+`gh workflow run ide-release.yml --ref main --field dry-run=false` as run 40247396160 on `9c94fe63f2` (a plain commit at
+the tip of `main`, so it also tests whether the merge commit `5750e0b9c3` or a moved branch tip caused the 403); a bounded
+waiter reads it. If it fails with the same 403, the next suspects are the `--prerelease` flag (the only argument that
+differs from the compositor job) and a GitHub-side change since 2026-10-23 (immutable releases and pre-releases), and
+the fallback is publishing the already built and attested artifacts by hand with the owner's `gh` login, which is a
+deviation from the runbook and needs a decision. Scratch of the release work (`release-prep`, `nws-release-check`,
+`binstall-check`) is removed.
+UPDATE (same day, later). The redispatch (run 40247396160 on `9c94fe63f2`) failed in BOTH build legs, not at the
+release: `task-cli: missing task file: package/desktop-app/terminal/task.ts` at `task-run //package/desktop-app/terminal:image`
+(`package/dev-script/task-cli/src/load.ts:62`). Cause: commit `38cb13b4d1` of the other session ("eliminate mise from
+every workflow", 19:50 -0400) switched `ide-release.yml`'s build job from `mise run` to `task-run` and the shared
+`./.github/actions/task-cli-setup`, but at the tip of `main` (`5d0fe99296`) `package/desktop-app/terminal` and
+`package/desktop-app/ide` still hold only `mise.toml`, no `task.ts`. So an IDE release from `main` cannot build until that
+session lands the task files for those two packages (or changes the workflow). That is its in-flight work; this session
+does not edit it. My first real run (`5750e0b9c3`, pushed 19:36) predates that commit and built fine in all jobs.
+THE 403, narrowed by four throwaway probe runs (branch `probe-release-403`, workflow file with a `push` trigger on that
+branch because a new workflow file cannot be dispatched by name before it exists on the default branch; deleted after;
+only drafts and lightweight tags were created and removed; 0 probe tags, releases or drafts remain): (1) draft releases
+with every flag set of the IDE job (`--draft --prerelease --target SHA --notes-file`, assets, an IDE-like tag name) were
+created fine at the probe's own commit; (2) publishing two throwaway pre-releases with an asset and `--target` at the probe
+commit succeeded with `contents: write` alone and with `contents: write` plus `actions: read` (so the `actions: read`
+that every `cargo-publish.yml` release job carries is not the cause); (3) creating a draft named `ide-v0.1.2` or
+`ide-v0.1.3` with `--target 5750e0b9c3` failed with the same 403 as the real job, with or without 90 MB assets; (4)
+creating a lightweight tag through `POST /git/refs` failed with the same 403 at `5750e0b9c3`, `eb60defb1d`
+(compositor bump), `f5e1a3f44c` (IDE bump) and `09cd40b077` (the old tip before my push), and succeeded at
+`ec2dec4e0d` (the `ide-v0.1.1` commit), `9c94fe63f2` and the tip `5d0fe99296`. So the refusal is about the TARGET
+COMMIT, not the flags, name, assets or permission set: it hit the four commits of that push and its base, all authored
+19:32 to 19:36 -0400. Their `.github` trees differ from the tip's (`.github/actions/task-cli-setup/action.yml` and many
+workflow files), and so does `ec2dec4e0d`'s, which passes, so the content difference alone does not separate them. The
+compositor release succeeded at 23:40Z on `5750e0b9c3` and the same commit was refused at 23:56Z and later, so the
+refusal began after the compositor release: an immutable release tag on a commit may block further tag or release
+creation at that commit for the workflow token (not shown: `eb60defb1d`, `f5e1a3f44c` and `09cd40b077` carry no tag and
+were refused too). Root cause NOT found; no GitHub documentation was read for it. Practical consequence: a real IDE
+release must be dispatched from `main` at a NEW commit once the IDE build works again (the tip `5d0fe99296` accepted a
+tag in the probe); before the real dispatch run the same one-minute tag probe at the exact tip SHA.
+BLOCKER and what clears it: the IDE `task.ts` files of `package/desktop-app/terminal` and `package/desktop-app/ide`
+(other session). Then: dispatch `gh workflow run ide-release.yml --ref main --field dry-run=true` first (the workflow
+changed), read it, then the real run; both `ide-v0.1.2` bump commits are already on `main`, so `detect` sees a version
+whose tag does not exist and builds.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,

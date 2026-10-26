@@ -74,6 +74,15 @@ Pin mise in the workflow: every `jdx/mise-action` step in `.github/workflows/car
 
 ## What does not work
 
+- Switching `cmake` to the aqua backend (`mise backends switch cmake`), prompted by the warning "cmake is locked to
+  vfox:cmake, but the registry now installs it from aqua:Kitware/CMake".
+  The switch rewrites `backend = "vfox:cmake"` to `backend = "aqua:Kitware/CMake"` in `mise.lock` and adds checksummed
+  GitHub release URLs for `linux-arm64`.
+  With mise 2026.10.19 in the podman harness, both switched attempts then failed in the same lock phase on a different
+  tool: `failed to resolve conda:bubblewrap for macos-arm64: failed to solve bubblewrap for macos-arm64`.
+  So the failure is not specific to `cmake`; the switch only moved it. The control attempts of that run hit the harness
+  limit of 240 seconds while still locking, so that run does not re-show the `cmake` error and adds nothing for or
+  against the original bisection (which finished before the limit).
 - Rerunning the failed job: attempt 2 of run 40242133604 failed at the same step.
 - Publishing from a developer machine: the crate publishes through crates.io Trusted Publishing from CI.
 

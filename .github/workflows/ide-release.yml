@@ -14,9 +14,9 @@ name: ide-release
 #   only if the tag ide-v<version> does not exist yet. An existing tag skips the release without failing. Releases are
 #   immutable: assets cannot be replaced or added later, so one gh release create call carries every asset.
 # - Every release is flagged as a pre-release: the project is under active development.
-# - Build: the repository's own mise tasks run in the repository's podman build container, as developers build the
+# - Build: the repository's own task CLI runs in the repository's podman build container, as developers build the
 #   program (doc/decision/ide-releases.md says why that is the tested flow and what it costs). The Rust toolchain is the
-#   one in the container image, not the mise.lock nightly; mise.lock supplies node, which runs the tasks.
+#   one in the container image; the task CLI supplies node, which runs the tasks.
 # - Targets: one native build per architecture, as a two-entry matrix on named runners (x64 on ubuntu-24.04, arm64 on
 #   ubuntu-24.04-arm, both Ubuntu 24.04 and so glibc 2.39). The build container is the host's architecture, so the
 #   arm64 leg builds aarch64-unknown-linux-gnu with no emulation and no cross compiler. Asset names follow the music
@@ -30,7 +30,7 @@ name: ide-release
 #   THIRD-PARTY-LICENSES.txt and the release carries them as a file of their own, byte for byte what the verified
 #   executable prints. Both legs print the same notices (about.toml lists both targets); the x64 leg uploads the file as
 #   the asset, and the checksums job fails unless the arm64 leg printed the identical bytes.
-# - mise: the jdx/mise-action step pins the mise version; doc/runbook/release-the-music-player.md, section "The mise
+# - tools: the task CLI setup pins the node version; doc/runbook/release-the-music-player.md, section "The tool
 #   version pin", says how to update it, and doc/runbook/release-the-ide.md points there.
 # - Caches: none. The container image, the cargo volume and the target directory are built fresh in every run.
 
@@ -49,11 +49,7 @@ on:
 
 permissions: {}
 
-env:
-  # The root mise config lists heavy dev tools with auto_install on; every mise run or mise exec
-  # would try to build them on the runner. Off, the job uses only the tools it installs itself.
-  # Same pattern as music-player-release.yml, npm-release.yml and toml-edit-fuzz.yml.
-  MISE_AUTO_INSTALL: 'false'
+env: {}
 
 # Serialize runs so a second version bump landing while a release is still building does not race
 # the first. cancel-in-progress=false keeps the running release alive; the second run queues.
@@ -171,7 +167,7 @@ jobs:
         } >> "$GITHUB_OUTPUT"
         printf 'should_build=%s dry_run=%s tag=%s tag_exists=%s\n' "$should_build" "$dry_run" "$tag" "$tag_exists"
 
-  # One native build per architecture: the repository's mise tasks run the bounded podman container, then the gates, then
+  # One native build per architecture: the repository's task CLI runs the bounded podman container, then the gates, then
   # the archive and the notices file are written, verified a second time from the archive, attested and uploaded.
   build:
     name: build (${{ matrix.arch }})
@@ -217,9 +213,8 @@ jobs:
       # runner room for podman and the runner processes. container-bounds.ts reads exactly these variable names.
       IDE_CONTAINER_CPUS: '4'
       IDE_CONTAINER_MEMORY: '12g'
-      # One mise task at a time: build depends on runtime and notices, each starting a bounded container, and the
+      # One task at a time: build depends on runtime and notices, each starting a bounded container, and the
       # bound is per container, not per task graph.
-      MISE_JOBS: '1'
       # The program prints the version of Cargo.toml and exits before it opens a display.
       PROGRAM: package/desktop-app/ide/dist/monochromatic-ide
       # The newest glibc symbol version the executable may need: the glibc of Ubuntu 24.04, which INSTALL.txt names.
@@ -264,24 +259,13 @@ jobs:
         sudo apt-get install --yes --no-install-recommends libfontconfig1 desktop-file-utils binutils file
         podman --version
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Pinned for the reason given at the step "Install node (runs the repository's bundle:macos task)" of
-        # music-player-release.yml (a 403 from the releases API lookup that minimum_release_age needs); the runbook
-        # section "The mise version pin" of doc/runbook/release-the-music-player.md says who updates it and how.
-        version: 2026.10.9
-        install: false
-        cache: false
-
-    # The mise tasks are node scripts (shell = node --input-type=module-typescript); node comes from mise.lock.
+    # The task bodies are node scripts; node comes from the shared task CLI setup.
     # The Rust toolchain is not installed here: it lives in the build container image.
-    - name: Install node
-      run: |
-        set -euo pipefail
-        mise --version
-        mise install node
-        mise exec node -- node --version
+    - name: Set up node and the task CLI
+      uses: ./.github/actions/task-cli-setup
+      with:
+        node-version: '26.12.0'
+        install-dependencies: 'false'
 
     # inspect:bundle writes its scratch below ~/temp/agent and refuses a directory open to group or others.
     - name: Create the private scratch directory
@@ -293,10 +277,10 @@ jobs:
     # The IDE image is built FROM localhost/monochromatic/terminal, which only the terminal package's image task builds
     # (the ide tasks build the ide image on demand but not its base).
     - name: Build the base image (terminal)
-      run: mise run //package/desktop-app/terminal:image
+      run: task-run //package/desktop-app/terminal:image
 
     - name: Build the IDE build image
-      run: mise run //package/desktop-app/ide:image
+      run: task-run //package/desktop-app/ide:image
 
     # A bounded container with the same kinds of limits the tasks pass (CPU, memory, processes, open files), so a
     # runner that refuses one of them fails here and not an hour into the build. The Alpine jobs of
@@ -329,7 +313,7 @@ jobs:
     - name: Build and bundle the single executable
       run: |
         set -euo pipefail
-        mise run //package/desktop-app/ide:bundle
+        task-run //package/desktop-app/ide:bundle
         ls -l "$PROGRAM"
         df --human-readable /
 
@@ -381,7 +365,7 @@ jobs:
         fi
 
     - name: Check that no software renderer is linked
-      run: mise run //package/desktop-app/ide:inspect:no-software-renderer
+      run: task-run //package/desktop-app/ide:inspect:no-software-renderer
 
     # The checks of inspect:bundle that need no window: the executable embeds every runtime file and license text byte
     # for byte (inventory, license-texts) and --licenses covers every linked crate (crate-licenses). The other checks
@@ -389,7 +373,7 @@ jobs:
     - name: Check the single executable
       run: |
         set -euo pipefail
-        mise run //package/desktop-app/ide:inspect:bundle \
+        task-run //package/desktop-app/ide:inspect:bundle \
           dist/monochromatic-ide target/release/runtime inventory,license-texts,crate-licenses
 
     # The notices file is what the verified executable prints. An empty environment is how the bundle check runs it.

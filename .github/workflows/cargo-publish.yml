@@ -114,30 +114,17 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
       id: toolchain
-      run: echo "id=${ImageOS}-$(mise exec rust -- rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
+      run: echo "id=${ImageOS}-$(rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
 
     - name: Cache cargo build artifacts
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
@@ -159,7 +146,7 @@ jobs:
     # passed; that was the 0.1.6 failure mode.
     - name: Build .crate package (verifies by compile)
       working-directory: package/cli/forbidden-strings
-      run: mise exec rust -- cargo package
+      run: cargo package
 
     - name: Log cargo directory sizes
       if: always()
@@ -181,14 +168,14 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/cli/forbidden-strings
-      run: mise exec rust -- cargo publish --dry-run --no-verify
+      run: cargo publish --dry-run --no-verify
 
     - name: Publish
       if: ${{ !inputs.dry-run }}
       working-directory: package/cli/forbidden-strings
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-      run: mise exec rust -- cargo publish --no-verify
+      run: cargo publish --no-verify
 
   build-binary:
     needs: detect
@@ -431,30 +418,17 @@ jobs:
           libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev \
           clang libclang-dev
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
       id: toolchain
-      run: echo "id=${ImageOS}-$(mise exec rust -- rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
+      run: echo "id=${ImageOS}-$(rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
 
     - name: Cache cargo build artifacts
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
@@ -468,7 +442,7 @@ jobs:
 
     - name: Build .crate package (verifies by compile)
       working-directory: package/cli/nested-wayland-session
-      run: mise exec rust -- cargo package
+      run: cargo package
 
     - name: Log cargo directory sizes
       if: always()
@@ -490,7 +464,7 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/cli/nested-wayland-session
-      run: mise exec rust -- cargo publish --dry-run --no-verify
+      run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # v0.1.0 was published manually to bootstrap the crate (crates.io Trusted
@@ -508,7 +482,7 @@ jobs:
           "https://crates.io/api/v1/crates/monochromatic-nested-wayland-session/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::monochromatic-nested-wayland-session ${VERSION} already on crates.io; skipping publish."
         else
-          mise exec rust -- cargo publish --no-verify
+          cargo publish --no-verify
         fi
 
   # Answers one question for the jobs below: does this version's release tag exist
@@ -810,30 +784,17 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Not cached: the cold build takes 6 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
       working-directory: package/rust-module/forbidden-regex
-      run: mise exec rust -- cargo package
+      run: cargo package
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
@@ -849,7 +810,7 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/rust-module/forbidden-regex
-      run: mise exec rust -- cargo publish --dry-run --no-verify
+      run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # v0.1.0 was published manually to bootstrap the crate (crates.io Trusted
@@ -867,7 +828,7 @@ jobs:
           "https://crates.io/api/v1/crates/forbidden-regex/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::forbidden-regex ${VERSION} already on crates.io; skipping publish."
         else
-          mise exec rust -- cargo publish --no-verify
+          cargo publish --no-verify
         fi
 
   je-detect:
@@ -939,28 +900,17 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Same pinning rationale as the other jobs in this workflow:
-        # doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Not cached: the cold build takes under 1 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
       working-directory: package/rust-module/jsonc-edit
-      run: mise exec rust -- cargo package
+      run: cargo package
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
@@ -976,7 +926,7 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/rust-module/jsonc-edit
-      run: mise exec rust -- cargo publish --dry-run --no-verify
+      run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # 0.1.0 has to be published manually to bootstrap the crate, because crates.io
@@ -995,7 +945,7 @@ jobs:
           "https://crates.io/api/v1/crates/monochromatic-jsonc-edit/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::monochromatic-jsonc-edit ${VERSION} already on crates.io; skipping publish."
         else
-          mise exec rust -- cargo publish --no-verify
+          cargo publish --no-verify
         fi
 
   # monochromatic-lint: the repository's Rust, Markdown and MDX linter
@@ -1003,7 +953,7 @@ jobs:
   # like forbidden-strings: the same eight release targets, and tag and asset
   # names in cargo-binstall's default templates ({name}-v{version} tag,
   # {name}-{version}-{target}.tar.gz or .zip, {name}-{version}-{target}/{bin}
-  # inside), so `cargo binstall monochromatic-lint` and mise's `cargo:` backend
+  # inside), so `cargo binstall monochromatic-lint` and the cargo-install fallback
   # find the archives with no [package.metadata.binstall]. Two differences:
   # - The publish step is the idempotent one of the later crates, because 0.1.0
   #   is published by hand to bootstrap Trusted Publishing
@@ -1013,7 +963,7 @@ jobs:
   #   release target still builds with the rust-analyzer and Satteri
   #   dependencies; attestation and the release stay behind !inputs.dry-run.
   # The matrix compiles with each runner's preinstalled rustup toolchain, not
-  # the repository's mise nightly, exactly as the forbidden-strings matrix does.
+  # the repository's nightly toolchain, exactly as the forbidden-strings matrix does.
 
   ml-detect:
     runs-on: ubuntu-latest
@@ -1084,28 +1034,17 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Same pinning rationale as the other jobs in this workflow:
-        # doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
       id: toolchain
-      run: echo "id=${ImageOS}-$(mise exec rust -- rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
+      run: echo "id=${ImageOS}-$(rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
 
     - name: Cache cargo build artifacts
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
@@ -1121,7 +1060,7 @@ jobs:
     # including the published monochromatic-jsonc-edit rather than the path copy.
     - name: Build .crate package (verifies by compile)
       working-directory: package/linter/monochromatic-lint
-      run: mise exec rust -- cargo package
+      run: cargo package
 
     - name: Log cargo directory sizes
       if: always()
@@ -1143,7 +1082,7 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/linter/monochromatic-lint
-      run: mise exec rust -- cargo publish --dry-run --no-verify
+      run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       if: ${{ !inputs.dry-run }}
@@ -1157,7 +1096,7 @@ jobs:
           "https://crates.io/api/v1/crates/monochromatic-lint/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::monochromatic-lint ${VERSION} already on crates.io; skipping publish."
         else
-          mise exec rust -- cargo publish --no-verify
+          cargo publish --no-verify
         fi
 
   ml-build-binary:
@@ -1383,23 +1322,12 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise (skip auto-install of all tools)
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      with:
-        # Same pinning rationale as the other jobs in this workflow:
-        # doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        # Pinned: mise 2026.10.19 fails `mise install rust` here with "failed to resolve cmake for linux-arm64:
-        # error converting Lua table to PreInstall (no version returned from vfox plugin)"; 2026.10.17
-        # installs cleanly (podman reproduction). An explicit version wins over minimum_release_age.
-        # Remove the pin once a newer mise passes: doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md
-        version: 2026.10.17
-        install: false
-        # mise-action saves its cache only when install is true: doc/decision/ci-caching.md
-        cache: false
-
-    - name: Install only the tools this workflow needs
-      run: mise install rust
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
 
     # Packaging replaces the path dependency with its version requirement, so the crates.io index must already
     # list the forbidden-strings release this crate requires. A push that bumps both crates starts the
@@ -1428,7 +1356,7 @@ jobs:
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
       id: toolchain
-      run: echo "id=${ImageOS}-$(mise exec rust -- rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
+      run: echo "id=${ImageOS}-$(rustc --verbose --version | awk '/^commit-hash:/ { print $2 }')" >> "$GITHUB_OUTPUT"
 
     - name: Cache cargo build artifacts
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
@@ -1444,7 +1372,7 @@ jobs:
     # including the published forbidden-strings and monochromatic-jsonc-edit rather than the path copies.
     - name: Build .crate package (verifies by compile)
       working-directory: package/git-policy/cli
-      run: mise exec rust -- cargo package --locked
+      run: cargo package --locked
 
     - name: Log cargo directory sizes
       if: always()
@@ -1466,7 +1394,7 @@ jobs:
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
       working-directory: package/git-policy/cli
-      run: mise exec rust -- cargo publish --dry-run --locked --no-verify
+      run: cargo publish --dry-run --locked --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       if: ${{ !inputs.dry-run }}
@@ -1480,7 +1408,7 @@ jobs:
           "https://crates.io/api/v1/crates/monochromatic-git-policy-cli/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::monochromatic-git-policy-cli ${VERSION} already on crates.io; skipping publish."
         else
-          mise exec rust -- cargo publish --locked --no-verify
+          cargo publish --locked --no-verify
         fi
 
   gpc-build-binary:

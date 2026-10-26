@@ -275,6 +275,26 @@ export const NAME_RULE_CASES: readonly FormCase[] = [
     found: [],
     builders: [],
   },
+  {
+    name: 'FOLLOWS NO NAME FROM AN import() OR A require WHOSE PATH JOINS TWO LITERALS, since a joined path is no '
+      + 'literal',
+    files: [
+      {
+        file: 'imaginary/src/joined-path-gate-stage.ts',
+        text: textOf([
+          'const { contestResponseFormat: joinedFormat, } = await import(\'../../lane-contest/\' + '
+            + '\'src/contest-ballot-wire.ts\');',
+          'const { contestResponseFormat: requiredFormat, } = require(\'../../lane-contest/\' + '
+            + '\'src/contest-ballot-wire.ts\');',
+          '',
+          callOf('joinedFormat',),
+          callOf('requiredFormat',),
+        ],),
+      },
+    ],
+    found: [],
+    builders: [],
+  },
 ];
 
 //endregion Names a file gives a builder, and the rules that decide which function a name is

@@ -176,8 +176,8 @@ export const WRAPPER_FORM_CASES: readonly FormCase[] = [
 /**
  Cases in which the files look like a builder or a use of one and are none: an import, a re-export, a type, an alias
  that is never called, a property of the same name read off some other object, a name against a quote, and a function
- that calls a builder without returning its result, whose caller therefore builds no schema. The last case is the
- reverse: a name inside a longer string or in a comment after code, which the search reads as a use on purpose.
+ that calls a builder without returning its result, whose caller therefore builds no schema, a name inside a string,
+ and a name inside a longer string or in a comment after code.
  */
 export const NO_BUILDER_CASES: readonly FormCase[] = [
   {

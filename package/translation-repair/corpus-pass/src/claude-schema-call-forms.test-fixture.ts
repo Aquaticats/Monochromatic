@@ -55,7 +55,7 @@ export function textOf(lines: readonly string[],): string {
 
  @param spaces - how many spaces to put before each line
 
- @returns The lines, each with the spaces before it
+ @returns Lines, each with the spaces before it
 
  @example
  ```ts
@@ -87,7 +87,7 @@ export function indentedBy(
  @example
  ```ts
  const line = callOf('formatOf');
- // => 'export const FORMATOF_RESPONSE_FORMAT = formatOf({ schemaName: \'called\', verdicts: [], asksArchive: false, },);'
+ // => 'export const FORMATOF_RESPONSE_FORMAT = formatOf({ schemaName: \'called\', ... },);'
  ```
  */
 export function callOf(name: string,): string {

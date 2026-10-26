@@ -186,6 +186,30 @@ export const DECLARATION_SHAPE_CASES: readonly FormCase[] = [
     ],
     builders: ['inlineKit.inlineResponseFormat',],
   },
+  {
+    name: 'FINDS NO BUILDER IN A CONSTANT THAT HOLDS A CALL WHOSE FUNCTION IS NOT ITS FIRST ARGUMENT, as in '
+      + '`decorate(\'label\', (moods) => ({ ... }))`, so the file that calls the constant is not listed',
+    files: [
+      {
+        file: 'imaginary/src/decorated-wire.ts',
+        text: textOf([
+          'export const decoratedResponseFormat = decorate(\'label\', (moods: readonly string[],) => ({',
+          ...propertyFormatLinesOf({ name: 'decorated_mood', },),
+          '}),);',
+        ],),
+      },
+      {
+        file: 'imaginary/src/decorated-gate-stage.ts',
+        text: textOf([
+          'import { decoratedResponseFormat, } from \'./decorated-wire.ts\';',
+          '',
+          'export const DECORATED_GATE_RESPONSE_FORMAT = decoratedResponseFormat([\'wags\',],);',
+        ],),
+      },
+    ],
+    found: ['imaginary/src/decorated-wire.ts',],
+    builders: [],
+  },
 ];
 
 //endregion Declarations of builders that no file exports, and members written in other ways

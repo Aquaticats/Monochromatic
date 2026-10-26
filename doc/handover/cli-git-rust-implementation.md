@@ -2291,6 +2291,58 @@ that is verification, not a decision for the user.
   six-constraint check, and remove the pin when a newer mise installs cleanly. Still to do for the host fix:
   container gate and mutation for `effective_target.rs`, release 0.2.10 (after 0.2.9), install, and verify
   `mise plugins update` on the host.
+  DRY RUN PASSED 2026-10-25 (run `40244857970`, `workflow_dispatch` crate `monochromatic-git-policy-cli` dry-run
+  true, with the mise pin): `gpc-publish-crate` "Publish (dry run)" succeeded, real publish steps skipped. CI repro
+  final: mise 2026.10.17 passed both attempts (150 s, 124 s), 2026.10.19 failed both (171 s, 194 s). VERSION
+  CONSOLIDATION: the workflow publishes the tree at `main` HEAD, which now holds the mise data directory exemption
+  (`197ae38ff5`) after the 0.2.9 release commit (`00c4e28af4`), and 0.2.9 was never published, so 0.2.9 will be
+  published from HEAD carrying BOTH the survivor fixes and the exemption instead of a separate 0.2.10 (to be told to
+  the user; the user had chosen "release 0.2.10" for the exemption). Gate first: container gate on HEAD, tag `m029`,
+  unit `cli-git-gate-m029`, log `~/temp/agent/m029-container.log` (the earlier 2105 passed was before the
+  exemption). Then dispatch the real publish (`gh workflow run cargo-publish.yml -f crate=monochromatic-git-policy-cli
+  -f dry-run=false`), `install-026.ts 0.2.9`, verify `mise plugins update` on the host and the global link, and run
+  mutation for `effective_target.rs` in the background afterwards (never blocks a release).
+  USER CHOICE 2026-10-25: "One release, 0.2.9" (survivor fixes and the mise data directory exemption together, from
+  HEAD, after the container gate). The release commit `00c4e28af4` message names only the survivor fixes, so after
+  the publish post a corrective commit comment on it (GCA: never amend) saying 0.2.9 also carries `197ae38ff5`.
+  RELEASED 2026-10-25: container gate on HEAD `2cb0d0215f` passed 2107 tests, 5 skipped, 0 failed (image tag `m029`);
+  real publish run `40245672686` (`workflow_dispatch`, dry-run false, pinned mise) succeeded, crates.io shows 0.2.9;
+  `install-026.ts 0.2.9` upgraded `cargo:monochromatic-git-policy-cli` 0.2.8 to 0.2.9 and reverted `mise.lock`;
+  `mise ls --installed` shows 0.2.9 active from `~/.config/mise/config.toml`; `~/.local/bin/git` resolves to
+  `.../0.2.9/bin/cli-git-native`. The upgrade command exited 1 because the HOST mise 2026.10.19 hits the same cmake
+  resolution error as CI. Corrective commit comment posted on `00c4e28af4`
+  (`commitcomment-206607143`). User-boundary check of the exemption: the forced checkout mise ran on its cmake
+  plugin clone (`git -C ~/.local/share/mise/plugins/cmake checkout --force main`) prints "Already on 'main'" through
+  the 0.2.9 wrapper instead of the `linked-worktree-only` rejection (the printed `checkout-exit=0` was the exit of
+  `cut` in the pipeline, not of git; `mise plugins update` itself was not rerun).
+  NEW ROOT-CAUSE CLUE for the mise failure (host mise output, not yet tested): "mise WARN cmake is locked to
+  vfox:cmake, but the registry now installs it from aqua:Kitware/CMake. Run `mise backends switch cmake` to switch."
+  The failing resolution is the vfox cmake plugin for linux-arm64; `mise.lock` pins the vfox backend while mise
+  2026.10.19's registry points cmake at aqua. A repo-level fix that needs no mise pin would be switching `cmake` to
+  the aqua backend in `mise.no-env.toml` (regenerate `mise.toml`, relock). Not tested; the pin in
+  `.github/workflows/cargo-publish.yml` stays until that is tested in podman. Also unmeasured: other tools that run
+  discarding git forms in their own clones.
+  QUEUED: mutation for `effective_target.rs` (unit `cli-git-mut-m029`, logs `~/temp/agent/m029-mutation-*.log`; do not
+  edit `src/native` while it runs); source-trace the mise failure and decide upstream filing
+  (`doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`); test the cmake backend switch in podman.
+  USER ANSWER 2026-10-25 on the CI pin: "Test the cmake backend switch in podman first, and I'm eliminating mise in
+  CI in another session." So: run the podman test (control versus `mise backends switch cmake`, mise 2026.10.19,
+  `~/temp/agent/podman-ci-cmake.ts`), record the result, and make NO further edits to `.github/workflows` (another
+  session is removing mise from CI; the pin stays until that lands and is expected to disappear with it). The result
+  still matters for the host's own mise 2026.10.19, whose upgrades print the same cmake error.
+  CMAKE BACKEND TEST RESULT (`~/temp/agent/podman-ci-cmake/`): `mise backends switch cmake` changed `mise.lock`
+  (`vfox:cmake` to `aqua:Kitware/CMake`, new checksummed GitHub URLs) and both switched attempts still failed under
+  mise 2026.10.19, now on `failed to resolve conda:bubblewrap for macos-arm64: failed to solve bubblewrap for
+  macos-arm64`. So the switch does NOT fix it; it moves the failure to another tool, which points at the all-platform
+  lock resolution in 2026.10.19 in general. The two control arms were killed by the harness limit (240 s) mid-lock and
+  are inconclusive. The only verified workaround remains the 2026.10.17 pin. No repo or host change was made for the
+  backend switch. The "locked to vfox" clue recorded above is therefore not the cause.
+  MUTATION RESULT for the exemption (unit `cli-git-mut-m029`, 900 s timeout, baseline 1 s build + 78 s test):
+  `effective_target.rs` 18 mutants tested in 15 minutes, 12 caught, 6 unviable, 0 missed. Nothing queued for this
+  file. Remaining open items from this thread: the mise failure's source trace and upstream filing decision (doc
+  `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`), removing the workflow pin when the other session's
+  mise removal from CI lands, the server-side enforcement question for issue 1796 (left open by the user), and the
+  unmeasured tools that run discarding git forms in their own clones.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
