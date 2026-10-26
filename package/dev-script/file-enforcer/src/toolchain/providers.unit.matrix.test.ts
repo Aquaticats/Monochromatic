@@ -128,7 +128,9 @@ function writeFakeCli(
   writeFileSync(
     cliPath,
     [
-      '#!/usr/bin/env node',
+      // The interpreter running this test, so the fixture works under any
+      // matrix runtime.
+      `#!${process.execPath}`,
       `const fs = require('node:fs');`,
       `fs.appendFileSync(${JSON.stringify(fixture.logFile,)}, JSON.stringify(process.argv.slice(2,)) + '\\n');`,
       body,

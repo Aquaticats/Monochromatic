@@ -7,7 +7,10 @@
  is bounded to 2 GiB and 2 CPUs (AGENTS.md RXI), because the matrix runner's
  own spawn carries no resource bounds.
 
- Cells: ubuntu as root and as a passwordless-sudo user, sequentially
+ Runtime bun, matching the ensure-package matrix default: it installs into
+ each cell's own home, so the non-root cell needs no write access to the
+ mounted worktree. Cells: ubuntu as root and as a passwordless-sudo user,
+ sequentially
  (the synthetic-load ban; one bounded container at a time).
 
  @example
@@ -16,7 +19,7 @@
  ```
  */
 
-import { resolve, } from 'node:path';
+import { join, resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
@@ -81,6 +84,29 @@ const PODMAN_BOUNDS: readonly string[] = [
  */
 let failures = 0;
 
+/**
+ Directories the matrix test reads inside the container.
+ */
+const READ_DIRS: readonly string[] = [
+  'package/module',
+  'package/dev-script/file-enforcer/src/toolchain',
+];
+
+// Rootless podman shows the mounted worktree as container-root-owned, so the
+// non-root cell can only read world-readable files. Agent tooling in this
+// worktree creates sources with mode 600; heal readability (read and traverse
+// bits only, never content) for the directories the test reads.
+for (const dir of READ_DIRS) {
+  await spawn(
+    'chmod',
+    [
+      '-R',
+      'a+rX',
+      join(MONOREPO_ROOT, dir),
+    ],
+  );
+}
+
 for (const cell of CELLS) {
   /**
    Combination the matrix runner would have built for this cell.
@@ -89,7 +115,7 @@ for (const cell of CELLS) {
     file: TEST_FILE,
     os: cell.os,
     user: cell.user,
-    runtime: 'node',
+    runtime: 'bun',
   };
   /**
    Container-side command: prerequisites, user setup, runtime install, test.
