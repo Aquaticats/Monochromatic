@@ -195,12 +195,24 @@ export async function observeTool(
       },);
       try {
         /**
-         Parsed global package map.
+         Parsed global package map; pnpm emits one root object per entry in
+         an array, older versions emitted the object directly.
          */
         const parsed = JSON.parse(listed.stdout,) as {
           dependencies?: Record<string, { version?: string; }>;
-        };
-        return parsed.dependencies?.[entry.packageId ?? entry.id]?.version ?? null;
+        } | readonly {
+          dependencies?: Record<string, { version?: string; }>;
+        }[];
+        /**
+         Dependency map of the global root.
+         */
+        const roots: readonly { dependencies?: Record<string, { version?: string; }>; }[] = Array.isArray(parsed,)
+          ? parsed
+          : [parsed,];
+        const dependencies: Record<string, { version?: string; }> = {};
+        for (const root of roots)
+          Object.assign(dependencies, root.dependencies ?? {},);
+        return dependencies[entry.packageId ?? entry.id]?.version ?? null;
       } catch {
         return null;
       }
