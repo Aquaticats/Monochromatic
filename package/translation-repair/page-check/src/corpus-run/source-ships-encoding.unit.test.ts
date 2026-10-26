@@ -1012,13 +1012,13 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES AN ANGLE AUTOLINK INSIDE THE ALTERNATIVE TEXT OF AN IMAGE WITH A BACKSLASH LIKE ANY TEXT, '
-            + 'so the page shows its brackets (a limit the module comment names)',
+          name: 'WRITES AN ANGLE AUTOLINK INSIDE THE ALTERNATIVE TEXT OF AN IMAGE AS ITS ADDRESS ALONE, '
+            + 'so the page shows what the source shows',
           fn: async () => {
             expect(encoded({ text: '![<https://example.net/a>](u.png) {', },),)
-              .toBe(String.raw`![\<https://example.net/a>](u.png) \{`,);
+              .toBe(String.raw`![https://example.net/a](u.png) \{`,);
             expect(readerOfPage({ carried: encoded({ text: '![<https://example.net/a>](u.png) {', },), },),)
-              .toBe('<https://example.net/a> {',);
+              .toBe('https://example.net/a {',);
           },
         },),
 
