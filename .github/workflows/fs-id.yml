@@ -40,7 +40,7 @@ jobs:
       uses: ./.github/actions/task-cli-setup
       with:
         # fs-id's own node pin, carried over from its setup-node step so this
-        # swap changes no runtime behavior; it is not the `mise.lock` version.
+        # swap changes no runtime behavior; it is not the `toolchain.lock.json` version.
         node-version: 26.5.0
         install-dependencies: 'false'
 

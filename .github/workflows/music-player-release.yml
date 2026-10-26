@@ -245,7 +245,6 @@ jobs:
     - name: Set up node, Rust and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
     - name: Install Rust toolchain and cargo-about
       shell: bash
@@ -653,7 +652,6 @@ jobs:
       if: ${{ matrix.os == 'macos' }}
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
 
     - name: Package (macOS disk image)
@@ -1020,7 +1018,6 @@ jobs:
     - name: Set up node and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
     - name: Install the JDK
       # mise.lock tools.java pins temurin-21.0.12+8.0.LTS. The vendor archive

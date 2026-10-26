@@ -103,7 +103,6 @@ jobs:
     - name: Set up node and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
     - name: Install the JDK
       # mise.lock tools.java pins temurin-21.0.12+8.0.LTS. The vendor archive
