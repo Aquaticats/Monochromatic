@@ -90,10 +90,7 @@ are:
 ## What does not work
 
 - Restoring every entry through `mpm restore` alone:
-  MPM drops restore versions for npm,
-  pipx,
-  Cargo,
-  and config-defined managers,
+  MPM drops restore versions for some managers
   and cannot express Rust components and targets,
   Cargo features,
   postinstall links,
@@ -102,7 +99,9 @@ are:
   or Android SDK components
   (`doc/research/mpm-run-capabilities.md`,
   `doc/troubleshooting/mpm-manager-extensibility.md`).
-  The provider routes of `toolchain:sync` exist for those entries;
+  The confirmed per-family routes
+  (`doc/planning/mpm-toolchain-migration.md`,
+  section `Routing (user-confirmed 2026-10-26)`) cover those entries;
   that is the adopted design,
   not a migration workaround.
 - Running the sync entry without Node:
@@ -110,7 +109,7 @@ are:
   executed by an already-present `node`.
   Node and Mise stay the manually installed bootstrap prerequisites,
   and the sync then ensures `mpm` itself
-  (a pinned standalone release binary,
+  (a standalone release binary recorded in `toolchain.lock.json`,
   SHA-256 checked).
 
 ## Upstream filing decision
