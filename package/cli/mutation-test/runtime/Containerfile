@@ -1,13 +1,8 @@
 FROM fedora:latest
 
-ENV MISE_DATA_DIR=/mise
-ENV MISE_CONFIG_DIR=/mise
-ENV MISE_CACHE_DIR=/mise/cache
 ENV PATH=/usr/local/bin:/baked/node_modules/.bin:$PATH
 
-RUN dnf install --assumeyes dnf-plugins-core ca-certificates curl git libatomic procps-ng rsync which \
-  && dnf copr enable --assumeyes jdxcode/mise \
-  && dnf install --assumeyes mise \
+RUN dnf install --assumeyes ca-certificates curl git jq libatomic procps-ng rsync tar which \
   && dnf clean all \
   && rm --recursive --force /var/cache/dnf
 
@@ -16,22 +11,26 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /baked
 COPY . /baked
 
-# The baked mise.toml sets npm.package_manager = "pnpm", so once trusted, mise
-# would install npm:pnpm by running `pnpm add --global pnpm` -- but pnpm does not
-# exist yet in a fresh container, so that bootstrap fails with ENOENT. Force npm
-# (bundled with node) as the package manager for this install step only; pnpm is
-# used directly for the frozen-lockfile install once it exists.
-# Node and pnpm versions resolve from the baked mise.toml/mise.lock until the
-# cutover. `toolchain.lock.json` (repository root) is the source of truth for every
-# tool version (doc/decision/mpm-toolchain-adoption.md): `tools.node` and
-# `tools.pnpm` record the archived artifacts this step fetches and verifies in
-# place of `mise install` once the lock lands.
-RUN export MISE_NPM_PACKAGE_MANAGER=npm \
-  && mise trust /baked/mise.toml \
-  && mise install --yes node npm:pnpm \
-  && ln --symbolic --force "$(mise exec node -- which node)" /usr/local/bin/node \
-  && ln --symbolic --force "$(mise exec node -- which npm)" /usr/local/bin/npm \
-  && ln --symbolic --force "$(mise exec node npm:pnpm -- which pnpm)" /usr/local/bin/pnpm \
-  && mise exec node npm:pnpm -- pnpm install --frozen-lockfile
+# Node and pnpm are the archived artifacts `toolchain.lock.json` pins (repository root: the source of truth for
+# every tool version, doc/decision/mpm-toolchain-adoption.md). `jq` reads the `linux-x64` rows of each; the archive
+# is fetched, its SHA-256 verified against the lock, and the binaries linked into /usr/local/bin before the frozen
+# install. Nothing here installs or trusts anything else.
+RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolchain.lock.json)" \
+  && node_sum="$(jq --raw-output '.tools.node.artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+  && curl --fail --silent --show-error --location --output /tmp/node.tar.gz "$node_url" \
+  && echo "$node_sum  /tmp/node.tar.gz" | sha256sum --check \
+  && mkdir /opt/node \
+  && tar --extract --file /tmp/node.tar.gz --directory /opt/node --strip-components=1 \
+  && ln --symbolic /opt/node/bin/node /usr/local/bin/node \
+  && ln --symbolic /opt/node/bin/npm /usr/local/bin/npm \
+  && ln --symbolic /opt/node/bin/npx /usr/local/bin/npx \
+  && pnpm_url="$(jq --raw-output '.tools.pnpm.artifacts["linux-x64"].url' toolchain.lock.json)" \
+  && pnpm_sum="$(jq --raw-output '.tools.pnpm.artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+  && curl --fail --silent --show-error --location --output /tmp/pnpm.tar.gz "$pnpm_url" \
+  && echo "$pnpm_sum  /tmp/pnpm.tar.gz" | sha256sum --check \
+  && mkdir /opt/pnpm \
+  && tar --extract --file /tmp/pnpm.tar.gz --directory /opt/pnpm \
+  && ln --symbolic /opt/pnpm/pnpm /usr/local/bin/pnpm \
+  && pnpm install --frozen-lockfile
 
 CMD ["node", "--version"]
