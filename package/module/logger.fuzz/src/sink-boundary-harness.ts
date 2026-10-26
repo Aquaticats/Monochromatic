@@ -213,7 +213,7 @@ export function parseJsonlLines({ text, }: { readonly text: string; },): readonl
 
  @returns Parsed value per line, probe first.
 
- @throws Error when the log directory holds anything but one log file.
+ @throws Error when the log directory holds more than one log file.
 
  @example
  ```ts
@@ -250,13 +250,19 @@ export async function readFileSinkLines({ dir, }: { readonly dir: string; },): P
         name,
       ),);
   }
-  if (logFiles.length !== 1)
+  if (logFiles.length > 1)
     throw new Error(`expected one log file under ${logDir}, found ${String(logFiles.length,)}: ${logFiles.join(', ',)}`,);
+  /**
+   Sole log file, absent when the run wrote no records (the sink then leaves
+   no file at all, so the round trip is empty).
+   */
+  const [logFile] = logFiles;
+  if (logFile === undefined) { return []; }
   /**
    Whole file contents.
    */
   const text = await readFile(
-    logFiles[0]!,
+    logFile,
     'utf8',
   );
   return parseJsonlLines({ text, },);
