@@ -291,18 +291,34 @@ and SBOM export (`mpm sbom`).
 file-enforcer's typed tool plan
 (`package/dev-script/file-enforcer/src/toolchain/`) owns policy,
 convergence order,
-and drift reporting;
-focused repository providers own every exact-pin or option-bearing install
-(cargo-binstall installs,
-verified vendor archives for Node,
+and drift reporting.
+The maintainer confirmed the install route per tool family
+(`doc/planning/mpm-toolchain-migration.md`,
+section `Routing (user-confirmed 2026-10-26)`):
+standalone and archive tools (Node,
 pnpm,
 Bun,
-and the standalone binaries,
-Rust components and Android targets,
-Android SDK components,
-and the Adoptium Temurin JDK),
-because MPM restore does not forward per-entry versions to every manager
-(`doc/troubleshooting/mpm-manager-extensibility.md`).
+the standalone binaries,
+and the Adoptium Temurin JDK) install with the upstream `bin` CLI
+(`bin install <source spec>`,
+GitHub shorthand,
+release-tag URLs,
+host sources),
+and MPM's `bin` manager owns their inventory and upgrades afterwards
+(the manager declares no `install` operation by design);
+sources `bin` cannot fetch fall back to the checksummed `archive` provider.
+npm CLI tools route through MPM's `pnpm` manager
+and `pipx:slopo` through MPM's `uv` manager.
+`cargo:` tools stay a repository provider over `cargo-binstall`.
+Rust stays MPM's `rustup` manager
+(toolchain ids carry the exact channel)
+plus direct `rustup component add` and `rustup target add` calls.
+Android SDK components stay a repository provider
+over the SDK's own `sdkmanager`.
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what `toolchain:sync` installs
+(the `mise install` against `mise.lock` semantics),
+so the explicit pins still install exactly.
 `toolchain.lock.json` replaces `mise.lock` as the pinned version record.
 The sync entry point is `mise run toolchain:sync`
 (also `node package/dev-script/file-enforcer/src/toolchain/sync.ts`),
@@ -311,17 +327,17 @@ and `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` reports t
 One manually installed bootstrap prerequisite remains:
 Node executes the sync entry and Mise wraps it as a task;
 the sync then ensures `mpm` itself
-(a pinned standalone release binary,
+(a standalone release binary recorded in `toolchain.lock.json`,
 SHA-256 checked) before the other tools.
 
 Selection status:
  selected 2026-10-26 on the maintainer's direct instruction,
 with the disposable provisioning verification in `doc/planning/mpm-toolchain-migration.md` as the adoption pilot.
-MPM restore still drops versions for npm,
-pipx,
-Cargo,
-and config-defined managers,
-so `toolchain:sync` runs the provider routes for those entries
+The maintainer confirmed the per-family routes on 2026-10-26
+(`doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`).
+`mpm restore` covers only the managers whose adapters honor the recorded version;
+the sync installs the rest from `toolchain.lock.json`
 (`doc/troubleshooting/mpm-manager-extensibility.md`).
 macOS and Windows provisioning parity stays unverified.
 
@@ -334,7 +350,10 @@ and performs explicit updates without unrelated installations.
 
 Intentionally retired behavior:
  none selected.
-Floating `latest` requests require an explicit reproducibility decision.
+Floating `latest` requests keep today's semantics
+(floating requests with committed resolutions),
+confirmed 2026-10-26 in `doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`.
 
 ### Task discovery and execution
 
@@ -724,15 +743,14 @@ and no tool is omitted because a retired registry formerly claimed ownership.
 Intentionally retired behavior:
  Mise-registry filtering retires with the `[tools]` cutover.
  The replacement classification rule is the `route` field of `toolchain.lock.json`
- (`mpm-restore`,
+ (`bin-sourced`,
  `archive`,
  `cargo-binstall`,
- `npm-global`,
- `uv-tool`,
+ `mpm-pnpm`,
+ `mpm-uv`,
  `rustup-toolchain`,
  `rustup-components`,
- `sdkmanager`,
- `adoptium-jdk`),
+ `sdkmanager`),
  selected in `doc/decision/mpm-toolchain-adoption.md` (2026-10-26).
 
 ### Agent policy, guardrails, filters, tests, and documentation
