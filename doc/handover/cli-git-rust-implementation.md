@@ -2337,6 +2337,12 @@ that is verification, not a decision for the user.
   lock resolution in 2026.10.19 in general. The two control arms were killed by the harness limit (240 s) mid-lock and
   are inconclusive. The only verified workaround remains the 2026.10.17 pin. No repo or host change was made for the
   backend switch. The "locked to vfox" clue recorded above is therefore not the cause.
+  MUTATION RESULT for the exemption (unit `cli-git-mut-m029`, 900 s timeout, baseline 1 s build + 78 s test):
+  `effective_target.rs` 18 mutants tested in 15 minutes, 12 caught, 6 unviable, 0 missed. Nothing queued for this
+  file. Remaining open items from this thread: the mise failure's source trace and upstream filing decision (doc
+  `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`), removing the workflow pin when the other session's
+  mise removal from CI lands, the server-side enforcement question for issue 1796 (left open by the user), and the
+  unmeasured tools that run discarding git forms in their own clones.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
