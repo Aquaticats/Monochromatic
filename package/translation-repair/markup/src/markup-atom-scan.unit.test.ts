@@ -17,6 +17,11 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
+ The most characters after the caret that the strict grammar reads in a footnote label.
+ */
+const MOST_READ = 999;
+
+/**
  One scan and the atoms it must find.
  */
 type ScanCase = {
@@ -146,6 +151,32 @@ const CASES: readonly ScanCase[] = [
   {
     name: 'refuses a footnote label holding a space or nothing, as GFM does',
     text: 'the [^a b] and [^] cat',
+    atoms: [],
+  },
+  {
+    name: 'refuses a footnote label of more than 999 characters and reads one of 999 (micromark-extension-gfm-footnote@2.1.0, '
+      + 'lib/syntax.js:354-381)',
+    text: `the [^${'a'.repeat(MOST_READ + 1,)}] and [^${'b'.repeat(MOST_READ,)}] cat`,
+    atoms: [{ kind: 'footnote-reference', value: `[^${'b'.repeat(MOST_READ,)}]`, },],
+  },
+  {
+    name: 'reads a no-break space in a footnote label as part of its name, since GFM refuses only the space, the tab '
+      + 'and the line endings',
+    text: 'the [^a\u00A0b] cat',
+    atoms: [{ kind: 'footnote-reference', value: '[^a\u00A0b]', },],
+  },
+  {
+    name: 'reads an escaped bracket in a footnote label as part of its name, and does not close the label at an escaped '
+      + 'closing bracket',
+    text: String.raw`the [^a\[b] and [^c\]d] cat`,
+    atoms: [
+      { kind: 'footnote-reference', value: String.raw`[^a\[b]`, },
+      { kind: 'footnote-reference', value: String.raw`[^c\]d]`, },
+    ],
+  },
+  {
+    name: 'refuses a footnote label that ends in a backslash with no closing bracket after it',
+    text: String.raw`the [^a\]`,
     atoms: [],
   },
 ];

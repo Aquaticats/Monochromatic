@@ -175,6 +175,7 @@ export {
 export {
   asTheParseReadsIt,
   blanking,
+  foldLoneCarriageReturns,
 } from './corpus-run/source-ships-readable.ts';
 export {
   spansOf,
@@ -192,16 +193,27 @@ export {
   endLineOf,
   footnoteBodyStart,
   footnoteStartInside,
+  hasFootnoteLabel,
+  isFootnoteLabel,
   isIndentedCode,
   isLazyDefinition,
   NO_FOOTNOTE_INSIDE,
   opensFootnote,
-  withoutIndentation,
+  withoutQuoteMarks,
 } from './corpus-run/source-ships-footnote.ts';
 export {
   footnoteRead,
   type FootnoteRead,
 } from './corpus-run/source-ships-footnote-spans.ts';
+export { footnoteInContainerSpans, } from './corpus-run/source-ships-container.ts';
+export {
+  afterLiteralBlockEdits,
+  separatingEdits,
+} from './corpus-run/source-ships-separation.ts';
+export {
+  startsOffTables,
+  withPageOnlyStarts,
+} from './corpus-run/source-ships-footnote-ranges.ts';
 export { runsUnfitForCompany, } from './corpus-run/source-ships-company.ts';
 export { declaredNamesOf, } from './corpus-run/source-ships-declared.ts';
 export { lazyUnderlinesBlanked, } from './corpus-run/source-ships-lazy.ts';
@@ -259,6 +271,7 @@ export {
 } from './corpus-run/source-ships-tiling.ts';
 export {
   droppedRunSets,
+  runBodyOf,
   type GrammarReader,
   holdsOpenComment,
   namedSlices,
@@ -282,5 +295,7 @@ export {
   wouldShipTextFor,
   wouldShipTextPerSlice,
 } from './corpus-run/would-ship-text.ts';
+
+export * from './index-reading.ts';
 
 //endregion Public index

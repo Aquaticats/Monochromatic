@@ -231,6 +231,59 @@ which lists every file of these commitments.
   at its end (`page-check/src/corpus-run/source-ships-open-flow.ts`),
   since the strict grammar would end it at the next run's line
   and leave the text after that line outside it as code.
+  A carriage return that is not part of a Windows line ending is a line ending to the grammar,
+  and the readers of the encoder split lines on the line feed alone.
+  A run written as literal text therefore has each such carriage return written as a line feed
+  (`foldLoneCarriageReturns` in `page-check/src/corpus-run/source-ships-readable.ts`,
+  applied once where the encoder takes the text in,
+  same length,
+  so every offset stands),
+  and the checks that decide which runs are written so read the run folded in the same way.
+  A Windows line ending stays as it is,
+  and a run shipped as recorded keeps every ending it has.
+  The corpus reader folds CRLF to LF at the read (`slice-reading/src/line-endings.ts`)
+  and leaves a lone carriage return alone,
+  so the fold changes no page that the corpus brings today.
+  A page that shows the original of a run differently from the source ships reported and is never refused
+  (the owner,
+  2026-10-25,
+  "Add the comparison",
+  after a search found texts the encoder wrote so that a reader sees other text).
+  `readingDifferenceOf` (`page-check/src/corpus-run/source-reading-difference.ts`) reduces the page,
+  read by the strict grammar,
+  and the source,
+  read as plain Markdown with GFM,
+  math and raw HTML,
+  to the text of their leaves,
+  and the composition runs it over every run it writes as literal text (`source-ships-differences.ts`).
+  A run that ships as recorded is not compared,
+  since what the site compiles is what the original is upstream.
+  The answer is `same` when the two accounts agree,
+  and `differs` when they do not
+  and no footnote range the two readings disagree on starts inside a block quote or a list item.
+  Where such a range exists the answer is decided for each top-level block (`source-reading-blocks.ts`).
+  The two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
+  which a reader of plain Markdown cannot give,
+  so a block that a footnote range the two readings disagree on reaches is `undecided`,
+  and every other block is compared on its own.
+  The whole texts differ whenever this is asked,
+  so the answer is `differs` or `undecided` and never `same`.
+  Three defects carry the answers,
+  each naming slices and no text of the page:
+  `source-reads-differently` for a block that shows other text than the source,
+  `source-reading-undecided` for a block the comparison cannot decide,
+  and `source-reading-not-compared` for a run the comparison could not be made for,
+  a page that parses and cannot be read against its source.
+  A link target is decoded as far as it reads,
+  a percent escape that is no text in UTF-8 included,
+  so no known text raises the comparison;
+  the defect is kept,
+  and the composition takes the comparison as an argument so that a failing one is tested through it.
+  The composition reports them,
+  not a publish check that throws:
+  a run always ships,
+  and every reading difference is reported,
+  so a throw of the comparison is a defect of the run and never stops the entry.
   A page shipped without runs reads as agreed with its artifact:
   the page-agreement check runs the same composition over what the artifact records
   and weighs the page against the artifact without the originals the composition leaves off,

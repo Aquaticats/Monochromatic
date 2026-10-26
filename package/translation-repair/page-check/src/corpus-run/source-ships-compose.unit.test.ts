@@ -12,9 +12,9 @@
  no writing makes the page parse: a run nested past the bound the plain reading keeps, as the module comment of
  `source-ships-encoding.ts` names under LIMITS. The page-level cases for the nested run and for the runs that each
  leave a fence or display math open are in `source-shipped-page.unit.test.ts`, as are the cases that take the first
- step for a fence mark indented four spaces in both runs and for two runs that import one name. The cases here hand the composition a grammar that answers by a rule written in the case, which takes the second
- step and the choices of the third on text the real grammar accepts, so they are cases of the ladder and not of the
- grammar.
+ step for a fence mark indented four spaces in both runs and for two runs that import one name. The cases here hand
+ the composition a grammar that answers by a rule written in the case, which takes the second step and the choices of
+ the third on text the real grammar accepts, so they are cases of the ladder and not of the grammar.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 

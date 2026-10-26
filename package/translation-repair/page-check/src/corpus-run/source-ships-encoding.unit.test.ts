@@ -8,7 +8,7 @@
 
  EVERY CASE OF THE SECOND GROUP COMPARES WHAT A READER SEES: the text of the page's leaves after the note, read by
  the strict grammar, against the text of the source's leaves read as plain Markdown
- (`source-reader-text.test-fixture.ts`). A pinned string says what the encoder wrote; only the comparison says a
+ (`source-reading-account.ts`). A pinned string says what the encoder wrote; only the comparison says a
  reader sees the source text.
 
  Fixtures are cat-themed invention. No corpus content appears here.
@@ -25,17 +25,16 @@ import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-con
 
 import {
   encodeAsLiteralMdx,
+  readerOfPage,
+  readerOfSource,
   readPageGrammar,
+  withoutLinkTargets,
 } from '../../dist/final/node/index.mjs';
 import {
   liveConstructsOf,
   liveConstructsOfCarried,
 } from './source-live-constructs.test-fixture.ts';
-import {
-  readerOfPage,
-  readerOfSource,
-  withoutLinkTargets,
-} from './source-reader-text.test-fixture.ts';
+import { containerFootnoteTexts, } from './source-live-container-footnotes.test-fixture.ts';
 
 /**
  Page text standing before the encoded text in the parse cases, the way the note stands before an original.
@@ -320,6 +319,53 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   ],
   ['a footnote that is a tag alone, then a definition line holding a brace', '[^1]: <b>\n[r]: u{b}\n'],
   [
+    'a definition holding a brace, then a fence mark indented four spaces and a fence',
+    '[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, then a fence mark indented five spaces and a fence',
+    '[r]: u{b}\n     ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, then a fence mark indented by a tab and a fence',
+    '[r]: u{b}\n\t```\n\t{\n\t```\n',
+  ],
+  [
+    'a footnote that is a tag alone, a definition holding a brace, then an indented fence',
+    '[^1]: <b>\n[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a footnote, a tag alone, a definition holding a brace, then an indented fence',
+    '[^1]: x\n<a href="x">\n[r]: u{b}\n    ```\n    {\n    ```\n',
+  ],
+  [
+    'a definition holding a brace, an indented fence mark, and a brace after a fence at the first column',
+    '[r]: u{b}\n    ```\n```\n    tail {z}\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space, then an indented fence mark and a fence',
+    '[^a b]: x\n    ```\n```\n    tail {z}\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space and a brace, then a fence mark indented by a tab',
+    '[^a b]: x {\n\t```\n',
+  ],
+  [
+    'a link reference definition with a caret label holding a space, then a definition line holding a brace',
+    '[^a b]: x\n[r]: u{b}\n',
+  ],
+  ['a code span across a line that starts a footnote definition, in a block quote', '> a `x\n[^1]: <b>` y\n'],
+  ['a code span across a footnote definition line holding a brace, in a block quote', '> a `x\n[^1]: {` y\n'],
+  ['a code span across a line that starts a footnote definition, in a list item', '- a `x\n[^1]: <b>` y\n'],
+  [
+    'a code span that opens with three backticks across a line that starts a footnote definition, in a block quote',
+    '> a ```\n[^1]: <b>\n\t```\n',
+  ],
+  ['a code span across a line that starts a footnote definition, at the top', 'a `x\n[^1]: <b>` y\n'],
+  ...containerFootnoteTexts({ body: '<b>', },),
+  ...containerFootnoteTexts({ body: '{c}', },),
+
+  [
     'a footnote that is a tag alone, then a definition line holding a brace and a title with a brace',
     '[^1]: <b>\n[r]: u{b "t {"\n',
   ],
@@ -404,6 +450,22 @@ const READER_CASES: readonly (readonly [string, string])[] = [
   [
     'two footnote definitions in one paragraph of the plain reading, a code span across them',
     'a `b\n[^1]: c {d}\n[^2]: e` {f}\n',
+  ],
+  [
+    'a definition line right after a list item holding a raw HTML block',
+    '* </details> [^1]: 注\n[b]: u{ "t"\n',
+  ],
+  [
+    'a definition line right after a block quote holding a raw HTML block',
+    '> <div>\n[b]: u{ "t"\n',
+  ],
+  [
+    'a definition line right after indented code at the top',
+    '猫\n\n    code {\n[b]: u{ "t"\n',
+  ],
+  [
+    'a definition line right after indented code at the top, then a definition after a blank line',
+    '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
   ],
 ];
 
@@ -533,30 +595,13 @@ const LITERAL_CASES: readonly (readonly [string, string])[] = [
 
 /**
  Texts whose definition line the plain reading takes for a definition and the strict grammar for the lazy line of a
- paragraph, which a raw HTML block or indented code above it is to the strict grammar: the page parses and shows the
- characters of the line, which no reader of plain Markdown sees as text. Each case has what the page shows.
+ paragraph: the page parses and shows the characters of the line, which no reader of plain Markdown sees as text. Where a
+ raw HTML block or indented code stands right above the line, the encoder writes a blank line between the two at the top
+ of a text and in a block quote or a list item (`source-ships-page-goes-on.unit.test.ts`,
+ `source-ships-container-blocks.unit.test.ts`), so the cases of that kind compare what a reader sees. Each case has what
+ the page shows.
  */
 const SHOWN_CASES: readonly (readonly [string, string, string])[] = [
-  [
-    'a definition line right after a list item holding a raw HTML block',
-    '* </details> [^1]: 注\n[b]: u{ "t"\n',
-    '</details> [^1]: 注 [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after a block quote holding a raw HTML block',
-    '> <div>\n[b]: u{ "t"\n',
-    '<div> [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after indented code',
-    '猫\n\n    code {\n[b]: u{ "t"\n',
-    '猫 code { [b]: u{ "t"',
-  ],
-  [
-    'a definition line right after indented code, then a definition after a blank line',
-    '猫\n\n    code {\n[b]: u{ "t"\n\n[c]: v{ "s"\n',
-    '猫 code { [b]: u{ "t"',
-  ],
   [
     'an opener of a comment that never closes, then a blank line and a definition line holding a brace',
     '<!-- open\n\n[a]: u{b "t"\n',
@@ -721,12 +766,12 @@ await describe({
         },),
 
         it({
-          name: 'READS THE LINE AFTER AN OPENER OF A COMMENT THAT NEVER CLOSES AS A LINE OF ITS PARAGRAPH, since the '
-            + 'opener is written as text and a definition cannot interrupt a paragraph, so a brace in that line is '
-            + 'escaped as any other',
+          name: 'WRITES THE LINE AFTER AN OPENER OF A COMMENT THAT NEVER CLOSES AS TEXT, the label of a definition and '
+            + 'the brace in it escaped, since a reader of the source takes the rest of the text for the block of raw HTML '
+            + 'the opener starts when it starts a line, and a definition cannot interrupt a paragraph when it does not',
           fn: async () => {
-            expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n[r]: u\\{b "t \\{"\n',);
-            expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  [r]: u\\{b\n',);
+            expect(encoded({ text: '<!--\n[r]: u{b "t {"\n', },),).toBe('&lt;!--\n\\[r\\]: u\\{b "t \\{"\n',);
+            expect(encoded({ text: '- <!--\n  [r]: u{b\n', },),).toBe('- &lt;!--\n  \\[r\\]: u\\{b\n',);
           },
         },),
 
@@ -978,6 +1023,68 @@ https://example.net/b{c`,);
         },),
 
         it({
+          name: 'PARSES AND HOLDS NO EXPRESSION FOR A FOOTNOTE DEFINITION INSIDE A CONTAINER, A TAG ALONE AND A '
+            + 'DEFINITION LINE WITH A BRACE (a reading difference the follow-ups name): the definition line shows as '
+            + 'text on the page, where the source reads it as a definition',
+          fn: async () => {
+            for (
+              const text of [
+                '> a\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
+                '> a\n>     ```\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n',
+                '- a\n  [^1]: x\n  <a href="x">\n  [r]: u{b}\n',
+              ]
+            ) {
+              /**
+               What the encoder writes for the text.
+               */
+              const written = encoded({ text, },);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+              expect(liveConstructsOfCarried({ carried: written, },),).toEqual([],);
+            }
+          },
+        },),
+
+        it({
+          name: 'LEAVES THE BODY OF A DEFINITION WHOSE LABEL HOLDS A TAB, A CARRIAGE RETURN, A LINE FEED OR A SPACE '
+            + 'AS IT STANDS, since the strict grammar reads it as a link reference definition whose destination is the '
+            + 'tag, and writes the body of a definition whose label holds none of them or holds a no-break space as '
+            + 'text of a footnote',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['[^a\tb]: <b>\n', '[^a\tb]: <b>\n',],
+                ['[^a\nb]: <b>\n', '[^a\nb]: <b>\n',],
+                ['[^a\rb]: <b>\n', '[^a\nb]: <b>\n',],
+                ['[^a b]: <b>\n', '[^a b]: <b>\n',],
+                ['[^ab]: <b>\n', '[^ab]: \\<b\\>\n',],
+                ['[^a\u00A0b]: <b>\n', '[^a\u00A0b]: \\<b\\>\n',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            }
+          },
+        },),
+
+        it({
+          name: 'WRITES A REFERENCE WHOSE LABEL HOLDS A BRACE OR A LESS-THAN SIGN WITH A BACKSLASH AND LEAVES THE '
+            + 'LABEL OF ITS DEFINITION AS IT STANDS (a limit the module comment names): the page parses, which the '
+            + 'cases check, and the text written is the one listed',
+          fn: async () => {
+            for (
+              const [text, written,] of [
+                ['猫[^{a}]\n\n[^{a}]: 注\n', '猫[^\\{a\\}]\n\n[^{a}]: 注\n',],
+                ['猫[^a}]\n\n[^a}]: 注\n', '猫[^a\\}]\n\n[^a}]: 注\n',],
+                ['猫[^<b>]\n\n[^<b>]: 注\n', '猫[^\\<b>]\n\n[^<b>]: 注\n',],
+              ] as const
+            ) {
+              expect(encoded({ text, },),).toBe(written,);
+              expect(readPageGrammar({ pageText: `${BEFORE}${written}\n`, },),).toEqual({ kind: 'parses', },);
+            }
+          },
+        },),
+
+        it({
           name: 'WRITES THE EXPORT LINE AFTER A MARKER ALONE THAT FOLLOWS A FOOTNOTE DEFINITION INDENTED FOUR SPACES '
             + 'INSIDE A PARAGRAPH, which MDX reads as a definition where a reader of CommonMark with GFM, whose '
             + 'indented code the strict grammar has not, reads a line of the paragraph',
@@ -1021,37 +1128,47 @@ https://example.net/b{c`,);
         },),
 
         it({
-          name: 'WRITES A BACKSLASH BEFORE THE MARKS OF A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR '
-            + 'A BLOCK QUOTE, and the page shows the marks (a limit the module comment names): the lines the nested '
-            + 'reading takes carry the prefix of the container, which it does not strip',
+          name: 'COPIES A FENCE INDENTED UNDER A FOOTNOTE DEFINITION IN A LIST ITEM OR A BLOCK QUOTE, as at the top: the '
+            + 'lines the nested reading takes carry the prefix of the container, which it strips with the four columns',
           fn: async () => {
             expect(encoded({ text: '- [^1]: x {\n\n      ```\n      {a}\n      ```\n', },),)
-              .toBe('- [^1]: x \\{\n\n      \\`\\`\\`\n      \\{a\\}\n      \\`\\`\\`\n',);
+              .toBe('- [^1]: x \\{\n\n      ```\n      {a}\n      ```\n',);
             expect(encoded({ text: '> [^1]: x {\n>\n>     ```\n>     {a}\n>     ```\n', },),)
-              .toBe('> [^1]: x \\{\n>\n>     \\`\\`\\`\n>     \\{a\\}\n>     \\`\\`\\`\n',);
+              .toBe('> [^1]: x \\{\n>\n>     ```\n>     {a}\n>     ```\n',);
           },
         },),
 
         it({
-          name: 'WRITES ONE LINK ACROSS THE CELLS OF A TABLE FOR A BARE ADDRESS THAT A PIPE ENDS AND FOR AN ANGLE '
-            + 'AUTOLINK HOLDING A PIPE WRITTEN WITH A BACKSLASH (limits the module comment names): the table cuts '
-            + 'the source at the pipe and the page holds one link',
+          name: 'LEAVES A BARE ADDRESS THAT A PIPE ENDS IN A TABLE CUT AT THE PIPE, as the source is, and escapes the '
+            + 'less-than sign after it',
           fn: async () => {
-            for (
-              const [text, written,] of [
-                [
-                  '| a | b |\n| - | - |\n| https://example.net/a|b<c> | d |\n',
-                  '| a | b |\n| - | - |\n| [https://example.net/a|b](https://example.net/a|b)\\<c> | d |\n',
-                ],
-                [
-                  '| a | b |\n| - | - |\n| <https://example.net/a\\|b> | c |\n',
-                  '| a | b |\n| - | - |\n| [https://example.net/a\\\\|b](https://example.net/a%5C|b) | c |\n',
-                ],
-              ] as const
-            ) {
-              expect(encoded({ text, },),).toBe(written,);
-              expect(readerOfPage({ carried: written, },) === readerOfSource({ source: text, },),).toBe(false,);
-            }
+            /**
+             A table whose cell holds a bare address, a pipe and a tag.
+             */
+            const text = '| a | b |\n| - | - |\n| https://example.net/a|b<c> | d |\n';
+            /**
+             What the encoder writes for it.
+             */
+            const written = '| a | b |\n| - | - |\n| https://example.net/a|b\\<c> | d |\n';
+            expect(encoded({ text, },),).toBe(written,);
+            expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
+          },
+        },),
+
+        it({
+          name: 'WRITES A PIPE WRITTEN WITH A BACKSLASH IN AN ANGLE AUTOLINK IN A TABLE WITH A BACKSLASH IN THE TEXT AND '
+            + 'THE TARGET OF THE LINK, so the table does not end the cell there',
+          fn: async () => {
+            /**
+             A table whose cell holds an angle autolink with an escaped pipe.
+             */
+            const text = '| a | b |\n| - | - |\n| <https://example.net/a\\|b> | c |\n';
+            /**
+             What the encoder writes for it.
+             */
+            const written = '| a | b |\n| - | - |\n| [https://example.net/a\\\\\\|b](https://example.net/a%5C\\|b) | c |\n';
+            expect(encoded({ text, },),).toBe(written,);
+            expect(readerOfPage({ carried: written, },),).toBe(readerOfSource({ source: text, },),);
           },
         },),
 

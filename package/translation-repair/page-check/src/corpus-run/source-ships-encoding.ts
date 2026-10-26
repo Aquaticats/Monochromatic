@@ -1,5 +1,7 @@
 import {
   commentRegionsOf,
+  footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   parseMarkdownMathBody,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { firstNestingExcess, } from '@monochromatic-dev/translation-repair-markup/ts';
@@ -8,15 +10,25 @@ import {
   bareAddresses,
 } from './source-ships-addresses.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import { blockOpenerStarts, } from './source-ships-open-block.ts';
+import {
+  openerStarts,
+  rangesWithoutOpeners,
+} from './source-ships-open-comment.ts';
+import { rootWithFreshTails, } from './source-ships-fresh-tails.ts';
 import { withModuleLinesWritten, } from './source-ships-module-line.ts';
 import {
   closedWith,
   closerOfWritten,
   NO_MARK,
 } from './source-ships-open-flow.ts';
+import { editsWithOpeners, } from './source-ships-opener-in-code.ts';
+import { htmlInterruptionEdits, } from './source-ships-html-interrupt.ts';
 import {
   asTheParseReadsIt,
   blanking,
+  foldLoneCarriageReturns,
+  standingIn,
 } from './source-ships-readable.ts';
 import {
   ESCAPABLE,
@@ -45,7 +57,8 @@ import {
 // original wrote, none of which a backslash may touch.
 //
 // WHERE THE PLAIN PARSE AND THE STRICT GRAMMAR READ A TEXT DIFFERENTLY (`source-ships-spans.ts` says how each is
-// met). GFM is not on in the plain parse, so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark
+// met). Footnotes are not on in the plain parse (it has the tables and the strikethrough of GFM and no other part
+// of it), so `[^1]: {` and `[^1]: <https://example.net/x>`, which CommonMark
 // takes for link reference definitions, are footnotes to the strict grammar with a body to encode, and a block
 // indented under a footnote definition is a block of the footnote and no indented code, so a paragraph that opens
 // a footnote definition at the top, and a paragraph on the line right after one, are read as the body of the
@@ -71,6 +84,14 @@ import {
 //   parser, and no backslash stops that (the mask looks for the four characters and not for an escape), so its
 //   opener, and each later `<!--` inside it, is written as `&lt;!--`, which shows as the same characters and masks
 //   nothing (a second opener left in place opens a comment of its own, and the English after the run is hidden).
+//
+// A LONE CARRIAGE RETURN IS FOLDED TO A LINE FEED BEFORE ANYTHING IS READ (`source-ships-readable.ts`,
+// `foldLoneCarriageReturns`). The grammar and the plain parse read it as a line ending and every reader here splits
+// lines on the line feed, so a text of such endings was one line to them: a footnote's separator and the closing line
+// of a flow were missed, an expression leaked on the page and a closed flow was closed twice. Folding at the one entry
+// keeps the length, so every offset stands, and leaves Windows line endings as they are. The text a run that parses as
+// written ships is not encoded and keeps whatever endings it has; the corpus reader folds Windows endings and leaves a
+// lone carriage return alone (`slice-reading/src/line-endings.ts`).
 //
 // WHAT IS NOT ENCODED, AND WHY. A source run that parses as written ships as written, `<Foo />` and a balanced
 // `{他说}` among it: the original is a page of an upstream MDX site that compiles, so what parses there renders there
@@ -133,37 +154,29 @@ import {
 // comment that never closes is read on the page as Markdown, where the package's own mask would hide it, so the shown
 // cases compare such a run up to the opener. The reach of a bare address is taken as up to the next space or less-than
 // sign, as the GFM autolink-literal pattern does. An opener of a comment that never closes is written as a character
-// reference wherever it stands, inside code too, where it shows as written. A fence indented under a footnote
-// definition is copied only for a definition at the top. In a list item or a block quote the lines the nested reading
-// takes carry the prefix of the container, which it does not strip, so the marks of such a fence are written with a
-// backslash and the page shows them (`source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
+// reference, and where it stands in a fence, a display math, a code span or inline math what holds it is taken out of the
+// code first (`source-ships-opener-in-code.ts`), since the reference shows as written in code; one in a code span that only
+// the reading of a footnote in a block quote pairs is not found, and the comparison reports the page. A fence indented
+// under a footnote definition is copied, at the top and in a block quote or a list item: the lines the nested reading
+// takes carry the prefix of the container, which it strips with the four columns the footnote takes
+// (`source-ships-footnote-container.ts`; `source-ships-encoding.unit.test.ts` pins both cases). A byte order mark that
 // opens a run is an ordinary character on the page, where a fence mark after it opens no fence, so the encoder reads
 // the run with a letter in its place (`source-ships-readable.ts`), and a fence that this leaves open at the end of the
 // run is closed like any other. An angle autolink inside the alternative text of an image is written with a backslash
 // before its less-than sign, as any text is, and the page shows the brackets there: the alternative text of an image
 // is a string to the plain parse, which holds no autolink node to write as its address
-// (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so an angle autolink that
-// holds one is written as text there, as the source reads it; a bare address that a pipe ends, and an angle autolink
-// holding a pipe written with a backslash, are not cut the same way, and the page shows one link across the cells
-// (`source-ships-encoding.unit.test.ts` pins both).
+// (`source-ships-encoding.unit.test.ts` pins the case). A table cuts a cell at every pipe, so the plain reading, which
+// reads tables, cuts an address there as the source does, and a pipe written with a backslash in an address written as a
+// link is written with a backslash in its text and its target (`source-ships-links.ts`). A footnote label that holds a brace or a less-than sign is
+// written with a backslash in the reference, as any text is, and left as it stands in the definition, where the page
+// holds no expression for it: the two no longer name one footnote, and the page shows the
+// reference as text (`source-ships-encoding.unit.test.ts` pins three labels). Writing the same backslash into both
+// labels would make them agree again, and has not been done.
 
 /**
  What a comment that never closes is written as, in place of its opening `<`.
  */
 const COMMENT_OPENER = '&lt;';
-
-/**
- What opens an HTML comment.
- */
-const COMMENT_OPEN = '<!--';
-
-/**
- What the parse is given in place of an opener of a comment that never closes: the page carries `&lt;!--`, text that
- starts with an ampersand, which a line starting with it makes a paragraph and which keeps the class of the less-than
- sign among emphasis marks. Four spaces would make the line a blank one, or indented code, and a definition on the next
- line would stay a definition to the parse where it is a line of the paragraph to the strict grammar.
- */
-const COMMENT_OPENER_STAND_IN = '&!--';
 
 /**
  Characters a backslash goes before when the strict grammar reads them as syntax.
@@ -186,93 +199,6 @@ type TextReading = SourceSpans & {
    */
   readonly closedComments: readonly TextRange[];
 };
-
-/**
- Writes the stand-in of an opener over each place an opener stands.
-
- @param text - text
-
- @param starts - index of the `<` of each opener, in text order
-
- @returns Text of the same length
-
- @example
- ```ts
- const readable = standingIn({ text: 'a <!-- b', starts: [2,], },);
- ```
- */
-function standingIn(
-  {
-    text,
-    starts,
-  }: {
-    readonly text: string;
-    readonly starts: readonly number[];
-  },
-): string {
-  /**
-   Pieces of the result, joined at the end.
-   */
-  const pieces: string[] = [];
-  /**
-   Where the text not yet copied starts.
-   */
-  const copied = { upTo: 0, };
-  for (const start of starts) {
-    pieces.push(
-      text.slice(
-        copied.upTo,
-        start,
-      ),
-      COMMENT_OPENER_STAND_IN,
-    );
-    copied.upTo = start + COMMENT_OPEN.length;
-  }
-  pieces.push(text.slice(copied.upTo,),);
-  return pieces.join('',);
-}
-
-/**
- Where each `<!--` of a text stands from an index on.
-
- @param text - text
-
- @param from - index to look from
-
- @returns Index of the `<` of each, in text order
-
- @example
- ```ts
- const starts = openerStarts({ text: '<!-- a <!-- b', from: 0, },);
- ```
- */
-function openerStarts(
-  {
-    text,
-    from,
-  }: {
-    readonly text: string;
-    readonly from: number;
-  },
-): readonly number[] {
-  /**
-   Indices found.
-   */
-  const starts: number[] = [];
-  for (
-    let at = text.indexOf(
-      COMMENT_OPEN,
-      from,
-    );
-    at !== (-1);
-    at = text.indexOf(
-      COMMENT_OPEN,
-      at + COMMENT_OPEN.length,
-    )
-  )
-    starts.push(at,);
-  return starts;
-}
 
 /**
  Reads what a text holds, with its comments out of the way.
@@ -332,17 +258,34 @@ function readText({ text, }: { readonly text: string; },): TextReading {
       };
     },);
   /**
-   The text as the parse reads it: comments that close blanked, so what stands inside them is not parsed, and the
-   openers of comments that never close written as text.
+   Index of the `<` of each opener of a comment that never closes, in text order.
+   */
+  const openerStartsInText = openers.map(function toStart({ end, },): number {
+    return end - 1;
+  },);
+  /**
+   The text with its comments that close blanked, so what stands inside them is not parsed.
+   */
+  const blanked = blanking({
+    text,
+    ranges: closedComments,
+  },);
+  /**
+   The openers that start a block of raw HTML to a reader of the source, which the parse is given as they stand.
+   */
+  const blockStarts = blockOpenerStarts({
+    text: blanked,
+    starts: openerStartsInText,
+  },);
+  /**
+   The text as the parse reads it: comments that close blanked, and the openers of comments that never close written as
+   text, except those that start a block of raw HTML.
    */
   const readable = asTheParseReadsIt({
     text: standingIn({
-      text: blanking({
-        text,
-        ranges: closedComments,
-      },),
-      starts: openers.map(function toStart({ end, },): number {
-        return end - 1;
+      text: blanked,
+      starts: openerStartsInText.filter(function notRawHtml(start,): boolean {
+        return !blockStarts.includes(start,);
       },),
     },),
   },);
@@ -371,27 +314,60 @@ function readText({ text, }: { readonly text: string; },): TextReading {
     };
   }
   /**
+   The parse of the readable text, with the tails of the footnotes read on their own.
+   */
+  const root = rootWithFreshTails({
+    readable,
+    root: parseMarkdownMathBody({ body: readable, },),
+  },);
+  /**
    What the parse says of the readable text.
    */
   const spans = spansOf({
     source: text,
     readable,
-    root: parseMarkdownMathBody({ body: readable, },),
+    root,
   },);
+  /**
+   The blocks of raw HTML that cut a paragraph, which the page cuts too.
+   */
+  const interruption = htmlInterruptionEdits({
+    readable,
+    root,
+  },);
+  /**
+   Where a footnote definition stands for a reader of the source and for the page, which the openers in code are written
+   around; none where the text holds no opener.
+   */
+  const footnotes = (openerStartsInText.length === 0)
+    ? []
+    : [
+      ...footnoteDefinitionRangesOf({ body: readable, },),
+      ...pageFootnoteDefinitionRangesOf({ body: readable, },),
+    ];
   return {
     text: spans.text,
-    literal: spans.literal,
-    edits: [
-      ...spans.edits,
-      ...openers,
-    ].toSorted(function byStart(
-      left,
-      right,
-    ): number {
-      return left.start - right.start;
+    literal: rangesWithoutOpeners({
+      ranges: spans.literal,
+      starts: openerStartsInText,
+    },),
+    edits: editsWithOpeners({
+      source: text,
+      root,
+      starts: openerStartsInText,
+      edits: [
+        ...spans.edits,
+        ...interruption.edits,
+      ],
+      openers,
+      footnotes,
+      closed: closedComments,
     },),
     insideLinks: spans.insideLinks,
-    streamStarts: spans.streamStarts,
+    streamStarts: [
+      ...spans.streamStarts,
+      ...interruption.starts,
+    ],
     closedComments,
   };
 }
@@ -431,19 +407,65 @@ function escapesNext(
 }
 
 /**
+ Drops an edit that repeats the one before it in a list in text order.
+
+ A block the readers reach twice, as the paragraph a footnote opens in is, puts its edit twice, and the second would
+ stop every edit after it from being made, as the edits must not overlap.
+
+ @param edits - edits in text order
+
+ @returns Edits with each run of identical ones cut to its first
+
+ @example
+ ```ts
+ const once = withoutRepeatedEdits({ edits: [{ start: 9, end: 10, replacement: '\n\n', }, { start: 9, end: 10, replacement: '\n\n', },], },);
+ ```
+ */
+function withoutRepeatedEdits({ edits, }: { readonly edits: readonly TextEdit[]; },): readonly TextEdit[] {
+  /**
+   The edits kept.
+   */
+  const kept: TextEdit[] = [];
+  /**
+   Start, end and replacement of the edit kept last, joined, which no two different edits share since the start and the end are numbers.
+   */
+  const lastKey = { value: '', };
+  for (const edit of edits) {
+    /**
+     Start, end and replacement of this edit, joined.
+     */
+    const key = `${edit.start}:${edit.end}:${edit.replacement}`;
+    if ((kept.length > 0) && (key === lastKey.value))
+      continue;
+    lastKey.value = key;
+    kept.push(edit,);
+  }
+  return kept;
+}
+
+/**
  Writes a backslash before each `{`, `}` and `<` of the text that a reader sees as text, and the other rewrites that
  are made in place.
 
- @param text - slice text as the artifact records it
+ @param text - slice text as the artifact records it, a lone carriage return among its line endings included
 
- @returns Text with those characters escaped, equal to the text when it holds none
+ @returns Text with those characters escaped and every lone carriage return written as a line feed, equal to the text
+ when it holds none
 
  @example
  ```ts
  const escaped = escapedText({ text: '她说 { 然后走了。', },);
  ```
  */
-function escapedText({ text, }: { readonly text: string; },): string {
+function escapedText({ text: recorded, }: { readonly text: string; },): string {
+  // THE ONE PLACE A LONE CARRIAGE RETURN IS READ: the readers of this module split lines on the line feed and the
+  // grammar reads a carriage return as a line ending, so a text of such endings was read as a single line, its
+  // footnote separator and the closing line of its flow were missed, and the page held an expression the original
+  // lacked.
+  /**
+   The text with every lone carriage return written as a line feed, of the same length.
+   */
+  const text = foldLoneCarriageReturns({ text: recorded, },);
   /**
    What the text holds.
    */
@@ -497,9 +519,9 @@ function escapedText({ text, }: { readonly text: string; },): string {
     );
   }
   /**
-   The edits, with the links that bare addresses a less-than sign ends become.
+   The edits, with the links that bare addresses a less-than sign ends become, in text order.
    */
-  const edits = [
+  const allEdits = [
     ...reading.edits,
     ...addresses
       .filter(function endsAtTag({ endsAtTag: ends, },): boolean {
@@ -517,6 +539,10 @@ function escapedText({ text, }: { readonly text: string; },): string {
   ): number {
     return left.start - right.start;
   },);
+  /**
+   The same edits, each made once.
+   */
+  const edits = withoutRepeatedEdits({ edits: allEdits, },);
   /**
    Index of the next edit to make, the edits being in text order and not overlapping.
    */

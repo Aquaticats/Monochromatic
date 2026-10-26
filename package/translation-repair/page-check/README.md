@@ -66,7 +66,7 @@ The groups that follow name the main ones.
   then every run,
   then ship the page without the runs no writing makes parse (without every run where that does not help)
   and report `page-source-unparseable` naming the slices.
-  The literal text is read off a CommonMark parse of the run with the site's math
+  The literal text is read off a CommonMark parse of the run with the site's math and GFM tables and strikethrough
   (`parseMarkdownMathBody` of `translation-repair-document-structure`),
   so a fence in a list item,
   a code span across lines,
@@ -105,6 +105,69 @@ The groups that follow name the main ones.
   `corpus-run/source-ships-footnote.ts`,
   `corpus-run/source-ships-module-line.ts`
   and `corpus-run/source-ships-ranges.ts` hold the helpers of the reading and are exported for their own tests.
+  `corpus-run/source-ships-footnote-container.ts` reads the blocks under a footnote definition in a block quote or a
+  list item
+  (the marks of the container given up by the lines that carry them,
+  a lazy line without the mark of a block quote kept as it stands),
+  `corpus-run/source-ships-footnote-html.ts` tells a definition that opens with a block of raw HTML,
+  which holds the lines up to the next blank line,
+  and `corpus-run/source-ships-open-block.ts` tells the openers that start a block of raw HTML to a reader of the
+  source.
+  `corpus-run/source-ships-opener-in-code.ts` takes a comment that never closes out of the fence,
+  display math,
+  code span or inline math it is opened in,
+  `corpus-run/source-ships-opener-footnote.ts` does so for a fence or display math that a footnote definition holds,
+  `corpus-run/source-ships-html-interrupt.ts` ends a paragraph before a block of raw HTML that interrupts it,
+  and `corpus-run/source-ships-lines.ts` joins the lines of a span,
+  emphasis,
+  the text of a link or an image,
+  or a hard break written with a backslash
+  that a footnote start indented four columns would cut.
+- Reading comparison:
+  say whether a reader of the page sees what a reader of the source sees,
+  for each run the composition writes as literal text
+  (a run that ships as recorded is not compared).
+  The page is read by the strict grammar,
+  the source as plain Markdown with GFM,
+  math and raw HTML,
+  and both are reduced to the text of their leaves.
+  The answer is `same` when the two accounts agree,
+  and `differs` when they do not
+  and no footnote range the two readings disagree on starts inside a block quote or a list item.
+  Where such a range exists the answer is decided for each top-level block:
+  the two-readings ruling takes the page's reading of a footnote in a block quote or a list item,
+  which a reader of plain Markdown cannot give,
+  so a block that the range reaches is `undecided`
+  and every other block is compared on its own.
+  The whole texts differ whenever this is asked,
+  so the answer is `differs` or `undecided` and never `same`.
+  A run always ships,
+  so the answers are reported and never stop a page,
+  in three defects that name slices and no text of the page:
+  `source-reads-differently` for a block that shows other text than the source,
+  `source-reading-undecided` for a block the comparison cannot decide,
+  and `source-reading-not-compared` for a run the comparison could not be made for
+  (a page that parses and cannot be read against its source;
+  a link target is decoded as far as it reads,
+  so one that is no text in UTF-8 does not raise the comparison,
+  and the composition takes the comparison as an argument so that a failing one is tested through it).
+  Names:
+  `readingDifferenceOf`,
+  `differenceDefectsOf`,
+  `blockDifferenceOf`,
+  `blocksOfPage`,
+  `blocksOfSource`,
+  `readerOfPage`,
+  `readerOfSource`,
+  `decodedTarget`,
+  `placedAfter`.
+  Declared in `corpus-run/source-reading-difference.ts`,
+  `corpus-run/source-ships-differences.ts`,
+  `corpus-run/source-reading-blocks.ts`,
+  `corpus-run/source-reading-places.ts` (where the words of the blocks no range reaches stand in the page,
+  read off an index of the page),
+  `corpus-run/source-reading-target.ts`
+  and `corpus-run/source-reading-account.ts`.
 - Shippable replacements:
   turn a settled entry's per-slice readings into the replacements that assemble its page.
   The original of a slice that ships it is left out unless the caller passes `includeSource: true`,
@@ -247,6 +310,63 @@ and the siblings build first.
 Run the tests with `mise run //package/translation-repair/page-check:test:unit`,
 or build and test together with `mise run //package/translation-repair/page-check:buildAndTest`.
 Pass test file paths to run only those files.
+
+### The full pass of the live-construct check
+
+`mise run //package/translation-repair/page-check:test:live-full` is not part of `test:unit`.
+It composes the page of every pair of runs of both step-search seeds (80000 pairs)
+and writes every generated footnote text,
+and fails when a page holds a live construct in text written as literal text
+or ships without the original of a run for any reason but that run's nesting past the bound.
+The sampled case of `test:unit`
+(`src/corpus-run/source-live-sample.unit.test.ts`)
+reads one in four of each seed,
+which catches a class of nine pairs with chance 0.92 and a smaller class less often.
+
+It must be run before landing any change under
+`src/corpus-run/source-ships-*`,
+`src/corpus-run/page-grammar.ts`,
+`src/corpus-run/source-live-*`,
+`src/corpus-run/source-shipped*`,
+`../document-structure/src`,
+`../markup/src/footnote-label.ts`
+or `../markup/src/nesting-*.ts`
+(the nesting measure behind the page grammar's depth refusal,
+`firstNestingExcess`),
+and before a launch whose build differs from the last green full run in those paths.
+The difference is `git diff --stat <head> HEAD -- <paths>`,
+where `<head>` is the commit the last green full run was made on:
+an empty difference means the last run still stands.
+
+It took 293 to 402 seconds across the runs made before the follow-up round,
+under the load of the other sessions of the host (no load figure was recorded for them),
+and peaked at 535 to 559 MB of memory.
+The two runs of the follow-up round took 308 seconds and 762 seconds,
+the second with a host load average of 58.75 when it started and 26.15 when it ended,
+and the unit's summary from `systemd-run --wait` reported a memory peak of 746.7 MB and of 687.1 MB (320.3 MB swapped).
+The three runs after them took 719.2 seconds,
+581.8 seconds and 545.4 seconds,
+with memory peaks of 708.2 MB,
+749.2 MB and 754.7 MB,
+and the run of the fifth round took 656.9 seconds
+(a service runtime of 10 minutes 58.707 seconds,
+12 minutes 55.130 seconds of CPU time,
+a memory peak of 742.6 MB with 13.7 MB swapped,
+and a host load average of 11.17 when it started and 23.82 when it ended).
+Time varies with the load by more than a factor of two,
+so a run that is slow under load is no sign of a slower check.
+Run it as its own capped unit,
+for example `systemd-run --user --unit=live-full --collect --property=MemoryMax=4G --property=CPUQuota=300%`.
+
+It guards two things:
+no live construct,
+and no unforced drop.
+It does not see a change that only escapes more than needed (the output stays safe and differs),
+such as a tab no longer ending a footnote label or a carriage return left before a joined line.
+Unit cases pin those:
+the label rules in `src/corpus-run/source-ships-encoding.unit.test.ts`
+and `../markup/src/footnote-label.unit.test.ts`,
+and the join in `src/corpus-run/source-ships-lines.unit.test.ts`.
 
 Its `./ts/*` export also serves test fixtures that sibling tests import,
 for example `corpus-run/published-run.test-fixture.ts`.

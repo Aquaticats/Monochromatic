@@ -1,5 +1,6 @@
 import {
   maskHtmlComments,
+  maskInvisibleLines,
   parseMdxBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure';
@@ -53,7 +54,8 @@ type LiveConstruct = {
 /**
  Finds every construct of a page the strict grammar takes for code.
 
- @param pageText - page text, read as the package reads a page: comments masked, then the strict grammar
+ @param pageText - page text, read as the package reads a page: lines of invisible characters blanked, comments masked,
+ then the strict grammar
 
  @returns Constructs in text order, none for a page whose text is all text
 
@@ -66,9 +68,14 @@ type LiveConstruct = {
  */
 export function liveConstructsOf({ pageText, }: { readonly pageText: string; },): readonly LiveConstruct[] {
   /**
+   The page with every line of invisible characters only blanked, which `parseDocument` does first: such a line is not
+   blank to CommonMark, and the package reads the page without it.
+   */
+  const { masked: unwelded, } = maskInvisibleLines({ text: pageText, },);
+  /**
    The page as the package reads it.
    */
-  const { masked, } = maskHtmlComments({ text: pageText, },);
+  const { masked, } = maskHtmlComments({ text: unwelded, },);
   /**
    Constructs found.
    */

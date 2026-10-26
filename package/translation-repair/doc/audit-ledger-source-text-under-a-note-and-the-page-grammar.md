@@ -144,7 +144,9 @@ a raw HTML block that holds Markdown-looking lines is read as Markdown,
 and a text nested past the bound of the plain reading is escaped as text throughout.
 The bytes of the original differ from the artifact's only on the encoding paths.
 Each case compares what a reader of the shipped page sees with what a reader of the source as plain Markdown sees
-(`source-reader-text.test-fixture.ts`).
+(`source-reader-text.test-fixture.ts`,
+now `source-reading-account.ts`,
+moved on 2026-10-25).
 
 #### What takes steps 2 and 3
 

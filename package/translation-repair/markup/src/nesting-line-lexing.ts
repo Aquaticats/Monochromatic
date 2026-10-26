@@ -460,4 +460,81 @@ export function isRuleLine({ line, }: { readonly line: string; },): boolean {
     },);
 }
 
+/**
+ The lines of a body as the parser reads them: a line feed, a carriage return and a carriage return with a line feed after
+ it each end a line.
+
+ @param body - text about to be parsed
+
+ @returns Lines without their endings, one more than the endings the body holds
+
+ @example
+ ```ts
+ const lines = linesAtEveryEnding({ body: 'a\rb\r\nc', },); // ['a', 'b', 'c']
+ ```
+ */
+export function linesAtEveryEnding({ body, }: { readonly body: string; },): readonly string[] {
+  /**
+   Lines found so far.
+   */
+  const lines: string[] = [];
+  /**
+   Index where the line being read starts.
+   */
+  const line = { start: 0, };
+  for (let at = 0; at < body.length; at += 1) {
+    /**
+     The character at the index.
+     */
+    const character = body.charAt(at,);
+    if ((character !== '\n') && (character !== '\r'))
+      continue;
+    lines.push(body.slice(
+      line.start,
+      at,
+    ),);
+    if ((character === '\r') && (body.charAt(at + 1,) === '\n'))
+      at += 1;
+    line.start = at + 1;
+  }
+  lines.push(body.slice(line.start,),);
+  return lines;
+}
+
+/**
+ Whether a line is a link reference definition, whose destination and title read a brace as a character.
+
+ A footnote definition is none: the text after its colon is read as inline text, braces and all.
+
+ @param line - text of the line after its container markers and indentation
+
+ @returns Whether the line opens with a label and a colon
+
+ @example
+ ```ts
+ const definition = isDefinitionLine({ line: '[r]: u{b', },); // true
+ ```
+ */
+export function isDefinitionLine({ line, }: { readonly line: string; },): boolean {
+  if ((!line.startsWith('[',)) || line.startsWith('[^',))
+    return false;
+  for (let index = 1; index < line.length; index++) {
+    /**
+     Character read.
+     */
+    const character = line.charAt(index,);
+    if (character === '\\') {
+      // A backslash takes the character after it into the label.
+      index++;
+      continue;
+    }
+    // A label holds no bracket that is not escaped.
+    if (character === '[')
+      return false;
+    if (character === ']')
+      return line.charAt(index + 1,) === ':';
+  }
+  return false;
+}
+
 //endregion Nesting line lexing

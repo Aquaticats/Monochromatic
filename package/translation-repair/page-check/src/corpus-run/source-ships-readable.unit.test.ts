@@ -16,6 +16,7 @@ import {
 import {
   asTheParseReadsIt,
   blanking,
+  foldLoneCarriageReturns,
 } from '../../dist/final/node/index.mjs';
 
 await describe({
@@ -63,6 +64,41 @@ await describe({
           name: 'RETURNS THE TEXT ITSELF FOR NO STRETCH',
           fn: async () => {
             expect(blanking({ text: '猫\n', ranges: [], },),).toBe('猫\n',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: foldLoneCarriageReturns.name,
+      children: [
+        it({
+          name: 'WRITES A LINE FEED FOR EACH LONE CARRIAGE RETURN, one at the end of the text among them, and keeps '
+            + 'the length',
+          fn: async () => {
+            expect(foldLoneCarriageReturns({ text: 'a\rb\r\r', },),).toBe('a\nb\n\n',);
+          },
+        },),
+
+        it({
+          name: 'KEEPS EVERY WINDOWS LINE ENDING, so a text mixing the three endings folds only the lone ones',
+          fn: async () => {
+            expect(foldLoneCarriageReturns({ text: 'a\r\nb\rc\n', },),).toBe('a\r\nb\nc\n',);
+          },
+        },),
+
+        it({
+          name: 'FOLDS A CARRIAGE RETURN THAT PRECEDES A CARRIAGE RETURN AND A LINE FEED, since only the second pairs '
+            + 'with the line feed',
+          fn: async () => {
+            expect(foldLoneCarriageReturns({ text: 'a\r\r\nb', },),).toBe('a\n\r\nb',);
+          },
+        },),
+
+        it({
+          name: 'RETURNS A TEXT WITH NO CARRIAGE RETURN AS IT IS',
+          fn: async () => {
+            expect(foldLoneCarriageReturns({ text: '猫\n\n鱼', },),).toBe('猫\n\n鱼',);
           },
         },),
       ],

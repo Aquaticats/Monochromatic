@@ -12,7 +12,7 @@
  WHAT THE SCAN READS, in tests and test fixtures: an assignment (`=`, `??=`,
  `||=` and the rest) or a `delete` whose target is a member chain on
  `process`, `console`, `globalThis`, `Date`, `Math`, `performance`, `Intl`,
- `JSON` or `crypto`; `Reflect.deleteProperty`, `Reflect.set`,
+ `JSON`, `crypto` or `Symbol`; `Reflect.deleteProperty`, `Reflect.set`,
  `Reflect.defineProperty`, `Object.defineProperty` and `Object.assign` whose
  first argument is one of those or a chain on one; and `process.chdir` and
  `process.umask` called with an argument. A write inside a function declared
@@ -22,6 +22,16 @@
  a file's top; a write inside a method or a callback is placed where that
  function was made. A case's stub through its own sandbox, `ctx.sinon`, is no
  write here, since module-test answers it to that case alone.
+
+ A WRITE TO `Symbol` IS THE SLOT OF THE PARSE-END HOOK of the grammar
+ (`parse-end-hook.ts` of document-structure), which tests of three packages
+ set and remove with `Reflect.set` and `Reflect.deleteProperty`. It is the
+ one global allowed beside other cases, and only where it is set and disposed
+ synchronously: the helper that sets it is called as the initializer of a
+ `using` declaration in a function that holds no `await`, so the slot is
+ back before any other case runs. The same call in a function that awaits, a
+ call that is not a `using` initializer and an assignment to a member of
+ `Symbol` are reported as any other global's write is.
 
  OUT OF THE SCAN'S REACH: a write through an alias (`const env =
  process.env`), a global shadowed by a local of the same name, a case
@@ -80,6 +90,7 @@ const GLOBAL_ROOTS: ReadonlySet<string> = new Set([
   'Intl',
   'JSON',
   'crypto',
+  'Symbol',
 ],);
 
 /**
@@ -231,6 +242,98 @@ function writeOf({ node, }: { readonly node: TreeNode; },): string {
   return (called.startsWith('process.',) && PROCESS_SETTERS.has(called.slice('process.'.length,),) && (args.length > 0))
     ? called
     : '';
+}
+
+/**
+ The global a write goes through.
+
+ @param node - node read
+
+ @returns Global's name, empty for a node that writes none
+
+ @example
+ ```ts
+ const root = writtenGlobalOf({ node, },); // 'Symbol' for Reflect.set(Symbol, key, value)
+ ```
+ */
+function writtenGlobalOf({ node, }: { readonly node: TreeNode; },): string {
+  if (node.type === 'AssignmentExpression')
+    return globalOf({ node: node.left, bare: false, },);
+  if ((node.type === 'UnaryExpression') && (node.operator === 'delete'))
+    return globalOf({ node: node.argument, bare: false, },);
+  if (node.type !== 'CallExpression')
+    return '';
+  /**
+   The call's callee as a dotted name, and its arguments.
+   */
+  const [called, args,] = [dottedCallee({ callee: node.callee, },), Array.isArray(node.arguments,) ? node.arguments : [],];
+  if (WRITING_CALLS.has(called,))
+    return globalOf({ node: args[0], bare: true, },);
+  return called.startsWith('process.',) ? 'process' : '';
+}
+
+/**
+ Whether a node holds an `await`, in its own text or in a function inside it.
+
+ @param node - node read
+
+ @returns Whether it does
+
+ @example
+ ```ts
+ const awaits = containsAwait({ node: fn, },);
+ ```
+ */
+function containsAwait({ node, }: { readonly node: TreeNode; },): boolean {
+  /**
+   Nodes still to read.
+   */
+  const pending: TreeNode[] = [node,];
+  for (let at = pending.pop(); at !== undefined; at = pending.pop()) {
+    if (at.type === 'AwaitExpression')
+      return true;
+    pending.push(...childNodes({ node: at, },),);
+  }
+  return false;
+}
+
+/**
+ Whether a call sets a slot that is disposed before the function holding it can yield: the call initializes a `using`
+ declaration, and the function holds no `await`.
+
+ @param node - call read
+
+ @param fn - function that holds it
+
+ @param parents - each node's parent
+
+ @returns Whether the set and the disposal are synchronous
+
+ @example
+ ```ts
+ const scoped = setsAndDisposesSynchronously({ node: call, fn, parents, },);
+ ```
+ */
+function setsAndDisposesSynchronously(
+  {
+    node,
+    fn,
+    parents,
+  }: {
+    readonly node: TreeNode;
+    readonly fn: TreeNode;
+    readonly parents: ReadonlyMap<TreeNode, TreeNode>;
+  },
+): boolean {
+  /**
+   The declarator the call initializes, and the declaration around it.
+   */
+  const [declarator, declaration,] = ancestorsOf({ node, parents, },);
+  return (declarator?.type === 'VariableDeclarator')
+    && (declarator.init === node)
+    && (declaration?.type === 'VariableDeclaration')
+    && (declaration.kind === 'using')
+    && (!containsAwait({ node: fn, },));
 }
 
 /**
@@ -612,6 +715,10 @@ function unconfined(
   },
 ): readonly string[] {
   /**
+   The global the write goes through.
+   */
+  const root = writtenGlobalOf({ node: write, },);
+  /**
    Reasons found so far.
    */
   const reasons: string[] = [];
@@ -643,6 +750,14 @@ function unconfined(
       reasons.push((at.node === write) ? 'outside any case' : 'in a function no case reaches',);
       continue;
     }
+    // The slot of the parse-end hook, set and disposed under `using` in a function that cannot yield, is back before any
+    // other case runs.
+    if ((root === 'Symbol') && setsAndDisposesSynchronously({
+      node: at.node,
+      fn,
+      parents,
+    },))
+      continue;
     if (followed.has(fn,))
       continue;
     followed.add(fn,);
@@ -898,6 +1013,70 @@ await describe({
         },),).toEqual([
           'den-entry.test-fixture.ts: process assigned, outside any case',
           `${PROCESS_ENTRIES[0] ?? ''}: process assigned, in a suite that runs cases beside it`,
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A WRITE TO `Symbol`, where the parse-end hook of the grammar stands, unless it is set and disposed '
+        + 'synchronously under `using`: a set across an await, a set with no disposal in scope and an assignment are found '
+        + 'in a suite that runs cases beside it, and a fixture that sets and disposes in a function with no await is not',
+      fn: async () => {
+        expect(unconfinedWrites({
+          files: [
+            {
+              path: 'hook.unit.test.ts',
+              isTest: true,
+              text: [
+                'await describe({ name: \'hook\', children: [',
+                '  it({ name: \'scoped\', fn: async () => { using held = standing(); void held; }, },),',
+                '  it({ name: \'awaits\', fn: async () => { using held = standing(); await nap(); }, },),',
+                '  it({ name: \'loose\', fn: async () => { setHook(); }, },),',
+                '  it({ name: \'assigned\', fn: async () => { Symbol.cat = 1; }, },),',
+                '], },);',
+                'function standing() {',
+                '  Reflect.set(Symbol, PARSE_END_HOOK_KEY, () => {});',
+                '  return { [Symbol.dispose]() { Reflect.deleteProperty(Symbol, PARSE_END_HOOK_KEY); }, };',
+                '}',
+                'function setHook() { Reflect.set(Symbol, PARSE_END_HOOK_KEY, () => {}); }',
+              ].join('\n',),
+            },
+            {
+              path: 'seam.test-fixture.ts',
+              isTest: true,
+              text: [
+                'export function withHook(run) {',
+                '  using held = hookSet();',
+                '  run();',
+                '}',
+                'export async function withHookLater(run) {',
+                '  using held = hookSet();',
+                '  await run();',
+                '}',
+                'function hookSet() {',
+                '  Reflect.set(Symbol, PARSE_END_HOOK_KEY, 1);',
+                '  return { [Symbol.dispose]: function putBack() { Reflect.deleteProperty(Symbol, PARSE_END_HOOK_KEY); }, };',
+                '}',
+              ].join('\n',),
+            },
+            {
+              path: 'beside.unit.test.ts',
+              isTest: true,
+              text: [
+                'import { withHook, withHookLater, } from \'./seam.test-fixture.ts\';',
+                'await describe({ name: \'beside\', children: [',
+                '  it({ name: \'sync\', fn: async () => { withHook(() => {}); }, },),',
+                '  it({ name: \'later\', fn: async () => { await withHookLater(async () => {}); }, },),',
+                '], },);',
+              ].join('\n',),
+            },
+          ],
+        },),).toEqual([
+          'hook.unit.test.ts: Reflect.deleteProperty, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Reflect.set, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Reflect.set, in a suite that runs cases beside it',
+          'hook.unit.test.ts: Symbol assigned, in a suite that runs cases beside it',
+          'seam.test-fixture.ts: Reflect.deleteProperty, in a suite that runs cases beside it',
+          'seam.test-fixture.ts: Reflect.set, in a suite that runs cases beside it',
         ],);
       },
     },),

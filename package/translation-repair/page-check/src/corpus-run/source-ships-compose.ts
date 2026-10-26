@@ -15,6 +15,8 @@ import type { PublishDefect, } from './publish-defects.ts';
 import { shippableReplacements, } from './shippable-replacements.ts';
 import { withoutSourceRecordAt, } from './source-ships.ts';
 import { runsUnfitForCompany, } from './source-ships-company.ts';
+import type { ReadingComparison, } from './source-reading-difference.ts';
+import { differenceDefectsOf, } from './source-ships-differences.ts';
 import {
   droppedRunSets,
   type GrammarReader,
@@ -195,6 +197,9 @@ export class SourcePageCompositionError extends Error {
 
  @param readGrammar - what the grammar says of a text, the strict MDX grammar the site compiles with by default
 
+ @param compareReadings - what compares the page of a run written as literal text with its source, the comparison of the
+ page check by default; a caller hands in another to reach the state of a page that parses and whose comparison fails
+
  @returns Page, the step that produced it and the defects to report; a page carrying no original is composed without
  reading it against the grammar at all
 
@@ -213,6 +218,7 @@ export function composeSourcePage(
     entryId,
     l,
     readGrammar = readPageGrammar,
+    compareReadings,
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -220,6 +226,7 @@ export function composeSourcePage(
     readonly entryId: string;
     readonly l: Logger;
     readonly readGrammar?: GrammarReader;
+    readonly compareReadings?: ReadingComparison;
   },
 ): ComposedPage {
   /**
@@ -407,7 +414,14 @@ export function composeSourcePage(
         ...candidate,
         step: attempt.step,
         slices: attempt.encoded,
-        defects: [],
+        defects: differenceDefectsOf({
+          runs,
+          encoded: attempt.encoded,
+          slices: readings,
+          entryId,
+          l,
+          ...((compareReadings === undefined) ? {} : { compareReadings, }),
+        },),
       };
     }
     last.pageText = candidate.pageText;
@@ -464,6 +478,16 @@ export function composeSourcePage(
             namedSlices({ indices: dropped, },)
           }, since the page did not parse with it as written or as literal text`,
         },
+        ...differenceDefectsOf({
+          runs,
+          encoded: failingAlone.filter(function stillOnPage(slice,): boolean {
+            return !dropped.includes(slice,);
+          },),
+          slices: readings,
+          entryId,
+          l,
+          ...((compareReadings === undefined) ? {} : { compareReadings, }),
+        },),
       ],
     };
   }

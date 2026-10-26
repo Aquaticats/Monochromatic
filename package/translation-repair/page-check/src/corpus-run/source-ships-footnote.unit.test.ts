@@ -22,12 +22,15 @@ import {
   continuesDefinition,
   footnoteBodyStart,
   footnoteStartInside,
+  hasFootnoteLabel,
+  isFootnoteLabel,
   isIndentedCode,
   isLazyDefinition,
   NO_FOOTNOTE_INSIDE,
   opensFootnote,
   rangeOf,
-  withoutIndentation,
+  withoutContainerAndIndentation,
+  withoutQuoteMarks,
 } from '../../dist/final/node/index.mjs';
 
 /**
@@ -67,9 +70,133 @@ function onlyBlock({ source, }: { readonly source: string; },): TreeNode {
   return block;
 }
 
+/**
+ Whether the only block of a text opens a footnote.
+
+ @param source - text
+
+ @returns Whether it does
+
+ @example
+ ```ts
+ const yes = opens({ source: '[^1]: {', },);
+ ```
+ */
+function opens({ source, }: { readonly source: string; },): boolean {
+  const node = onlyBlock({ source, },);
+  return opensFootnote({
+    source,
+    node,
+    range: rangeOf({ node, },),
+  },);
+}
+
+/**
+ Cases of the marks of a block quote a line gives up: what it is, the text, where the stretch starts, and the
+ characters kept.
+ */
+const MARK_CASES: readonly (readonly [string, string, number, string])[] = [
+  ['A MARK AND THE SPACE AFTER IT', '> a\n> b', 0, 'a\nb',],
+  ['A MARK WITH NO SPACE AFTER IT', '>a\n>b', 0, 'a\nb',],
+  ['A MARK AND THE TAB AFTER IT', '>\ta', 0, 'a',],
+  ['MARKS ONE AFTER THE OTHER, A NESTED QUOTE', '> > a\n>> b', 0, 'a\nb',],
+  ['UP TO THREE SPACES BEFORE A MARK', '   > a\n > b', 0, 'a\nb',],
+  ['NO MARK IN FOUR SPACES BEFORE A SIGN, the indentation of a line of a paragraph', '    > a', 0, '    > a',],
+  ['NO MARK ON A LINE WITH NONE, a lazy line of the quote', '> a\nb\n  c', 0, 'a\nb\n  c',],
+  ['NO MARK BEFORE THE FIRST LINE OF A STRETCH THAT STARTS INSIDE A LINE', '> a\n> b', 2, 'a\nb',],
+  ['THE MARK AND ONE SPACE ONLY, the extra spaces being indentation', '>    a', 0, '   a',],
+];
+
+/**
+ The most characters after the caret that the strict grammar reads in a label.
+ */
+const MOST_READ = 999;
+
+/**
+ Cases of a label as the strict grammar reads the label of a footnote definition (`micromark-extension-gfm-footnote@2.1.0`,
+ `lib/syntax.js:354-381`, `labelInside` and `labelEscape`): the label with its caret, and whether it is one.
+ */
+const LABEL_CASES: readonly (readonly [string, string, boolean])[] = [
+  ['A CARET AND ONE CHARACTER', '^1', true,],
+  ['A NAME OF LETTERS AND DIGITS', '^note2', true,],
+  ['NO CARET', 'note', false,],
+  ['A CARET AND NOTHING', '^', false,],
+  ['A SPACE IN THE NAME', '^a b', false,],
+  ['A TAB IN THE NAME', '^a\tb', false,],
+  ['A LINE FEED IN THE NAME', '^a\nb', false,],
+  ['A CARRIAGE RETURN IN THE NAME', '^a\rb', false,],
+  ['A NO-BREAK SPACE IN THE NAME, which is no white space to the strict grammar', '^a\u00A0b', true,],
+  ['AN OPENING BRACKET IN THE NAME', '^a[b', false,],
+  ['AN ESCAPED OPENING BRACKET IN THE NAME', String.raw`^a\[b`, true,],
+  ['AN ESCAPED BACKSLASH IN THE NAME', String.raw`^a\\b`, true,],
+  ['AN ESCAPED CLOSING BRACKET IN THE NAME', String.raw`^a\]b`, true,],
+  ['A BACKSLASH BEFORE AN ORDINARY CHARACTER', String.raw`^a\b`, true,],
+  ['A BACKSLASH LAST, which escapes the closing bracket', '^a\\', false,],
+  ['A BACKSLASH BEFORE A SPACE', String.raw`^a\ b`, false,],
+  ['A NAME OF 999 CHARACTERS, the most the strict grammar reads', `^${'a'.repeat(MOST_READ,)}`, true,],
+  ['A NAME OF 1000 CHARACTERS', `^${'a'.repeat(MOST_READ + 1,)}`, false,],
+  ['A NAME OF 999 CHARACTERS WITH AN ESCAPE, which counts two', `^${'a'.repeat(MOST_READ - 1,)}\\[`, false,],
+];
+
 await describe({
   name: 'source ships footnote',
   children: [
+    describe({
+      name: isFootnoteLabel.name,
+      children: LABEL_CASES.map(function labelCase([name, label, expected,],) {
+        return it({
+          name: `CALLS ${name} ${expected ? 'A' : 'NOT A'} FOOTNOTE LABEL`,
+          fn: async () => {
+            expect(isFootnoteLabel({ label, },),).toBe(expected,);
+          },
+        },);
+      },),
+    },),
+
+    describe({
+      name: hasFootnoteLabel.name,
+      children: [
+        it({
+          name: 'READS A LINK REFERENCE DEFINITION AS A FOOTNOTE DEFINITION BY ITS LABEL, an escaped bracket in it '
+            + 'included, and no other block',
+          fn: async () => {
+            /**
+             Whether the only block of a text is a definition with the label of a footnote.
+             */
+            function labelled({ source, }: { readonly source: string; },): boolean {
+              return hasFootnoteLabel({
+                source,
+                node: onlyBlock({ source, },),
+              },);
+            }
+            expect(labelled({ source: '[^1]: https://example.net/a', },),).toBe(true,);
+            expect(labelled({ source: String.raw`[^a\[b]: https://example.net/a`, },),).toBe(true,);
+            expect(labelled({ source: '[^a b]: https://example.net/a', },),).toBe(false,);
+            // The identifier of the parse is trimmed, so a space last in the label shows in the source only.
+            expect(labelled({ source: '[^a ]: https://example.net/a', },),).toBe(false,);
+            expect(labelled({ source: '  [^1]: https://example.net/a', },),).toBe(true,);
+            expect(labelled({ source: '[r]: https://example.net/a', },),).toBe(false,);
+            expect(labelled({ source: '[^1]: a b', },),).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'READS THE LABEL AS WRITTEN, not as the parse decodes it: a character reference for a space is no '
+            + 'space to the strict grammar, which reads the characters of the source',
+          fn: async () => {
+            /**
+             The definition node of a text and whether its label is a footnote's.
+             */
+            const source = '[^a&#32;b]: https://example.net/a';
+            expect(hasFootnoteLabel({
+              source,
+              node: onlyBlock({ source, },),
+            },),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+
     describe({
       name: footnoteBodyStart.name,
       children: [
@@ -109,21 +236,6 @@ await describe({
           name: 'READS A DEFINITION WITH A CARET LABEL, A PARAGRAPH AND A HEADING STARTING [^label]: AS THE FIRST LINE '
             + 'OF A FOOTNOTE, and no other block',
           fn: async () => {
-            /**
-             Whether the only block of a text opens a footnote.
-
-             @param source - text
-
-             @returns Whether it does
-             */
-            function opens({ source, }: { readonly source: string; },): boolean {
-              const node = onlyBlock({ source, },);
-              return opensFootnote({
-                source,
-                node,
-                range: rangeOf({ node, },),
-              },);
-            }
             expect(opens({ source: '[^1]: {', },),).toBe(true,);
             expect(opens({ source: '[^1]: x {\ny\n===\n', },),).toBe(true,);
             expect(opens({ source: '# [^1]: x {\n', },),).toBe(false,);
@@ -131,6 +243,15 @@ await describe({
             expect(opens({ source: '[r]: u', },),).toBe(false,);
             expect(opens({ source: '[^1] a', },),).toBe(false,);
             expect(opens({ source: '她说', },),).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'READS NO FOOTNOTE DEFINITION IN A PARAGRAPH WHOSE LABEL HOLDS A BRACKET OR IS LONGER THAN THE STRICT '
+            + 'GRAMMAR READS',
+          fn: async () => {
+            expect(opens({ source: `[^${'a'.repeat(MOST_READ + 1,)}]: {`, },),).toBe(false,);
+            expect(opens({ source: '[^a[b]]: {', },),).toBe(false,);
           },
         },),
       ],
@@ -173,6 +294,7 @@ await describe({
               if (previousEndLine === undefined)
                 throw new Error('the first block carries no position',);
               return isLazyDefinition({
+                source,
                 node: second,
                 footnoteOpen,
                 previousEndLine,
@@ -329,7 +451,7 @@ await describe({
     },),
 
     describe({
-      name: withoutIndentation.name,
+      name: withoutContainerAndIndentation.name,
       children: [
         it({
           name: 'KEEPS EACH LINE FROM BEHIND ITS INDENTATION OF UP TO FOUR SPACES OR ONE TAB, line endings included',
@@ -342,7 +464,8 @@ await describe({
              @returns Kept characters joined
              */
             function kept({ source, }: { readonly source: string; },): string {
-              return withoutIndentation({
+              return withoutContainerAndIndentation({
+                prefix: '',
                 source,
                 range: {
                   start: 0,
@@ -360,6 +483,28 @@ await describe({
           },
         },),
       ],
+    },),
+
+    describe({
+      name: withoutQuoteMarks.name,
+      children: MARK_CASES.map(function markCase([name, source, start, expected,],) {
+        return it({
+          name: `KEEPS EACH LINE FROM BEHIND ${name}`,
+          fn: async () => {
+            expect(withoutQuoteMarks({
+              source,
+              range: {
+                start,
+                end: source.length,
+              },
+            },)
+              .map(function characterAt(at,): string {
+                return source.charAt(at,);
+              },)
+              .join('',),).toBe(expected,);
+          },
+        },);
+      },),
     },),
   ],
 },);
