@@ -4882,6 +4882,38 @@ differs from the compositor job) and a GitHub-side change since 2026-10-23 (immu
 the fallback is publishing the already built and attested artifacts by hand with the owner's `gh` login, which is a
 deviation from the runbook and needs a decision. Scratch of the release work (`release-prep`, `nws-release-check`,
 `binstall-check`) is removed.
+UPDATE (same day, later). The redispatch (run 40247396160 on `9c94fe63f2`) failed in BOTH build legs, not at the
+release: `task-cli: missing task file: package/desktop-app/terminal/task.ts` at `task-run //package/desktop-app/terminal:image`
+(`package/dev-script/task-cli/src/load.ts:62`). Cause: commit `38cb13b4d1` of the other session ("eliminate mise from
+every workflow", 19:50 -0400) switched `ide-release.yml`'s build job from `mise run` to `task-run` and the shared
+`./.github/actions/task-cli-setup`, but at the tip of `main` (`5d0fe99296`) `package/desktop-app/terminal` and
+`package/desktop-app/ide` still hold only `mise.toml`, no `task.ts`. So an IDE release from `main` cannot build until that
+session lands the task files for those two packages (or changes the workflow). That is its in-flight work; this session
+does not edit it. My first real run (`5750e0b9c3`, pushed 19:36) predates that commit and built fine in all jobs.
+THE 403, narrowed by four throwaway probe runs (branch `probe-release-403`, workflow file with a `push` trigger on that
+branch because a new workflow file cannot be dispatched by name before it exists on the default branch; deleted after;
+only drafts and lightweight tags were created and removed; 0 probe tags, releases or drafts remain): (1) draft releases
+with every flag set of the IDE job (`--draft --prerelease --target SHA --notes-file`, assets, an IDE-like tag name) were
+created fine at the probe's own commit; (2) publishing two throwaway pre-releases with an asset and `--target` at the probe
+commit succeeded with `contents: write` alone and with `contents: write` plus `actions: read` (so the `actions: read`
+that every `cargo-publish.yml` release job carries is not the cause); (3) creating a draft named `ide-v0.1.2` or
+`ide-v0.1.3` with `--target 5750e0b9c3` failed with the same 403 as the real job, with or without 90 MB assets; (4)
+creating a lightweight tag through `POST /git/refs` failed with the same 403 at `5750e0b9c3`, `eb60defb1d`
+(compositor bump), `f5e1a3f44c` (IDE bump) and `09cd40b077` (the old tip before my push), and succeeded at
+`ec2dec4e0d` (the `ide-v0.1.1` commit), `9c94fe63f2` and the tip `5d0fe99296`. So the refusal is about the TARGET
+COMMIT, not the flags, name, assets or permission set: it hit the four commits of that push and its base, all authored
+19:32 to 19:36 -0400. Their `.github` trees differ from the tip's (`.github/actions/task-cli-setup/action.yml` and many
+workflow files), and so does `ec2dec4e0d`'s, which passes, so the content difference alone does not separate them. The
+compositor release succeeded at 23:40Z on `5750e0b9c3` and the same commit was refused at 23:56Z and later, so the
+refusal began after the compositor release: an immutable release tag on a commit may block further tag or release
+creation at that commit for the workflow token (not shown: `eb60defb1d`, `f5e1a3f44c` and `09cd40b077` carry no tag and
+were refused too). Root cause NOT found; no GitHub documentation was read for it. Practical consequence: a real IDE
+release must be dispatched from `main` at a NEW commit once the IDE build works again (the tip `5d0fe99296` accepted a
+tag in the probe); before the real dispatch run the same one-minute tag probe at the exact tip SHA.
+BLOCKER and what clears it: the IDE `task.ts` files of `package/desktop-app/terminal` and `package/desktop-app/ide`
+(other session). Then: dispatch `gh workflow run ide-release.yml --ref main --field dry-run=true` first (the workflow
+changed), read it, then the real run; both `ide-v0.1.2` bump commits are already on `main`, so `detect` sees a version
+whose tag does not exist and builds.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
