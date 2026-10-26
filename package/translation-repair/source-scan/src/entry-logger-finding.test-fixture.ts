@@ -256,16 +256,10 @@ function isWrapped(
     return false;
 
   /**
-   The expression the property holds: the call, or the outermost node that wraps it.
-   */
-  const held = (wrapping === 0) ? call : chain[wrapping - 1];
-
-  /**
-   The property that holds the expression, the object that holds the property and the call that holds the object.
+   The property that holds the call, the object that holds the property and the call that holds the object.
    */
   const [property, object, wrapper,] = chain.slice(wrapping,);
   return (property?.type === 'Property')
-    && (property.value === held)
     && (identifierName({ node: property.key, },) === 'l')
     && (object?.type === 'ObjectExpression')
     && (wrapper?.type === 'CallExpression')

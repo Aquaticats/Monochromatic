@@ -104,6 +104,9 @@ await describe({
           'const l = tagged({tag:entryId,},);\n',
           'const id = entry.id;\nconst l = tagged({ tag: id, },);\n',
           'const l = tagged({ tag: String(entry.id,), },);\n',
+          // Not wrapped: the call sits under another key of the wrapper's options, or inside another call.
+          'const l = sliceTagged({ other: tagged({ tag: entryId, },), },);\n',
+          'const l = sliceTagged({ l: decorate(tagged({ tag: entryId, },),), },);\n',
         ];
         expect(spellings.map(function found(text,): number {
           return unwrappedEntryLoggersIn({ file: planted({ text, },), },);
