@@ -51,7 +51,8 @@ impl Runner for Double {
     }
 }
 
-/// A disposable worktree: `root` with the published entry point in it.
+/// A disposable worktree:
+///  `root` with the published entry point in it.
 fn worktree(root: &Path) -> PathBuf {
     let script = root.join(ENTRY_POINT);
     fs::create_dir_all(script.parent().expect("parent")).expect("directory");

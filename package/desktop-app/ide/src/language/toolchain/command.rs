@@ -146,9 +146,10 @@ pub fn find_node_in(
 ) -> Option<PathBuf> {
     let share = match data_home {
         Some(data) if data.is_absolute() => Some(data.to_path_buf()),
-        _ => home
-            .filter(|found| return found.is_absolute())
-            .map(|found| return found.join(".local/share")),
+        _ => match home {
+            Some(found) if found.is_absolute() => Some(found.join(".local/share")),
+            _ => None,
+        },
     };
     if let Some(share_home) = share {
         let installed = share_home.join("monochromatic-dev/toolchain/bin/node");
