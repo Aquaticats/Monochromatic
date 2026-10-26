@@ -92,6 +92,57 @@ await describe({
     },),
 
     it({
+      name: 'READS AN ALTERNATIVE TEXT OF SEVERAL LINES AS THE IMAGE HAS IT, the marks of a block quote and the indentation of '
+        + 'a list item at the start of its lines among them',
+      fn: async () => {
+        expect(encodedReading({ source: '> ![a\n> b <https://example.net/a>](u.png) {\n', },),).toEqual({
+          written: '> ![a\n> b https://example.net/a](u.png) \\{\n',
+          kind: 'same',
+        },);
+        expect(encodedReading({ source: '- ![a\n  b <https://example.net/a>](u.png) {\n', },),).toEqual({
+          written: '- ![a\n  b https://example.net/a](u.png) \\{\n',
+          kind: 'same',
+        },);
+      },
+    },),
+
+    it({
+      name: 'READS A LAST LINE THAT IS AN UNDERLINE OR A BREAK ON ITS OWN AS THE TEXT IT IS, since a closing bracket follows it '
+        + 'in the image',
+      fn: async () => {
+        for (
+          const [source, written,] of [
+            ['![<https://example.net/a>\n===](u.png) {\n', '![https://example.net/a\n===](u.png) \\{\n',],
+            ['- ![<https://example.net/a>\n  ---](u.png) {\n', '- ![https://example.net/a\n  ---](u.png) \\{\n',],
+            ['![<https://example.net/a>\n***](u.png) {\n', '![https://example.net/a\n***](u.png) \\{\n',],
+          ] as const
+        )
+          expect(encodedReading({ source, },),).toEqual({
+            written,
+            kind: 'same',
+          },);
+      },
+    },),
+
+    it({
+      name: 'WRITES AN ANGLE AUTOLINK BESIDE A LINK IN THE ALTERNATIVE TEXT AS ITS ADDRESS, the link as it stands',
+      fn: async () => {
+        expect(encodedReading({ source: '![a [x](y) <https://example.net/a>](u.png) {\n', },),).toEqual({
+          written: '![a [x](y) https://example.net/a](u.png) \\{\n',
+          kind: 'same',
+        },);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE OLD WRITING FOR A LINE OF A BLOCK QUOTE WITHOUT ITS MARK THAT READS AS AN UNDERLINE ON ITS OWN, a limit',
+      fn: async () => {
+        expect(encodeAsLiteralMdx({ text: '> ![<https://example.net/a>\n===\nb](u.png) {\n', },),)
+          .toBe('> ![\\<https://example.net/a>\n===\nb](u.png) \\{\n',);
+      },
+    },),
+
+    it({
       name: 'COPIES A CODE SPAN IN THE ALTERNATIVE TEXT AS IT STANDS, whatever it holds, since a backslash in it would show',
       fn: async () => {
         expect(encodedReading({ source: '![`<https://example.net/a>`](u.png)', },),).toEqual({
