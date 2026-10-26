@@ -18,6 +18,7 @@ import {
   toolchainRootFromEnv,
   type PathEnv,
   type ToolchainPaths,
+  isMainModule,
 } from './paths.ts';
 import { toolInstallDir, } from './paths.ts';
 import { ALL_TOOLS, } from './plan.ts';
@@ -351,5 +352,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (process.argv[1] === import.meta.filename)
+if (isMainModule(import.meta.filename,))
   await main();

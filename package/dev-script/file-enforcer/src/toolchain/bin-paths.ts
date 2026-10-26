@@ -36,7 +36,9 @@ import {
   managerNativeBinDirs,
   resolveToolchainPaths,
   type ToolchainPaths,
+  isMainModule,
 } from './paths.ts';
+import type { ToolPlanEntry, } from './types.ts';
 
 //region Output shape
 
@@ -69,23 +71,31 @@ export function buildBinPathsOutput(
   {
     paths,
     env,
+    entries = ALL_TOOLS,
   }: {
     readonly paths: ToolchainPaths;
     readonly env?: NodeJS.ProcessEnv | undefined;
+    readonly entries?: readonly ToolPlanEntry[];
   },
 ): BinPathsOutput {
   /**
    Binary name to absolute exposure symlink path, built in plan order.
    */
   const bins: Record<string, string> = {};
-  for (const entry of ALL_TOOLS) {
+  /**
+   Declared binary names seen so far, so duplicates are caught whether or not
+   they are provisioned.
+   */
+  const declared = new Set<string>();
+  for (const entry of entries) {
     for (const name of entry.bins) {
-      if (Object.hasOwn(bins, name))
+      if (declared.has(name))
         throw new Error(
           `toolchain plan declares binary name ${
             JSON.stringify(name,)
           } more than once`,
         );
+      declared.add(name,);
       /**
        Absolute path of this binary's exposure symlink.
        */
@@ -155,5 +165,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (process.argv[1] === import.meta.filename)
+if (isMainModule(import.meta.filename,))
   await main();

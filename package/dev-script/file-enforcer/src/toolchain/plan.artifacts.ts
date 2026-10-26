@@ -8,6 +8,10 @@
  * macOS and Windows artifact rows stay absent until they are resolved.
  *
  * Regenerate by hand from a fresh `mise.lock` extract when resolutions change.
+ *
+ * `taplo`'s `mise.lock` row recorded a blake3 digest for `linux-x64`; the
+ * SHA-256 recorded here was computed from the same artifact bytes on
+ * 2026-10-26, so every row stays a SHA-256 the sync can check.
  */
 
 /** One downloadable artifact: its URL and the SHA-256 the lock records. */
@@ -174,7 +178,7 @@ export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
   'taplo': {
     'linux-arm64': { url: 'https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz', sha256: '033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3' },
     'linux-arm64-musl': { url: 'https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz', sha256: '033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3' },
-    'linux-x64': { url: 'https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz', sha256: 'blake3:4871fab0e60275a1eb46e7190726e144f56c9a9527f59b0d1da5a042baead8e2' },
+    'linux-x64': { url: 'https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz', sha256: '8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156' },
     'linux-x64-musl': { url: 'https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz', sha256: '8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156' },
   },
   'tombi': {

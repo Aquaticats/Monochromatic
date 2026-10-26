@@ -6,6 +6,7 @@
  that run it without the workspace's `node_modules`.
  */
 
+import { realpathSync, } from 'node:fs';
 import { homedir, } from 'node:os';
 import { isAbsolute, join, resolve, } from 'node:path';
 
@@ -273,6 +274,8 @@ export function managerNativeBinDirs(
     ? join(resolve(e.npm_config_prefix,), 'bin',)
     : undefined;
   return [
+    // The exposure directory leads, matching the documented bin-paths contract.
+    paths.exposureDir,
     paths.toolchainBinDir,
     cargoBin,
     uvToolBin,
@@ -310,3 +313,28 @@ export function assertAbsolute(
 }
 
 //endregion Assertions
+
+//region Entry point guard
+
+/**
+ Whether this module is the process entry point, comparing real paths so
+ symlinked home directories (`/home/user` versus the backing store) still
+ match.
+ 
+ @returns `true` when the process was started on this file
+ */
+export function isMainModule(moduleFilename: string,): boolean {
+  /**
+   Entry script path the process was started with.
+   */
+  const entry = process.argv[1];
+  if (entry === undefined)
+    return false;
+  try {
+    return realpathSync(entry,) === realpathSync(moduleFilename,);
+  } catch {
+    return false;
+  }
+}
+
+//endregion Entry point guard

@@ -23,7 +23,8 @@ import {
   renderMpmManagersToml,
   renderMpmPackagesToml,
 } from './mpm-manifest.ts';
-import { resolveToolchainPaths, } from './paths.ts';
+import { resolveToolchainPaths,   isMainModule,
+} from './paths.ts';
 import { ALL_TOOLS, } from './plan.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
@@ -163,5 +164,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (process.argv[1] === import.meta.filename)
+if (isMainModule(import.meta.filename,))
   await main();
