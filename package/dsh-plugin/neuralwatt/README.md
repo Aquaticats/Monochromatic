@@ -106,12 +106,22 @@ answering
 the diagnosis lives in
 [`neuralwatt-rejects-developer-role.md`](../../doc/troubleshooting/neuralwatt-rejects-developer-role.md).
 
-Declaring the `off` level is a behavior change for models whose server default
-is thinking on:
-`mimo-v2.6-pro` previously received no reasoning parameter
-when thinking was off and ran its server default at `high`,
-and now receives
-`reasoning_effort: "none"` explicitly.
+The level dict carries the `off` level only when the listing says the model
+thinks off by default (`default_enabled: false`).
+The dispatch seam cannot
+tell a default level apart from the off level:
+pi-ai sends the model's off
+wire whenever the caller names no effort,
+so an offered `off` level on a
+thinking-by-default model silently turned every untouched default into
+`reasoning_effort: "none"`.
+A thinking-by-default model therefore keeps the
+`off` level out of its dict,
+which makes naming no effort reach NeuralWatt as
+the parameter's absence and the model run its own default effort;
+the
+diagnosis lives in
+[`pi-ai-unset-reasoning-effort-dispatches-off.md`](../../doc/troubleshooting/pi-ai-unset-reasoning-effort-dispatches-off.md).
 
 ## Deliberately omitted scope
 
