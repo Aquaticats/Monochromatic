@@ -618,7 +618,17 @@ Each is the exact string the log carries.
     so it carries `at=` straight after the entry and no `attempt=`,
     and that absent field tells it from the `INCOMPLETE <id> at=<time> attempt=<n>:` line of an attempt.
     The lines the tagged logger writes carry the logger's own time,
-    and those inside an attempt name it as `[<entry>] [attempt <n>]`.
+    and those inside an attempt hold an `[attempt <n>]` bracket after the entry
+    (`[<entry>] [attempt <n>] ...`,
+    and `[<entry>] [runDocumentLanes] [repairPreparedDocument] [attempt <n>] ...`
+    for a lane's own lines,
+    where the function tags come first),
+    followed inside a slice by `[<lane> slice <i>]`,
+    with the lane `repair`,
+    `translate`,
+    `consolidation` or `contest`.
+    Search for the `[attempt <n>]` bracket and not for its place after the entry
+    (`package/translation-repair/doc/configuration.md` states the order).
 
 -   `CAP OVERRIDDEN`,
     only when `TRANSLATION_REPAIR_HARD_CAP_MINUTES` was set.

@@ -250,8 +250,8 @@ named for that subject and listed here.
   the coverage rounds over an untranslated tail,
   examined and kept (B811),
   and the pass's per-entry lines that carried no clock time and no attempt number (B960).
-- [Audit ledger: the pass's lifecycle line stamps, round 2](audit-ledger-lifecycle-line-stamps-round-two.md):
-  The findings of the re-check of B960:
+- [Audit ledger: the pass's lifecycle line stamps (B961 to B964)](audit-ledger-lifecycle-line-stamps-round-two.md):
+  The findings of the re-checks of B960:
   a hand-edited attempt count that ended the pass at every launch (B961),
   three tests that could not fail (B962),
   the pass's own lines and the logger's lines that carried no time or no attempt,

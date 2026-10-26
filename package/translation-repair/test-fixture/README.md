@@ -23,9 +23,14 @@ The groups that follow name the main ones.
   `capturing-logger.test-fixture.ts` gives `capturingLogger`,
   a logger that keeps every line.
   `entry-log-lines.test-fixture.ts` gives `entryLinesWritten`,
-  which collects the lines the default logger writes for one entry while work runs,
-  and `linesWithoutAttempt`,
-  which picks out those that do not name the attempt.
+  which collects the lines the default logger writes for one entry while work runs
+  (from `console.info`,
+  `console.warn`,
+  `console.error` and `console.trace`),
+  `linesWithoutAttempt`,
+  which picks out those that do not name the attempt,
+  and `linesRepeatingAttempt`,
+  which picks out those that name it more than once.
   `hang-stop.test-fixture.ts` gives `HANG_STOP_MS`,
   the one real-clock bound a test may set over scripted work.
   `wall-clock-stub.test-fixture.ts` gives `stubWallClock`.

@@ -553,15 +553,33 @@ The lines the tagged logger writes carry its own time (`[level] [time] ...`).
 Those it writes inside an entry's attempt (`ARCHIVE ORIGINAL`,
 `FOOTNOTES`,
 the lane lines and the `SPEND` lines among them) name the attempt in a bracket of its own after the entry,
-`[<entry>] [attempt <n>] [<lane> slice <i>]`,
-from the same number.
+`[attempt <n>]`,
+from the same number,
+and inside a slice a second bracket follows it at once,
+`[<lane> slice <i>]`,
+where the lane is `repair`,
+`translate`,
+`consolidation` or `contest` (a contest line reads `[contest slice <i>]`).
+The function tags the code adds sit among them in one of two places:
+before the pair where a lane tags the logger it was handed with its function and slice-tags that
+(`[<entry>] [runDocumentLanes] [repairPreparedDocument] [attempt <n>] [repair slice <i>]`),
+and after it everywhere else
+(`[<entry>] [attempt <n>] [repair slice <i>] [editor]`,
+`[<entry>] [attempt <n>] [contest slice <i>] [contestDocumentLanes]`),
+and a module's own root tag opens the line before the entry
+(`[translation-repair] [<entry>] [attempt <n>] ...`).
+A search that must find every line of an attempt anchors on the `[attempt <n>]` bracket
+and not on its place after the entry.
+`log-context.unit.test.ts` pins the orders.
 Every logger the pass builds for an entry is slice-tagged (`sliceTagged({ l: tagged({ tag: entry }) })`),
 so it reads the attempt,
 lane and slice from the log context at each line,
 and a line gets those tags once:
-a lane that slice-tags the logger an entry logger handed it does not repeat them.
-A source scan (`entry-logger-scan.unit.test.ts`) fails a plain `tagged({ tag: entryId })` or `tagged({ tag: entry.id })`
-in the family source.
+a lane that slice-tags the logger an entry logger handed it does not repeat them,
+and neither does one that slice-tags a logger built over a module's root logger.
+A source scan (`entry-logger-scan.unit.test.ts`) reads the syntax tree of the pass's source and fails a plain
+`tagged({ tag: ... })` whose tag names an entry in any spelling,
+as long as no `sliceTagged` wraps it.
 `the pass resumes` and the parked warning are logger lines of the pass,
 so they carry the logger's time and no attempt.
 

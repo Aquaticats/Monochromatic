@@ -1,4 +1,9 @@
-# Audit ledger: the pass's lifecycle line stamps, round 2
+# Audit ledger: the pass's lifecycle line stamps (B961 to B964)
+
+The file keeps the name it was created under,
+`audit-ledger-lifecycle-line-stamps-round-two.md`,
+since the record of B960 and the indexes cite it by that name;
+it holds the entries B961 to B964 whatever the round that last touched them.
 
 Round 2 of the work recorded in
 [runner reports and probes](audit-ledger-runner-reports-and-probes.md) at B960,
@@ -22,6 +27,20 @@ the residue of B961 (the largest safe integer as a count),
 the nits of B962,
 and two findings of B963 (the logger's lines that read no context,
 and the window the cap census searches for `START`).
+
+Round 4 answered the third independent re-check,
+which found no major finding either.
+Its minor finding and its nits extend the same entries and take no new id:
+the message of the attempt-count refusal and the unpinned range text (B961),
+two slips of round 3's commits (B962),
+and,
+in B963,
+the logs the cap census counted as pass runs,
+its unbounded line,
+the order of the tags on a line,
+the spellings the entry-logger scan missed,
+the guards that read too little,
+and the logger root that a lane could wrap.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -90,6 +109,33 @@ the cases expect `counts Mittens as "5",` beside `counts Mittens as 1.5,`,
 and G4 fails the case by assertion,
 which passes unmutated.
 
+Round 4 (re-check 3,
+nits 1 and 5):
+`AttemptCountError` is thrown in the queue's `attempt` callback,
+between two entries and outside any `try`,
+so the pass ends and the only catch is `reportingRefusals`,
+which printed the message under "a fault in the command".
+The message named the entry and the count and nothing else.
+It now names the entry,
+the file and the count,
+says the pass ends before the entry runs,
+says the next launch reads the count as 0 beside a warning naming the entry and the file
+(so the entry sorts first and its attempts are counted again from 1),
+and says the operator can launch again or set the count to a whole number smaller than 9007199254740991 first.
+`countAttempt` takes the attempts path for it and the queue hands it the path it persists to.
+Fixed on 2026-10-25 (UTC) in `c15e8b73ac` (glossary and corpus-pass),
+with its case committed red first in `555f01970e` (it fails by assertion on the first piece of the message).
+A case through `runPassQueue` expects the rejection to name the file the queue was handed.
+The error stays without the `messageNamesOnly` marker for the reason round 3 gave,
+so the label "a fault in the command" stays;
+the message is what a person reads.
+The range text of the warning ("no whole number from 0 to 9007199254740990") is pinned in `d4b5ae50ae`
+(test only):
+mutant G4 of re-check 3,
+which named `MAX_SAFE_INTEGER` as the end of the range,
+fails the case by assertion with glossary rebuilt from it,
+and the case passes unmutated and again once the source is restored.
+
 Cache versions:
 none moved (B963 holds the search).
 
@@ -153,6 +199,10 @@ refuses (the fix commit rewrote it),
 and `80ed32c810` of round 3 is typed `style` while it replaces a module-level flag and a `try ... finally` with an
 `AsyncLocalStorage`,
 a change of mechanism that its body names but its type does not.
+Two more slips of round 3's commits,
+recorded by re-check 3 and not amendable:
+the subject of `7257b0ffb4` is exactly 100 columns where the rule is under 100,
+and the body of `0c5f71edbf` quotes the phrase that the position-reference scan had flagged in a source comment.
 The raised count of 12 in `real-clock-bounds.unit.test.ts`,
 the dropped allow-list entry of `pass-entry-persist.ts`
 and the `attemptText` line of `blank-text-tests.unit.test.ts` are scan bookkeeping,
@@ -205,6 +255,9 @@ The re-check read the census again and judged each:
   The tag is a bracket of its own after the entry:
   the two readers that split a logged line on `] [` read the level and the time,
   which stay first and second.
+  The order `[entry] [attempt n] [lane slice i]` is the order the context writes its three tags in;
+  the printed order of a line also holds the function tags the code adds,
+  and round 4 records it in its paragraph of this entry on the order of the tags.
   A candidate-ledger round records the same context,
   so its `context` gains the field,
   which no reader of that record parses.
@@ -274,7 +327,8 @@ The red commit `644b50b094` fails on its parent by assertion on the doubled brac
   `pass-reseat.unit.test.ts` (`lanesHooksFor`,
   `translateReseatFor`) do the same for the loggers they build,
   and the decline case in `pass-decline.unit.test.ts` for `ARCHIVE ORIGINAL`.
-  `entry-log-lines.test-fixture.ts` collects the lines from `console.info` and `console.warn`,
+  `entry-log-lines.test-fixture.ts` collects the lines from `console.info` and `console.warn`
+  (round 4 added `console.error` and `console.trace`),
   one line each,
   since the logger hands a run of lines of one level to the console as one call.
 - The scan,
@@ -283,7 +337,9 @@ The red commit `644b50b094` fails on its parent by assertion on the doubled brac
   that no `sliceTagged` wraps,
   modelled on the log root scan.
   It found sixteen on the parent and none now.
-  It reads two spellings of the tag and not a template literal.
+  It read two spellings of the tag and not a template literal;
+  round 4 replaced the text match with a reading of the syntax tree,
+  recorded in its paragraph of this entry on the scan.
   It covers the one logger the cases cannot reach,
   the debug line of `pass-lanes.ts`,
   which the logger writes to stderr.
@@ -318,6 +374,10 @@ The red commit `644b50b094` fails on its parent by assertion on the doubled brac
 - Not covered by a case:
   the `contextRoot` logger neither sets nor reads the once-per-line mark,
   and nothing wraps a `contextRoot` logger in `sliceTagged` today.
+  The second half of this bullet was wrong:
+  `repairPreparedDocument` wraps one when its caller omits `parentLogger`,
+  and round 4 fixes the doubled bracket that composition printed
+  (round 4's paragraph of this entry on the root logger).
 
 Round 3 (re-check 2,
 minor 3):
@@ -340,6 +400,197 @@ which the old split on line feeds did not;
 a log with `START tip=` right after a lone carriage return would now count.
 The lint fix is `7176ec3e25`.
 
+Round 4 (re-check 3,
+minor 1):
+the head of 2000 lines counted test-suite logs as pass runs.
+A test suite runs fixture passes in its own process and prints their `START` lines into its log,
+at line 267 to 1900 of it,
+so once the head grew the marker alone made 515 of them pass runs and the report's tally of pass-run logs moved by 47 percent.
+Measured over every `.log` under the agent root (124,509 files,
+the first 8 MiB of each),
+the old head of 4096 bytes accepted 450 logs,
+37 of them holding test runner `[PASS]` lines,
+and the head of 2000 lines accepted 1104,
+552 of them holding `[PASS]` lines.
+Every one of those 552 carries `START tip=` with forty `f` digits,
+`files=1` and one pipeline digest:
+the `START` line of a fixture pass.
+107 more are the re-check's own probe logs,
+with forty `a` digits,
+and the other 445 carry a varied commit id and hold no `[PASS]` line
+(308 of them the old head accepted and 137 it did not,
+since a mise run prints about 254 build lines before `START`).
+So the reader counts the first line that opens `START tip=` only when the field after it is a commit id a repository could give:
+forty lowercase hexadecimal digits that are not one digit repeated.
+Over the same 1104 logs the built reader refuses the 552 suite logs and the 107 probe logs and reads the 445.
+The 37 suite logs the old head accepted are refused too.
+Fixed on 2026-10-25 (UTC) in `65f93a3e60` (run),
+with its cases committed red first in `8b7fa4e445`:
+a real pass behind 254 build lines (read on both sides,
+a control),
+a suite log whose `START` line is the fixture's,
+commit ids that are no commit id,
+and the report case that leaves such a log out of the pass-run count.
+The three suite-shaped cases fail on the parent by assertion.
+The limit is recorded in the TSDoc:
+a fixture that printed the repository's own head,
+or invented a varied forty-digit id,
+would pass the test.
+The cases that wrote `tip=tabby` now carry a real-shaped id.
+
+Round 4 (re-check 3,
+nit 7):
+the reader held each line whole,
+so a log with no line break was read entire:
+18 of the 2412 logs over 1 MiB under the agent root have none in their first MiB
+(three are 13.4 MB browser store files),
+and the built reader answered `not-a-pass-run` on one in 91 ms with 42 MiB of resident memory.
+The head is now read in blocks of 65536 bytes,
+one byte to a character since only ASCII is looked for,
+and a line longer than 65536 bytes ends the search with the log counted as no pass run.
+The longest line up to and including `START` among the 445 real pass logs is 378 bytes,
+so the bound is about 170 times it,
+and it is a choice.
+The same log answers in 8 ms with 2 MiB.
+Fixed in `80d45b389b` (run),
+with its cases committed red first in `e48f8ac881`:
+a log of one 13-megabyte line that opens with a `START` line,
+and a `START` line of exactly 65536 bytes (read) and one of 65537 (not a pass run).
+A lone carriage return still ends a line,
+and a carriage return and line feed split between two blocks count one empty line more,
+which moves the head of 2000 lines by that line.
+A case pins a `START` line whose marker is cut by the end of a block;
+it passes on the parent too.
+
+Round 4 (re-check 3,
+nit 2):
+the order of the tags on a line.
+The docs said the lines of an attempt read `[<entry>] [attempt <n>] [<lane> slice <i>]`,
+"a bracket of its own after the entry".
+That is the order the context writes its three tags in,
+and the printed line holds the function tags the code adds among them.
+Over the re-check's capture of eight settled entries,
+four shapes cover the lines:
+a module root logger writes `[<module>] [<entry>] [attempt <n>] [<lane> slice <i>]` and then its function tags;
+an entry logger,
+and a stage logger tagged over it,
+write `[<entry>] [attempt <n>] [<lane> slice <i>]` and then the function tags
+(`[Tabby] [attempt 2] [repair slice 3] [editor] stretches` in `log-context.unit.test.ts`);
+a lane that tags the logger it was handed with its function and slice-tags that writes the function tags first
+(`[Tabby] [runDocumentLanes] [repairPreparedDocument] [attempt 2] [repair slice 0] SLICE-START ...`,
+pinned in the same file);
+and the contest writes `[Tabby] [attempt 2] [contest slice 0] [contestDocumentLanes] [slice 0] [contestLaneSlice] ...`,
+where `contest` is the lane name,
+so `[contest slice 0]` is the lane-slice bracket and the later `[slice 0]` is a tag the contest code writes itself.
+The lanes are `repair`,
+`translate`,
+`consolidation` and `contest`.
+On every line the attempt bracket comes after the entry and names the attempt once,
+and the lane-slice bracket,
+where the line is inside a slice,
+follows it at once;
+only the function tags move.
+A recipe that must find every line of an attempt anchors on the `[attempt <n>]` bracket and never on its place after the entry.
+`configuration.md` and the pass runbook now say so.
+
+Round 4 (re-check 3,
+nit 3):
+the scan of the entry loggers.
+Re-check 3 planted one plain logger at a time in the pass's source:
+`tagged({ tag: entryId, })` was found,
+and a template literal,
+an aliased import of `tagged`,
+another key order,
+`pair.id`,
+a const alias of `tagged` and tight spacing were not.
+The text match also turned off without a failure when a formatter changed the spacing.
+The scan now parses each file of `corpus-pass` and `slice-cache` and finds every call of `tagged`,
+under whatever name the file binds it,
+whose `tag` names an entry
+(the identifier `entryId`,
+or a read of a member called `id` or `entryId`,
+followed through the file's const names)
+and which is not the `l` of a call of `sliceTagged`,
+under its own name or an alias,
+with any parenthesis or assertion between them.
+The finding lives in `entry-logger-finding.test-fixture.ts`.
+The six spellings are planted as fixtures,
+with two more (a const set to `entry.id` and a call inside `String`),
+and each is found;
+the controls that must stay quiet are the wrapped forms and a string,
+a function name and a slice index as the tag.
+Run over the source of `644b50b094`,
+before the entry loggers were wrapped,
+the finding totals 16 with the per-file counts of the first scan,
+and over the head it totals 0.
+Fixed in `0c3b3ae14c` (source-scan),
+with its cases committed red first in `f15d1f374a` (the planted spellings are found by none of them on the parent),
+and the bookkeeping the scans asked for in `a23e9fba91`.
+What it still cannot see:
+a tag built from the entry by a name it does not know,
+and a function that receives an `l: Logger` and never calls `tagged`,
+which only the behavioural cases of the whole run,
+the seams and the hooks reach.
+
+Round 4 (re-check 3,
+nit 4):
+the guards were thinner than their names.
+`entryLinesWritten` stubbed `console.info` and `console.warn` only,
+so mutant F1 (the fixture ignores `console.warn`) left every case green and an error or fatal line was never read.
+It now stubs `console.info`,
+`console.warn`,
+`console.error` and `console.trace`
+(a fatal line goes out as an error;
+debug lines go to the process's stderr and only a verbose run lets them through,
+and trace and debug are filtered by the default level,
+so no case can read them).
+Fixed in `6be915cc48` (test-fixture),
+with its own test file committed red first in `6e874eeff7`:
+it writes a line at each level a run prints by default and fails on a copy of the parent's fixture by assertion
+(the error and fatal lines are missing),
+and fails for F1 with the fixture restored afterwards.
+The whole-run case settled the front-matter entry.
+Re-check 3 probed that entry with its own scripted client and counted 24 bracketed lines and no model call;
+the case itself,
+measured in round 4,
+served 22 model calls and captured 52 lines,
+3 of them lane lines (`SLICE-START`) and none a contest or consolidation line.
+The body of `504ab3cd7c` repeats the re-check's figures and not these,
+and cannot be amended;
+this entry replaces them.
+The case now settles `ENTRY` through the file's scripted client and asserts that models were asked and that the
+captured lines include a lane line (`SLICE-START`) and a contest line (`[contest slice `);
+`504ab3cd7c` changes the test only,
+and mutant S7 (`settleEntry`'s entry logger left plain,
+corpus-pass rebuilt from it) fails it by assertion on the missing contest line.
+
+Round 4 (re-check 3,
+nit 6):
+the root logger that a lane could wrap.
+`repairPreparedDocument` defaults its parent logger to a `contextRoot` logger and builds its own as
+`sliceTagged(tagged({ l: parentLogger }))`,
+so a caller that omits the parent logger got
+`[translation-repair-pipeline] [Tabby] [attempt 2] [repair slice 3] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads`.
+The only caller that omits it is `repairTranslation` (`repair/src/repair-entry.ts`),
+which has no production caller,
+so the double print was latent and older than round 3;
+the pass hands the lanes its entry logger.
+`contextRoot` is now `sliceTagged` over a logger that writes the entry alone:
+called first it writes the entry,
+attempt and lane slice as before;
+beneath a slice-tagged logger it writes the entry and leaves the brackets to the logger called first,
+so the composition prints `[translation-repair-pipeline] [Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads`.
+Fixed in `d3a116fb39` (typography),
+with its case committed red first in `eef95c313b`
+(the lane line holds the attempt twice on the parent,
+so no line has the expected shape);
+the case also pins the root's own order for a stage logger tagged over it.
+Typography is bundled into the provider,
+house-rule,
+repair,
+provider-stream and corpus-pass builds,
+which were rebuilt and run (the gates are in the round's report).
+
 Cache versions:
 none moved.
 `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 5c40a5fcb9..HEAD` printed nothing,
@@ -350,6 +601,14 @@ Round 3 changed no cache version either:
 the same search over `a60375aeb9..HEAD` and over `5c40a5fcb9..HEAD` printed nothing,
 and the control printed `c265e8df95` again.
 The logger's tags are no part of any cache key or of the pipeline digest's inputs but the built bytes.
+Round 4 changed no cache version either:
+the same search over `efdf70f61f..HEAD` and over `5c40a5fcb9..HEAD` printed nothing,
+and the control printed `c265e8df95` once more.
+The cap census,
+the attempt-count message,
+the scan and the fixtures touch no prompt,
+model call or cached step input,
+and the root logger's change moves a log line only.
 
 ## B964: docs that claimed what the code did not
 

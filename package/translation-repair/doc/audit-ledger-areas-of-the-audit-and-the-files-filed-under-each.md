@@ -212,7 +212,7 @@ Filed in:
 - [Audit ledger: output decided by arrival order](audit-ledger-output-decided-by-arrival-order.md)
 - [Audit ledger: credentials masked at the transport](audit-ledger-credentials-masked-at-the-transport.md)
 - [Audit ledger: runner reports and probes](audit-ledger-runner-reports-and-probes.md)
-- [Audit ledger: the pass's lifecycle line stamps, round 2](audit-ledger-lifecycle-line-stamps-round-two.md)
+- [Audit ledger: the pass's lifecycle line stamps (B961 to B964)](audit-ledger-lifecycle-line-stamps-round-two.md)
 - [Audit ledger: the environment handed to child processes](audit-ledger-child-process-environment.md)
 - [Audit ledger: failures under a caller's stop](audit-ledger-failures-under-a-callers-stop.md)
 - [Audit ledger: work merged from parallel briefs](audit-ledger-work-merged-from-parallel-briefs.md)
