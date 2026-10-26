@@ -28,7 +28,7 @@ await describe({
   children: [
     it({
       name: 'READS THE LINES THE LOGGER WRITES AT EVERY LEVEL A RUN PRINTS BY DEFAULT: info, warn, error and a fatal '
-        + 'line, which goes out as an error (trace and debug lines are below the default level and are not written)',
+        + 'line, which goes out as an error (trace and debug lines are filtered out by the default level and are not written)',
       fn: async (ctx) => {
         /**
          Logger tagged with the entry, as an entry's loggers are.
