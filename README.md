@@ -155,7 +155,7 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 Install [Mise][mise-home] as the task runner and a system Node,
 which executes the toolchain sync entry.
 Mise runs tasks only;
-every tool version this repository pins (Node,
+every tool this repository runs (Node,
 pnpm,
 dprint,
 Rust nightly,
@@ -186,7 +186,7 @@ See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
 Provision the toolchain,
-converging every tool to the versions `toolchain.lock.json` pins:
+converging every tool to the versions `toolchain.lock.json` records:
 
 ```sh
 mise run toolchain:sync
@@ -195,8 +195,8 @@ mise run toolchain:sync
 The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
 and `node package/dev-script/file-enforcer/src/toolchain/sync.ts`
 runs the same work without the task wrapper.
-The sync entry installs [mpm][mpm-home] itself first (a pinned standalone
-release binary,
+The sync entry installs [mpm][mpm-home] itself first (a standalone
+release binary recorded in `toolchain.lock.json`,
 SHA-256 checked),
 then the remaining tools,
 and rebuilds the gitignored `.cache/toolchain-bin` directory that the
@@ -224,6 +224,11 @@ mise run prepareAndBuild
   `pathDirs`,
   `bins`),
   which is what IDE integrations read.
+
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what the sync installs
+(the `mise install` against `mise.lock` semantics),
+so the explicit pins still install exactly.
 
 Version bumps change the typed tool plan in
 `package/dev-script/file-enforcer/src/toolchain/` and the generated
@@ -343,9 +348,12 @@ package-deprecated/         Deprecated packages retained for reference
   upgrade coordination,
   release-age cooldown,
   and SBOM export,
-  plus file-enforcer's typed tool plan and focused providers for exact-pin
-  installs,
-  all pinned in `toolchain.lock.json`
+  plus file-enforcer's typed tool plan and the confirmed per-family install
+  routes (`bin`,
+  `cargo-binstall`,
+  `rustup`,
+  `sdkmanager`),
+  with versions fixed in `toolchain.lock.json`
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
   Bun stays installed only for explicit Bun islands,
