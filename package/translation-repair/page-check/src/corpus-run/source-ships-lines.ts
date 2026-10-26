@@ -1,4 +1,5 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { readsAsDisplayMath, } from './source-ships-display-math.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
 import { hasFootnoteLabel, } from './source-ships-footnote.ts';
 import {
@@ -275,6 +276,12 @@ export function lineJoinsOf(
     readonly footnoteStarts?: readonly number[];
   },
 ): readonly TextEdit[] {
+  // INDENTED DISPLAY MATH after a line of a paragraph is display math to the strict grammar, and is copied as it stands.
+  if ((node.type === 'inlineMath') && readsAsDisplayMath({
+    source,
+    range,
+  },))
+    return [];
   if (SPAN_TYPES.has(node.type,)) {
     return [
       ...joinBeforeFenceMark({
