@@ -164,6 +164,10 @@ Bun for explicit Bun islands,
 and the rest) is provisioned from `toolchain.lock.json` by the repository
 toolchain,
 recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
+The `bin`-sourced tools resolve their releases through the GitHub API,
+so the sync reads `GITHUB_TOKEN` from the environment or the machine's
+`gh` login;
+an unauthenticated machine can exhaust the API quota mid-sync.
 
 ### Clone and bootstrap
 

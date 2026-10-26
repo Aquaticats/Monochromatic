@@ -143,6 +143,37 @@ Workaround:
  the exposure directory is also rebuilt during a sync,
  so tasks racing a running sync can see the same window.
 
+### `mpm` warns "Unrecognized Linux distribution" on Bazzite
+
+Surface:
+ any `mpm` invocation on Bazzite
+ (a Fedora Kinoite derivative,
+ `/etc/os-release` reports `NAME="Bazzite"`,
+ observed 2026-10-26 with mpm 8.2.0).
+
+Emitting tool and message:
+ `mpm`,
+ printed before the command output while still exiting 0:
+
+```text
+Unrecognized Linux distribution: Environment:
+  sys.platform:          'linux'
+```
+
+Workaround:
+ none is required;
+ the toolchain's routes never rely on `mpm`'s platform-manager adapters,
+ and `mpm installed`,
+ `mpm outdated`,
+ `mpm sbom`,
+ and `mpm restore` all work.
+ Tradeoff:
+ `mpm`'s brew,
+ dnf,
+ and similar system adapters stay unavailable on unrecognized derivatives,
+ so a future route that needs one must extend `mpm`'s platform map or
+ call the manager directly.
+
 ## Rollback path
 
 The adoption decision requires the rollback path to be recorded here
