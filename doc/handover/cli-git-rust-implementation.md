@@ -2330,6 +2330,13 @@ that is verification, not a decision for the user.
   `~/temp/agent/podman-ci-cmake.ts`), record the result, and make NO further edits to `.github/workflows` (another
   session is removing mise from CI; the pin stays until that lands and is expected to disappear with it). The result
   still matters for the host's own mise 2026.10.19, whose upgrades print the same cmake error.
+  CMAKE BACKEND TEST RESULT (`~/temp/agent/podman-ci-cmake/`): `mise backends switch cmake` changed `mise.lock`
+  (`vfox:cmake` to `aqua:Kitware/CMake`, new checksummed GitHub URLs) and both switched attempts still failed under
+  mise 2026.10.19, now on `failed to resolve conda:bubblewrap for macos-arm64: failed to solve bubblewrap for
+  macos-arm64`. So the switch does NOT fix it; it moves the failure to another tool, which points at the all-platform
+  lock resolution in 2026.10.19 in general. The two control arms were killed by the harness limit (240 s) mid-lock and
+  are inconclusive. The only verified workaround remains the 2026.10.17 pin. No repo or host change was made for the
+  backend switch. The "locked to vfox" clue recorded above is therefore not the cause.
   Triage 2026-10-20 later: 1338 closed (both oxlint gates zero, end-to-end checks passed); 480 closed (no repro on
   the native wrapper: annotated, lightweight and scoped tag pushes from a linked worktree exit 0); 629 closed (the
   Rust helpers `executable` (new `fixture_executable.rs`, `#[path]`-included by `test_support.rs` and
