@@ -340,6 +340,10 @@ const tasks: Record<string, TaskDefinition> = {
     description: 'Print observed versus locked tool versions and exit non-zero on drift',
     run: 'node package/dev-script/file-enforcer/src/toolchain/status.ts',
   },
+  'toolchain:update': {
+    description: 'Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing',
+    run: 'node package/dev-script/file-enforcer/src/toolchain/update.ts',
+  },
   'bootstrap': {
     description: 'Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
     run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:sync')", },

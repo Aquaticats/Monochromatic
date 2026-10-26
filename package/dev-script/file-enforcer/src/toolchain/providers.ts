@@ -101,7 +101,7 @@ let githubToken: string | null | undefined;
  
  @returns Token string, or null when none is available
  */
-async function resolveGithubToken(
+export async function resolveGithubToken(
   {
     env,
   }: {
