@@ -6,13 +6,13 @@ import {
 } from './claude-schema-resolve.test-fixture.ts';
 
 //region What the files of the sources refer to
-// What `claude-schema-sources.test-fixture.ts` asks to tell which files use a function: for each file, the functions its
-// references stand for, and, for a function, the files other than its own and the producer list that refer to it.
+// What `claude-schema-sources.test-fixture.ts` asks to tell which files use a function: for each file, the functions
+// its references stand for, and, for a function, the files other than its own and the producer list that refer to it.
 
 /**
  The functions a file refers to, and the names it refers to without declaring or importing them.
  */
-type Usage = {
+export type Usage = {
   /**
    Path of the file.
    */
@@ -53,16 +53,22 @@ const PRODUCER_LIST_FILE = 'corpus-pass/src/claude-schema-producers.ts';
 /**
  The bindings and exports already followed when a walk starts.
  */
-export const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
+const NOTHING_FOLLOWED: ReadonlySet<string> = new Set<string>();
+
+/**
+ The key of a function: the path of the file that declares it, a hash mark and its name. A bare name is no key, and the
+ type tells the two apart, so a place that must hold a key cannot be given a name that no module declares.
+ */
+export type FunctionKey = `${string}#${string}`;
 
 /**
  Where a function sits, as one text.
 
  @param file - path of the file that declares the function
 
- @param name - the function's name
+ @param name - function's name
 
- @returns The key of the function
+ @returns Key of the function
 
  @example
  ```ts
@@ -75,18 +81,80 @@ export function keyOf({
 }: {
   readonly file: string;
   readonly name: string
-},): string {
+},): FunctionKey {
   return `${file}#${name}`;
+}
+
+/**
+ The functions a search has found so far, by where each sits and by name.
+ */
+export type KnownFunctions = {
+  /**
+   Keys of the functions, by the module that declares them.
+   */
+  readonly keys: ReadonlySet<string>;
+
+  /**
+   Names of the functions, which a name a file neither declares nor imports is read as.
+   */
+  readonly names: ReadonlySet<string>;
+};
+
+/**
+ Whether a chain of names written in a file stands for one of the known functions: the function the chain resolves to,
+ or, for a name the file neither declares nor imports, the function of that name.
+
+ @param family - modules of the sources
+
+ @param file - path of the file that writes the chain
+
+ @param path - names in order
+
+ @param known - functions looked for
+
+ @returns Whether the chain stands for one of them
+
+ @example
+ ```ts
+ const calls = standsForKnown({ family, file, path: ['contestResponseFormat',], known, },);
+ ```
+ */
+export function standsForKnown(
+  {
+    family,
+    file,
+    path,
+    known,
+  }: {
+    readonly family: Family;
+    readonly file: string;
+    readonly path: readonly string[];
+    readonly known: KnownFunctions;
+  },
+): boolean {
+  /**
+   What the chain stands for in the file that writes it.
+   */
+  const callee = resolvePath({
+    family,
+    file,
+    path,
+    seen: NOTHING_FOLLOWED,
+  },);
+  return (callee.kind === 'function') ? known.keys
+    .has(keyOf(callee,),) : (callee.kind === 'free')
+      && known.names
+        .has(callee.name,);
 }
 
 /**
  What a file's references stand for, once.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
- @param facts - the file
+ @param facts - file
 
- @returns The functions and the free names
+ @returns Functions and the free names
 
  @example
  ```ts
@@ -139,7 +207,7 @@ function usageOf({
 
  @param usage - what the file's references stand for
 
- @param builder - the function, with the file that declares it
+ @param builder - function, with the file that declares it
 
  @returns Whether the file refers to it
 
@@ -200,9 +268,9 @@ export function usersIn(
 /**
  What the references of every file stand for.
 
- @param family - the modules of the sources
+ @param family - modules of the sources
 
- @returns The usage of each file, in the order of the sources
+ @returns Usage of each file, in the order of the sources
 
  @example
  ```ts

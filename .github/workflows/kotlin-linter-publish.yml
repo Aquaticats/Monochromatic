@@ -15,11 +15,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Same reason as npm-release.yml: the root mise config would otherwise try to
-  # build every heavy dev tool on the runner.
-  MISE_AUTO_INSTALL: 'false'
-
 concurrency:
   group: kotlin-linter-publish
   cancel-in-progress: false
@@ -105,24 +100,22 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Set up mise
-      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+    - name: Set up Java and the task CLI
+      uses: ./.github/actions/task-cli-setup
       with:
-        # Resolve "latest" through the GitHub releases API, published releases only,
-        # one day old like pnpm's minimumReleaseAge. Without it the action installs
-        # whatever mise.jdx.dev/VERSION names, which runs ahead of the GitHub release
-        # (2025.8.19, 2026.9.3): doc/troubleshooting/mise-action-version-ahead-of-release.md
-        minimum_release_age: 1d
-        install: false
-
-    - name: Install Java
-      run: mise install java
+        node-version: '26.12.0'
+        install-dependencies: 'false'
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
 
     - name: Build and resolve signed Central bundle
       env:
         ORG_GRADLE_PROJECT_signingKey: ${{ secrets.MAVEN_SIGNING_KEY }}
         ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-      run: mise run //package/linter/kotlin:verify:publication
+      run: task-run //package/linter/kotlin:verify:publication
 
     - name: Validate Central bundle
       shell: node {0}

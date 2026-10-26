@@ -435,6 +435,12 @@ which lists every file of this record.
 - [B861, the producer-list search and the shapes it read](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
 - [B862, the producer-list search and the readings no case held][l22]
 - [B863, the producer-list search read as a syntax tree](audit-ledger-guard-demonstration-survivors-and-their-pins.md)
+- [B864, the producer-list search and the check over the real sources for the shapes it leaves unread][l22]
+- [B865, the check over the real sources as a whitelist at the module-load boundary][b865-ledger]
+- [B866, the mutant G-C07a called equivalent by an argument][b865-ledger]
+- [B867, a builder's result that goes where nothing answers for it: a third total][b865-ledger]
+- [B868, code the search cannot read and specifiers the check cannot resolve][b868-ledger]
+- [B869, four surviving mutants and the cases the new code called for][b868-ledger]
 - [B870 to B893, probes that read one editor card](audit-ledger-editor-card-probes.md)
 - [B894 to B899, the editor bench's paired rule and trials](audit-ledger-editor-bench-paired-rule-and-trials.md)
 - [B899 follow-ups of rounds 8 and 9, multi-pass arms and the repeat agreement][l26]
@@ -449,6 +455,7 @@ which lists every file of this record.
 - [B927 to B932, the weight floors removed, round 6](audit-ledger-weight-floors-removed-round-six.md)
 - [B933 to B947, the weight floors removed, rounds 7 to 9](audit-ledger-weight-floors-removed-round-seven.md)
 - [B948 to B952, the weight floors removed, rounds 10 to 12](audit-ledger-weight-floors-removed-round-ten.md)
+- [B953, the named place, the carriers, the callbacks and the loaders of the schema source check][b953-ledger]
 - [B960, runner reports and probes](audit-ledger-runner-reports-and-probes.md)
 - [B961 to B964, the pass's lifecycle line stamps: an attempt count that ended the pass, tests that could not fail, lines without a time or an attempt, docs that disagreed with the code](audit-ledger-lifecycle-line-stamps-round-two.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
@@ -674,6 +681,9 @@ which lists every file of this record.
 
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
+[b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md
+[b868-ledger]: audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md
+[b953-ledger]: audit-ledger-schema-source-check-named-place-carriers-callbacks-and-loaders.md
 [l01]: audit-ledger-unreachable-branches-kept-as-quiet-answers.md
 [l02]: audit-ledger-consistency-pass-repeat-groups-and-the-carry.md
 [l03]: audit-ledger-consistency-pass-span-and-marks-beside-it.md

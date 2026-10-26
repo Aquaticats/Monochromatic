@@ -13,7 +13,7 @@
 /// Import the classification under test and shared fixtures.
 use super::{
     EffectiveTarget, classify_effective_target, default_allowed_worktree_dirs,
-    is_allowed_worktree_dir, uv_cache_dir,
+    is_allowed_worktree_dir, mise_data_dir, uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
@@ -72,11 +72,77 @@ fn uv_cache_directory_follows_uv_precedence() {
     );
     assert_eq!(
         default_allowed_worktree_dirs(&[], home),
-        vec![PathBuf::from("/home/fixture/.cache/uv")]
+        vec![
+            PathBuf::from("/home/fixture/.cache/uv"),
+            PathBuf::from("/home/fixture/.local/share/mise"),
+        ]
     );
     assert_eq!(
         default_allowed_worktree_dirs(&[], None),
         Vec::<PathBuf>::new()
+    );
+}
+
+/// mise's own precedence applies:
+///  explicit directory,
+///  then the XDG data directory,
+///  then the home data directory;
+///  empty is unset.
+#[test]
+fn mise_data_directory_follows_mise_precedence() {
+    let home: Option<&Path> = Some(Path::new("/home/fixture"));
+    for (pairs, expected) in [
+        (
+            vec![("MISE_DATA_DIR", "/explicit"), ("XDG_DATA_HOME", "/xdg")],
+            Some(PathBuf::from("/explicit")),
+        ),
+        (
+            vec![("MISE_DATA_DIR", ""), ("XDG_DATA_HOME", "/xdg")],
+            Some(PathBuf::from("/xdg/mise")),
+        ),
+        (
+            vec![("XDG_DATA_HOME", "/xdg")],
+            Some(PathBuf::from("/xdg/mise")),
+        ),
+        (
+            vec![("MISE_DATA_DIR", ""), ("XDG_DATA_HOME", "")],
+            Some(PathBuf::from("/home/fixture/.local/share/mise")),
+        ),
+        (
+            vec![],
+            Some(PathBuf::from("/home/fixture/.local/share/mise")),
+        ),
+        // The uv variables are not mise's.
+        (
+            vec![("UV_CACHE_DIR", "/uv"), ("XDG_CACHE_HOME", "/cache")],
+            Some(PathBuf::from("/home/fixture/.local/share/mise")),
+        ),
+    ] {
+        assert_eq!(
+            mise_data_dir(environment(pairs.as_slice()).as_slice(), home),
+            expected,
+            "{pairs:?}"
+        );
+    }
+    assert_eq!(mise_data_dir(&[], None), None);
+    assert_eq!(
+        mise_data_dir(
+            environment(&[("MISE_DATA_DIR", "/explicit")]).as_slice(),
+            None
+        ),
+        Some(PathBuf::from("/explicit"))
+    );
+    assert_eq!(
+        mise_data_dir(environment(&[("XDG_DATA_HOME", "/xdg")]).as_slice(), None),
+        Some(PathBuf::from("/xdg/mise"))
+    );
+    // Both tools' directories are allowlisted together, each from its own variables.
+    assert_eq!(
+        default_allowed_worktree_dirs(
+            environment(&[("UV_CACHE_DIR", "/uv"), ("MISE_DATA_DIR", "/mise")]).as_slice(),
+            home
+        ),
+        vec![PathBuf::from("/uv"), PathBuf::from("/mise")]
     );
 }
 

@@ -322,7 +322,8 @@ export function unwrapped({ node, }: { readonly node: unknown; },): {
 
  @returns Its program and comments
 
- @throws {@link Error} when the file does not parse, since a file a scan cannot read hides what it holds
+ @throws {@link Error} when the file does not parse, naming the file and the `message` of each error the parser reports,
+ since a file a scan cannot read hides what it holds
 
  @example
  ```ts
@@ -341,7 +342,9 @@ export function parseSource({ file, }: { readonly file: SourceText; },): ParsedS
     .length
     > 0)
     throw new Error(`${file.path} does not parse: ${parsed.errors
-      .map(String,)
+      .map(function messageOf({ message, }: { readonly message: string; },): string {
+        return message;
+      },)
       .join('; ',)}`,);
   /**
    Program node, checked to carry the offsets the scans read.

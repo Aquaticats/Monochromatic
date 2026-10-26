@@ -294,7 +294,29 @@ named for that subject and listed here.
   the two survivors that stay unpinned (B684),
   a producer-list search that read a builder in few shapes (B861),
   the readings of that search that no case held (B862),
-  and the rebuild of that search over each file's syntax tree (B863).
+  the rebuild of that search over each file's syntax tree (B863),
+  and the check over the family's real sources that names each shape the search leaves unread (B864).
+- [Audit ledger: the check over the schema sources as a whitelist](audit-ledger-schema-source-check-as-a-whitelist.md):
+  The check of B864 rebuilt from a list of seven named shapes into a whitelist anchored at the module-load boundary,
+  with two totals,
+  eight shapes,
+  and a prevention rule that replaces the one of B864 (B865),
+  then a mutant called equivalent by an argument (B866),
+  and a third total for where a builder's result goes (B867).
+- [Audit ledger: the check over the schema sources, code the search cannot read and
+  the mutants that survived](audit-ledger-schema-source-check-unreadable-code-and-surviving-mutants.md):
+  Code the search cannot read and specifiers the check cannot resolve (B868),
+  and four surviving mutants with the cases they called for (B869).
+  It continues B865 to B867.
+- [Audit ledger: the check over the schema sources, the named place, the carriers, the callbacks and
+  the loaders](audit-ledger-schema-source-check-named-place-carriers-callbacks-and-loaders.md):
+  A named place that holds the module of the function it names,
+  the namespace of a module that declares forwarders,
+  the parameters of a function written as an argument,
+  the loader of modules and the binding of Node read where they are no direct call,
+  the key readers of a constructor,
+  and the limits and over-reports each leaves (B953).
+  It continues B865 to B869.
 - [Audit ledger: files a later run reads back](audit-ledger-files-a-later-run-reads-back.md):
   Caches,
   ledgers,

@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-nested-wayland-session"
-version = "0.6.1"
+version = "0.6.2"
 categories = ["command-line-utilities", "development-tools::testing"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/cli/nested-wayland-session"
