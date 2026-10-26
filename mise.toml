@@ -312,6 +312,17 @@ java = "temurin-21"
 # Generate mise.lock
 lockfile = true
 
+#region Linux-only lock targets (stopgap)
+# Stopgap until a mise release carries jdx/mise#14959: 2026.10.19 resolves every lock target, ignores
+# a tool's `os = ["linux"]` option, and treats conda resolution failures as fatal, so the
+# `conda:bubblewrap` entry below makes `mise lock` fail on the macOS and Windows targets.
+# Restricting the targets keeps bare `mise lock` working, but the lockfile then has no URL or
+# checksum entries for macOS and Windows, so developers on those systems lose pinned tool URLs.
+# Remove this setting and regenerate mise.lock once a released mise contains #14959.
+# The decision and the removal condition live in doc/decision/mise-lock-linux-only-stopgap.md.
+lockfile_platforms = ["linux-x64", "linux-x64-musl", "linux-arm64", "linux-arm64-musl"]
+#endregion
+
 # Disable unused magical behavior
 env_shell_expand = false
 
