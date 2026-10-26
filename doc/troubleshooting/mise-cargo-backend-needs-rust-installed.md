@@ -106,10 +106,13 @@ which would change the repository's toolchain pin.
 ## Verified workarounds
 
 Current toolchain:
- `mise run toolchain:sync` stages `cargo-binstall` first and the Rust toolchain
- before any `cargo:` entry
+ `mise run toolchain:sync` stages `bin`,
+ `uv`,
+ `mpm`,
+ `rust`,
+ and `cargo-binstall` before the tools that depend on them
  (`doc/planning/mpm-toolchain-migration.md`,
- section `Sync algorithm`),
+ sections `Sync algorithm` and `Implementation record (toolchain-core, 2026-10-26)`),
  so the ordering this record establishes is now built into the sync.
 
 Install Rust (and `cargo-binstall`) through mise before any `cargo:` tool,
