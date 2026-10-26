@@ -318,6 +318,11 @@ export async function runContainer({
     [
       'run',
       '--rm',
+      // AGENTS.md RXI bounds for host-exhausting runs: an unbounded cell grew to
+      // 42 GB RSS on 2026-10-26 and the kernel OOM killer terminated a harness
+      // subprocess scope. Every cell stays within these bounds.
+      '--memory=2g',
+      '--cpus=2',
       '-v',
       `${monorepoRoot}:/workspace:Z`,
       image,
