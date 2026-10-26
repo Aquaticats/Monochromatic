@@ -98,30 +98,75 @@ This is the "MPM plus focused native providers" composition the vet recommended,
  upgrade coordination (`mpm upgrade`),
  the release-age cooldown that replaces Mise's `minimum_release_age`,
  and SPDX/CycloneDX SBOM export.
-- Restore of the entries whose managers honor the manifest as written.
+- Package installs its managers can perform:
+ the `pnpm`,
+ `uv`,
+ and `rustup` managers,
+ through `mpm restore` and `mpm install`.
+- For the standalone tools:
+ the upstream `bin` CLI installs each from its source spec
+ (the maintainer's chosen route),
+ and MPM's `bin` manager then inventories,
+ upgrades and removes them
+ (`https://mpm.run/managers/bin/` documents that split;
+ the manager itself declares no `install`).
 
 ### Focused repository providers own
 
-Every exact-pin or option-bearing install,
+The install mechanics MPM cannot express,
  invoked by the toolchain sync command from the same typed tool plan:
 
 - `cargo-binstall` installs for the `cargo:` tools
  (feature flags,
  OS filters,
  the `monochromatic-git-policy-cli` postinstall link).
-- Verified vendor-archive downloads
- (Node,
- pnpm,
- Bun,
- and the standalone binaries Mise resolved through aqua and GitHub releases),
- with the per-platform URL and SHA-256 the plan records,
- reusing the provenance `mise.lock` carries today.
-- `rustup` components and Android targets,
+- `rustup component add` and `rustup target add`,
  which the MPM `rustup` adapter deliberately does not model
  (its packages are toolchains only).
-- Android SDK cmdline-tools and `sdkmanager` components.
-- The Adoptium Temurin archive for the JDK,
- matching the CI path in `doc/decision/mise-free-ci.md`.
+- The Android SDK cmdline-tools and `sdkmanager` component pins,
+ exporting `ANDROID_HOME` through the tool env file
+ instead of Mise's vfox plugin.
+- The `archive` fallback,
+ downloading locked artifacts with their recorded SHA-256,
+ only for sources the `bin` CLI cannot fetch.
+
+## Maintainer confirmations (2026-10-26)
+
+The maintainer confirmed the migration forks after the capability research landed:
+
+- Cutover:
+ remove `[tools]` and `mise.lock` entirely.
+ The cutover is a hard switch that follows a successful full sync;
+ the earlier draft's "anything the new system fails to provision is missing
+ until fixed" assumption was retracted on the maintainer's correction.
+- This machine:
+ converge the maintainer's machine onto the new toolchain as the final
+ verification step.
+- Old installs:
+ leave the Mise installs in place;
+ pruning is a later decision.
+- Version policy:
+ keep today's semantics (floating requests with committed resolutions).
+- Archive tools:
+ through MPM's `bin` manager
+ (`https://mpm.run/managers/bin/`):
+ the upstream `bin` CLI installs from source specs,
+ and MPM's manager inventories and upgrades them,
+ since the manager itself declares no `install` operation.
+- Cargo tools:
+ repository provider via `cargo-binstall`.
+- npm and pipx tools:
+ MPM's `pnpm` and `uv` managers.
+- Rust pieces:
+ MPM's `rustup` adapter plus direct component and target calls.
+- Android SDK:
+ repository provider via the Android SDK's own `sdkmanager`.
+
+The maintainer's "no pinning" wording is recorded as:
+ declarations carry no `@version` pin syntax and keep floating requests,
+ while `toolchain.lock.json` fixes the installed versions
+ (the `mise install` against `mise.lock` semantics),
+ so explicit pins install exactly.
 
 ### Mise keeps
 

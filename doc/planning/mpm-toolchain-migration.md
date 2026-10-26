@@ -14,6 +14,7 @@ Read that decision first;
  Also runnable as `node package/dev-script/file-enforcer/src/toolchain/sync.ts`.
 - `mise run toolchain:status`:
  print observed versus locked versions and exit non-zero on drift.
+ Also runnable as `node package/dev-script/file-enforcer/src/toolchain/status.ts`.
 - `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts`:
  print the exposure directory,
  PATH directories,
@@ -91,15 +92,14 @@ Top level:
  `llama.cpp`,
  and `{ "channel": "nightly" }` / `{ "channel": "temurin-21" }` for `rust` and `java`.
 - `route`:
- `mpm-restore`,
- `archive`,
+ `bin-sourced`,
+ `archive` (fallback for sources `bin` cannot fetch),
  `cargo-binstall`,
- `npm-global`,
- `uv-tool`,
+ `mpm-pnpm`,
+ `mpm-uv`,
  `rustup-toolchain`,
  `rustup-components`,
- `sdkmanager`,
- `adoptium-jdk`.
+ `sdkmanager`.
 - `artifacts` carries the URL and SHA-256 `mise.lock` records today,
  keyed by the same platform ids.
  `mise.lock` currently has Linux targets only
@@ -146,6 +146,43 @@ Validate with `mpm --validate-config mpm.managers.toml`.
 7. Rebuild `.cache/toolchain-bin`,
  verify every declared `bins` entry resolves,
  print the drift report.
+
+## Routing (user-confirmed 2026-10-26)
+
+The maintainer chose the installer per tool family:
+
+- `bin-sourced`:
+ every standalone tool whose artifact the `bin` CLI can fetch
+ (GitHub releases,
+ release-tag URLs,
+ host sources such as `releases.hashicorp.com`),
+ installed by `bin install <source spec>` at the repository boundary and
+ inventoried and upgraded afterwards by MPM's `bin` manager
+ (`https://mpm.run/managers/bin/`,
+ whose own `install` operation is deliberately absent because listings report
+ absolute paths, not source specs).
+ Sources `bin` cannot fetch fall back to the `archive` provider.
+- `cargo-binstall`:
+ the `cargo:` tools.
+- `mpm-pnpm` and `mpm-uv`:
+ the npm CLI tools through MPM's `pnpm` manager,
+ `pipx:slopo` through MPM's `uv` manager.
+- `rustup`:
+ the Rust toolchain through MPM's `rustup` manager (toolchain ids carry the exact channel),
+ components and Android targets through direct `rustup component add` / `rustup target add`.
+- `sdkmanager`:
+ the Android SDK,
+ a repository provider running the Android SDK's own `sdkmanager` with the pinned
+ component versions and exporting `ANDROID_HOME` through the tool env file.
+
+The maintainer's "no pinning" wording is recorded as:
+ declarations keep floating requests and carry no `@version` pin syntax;
+ `toolchain.lock.json` fixes what the sync installs,
+ the same semantics `mise install` had against `mise.lock`,
+ so the explicit pins (`bun` `1.3.14`,
+ `zig` `0.15.2`,
+ `llama.cpp` `b9829`,
+ `cargo:cargo-fuzz` `0.13.2`) still install exactly.
 
 ## Provider rules
 
