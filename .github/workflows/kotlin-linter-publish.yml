@@ -105,24 +105,29 @@ jobs:
       with:
         install-dependencies: 'false'
     - name: Install the JDK
-      # mise.lock tools.java pins temurin-21.0.12+8.0.LTS. The vendor archive
-      # replaces the setup-java action, which would need an allow-list entry.
+      # toolchain.lock.json (repository root) is the source of truth for every tool version
+      # (doc/decision/mpm-toolchain-adoption.md): `tools.java` pins temurin-21.0.12+8.0.LTS and records
+      # the vendor archives, which this step fetches and SHA-256 checks. The vendor archive replaces
+      # the setup-java action, which would need an allow-list entry.
       shell: bash
       run: |
         set -euo pipefail
-        version='21.0.12+8'
+        version=$(jq --raw-output '.tools.java.version' toolchain.lock.json)
+        case "$version" in
+          '' | null) echo '::error::No Java version in toolchain.lock.json.' >&2; exit 1 ;;
+        esac
         case "${{ runner.os }}-${{ runner.arch }}" in
-          Linux-X64) jdk_arch=x64 ;;
-          Linux-ARM64) jdk_arch=aarch64 ;;
+          Linux-X64) platform=linux-x64 ;;
+          Linux-ARM64) platform=linux-arm64 ;;
           *) echo "unsupported runner ${{ runner.os }}-${{ runner.arch }}" >&2; exit 1 ;;
         esac
-        tag="jdk-${version//+/%2B}"
-        archive="OpenJDK21U-jdk_${jdk_arch}_linux_hotspot_${version//+/_}.tar.gz"
-        install_dir="$RUNNER_TEMP/temurin-$version"
+        url=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].url' toolchain.lock.json)
+        sum=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].sha256' toolchain.lock.json)
+        install_dir="$RUNNER_TEMP/$version"
         mkdir -p "$install_dir"
-        curl --fail --silent --show-error --location \
-          "https://github.com/adoptium/temurin21-binaries/releases/download/$tag/$archive" \
-          | tar -xz -C "$install_dir" --strip-components=1
+        curl --fail --silent --show-error --location --output "$RUNNER_TEMP/jdk.tar.gz" "$url"
+        echo "$sum  $RUNNER_TEMP/jdk.tar.gz" | sha256sum --check
+        tar --extract --gzip --file "$RUNNER_TEMP/jdk.tar.gz" --directory "$install_dir" --strip-components=1
         echo "JAVA_HOME=$install_dir" >> "$GITHUB_ENV"
         echo "$install_dir/bin" >> "$GITHUB_PATH"
         "$install_dir/bin/java" -version
