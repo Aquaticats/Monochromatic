@@ -49,12 +49,12 @@ const CASES: readonly (readonly [string, string])[] = [
     '> [^1]:<b>\n>     ```\n>     <!-- never\n>     ```\n> tail {z}\n',
   ],
   [
-    'A FENCE OPENED WITH A TAB AFTER A TAG ALONE IN A BLOCK QUOTE',
-    '> [^1]: <b>\n> \t```\n>     a\n>     ```\n',
-  ],
-  [
     'A DISPLAY MATH WITH A COMMENT OPENER THAT NEVER CLOSES RIGHT AFTER A TAG ALONE IN A LIST ITEM',
     '- [^1]:<b>\n      $$\n      <!-- never\n      $$\n',
+  ],
+  [
+    'A FENCE AFTER A TAG ALONE IN A BLOCK QUOTE, THEN A LINE THAT STARTS A DEFINITION',
+    '> [^1]: <b>\n>      ```\n> [r]: u{b}\n',
   ],
 ];
 

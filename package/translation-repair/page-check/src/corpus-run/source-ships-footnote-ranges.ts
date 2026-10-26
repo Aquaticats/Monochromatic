@@ -9,6 +9,10 @@ import {
   endLineOf,
   hasFootnoteLabel,
 } from './source-ships-footnote.ts';
+import {
+  type RawHtmlRegion,
+  rawHtmlRegionsOf,
+} from './source-ships-footnote-html-region.ts';
 import type { FootnoteState, } from './source-ships-pending.ts';
 import {
   closingBracket,
@@ -284,6 +288,11 @@ export type FootnoteReadings = {
   readonly footnoteRanges: readonly BlockRange[];
 
   /**
+   Where the lines of a block of raw HTML that a footnote definition opens with stand, which are text on the page.
+   */
+  readonly rawHtmlRegions: readonly RawHtmlRegion[];
+
+  /**
    Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
    after a paragraph or a link reference definition, less the lines that follow a row of a table.
    */
@@ -322,6 +331,13 @@ export function footnoteReadingsOf({ readable, }: { readonly readable: string; }
     footnoteRanges: withPageOnlyStarts({
       source: sourceFootnoteRanges,
       page: pageFootnoteRanges,
+    },),
+    rawHtmlRegions: rawHtmlRegionsOf({
+      source: readable,
+      footnotes: [
+        ...sourceFootnoteRanges,
+        ...pageFootnoteRanges,
+      ],
     },),
     pageOnlyStarts: startsOffTables({
       source: readable,

@@ -7,6 +7,7 @@ import { autolinkAsText, } from './source-ships-links.ts';
 import {
   imageTextRanges,
   rangeOf,
+  type SourceSpans,
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
@@ -64,21 +65,6 @@ type HeldInAlternative = {
 const NOTHING_HELD: HeldInAlternative = {
   stretches: [],
   edits: [],
-};
-
-/**
- What a reader sees of an image as text, and what is rewritten in it.
- */
-export type ImageAltReading = {
-  /**
-   Stretches a reader sees as text, in text order.
-   */
-  readonly text: readonly TextRange[];
-
-  /**
-   Stretches rewritten, in text order.
-   */
-  readonly edits: readonly TextEdit[];
 };
 
 /**
@@ -260,7 +246,7 @@ function heldInAlternativeOf(
  @param range - where the node stands
 
  @returns The alternative text less its code spans and angle autolinks, which are not text, and the second label of a
- full reference; and the autolinks written as their addresses
+ full reference as the stretches read as text; and the autolinks written as their addresses as the edits
 
  @example
  ```ts
@@ -277,7 +263,7 @@ export function imageAltReading(
     readonly node: TreeNode;
     readonly range: TextRange;
   },
-): ImageAltReading {
+): SourceSpans {
   /**
    The alternative text first, and the second label of a full reference after it.
    */
@@ -325,7 +311,10 @@ export function imageAltReading(
       ...text,
       ...labels,
     ],
+    literal: [],
     edits: held.edits,
+    insideLinks: [],
+    streamStarts: [],
   };
 }
 

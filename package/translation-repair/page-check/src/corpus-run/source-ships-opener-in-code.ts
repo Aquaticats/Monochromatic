@@ -3,6 +3,7 @@ import type {
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { readsAsDisplayMath, } from './source-ships-display-math.ts';
+import { rawHtmlRegionsOf, } from './source-ships-footnote-html-region.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import { openersInFootnoteFlowsOf, } from './source-ships-opener-footnote.ts';
 import {
@@ -483,14 +484,25 @@ export function editsWithOpeners(
    */
   const { handled: taken, } = underFootnotes;
   /**
+   Where the lines of a block of raw HTML that a footnote definition opens with stand: text on the page, in which the
+   plain reading's code span or math is no code, so an opener there is written as the character reference like any other.
+   */
+  const rawHtml = rawHtmlRegionsOf({
+    source,
+    footnotes,
+  },);
+  /**
    What holds an opener inside code or math elsewhere, written outside it: the openers a footnote's lines took are left to
-   them, since the plain reading may read the same lines as a code span or as indented code.
+   them, since the plain reading may read the same lines as a code span or as indented code, and those in the lines of a
+   block of raw HTML are left as text.
    */
   const atTop = openersInCodeOf({
     source,
     root,
     starts: starts.filter(function notTaken(start,): boolean {
-      return !taken.includes(start,);
+      return (!taken.includes(start,)) && (!rawHtml.some(function holds(region,): boolean {
+        return (region.start <= start) && (start < region.end);
+      },));
     },),
     edits,
     closed,

@@ -2,11 +2,10 @@ import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-s
 import { isLazyDefinition, } from './source-ships-footnote.ts';
 import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
 import { lineJoinsOf, } from './source-ships-lines.ts';
-import {
-  autolinkWritten,
-  cutByTable,
-} from './source-ships-links.ts';
+import { autolinkReading, } from './source-ships-autolink.ts';
+import { readsAsDisplayMath, } from './source-ships-display-math.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
+import { rawHtmlBlockReading, } from './source-ships-footnote-html-region.ts';
 import { imageAltReading, } from './source-ships-image-alt.ts';
 import {
   isIndentedCode,
@@ -112,13 +111,14 @@ export function spansOf(
   },
 ): SourceSpans {
   /**
-   Where the strict grammar reads a table and a footnote definition, and where the page starts a footnote definition and a
-   reader of the source does not.
+   Where the strict grammar reads a table and a footnote definition, where the page starts a footnote definition and a
+   reader of the source does not, and where the lines of a block of raw HTML that a definition opens with stand.
    */
   const {
     tables,
     pageFootnoteRanges,
     footnoteRanges,
+    rawHtmlRegions,
     pageOnlyStarts,
   } = footnoteReadingsOf({ readable, },);
   /**
@@ -306,7 +306,27 @@ export function spansOf(
       absorb({ nested: read.spans, },);
       continue;
     }
-    if (node.type === 'definition')
+    // THE LINES OF A BLOCK OF RAW HTML A FOOTNOTE DEFINITION IN A CONTAINER OPENS WITH are text on the page, whatever the plain
+    // reading makes of them (`source-ships-footnote-html-region.ts`).
+    /**
+     Their content, when the block is one of them.
+     */
+    const html = rawHtmlBlockReading({
+      source,
+      readable,
+      regions: rawHtmlRegions,
+      range,
+      inContainer: (!isRootChild) && BLOCK_PARENTS.has(parentType,),
+    },);
+    if (html.inRegion) {
+      absorb({ nested: html, },);
+      continue;
+    }
+    // A definition, and display math the strict grammar reads, end their block at the line, which no fence mark after it joins.
+    if ((node.type === 'definition') || ((node.type === 'inlineMath') && readsAsDisplayMath({
+      source,
+      range,
+    },)))
       definitionEnds.push(range.end,);
     edits.push(...lineJoinsOf({
       source,
@@ -347,16 +367,13 @@ export function spansOf(
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
     if ((node.type === 'image') || (node.type === 'imageReference')) {
-      /**
-       What the alternative text holds: text, code spans copied as they stand, and angle autolinks written as addresses.
-       */
-      const alternative = imageAltReading({
-        source,
-        node,
-        range,
+      absorb({
+        nested: imageAltReading({
+          source,
+          node,
+          range,
+        },),
       },);
-      text.push(...alternative.text,);
-      edits.push(...alternative.edits,);
       continue;
     }
     // A DEFINITION that is no footnote keeps its destination and title and has a label read as text.
@@ -375,20 +392,12 @@ export function spansOf(
     // its address is written as text there, without the brackets, and where a table cuts it at a pipe, which leaves no
     // autolink in the source, so it is text as it stands. Any other link keeps everything but its text.
     if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
-      if (cutByTable({
-        source,
-        range,
-        tables,
-      },)) {
-        text.push(range,);
-        continue;
-      }
-      edits.push({
-        ...range,
-        replacement: autolinkWritten({
+      absorb({
+        nested: autolinkReading({
           source,
           url: node.url,
           range,
+          tables,
           insideLink,
         },),
       },);
