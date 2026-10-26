@@ -156,17 +156,25 @@ The maintainer confirmed the migration forks after the capability research lande
 - Cargo tools:
  repository provider via `cargo-binstall`.
 - npm and pipx tools:
- MPM's `pnpm` and `uv` managers.
+ MPM's `pnpm` and `uvx` manager ids,
+ with boundary installs at the locked versions wherever an adapter drops the
+ version parameter.
 - Rust pieces:
  MPM's `rustup` adapter plus direct component and target calls.
 - Android SDK:
- repository provider via the Android SDK's own `sdkmanager`.
+ repository provider via the Android CLI's `android sdk install`
+ (the `android` command in cmdline-tools),
+ not a raw `sdkmanager` invocation.
 
 The maintainer's "no pinning" wording is recorded as:
  declarations carry no `@version` pin syntax and keep floating requests,
  while `toolchain.lock.json` fixes the installed versions
  (the `mise install` against `mise.lock` semantics),
  so explicit pins install exactly.
+ Sync semantics follow pnpm (maintainer 2026-10-26):
+ the sync installs the locked versions the way `pnpm install` honors
+ `pnpm-lock.yaml`,
+ and re-resolving versions is a separate update action.
 
 ### Mise keeps
 

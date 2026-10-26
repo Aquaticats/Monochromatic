@@ -93,13 +93,13 @@ Top level:
  and `{ "channel": "nightly" }` / `{ "channel": "temurin-21" }` for `rust` and `java`.
 - `route`:
  `bin-sourced`,
- `archive` (fallback for sources `bin` cannot fetch),
+ `archive` (fallback for sources or payload shapes `bin` cannot fetch),
  `cargo-binstall`,
  `mpm-pnpm`,
- `mpm-uv`,
+ `mpm-uvx`,
  `rustup-toolchain`,
  `rustup-components`,
- `sdkmanager`.
+ `android-sdk`.
 - `artifacts` carries the URL and SHA-256 `mise.lock` records today,
  keyed by the same platform ids.
  `mise.lock` currently has Linux targets only
@@ -162,19 +162,40 @@ The maintainer chose the installer per tool family:
  whose own `install` operation is deliberately absent because listings report
  absolute paths,
  not source specs).
- Sources `bin` cannot fetch fall back to the `archive` provider.
+ Measured constraint (2026-10-26):
+ `bin` installs exactly one file per invocation and re-downloads the asset on
+ every call,
+ so `bin-sourced` covers single-binary payloads
+ (alias names such as `bunx` or `pnpm` link to the one inode),
+ and the `archive` fallback covers multi-binary or whole-tree payloads
+ (`age`,
+ `cmake`,
+ `llama.cpp`,
+ `uv`,
+ `taplo`,
+ the JDK,
+ Node,
+ `zig`,
+ `bubblewrap`) as well as sources `bin` cannot fetch.
 - `cargo-binstall`:
  the `cargo:` tools.
-- `mpm-pnpm` and `mpm-uv`:
- the npm CLI tools through MPM's `pnpm` manager,
- `pipx:slopo` through MPM's `uv` manager.
+- `mpm-pnpm` and `mpm-uvx`:
+ the npm CLI tools through MPM's `pnpm` manager id,
+ `pipx:slopo` through MPM's `uvx` manager id
+ (the one wrapping `uv tool install`).
+ Where an MPM adapter drops the version parameter,
+ the sync runs the manager command with the locked version at the
+ repository boundary and leaves inventory and upgrades to the MPM manager.
 - `rustup`:
  the Rust toolchain through MPM's `rustup` manager (toolchain ids carry the exact channel),
  components and Android targets through direct `rustup component add` / `rustup target add`.
-- `sdkmanager`:
+- `android-sdk`:
  the Android SDK,
- a repository provider running the Android SDK's own `sdkmanager` with the pinned
- component versions and exporting `ANDROID_HOME` through the tool env file.
+ a repository provider running the Android CLI shipped in cmdline-tools
+ (`android sdk install <package>[@<version>]...`,
+ package ids such as `ndk/29.0.13846066` and `platform-tools`,
+ listed by `android sdk list`),
+ exporting `ANDROID_HOME` through the tool env file.
 
 The maintainer's "no pinning" wording is recorded as:
  declarations keep floating requests and carry no `@version` pin syntax;
@@ -184,36 +205,52 @@ The maintainer's "no pinning" wording is recorded as:
  `zig` `0.15.2`,
  `llama.cpp` `b9829`,
  `cargo:cargo-fuzz` `0.13.2`) still install exactly.
+ Sync semantics follow pnpm (maintainer 2026-10-26):
+ `toolchain:sync` installs the locked versions the way `pnpm install`
+ honors `pnpm-lock.yaml`,
+ and re-resolving versions is a separate update action,
+ the `pnpm update` analogue.
 
 ## Provider rules
 
+- `bin-sourced`:
+ `bin install <source spec> [name] -n '<glob>'`,
+ after seeding the `bin` config `default_path`
+ (resolution order `BIN_CONFIG`,
+ `$HOME/.bin/config.json`,
+ `$XDG_CONFIG_HOME/bin/config.json`,
+ `$HOME/.config/bin/config.json`)
+ so the first-run download-directory prompt never appears;
+ alias names are links to the one installed inode.
 - `archive`:
  download to a temp file in the toolchain root,
  verify SHA-256 before extraction,
  extract into `<root>/<id>/<version>/`,
  link `bins` into `<root>/bin` and `.cache/toolchain-bin`.
 - `cargo-binstall`:
- `cargo binstall --version <locked> <crate>` plus `--features` when the plan records them,
- `--no-confirm`,
+ `cargo binstall --no-confirm --version <locked> <crate>` plus `--features`
+ when the plan records them,
  then the postinstall hook.
-- `npm-global` / `uv-tool`:
- install `<name>@<locked>` (npm) or `<name>==<locked>` (pip specifiers) into the manager's own prefix.
+ The install runs at the repository boundary;
+ any `mpm.managers.toml` entry for the family describes inventory only.
+- `mpm-pnpm` / `mpm-uvx`:
+ `pnpm add --global <name>@<locked>` and `uv tool install <name>==<locked>`
+ at the repository boundary where the MPM adapter drops versions;
+ inventory and upgrades stay with the MPM manager.
 - `rustup-toolchain`:
  `rustup toolchain install <id>` where the id is the exact locked toolchain string;
  `rustup-components` runs `rustup component add` / `rustup target add` for the plan's lists
  (`doc/troubleshooting/mise-rust-components.md` explains why they only apply at install).
-- `sdkmanager`:
+- `android-sdk`:
  install cmdline-tools from the locked archive,
  accept SDK licenses non-interactively,
- `sdkmanager` the plan's component pins
+ then `android sdk install <package>[@<version>]...` for the plan's pins
  (values currently in `prepare:android`:
- `platforms;android-37.0`,
- `build-tools;37.0.0`,
- `ndk;29.0.13846066`,
- `platform-tools`).
-- `adoptium-jdk`:
- locked Temurin archive,
- set `JAVA_HOME` in the tool env file below.
+ `platforms/android-37.0`,
+ `build-tools/37.0.0`,
+ `ndk/29.0.13846066`,
+ `platform-tools`,
+ with the exact ids confirmed through `android sdk list`).
 
 ## Tool environment exports
 
