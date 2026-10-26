@@ -329,9 +329,25 @@ await runTestFiles(files, [])
 
 //endregion
 
-//region Root tasks: prepare, lint, npm and changeset bodies from mise.toml
+//region Root tasks: toolchain, prepare, lint, npm and changeset bodies from mise.toml
 
 const tasks: Record<string, TaskDefinition> = {
+  'toolchain:sync': {
+    description: 'Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)',
+    run: 'node package/dev-script/file-enforcer/src/toolchain/sync.ts',
+  },
+  'toolchain:status': {
+    description: 'Print observed versus locked tool versions and exit non-zero on drift',
+    run: 'node package/dev-script/file-enforcer/src/toolchain/status.ts',
+  },
+  'bootstrap': {
+    description: 'Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
+    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:sync')", },
+  },
+  'prepare:android': {
+    description: 'Alias of toolchain:sync: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)',
+    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:sync')", },
+  },
   'prepare:pnpm': {
     description: 'Install dependencies and sync managed files',
     run: [
