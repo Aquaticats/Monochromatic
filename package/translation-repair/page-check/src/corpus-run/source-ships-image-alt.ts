@@ -19,16 +19,29 @@ import {
 // copied as it stands, since a backslash written inside one is a character of the code and shows. The rest of the
 // alternative text is text, as it was before.
 //
-// The alternative text is parsed on its own, behind a no-break space that Markdown reads as white space, so that nothing
-// in its first line reads as the start of a block. A text that is not one paragraph on its own (a line of it that a
-// container's mark or a block start would turn into another block) is left as text throughout, which is the reading the
-// text had before.
+// The alternative text is parsed as a paragraph of its own, with what stands around it in the image written around it:
+// a no-break space, which Markdown reads as white space and which starts no block, so that nothing in its first line
+// reads as the start of one, and the closing bracket and a destination, so that its last line is followed by text, as it
+// is in the image: a last line that reads as a setext underline, a thematic break or the delimiter row of a table on its
+// own reads as none of them there. The marks of a container at the start of its lines are written as spaces first. A
+// text that is not one paragraph on its own (a line of it that a block start would turn into another block) is left as
+// text throughout, which is the reading the text had before.
 
 /**
- A character Markdown reads as white space that starts no block, put before the alternative text so its first line is a
- paragraph line whatever it begins with.
+ The code point of a no-break space.
  */
-const NO_BREAK_SPACE = ' ';
+const NO_BREAK_SPACE_CODE = 0xA0;
+
+/**
+ What stands before the alternative text when it is parsed, which starts no block and is white space to the inline
+ syntax.
+ */
+const LEAD = String.fromCodePoint(NO_BREAK_SPACE_CODE,);
+
+/**
+ What stands after the alternative text when it is parsed: the bracket that closes it in the image, and a destination.
+ */
+const TRAIL = '](u)';
 
 /**
  What the alternative text of an image holds apart from text.
@@ -69,6 +82,64 @@ export type ImageAltReading = {
 };
 
 /**
+ Characters a container writes at the start of a line it holds: the mark of a block quote and the indentation of a list
+ item, a footnote or a nested block.
+ */
+const CONTAINER_MARKS = ' \t>';
+
+/**
+ Counts the characters at the start of a line that a container writes there.
+
+ @param line - one line of the alternative text
+
+ @returns How many characters from the start of the line are marks, all of them where the line holds no other
+
+ @example
+ ```ts
+ const marks = marksLengthOf({ line: '> b', },);
+ ```
+ */
+function marksLengthOf({ line, }: { readonly line: string; },): number {
+  for (let at = 0; at < line.length; at += 1) {
+    if (!CONTAINER_MARKS.includes(line.charAt(at,),))
+      return at;
+  }
+  return line.length;
+}
+
+/**
+ Writes each character of the container's marks at the start of a line of the alternative text as a space, so that a line
+ of an image inside a block quote is a line of a paragraph here as it is there and every offset stands. A greater-than
+ sign cannot be text there, since a line that starts with one ends the paragraph the image stands in.
+
+ @param typed - alternative text as typed
+
+ @returns The text with the marks at the start of each line after the first written as spaces, of the same length
+
+ @example
+ ```ts
+ const flat = withoutContainerMarks({ typed: 'a\n> b', },);
+ ```
+ */
+function withoutContainerMarks({ typed, }: { readonly typed: string; },): string {
+  return typed
+    .split('\n',)
+    .map(function flat(
+      line,
+      index,
+    ): string {
+      if (index === 0)
+        return line;
+      /**
+       How many characters at the start of the line are marks.
+       */
+      const marks = marksLengthOf({ line, },);
+      return `${' '.repeat(marks,)}${line.slice(marks,)}`;
+    },)
+    .join('\n',);
+}
+
+/**
  Finds the code spans and the angle autolinks of an alternative text.
 
  @param source - text
@@ -103,13 +174,13 @@ function heldInAlternativeOf(
   /**
    Blocks of the alternative text parsed on its own.
    */
-  const { children, } = parseMarkdownMathBody({ body: `${NO_BREAK_SPACE}${typed}`, },);
-  if (children.length !== 1)
-    return NOTHING_HELD;
+  const { children, } = parseMarkdownMathBody({
+    body: `${LEAD}${withoutContainerMarks({ typed, },)}${TRAIL}`,
+  },);
   /**
    The paragraph the alternative text is, when it is one and no more.
    */
-  const [paragraph,] = children;
+  const paragraph = (children.length === 1) ? children[0] : undefined;
   if (paragraph?.type !== 'paragraph')
     return NOTHING_HELD;
   /**
@@ -117,20 +188,22 @@ function heldInAlternativeOf(
    */
   const found: (TextRange & { readonly replacement?: string; })[] = [];
   /**
-   Nodes still to read.
+   Nodes still to read, the last of the paragraph's children on top so they come out in order.
    */
-  const pending: TreeNode[] = [paragraph,];
+  const pending: TreeNode[] = paragraph
+    .children
+    .toReversed();
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     /**
      Where the node stands in the parsed text.
      */
     const parsed = rangeOf({ node: next, },);
     /**
-     Where it stands in the text, the no-break space taken off.
+     Where it stands in the text, what stands before it in the parsed text taken off.
      */
     const range = {
-      start: (parsed.start - NO_BREAK_SPACE.length) + alternative.start,
-      end: (parsed.end - NO_BREAK_SPACE.length) + alternative.start,
+      start: (parsed.start - LEAD.length) + alternative.start,
+      end: (parsed.end - LEAD.length) + alternative.start,
     };
     if (next.type === 'inlineCode') {
       found.push(range,);
@@ -146,8 +219,11 @@ function heldInAlternativeOf(
       },);
       continue;
     }
-    if ('children' in next)
-      pending.push(...next.children,);
+    if ('children' in next) {
+      pending.push(...next
+        .children
+        .toReversed(),);
+    }
   }
   /**
    The stretches found, in text order.

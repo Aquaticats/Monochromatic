@@ -165,7 +165,8 @@ import {
 // run is closed like any other. An angle autolink inside the alternative text of an image is written as its address
 // alone, and a code span in it is copied as it stands, since the alternative text of an image is a string to the plain
 // parse, which holds the address of an autolink and the content of a code span in it
-// (`source-ships-image-alt.ts`; an alternative text that is not one paragraph on its own is written as text). A table cuts a cell at every pipe, so the plain reading, which
+// (`source-ships-image-alt.ts`; an alternative text that is not one paragraph on its own, a line of a block quote
+// without its mark that reads as an underline on its own among them, is written as text). A table cuts a cell at every pipe, so the plain reading, which
 // reads tables, cuts an address there as the source does, and a pipe written with a backslash in an address written as a
 // link is written with a backslash in its text and its target (`source-ships-links.ts`). A footnote label that holds a brace or a less-than sign is
 // written with a backslash in the reference, as any text is, and left as it stands in the definition, where the page
