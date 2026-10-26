@@ -413,8 +413,8 @@ moved,
 and `conda:bubblewrap` kept its Linux-only keys.
 
 - Tradeoff:
-  until 2026.10.20 publishes,
-  the command needs a mise build newer than 2026.10.19.
+  the full seven-platform lock needs a mise build newer than 2026.10.19;
+  the Linux-only stopgap below makes the released 2026.10.19 work.
 - Tradeoff:
   the lock now installs `cmake` from `aqua:Kitware/CMake` instead of `vfox:cmake`,
   so downloads come from
@@ -424,6 +424,40 @@ and `conda:bubblewrap` kept its Linux-only keys.
   2026.10.17 ignores them without error
   (checked with `mise lock --dry-run`),
   so the pinned CI version can read the lock.
+
+### Target only the Linux lock platforms (stopgap)
+
+Commit `355707fb7e` records the decision and commit `7f00576883` makes the
+change:
+because no released mise contains jdx/mise#14959,
+the lock now targets
+the four Linux platforms.
+
+```toml
+# mise.no-env.toml, [settings]
+lockfile_platforms = ["linux-x64", "linux-x64-musl", "linux-arm64", "linux-arm64-musl"]
+```
+
+Measured on 2026.10.19 with the migrated lock:
+
+- bare `mise lock` exits 0 and reports `✓ 240 targets checked`;
+- a repeat run makes no further change;
+- `mise.lock` loses 1101 lines of macOS and Windows platform metadata and adds
+  none,
+  while every tool version,
+  backend and Linux URL and checksum stays the
+  same;
+- `conda:bubblewrap` stays declared with `os = ["linux"]` and keeps its Linux
+  lock entry.
+
+- Tradeoff:
+  macOS and Windows developers lose pinned URLs and checksums for those
+  platforms and resolve them locally instead.
+- Tradeoff:
+  the setting is temporary;
+  the removal steps live in
+  `doc/decision/mise-lock-linux-only-stopgap.md`.
+- This is why bare `mise lock` works with the installed 2026.10.19 again.
 
 ### Pin mise in the workflow
 
@@ -579,10 +613,15 @@ Do not file from this document.
   with direct tool setup,
   as decided in `doc/decision/mise-free-ci.md`.
   There is no pin left to remove.
-- Remaining step after 2026.10.20 publishes
-  (release pull request #14948):
-  upgrade the local mise,
-  then confirm bare `mise lock` exits 0 against the committed lock.
-  On 2026-10-25T21:35-04:00 that pull request was still open,
-  held by its `release-window` check until 2026-10-26T08:00Z (03:00 Central);
-  the tag and the tarball build follow the merge.
+- Bare `mise lock` works with the installed 2026.10.19 because commit
+  `7f00576883` restricts the lock targets to the four Linux platforms,
+  a stopgap recorded in
+  `doc/decision/mise-lock-linux-only-stopgap.md` and in the
+  `mise.no-env.toml` comment.
+- The seven-platform lock needs a released mise with jdx/mise#14959.
+  Release pull request #14948 (2026.10.20) was still blocked on
+  2026-10-26T04:32-04:00 with its `release-window` check pending,
+  so its publication is not guaranteed.
+  When it ships,
+  remove the setting and regenerate the lock as the decision
+  document's removal condition describes.
