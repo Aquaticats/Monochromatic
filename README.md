@@ -195,10 +195,14 @@ mise run toolchain:sync
 The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
 and `node package/dev-script/file-enforcer/src/toolchain/sync.ts`
 runs the same work without the task wrapper.
-The sync entry installs [mpm][mpm-home] itself first (a standalone
-release binary recorded in `toolchain.lock.json`,
-SHA-256 checked),
-then the remaining tools,
+The sync entry stages its own bootstrap tools first:
+`bin` as a standalone release binary
+(SHA-256 checked against the release `checksums.txt` values),
+then `uv`,
+then [mpm][mpm-home] as the PyPI wheel `meta-package-manager` 8.2.0
+(SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`).
+Then it installs the remaining tools
 and rebuilds the gitignored `.cache/toolchain-bin` directory that the
 generated `mise.toml` `[env]` puts first on `PATH`.
 Then install dependencies and build all packages:
@@ -229,6 +233,10 @@ Declarations carry no `@version` pin syntax and keep floating requests;
 `toolchain.lock.json` fixes what the sync installs
 (the `mise install` against `mise.lock` semantics),
 so the explicit pins still install exactly.
+The sync installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`;
+re-resolving versions is a separate update action,
+the `pnpm update` analogue.
 
 Version bumps change the typed tool plan in
 `package/dev-script/file-enforcer/src/toolchain/` and the generated
@@ -352,7 +360,7 @@ package-deprecated/         Deprecated packages retained for reference
   routes (`bin`,
   `cargo-binstall`,
   `rustup`,
-  `sdkmanager`),
+  `android-sdk`),
   with versions fixed in `toolchain.lock.json`
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
