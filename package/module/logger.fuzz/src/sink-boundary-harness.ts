@@ -100,6 +100,12 @@ export async function trackRun(run: Promise<void>,): Promise<void> {
 const LOG_DIR_NAME = '.monochromatic';
 
 /**
+ Suffix of the JSONL log files the sink creates, one per process under a UTC
+ day directory.
+ */
+const LOG_FILE_SUFFIX = '.log.jsonl';
+
+/**
  Throwaway package directory the process has entered; disposing leaves it
  and removes it.
  */
@@ -127,6 +133,12 @@ export async function enterThrowawayPackage(): Promise<ThrowawayPackage> {
    */
   const original = process.cwd();
   /**
+   Log-directory override to restore on dispose. It outranks the `process.cwd()`
+   discovery this fixture relies on, so entering removes it for the duration.
+   */
+  const originalLogDirectory = process.env.MONOCHROMATIC_LOG_DIRECTORY;
+  delete process.env.MONOCHROMATIC_LOG_DIRECTORY;
+  /**
    Fresh temporary package root.
    */
   const dir = await mkdtemp(join(
@@ -142,6 +154,10 @@ export async function enterThrowawayPackage(): Promise<ThrowawayPackage> {
     dir,
     async [Symbol.asyncDispose](): Promise<void> {
       process.chdir(original,);
+      if (originalLogDirectory === undefined)
+        delete process.env.MONOCHROMATIC_LOG_DIRECTORY;
+      else
+        process.env.MONOCHROMATIC_LOG_DIRECTORY = originalLogDirectory;
       await rm(
         dir,
         {
@@ -197,11 +213,11 @@ export function parseJsonlLines({ text, }: { readonly text: string; },): readonl
 
  @returns Parsed value per line, probe first.
 
- @throws Error when the log directory holds anything but one file.
+ @throws Error when the log directory holds anything but one log file.
 
  @example
  ```ts
- const [probe, ...records] = await readFileSinkLines({ dir: pkg.dir });
+ const records = await readFileSinkLines({ dir: pkg.dir });
  ```
  */
 export async function readFileSinkLines({ dir, }: { readonly dir: string; },): Promise<readonly unknown[]> {
@@ -214,23 +230,33 @@ export async function readFileSinkLines({ dir, }: { readonly dir: string; },): P
     LOG_DIR_NAME,
   );
   /**
-   Log file names the sink created.
+   Log files the sink created. Other entries (the retention sweep stamp, day
+   directories) are residue its contract permits, so only `*.log.jsonl` files
+   count.
    */
-  const names = await readdir(logDir,);
-  /**
-   Sole log file name.
-   */
-  const [name] = names;
-  if ((name === undefined) || (names.length !== 1))
-    throw new Error(`expected one log file in ${logDir}, found ${String(names.length,)}: ${names.join(', ',)}`,);
+  const logFiles: string[] = [];
+  for (const entry of await readdir(logDir, { withFileTypes: true, },)) {
+    /**
+     Directory holding this entry: the log directory itself for a loose file,
+     the UTC day directory for the sink's own layout.
+     */
+    const container = join(
+      logDir,
+      entry.name,
+    );
+    for (const name of entry.isDirectory() ? await readdir(container,) : [entry.name,])
+      if (name.endsWith(LOG_FILE_SUFFIX,)) logFiles.push(join(
+        container,
+        name,
+      ),);
+  }
+  if (logFiles.length !== 1)
+    throw new Error(`expected one log file under ${logDir}, found ${String(logFiles.length,)}: ${logFiles.join(', ',)}`,);
   /**
    Whole file contents.
    */
   const text = await readFile(
-    join(
-      logDir,
-      name,
-    ),
+    logFiles[0]!,
     'utf8',
   );
   return parseJsonlLines({ text, },);
