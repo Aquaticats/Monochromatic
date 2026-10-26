@@ -37,10 +37,12 @@ jobs:
         fetch-depth: 1
 
     - name: Set up Node
-      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+      uses: ./.github/actions/task-cli-setup
       with:
+        # fs-id's own node pin, carried over from its setup-node step so this
+        # swap changes no runtime behavior; it is not the `mise.lock` version.
         node-version: 26.5.0
-        package-manager-cache: false
+        install-dependencies: 'false'
 
     - name: Resolve preferred identity
       run: node package/module/fs-id/src/host-evidence.ts
