@@ -2605,10 +2605,10 @@ await describe({
          */
         const entryLines = await entryLinesWritten({
           sinon: ctx.sinon,
-          entryId: FRONT_MATTER_ENTRY.id,
+          entryId: ENTRY.id,
           run: async () => {
             await inEntryLogContext({
-              entry: FRONT_MATTER_ENTRY.id,
+              entry: ENTRY.id,
               generation: DIGEST,
               attempt: ATTEMPT,
               run: async () => {
@@ -2616,7 +2616,7 @@ await describe({
                   attempt: ATTEMPT,
                   wallClock: fixedWallClock,
                   client: entryClient({ served, },),
-                  entry: FRONT_MATTER_ENTRY,
+                  entry: ENTRY,
                   artifactsDir: dirs.artifactsDir,
                   publishDir: dirs.publishDir,
                   declinedDir: dirs.declinedDir,
@@ -2636,7 +2636,15 @@ await describe({
           },
         },);
 
-        expect(entryLines.length,).toBeGreaterThan(0,);
+        // The entry makes model calls, so the lines include the per-slice ones of the lanes and the contest: a run of an
+        // entry that serves none carries neither, and a guard over such a run would leave their loggers unread.
+        expect(served.length,).toBeGreaterThan(0,);
+        expect(entryLines.some(function isLaneLine(line,): boolean {
+          return line.includes('SLICE-START',);
+        },),).toBe(true,);
+        expect(entryLines.some(function isContestLine(line,): boolean {
+          return line.includes('[contest slice ',);
+        },),).toBe(true,);
         expect(linesWithoutAttempt({
           lines: entryLines,
           attempt: ATTEMPT,
