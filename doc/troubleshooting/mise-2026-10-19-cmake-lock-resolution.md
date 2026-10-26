@@ -583,3 +583,6 @@ Do not file from this document.
   (release pull request #14948):
   upgrade the local mise,
   then confirm bare `mise lock` exits 0 against the committed lock.
+  On 2026-10-25T21:35-04:00 that pull request was still open,
+  held by its `release-window` check until 2026-10-26T08:00Z (03:00 Central);
+  the tag and the tarball build follow the merge.
