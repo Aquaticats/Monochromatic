@@ -37,7 +37,7 @@ TODO
 
 Prerequisites for a fresh machine and a fresh checkout:
 
-1. Clone the repo and trust mise so it will provision tools and read templated config.
+1. Clone the repo and trust mise so it reads templated config and runs tasks.
 
    ```sh
    git clone https://github.com/Aquaticat/Monochromatic
@@ -49,14 +49,15 @@ Prerequisites for a fresh machine and a fresh checkout:
     `mise trust` prints the path it trusted and exits 0.
 
 2. Provision wrangler,
-    which is declared as `npm:wrangler` in mise `[tools]`.
+    which the typed tool plan declares as `npm:wrangler` and `toolchain.lock.json` pins.
 
    ```sh
-   mise install npm:wrangler
+   mise run toolchain:sync
    ```
 
    Expected:
-    `mise npm:wrangler ✓ installed`.
+    the sync converges every tool,
+    and `wrangler --version` prints a version from the tool exposure directory.
 
 3. Authorize wrangler against the Cloudflare account that owns the bucket and Worker
    (account email `an@aquati.cat`).

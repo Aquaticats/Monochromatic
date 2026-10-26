@@ -74,8 +74,11 @@ each verifiable on a clean machine:
    Check with `git -C <repo> log --oneline -1` and
    `grep '^version' <repo>/package/rust-module/jsonc-edit/Cargo.toml`.
 2. The Rust toolchain this repository pins,
-   installed by running `mise install rust` from the repository root.
-   Check with `mise exec rust -- cargo --version`,
+   installed by running `mise run toolchain:sync` from the repository root
+   (`toolchain.lock.json` records the pin).
+   Check with `mise run toolchain:status`,
+   which prints observed versus locked versions and exits non-zero on drift,
+   and `cargo --version`,
    which must print a version rather than an error.
 3. Network access to `crates.io`,
    `static.crates.io` and `index.crates.io`.
