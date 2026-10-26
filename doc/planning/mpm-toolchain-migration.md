@@ -160,7 +160,8 @@ The maintainer chose the installer per tool family:
  inventoried and upgraded afterwards by MPM's `bin` manager
  (`https://mpm.run/managers/bin/`,
  whose own `install` operation is deliberately absent because listings report
- absolute paths, not source specs).
+ absolute paths,
+ not source specs).
  Sources `bin` cannot fetch fall back to the `archive` provider.
 - `cargo-binstall`:
  the `cargo:` tools.
@@ -226,6 +227,11 @@ The maintainer's "no pinning" wording is recorded as:
 No machine-absolute path is committed.
 
 ## Cutover
+
+The cutover is a hard switch that follows a successful full sync on the machine
+ (maintainer correction 2026-10-26):
+ a sync that cannot provision a tool is a hard error before any reader flips,
+ and the Mise installs stay as the rollback until the maintainer prunes them.
 
 1. Remove `[tools]`,
  `lockfile`,

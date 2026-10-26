@@ -2,7 +2,7 @@
 
 Status:
  accepted 2026-10-26 on the maintainer's direct instruction
- ("Migrate from Mise to https://mpm.run for the toolchain management part").
+ ("Migrate from Mise to <https://mpm.run> for the toolchain management part").
 This decision is in force.
 
 ## Decision
