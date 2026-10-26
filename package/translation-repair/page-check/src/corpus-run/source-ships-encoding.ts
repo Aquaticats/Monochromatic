@@ -192,6 +192,33 @@ const SYNTAX = '{}<';
 const LITERAL_SYNTAX = '\\`*_{}[]#+-.!<>&|~$=)';
 
 /**
+ What a backtick is written as where it is text a reader of the source sees and the page's grammar must not read as the
+ delimiter of a code span. A backslash does not stop that: a code span is searched for in the raw text, so a lone backtick
+ on a line before a run of backticks written with a backslash before each pairs with the first and makes a code span of
+ the lines between, which shows the backslash, and a backslash before the first only leaves a run that pairs with another
+ of its size. A character reference holds no backtick in the text.
+ */
+const BACKTICK_REFERENCE = '&#96;';
+
+/**
+ Writes a character of a raw HTML block, of indented code or of an indented fence mark so that the page shows it as text.
+
+ @param character - one character of the text
+
+ @returns The character with a backslash before it where Markdown reads it as syntax, a backtick as a character reference
+
+ @example
+ ```ts
+ const written = writtenLiteral({ character: '*', },); // `\*`
+ ```
+ */
+function writtenLiteral({ character, }: { readonly character: string; },): string {
+  if (character === '`')
+    return BACKTICK_REFERENCE;
+  return LITERAL_SYNTAX.includes(character,) ? `\\${character}` : character;
+}
+
+/**
  What a text holds that the encoder acts on.
  */
 type TextReading = SourceSpans & {
@@ -573,13 +600,11 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
     }
     // IN A RAW HTML BLOCK OR INDENTED CODE a backslash is a character of the source, and is escaped as any other.
     if (literal[at] === 1) {
-      pieces.push(LITERAL_SYNTAX.includes(character,) ? `\\${character}` : character,);
+      pieces.push(writtenLiteral({ character, },),);
       continue;
     }
-    // A FENCE MARK INDENTED FOUR SPACES OR MORE opens a code block in the page and is text in the source, so its first
-    // character is escaped, which is all that stops the line from opening one. A backslash before each character would
-    // cut a run of three backticks into three runs of one, and a lone backtick on a line before them would pair with
-    // the first and make a code span of the lines between, which shows the backslash.
+    // A FENCE MARK INDENTED FOUR SPACES OR MORE opens a code block in the page and is text in the source, so each of
+    // its characters is written as text (a backtick as a character reference, see `BACKTICK_REFERENCE`).
     /**
      Index after the indented fence mark that starts here, `at` when none does.
      */
@@ -595,7 +620,8 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
         at,
         markEnd,
       );
-      pieces.push(`\\${marks}`,);
+      for (const mark of marks)
+        pieces.push(writtenLiteral({ character: mark, },),);
       at = markEnd - 1;
       continue;
     }

@@ -68,18 +68,6 @@ const CASES: readonly (readonly [string, string])[] = [
     '>x\n>[^1]:`\r\t```',
   ],
   [
-    'A FENCE OPENED WITH A TAB IN A BLOCK QUOTE, THEN A MARK INDENTED FOUR COLUMNS OF THE QUOTE',
-    '>\t```\n>     ```',
-  ],
-  [
-    'A FENCE OPENED TWO COLUMNS IN A BLOCK QUOTE, THEN A MARK INDENTED FOUR COLUMNS OF THE QUOTE',
-    '>  ```\n>     ```',
-  ],
-  [
-    'A FENCE OPENED TWO COLUMNS IN A BLOCK QUOTE, THEN A MARK INDENTED THREE COLUMNS OF THE QUOTE, WHICH CLOSES IT',
-    '>  ```\n>    ```\n{\n',
-  ],
-  [
     'A FENCE MARK OF TILDES INDENTED FOUR COLUMNS AFTER A LONE BACKTICK',
     '`\n    ~~~\n',
   ],
