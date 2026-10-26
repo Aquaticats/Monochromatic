@@ -23,4 +23,9 @@ await matrix({
     'root',
     'user',
   ],
+  // One container at a time: the matrix runner's podman spawn carries no
+  // resource bounds, so four concurrent cells can exhaust the host (the
+  // synthetic-load ban). The toolchain matrix runner bounds its cells with
+  // --memory=2g --cpus=2 instead.
+  concurrency: 1,
 },);
