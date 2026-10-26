@@ -284,20 +284,26 @@ function findRepoRoot(): string {
 }
 
 /**
+ Manifest files that mark a package directory: the npm, Cargo and Gradle homes
+ this monorepo's packages use.
+ */
+const PACKAGE_MARKERS = ['package.json', 'Cargo.toml', 'build.gradle.kts', 'build.gradle',] as const;
+
+/**
  Resolves the package directory for a `//package/<category>/<name>[:task]` name.
 
  @param root - Monorepo root.
  @param packagePath - Path like `package/module/logger`.
  @returns Absolute package directory.
- @throws When the path is not a `package/` path with two segments below it.
+ @throws When the path is not a `package/` path with two segments below it, or has no manifest.
  */
 function packageDirectory(root: string, packagePath: string): string {
   const segments = packagePath.split('/');
   if (segments[0] !== 'package' || segments.length !== 1 + PACKAGE_SEGMENT_COUNT)
     throw new Error(`task-cli: not a package path: ${packagePath}`);
   const directory = join(root, packagePath);
-  if (!existsSync(join(directory, 'package.json')) && !existsSync(join(directory, 'Cargo.toml')))
-    throw new Error(`task-cli: no package.json or Cargo.toml at ${packagePath}`);
+  if (!PACKAGE_MARKERS.some((marker) => existsSync(join(directory, marker))))
+    throw new Error(`task-cli: no package manifest (${PACKAGE_MARKERS.join(', ')}) at ${packagePath}`);
   return directory;
 }
 
@@ -481,7 +487,10 @@ async function runStepAsync({ step, cwd, env, argv, }: { step: TaskStep; cwd: st
   const [shell, rawBody] = typeof step === 'string' ? ['bash', step,] : [step.shell, step.run,];
   const [command, ...shellArgs] = shell.split(' ');
   const isNodeInline = command === 'node' && shellArgs.includes('--input-type=module-typescript');
-  const body = isNodeInline ? `${BODY_PRELUDE}\n${rawBody}` : rawBody;
+  // The body braces keep its own `const` imports from colliding with the
+  // prelude's helper bindings while the prelude helpers stay visible; the
+  // blank line keeps a trailing `//` comment from swallowing the closing brace.
+  const body = isNodeInline ? `${BODY_PRELUDE}\n{\n${rawBody}\n\n}\n` : rawBody;
   const script = !isNodeInline && argv.length > 0 ? `${body} "$@"` : body;
   const commandArgs = isNodeInline
     ? [...shellArgs, script,]
@@ -574,17 +583,20 @@ async function executeTask(root: string, cwd: string, definition: TaskDefinition
     ? []
     : Array.isArray(definition.run) ? definition.run : [definition.run,];
   if (steps.length === 0) { return; }
+  // The task's `dir` moves the body into a subdirectory, matching the old
+  // mise tasks; without it the body runs in the package directory.
+  const bodyCwd = definition.dir === undefined ? cwd : resolve(cwd, definition.dir);
   const usageOptions = parseUsageSpec(definition.usage,);
   const bodyArgv = usageOptions.length === 0 ? [...optionArgs, ...rest,] : [];
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    ...taskPathEnvironment({ root, cwd, }),
+    ...taskPathEnvironment({ root, cwd: bodyCwd, }),
     ...definition.env,
     TASK_REPO_ROOT: root,
     TASK_PACKAGE_PATH: packagePath,
     ...usageEnvironment(usageOptions, optionArgs, rest,),
   };
-  for (const step of steps) { await runStepAsync({ step, cwd, env, argv: bodyArgv, },); }
+  for (const step of steps) { await runStepAsync({ step, cwd: bodyCwd, env, argv: bodyArgv, },); }
 }
 
 /**
