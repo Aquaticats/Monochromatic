@@ -15,6 +15,11 @@ This decision is temporary and has an explicit removal condition.
 and `mise.lock` records URL and checksum entries only for those
 platforms.
 Bare `mise lock` with the released mise 2026.10.19 then exits 0.
+Carried over on 2026-10-26:
+ `mise.lock` is retired in `doc/decision/mpm-toolchain-adoption.md`,
+ and its replacement `toolchain.lock.json` inherits the same Linux-only
+ artifact rows;
+ resolving macOS and Windows artifact URLs and checksums remains open work.
 
 ## Why
 
