@@ -217,7 +217,12 @@ mise run prepareAndBuild
   `mpm outdated` lists available upgrades,
   and `mpm sbom` exports the inventory as SPDX or CycloneDX.
 - `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` prints the
-  exposure directory and each tool's link targets as JSON,
+  exposure directory,
+  PATH directories,
+  and one absolute path per linked binary as JSON
+  (`exposureDir`,
+  `pathDirs`,
+  `bins`),
   which is what IDE integrations read.
 
 Version bumps change the typed tool plan in
