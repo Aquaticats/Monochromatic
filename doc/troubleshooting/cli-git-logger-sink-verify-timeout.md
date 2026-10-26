@@ -74,6 +74,27 @@ not a shared root cause.
 Do not saturate the host to recreate it;
 any load experiment must use a bounded disposable container.
 
+On 2026-10-26 the line appeared twice during `node src/package/mise.container-test.ts`
+container-matrix runs in `package/dev-script/file-enforcer`
+(before that run's resource bounds landed):
+
+```text
+logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify
+```
+
+It preceded a SIGKILL of the first run
+and a SIGTERM of the second.
+The same line appears in pre-change baselines of those runs,
+so the matrix edits neither introduced nor removed it.
+The runs were host-exhausting at the time
+(the first grew to 42 GB RSS,
+recorded in `doc/planning/mpm-toolchain-migration.md`),
+and the bounded rerun
+(`podman run --memory=2g --cpus=2`,
+`package/module/matrix/src/container.ts`)
+was green.
+The emitter is again load-correlated and still not root-caused here.
+
 ## Fake-timer cross-domain clear deadlock on 2026-10-18
 
 A separate incident with the same emitter,
