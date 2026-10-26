@@ -33,15 +33,17 @@ const offsetOf = ({ text, needle, within = 0 }: { text: string; needle: string; 
   return [...text.slice(0, index)].length + within;
 };
 
-// The published entry point and the pinned answer of this worktree: where its provisioned tools are. The entry point
-// prints only when the path node runs it by is its own real path (its main guard compares the two), so every script
-// path here is canonical.
-const entryGiven = resolve('package/dev-script/file-enforcer/src/toolchain/bin-paths.ts');
+// The published entry point and the pinned answer of the repository: where its provisioned tools are. This file
+// lives at package/desktop-app/ide/bin, so the repository root is four directories up. The entry point prints only
+// when the path node runs it by is its own real path (its main guard compares the two), so every script path here is
+// canonical.
+const repoRoot = resolve(dirname(import.meta.filename), '../../../..');
+const entryGiven = join(repoRoot, 'package/dev-script/file-enforcer/src/toolchain/bin-paths.ts');
 if (!existsSync(entryGiven)) throw new Error('This check needs the toolchain entry point at ' + entryGiven);
 const entryPoint = realpathSync(entryGiven);
 // The entry point imports its sibling modules, so a fixture worktree copies the whole toolchain source directory.
 const toolchainSources = dirname(entryPoint);
-const lockText = readFileSync(resolve('toolchain.lock.json'), 'utf8');
+const lockText = readFileSync(join(repoRoot, 'toolchain.lock.json'), 'utf8');
 const answerOf = (script: string): { exposureDir: string; pathDirs: string[]; bins: Record<string, string> } => {
   const run = spawnSync('node', [script], { encoding: 'utf8', cwd: resolve('.') });
   if (run.status !== 0) throw new Error('the bin-paths lookup failed: ' + (run.stderr || run.stdout));
