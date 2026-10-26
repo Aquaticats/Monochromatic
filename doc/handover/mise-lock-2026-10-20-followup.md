@@ -1,17 +1,16 @@
-# mise lock follow-up after 2026.10.20 publishes
+# mise lock follow-up: remove the Linux-only stopgap when the fix releases
 
 Purpose:
  finish the mise lock incident recorded in
  `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`.
-The committed `mise.lock` is correct,
-but the installed mise 2026.10.19 still
-fails bare `mise lock` in this repository because it lacks upstream fix
-`b2e0c56` (jdx/mise#14959).
-Release 2026.10.20 contains the fix;
-its pull request (jdx/mise#14948) was
-open on 2026-10-25,
-held by the `release-window` check until
-2026-10-26T08:00Z.
+Bare `mise lock` now exits 0 with the installed 2026.10.19
+because the lock targets the four Linux platforms,
+a stopgap recorded in
+`doc/decision/mise-lock-linux-only-stopgap.md`.
+The stopgap goes away when a released mise carries
+jdx/mise#14959 (commit `b2e0c56`),
+first expected in 2026.10.20,
+whose release pull request is jdx/mise#14948.
 
 Changes:
 - `mise.lock`:
@@ -21,57 +20,65 @@ Changes:
   entries and checksums;
   android-sdk archive checksums recorded
   (commit `5fee1731f8`).
-- Troubleshooting doc:
+- Stopgap:
+  commit `355707fb7e` records the decision,
+  commit `7f00576883` sets `lockfile_platforms` in
+  `mise.no-env.toml` and regenerates `mise.lock`,
+  which now removes 1101 lines of macOS and Windows
+  platform metadata and adds none.
+  The committed lock hashes to
+  `a703a7cf8dd86d2702600e5649d3dadd2b1ffe977af25e6022ac5e79c5a6c51f`
+  at 240 targets.
+- Troubleshooting doc and decision document:
   both root causes traced to mise source,
-  the upstream fix
-  (jdx/mise#14937,
-  #14959,
-  commit `b2e0c56`,
-  first release 2026.10.20) and the
-  no-filing decision recorded (commits `de3444dbe6`,
-  `2079e4fb36`,
-  plus the
-  release-window note).
+  the stopgap and its tradeoffs recorded
+  (commits `355707fb7e`,
+  `7f00576883`).
 - CI no longer runs mise (commit `38cb13b4d1`,
   `doc/decision/mise-free-ci.md`),
   so no workflow pin remains to remove.
 
 Remaining steps,
-after v2026.10.20 publishes:
-1. `mise self-update 2026.10.20`;
-   the explicit version skips the minimum
-   release age.
-2. In the repository root,
+once a release containing `b2e0c56` exists:
+1. `mise self-update <version>`;
+   the explicit version skips the minimum release age.
+2. Delete the `lockfile_platforms` line and its `#region` comment from
+   `mise.no-env.toml`,
+   then run `mise run //:sync:files`.
+3. In the repository root,
    run bare `mise lock`;
-   expect exit 0 and
-   `✓ 645 targets checked`.
-3. Confirm `git status --short` is clean and `sha256sum mise.lock` still
-   reports `a0a16fd86a330d7c7d7c4aea0b3001fd5eaf568502b28098c72d21066bf5ec19`.
-4. Run `mise lock` once more;
-   expect the same output and no diff.
-5. Update the Status and follow-up section of the troubleshooting doc with the
-   release version and verification,
-   then commit with explicit pathspecs.
+   expect exit 0,
+   a seven-platform target count (645 when the stopgap
+   landed),
+   and the macOS and Windows platform entries back.
+4. Confirm `git status --short` is clean,
+   run `mise lock` once more,
+   expect the same output and no diff,
+   and record the new `sha256sum mise.lock`.
+5. Update the Status and follow-up section of the troubleshooting doc,
+   then follow the removal condition in the decision document,
+   which deletes that document,
+   and delete this handover.
+   Commit with explicit pathspecs.
 6. Delete `${HOME}/temp/agent/mise-2026-10-25` (build clone) and
    `${HOME}/temp/agent/bin/mise-fix` (built binary) if they still exist.
 
 What to inspect:
 - `git log --oneline -3 -- mise.lock`
-- `git show 5fee1731f8 --stat`
-- `mise --version` should report `2026.10.20 linux-x64`
+- `rg -n lockfile_platforms mise.no-env.toml mise.toml`
+- `mise --version`
 - The troubleshooting doc's Verification and Status and follow-up sections.
 
 How to respond:
-- If the release is not out yet,
-  wait until after 2026-10-26T08:00Z plus build
-  time,
-  then retry `gh release list --repo jdx/mise --limit 1` and check for
-  `v2026.10.20` with `isDraft` false.
+- If no release contains `b2e0c56` yet,
+  check `gh release list --repo jdx/mise --limit 1`
+  and `gh pr view 14948 --repo jdx/mise` occasionally;
+  do not expect a date,
+  since the release may never publish,
+  and the stopgap keeps the repository working meanwhile.
 - If `mise lock` still fails after the upgrade,
-  capture the error and check
-  whether the release contains `b2e0c56`;
-  report it rather than hand-editing
-  `mise.lock`.
+  capture the error and check whether the release contains `b2e0c56`;
+  report it rather than hand-editing `mise.lock`.
 - Do not post upstream:
   the jdx/mise `CONTRIBUTING.md` restricts AI-authored
   issue replies,
