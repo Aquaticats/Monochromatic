@@ -38,7 +38,7 @@ const NO_UNDERLINE: TextRange = {
 
  @param line - one line, without its line ending
 
- @returns The marks' stretch of the line, an empty stretch when the line is not an underline or is indented under a
+ @returns Marks' stretch of the line, an empty stretch when the line is not an underline or is indented under a
  footnote
 
  @example
@@ -91,7 +91,7 @@ function underlineIn({ line, }: { readonly line: string; }): TextRange {
 
  @param range - where the body of the footnote stands, from the first character after its label
 
- @returns The text with those characters replaced, the same length, or the text itself when no line is one
+ @returns Text with those characters replaced, the same length, or the text itself when no line is one
 
  @example
  ```ts

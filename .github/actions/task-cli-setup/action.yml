@@ -2,7 +2,8 @@ name: task-cli setup
 description: >
   Mise-free CI bootstrap: installs the exact Node and pnpm versions the
   repository's `mise.lock` records and exposes `task-run`, the node-native
-  task CLI that replaces `mise run` in every workflow.
+  task CLI that replaces `mise run` in every workflow. Plain shell only, so
+  running it never adds an external action to the repository's allow-list.
 
 inputs:
   node-version:
@@ -20,24 +21,70 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Node
-      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-      with:
-        node-version: ${{ inputs.node-version }}
-    - name: Set up pnpm
+    - name: Install Node (Linux and macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        version='${{ inputs.node-version }}'
+        case "${{ runner.os }}-${{ runner.arch }}" in
+          Linux-X64) platform=linux-x64 ;;
+          Linux-ARM64) platform=linux-arm64 ;;
+          macOS-ARM64) platform=darwin-arm64 ;;
+          macOS-X64) platform=darwin-x64 ;;
+          *) echo "task-cli-setup: unsupported runner ${{ runner.os }}-${{ runner.arch }}" >&2; exit 1 ;;
+        esac
+        install_dir="$RUNNER_TEMP/node-$version"
+        mkdir -p "$install_dir"
+        curl --fail --silent --show-error --location \
+          "https://nodejs.org/dist/v$version/node-v$version-$platform.tar.gz" \
+          | tar -xz -C "$install_dir" --strip-components=1
+        echo "$install_dir/bin" >> "$GITHUB_PATH"
+        export PATH="$install_dir/bin:$PATH"
+        node --version
+        npm --version
+
+    - name: Install Node (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $version = '${{ inputs.node-version }}'
+        $arch = 'x64'
+        if ('${{ runner.arch }}' -eq 'ARM64') { $arch = 'arm64' }
+        $archive = Join-Path $env:RUNNER_TEMP "node-$version-win-$arch.zip"
+        curl.exe --fail --silent --show-error --location `
+          "https://nodejs.org/dist/v$version/node-v$version-win-$arch.zip" `
+          --output $archive
+        $stage = Join-Path $env:RUNNER_TEMP "node-stage-$version"
+        Expand-Archive -Path $archive -DestinationPath $stage
+        $root = Split-Path -Path (Get-ChildItem -Path $stage -Recurse -Filter node.exe | Select-Object -First 1).FullName
+        Add-Content -Path $env:GITHUB_PATH -Value $root
+        & (Join-Path $root 'node.exe') --version
+        & (Join-Path $root 'npm.cmd') --version
+
+    - name: Install pnpm
       if: inputs.pnpm-version != ''
       shell: bash
       run: |
         set -euo pipefail
-        corepack enable
-        corepack prepare "pnpm@${{ inputs.pnpm-version }}" --activate
+        npm install --global "pnpm@${{ inputs.pnpm-version }}"
+        echo "$(npm prefix --global)" >> "$GITHUB_PATH"
         pnpm --version
+
     - name: Expose task-run
       shell: bash
       run: |
         set -euo pipefail
-        chmod +x "$GITHUB_WORKSPACE/package/dev-script/task-cli/src/run.ts"
-        ln -sf "$GITHUB_WORKSPACE/package/dev-script/task-cli/src/run.ts" /usr/local/bin/task-run
+        bin_dir="$RUNNER_TEMP/task-cli-bin"
+        run_ts="${GITHUB_WORKSPACE//\\//}/package/dev-script/task-cli/src/run.ts"
+        mkdir -p "$bin_dir"
+        chmod +x "$run_ts"
+        printf '#!/usr/bin/env bash\nexec node "%s" "$@"\n' "$run_ts" > "$bin_dir/task-run"
+        chmod +x "$bin_dir/task-run"
+        printf '@echo off\r\nnode "%s" %%*\r\n' "$run_ts" > "$bin_dir/task-run.cmd"
+        echo "$bin_dir" >> "$GITHUB_PATH"
+
     - name: Install dependencies
       if: inputs.install-dependencies == 'true' && inputs.pnpm-version != ''
       shell: bash

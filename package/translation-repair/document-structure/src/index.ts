@@ -135,6 +135,10 @@ export {
 export { noteHeadingFloors, } from './heading-floors.ts';
 export { moduleLineStartsOf, } from './module-line-starts.ts';
 export {
+  callParseEndHook,
+  PARSE_END_HOOK_KEY,
+} from './parse-end-hook.ts';
+export {
   MarkdownParseError,
   MdxParseError,
   parseMarkdownBody,
@@ -145,6 +149,7 @@ export {
   withMdxExhaustionRefused,
 } from './parse-mdx.ts';
 export { parseMarkdownMathBody, } from './parse-markdown-math.ts';
+export { parseGfmMathBody, } from './gfm-math-body.ts';
 export { parseSliceBody, } from './parse-slice-body.ts';
 export {
   type AtomKind,
@@ -157,9 +162,11 @@ export {
   type NamingError,
   refusalText,
 } from './refusal-text.ts';
+export { containerFootnoteDisagreementsOf, } from './container-footnote-ranges.ts';
 export {
   type BlockRange,
   footnoteDefinitionRangesOf,
+  pageFootnoteDefinitionRangesOf,
   tableRangesOf,
 } from './gfm-block-ranges.ts';
 export {
@@ -176,6 +183,9 @@ export {
   storedStretchesOf,
 } from './translators-note-view.ts';
 export { UnhandledMemberInvariantError, } from './unhandled-member.ts';
+export { withoutIndentedCode, } from './without-indented-code.ts';
+export { withoutRawHtml, } from './without-raw-html.ts';
+export { withTablesAndStrikethrough, } from './with-tables-and-strikethrough.ts';
 export {
   type ContainerSpan,
   flattenContainers,

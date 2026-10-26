@@ -1,7 +1,9 @@
+import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import type {
   BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { isGfmFootnoteLabel, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   closingBracket,
   FENCE_MARKS,
@@ -23,9 +25,86 @@ import {
 const FOOTNOTE_GAP = ' \t\r\n';
 
 /**
+ Whether a label, as written between the brackets, is the label of a footnote definition: a caret, then a name GFM
+ reads as a footnote label (`isGfmFootnoteLabel` in `translation-repair-markup`, which follows `labelInside` of
+ `micromark-extension-gfm-footnote@2.1.0`, `lib/syntax.js:354-381`). The scan of markup atoms asks the same question of
+ the text between `[^` and `]` of a reference, so the two share the rules and differ only in the caret, which this
+ predicate takes with the label and that one takes off.
+
+ @param label - text between the brackets
+
+ @returns Whether the label is one a footnote definition can have
+
+ @example
+ ```ts
+ const spelled = isFootnoteLabel({ label: '^1', },); // true
+ ```
+ */
+export function isFootnoteLabel({ label, }: { readonly label: string; },): boolean {
+  return label.startsWith('^',) && isGfmFootnoteLabel({ label: label.slice(1,), },);
+}
+
+/**
+ Whether a link reference definition of the plain reading has the label of a footnote definition. CommonMark reads
+ `[^a b]: x` as a link reference definition and so does GFM, whose footnote label holds no space, tab or line ending
+ (`micromark-extension-gfm-footnote@2.1.0`, `lib/syntax.js`, `labelInside`), so a definition with such a label is no
+ footnote definition to the strict grammar.
+
+ @param source - text the node was parsed from, whose characters the strict grammar reads: the label of the node is
+ decoded (a character reference or an escape is resolved in it) and its identifier is trimmed
+
+ @param node - node of the parse
+
+ @returns Whether the node is a link reference definition the strict grammar reads as a footnote definition
+
+ @throws {@link Error} when a definition has no position, which the parse used never builds
+
+ @example
+ ```ts
+ const footnote = hasFootnoteLabel({ source, node, },);
+ ```
+ */
+export function hasFootnoteLabel(
+  {
+    source,
+    node,
+  }: {
+    readonly source: string;
+    readonly node: TreeNode;
+  },
+): boolean {
+  if (node.type !== 'definition')
+    return false;
+  /**
+   Where the definition starts and ends.
+   */
+  const {
+    start,
+    end,
+  } = nonNullishOrThrow(node.position,);
+  /**
+   Where the label opens, behind any indentation.
+   */
+  const open = source.indexOf(
+    '[',
+    nonNullishOrThrow(start.offset,),
+  );
+  return isFootnoteLabel({
+    label: source.slice(
+      open + 1,
+      closingBracket({
+        source,
+        from: open + 1,
+        limit: nonNullishOrThrow(end.offset,),
+      },),
+    ),
+  },);
+}
+
+/**
  How many columns a block under a footnote definition is indented by.
  */
-const FOOTNOTE_INDENT = 4;
+export const FOOTNOTE_INDENT = 4;
 
 /**
  What {@link footnoteStartInside} answers for a paragraph no footnote definition starts inside.
@@ -110,7 +189,8 @@ export function footnoteBodyStart(
 /**
  Whether a node opens a footnote definition that the strict grammar reads: a paragraph starting `[^label]:`, a heading
  that starts so (its underline is a lazy line of the footnote's paragraph to the strict grammar), or a link reference
- definition whose label starts with a caret, which CommonMark reads as that and GFM as a footnote.
+ definition whose label starts with a caret and holds no white space, which CommonMark reads as that and GFM as a
+ footnote.
 
  @param source - text
 
@@ -136,11 +216,11 @@ export function opensFootnote(
     readonly range: TextRange;
   },
 ): boolean {
-  if (node.type === 'definition') {
-    return node
-      .identifier
-      .startsWith('^',);
-  }
+  if (node.type === 'definition')
+    return hasFootnoteLabel({
+      source,
+      node,
+    },);
   if ((node.type !== 'paragraph') && (node.type !== 'heading'))
     return false;
   if (!source.startsWith(
@@ -148,11 +228,20 @@ export function opensFootnote(
     range.start,
   ))
     return false;
-  return source.charAt(closingBracket({
+  /**
+   Where the bracket that closes the label stands.
+   */
+  const close = closingBracket({
     source,
     from: range.start + 1,
     limit: range.end,
-  },) + 1,) === ':';
+  },);
+  return (source.charAt(close + 1,) === ':') && isFootnoteLabel({
+    label: source.slice(
+      range.start + 1,
+      close,
+    ),
+  },);
 }
 
 /**
@@ -191,6 +280,35 @@ export function continuesDefinition(
 }
 
 /**
+ The line a node starts on.
+
+ @param node - node of the parse
+
+ @param fallback - line to give for a node that carries no position
+
+ @returns One-based line
+
+ @example
+ ```ts
+ const line = startLineOf({ node, fallback: 0, },);
+ ```
+ */
+export function startLineOf(
+  {
+    node,
+    fallback,
+  }: {
+    readonly node: TreeNode;
+    readonly fallback: number;
+  },
+): number {
+  return node.position
+    ?.start
+    .line
+    ?? fallback;
+}
+
+/**
  The line a node ends on.
 
  @param node - node of the parse
@@ -223,6 +341,8 @@ export function endLineOf(
  Whether a node is a link reference definition on the line right after a footnote definition, which the strict grammar
  reads as a line of the footnote's paragraph and not as a definition.
 
+ @param source - text the node was parsed from
+
  @param node - node of the parse
 
  @param footnoteOpen - whether the block read just before is part of a footnote definition
@@ -233,15 +353,17 @@ export function endLineOf(
 
  @example
  ```ts
- const lazy = isLazyDefinition({ node, footnoteOpen: true, previousEndLine: 3, },);
+ const lazy = isLazyDefinition({ source, node, footnoteOpen: true, previousEndLine: 3, },);
  ```
  */
 export function isLazyDefinition(
   {
+    source,
     node,
     footnoteOpen,
     previousEndLine,
   }: {
+    readonly source: string;
     readonly node: TreeNode;
     readonly footnoteOpen: boolean;
     readonly previousEndLine: number;
@@ -251,9 +373,10 @@ export function isLazyDefinition(
     return false;
   if (node.type !== 'definition')
     return false;
-  if (node
-    .identifier
-    .startsWith('^',))
+  if (hasFootnoteLabel({
+    source,
+    node,
+  },))
     return false;
   return node.position
     ?.start
@@ -340,27 +463,47 @@ function lineEndAfter(
 }
 
 /**
- The indices of the characters of an indented block that remain once each line gives up its indentation of up to four
- spaces or one tab, which is how a footnote definition reads the blocks indented under it.
+ Where a line starts or goes on after a prefix it gives up.
+ */
+type LinePrefix = {
+  /**
+   Index of the line's first character.
+   */
+  readonly start: number;
+
+  /**
+   Index after the line, its ending included.
+   */
+  readonly end: number;
+};
+
+/**
+ The indices of the characters of a stretch that remain once each line gives up a prefix.
 
  @param source - text
 
- @param range - where the block stands, from the start of its first line
+ @param range - where the stretch stands, from the start of its first line
+
+ @param prefixLength - how many characters of the prefix the line gives up, from the line's first character
 
  @returns Indices in text order
 
  @example
  ```ts
- const kept = withoutIndentation({ source, range, },);
+ const kept = linesWithoutPrefix({ source, range, prefixLength: function none(): number {
+   return 0;
+ }, },);
  ```
  */
-export function withoutIndentation(
+export function linesWithoutPrefix(
   {
     source,
     range,
+    prefixLength,
   }: {
     readonly source: string;
     readonly range: TextRange;
+    readonly prefixLength: (line: LinePrefix,) => number;
   },
 ): readonly number[] {
   /**
@@ -376,18 +519,13 @@ export function withoutIndentation(
       from: lineStart,
       limit: range.end,
     },);
-    /**
-     How many characters of indentation the line gives up.
-     */
-    const skipped = { count: 0, };
-    while ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(lineStart + skipped.count,) === ' '))
-      skipped.count += 1;
-    if ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(lineStart + skipped.count,) === '\t'))
-      skipped.count += 1;
     kept.push(...indicesOf({
       range: {
         start: Math.min(
-          lineStart + skipped.count,
+          lineStart + prefixLength({
+            start: lineStart,
+            end: lineEnd,
+          },),
           lineEnd,
         ),
         end: lineEnd,
@@ -396,6 +534,142 @@ export function withoutIndentation(
     lineStart = lineEnd;
   }
   return kept;
+}
+
+/**
+ How many characters of indentation a line gives up: up to four spaces or one tab.
+
+ @param source - text
+
+ @param line - where the line stands
+
+ @returns Count of characters
+
+ @example
+ ```ts
+ const count = footnoteIndentOf({ source: '  a', line: { start: 0, end: 3, }, },);
+ ```
+ */
+export function footnoteIndentOf(
+  {
+    source,
+    line,
+  }: {
+    readonly source: string;
+    readonly line: LinePrefix;
+  },
+): number {
+  /**
+   How many characters of indentation the line gives up.
+   */
+  const skipped = { count: 0, };
+  while ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(line.start + skipped.count,) === ' '))
+    skipped.count += 1;
+  if ((skipped.count < FOOTNOTE_INDENT) && (source.charAt(line.start + skipped.count,) === '\t'))
+    skipped.count += 1;
+  return skipped.count;
+}
+
+/**
+ The most columns of white space that may stand before the mark of a block quote.
+ */
+const MOST_COLUMNS_BEFORE_MARK = 3;
+
+/**
+ Columns a tab counts for before the mark of a block quote.
+ */
+export const TAB_COLUMNS = 4;
+
+/**
+ How many characters of block quote marks a line starts with: each mark with up to three columns of white space before
+ it and one space or tab after it, as many marks as follow one another.
+
+ @param source - text
+
+ @param line - where the line stands, whose first character must be the first character of a line of the text
+
+ @returns Count of characters, none for a line that starts with no mark
+
+ @example
+ ```ts
+ const count = quoteMarksOf({ source: '> > a', line: { start: 0, end: 5, }, },);
+ ```
+ */
+function quoteMarksOf(
+  {
+    source,
+    line,
+  }: {
+    readonly source: string;
+    readonly line: LinePrefix;
+  },
+): number {
+  if ((line.start > 0) && (source.charAt(line.start - 1,) !== '\n'))
+    return 0;
+  /**
+   The reading position, the end of the last mark with its space, and the columns of white space since the last mark.
+   */
+  const scan = {
+    at: line.start,
+    marked: line.start,
+    columns: 0,
+  };
+  while (scan.at < line.end) {
+    /**
+     The character at the reading position.
+     */
+    const character = source.charAt(scan.at,);
+    if ((character === ' ') || (character === '\t')) {
+      scan.columns += (character === '\t') ? TAB_COLUMNS : 1;
+      scan.at += 1;
+      continue;
+    }
+    if ((character !== '>') || (scan.columns > MOST_COLUMNS_BEFORE_MARK))
+      break;
+    scan.at += 1;
+    if ((source.charAt(scan.at,) === ' ') || (source.charAt(scan.at,) === '\t'))
+      scan.at += 1;
+    scan.marked = scan.at;
+    scan.columns = 0;
+  }
+  return scan.marked - line.start;
+}
+
+/**
+ The indices of the characters of a stretch that remain once each line that starts a line of the text gives up the marks
+ of the block quote it stands in, which the lines of a paragraph in a block quote carry and a paragraph read as a text
+ of its own does not have.
+
+ @param source - text
+
+ @param range - where the stretch stands
+
+ @returns Indices in text order
+
+ @example
+ ```ts
+ const kept = withoutQuoteMarks({ source: '> a\n> b', range: { start: 2, end: 7, }, },);
+ ```
+ */
+export function withoutQuoteMarks(
+  {
+    source,
+    range,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+  },
+): readonly number[] {
+  return linesWithoutPrefix({
+    source,
+    range,
+    prefixLength: function marks(line,): number {
+      return quoteMarksOf({
+        source,
+        line,
+      },);
+    },
+  },);
 }
 
 //endregion Source ships footnote

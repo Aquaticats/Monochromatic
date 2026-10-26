@@ -137,10 +137,33 @@ function selectsThinkingLevel(key: string): boolean {
 }
 
 /**
+ Whether the listing says the model thinks when the caller names no effort.
+ Only an explicit `default_enabled: false` marks a model whose thinking starts
+ disabled, so a listing that stays silent keeps this mapping from claiming a
+ default. The dispatch seam cannot tell the default level apart from the off
+ level, so a model that thinks by default gives up the off level rather than
+ have every untouched default dispatch the off wire.
+
+ @param reasoning - narrowed reasoning block this mapping reads
+
+ @returns `false` only when the listing says thinking starts disabled
+ */
+function thinksByDefault({
+  reasoning,
+}: {
+  readonly reasoning: Readonly<Record<string, unknown>>;
+}): boolean {
+  return reasoning.default_enabled !== false;
+}
+
+/**
  Thinking-level declaration one entry's reasoning block earns, carried as
  the profile fields it contributes: `false` when the listing marks the model
  non-reasoning or offers no level beyond off, the level dict otherwise, and
- no field at all when the entry lists no efforts.
+ no field at all when the entry lists no efforts. The dict carries the off
+ level only for a model the listing says thinks off by default; every other
+ model keeps the level out so an unnamed default reaches the service as the
+ parameter's absence.
 
  @param metadata - narrowed entry metadata this mapping reads
 
@@ -213,9 +236,18 @@ function reasoningEffortsFields({
      vocabulary cannot express the spelling.
      */
     const level = EFFORT_LEVEL_BY_SPELLING[spelling];
-    if (level !== undefined) {
-      efforts[level] = spelling;
+    if (level === undefined) {
+      continue;
     }
+    /**
+     The off spelling maps only when thinking starts disabled: naming an
+     effort and naming none are the same request at the dispatch seam, so an
+     off level on a thinking-by-default model would silence its default.
+     */
+    if ((level === 'off') && thinksByDefault({ reasoning })) {
+      continue;
+    }
+    efforts[level] = spelling;
   }
   return Object.keys(efforts)
     .some(selectsThinkingLevel)

@@ -43,7 +43,9 @@ const MINIMUM_FENCE_MARKS = 3;
 /**
  What the functions that read a mark answer for a line, a block or a text that holds none.
  */
-export const NO_MARK: unique symbol = Symbol('No fence or display math mark (backticks, tildes or dollar signs) in the line, block or text read.',);
+export const NO_MARK: unique symbol = Symbol(
+  'No fence or display math mark (backticks, tildes or dollar signs) in the line, block or text read.',
+);
 
 /**
  A mark, or that none stands.
@@ -82,7 +84,7 @@ function indentOf({ line, }: { readonly line: string; },): number {
 
  @param line - line, without its line ending
 
- @returns The run, `NO_MARK` when the indentation is more than three spaces or the line starts with no character that a
+ @returns Run, `NO_MARK` when the indentation is more than three spaces or the line starts with no character that a
  flow is made of
 
  @example
@@ -122,14 +124,14 @@ function runOf({ line, }: { readonly line: string; },): MarkOrNone {
 
  @param line - first line of a code or math block
 
- @returns The mark, `NO_MARK` when the line opens no fence or display math
+ @returns Mark, `NO_MARK` when the line opens no fence or display math
 
  @example
  ```ts
  const mark = openingMark({ line: '```js', },);
  ```
  */
-function openingMark({ line, }: { readonly line: string; },): MarkOrNone {
+export function openingMark({ line, }: { readonly line: string; },): MarkOrNone {
   /**
    The run the line starts with.
    */
@@ -192,7 +194,7 @@ function onlySpacesFrom(
  const closed = closesFlow({ line: '```', mark: '```', },);
  ```
  */
-function closesFlow(
+export function closesFlow(
   {
     line,
     mark,
@@ -222,7 +224,7 @@ function closesFlow(
 
  @param range - where the node stands
 
- @returns The lines in order
+ @returns Lines in order
 
  @example
  ```ts
@@ -261,7 +263,7 @@ function linesOf(
 
  @param root - parse of the text by the plain reading with the site's math
 
- @returns The mark that closes the last block of the text, `NO_MARK` when that block is no fence or display math, or is
+ @returns Mark that closes the last block of the text, `NO_MARK` when that block is no fence or display math, or is
  closed
 
  @example
@@ -316,7 +318,7 @@ function openFlowCloser(
 
  @param text - text with its escapes made, in which no comment stays open
 
- @returns The mark that closes the last block of the text as the page reads it, `NO_MARK` when that block is no fence or
+ @returns Mark that closes the last block of the text as the page reads it, `NO_MARK` when that block is no fence or
  display math, is closed, or the text is nested past the bound the plain reading keeps and is read as holding no block
 
  @example

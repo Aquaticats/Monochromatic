@@ -23,6 +23,12 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // with defect reported"): a page that does not carry what its artifact says
 // ships is a defect in the assembly code rather than in the text, and it
 // ships reported rather than leaving the archive's page in its place.
+//
+// THE COMPOSITION OF THE ORIGINALS REPORTS FOUR OF THESE ITSELF, and not through a check that throws: `page-source-unparseable`
+// (the page ships without the original of a run), and, from the comparison of the page with its source on 2026-10-25
+// ("Add the comparison"), `source-reads-differently`, `source-reading-undecided` and `source-reading-not-compared`
+// (`source-ships-differences.ts`). A run always ships and every reading difference is reported, so a throw of that
+// comparison is a defect of the run, named by the last of them, and does not stop the entry.
 
 /**
  A check at publish whose failure ships as a reported defect.
@@ -41,7 +47,10 @@ export type PublishCheck =
     | 'no-valid-wording'
     | 'page-agreement'
     | 'page-footnotes'
-    | 'page-source-unparseable';
+    | 'page-source-unparseable'
+    | 'source-reading-not-compared'
+    | 'source-reading-undecided'
+    | 'source-reads-differently';
 
 /**
  One failed content check the page shipped with.

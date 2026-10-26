@@ -22,7 +22,7 @@ import {
 
  @param root - tree to look in
 
- @returns The heading
+ @returns Heading
 
  @throws {@link Error} when the tree holds no heading at the top
 

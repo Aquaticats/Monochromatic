@@ -142,6 +142,47 @@ named for that subject and listed here.
   the sixth round after the re-check of round 4,
   and the seventh round,
   the module lines from the tokenizer and the footnote reading (B832 follow-ups).
+- [Audit ledger: the source text under a note, the ninth round of follow-ups](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md):
+  Lone carriage returns as line endings,
+  the sampled live-construct check over a wider pool at one pair in four,
+  the full pass over every pair and text,
+  the walk fixture's hook in the grammar,
+  and the limits and mutants of the round (B832 follow-ups).
+- [Audit ledger: the source text under a note, the reading comparison and the real corpus](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md):
+  The page check's comparison of the reading of the page with the reading of the source,
+  the count of real texts per residual class,
+  the fixes of the classes and the checks of the fourth round (B832 follow-ups).
+- [Audit ledger: the source text under a note, the block comparison and the openers in code](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md):
+  The comparison decided for each top-level block,
+  the defects for a block it cannot decide and a run it cannot compare,
+  the comments that never close taken out of code and math,
+  the code spans an indent-four footnote start cuts,
+  and the pins,
+  mutants,
+  search and real-corpus counts of the fifth round (B832 follow-ups).
+- [Audit ledger: the source text under a note, tables, emphasis and raw HTML after a paragraph](audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md):
+  The footnote start indented four columns after a table row,
+  in emphasis and link text and after a backslash hard break,
+  the comment openers that cut a paragraph or stand in a footnote's fence,
+  the block of raw HTML that cuts a paragraph,
+  the pins,
+  mutants,
+  differentials,
+  search and real-corpus counts of the answer to the third re-check (B832 follow-ups).
+- [Audit ledger: the source text under a note, the plain reading with tables and the containers](audit-ledger-source-text-follow-ups-the-plain-reading-with-tables-and-the-containers.md):
+  A link target decoded as far as it reads,
+  the plain reading with GFM tables and strikethrough,
+  the footnote start after a link reference definition,
+  every opener that starts a block of raw HTML,
+  the fence,
+  the display math and the openers under a footnote in a block quote or a list item,
+  the lazy lines and the raw HTML a footnote opens with,
+  the placing of the block comparison,
+  and the reds,
+  mutants,
+  differentials,
+  search,
+  real-corpus counts and residual classes of the answer to the fourth re-check (B832 follow-ups).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

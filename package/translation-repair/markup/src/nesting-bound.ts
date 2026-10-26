@@ -16,7 +16,9 @@ import {
   blanksEnd,
   containerPrefixOf,
   indentationOf,
+  isDefinitionLine,
   isRuleLine,
+  linesAtEveryEnding,
 } from './nesting-line-lexing.ts';
 import {
   NESTING_BOUND,
@@ -339,7 +341,14 @@ function readLine(
   },);
   if ((grammar === 'mdx') && rest.startsWith('$$',))
     state.mathSeen = true;
-  return scanInline({
+  /**
+   How many braces were open before the line.
+   */
+  const bracesBefore = state.braces;
+  /**
+   What the line did to the counts.
+   */
+  const reading = scanInline({
     line,
     start: prefix.end,
     lineNumber,
@@ -347,6 +356,11 @@ function readLine(
     state,
     skipDelimiters: isRuleLine({ line: rest, },),
   },);
+  // A definition takes a brace for a character of its destination or title, so none of its braces stays open past it,
+  // though they all counted against the bound on the line itself.
+  if (isDefinitionLine({ line: rest, }))
+    state.braces = bracesBefore;
+  return reading;
 }
 
 /**
@@ -391,7 +405,7 @@ export function firstNestingExcess(
    Lines of the body as the parser reads them, a leading byte order mark
    dropped.
    */
-  const lines = (body.startsWith('\uFEFF',) ? body.slice(1,) : body).split('\n',);
+  const lines = linesAtEveryEnding({ body: body.startsWith('\uFEFF',) ? body.slice(1,) : body, },);
   for (const [position, line,] of lines.entries()) {
     /**
      Index after the line's leading blanks, the line's length when it is all blank.

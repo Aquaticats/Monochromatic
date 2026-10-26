@@ -11,8 +11,9 @@ import {
 // drawn, each with a seed, so a failure names texts that can be run again:
 //
 // - the generated footnote texts, a footnote definition followed by lines indented four spaces or more, one of them
-//   starting with a fence mark, in a bare, list item and block quote setting (10800 texts, every combination of the
-//   parts in `source-live-sample-pool.test-fixture.ts`);
+//   starting with a fence mark, in a bare, list item and block quote setting and in a bare setting with lone carriage
+//   returns for line endings (32256 texts, every combination of the parts in
+//   `source-live-sample-pool.test-fixture.ts`);
 // - pairs of runs, each built from a pool of fragments that hold braces, tags, comments, fences, math, footnotes,
 //   addresses and the other syntax the encoder writes, with English between the runs (the pairs a seeded search of
 //   forty thousand draws from the seeds 31415926 and 27182818 reads, the draws here being a fixed fraction of them).
@@ -129,7 +130,7 @@ function seededDraw({ seed, }: { readonly seed: number; },): (limit: number,) =>
 
  @param draw - generator of integers under a limit
 
- @returns The element the generator picks
+ @returns Element the generator picks
 
  @example
  ```ts
@@ -203,9 +204,9 @@ function drawRun({ draw, }: { readonly draw: (limit: number,) => number; },): st
 
  @param sampleSeed - seed of the stream that picks the pairs to keep
 
- @param oneIn - the pairs kept are one in this many, on average
+ @param oneIn - pairs kept are one in this many, on average
 
- @returns The pairs kept, in the order drawn
+ @returns Pairs kept, in the order drawn
 
  @example
  ```ts
@@ -266,7 +267,7 @@ export function sampledPairs(
 /**
  Every generated footnote text: each combination of the stages, in each container.
 
- @returns The 10800 texts, a line ending after the last line of each
+ @returns 32256 texts, a line ending after the last line of each
 
  @example
  ```ts
@@ -297,6 +298,7 @@ export function footnoteProductTexts(): readonly string[] {
     {
       open,
       hang,
+      join,
     },
   ): readonly string[] {
     return bodies.map(function toText(lines,): string {
@@ -309,7 +311,7 @@ export function footnoteProductTexts(): readonly string[] {
       ): string {
         return `${(at === 0) ? open : hang}${line}`;
       },);
-      return `${prefixed.join('\n',)}\n`;
+      return `${prefixed.join(join,)}${join}`;
     },);
   },);
 }
@@ -317,13 +319,13 @@ export function footnoteProductTexts(): readonly string[] {
 /**
  Keeps a fixed fraction of a list of texts, picked by a seeded stream.
 
- @param texts - the whole set, in order
+ @param texts - whole set, in order
 
  @param sampleSeed - seed of the stream that picks the texts to keep
 
- @param oneIn - the texts kept are one in this many, on average
+ @param oneIn - texts kept are one in this many, on average
 
- @returns The texts kept, in the order given
+ @returns Texts kept, in the order given
 
  @example
  ```ts
