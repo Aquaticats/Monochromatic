@@ -15,8 +15,19 @@ Read that decision first;
 - `mise run toolchain:status`:
  print observed versus locked versions and exit non-zero on drift.
 - `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts`:
- print the exposure directory and each tool's link targets as JSON
+ print the exposure directory,
+ PATH directories,
+ and one absolute path per linked binary as JSON
  (consumers such as the IDE read this instead of `mise bin-paths`).
+ The output shape is exactly:
+
+```jsonc
+{
+  "exposureDir": ".cache/toolchain-bin",
+  "pathDirs": ["/abs/path/to/.cache/toolchain-bin", "/abs/path/.cargo/bin"],
+  "bins": { "taplo": "/abs/path/.cache/toolchain-bin/taplo" }
+}
+```
 
 ## Paths
 
