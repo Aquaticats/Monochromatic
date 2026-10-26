@@ -16,6 +16,12 @@
  lane as the next slice would, so the wiring from the client to the budgets and the seat reader is part of what they
  run. No case waits, and no request leaves the process.
 
+ An ask is awaited to its end and never cut short by a count of event-loop turns: it reads NeuralWatt's ledger file
+ whenever NeuralWatt reads wet, which finishes when the host's thread pool says and not after a fixed number of turns,
+ and the fake clock must not move while that read is out, or the hold the refusal sets after it is stamped on a clock
+ that is about to jump past it. Only the case where no writing provider reads wet lets the clock move during the ask,
+ since the router then holds the ask itself through the cooldown (`routerHoldsTheAsk`).
+
  Fixtures are cat-themed invention; every reply is a script.
 
  @module
@@ -64,11 +70,6 @@ const COOLDOWN_MS = 300_000;
  How often the seat reader's wait checks for abort, the real one-second slice.
  */
 const POLL_MS = 1_000;
-
-/**
- How many turns of the real event loop an ask gets to end before the case takes it for one the router holds on a hold.
- */
-const ASK_TURNS = 50;
 
 /**
  How many slices ask Synthetic, each right after the cooldown the slice before it waited out.
@@ -242,6 +243,8 @@ function neuralwattReply(exchange: TransportExchange,): TransportReply {
  @param wet - which providers read wet beside the refusing one
  @param refuser - the provider that refuses every chat call with a meter the budgets cannot read: Synthetic as in
  XingZ6020 (default), or Hyper where a case needs a refuser whose return would lift the benches
+ @param routerHoldsTheAsk - whether the router holds each ask through the cooldown itself, because no provider that
+ writes reads wet (default: no, the ask ends on its own and the clock does not move until it has)
  @param ledgerPath - where NeuralWatt's energy ledger lives, in a throwaway directory
 
  @returns The rig, and the disposable that puts the real timers back
@@ -256,11 +259,13 @@ function rigOn(
     sinon,
     wet,
     refuser = 'synthetic',
+    routerHoldsTheAsk = false,
     ledgerPath,
   }: {
     readonly sinon: DisposableSandbox;
     readonly wet: readonly Alternative[];
     readonly refuser?: Refuser;
+    readonly routerHoldsTheAsk?: boolean;
     readonly ledgerPath: string;
   },
 ): Rig & Disposable {
@@ -351,11 +356,7 @@ function rigOn(
      */
     const requestsBefore = counted.requests;
     /**
-     Whether the ask has ended.
-     */
-    const ask: { ended: boolean; } = { ended: false, };
-    /**
-     Asks for the seat and notes that the ask ended, however it ended.
+     Asks for the seat and lets the ask end however it ends.
      */
     async function askForTheSeat(): Promise<void> {
       try {
@@ -370,22 +371,18 @@ function rigOn(
         if (!Error.isError(error,))
           throw error;
       }
-      ask.ended = true;
     }
     /**
-     The ask, which ends in a few turns of the event loop unless the router waits out a hold because no writing provider
-     reads wet.
+     The ask, started and then awaited to its end.
      */
     const asking = askForTheSeat();
-    for (const _turn of Array.from({ length: ASK_TURNS, },)
-      .keys()) {
-      if (ask.ended)
-        break;
-      // oxlint-disable-next-line no-await-in-loop -- a turn of the real event loop, which the fake clock does not move
-      await timersPromises.setImmediate();
-    }
-    // A ROUTER THAT WAITS OUT THE HOLD ITSELF needs the clock to pass it; the reader's own wait comes after the ask.
-    if (!ask.ended)
+    // THE CLOCK DOES NOT MOVE WHILE AN ASK IS OUT, except for the ask the router holds itself. A budget reading of
+    // NeuralWatt reads its ledger file, which the thread pool finishes whenever it can; a count of event-loop turns that
+    // took a slow read for a router waiting on the hold moved the clock past the 300 s the refusal had just set, and the
+    // hold then read zero. The reader's own wait comes after the ask.
+    // The ask the router holds reads no file (the case lets Xiaomi alone read wet, and NeuralWatt has no key, so no ledger
+    // is read), so it has gone as far as its wait on the fake clock by the time the clock first moves.
+    if (routerHoldsTheAsk)
       await clock.tickAsync(COOLDOWN_MS + POLL_MS,);
     await asking;
     if (counted.requests > requestsBefore) {
@@ -605,6 +602,7 @@ await describe({
         using rig = rigOn({
           sinon: ctx.sinon,
           wet: ['xiaomi',],
+          routerHoldsTheAsk: true,
           ledgerPath: join(scratch.path, 'neuralwatt-energy.jsonl',),
         },);
         await consoleLinesDuring({
