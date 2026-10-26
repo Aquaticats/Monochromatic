@@ -1,17 +1,18 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { isLazyDefinition, } from './source-ships-footnote.ts';
 import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
-import {
-  contentStretches,
-  lineJoinsOf,
-} from './source-ships-lines.ts';
+import { lineJoinsOf, } from './source-ships-lines.ts';
 import {
   autolinkWritten,
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import { imageAltReading, } from './source-ships-image-alt.ts';
-import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
+import {
+  isIndentedCode,
+  markerEscapeEdits,
+} from './source-ships-list-marker.ts';
+import { literalBlockReading, } from './source-ships-literal-block.ts';
 import {
   footnoteReadingsOf,
   NO_PAGE_ONLY_DEFINITION,
@@ -24,14 +25,11 @@ import {
   topLevelPending,
   withEndLine,
 } from './source-ships-pending.ts';
-import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
-  FENCE_MARKS,
   rangeOf,
   secondLabel,
   type SourceSpans,
-  startsAny,
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
@@ -172,6 +170,11 @@ export function spansOf(
    */
   const footnotes = new Map<TreeNode, FootnoteState>();
   /**
+   For each container, whether the block read last in it is indented code, which a line that looks like a list marker
+   right after it is text to.
+   */
+  const endsInIndentedCode = new Map<TreeNode, boolean>();
+  /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
   const pending = topLevelPending({ root, },);
@@ -190,6 +193,17 @@ export function spansOf(
      Where its characters are.
      */
     const range = rangeOf({ node, },);
+    /**
+     Whether the block read right before it in its parent is indented code.
+     */
+    const afterIndentedCode = endsInIndentedCode.get(parent,) ?? false;
+    endsInIndentedCode.set(
+      parent,
+      isIndentedCode({
+        source,
+        node,
+      },),
+    );
     /**
      What the block read last in its parent was.
      */
@@ -301,24 +315,34 @@ export function spansOf(
       definitionEnds,
       footnoteStarts: pageOnlyStarts,
     },),);
+    // A LINE THAT LOOKS LIKE A LIST MARKER RIGHT AFTER INDENTED CODE is text to the parse and a list on the page, which has
+    // no indented code, so its marker is written with a backslash (`source-ships-list-marker.ts`).
+    if (afterIndentedCode && (node.type === 'paragraph')) {
+      edits.push(...markerEscapeEdits({
+        source,
+        start: range.start,
+      },),);
+    }
     // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {
       text.push(range,);
       continue;
     }
-    // A RAW HTML BLOCK, which MDX does not have: it reads such lines as a
-    // paragraph, and the reader sees them as they stand.
-    if (node.type === 'html') {
-      literal.push(...contentStretches({
+    // A RAW HTML BLOCK, AND CODE, EXCEPT THE FENCED KIND, which MDX does not have: it reads such lines as a paragraph,
+    // and the reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
+    if ((node.type === 'html') || (node.type === 'code')) {
+      /**
+       What the block comes to for the page.
+       */
+      const block = literalBlockReading({
         source,
+        readable,
         node,
         range,
-      },),);
-      edits.push(...afterLiteralBlockEdits({
-        readable,
-        range,
-        inContainer: !isRootChild,
-      },),);
+        isRootChild,
+      },);
+      literal.push(...block.literal,);
+      edits.push(...block.edits,);
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
@@ -333,32 +357,6 @@ export function spansOf(
       },);
       text.push(...alternative.text,);
       edits.push(...alternative.edits,);
-      continue;
-    }
-    // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the
-    // reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
-    if (node.type === 'code') {
-      if (startsAny({
-        text: source,
-        at: range.start,
-        candidates: FENCE_MARKS,
-      },))
-        edits.push(...fenceLengthEdits({
-          source,
-          range,
-        },),);
-      else {
-        literal.push(...contentStretches({
-          source,
-          node,
-          range,
-        },),);
-        edits.push(...afterLiteralBlockEdits({
-          readable,
-          range,
-          inContainer: !isRootChild,
-        },),);
-      }
       continue;
     }
     // A DEFINITION that is no footnote keeps its destination and title and has a label read as text.
