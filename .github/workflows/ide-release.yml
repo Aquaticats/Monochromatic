@@ -49,8 +49,6 @@ on:
 
 permissions: {}
 
-env: {}
-
 # Serialize runs so a second version bump landing while a release is still building does not race
 # the first. cancel-in-progress=false keeps the running release alive; the second run queues.
 concurrency:
