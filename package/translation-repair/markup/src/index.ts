@@ -99,6 +99,10 @@ export {
 } from './markup-atom-scan.ts';
 export { treeNodes, } from './mdast-tree-nodes.ts';
 export {
+  footnoteLabelEnd,
+  isGfmFootnoteLabel,
+} from './footnote-label.ts';
+export {
   isTagWhitespace,
   readAttributeName,
   readTagName,

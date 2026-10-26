@@ -1,13 +1,6 @@
-import {
-  footnoteDefinitionRangesOf,
-  tableRangesOf,
-  type TreeNode,
-} from '@monochromatic-dev/translation-repair-document-structure/ts';
-import {
-  endLineOf,
-  isIndentedCode,
-  isLazyDefinition,
-} from './source-ships-footnote.ts';
+import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { isLazyDefinition, } from './source-ships-footnote.ts';
+import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
 import {
   contentStretches,
   lineJoinsOf,
@@ -17,11 +10,18 @@ import {
   cutByTable,
 } from './source-ships-links.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
+import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
+import {
+  footnoteReadingsOf,
+  NO_PAGE_ONLY_DEFINITION,
+  pageOnlyDefinitionWritten,
+} from './source-ships-footnote-ranges.ts';
 import {
   type FootnoteState,
   footnoteStateOf,
   stateAfter,
   topLevelPending,
+  withEndLine,
 } from './source-ships-pending.ts';
 import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
@@ -50,11 +50,12 @@ export {
 // indented code, which MDX has no such thing as, the alternative text of an image) or something the grammar reads as
 // its own syntax (a fence, a code span, math, a link destination), and the second kind is never touched.
 //
-// WHAT THE PLAIN PARSE READS DIFFERENTLY FROM THE STRICT GRAMMAR, and how each is handled. GFM is not on in the plain
-// parse (its autolink-literal transform builds nodes without a position), so a footnote definition made of one
-// destination is a link reference definition there and a footnote to the strict grammar: its body is read as a text of
-// its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for the blocks of
-// the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
+// WHAT THE PLAIN PARSE READS DIFFERENTLY FROM THE STRICT GRAMMAR, and how each is handled. The plain parse has the
+// tables and the strikethrough of GFM and no other part of it (its autolink-literal transform builds nodes without a
+// position, and its footnotes read a definition the plain reading takes for a paragraph), so a footnote definition
+// made of one destination is a link reference definition there and a footnote to the strict grammar: its body is read
+// as a text of its own (`nestedSpans`), as are the blocks indented under a footnote definition, which GFM takes for
+// the blocks of the footnote and the plain parse for indented code. A footnote ends where a parse with GFM ends it
 // (`document-structure/src/gfm-block-ranges.ts`), and the lines the plain parse goes on to read after that are a text
 // of their own. A paragraph in which a footnote starts on a later line is cut there, a heading made of a footnote's
 // lines opens it, and a lazy line of equals signs or hyphens in it is paragraph text (`source-ships-footnote-spans.ts`,
@@ -113,13 +114,15 @@ export function spansOf(
   },
 ): SourceSpans {
   /**
-   Where the strict grammar reads a table, which cuts what it holds at a pipe.
+   Where the strict grammar reads a table and a footnote definition, and where the page starts a footnote definition and a
+   reader of the source does not.
    */
-  const tables = tableRangesOf({ body: readable, },);
-  /**
-   Where the strict grammar reads a footnote definition, which ends where the plain reading's paragraph goes on.
-   */
-  const footnoteRanges = footnoteDefinitionRangesOf({ body: readable, },);
+  const {
+    tables,
+    pageFootnoteRanges,
+    footnoteRanges,
+    pageOnlyStarts,
+  } = footnoteReadingsOf({ readable, },);
   /**
    Stretches read as text.
    */
@@ -140,6 +143,10 @@ export function spansOf(
    Where each run of inline content starts.
    */
   const streamStarts: number[] = [];
+  /**
+   Where each link reference definition read so far ends.
+   */
+  const definitionEnds: number[] = [];
 
   /**
    Adds what the parse of a nested block says of it.
@@ -193,6 +200,7 @@ export function spansOf(
     // A DEFINITION LINE RIGHT AFTER A FOOTNOTE DEFINITION, OR A RAW HTML BLOCK OR INDENTED CODE, is a line of a
     // paragraph to the strict grammar, and a text, at the top and in a block quote or a list item.
     if (BLOCK_PARENTS.has(parentType,) && isLazyDefinition({
+      source,
       node,
       footnoteOpen: footnote.open || footnote.endsInLiteral,
       previousEndLine: footnote.endLine,
@@ -200,13 +208,32 @@ export function spansOf(
       text.push(range,);
       footnotes.set(
         parent,
-        {
-          ...footnote,
-          endLine: endLineOf({
-            node,
-            fallback: footnote.endLine,
-          },),
-        },
+        withEndLine({
+          state: footnote,
+          node,
+        },),
+      );
+      continue;
+    }
+    // A FOOTNOTE LABEL AT A START ONLY THE PAGE READS, on a line right after a link reference definition, is a second
+    // definition to a reader of the source and shows nothing: its caret is written with a backslash, so that the page
+    // reads a definition of another label (`source-ships-footnote-ranges.ts`, `pageOnlyDefinitionLabelAt`).
+    /**
+     What writing the node as that definition comes to, when it is one.
+     */
+    const pageOnly = pageOnlyDefinitionWritten({
+      source,
+      node,
+      starts: pageOnlyStarts,
+      endLine: footnote.endLine,
+    },);
+    if (pageOnly !== NO_PAGE_ONLY_DEFINITION) {
+      definitionEnds.push(range.end,);
+      edits.push(pageOnly.edit,);
+      text.push(pageOnly.label,);
+      footnotes.set(
+        parent,
+        pageOnly.state,
       );
       continue;
     }
@@ -214,13 +241,13 @@ export function spansOf(
      Whether the node is indented code under a footnote definition, which the
      strict grammar reads as the blocks of the definition.
      */
-    const continuesFootnote = isRootChild
-      && footnote.open
-      && isIndentedCode({
-        source,
-        node,
-        range,
-      },);
+    const continuesFootnote = continuesTheFootnote({
+      source,
+      node,
+      range,
+      state: footnote,
+      isRootChild,
+    },);
     /**
      What the block read last in the parent is once this one is read.
      */
@@ -231,6 +258,7 @@ export function spansOf(
         node,
         range,
         continuesFootnote,
+        isRootChild,
       },)
       : footnote;
     footnotes.set(
@@ -247,6 +275,8 @@ export function spansOf(
       readable,
       readSpans: spansOf,
       footnotes: footnoteRanges,
+      pageFootnotes: pageFootnoteRanges,
+      pageOnlyStarts,
       pending,
       node,
       range,
@@ -262,10 +292,14 @@ export function spansOf(
       absorb({ nested: read.spans, },);
       continue;
     }
+    if (node.type === 'definition')
+      definitionEnds.push(range.end,);
     edits.push(...lineJoinsOf({
       source,
       node,
       range,
+      definitionEnds,
+      footnoteStarts: pageOnlyStarts,
     },),);
     // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {
@@ -279,6 +313,11 @@ export function spansOf(
         source,
         node,
         range,
+      },),);
+      edits.push(...afterLiteralBlockEdits({
+        readable,
+        range,
+        inContainer: !isRootChild,
       },),);
       continue;
     }
@@ -308,6 +347,11 @@ export function spansOf(
           source,
           node,
           range,
+        },),);
+        edits.push(...afterLiteralBlockEdits({
+          readable,
+          range,
+          inContainer: !isRootChild,
         },),);
       }
       continue;

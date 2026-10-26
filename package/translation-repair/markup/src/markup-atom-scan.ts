@@ -1,3 +1,4 @@
+import { footnoteLabelEnd, } from './footnote-label.ts';
 import { opensMdxTag, } from './mdx-tag-start.ts';
 
 //region Markup atom scan
@@ -399,32 +400,6 @@ function tagEnd({
 }
 
 /**
- Whether text between `[^` and `]` is a footnote label.
-
- GFM refuses a footnote call whose label is empty or holds a bracket, a space
- or a line ending (`micromark-extension-gfm-footnote`, `lib/syntax.js`, the
- call tokenizer), so such text is prose and carries no atom.
-
- @param label - text between the opener and the first closing bracket
-
- @returns Whether it names a footnote
-
- @example
- ```ts
- isFootnoteLabel({ label: '1', },);
- ```
- */
-function isFootnoteLabel({ label, }: { readonly label: string; },): boolean {
-  if (label === '')
-    return false;
-  for (const character of label) {
-    if ((character === '[') || (character.trim() === ''))
-      return false;
-  }
-  return true;
-}
-
-/**
  Reads whatever construct opens at one offset.
 
  @param text - text scanned
@@ -509,20 +484,13 @@ function atomAt({
     at,
   )) {
     /**
-     Where the label closes.
+     Where the label closes, absent when the text after the opener is no footnote label (`footnote-label.ts`).
      */
-    const close = text.indexOf(
-      ']',
-      at + 2,
-    );
-    /**
-     The label, when it closed.
-     */
-    const label = (close === (-1)) ? '' : text.slice(
-      at + 2,
-      close,
-    );
-    return ((close === (-1)) || (!isFootnoteLabel({ label, },)))
+    const close = footnoteLabelEnd({
+      text,
+      from: at + 2,
+    },);
+    return (close === (-1))
       ? missed
       : closeAs({
         kind: 'footnote-reference',

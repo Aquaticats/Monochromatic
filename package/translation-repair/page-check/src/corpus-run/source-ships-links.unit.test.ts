@@ -44,6 +44,16 @@ await describe({
         },),
 
         it({
+          name: 'WRITES A PIPE WITH A BACKSLASH IN THE TEXT AND IN THE TARGET, so that a table does not end a cell there',
+          fn: async () => {
+            expect(explicitLink({
+              label: 'a|b',
+              target: 'https://example.net/a|b',
+            },),).toBe(String.raw`[a\|b](https://example.net/a\|b)`,);
+          },
+        },),
+
+        it({
           name: 'WRITES A CHARACTER BEYOND ASCII THAT IS NO LETTER AS THE ESCAPE OF ITS BYTES and a letter as itself',
           fn: async () => {
             expect(explicitLink({
@@ -62,8 +72,8 @@ await describe({
           name: 'WRITES A BACKSLASH BEFORE EACH CHARACTER MARKDOWN READS AND LEAVES THE OTHERS, an ampersand among '
             + 'them',
           fn: async () => {
-            expect(escapedLabel({ label: 'a_b*c&amp;{d}[e]<f> 猫', },),)
-              .toBe(String.raw`a\_b\*c\&amp;\{d\}\[e\]\<f\> 猫`,);
+            expect(escapedLabel({ label: 'a_b*c&amp;{d}[e]<f> 猫|g', },),)
+              .toBe(String.raw`a\_b\*c\&amp;\{d\}\[e\]\<f\> 猫\|g`,);
           },
         },),
       ],

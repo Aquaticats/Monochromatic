@@ -1,16 +1,30 @@
 /**
- Tests that no page shipped with the original of an untranslated passage holds code the original lacks, over seeded
- samples of source texts.
+ Tests that no page shipped with the original of an untranslated passage holds code the original lacks, and loses an
+ original only where nothing can be done for it, over seeded samples of source texts.
 
  THE PAGE IS COMPILED AS MDX AND ITS EXPRESSIONS, JSX ELEMENTS AND ES MODULES RUN. The original is read as Markdown with
  GFM and the site's math, which builds none of them, so every one of those the strict grammar builds in the text of an
- original the encoder wrote as literal text is code the original lacks (`source-live-constructs.test-fixture.ts`). The
- cases of `source-ships-encoding.unit.test.ts` and `source-shipped-page.unit.test.ts` read the shapes found one by one;
- these read a sample of the generated sets for the shape nobody has named. A seeded search of forty thousand pairs of
- runs found five pages with such code before the fix that closes a fence or display math a text leaves open and ends a
- footnote before a definition line: four at index 4676, 17099, 18547 and 27936 of the draws of the seed 31415926, one at
- index 35447 of the draws of the seed 27182818. The pairs here are a fixed fraction of the draws of the first seed and
- hold the pairs at index 4676, 17099 and 27936, so the check fails without that fix.
+ original the encoder wrote as literal text is code the original lacks (`source-live-constructs.test-fixture.ts`). A
+ page that ships without the original of a run is reported too, unless the grammar refuses that run, written as literal
+ text, for its depth: that is the one thing no writing of the text can cure, so a pair that takes the last step of the
+ composition for any other reason has met a shape the encoder does not make parse. The cases of
+ `source-ships-encoding.unit.test.ts` and `source-shipped-page.unit.test.ts` read the shapes found one by one; these
+ read a sample of the generated sets for the shape nobody has named.
+
+ THE SAMPLE IS ONE IN FOUR OF EACH OF THE TWO SEEDS, AND WHY. A class of violators the pool reaches and the cases do not
+ name is found when the sample keeps one of them. The two seeds are the two step searches' (`PAIR_SEEDS`), each a stream
+ of 40000 draws, and a case reads one in four of each, 9929 pairs of each at the picking seed this file uses. Chances
+ were measured by simulation against those kept sets (20000 random sets of violators among the 80000 draws, a
+ generator seeded apart from the draws; two runs of the sets gave the figures within 0.004): a class of nine pairs is
+ caught with chance 0.92 and one of seventeen with chance 0.99, where the case read the first seed alone it caught nine
+ with chance 0.70 and seventeen with chance 0.89, the second seed being unread. A smaller class is the full pass over
+ every pair and text (`source-live-full.expensive.unit.test.ts`, the `test:live-full` task), which is not part of
+ `test:unit`; the README of the package says when it must be run. The file takes 119 s in the one measurement made of it
+ after this change, under a host load average of 36 (a case that read the first seed alone took 40 s to 51 s), against
+ 293 s to 402 s for the full task. The pool holds lone carriage returns for line endings, footnote labels other than
+ `1`, tilde fences at the first column, a footnote in a list item and in a block quote, a definition line after a
+ footnote that is a tag alone, and a code span across a footnote line in a quote or a list item, beside the shapes
+ the earlier searches found.
 
  SCOPE: the slices the composition wrote as literal text. A slice written as recorded is the text the strict grammar
  accepts as it stands, and the site reads it as the corpus page it came from.
@@ -20,10 +34,7 @@
  @module
  */
 
-import {
-  type Logger,
-  tagged,
-} from '@monochromatic-dev/module-logger/ts';
+
 import {
   describe,
   expect,
@@ -31,43 +42,23 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
-  composeSourcePage,
-  type ComposedPage,
-  encodeAsLiteralMdx,
-  holdsOpenComment,
-  readPageGrammar,
-  runsUnfitForCompany,
-  runTextOf,
-  sourceRunsOf,
-  type WouldShipSource,
-  wouldShipTextPerSlice,
-} from '../../dist/final/node/index.mjs';
-import {
-  liveConstructsOf,
-  liveConstructsOfCarried,
-} from './source-live-constructs.test-fixture.ts';
+  type Finding,
+  readPair,
+  readText,
+} from './source-live-pairs.test-fixture.ts';
 import {
   footnoteProductTexts,
-  type RunPair,
   sampledPairs,
   sampledTexts,
 } from './source-live-sample.test-fixture.ts';
-import {
-  sourceShippedArchive,
-  sourceShippedArtifact,
-  type SourceShippedRow,
-  sourceShippedSlices,
-} from './source-shipped.test-fixture.ts';
 
 /**
- Page text standing before the encoded text in the parse cases, the way the note stands before an original.
+ The seeds of the two step searches, whose streams of draws the case reads one in four of each.
  */
-const BEFORE = '## Description\n\n> This passage has not been translated yet. The original text follows.\n\n';
-
-/**
- Seed of the draws of the pairs, the first of the two seeds of the search.
- */
-const PAIR_SEED = 31_415_926;
+const PAIR_SEEDS: readonly number[] = [
+  31_415_926,
+  27_182_818,
+];
 
 /**
  How many pairs the stream of draws holds, as many as the search read.
@@ -75,24 +66,24 @@ const PAIR_SEED = 31_415_926;
 const PAIR_TOTAL = 40_000;
 
 /**
- What `indexOf` answers for a text it does not find.
- */
-const NOT_FOUND = -1;
-
-/**
  The least the sample keeps of the generated footnote texts, below which it proves nothing.
  */
-const LEAST_TEXTS = 1_000;
+const LEAST_TEXTS = 6_000;
 
 /**
- The least the sample keeps of the pairs of runs, below which it proves nothing.
+ The least the sample keeps of the pairs of runs of one seed, below which it proves nothing.
  */
-const LEAST_PAIRS = 2_000;
+const LEAST_PAIRS = 8_000;
 
 /**
- The least pairs of the sample whose page wrote an original as literal text, below which it proves nothing.
+ The least pairs of one seed's sample whose page wrote an original as literal text, below which it proves nothing.
  */
-const LEAST_LITERAL_PAGES = 1_000;
+const LEAST_LITERAL_PAGES = 4_000;
+
+/**
+ The least pairs of one seed's sample holding a lone carriage return, below which the sample does not reach that class.
+ */
+const LEAST_CARRIAGE_RETURN_PAIRS = 1_000;
 
 /**
  The share of the sampled footnote texts the page grammar must read once written, since a text it refuses is not
@@ -101,14 +92,36 @@ const LEAST_LITERAL_PAGES = 1_000;
 const LEAST_READ_SHARE = 0.9;
 
 /**
- Seed of the stream that picks the pairs to keep, one that keeps three of the four draws that held code before the fix.
+ Seed of the stream that picks the pairs to keep. Any seed serves: the guarantee is the rate, not the draws it keeps.
  */
 const PAIR_PICK_SEED = 23;
 
 /**
- The pairs kept are one in this many, on average.
+ Whether a text holds a carriage return that no line feed follows, found by a scan of the guard's own and not by the code
+ under test, so the guard cannot agree with a fault in it.
+
+ @param text - text read
+
+ @returns Whether it holds one
+
+ @example
+ ```ts
+ const lone = holdsLoneCarriageReturn({ text: 'a\rb', },); // true
+ ```
  */
-const PAIR_ONE_IN = 18;
+function holdsLoneCarriageReturn({ text, }: { readonly text: string; },): boolean {
+  return text
+    .split('',)
+    .some(function isLone(character, at,): boolean {
+      return (character === '\r') && (text.charAt(at + 1,) !== '\n');
+    },);
+}
+
+/**
+ The pairs kept of each seed are one in this many, on average: a class of nine pairs among the 80000 draws of both seeds
+ is caught with chance 0.92.
+ */
+const PAIR_ONE_IN = 4;
 
 /**
  Seed of the stream that picks the generated footnote texts to keep.
@@ -118,257 +131,17 @@ const TEXT_PICK_SEED = 1;
 /**
  The generated footnote texts kept are one in this many, on average.
  */
-const TEXT_ONE_IN = 8;
-
-/**
- Logger that writes nothing, since the composition writes a warn line for each step it takes and the sample takes
- thousands.
- */
-const QUIET: Logger = {
-  ...tagged({ tag: 'source-live-sample-test', },),
-  warn: function ignore(): void {},
-};
-
-/**
- A construct found where the original had none, with the text that put it there.
- */
-type Finding = {
-  /**
-   What the text was and where it stood.
-   */
-  readonly where: string;
-
-  /**
-   Constructs found, as type and place.
-   */
-  readonly found: readonly string[];
-};
-
-/**
- Names the slices of a composed page that were written as literal text and are still on it.
-
- @param composed - the composition
- @param artifact - the artifact it was composed from
-
- @returns Slice indices, none for a page with every original as recorded
-
- @example
- ```ts
- const encoded = encodedSlicesOf({ composed, artifact, },);
- ```
- */
-function encodedSlicesOf(
-  {
-    composed,
-    artifact,
-  }: {
-    readonly composed: ComposedPage;
-    readonly artifact: WouldShipSource;
-  },
-): readonly number[] {
-  if (composed.step === 'as-written')
-    return [];
-  if (composed.step !== 'dropped')
-    return composed.slices;
-
-  /**
-   What each slice ships, and the runs of the slices that ship their original.
-   */
-  const readings = wouldShipTextPerSlice({ artifact, },);
-  const runs = sourceRunsOf({ slices: readings, },);
-  /**
-   Runs the first step writes as literal text, those that cannot stand beside another, hold a comment nothing closes or
-   do not parse alone.
-   */
-  const unfit = runsUnfitForCompany({
-    runs,
-    slices: readings,
-  },);
-  const failing = runs
-    .filter(function failsAlone(run,): boolean {
-      return unfit.includes(run,) || holdsOpenComment({
-        run,
-        slices: readings,
-      },) || (readPageGrammar({
-        pageText: runTextOf({
-          run,
-          slices: readings,
-        },),
-      },)
-        .kind
-        === 'refused');
-    },)
-    .flat();
-  return failing.filter(function stillOnPage(slice,): boolean {
-    return !composed.slices.includes(slice,);
-  },);
-}
-
-/**
- Composes the page of a pair of runs, with a paragraph the archive covers before them and one between.
-
- @param pair - the two runs and the English between them
-
- @returns The composition and the artifact it was composed from
-
- @example
- ```ts
- const { composed, artifact, } = composePair({ pair: { first: '{', middle: 'Hi.\n', second: '}', }, },);
- ```
- */
-function composePair(
-  { pair, }: { readonly pair: RunPair; },
-): {
-  readonly composed: ComposedPage;
-  readonly artifact: WouldShipSource;
-} {
-  /**
-   Slices of the entry: the archive's first paragraph, the first run, the English between, the second run.
-   */
-  const rows: readonly SourceShippedRow[] = [
-    {
-      incumbentText: '## Description\n\nA tabby.\n',
-      sourceText: '## 简介\n\n猫。\n',
-    },
-    {
-      incumbentText: '',
-      sourceText: pair.first,
-    },
-    {
-      incumbentText: `\n${pair.middle}`,
-      sourceText: '\n她睡。\n',
-    },
-    {
-      incumbentText: '',
-      sourceText: pair.second,
-    },
-  ];
-  const artifact = sourceShippedArtifact({ rows, },);
-  return {
-    artifact,
-    composed: composeSourcePage({
-      artifact,
-      slices: sourceShippedSlices({ rows, },),
-      archiveText: sourceShippedArchive({ rows, },),
-      entryId: 'Cat',
-      l: QUIET,
-    },),
-  };
-}
-
-/**
- Reads the constructs of a page that stand in the text of the slices written as literal text.
-
- @param composed - the composition
- @param encoded - slices written as literal text that are still on the page
-
- @returns Constructs inside those slices' text, as type and place; a note for a slice whose text is not found on the
- page and one for a page the grammar refuses to read
-
- @example
- ```ts
- const found = liveInEncodedSlices({ composed, encoded: [1, 3,], },);
- ```
- */
-function liveInEncodedSlices(
-  {
-    composed,
-    encoded,
-  }: {
-    readonly composed: ComposedPage;
-    readonly encoded: readonly number[];
-  },
-): readonly string[] {
-  /**
-   Where the text of each such slice stands on the page, at every place it occurs, and the slices not found at all.
-   */
-  const ranges = encoded.flatMap(function rangesOf(slice,): readonly {
-    readonly slice: number;
-    readonly start: number;
-    readonly end: number;
-  }[] {
-    /**
-     What the composition spliced in for the slice.
-     */
-    const text = composed.replacements.find(function isSlice({ sliceIndex, },): boolean {
-      return sliceIndex === slice;
-    },)?.replacementText ?? '';
-    if (text === '')
-      return [{
-        slice,
-        start: NOT_FOUND,
-        end: NOT_FOUND,
-      },];
-    /**
-     Offsets the text starts at.
-     */
-    const starts: number[] = [];
-    for (
-      let from = composed.pageText.indexOf(text,);
-      from !== NOT_FOUND;
-      from = composed.pageText.indexOf(text, from + 1,)
-    )
-      starts.push(from,);
-    return (starts.length === 0)
-      ? [{
-        slice,
-        start: NOT_FOUND,
-        end: NOT_FOUND,
-      },]
-      : starts.map(function toRange(start,): {
-        readonly slice: number;
-        readonly start: number;
-        readonly end: number;
-      } {
-        return {
-          slice,
-          start,
-          end: start + text.length,
-        };
-      },);
-  },);
-  /**
-   Slices whose text the page does not hold, which no construct can be placed in.
-   */
-  const unlocated = ranges
-    .filter(function isUnlocated({ start, },): boolean {
-      return start === NOT_FOUND;
-    },)
-    .map(function toNote({ slice, },): string {
-      return `slice ${String(slice,)} not found on the page`;
-    },);
-  try {
-    return [
-      ...unlocated,
-      ...liveConstructsOf({ pageText: composed.pageText, },)
-        .filter(function standsInEncoded({ start, },): boolean {
-          return ranges.some(function holds(range,): boolean {
-            return (start >= range.start) && (start < range.end);
-          },);
-        },)
-        .map(function toNote({
-          type,
-          start,
-          end,
-        },): string {
-          return `${type}@${String(start,)}-${String(end,)}`;
-        },),
-    ];
-  }
-  catch (error) {
-    return [...unlocated, `the page cannot be read: ${Error.isError(error,) ? error.name : String(error,)}`,];
-  }
-}
+const TEXT_ONE_IN = 4;
 
 await describe({
   name: 'live constructs over seeded samples of source texts',
   children: [
     it({
-      name: 'WRITES NO LIVE CONSTRUCT FOR A SEEDED SAMPLE OF THE GENERATED FOOTNOTE TEXTS: each text the encoder writes '
-        + 'parses after the note and holds no expression, JSX element or ES module',
+      name: 'WRITES NO LIVE CONSTRUCT FOR A SEEDED SAMPLE OF THE GENERATED FOOTNOTE TEXTS: each text the encoder '
+        + 'writes parses after the note and holds no expression, JSX element or ES module',
       fn: async () => {
         /**
-         The texts kept of the 10800 generated.
+         The texts kept of the 32256 generated.
          */
         const sample = sampledTexts({
           texts: footnoteProductTexts(),
@@ -381,36 +154,8 @@ await describe({
         /**
          Texts the page grammar reads once written, and the constructs found in them.
          */
-        const read = sample.map(function readText(text,): {
-          readonly parses: boolean;
-          readonly finding: Finding;
-        } {
-          /**
-           The text as the encoder writes it.
-           */
-          const written = encodeAsLiteralMdx({ text, },);
-          if (readPageGrammar({ pageText: `${BEFORE}${written}\n`, },).kind !== 'parses')
-            return {
-              parses: false,
-              finding: {
-                where: '',
-                found: [],
-              },
-            };
-          return {
-            parses: true,
-            finding: {
-              where: JSON.stringify(text,),
-              found: liveConstructsOfCarried({ carried: written, },)
-                .map(function toNote({
-                  type,
-                  start,
-                  end,
-                },): string {
-                  return `${type}@${String(start,)}-${String(end,)}`;
-                },),
-            },
-          };
+        const read = sample.map(function readSampled(text,): ReturnType<typeof readText> {
+          return readText({ text, },);
         },);
         expect(read.filter(function isRead({ parses, },): boolean {
           return parses;
@@ -425,59 +170,51 @@ await describe({
       },
     },),
 
-    it({
-      name: 'SHIPS NO LIVE CONSTRUCT IN THE TEXT OF A SLICE WRITTEN AS LITERAL TEXT FOR A SEEDED SAMPLE OF PAIRS OF RUNS: '
-        + 'the page the composition makes holds no expression, JSX element or ES module where it wrote an original '
-        + 'as literal text',
-      fn: async () => {
-        /**
-         The pairs kept of the draws, three of which held code before the fix.
-         */
-        const pairs = sampledPairs({
-          seed: PAIR_SEED,
-          total: PAIR_TOTAL,
-          sampleSeed: PAIR_PICK_SEED,
-          oneIn: PAIR_ONE_IN,
-        },);
-        expect(pairs.length > LEAST_PAIRS,).toBe(true,);
-
-        /**
-         Pairs whose page wrote an original as literal text, with the constructs found in that text.
-         */
-        const read = pairs.map(function readPair(pair,): {
-          readonly encoded: number;
-          readonly finding: Finding;
-        } {
-          const { composed, artifact, } = composePair({ pair, },);
-          const encoded = encodedSlicesOf({
-            composed,
-            artifact,
+    ...PAIR_SEEDS.map(function pairsOf(seed,) {
+      return it({
+        name: `SHIPS NO LIVE CONSTRUCT IN THE TEXT OF A SLICE WRITTEN AS LITERAL TEXT FOR A SEEDED SAMPLE OF PAIRS OF `
+          + `RUNS OF THE SEED ${String(seed,)}, AND DROPS NO ORIGINAL BUT FOR A NESTING PAST THE BOUND: the page the `
+          + 'composition makes holds no expression, JSX element or ES module where it wrote an original as literal '
+          + 'text, and ships without the original of a run only where the grammar refuses that run for its depth',
+        fn: async () => {
+          /**
+           The pairs kept of the draws.
+           */
+          const pairs = sampledPairs({
+            seed,
+            total: PAIR_TOTAL,
+            sampleSeed: PAIR_PICK_SEED,
+            oneIn: PAIR_ONE_IN,
           },);
-          return {
-            encoded: encoded.length,
-            finding: {
-              where: `${String(pair.at,)} ${JSON.stringify(pair,)} ${composed.step}`,
-              found: (encoded.length === 0)
-                ? []
-                : liveInEncodedSlices({
-                  composed,
-                  encoded,
-                },),
-            },
-          };
-        },);
-        // A sample whose pages wrote nothing as literal text proves nothing.
-        expect(read.filter(function wroteLiteral({ encoded, },): boolean {
-          return encoded > 0;
-        },).length > LEAST_LITERAL_PAGES,).toBe(true,);
-        expect(read
-          .map(function toFinding({ finding, },): Finding {
-            return finding;
-          },)
-          .filter(function holdsCode({ found, },): boolean {
-            return found.length > 0;
-          },),).toEqual([],);
-      },
+          expect(pairs.length > LEAST_PAIRS,).toBe(true,);
+          // A sample that holds next to no lone carriage return does not reach that class. The scan is the guard's own,
+          // which the code under test is not asked.
+          expect(pairs.filter(function holdsLoneReturn({
+            first,
+            second,
+          },): boolean {
+            return holdsLoneCarriageReturn({ text: `${first}${second}`, },);
+          },).length > LEAST_CARRIAGE_RETURN_PAIRS,).toBe(true,);
+
+          /**
+           Pairs whose page wrote an original as literal text, with the constructs found in that text.
+           */
+          const read = pairs.map(function readSampled(pair,): ReturnType<typeof readPair> {
+            return readPair({ pair, },);
+          },);
+          // A sample whose pages wrote nothing as literal text proves nothing.
+          expect(read.filter(function wroteLiteral({ encoded, },): boolean {
+            return encoded > 0;
+          },).length > LEAST_LITERAL_PAGES,).toBe(true,);
+          expect(read
+            .map(function toFinding({ finding, },): Finding {
+              return finding;
+            },)
+            .filter(function holdsCode({ found, },): boolean {
+              return found.length > 0;
+            },),).toEqual([],);
+        },
+      },);
     },),
   ],
 },);

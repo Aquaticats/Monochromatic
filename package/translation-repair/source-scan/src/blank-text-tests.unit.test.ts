@@ -1565,6 +1565,18 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SENTINEL,
   },
+  'page-check/corpus-run/source-reading-account.ts#isWord': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-reading-account.ts#spaced': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-reading-blocks.ts#isWord': {
+    tests: 1,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-addresses.ts#addressEnd': {
     tests: 1,
     why: SCANNER,
@@ -1573,9 +1585,29 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
+  'page-check/corpus-run/source-ships-lines.ts#contentStretches': {
+    tests: 1,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-links.ts#destinationCharacter': {
     tests: 1,
     why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-open-block.ts#isBlank': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-footnote.ts#splitFlowsOf': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-in-code.ts#codeBefore': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-opener-in-code.ts#splitSpan': {
+    tests: 1,
+    why: PARSED,
   },
   'probe/corpus-run/rendering-audit-settled-buy.ts#readPage': {
     tests: 1,
@@ -1974,10 +2006,6 @@ const HELD_TESTS: Readonly<Record<string, {
   'reference/lookup-cache.ts#packageCacheDir': {
     tests: 1,
     why: SETTING,
-  },
-  'markup/markup-atom-scan.ts#isFootnoteLabel': {
-    tests: 2,
-    why: SCANNER,
   },
   'markup/markup-atom-scan.ts#tagEnd': {
     tests: 1,

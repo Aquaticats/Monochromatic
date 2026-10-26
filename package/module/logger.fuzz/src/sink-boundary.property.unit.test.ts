@@ -103,8 +103,8 @@ function verboseConsole(): Disposable {
 
 /**
  Writes records through a fresh file sink inside a throwaway package and
- checks the appended JSONL reparses to exactly those records after the
- sink's verify probe.
+ checks the appended JSONL reparses to exactly those records. The sink keeps
+ no verify probe record of its own.
 
  @param records - Records to append.
 
@@ -126,13 +126,11 @@ async function fileRoundTrip(records: readonly LogRecord[],): Promise<void> {
     // oxlint-disable-next-line no-await-in-loop -- Sequential appends keep file order deterministic; the property compares order.
     await sink.write(record,);
   /**
-   Reparsed lines, the verify probe first.
+   Reparsed lines. The sink keeps no verify probe record, so the whole file
+   reparses to exactly the appended records.
    */
   const lines = await readFileSinkLines({ dir: pkg.dir, },);
-  expect(lines[0],)
-    .toMatchObject({ test: true, },);
-  expect(lines.slice(1,),)
-    .toEqual(records,);
+  expect(lines,).toEqual(records,);
 }
 
 await describe({

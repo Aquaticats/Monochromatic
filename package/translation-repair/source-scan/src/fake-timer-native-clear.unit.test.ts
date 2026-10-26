@@ -214,7 +214,7 @@ const EVERY_TIMER_FAKED: ToFakeReading = {
 
  @param toFake - value of the `toFake` property
 
- @returns The reason it cannot be read, or the clear functions it names in the order it lists them (all of them for an
+ @returns Reason it cannot be read, or the clear functions it names in the order it lists them (all of them for an
  empty list, none for `['Date']`)
 
  @example

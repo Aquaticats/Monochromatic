@@ -194,6 +194,10 @@ and each task sets it to its own name.
   A page shipped without the original of some slices because no writing of them parses
   gets one line naming the entry,
   `page-source-unparseable` and the slices.
+  The comparison of a page with its source reports `source-reads-differently`,
+  `source-reading-undecided` and `source-reading-not-compared` when the page is published,
+  in the `DEFECTS` line a pass prints beside the entry's tally;
+  `verify-published` recomputes only the dropped originals and prints none of the three.
   Reads `TRANSLATION_REPAIR_RUNS_DIR`.
   Spends no quota.
 

@@ -67,6 +67,7 @@ await describe({
                 display_name: 'Qwen 3.8 27B',
                 capabilities: { reasoning: true, vision: true },
                 reasoning: {
+                  default_enabled: false,
                   supported_efforts: ['xhigh', 'medium', 'low', 'none'],
                 },
                 limits: { max_context_length: 262_128, max_output_tokens: 131_072 },
@@ -227,7 +228,10 @@ await describe({
             const model = mappedModelOf({
               id: 'm',
               metadata: {
-                reasoning: { supported_efforts: ['xhigh', 'medium', 'low', 'none'] },
+                reasoning: {
+                  default_enabled: false,
+                  supported_efforts: ['xhigh', 'medium', 'low', 'none'],
+                },
               },
             });
             if (model === undefined) {
@@ -239,6 +243,57 @@ await describe({
               medium: 'medium',
               low: 'low',
             });
+          },
+        }),
+        it({
+          name: 'drops the off level for a model the listing says thinks by default',
+          fn: async () => {
+            const model = mappedModelOf({
+              id: 'm',
+              metadata: {
+                reasoning: {
+                  default_enabled: true,
+                  supported_efforts: ['high', 'none'],
+                },
+              },
+            });
+            if (model === undefined) {
+              throw new Error('expected a model profile');
+            }
+            expect(model.reasoningEfforts).toEqual({ high: 'high' });
+          },
+        }),
+        it({
+          name: 'keeps the off level for a model the listing says thinks off by default',
+          fn: async () => {
+            const model = mappedModelOf({
+              id: 'm',
+              metadata: {
+                reasoning: {
+                  default_enabled: false,
+                  supported_efforts: ['high', 'none'],
+                },
+              },
+            });
+            if (model === undefined) {
+              throw new Error('expected a model profile');
+            }
+            expect(model.reasoningEfforts).toEqual({ high: 'high', off: 'none' });
+          },
+        }),
+        it({
+          name: 'drops the off level when the listing names no default',
+          fn: async () => {
+            const model = mappedModelOf({
+              id: 'm',
+              metadata: {
+                reasoning: { supported_efforts: ['high', 'none'] },
+              },
+            });
+            if (model === undefined) {
+              throw new Error('expected a model profile');
+            }
+            expect(model.reasoningEfforts).toEqual({ high: 'high' });
           },
         }),
         it({
@@ -267,7 +322,10 @@ await describe({
             const model = mappedModelOf({
               id: 'm',
               metadata: {
-                reasoning: { supported_efforts: ['ultra', 'high', 'none'] },
+                reasoning: {
+                  default_enabled: false,
+                  supported_efforts: ['ultra', 'high', 'none'],
+                },
               },
             });
             if (model === undefined) {
@@ -296,6 +354,7 @@ await describe({
               id: 'm',
               metadata: {
                 reasoning: {
+                  default_enabled: false,
                   accepted_efforts: ['max', 'xhigh', 'high', 'low', 'minimal', 'none'],
                   effort_aliases: { max: 'xhigh', minimal: 'low' },
                 },
@@ -337,6 +396,7 @@ await describe({
               id: 'm',
               metadata: {
                 reasoning: {
+                  default_enabled: false,
                   supported_efforts: ['high', 3],
                   accepted_efforts: ['low', 'none'],
                 },
@@ -431,7 +491,7 @@ await describe({
           },
         }),
         it({
-          name: 'sizes mimo-v2.6-pro at its disclosed context window and off-level',
+          name: 'sizes mimo-v2.6-pro at its disclosed context window and thinking levels',
           fn: async () => {
             const providers = mapNeuralWattProviders({
               listing: neuralWattListingSnapshot,
@@ -444,7 +504,7 @@ await describe({
             expect(mimo.contextWindow).toBe(1_048_560);
             expect(mimo.maxTokens).toBe(393_216);
             expect(mimo.input).toEqual(['text', 'image']);
-            expect(mimo.reasoningEfforts).toEqual({ off: 'none', high: 'high' });
+            expect(mimo.reasoningEfforts).toEqual({ high: 'high' });
           },
         }),
         it({

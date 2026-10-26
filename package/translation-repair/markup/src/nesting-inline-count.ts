@@ -326,6 +326,58 @@ function readAngle(
 }
 
 /**
+ The quotes a JavaScript string opens with that this measure skips, the template literal left out since it goes on to
+ the next line.
+ */
+const STRING_QUOTES = '"\'';
+
+/**
+ What `stringEnd` answers when the quote never closes on its line.
+ */
+const NO_STRING_END = -1;
+
+/**
+ Where a quoted string inside an expression ends on its line.
+
+ @param line - one line without its newline
+
+ @param quote - quote that opened the string
+
+ @param from - index of the first character after the opening quote
+
+ @returns Index of the closing quote, `NO_STRING_END` when the line holds none: the quote is then no string, as a
+ JavaScript string does not go on to the next line
+
+ @example
+ ```ts
+ const end = stringEnd({ line: '{a "{"}', quote: '"', from: 4, },);
+ // => 5
+ ```
+ */
+function stringEnd(
+  {
+    line,
+    quote,
+    from,
+  }: {
+    readonly line: string;
+    readonly quote: string;
+    readonly from: number;
+  },
+): number {
+  for (let index = from; index < line.length; index++) {
+    if (line[index] === '\\') {
+      // A backslash takes the character after it into the string.
+      index++;
+      continue;
+    }
+    if (line[index] === quote)
+      return index;
+  }
+  return NO_STRING_END;
+}
+
+/**
  Reads one character of a line against the counts it opens and closes.
 
  @param line - one line without its newline
@@ -464,6 +516,32 @@ export function scanInline(
       // An escaped character opens and closes nothing.
       index++;
       continue;
+    }
+    /**
+     Whether the character is a quote that may open a string.
+     */
+    const isQuote = isOneOf({
+      character: line.charAt(index,),
+      set: STRING_QUOTES,
+    },);
+    /**
+     Whether the character stands inside an expression the strict grammar has open.
+     */
+    const inExpression = (grammar === 'mdx') && (state.braces > 0);
+    if (inExpression && isQuote) {
+      // A brace in a string of an open expression opens and closes nothing.
+      /**
+       Where the string that opens here ends.
+       */
+      const end = stringEnd({
+        line,
+        quote: line.charAt(index,),
+        from: index + 1,
+      },);
+      if (end !== NO_STRING_END) {
+        index = end;
+        continue;
+      }
     }
     /**
      What this character did to the counts.

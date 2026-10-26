@@ -20,6 +20,7 @@ import {
   STACK_OVERFLOW_MESSAGE,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { noteHeadingFloors, } from './heading-floors.ts';
+import { callParseEndHook, } from './parse-end-hook.ts';
 import { NAMED_POSITION_UNSTATED, } from './refusal-text.ts';
 
 //region MDX parsing
@@ -578,6 +579,7 @@ export function parseMdxBody({ body, }: { readonly body: string; },): Root {
     body,
   },);
   noteHeadingFloors({ root, },);
+  callParseEndHook({ root, },);
   return root;
 }
 
@@ -780,6 +782,7 @@ export function parseMarkdownBody({ body, }: { readonly body: string; },): Root 
     body,
   },);
   noteHeadingFloors({ root, },);
+  callParseEndHook({ root, },);
   return root;
 }
 

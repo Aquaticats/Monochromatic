@@ -175,36 +175,47 @@ backend = "vfox:mise-plugins/vfox-android-sdk"
 specifiers = ["latest"]
 
 [tools.android-sdk."platforms.linux-arm64"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.linux-arm64-musl"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.linux-x64"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.linux-x64-baseline"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.linux-x64-musl"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
 url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip"
 
 [tools.android-sdk."platforms.macos-arm64"]
+checksum = "sha256:58da8f215781cc0208743e88b65ae259780c55e7eb40e50373d377cf369232d6"
 url = "https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111833_latest.zip"
 
 [tools.android-sdk."platforms.macos-x64"]
+checksum = "sha256:7e601c04e7173754b3d051a87bb4c3a8243c65a9d7bfa9356ed6499fb8953fa3"
 url = "https://dl.google.com/android/repository/commandlinetools-mac_x86_64-16111833_latest.zip"
 
 [tools.android-sdk."platforms.macos-x64-baseline"]
+checksum = "sha256:7e601c04e7173754b3d051a87bb4c3a8243c65a9d7bfa9356ed6499fb8953fa3"
 url = "https://dl.google.com/android/repository/commandlinetools-mac_x86_64-16111833_latest.zip"
 
 [tools.android-sdk."platforms.windows-x64"]
+checksum = "sha256:e5885e2e59038c0778a85fc19f01de7ce7c567c105553f7617b936b1e0e87b2b"
 url = "https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip"
 
 [tools.android-sdk."platforms.windows-x64-baseline"]
+checksum = "sha256:e5885e2e59038c0778a85fc19f01de7ce7c567c105553f7617b936b1e0e87b2b"
 url = "https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip"
 
 [[tools.betterleaks]]
@@ -543,35 +554,74 @@ specifiers = ["latest"]
 
 [[tools.cmake]]
 version = "4.4.4"
-backend = "vfox:cmake"
+backend = "aqua:Kitware/CMake"
 specifiers = ["latest"]
 
+[tools.cmake."platforms.linux-arm64"]
+checksum = "sha256:a1b6cc63636a0e55c63257cf3315a8a5f129e42fade25db1afea4ff8ab06f25e"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992024"
+
+[tools.cmake."platforms.linux-arm64-musl"]
+checksum = "sha256:a1b6cc63636a0e55c63257cf3315a8a5f129e42fade25db1afea4ff8ab06f25e"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-aarch64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992024"
+
 [tools.cmake."platforms.linux-x64"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+checksum = "sha256:e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992585"
 
 [tools.cmake."platforms.linux-x64-baseline"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+checksum = "sha256:e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992585"
 
 [tools.cmake."platforms.linux-x64-musl"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+checksum = "sha256:e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992585"
 
 [tools.cmake."platforms.linux-x64-musl-baseline"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+checksum = "sha256:e5bb807f7728cb60cd8b27ebc97a2edb469b68655f21e844a600c3575b76f5bb"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605992585"
 
 [tools.cmake."platforms.macos-arm64"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-macos-universal.tar.gz"
+checksum = "sha256:4b7b73704b1db9b374e5c9ab8e17ac6148b817b6396ee75cd94a852cbac9d305"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-macos-universal.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605993514"
 
 [tools.cmake."platforms.macos-x64"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-macos-universal.tar.gz"
+checksum = "sha256:4b7b73704b1db9b374e5c9ab8e17ac6148b817b6396ee75cd94a852cbac9d305"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-macos-universal.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605993514"
 
 [tools.cmake."platforms.macos-x64-baseline"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-macos-universal.tar.gz"
+checksum = "sha256:4b7b73704b1db9b374e5c9ab8e17ac6148b817b6396ee75cd94a852cbac9d305"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-macos-universal.tar.gz"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605993514"
 
 [tools.cmake."platforms.windows-x64"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-windows-x86_64.zip"
+checksum = "sha256:bace36e94b31c68ab6fa295f26dfa11219e0701cf7c94b0284a7d1cb13dac536"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605998125"
 
 [tools.cmake."platforms.windows-x64-baseline"]
-url = "https://cmake.org/files/v4.4/cmake-4.4.4-windows-x86_64.zip"
+checksum = "sha256:bace36e94b31c68ab6fa295f26dfa11219e0701cf7c94b0284a7d1cb13dac536"
+checksum_source = "mise-versions"
+url = "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/605998125"
 
 [[tools."conda:bubblewrap"]]
 version = "0.13.1"
@@ -1702,10 +1752,12 @@ backend = "aqua:tamasfe/taplo"
 specifiers = ["latest"]
 
 [tools.taplo."platforms.linux-arm64"]
+checksum = "sha256:033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322597"
 
 [tools.taplo."platforms.linux-arm64-musl"]
+checksum = "sha256:033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322597"
 
@@ -1715,34 +1767,42 @@ url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322600"
 
 [tools.taplo."platforms.linux-x64-baseline"]
+checksum = "sha256:8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322600"
 
 [tools.taplo."platforms.linux-x64-musl"]
+checksum = "sha256:8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322600"
 
 [tools.taplo."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257322600"
 
 [tools.taplo."platforms.macos-arm64"]
+checksum = "sha256:713734314c3e71894b9e77513c5349835eefbd52908445a0d73b0c7dc469347d"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-darwin-aarch64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323110"
 
 [tools.taplo."platforms.macos-x64"]
+checksum = "sha256:898122cde3a0b1cd1cbc2d52d3624f23338218c91b5ddb71518236a4c2c10ef2"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-darwin-x86_64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323116"
 
 [tools.taplo."platforms.macos-x64-baseline"]
+checksum = "sha256:898122cde3a0b1cd1cbc2d52d3624f23338218c91b5ddb71518236a4c2c10ef2"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-darwin-x86_64.gz"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323116"
 
 [tools.taplo."platforms.windows-x64"]
+checksum = "sha256:1615eed140039bd58e7089109883b1c434de5d6de8f64a993e6e8c80ca57bdf9"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-windows-x86_64.zip"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323062"
 
 [tools.taplo."platforms.windows-x64-baseline"]
+checksum = "sha256:1615eed140039bd58e7089109883b1c434de5d6de8f64a993e6e8c80ca57bdf9"
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-windows-x86_64.zip"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323062"
 

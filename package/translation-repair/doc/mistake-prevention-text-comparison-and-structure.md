@@ -758,7 +758,8 @@ which draws whitespace past ASCII after a path and after a trail (ledger B346).
 
 What happened:
 the source encoder had to know which lines the strict grammar starts a module at,
-and a list of the shapes that change the state the tokenizer is in when it reaches a line grew by one shape in each round:
+and a list of the shapes that change the state the tokenizer is in when it reaches a line grew by one shape in each
+round:
 a list marker alone after a footnote definition,
 a line of invisible characters the package masks,
 a line after a setext underline that follows a restarted block (ledger B832 follow-ups).
@@ -787,7 +788,8 @@ and otherwise states the counts and the head each run was at.
 
 What enforces it:
 habit and review;
-`source-ships-module-line.unit.test.ts` and `document-structure/src/module-line-starts.unit.test.ts` hold the module lines to the tokenizer,
+`source-ships-module-line.unit.test.ts` and `document-structure/src/module-line-starts.unit.test.ts`
+hold the module lines to the tokenizer,
 and `document-structure/src/gfm-block-ranges.unit.test.ts` holds the table and footnote ranges to the parse.
 No scan finds a list of shapes standing in for a parser.
 

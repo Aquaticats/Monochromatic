@@ -36,3 +36,7 @@ extends = "test:unit"
 [tasks.buildAndTest]
 description = "Build the node bundle, then run unit tests against the built dist"
 run = ["mise run build", "mise run test:unit"]
+
+[tasks."test:live-full"]
+description = "Full pass of the live-construct check over every generated pair of runs and footnote text; not part of test:unit"
+run = "mise run test:unit src/corpus-run/source-live-full.expensive.unit.test.ts"
