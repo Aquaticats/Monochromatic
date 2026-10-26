@@ -49,7 +49,7 @@ Prerequisites for a fresh machine and a fresh checkout:
     `mise trust` prints the path it trusted and exits 0.
 
 2. Provision wrangler,
-    which the typed tool plan declares as `npm:wrangler` and `toolchain.lock.json` pins.
+    which the typed tool plan declares as `npm:wrangler` and `toolchain.lock.json` records.
 
    ```sh
    mise run toolchain:sync

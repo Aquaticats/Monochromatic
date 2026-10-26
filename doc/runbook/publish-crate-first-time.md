@@ -75,7 +75,7 @@ each verifiable on a clean machine:
    `grep '^version' <repo>/package/rust-module/jsonc-edit/Cargo.toml`.
 2. The Rust toolchain this repository pins,
    installed by running `mise run toolchain:sync` from the repository root
-   (`toolchain.lock.json` records the pin).
+   (`toolchain.lock.json` records the version).
    Check with `mise run toolchain:status`,
    which prints observed versus locked versions and exits non-zero on drift,
    and `cargo --version`,
