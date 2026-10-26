@@ -4856,6 +4856,32 @@ crates.io; verify with `gh release view`, `gh attestation verify`, `sha256sum --
 for the compositor. A failed release job after publishing cannot be repaired (immutable): release the next patch
 version and say in its notes that the previous is broken. Then install the released IDE archive? No: the installed
 binary is the local build `d60a2272574c0a64…` from `8c60a4afb3`, whose IDE sources equal the release's.
+RESULT of the two real runs started by the push `5750e0b9c3` (2026-10-25): COMPOSITOR RELEASED. `cargo-publish.yml` run
+40245539506 green end to end (`nws-publish-crate`, both `nws-build-binary` legs, `nws-create-release`);
+`monochromatic-nested-wayland-session-v0.6.2` is published at 23:40:17Z (not a draft; tag on `5750e0b9c3`) with the three
+expected files (the two archives and `...-0.6.2-sha256sums.txt`, 3,738,900 and 3,960,700 bytes plus 283); verified:
+`sha256sum --check` OK for both archives, `gh attestation verify` exit 0 for both and the JSON of the x86_64 archive
+names workflow `.github/workflows/cargo-publish.yml` at `refs/heads/main` of this repository, crates.io lists version
+0.6.2 (id 3607508, created 23:38:41Z, not yanked; the API needs a `User-Agent`, a bare curl gets a 4xx), and `cargo
+binstall --dry-run --no-confirm --disable-strategies compile,quick-install monochromatic-nested-wayland-session@0.6.2`
+in an empty directory exits 0 with 'downloaded from github.com' and the binary name. The compositor fix for the early
+wheel therefore reaches users of the crate and the archives; the local copies used by the drivers are still 0.6.1.
+IDE NOT YET RELEASED: `ide-release.yml` run 40245539422 built both architectures and the checksums, but its `release`
+job failed twice (first attempt and `gh run rerun --failed`) at the last step with `HTTP 403: Resource not accessible by
+integration (https://api.github.com/repos/Aquaticats/Monochromatic/releases)` at the first call of `gh release create`
+(the job's token showed `Contents: write`, runner image 20261012.334.1 and token lines identical to run 39905451031 that
+created `ide-v0.1.1` on 2026-10-23; the command differs from the compositor job's only by `--prerelease` and
+`--notes-file`; the `release` job text is unchanged since 0.1.1 and the one workflow change since, `38cb13b4d1`, touches
+only the `build` job; no tag ruleset exists (one branch ruleset 'Copilot review'); the repository default workflow
+permission is `read`, which the job overrides). Nothing was published for the IDE: no `ide-v0.1.2` tag and no release
+(checked with `git ls-remote --tags` and `gh release view`). Per the runbook the remedy is a new dispatch:
+`gh workflow run ide-release.yml --ref main --field dry-run=false` as run 40247396160 on `9c94fe63f2` (a plain commit at
+the tip of `main`, so it also tests whether the merge commit `5750e0b9c3` or a moved branch tip caused the 403); a bounded
+waiter reads it. If it fails with the same 403, the next suspects are the `--prerelease` flag (the only argument that
+differs from the compositor job) and a GitHub-side change since 2026-10-23 (immutable releases and pre-releases), and
+the fallback is publishing the already built and attested artifacts by hand with the owner's `gh` login, which is a
+deviation from the runbook and needs a decision. Scratch of the release work (`release-prep`, `nws-release-check`,
+`binstall-check`) is removed.
 Installed (earlier, now replaced): sha256 `0730fa64bdf211e7…` from `96959a8b67`, prints 0.1.1. The earlier verifier agent was checking this
 installed binary (rest over no character at 5, 11, 29, 301 notches and with hints, popup screenshots at +50 ms to
 +2 s after the answer, settled controls, 12 popups viewed, far jumps, five-press, 88-click, drag after a wheel,
