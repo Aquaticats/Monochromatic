@@ -295,30 +295,44 @@ and drift reporting.
 The maintainer confirmed the install route per tool family
 (`doc/planning/mpm-toolchain-migration.md`,
 section `Routing (user-confirmed 2026-10-26)`):
-standalone and archive tools (Node,
-pnpm,
-Bun,
-the standalone binaries,
-and the Adoptium Temurin JDK) install with the upstream `bin` CLI
+single-binary payloads install with the upstream `bin` CLI
 (`bin install <source spec>`,
 GitHub shorthand,
 release-tag URLs,
 host sources),
 and MPM's `bin` manager owns their inventory and upgrades afterwards
 (the manager declares no `install` operation by design);
-sources `bin` cannot fetch fall back to the checksummed `archive` provider.
-npm CLI tools route through MPM's `pnpm` manager
-and `pipx:slopo` through MPM's `uv` manager.
+multi-binary or whole-tree payloads (`age`,
+`cmake`,
+`llama.cpp`,
+`uv`,
+`taplo`,
+the JDK,
+Node,
+`zig`,
+`bubblewrap`) and sources `bin` cannot fetch
+go through the checksummed `archive` provider.
+npm CLI tools route through MPM's `pnpm` manager id
+and `pipx:slopo` through MPM's `uvx` manager id
+(the one wrapping `uv tool install`).
 `cargo:` tools stay a repository provider over `cargo-binstall`.
 Rust stays MPM's `rustup` manager
 (toolchain ids carry the exact channel)
 plus direct `rustup component add` and `rustup target add` calls.
 Android SDK components stay a repository provider
-over the SDK's own `sdkmanager`.
+running the Android CLI shipped in cmdline-tools
+(`android sdk install <package>[@<version>]...`).
 Declarations carry no `@version` pin syntax and keep floating requests;
 `toolchain.lock.json` fixes what `toolchain:sync` installs
 (the `mise install` against `mise.lock` semantics),
 so the explicit pins still install exactly.
+The sync installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`,
+and re-resolving versions is a separate update action
+(the `pnpm update` analogue).
+`mpm.managers.toml` entries are inventory and pin descriptions
+for the `cargo:` family only;
+no install depends on `mpm restore` except the `rustup` slice.
 `toolchain.lock.json` replaces `mise.lock` as the pinned version record.
 The sync entry point is `mise run toolchain:sync`
 (also `node package/dev-script/file-enforcer/src/toolchain/sync.ts`),
@@ -326,9 +340,12 @@ The sync entry point is `mise run toolchain:sync`
 and `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` reports the exposure directory.
 One manually installed bootstrap prerequisite remains:
 Node executes the sync entry and Mise wraps it as a task;
-the sync then ensures `mpm` itself
-(a standalone release binary recorded in `toolchain.lock.json`,
-SHA-256 checked) before the other tools.
+the sync then stages `bin` (a standalone release binary,
+SHA-256 checked against the release `checksums.txt` values),
+`uv`,
+and `mpm` (the PyPI wheel `meta-package-manager` 8.2.0,
+SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`) before the other tools.
 
 Selection status:
  selected 2026-10-26 on the maintainer's direct instruction,
@@ -747,10 +764,10 @@ Intentionally retired behavior:
  `archive`,
  `cargo-binstall`,
  `mpm-pnpm`,
- `mpm-uv`,
+ `mpm-uvx`,
  `rustup-toolchain`,
  `rustup-components`,
- `sdkmanager`),
+ `android-sdk`),
  selected in `doc/decision/mpm-toolchain-adoption.md` (2026-10-26).
 
 ### Agent policy, guardrails, filters, tests, and documentation
