@@ -427,9 +427,14 @@ and `conda:bubblewrap` kept its Linux-only keys.
 
 ### Pin mise in the workflow
 
-Every `jdx/mise-action` step in `.github/workflows/cargo-publish.yml` gets `version: 2026.10.17`,
+From commit `3e16deb852` until commit `38cb13b4d1` (2026-10-25) every `jdx/mise-action` step in
+`.github/workflows/cargo-publish.yml` carried `version: 2026.10.17`,
 which the action
 documents as taking precedence over `minimum_release_age`.
+Commit `38cb13b4d1` removed mise from every workflow,
+per `doc/decision/mise-free-ci.md`,
+so that pin no longer exists;
+the tradeoffs below are the record from the time it did.
 
 - Tradeoff:
   the workflow no longer follows new mise releases,
@@ -568,9 +573,13 @@ Do not file from this document.
 - `mise.lock` was migrated and regenerated in commit `5fee1731f8`;
   the verification in Harness 2 was run before and
   after that commit against the same inputs.
-- The six `version: 2026.10.17` pins in `.github/workflows/cargo-publish.yml` are a stopgap.
-  After 2026.10.20 publishes
-  (release pull request #14948),
+- CI no longer runs mise:
+  commit `38cb13b4d1` replaced the `jdx/mise-action` steps,
+  including the `version: 2026.10.17` pins,
+  with direct tool setup,
+  as decided in `doc/decision/mise-free-ci.md`.
+  There is no pin left to remove.
+- Remaining step after 2026.10.20 publishes
+  (release pull request #14948):
   upgrade the local mise,
-  confirm bare `mise lock` exits 0 against the committed lock,
-  and remove the pins so the workflow follows mise releases again.
+  then confirm bare `mise lock` exits 0 against the committed lock.
