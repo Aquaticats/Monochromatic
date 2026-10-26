@@ -7,7 +7,7 @@
     />
     <option
       name='executableLocation'
-      value='$PROJECT_DIR$/../.local/share/mise/shims/dprint'
+      value='$PROJECT_DIR$/.cache/toolchain-bin/dprint'
     />
   </component>
 </project>
