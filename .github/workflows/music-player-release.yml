@@ -246,14 +246,21 @@ jobs:
       uses: ./.github/actions/task-cli-setup
       with:
         install-dependencies: 'false'
-    - name: Install Rust toolchain and cargo-about
+    - name: Install the Rust toolchain and cargo-about pinned in toolchain.lock.json
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
-        cargo install cargo-binstall --locked
-        cargo binstall --no-confirm cargo-about
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
+        case "$toolchain" in
+          nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
+        esac
+        binstall=$(jq --raw-output '.tools."cargo-binstall".version' toolchain.lock.json)
+        about=$(jq --raw-output '.tools."cargo:cargo-about".version' toolchain.lock.json)
+        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+        echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+        cargo install cargo-binstall --locked --version "$binstall"
+        cargo binstall --no-confirm --version "$about" cargo-about
         cargo about --version
 
     - name: Write the desktop license notices
@@ -1050,15 +1057,20 @@ jobs:
         echo "JAVA_HOME=$install_dir" >> "$GITHUB_ENV"
         echo "$install_dir/bin" >> "$GITHUB_PATH"
         "$install_dir/bin/java" -version
-    - name: Install Rust, cargo tools and the Android SDK
+    # Everything this step used to install by hand (the floating `nightly` channel, the Android targets,
+    # cargo-binstall, cargo-ndk and cargo-about) is converged at pinned versions by the next step, which is
+    # `toolchain:sync`; this step only installs and selects the Rust toolchain the builds compile with.
+    - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
-        rustup target add aarch64-linux-android x86_64-linux-android
-        cargo install cargo-binstall --locked
-        cargo binstall --no-confirm cargo-ndk cargo-about
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
+        case "$toolchain" in
+          nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
+        esac
+        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+        echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
         rustc -Vv
 
     # `prepare:android` is a thin alias of `toolchain:sync`, which converges the toolchain to
