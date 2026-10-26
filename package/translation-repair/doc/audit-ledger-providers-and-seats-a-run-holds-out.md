@@ -936,6 +936,49 @@ M6 survived its run in round 4 before that case existed,
 since (a) decides before the roster in the floor is read wherever no writing provider is left,
 and the unit case of a given-up Xiaomi outside the roster (`0cb74dd0fb`) now fails for it.
 
+A flaky case of round 4,
+found and fixed on 2026-10-25:
+the first case of `run-client-create.unit.test.ts` failed once in gate g215 while another job loaded the host
+(`expected [ +0 ] to deeply equal [ 300000 ]` at the positive control of the hold after the first ask)
+and passed alone right after.
+The cause was in the rig and not in the budgets.
+A slice took an ask still unsettled after 50 turns of the event loop for one the router holds on the cooldown,
+and moved the fake clock 301000 ms.
+The ask awaits NeuralWatt's ledger file in each meter reading
+(`neuralwatt-ledger.ts`,
+`readTextOrEmptyIfMissing`),
+which the thread pool finishes when it can.
+A read that outlasted the turns let the refusal land at fake time zero while the clock was ticking,
+and the clock then jumped past its 300000 ms hold,
+which read zero.
+Giving the ask one turn instead of 50 reproduced the same failure on `0a8846cfcc`
+(`holds=[0,0]` where `[300000,0]` is expected,
+with the requests logged at fake time zero inside the tick).
+A quota of 10 and of 2 percent of one core did not reproduce it,
+nor did a delay of 1,
+3 or 30 ms on every ledger read:
+the read has to end inside the few milliseconds the clock's tick takes,
+so the failure is rare,
+and the cases with NeuralWatt wet (three of the six) are the ones exposed.
+Production is unaffected:
+the hold is stamped and read on the monotonic clock
+(`now()` in `provider-budget-refusal-holds.ts`,
+at the stamp and at the read),
+nothing moves that clock between the two,
+and the decision reads the last meter reading and the holds live.
+`df2350a6ee` awaits each ask to its end
+and moves the clock during an ask only in the case where the router holds the ask
+(`routerHoldsTheAsk`:
+Xiaomi alone,
+no ledger file is read).
+The other cases of the round that move a fake clock
+(`run-seats-cooldown-repeat.unit.test.ts`,
+the set-aside file,
+`run-providers-writing.unit.test.ts`)
+refuse and tick one step after another over stub meters,
+so no real read lies between a refusal and its hold;
+each ran singly with a 30 ms delay on every file read and passed.
+
 Prevention rule:
 a wait that repeats an ask is judged by what the first wait bought,
 see "A wait that buys the same refusal is not repeated" in
