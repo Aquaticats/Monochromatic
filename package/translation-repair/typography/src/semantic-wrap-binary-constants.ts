@@ -11,9 +11,9 @@ export const LINT_BINARY_NAME = 'monochromatic-lint';
 
 /**
  Version of the program this package is written against; the repository's
- `mise.lock` records the same one for `"cargo:monochromatic-lint"` (its
- `mise.toml` asks for the latest release of a tool the repository publishes),
- and `semantic-wrap-binary.unit.test.ts` holds the two together.
+ `toolchain.lock.json` records the same one for `"cargo:monochromatic-lint"`
+ (the tool plan keeps the floating request for a tool the repository
+ publishes), and `semantic-wrap-binary.unit.test.ts` holds the two together.
  */
 export const PINNED_LINT_BINARY_VERSION = '0.3.0';
 

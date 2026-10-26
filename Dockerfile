@@ -23,7 +23,7 @@ RUN mise trust --all
 
 # Node and pnpm come from the archived artifacts `toolchain.lock.json` pins (repository root: the source of truth
 # for every tool version, doc/decision/mpm-toolchain-adoption.md). `jq` reads the `linux-x64` rows, each archive is
-# fetched and its SHA-256 verified against the lock before it is linked. Nothing here reads mise.lock.
+# fetched and its SHA-256 verified against the lock before it is linked. Every version here comes from that lock.
 RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolchain.lock.json)" \
  && node_sum="$(jq --raw-output '.tools.node.artifacts["linux-x64"].sha256' toolchain.lock.json)" \
  && curl --fail --silent --show-error --location --output /tmp/node.tar.gz "$node_url" \

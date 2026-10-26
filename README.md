@@ -231,7 +231,7 @@ mise run prepareAndBuild
 
 Declarations carry no `@version` pin syntax and keep floating requests;
 `toolchain.lock.json` fixes what the sync installs
-(the `mise install` against `mise.lock` semantics),
+(the semantics `mise install` had against `mise.lock`),
 so the explicit pins still install exactly.
 The sync installs the locked versions the way `pnpm install` honors
 `pnpm-lock.yaml`;
