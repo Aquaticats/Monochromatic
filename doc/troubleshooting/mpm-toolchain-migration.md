@@ -112,6 +112,37 @@ Workaround:
  the digests no longer match `mise.lock` row for row,
  so comparing the two records needs the artifact bytes.
 
+### Stale Mise shims shadow unprovisioned tools
+
+Surface:
+ running a repository task on a machine that still carries the old Mise shim
+ directory on `PATH` before `toolchain:sync` has populated
+ `.cache/toolchain-bin`
+ (observed 2026-10-26 mid-sync,
+ `mise run lint:monochromatic-lint`).
+
+Emitting tool and message:
+ `mise` shim resolution,
+ which then exits non-zero:
+
+```text
+mise ERROR No version is set for shim: monochromatic-lint
+Set a global default version with one of the following:
+mise use -g cargo:monochromatic-lint@0.1.0
+```
+
+Workaround:
+ run `mise run toolchain:sync` first,
+ which links every declared binary into `.cache/toolchain-bin`;
+ that directory precedes the shim directories in the generated `_.path`.
+ Alternatively drop the retired shim directory from `PATH`.
+ Tradeoff:
+ until the sync completes,
+ tasks on such machines resolve through the retired shims and fail with this
+ diagnostic instead of a missing-binary error;
+ the exposure directory is also rebuilt during a sync,
+ so tasks racing a running sync can see the same window.
+
 ## Rollback path
 
 The adoption decision requires the rollback path to be recorded here
