@@ -1,6 +1,7 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { readsAsDisplayMath, } from './source-ships-display-math.ts';
 import { indentedFenceMarkEnd, } from './source-ships-fence.ts';
+import { joinBeforeFenceMark, } from './source-ships-fence-join.ts';
 import { hasFootnoteLabel, } from './source-ships-footnote.ts';
 import {
   closingBracket,
@@ -172,68 +173,6 @@ export function joinedLines(
     },);
   }
   return edits;
-}
-
-/**
- The edit that joins a code span to the line before it when the span starts with a fence mark indented four spaces or
- more: the plain reading takes the run of backticks for the opening of the span, so no backslash can be written into it,
- and the strict grammar takes it for a fence that cuts the paragraph.
-
- @param source - text
-
- @param range - where the code span stands
-
- @param definitionEnds - where each link reference definition of the text ends, since a line that ends a definition
- ends its block in both readings, and the fence mark after it opens a fence in the strict grammar with no paragraph
- line to join to: joining it would make the definition line a paragraph, whose braces are then code
-
- @returns One edit replacing the line ending before the span and the marks before it with a space; none when the span
- does not start with such a mark, starts the text or follows the end of a definition
-
- @example
- ```ts
- const range = { start: 6, end: 20, };
- const edits = joinBeforeFenceMark({ source: 'a\n    ```\n`x\n    ```', range, definitionEnds: [], },);
- ```
- */
-function joinBeforeFenceMark(
-  {
-    source,
-    range,
-    definitionEnds,
-  }: {
-    readonly source: string;
-    readonly range: TextRange;
-    readonly definitionEnds: readonly number[];
-  },
-): readonly TextEdit[] {
-  if (indentedFenceMarkEnd({
-    source,
-    at: range.start,
-  },) <= range.start)
-    return [];
-  /**
-   Index of the first character before the span that is no indentation or container mark.
-   */
-  const before = { at: range.start - 1, };
-  while ((before.at >= 0) && CONTAINER_PREFIX.includes(source.charAt(before.at,),))
-    before.at -= 1;
-  if (source.charAt(before.at,) !== '\n')
-    return [];
-  if (definitionEnds.some(function endsTheLineBefore(end,): boolean {
-    return source.indexOf(
-      '\n',
-      end,
-    ) === before.at;
-  },))
-    return [];
-  return [
-    {
-      start: ((before.at > 0) && (source.charAt(before.at - 1,) === '\r')) ? (before.at - 1) : before.at,
-      end: range.start,
-      replacement: ' ',
-    },
-  ];
 }
 
 /**

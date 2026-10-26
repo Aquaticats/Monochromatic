@@ -576,8 +576,10 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
       pieces.push(LITERAL_SYNTAX.includes(character,) ? `\\${character}` : character,);
       continue;
     }
-    // A FENCE MARK INDENTED FOUR SPACES OR MORE opens a code block in the page and is text in the source, so each of
-    // its characters is escaped.
+    // A FENCE MARK INDENTED FOUR SPACES OR MORE opens a code block in the page and is text in the source, so its first
+    // character is escaped, which is all that stops the line from opening one. A backslash before each character would
+    // cut a run of three backticks into three runs of one, and a lone backtick on a line before them would pair with
+    // the first and make a code span of the lines between, which shows the backslash.
     /**
      Index after the indented fence mark that starts here, `at` when none does.
      */
@@ -593,8 +595,7 @@ function escapedText({ text: recorded, }: { readonly text: string; },): string {
         at,
         markEnd,
       );
-      for (const mark of marks)
-        pieces.push(`\\${mark}`,);
+      pieces.push(`\\${marks}`,);
       at = markEnd - 1;
       continue;
     }

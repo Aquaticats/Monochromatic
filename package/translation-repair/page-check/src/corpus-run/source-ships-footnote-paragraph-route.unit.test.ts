@@ -65,7 +65,7 @@ await describe({
       fn: async () => {
         // The blank line ends the quote on the page, and the line after it starts another with its own mark.
         expect(encodeAsLiteralMdx({ text: '> a\n>     ```\n> [^1]: x\n> <a href="x">\n> [r]: u{b}\n', },),).toBe(
-          '> a\n>     \\`\\`\\`\n> [^1]: x\n> \\<a href="x">\n\n> [r]: u{b}\n',
+          '> a\n>     \\```\n> [^1]: x\n> \\<a href="x">\n\n> [r]: u{b}\n',
         );
       },
     },),
