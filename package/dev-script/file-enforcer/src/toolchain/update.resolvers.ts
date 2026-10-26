@@ -185,19 +185,21 @@ export type GithubRelease = {
  
  @throws Error when an asset name cannot be found in the release
  */
-export function mapGithubRows(
+export async function mapGithubRows(
   {
     rows,
     release,
     oldVersion,
     newVersion,
+    fetcher,
   }: {
     readonly rows: ToolArtifacts;
     readonly release: GithubRelease;
     readonly oldVersion: string;
     readonly newVersion: string;
+    readonly fetcher?: Fetcher | undefined;
   },
-): ToolArtifacts {
+): Promise<ToolArtifacts> {
   /**
    Assets indexed by file name.
    */
@@ -241,18 +243,37 @@ export function mapGithubRows(
         release.tag_name ?? 'the release'
       }`,);
     }
-    if (asset.name === undefined
-      || asset.browser_download_url === undefined
-      || asset.digest === undefined
-      || asset.digest === null) {
+    if (asset.name === undefined || asset.browser_download_url === undefined) {
       throw new Error(`release asset ${
         asset.name ?? oldName
-      } carries no download URL or digest`,);
+      } carries no download URL`,);
     }
     /**
-     SHA-256 recorded in the asset digest field (`sha256:<hex>`).
+     SHA-256: the asset digest field when the release records one, else the
+     downloaded bytes (releases predating asset digests).
      */
-    const digest = asset.digest.replace(/^sha256:/u, '',);
+    let digest = asset.digest === null || asset.digest === undefined
+      ? undefined
+      : asset.digest.replace(/^sha256:/u, '',);
+    if (digest === undefined) {
+      if (fetcher === undefined) {
+        throw new Error(`release asset ${
+          asset.name
+        } carries no digest and no fetcher is available to hash it`,);
+      }
+      /**
+       Downloaded asset bytes to hash.
+       */
+      const downloaded = await fetcher(asset.browser_download_url,);
+      if (downloaded.bytes === undefined || !downloaded.ok) {
+        throw new Error(`cannot download release asset ${
+          asset.name
+        } to hash it`,);
+      }
+      digest = createHash('sha256',)
+        .update(downloaded.bytes,)
+        .digest('hex',);
+    }
     mapped[platform] = {
       url: asset.browser_download_url,
       sha256: digest,
@@ -335,13 +356,21 @@ export async function resolveGithubFamily(
       entry.version
     }`,);
   }
+  if (newVersion === entry.version) {
+    // Nothing moved: keep the recorded rows instead of re-mapping them.
+    return {
+      version: entry.version,
+      artifacts: entry.artifacts,
+    };
+  }
   return {
     version: newVersion,
-    artifacts: mapGithubRows({
+    artifacts: await mapGithubRows({
       rows: entry.artifacts,
       release: record,
       oldVersion: entry.version,
       newVersion,
+      fetcher,
     },),
   };
 }
@@ -351,13 +380,15 @@ export async function resolveGithubFamily(
 //region Adoptium
 
 /**
- Resolves `java` from the Adoptium API (the `temurin-21` channel).
+ Resolves `java` from the Adoptium API (the `temurin-21` channel) and maps
+ the rows onto the Adoptium GitHub release assets, which also carry the
+ musl builds the API's `os=alpine` filter no longer lists.
  
  @param options - Plan entry and fetcher
  
  @returns New `temurin-<core>.0.LTS` version and rows
  
- @throws Error when a platform binary is missing
+ @throws Error when the release cannot be mapped onto the recorded rows
  */
 export async function resolveJava(
   {
@@ -369,91 +400,45 @@ export async function resolveJava(
   },
 ): Promise<ToolResolution> {
   /**
-   Platform rows mapped onto Adoptium's architecture/OS query pairs.
+   Adoptium record for the newest 21 hotspot jdk on linux.
    */
-  const queries: Readonly<Record<string, {
-    readonly architecture: string;
-    readonly os: string;
-  }>> = {
-    'linux-arm64': {
-      architecture: 'aarch64',
-      os: 'linux',
-    },
-    'linux-arm64-musl': {
-      architecture: 'aarch64',
-      os: 'alpine',
-    },
-    'linux-x64': {
-      architecture: 'x64',
-      os: 'linux',
-    },
-    'linux-x64-musl': {
-      architecture: 'x64',
-      os: 'alpine',
-    },
-  };
-  /**
-   Mapped rows keyed by platform id.
-   */
-  const mapped: Record<string, {
-    url: string;
-    sha256: string;
-  }> = {};
-  /**
-   Release core (`21.0.13+9`) the first query reports.
-   */
-  let core: string | undefined;
-  for (const [platform, query,] of Object.entries(queries,)) {
-    if (entry.artifacts[platform] === undefined)
-      continue;
-    /**
-     Adoptium asset list for this platform.
-     */
-    const response = await fetcher(
-      `https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=${
-        query.architecture
-      }&image_type=jdk&os=${
-        query.os
-      }`,
-    );
-    /**
-     First asset record.
-     */
-    const record = (parseJson({
-      response,
-      label: 'api.adoptium.net',
-    },) as readonly {
-      release_name?: string;
-      binary?: {
-        package?: {
-          link?: string;
-          checksum?: string;
-        };
-      };
-    }[])[0];
-    const link = record?.binary?.package?.link;
-    const checksum = record?.binary?.package?.checksum;
-    const releaseName = record?.release_name;
-    if (link === undefined || checksum === undefined || releaseName === undefined) {
-      throw new Error(`api.adoptium.net reports no jdk package for ${
-        query.architecture
-      }/${
-        query.os
-      }`,);
-    }
-    core ??= releaseName.replace(/^jdk-/u, '',);
-    mapped[platform] = {
-      url: link,
-      sha256: checksum,
-    };
+  const record = (parseJson({
+    response: await fetcher('https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=linux',),
+    label: 'api.adoptium.net',
+  },) as readonly {
+    release_name?: string;
+  }[])[0];
+  const releaseName = record?.release_name;
+  if (releaseName === undefined) {
+    throw new Error('api.adoptium.net reports no jdk release for temurin-21',);
   }
-  if (core === undefined)
-    throw new Error('api.adoptium.net returned no platform binaries',);
+  /**
+   Release core of the new resolution (`21.0.13+9`) and of the recorded one.
+   */
+  const newCore = releaseName.replace(/^jdk-/u, '',);
+  const oldCore = githubTagFromRows({ rows: entry.artifacts, },)
+    .replace(/^jdk-/u, '',);
+  /**
+   Release payload carrying the per-platform assets and their digests.
+   */
+  const release = parseJson({
+    response: await fetcher(`https://api.github.com/repos/adoptium/temurin21-binaries/releases/tags/jdk-${
+      encodeURIComponent(newCore,)
+    }`,),
+    label: 'api.adoptium.net release assets',
+  },) as GithubRelease;
   return {
     version: `temurin-${
-      core
+      newCore
     }.0.LTS`,
-    artifacts: mapped,
+    artifacts: await mapGithubRows({
+      rows: entry.artifacts,
+      release,
+      // The asset names spell the build with an underscore (21.0.13_9).
+      oldVersion: oldCore.replaceAll('+', '_',),
+      newVersion: newCore.replaceAll('+', '_',),
+      fetcher,
+    },),
   };
 }
 
@@ -804,7 +789,26 @@ export async function resolveZigLatest(
         return key !== 'master' && !key.includes('-',);
       },
     )
-    .sort()
+    .sort(
+      function byVersion(a, b,) {
+        /**
+         Numeric segments of the two keys.
+         */
+        const left = a.split('.',)
+          .map(Number,);
+        const right = b.split('.',)
+          .map(Number,);
+        for (let at = 0; at < Math.max(left.length, right.length,); at += 1) {
+          /**
+           Segment difference at this position.
+           */
+          const delta = (left[at] ?? 0) - (right[at] ?? 0);
+          if (delta !== 0)
+            return delta;
+        }
+        return 0;
+      },
+    )
     .reverse();
   return stable[0] ?? null;
 }

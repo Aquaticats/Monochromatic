@@ -521,11 +521,16 @@ export async function main(): Promise<void> {
       url,
       { headers, },
     );
+    /**
+     Body bytes, decoded once (a response body reads a single time).
+     */
+    const bytes = new Uint8Array(await response.arrayBuffer(),);
     return {
       ok: response.ok,
       status: response.status,
-      text: await response.text(),
-      bytes: new Uint8Array(await response.arrayBuffer(),),
+      text: new TextDecoder()
+        .decode(bytes),
+      bytes,
     };
   };
   /**

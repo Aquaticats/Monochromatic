@@ -151,7 +151,7 @@ await describe({
                 sha256: '0'.repeat(64,),
               },
             };
-            expect(mapGithubRows({
+            expect(await mapGithubRows({
               rows,
               release: {
                 tag_name: 'v1.1.0',
@@ -179,7 +179,7 @@ await describe({
           fn: async () => {
             let caught: unknown;
             try {
-              mapGithubRows({
+              await mapGithubRows({
                 rows: {
                   'linux-x64': {
                     url: 'https://github.com/example/demo/releases/download/v1.0.0/demo_1.0.0_linux_x64.tar.gz',
@@ -465,25 +465,26 @@ await describe({
           name: 'resolves java from Adoptium within the temurin-21 channel',
           fn: async () => {
             /**
-             Recorded Adoptium responses keyed by query URL.
+             Recorded Adoptium release name plus the GitHub asset table.
              */
-            const adoptium = (arch: string, os: string,): string => JSON.stringify([
-              {
-                release_name: 'jdk-21.0.13+9',
-                binary: {
-                  package: {
-                    link: `https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_${
-                      arch
-                    }_${
-                      os === 'alpine'
-                        ? 'alpine-linux'
-                        : 'linux'
-                    }_hotspot_21.0.13_9.tar.gz`,
-                    checksum: 'c'.repeat(64,),
-                  },
-                },
-              },
+            const adoptium = JSON.stringify([
+              { release_name: 'jdk-21.0.13+9', },
             ],);
+            const adoptiumRelease = JSON.stringify({
+              tag_name: 'jdk-21.0.13+9',
+              assets: [
+                {
+                  name: 'OpenJDK21U-jdk_x64_linux_hotspot_21.0.13_9.tar.gz',
+                  digest: `sha256:${'c'.repeat(64,)}`,
+                  browser_download_url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_x64_linux_hotspot_21.0.13_9.tar.gz',
+                },
+                {
+                  name: 'OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.13_9.tar.gz',
+                  digest: `sha256:${'d'.repeat(64,)}`,
+                  browser_download_url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.13_9.tar.gz',
+                },
+              ],
+            },);
             /**
              Outcomes replaying the Adoptium API.
              */
@@ -506,8 +507,8 @@ await describe({
                 },
               },)],
               fetcher: fixtureFetch({
-                'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=linux': adoptium('x64', 'linux',),
-                'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=aarch64&image_type=jdk&os=linux': adoptium('aarch64', 'linux',),
+                'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=linux': adoptium,
+                'https://api.github.com/repos/adoptium/temurin21-binaries/releases/tags/jdk-21.0.13%2B9': adoptiumRelease,
               },),
             },);
             expect(outcomes[0]?.newVersion,)
