@@ -21,6 +21,10 @@ RUN ls -la
 
 RUN mise trust --all
 
+# Tool versions resolve from mise.toml/mise.lock through `mise install` until the
+# cutover. `toolchain.lock.json` (repository root) is the source of truth for every
+# tool version (doc/decision/mpm-toolchain-adoption.md); `mise run toolchain:sync`
+# replaces this install step and reads that lock.
 RUN export $(cat .env.local | xargs) && mise install
 
 RUN mise run prepare
