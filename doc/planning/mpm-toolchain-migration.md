@@ -332,3 +332,78 @@ The cutover is a hard switch that follows a successful full sync on the machine
  `doc/planning/mise-removal-coverage.md`.
 - `mise.lock`'s Linux-only artifact rows are carried over as-is;
  resolving the other platforms is follow-up work.
+
+## Implementation record (toolchain-core, 2026-10-26)
+
+Shape additions and clarifications the implementation needed;
+ the shapes above stand otherwise.
+
+- `toolchain.lock.json` tool records carry an `options` key after `env`
+ (the decision doc's "provider options":
+ rust components and targets,
+ cargo features,
+ Android SDK package pins,
+ the postinstall link,
+ bin aliases,
+ and bootstrap metadata).
+- `env` values are toolchain-root relative paths (`java/<version>`)
+ or literal strings (`RUSTUP_TOOLCHAIN`),
+ never machine-absolute;
+ `toolchain:sync` resolves them when writing `.cache/toolchain.env.json`.
+- The plan declares two bootstrap entries besides the 59 tools:
+ `bin`
+ (standalone release binary,
+ SHA-256 checked against the release `checksums.txt` values)
+ and `mpm`.
+ `mpm`'s distribution is the PyPI wheel `meta-package-manager` 8.2.0,
+ SHA-256 checked against PyPI's published digest
+ and installed with `uv tool install`:
+ on 2026-10-26 every GitHub route to the standalone release assets returned
+ 404
+ (REST API,
+ git transport,
+ direct download),
+ so no release digest could be recorded.
+ `uv` is staged before `mpm` for that reason.
+- Staging order is `bin`,
+ `uv`,
+ `mpm`,
+ `rust`,
+ `cargo-binstall`,
+ `node`,
+ `pnpm`,
+ then the remaining tools in plan order
+ (the staging list above extended with the bootstrap prerequisites).
+- `mpm restore` is invoked with mpm's global manager selectors
+ (`mpm --rustup restore mpm.packages.toml`),
+ not a `--manager` flag.
+- `mpm.packages.toml` sections are `[cargo]`,
+ `[conda]`,
+ `[pnpm]`,
+ `[rustup]` and `[uvx]`
+ (the `uvx` manager wraps `uv tool install`;
+ the `uv` id wraps `uv pip` and exposes no CLI).
+ `bin-sourced` tools are not declared there:
+ mpm's `bin` manager inventories absolute paths,
+ which cannot be committed portably.
+- `mpm.managers.toml` definitions cover the `cargo:` tools only:
+ their pins ride in a `--version` argument
+ (no `@version` syntax in declarations),
+ while the `pnpm` adapter's only pin channel is `@version` package syntax,
+ so npm tools stay provider-owned at the repository boundary.
+- `taplo`'s `mise.lock` row recorded a blake3 digest for `linux-x64`;
+ `toolchain.lock.json` records the SHA-256 of the same artifact bytes,
+ computed 2026-10-26,
+ so every artifact row is a checkable SHA-256.
+- Provider boundary commands derive their pins from the lock:
+ `cargo binstall --no-confirm --version <locked> <crate>`,
+ `pnpm add --global <name>@<locked>`,
+ `uv tool install <name>==<locked>`,
+ `bin install <release-tag-url> -n '<asset>/**/<bin>'`,
+ and `android sdk install <package>...`.
+- `bin-paths.ts` prints `exposureDir` as the literal `.cache/toolchain-bin`
+ and `pathDirs` with its absolute realization first,
+ then the manager-native bin directories that exist;
+ unprovisioned toolchains print empty `pathDirs` and `bins` and exit 0.
+ Entry-point guards compare real paths,
+ so symlinked home directories still dispatch.
