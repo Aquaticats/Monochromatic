@@ -17,23 +17,100 @@ and ownership lives in `doc/planning/mise-removal-coverage.md`.
 
 ## Workarounds observed
 
-Empty state as of 2026-10-26:
-no migration workaround has been observed yet.
-These docs were written against the command grammar in
-`doc/planning/mpm-toolchain-migration.md` while the toolchain implementation
-was still landing in `package/dev-script/file-enforcer/src/toolchain/`,
-so there was no emitting tool and no diagnostic to record.
+Four workarounds were observed while the toolchain implementation landed on
+2026-10-26
+(`doc/planning/mpm-toolchain-migration.md`,
+section `Implementation record (toolchain-core, 2026-10-26)`).
+Each entry names the emitting tool and its verbatim message,
+and later entries follow the same shape.
 
-Fill one entry per observed workaround as the implementation and cutover land,
-in this shape:
+### `bin` first run prompts for a download directory and exits 0 on EOF
 
-- Surface:
-  the command and working directory that produced the message.
-- Emitting tool and message:
-  the exact tool name and the verbatim diagnostic.
-- Workaround:
-  the runnable step that got past it,
-  with the semantics that shifted.
+Surface:
+ the first `bin` invocation during `toolchain:sync` staging on a machine with
+ no `bin` configuration.
+
+Emitting tool and message:
+ `bin` (marcosnils/bin 0.29.4) prompts `Pick a default download dir:` and,
+ on EOF,
+ prints `⨯ Error loading config file Invalid input`
+ while exiting 0 with nothing installed.
+ An empty `$HOME/.bin/config.json` also silently shadows
+ `$XDG_CONFIG_HOME/bin/config.json`,
+ which the same resolution order explains
+ (`BIN_CONFIG`,
+ `$HOME/.bin/config.json`,
+ `$XDG_CONFIG_HOME/bin/config.json`,
+ `$HOME/.config/bin/config.json`).
+
+Workaround:
+ the sync pre-seeds `{"default_path": ..., "bins": {}}` at the configuration
+ path `bin` resolves
+ (`seedBinConfig` in `package/dev-script/file-enforcer/src/toolchain/providers.ts:206`).
+ Tradeoff:
+ an existing configuration file is left alone,
+ so an empty `$HOME/.bin/config.json` still wins and a human must remove it.
+
+### `bin install` prompts for an asset on multi-file archives
+
+Surface:
+ `bin install` of a source whose release archive holds more than one file.
+
+Emitting tool and message:
+ `bin` (marcosnils/bin 0.29.4) prompts
+ `Showing 7 assets out of 7. Select an option`
+ and exits 1 on EOF.
+ It also re-downloads the release asset on every invocation.
+
+Workaround:
+ one `bin install` per primary binary with `-n` fallback globs
+ (`bin install <release-tag-url> -n '<asset>/**/<bin>'`),
+ and the single-binary payload routing rule sends multi-binary or whole-tree
+ payloads to the `archive` provider instead.
+ Tradeoff:
+ `bin` covers only single-binary payloads,
+ and one archive holding several tools needs several `-n` fallbacks.
+
+### MPM 8.2.0 drops restore versions for configuration-defined managers
+
+Surface:
+ `mpm restore` of a versioned entry through a trusted local manager definition.
+
+Emitting tool and message:
+ `mpm` 8.2.0 warns
+ `Configuration-defined managers do not support version pinning. Letting the package manager choose the version.`
+ on each such entry
+ (`doc/troubleshooting/mpm-manager-extensibility.md`).
+
+Workaround:
+ only `--version` literals or package ids carrying the pin survive,
+ so `mpm.managers.toml` bakes each `cargo:` pin into a `--version` argument
+ and npm tools stay provider-owned at the repository boundary
+ (`package/dev-script/file-enforcer/src/toolchain/mpm-manifest.ts`).
+ Definitions belong under `[mpm.overrides.<id>]` in 8.2.0;
+ the `[mpm.managers.<id>]` path of the 7.6.1 record is historical.
+ Tradeoff:
+ one definition cannot forward each restore entry's version field,
+ so the pin lives in the generated definition and in `toolchain.lock.json`.
+
+### The taplo lock row carried a blake3 digest
+
+Surface:
+ seeding `toolchain.lock.json` artifact provenance from `mise.lock`.
+
+Emitting tool and message:
+ the `mise.lock` taplo row for `linux-x64` recorded
+ `checksum = "blake3:4871fab0e60275a1eb46e7190726e144f56c9a9527f59b0d1da5a042baead8e2"`
+ while its sibling rows recorded `sha256` digests.
+
+Workaround:
+ `toolchain.lock.json` records the SHA-256 of the same artifact bytes
+ (computed 2026-10-26),
+ so every artifact row is a checkable SHA-256
+ (`package/dev-script/file-enforcer/src/toolchain/plan.artifacts.ts:12`).
+ Tradeoff:
+ the digests no longer match `mise.lock` row for row,
+ so comparing the two records needs the artifact bytes.
 
 ## Rollback path
 
@@ -107,10 +184,15 @@ are:
 - Running the sync entry without Node:
   `node package/dev-script/file-enforcer/src/toolchain/sync.ts` is TypeScript
   executed by an already-present `node`.
-  Node and Mise stay the manually installed bootstrap prerequisites,
-  and the sync then ensures `mpm` itself
-  (a standalone release binary recorded in `toolchain.lock.json`,
-  SHA-256 checked).
+  Node and Mise stay the manually installed bootstrap prerequisites.
+  The sync then stages `bin`
+  (a standalone release binary,
+  SHA-256 checked against the release `checksums.txt` values),
+  `uv`,
+  and `mpm`
+  (the PyPI wheel `meta-package-manager` 8.2.0,
+  SHA-256 checked against PyPI's published digest,
+  installed with `uv tool install`).
 
 ## Upstream filing decision
 
