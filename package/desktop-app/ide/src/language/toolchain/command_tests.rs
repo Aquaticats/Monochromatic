@@ -1,42 +1,45 @@
 //! The sandbox request's contents
 //!  and the program lookup.
 
-use super::{Invocation, LOCATION_VARIABLES, SAFE_ENVIRONMENT, find_mise_in, launch_request};
-use crate::language::{confine::recipe::recipe, mise::MiseRequest};
+use super::{Invocation, LOCATION_VARIABLES, find_node_in, launch_request};
+use crate::language::{confine::recipe::recipe, toolchain::ToolchainRequest};
 use std::{
     ffi::OsString,
     fs,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{PermissionsExt, symlink},
     path::{Path, PathBuf},
 };
 
-fn project(root: &str) -> MiseRequest {
-    return MiseRequest {
+/// The node program the lookup would run.
+const NODE: &str = "/home/someone/.local/share/monochromatic-dev/toolchain/bin/node";
+
+/// The entry point the lookup would run,
+///  absolute like every script node is given.
+const SCRIPT: &str =
+    "/home/someone/Monochromatic/package/dev-script/file-enforcer/src/toolchain/bin-paths.ts";
+
+fn project(root: &str) -> ToolchainRequest {
+    return ToolchainRequest {
         project_root: PathBuf::from(root),
         project_spellings: Vec::new(),
         state_root: Some(PathBuf::from("/state")),
     };
 }
 
-fn listing(directory: &str) -> Invocation {
+fn lookup(root: &str) -> Invocation {
     return Invocation {
-        arguments: ["config", "ls", "--json"].map(str::to_string).to_vec(),
-        directory: PathBuf::from(directory),
+        arguments: [SCRIPT].map(str::to_string).to_vec(),
+        directory: PathBuf::from(root),
     };
 }
 
-/// The exact arguments bubblewrap gets for a mise command.
+/// The exact arguments bubblewrap gets for a lookup run.
 fn arguments(root: &str, locations: &[(String, String)]) -> Vec<String> {
-    let request = launch_request(
-        Path::new("/home/someone/.local/bin/mise"),
-        &listing(root),
-        &project(root),
-        locations,
-    );
+    let request = launch_request(Path::new(NODE), &lookup(root), &project(root), locations);
     let inherited = vec![("HOME".to_string(), "/home/someone".to_string())];
     return recipe(
         &request,
-        Path::new("/state/p-0/mise"),
+        Path::new("/state/p-0/toolchain"),
         "/usr/bin/bwrap",
         &inherited,
     )
@@ -82,31 +85,7 @@ fn setenv(arguments: &[String], name: &str) -> Option<String> {
 }
 
 #[test]
-fn every_variable_that_stops_mise_from_changing_or_reaching_anything_is_set() {
-    let args = arguments("/work/project", &[]);
-    for (name, value) in [
-        ("MISE_AUTO_INSTALL", "false"),
-        ("MISE_EXEC_AUTO_INSTALL", "false"),
-        ("MISE_NOT_FOUND_AUTO_INSTALL", "false"),
-        ("MISE_TASK_RUN_AUTO_INSTALL", "false"),
-        ("MISE_LOCKFILE", "false"),
-        ("MISE_OFFLINE", "true"),
-        ("MISE_YES", "false"),
-    ] {
-        assert_eq!(
-            setenv(&args, name).as_deref(),
-            Some(value),
-            "{name} is not set to {value}"
-        );
-    }
-    // Every entry of the constant is set as well, not only the ones named above.
-    for (name, value) in SAFE_ENVIRONMENT {
-        assert_eq!(setenv(&args, name).as_deref(), Some(*value), "{name}");
-    }
-}
-
-#[test]
-fn mise_runs_in_the_servers_sandbox_without_network_and_with_a_cleared_environment() {
+fn the_lookup_runs_in_the_servers_sandbox_without_network_and_with_a_cleared_environment() {
     let args = arguments("/work/project", &[]);
     for flag in [
         "--unshare-net",
@@ -144,14 +123,11 @@ fn mise_runs_in_the_servers_sandbox_without_network_and_with_a_cleared_environme
     }
     assert!(inside_state, "{writable:?}");
     let after = separator(&args);
-    assert_eq!(
-        args[after + 1..],
-        ["/home/someone/.local/bin/mise", "config", "ls", "--json"].map(str::to_string)
-    );
+    assert_eq!(args[after + 1..], [NODE, SCRIPT].map(str::to_string));
 }
 
 #[test]
-fn the_project_is_never_an_argument_of_mise_so_a_dashed_name_cannot_become_an_option() {
+fn the_project_is_never_an_option_so_a_dashed_name_cannot_become_one() {
     for root in [
         "/work/-rf",
         "/work/--cd=/etc",
@@ -160,11 +136,14 @@ fn the_project_is_never_an_argument_of_mise_so_a_dashed_name_cannot_become_an_op
     ] {
         let args = arguments(root, &[]);
         let after = separator(&args);
-        assert_eq!(
-            args[after + 1..],
-            ["/home/someone/.local/bin/mise", "config", "ls", "--json"].map(str::to_string),
-            "mise got more than its command for {root}"
-        );
+        let tail = &args[after + 1..];
+        assert_eq!(tail, [NODE, SCRIPT].map(str::to_string), "for {root}");
+        for argument in tail.iter() {
+            assert!(
+                argument.starts_with('/'),
+                "node would read {argument} as an option"
+            );
+        }
         // The root appears only as a bind source and destination, each its own argument.
         let mut mentions = 0;
         for argument in args.iter() {
@@ -177,19 +156,16 @@ fn the_project_is_never_an_argument_of_mise_so_a_dashed_name_cannot_become_an_op
 }
 
 #[test]
-fn location_variables_reach_mise_and_nothing_else_of_the_application_does() {
+fn location_variables_reach_the_lookup_and_nothing_else_of_the_application_does() {
     let locations = vec![
-        ("MISE_DATA_DIR".to_string(), "/custom/mise data".to_string()),
-        ("XDG_CONFIG_HOME".to_string(), "/custom/config".to_string()),
+        ("HOME".to_string(), "/home/someone".to_string()),
+        ("XDG_DATA_HOME".to_string(), "/custom/data".to_string()),
     ];
     let args = arguments("/work/project", &locations);
+    assert_eq!(setenv(&args, "HOME").as_deref(), Some("/home/someone"));
     assert_eq!(
-        setenv(&args, "MISE_DATA_DIR").as_deref(),
-        Some("/custom/mise data")
-    );
-    assert_eq!(
-        setenv(&args, "XDG_CONFIG_HOME").as_deref(),
-        Some("/custom/config")
+        setenv(&args, "XDG_DATA_HOME").as_deref(),
+        Some("/custom/data")
     );
     // A credential-like variable is not on the list of locations.
     let mut credential_free = true;
@@ -199,7 +175,18 @@ fn location_variables_reach_mise_and_nothing_else_of_the_application_does() {
         }
     }
     assert!(credential_free);
-    assert!(setenv(&args, "MISE_GITHUB_TOKEN").is_none());
+    assert!(setenv(&args, "GITHUB_TOKEN").is_none());
+    assert!(setenv(&args, "NODE_OPTIONS").is_none());
+}
+
+#[test]
+fn every_location_variable_names_a_place() {
+    for name in LOCATION_VARIABLES.iter() {
+        assert!(
+            *name == "HOME" || name.starts_with("XDG_"),
+            "{name} is not a place"
+        );
+    }
 }
 
 #[test]
@@ -208,18 +195,18 @@ fn a_location_variable_below_a_replaced_directory_is_shown_again_read_only() {
     let data = root.path().join("data");
     fs::create_dir_all(&data).expect("directory");
     let request = launch_request(
-        Path::new("/bin/mise"),
-        &listing("/work/project"),
+        Path::new("/bin/node"),
+        &lookup("/work/project"),
         &project("/work/project"),
         &[(
-            "MISE_DATA_DIR".to_string(),
+            "XDG_DATA_HOME".to_string(),
             data.to_str().expect("Unicode").to_string(),
         )],
     );
     assert_eq!(request.read_only_binds, [data]);
     let none = launch_request(
-        Path::new("/bin/mise"),
-        &listing("/work/project"),
+        Path::new("/bin/node"),
+        &lookup("/work/project"),
         &project("/work/project"),
         &[],
     );
@@ -233,36 +220,74 @@ fn program(path: &Path, mode: u32) {
 }
 
 #[test]
-fn mise_is_found_on_path_first_then_in_the_installers_directory() {
+fn node_is_found_in_the_toolchain_root_first_then_on_path() {
     let root = tempfile::tempdir().expect("directory");
-    let on_path = root.path().join("path/bin");
-    program(&on_path.join("mise"), 0o755);
     let home = root.path().join("home");
-    program(&home.join(".local/bin/mise"), 0o755);
+    let installed = home.join(".local/share/monochromatic-dev/toolchain/bin/node");
+    program(&installed, 0o755);
+    let on_path = root.path().join("path/bin");
+    program(&on_path.join("node"), 0o755);
     let path = OsString::from(format!("relative/bin:{}", on_path.display()));
     assert_eq!(
-        find_mise_in(Some(&path), Some(&home)),
-        Some(on_path.join("mise"))
+        find_node_in(Some(&path), Some(&home), None),
+        Some(installed.clone())
     );
+    assert_eq!(find_node_in(None, Some(&home), None), Some(installed));
     assert_eq!(
-        find_mise_in(None, Some(&home)),
-        Some(home.join(".local/bin/mise"))
-    );
-    assert_eq!(
-        find_mise_in(Some(&OsString::from("/nowhere")), Some(&home)),
-        Some(home.join(".local/bin/mise"))
+        find_node_in(Some(&path), Some(Path::new("/nowhere")), None),
+        Some(on_path.join("node"))
     );
 }
 
 #[test]
-fn mise_is_not_found_without_an_executable_or_an_absolute_home() {
+fn an_xdg_data_home_names_the_toolchain_root_instead_of_the_home() {
+    let root = tempfile::tempdir().expect("directory");
+    let data = root.path().join("data");
+    let installed = data.join("monochromatic-dev/toolchain/bin/node");
+    program(&installed, 0o755);
+    assert_eq!(
+        find_node_in(None, Some(Path::new("/nowhere")), Some(&data)),
+        Some(installed)
+    );
+}
+
+#[test]
+fn a_mise_shim_on_path_is_not_node() {
+    let root = tempfile::tempdir().expect("directory");
+    let mise = root.path().join("bin/mise");
+    program(&mise, 0o755);
+    let shims = root.path().join("shims");
+    fs::create_dir_all(&shims).expect("directory");
+    symlink(&mise, shims.join("node")).expect("shim");
+    let path = OsString::from(shims.display().to_string());
+    assert_eq!(find_node_in(Some(&path), None, None), None);
+    let real = root.path().join("real/bin");
+    program(&real.join("node"), 0o755);
+    let both = OsString::from(format!("{}:{}", shims.display(), real.display()));
+    assert_eq!(
+        find_node_in(Some(&both), None, None),
+        Some(real.join("node"))
+    );
+}
+
+#[test]
+fn node_is_not_found_without_an_executable_or_an_absolute_place() {
     let root = tempfile::tempdir().expect("directory");
     let home = root.path().join("home");
-    program(&home.join(".local/bin/mise"), 0o644);
-    assert_eq!(find_mise_in(None, Some(&home)), None);
-    assert_eq!(find_mise_in(None, Some(Path::new("relative/home"))), None);
-    assert_eq!(find_mise_in(None, None), None);
+    program(
+        &home.join(".local/share/monochromatic-dev/toolchain/bin/node"),
+        0o644,
+    );
+    assert_eq!(find_node_in(None, Some(&home), None), None);
+    assert_eq!(
+        find_node_in(None, Some(Path::new("relative/home")), None),
+        None
+    );
+    assert_eq!(find_node_in(None, None, None), None);
     // A relative PATH entry would depend on the working directory.
-    program(&root.path().join("relative/mise"), 0o755);
-    assert_eq!(find_mise_in(Some(&OsString::from("relative")), None), None);
+    program(&root.path().join("relative/node"), 0o755);
+    assert_eq!(
+        find_node_in(Some(&OsString::from("relative")), None, None),
+        None
+    );
 }

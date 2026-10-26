@@ -21,17 +21,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Most bytes read from one stream of mise.
+/// Most bytes read from one stream of the run.
 ///  Chosen,
 ///  not measured:
 ///  the largest output seen was a listing of about 12 KiB.
 const CAPTURE_LIMIT: u64 = 1024 * 1024;
 
-/// How long a finished mise may take to hand over its streams
+/// How long a finished run may take to hand over its streams
 ///  when a grandchild still holds them open.
 const DRAIN_WAIT: Duration = Duration::from_millis(500);
 
-/// What mise did.
+/// What the run did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,7 +71,7 @@ fn collect(
         let mut bytes = Vec::new();
         // A stream larger than the limit is cut; the child is not read further.
         if let Err(error) = stream.take(CAPTURE_LIMIT).read_to_end(&mut bytes) {
-            tracing::debug!(?error, "cannot read a stream of the mise run");
+            tracing::debug!(?error, "cannot read a stream of the lookup run");
         }
         // The receiver is gone after a time-out; the bytes are then not needed.
         let _ = sender.send((is_error, bytes));
@@ -82,7 +82,7 @@ fn collect(
 ///  Run a command and wait at most `limit` for it.
 ///  `Duration` is a time span.
 /// Why:
-///  A mise that hangs must never hold the language thread for good,
+///  A lookup that hangs must never hold the language thread for good,
 ///  so the child is killed when the time is up.
 ///  Both streams are read on their own threads so a full pipe cannot stop it.
 ///
@@ -114,14 +114,14 @@ pub fn run_bounded(mut command: Command, limit: Duration) -> Result<Completed, S
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) => {}
-            Err(error) => return Err(format!("cannot wait for the mise run: {error}")),
+            Err(error) => return Err(format!("cannot wait for the lookup run: {error}")),
         }
         if started.elapsed() >= limit {
             if let Err(error) = child.kill() {
-                tracing::debug!(?error, "cannot kill the timed-out mise run");
+                tracing::debug!(?error, "cannot kill the timed-out lookup run");
             }
             if let Err(error) = child.wait() {
-                tracing::debug!(?error, "cannot reap the timed-out mise run");
+                tracing::debug!(?error, "cannot reap the timed-out lookup run");
             }
             return Err(format!(
                 "did not finish within {} s and was stopped",

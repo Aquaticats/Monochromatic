@@ -1,25 +1,26 @@
 #!/usr/bin/env node
-// Real mise projects against the production setup: servers found through mise and started confined, an untrusted
-// configuration that falls back to PATH with the notice, a folder without mise that keeps the PATH lookup and its
-// message, a hung mise that is stopped, and project trees compared before and after every run.
-// Everything runs on disposable projects. The tools are the versions the user's mise already has installed (read with
-// `mise ls --json`); nothing is installed, trusted, or written into a project, and no server touches this repository.
+// Real toolchain worktrees against the production setup: servers found through the bin-paths lookup and started
+// confined, a lookup that fails and falls back to PATH with the notice, a folder without the toolchain that keeps the
+// PATH lookup and its message, a hung entry point that is stopped, and project trees compared before and after every
+// run. Everything runs on disposable worktrees below the private agent scratch root. The tools are the ones this
+// worktree's `mise run toolchain:sync` provisioned (read with the same bin-paths entry point the IDE uses); nothing is
+// installed, trusted, or written into a project, and no server touches this repository.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const binary = resolve('target/debug/ide-language-inspect');
-// The private agent scratch root: its ancestors may hold other sessions' mise files, so the project without mise
-// lives below the system temporary directory instead (the sandbox binds a project below /tmp again).
+// The private agent scratch root: its ancestors may hold other sessions' toolchain files, so the project without the
+// toolchain lives below the system temporary directory instead (the sandbox binds a project below /tmp again).
 const privateRoot = join(homedir(), 'temp', 'agent');
 if ((statSync(privateRoot).mode & 0o077) !== 0) throw new Error('Scratch root must exclude group and other permissions: ' + privateRoot);
-const base = realpathSync(mkdtempSync(join(privateRoot, 'ide-language-mise-')));
-const outside = realpathSync(mkdtempSync(join(tmpdir(), 'ide-language-mise-')));
+const base = realpathSync(mkdtempSync(join(privateRoot, 'ide-language-toolchain-')));
+const outside = realpathSync(mkdtempSync(join(tmpdir(), 'ide-language-toolchain-')));
 const results = join(base, 'results');
 mkdirSync(results);
-console.log('LANGUAGE_MISE_ARTIFACT=' + base);
+console.log('LANGUAGE_TOOLCHAIN_ARTIFACT=' + base);
 
 const write = ({ root, relative, text }: { root: string; relative: string; text: string }): void => {
   const target = join(root, relative);
@@ -32,15 +33,25 @@ const offsetOf = ({ text, needle, within = 0 }: { text: string; needle: string; 
   return [...text.slice(0, index)].length + within;
 };
 
-// The versions mise has installed and active for the tools below.
-const installed: Record<string, { installed?: boolean; active?: boolean; version: string }[]> = JSON.parse(spawnSync('mise', ['ls', '--json'], { encoding: 'utf8', cwd: resolve('.') }).stdout);
-const versionOf = (name: string): string => {
-  const found = (installed[name] ?? []).filter(entry => entry.installed);
-  const chosen = found.find(entry => entry.active) ?? found.at(-1);
-  if (!chosen) throw new Error('mise has no installed ' + name + '; this check never installs anything');
-  return chosen.version;
+// The published entry point and the pinned answer of this worktree: where its provisioned tools are. The entry point
+// prints only when the path node runs it by is its own real path (its main guard compares the two), so every script
+// path here is canonical.
+const entryGiven = resolve('package/dev-script/file-enforcer/src/toolchain/bin-paths.ts');
+if (!existsSync(entryGiven)) throw new Error('This check needs the toolchain entry point at ' + entryGiven);
+const entryPoint = realpathSync(entryGiven);
+// The entry point imports its sibling modules, so a fixture worktree copies the whole toolchain source directory.
+const toolchainSources = dirname(entryPoint);
+const lockText = readFileSync(resolve('toolchain.lock.json'), 'utf8');
+const answerOf = (script: string): { exposureDir: string; pathDirs: string[]; bins: Record<string, string> } => {
+  const run = spawnSync('node', [script], { encoding: 'utf8', cwd: resolve('.') });
+  if (run.status !== 0) throw new Error('the bin-paths lookup failed: ' + (run.stderr || run.stdout));
+  return JSON.parse(run.stdout);
 };
-const tools = ['taplo = "' + versionOf('taplo') + '"', 'marksman = "' + versionOf('marksman') + '"', 'node = "' + versionOf('node') + '"', '"npm:bash-language-server" = "' + versionOf('npm:bash-language-server') + '"'];
+const provisioned = answerOf(entryPoint).bins;
+const wanted = ['node', 'taplo', 'marksman', 'bash-language-server'];
+for (const name of wanted) {
+  if (!provisioned[name]) throw new Error('the provisioned toolchain has no ' + name + '; run `mise run toolchain:sync` first; this check never installs anything');
+}
 
 // What the desktop launcher has: the PATH line of the systemd user session, read for that line only.
 const sessionPath = (() => {
@@ -65,29 +76,30 @@ const script = [
 const notes = ['# Notes', '', 'See [[other]] and [the other note](other.md).', ''].join('\n');
 const dataToml = ['[package]', 'name = "example"', 'version = "0.1.0"', ''].join('\n');
 
-// A project with a mise.toml that lists only tools, which mise trusts without `mise trust`.
-const project = ({ root, extra = '' }: { root: string; extra?: string }): void => {
-  write({ root: root, relative: 'mise.toml', text: extra + '[tools]\n' + tools.join('\n') + '\n' });
-  write({ root: root, relative: 'run.sh', text: script });
-  write({ root: root, relative: 'data.toml', text: dataToml });
-  write({ root: root, relative: 'notes.md', text: notes });
+// A disposable toolchain worktree: the published entry-point sources, the pinned lock, and the tool links of one
+// exposure directory, plus the sample files the servers need.
+const worktree = ({ root, tools = wanted, lock = lockText, entry }: { root: string; tools?: string[]; lock?: string; entry?: string }): void => {
+  cpSync(toolchainSources, join(root, 'package/dev-script/file-enforcer/src/toolchain'), { recursive: true });
+  // A damaged entry point replaces the copied one.
+  if (entry !== undefined) write({ root, relative: 'package/dev-script/file-enforcer/src/toolchain/bin-paths.ts', text: entry });
+  write({ root, relative: 'toolchain.lock.json', text: lock });
+  mkdirSync(join(root, '.cache/toolchain-bin'), { recursive: true });
+  for (const name of tools) symlinkSync(provisioned[name], join(root, '.cache/toolchain-bin', name));
+  write({ root, relative: 'run.sh', text: script });
+  write({ root, relative: 'data.toml', text: dataToml });
+  write({ root, relative: 'notes.md', text: notes });
   // marksman roots its workspace at a folder with this marker (or a .git folder).
-  write({ root: root, relative: '.marksman.toml', text: '[core]\n' });
-  write({ root: root, relative: 'other.md', text: '# Other note\n\nSome text.\n' });
+  write({ root, relative: '.marksman.toml', text: '[core]\n' });
+  write({ root, relative: 'other.md', text: '# Other note\n\nSome text.\n' });
 };
-const withMise = join(base, 'mise-project');
-project({ root: withMise });
-// A configuration with `[env]` needs trust; this one was never trusted.
-const untrusted = join(base, 'untrusted-project');
-project({ root: untrusted, extra: '[env]\nPROJECT_MARK = "1"\n' });
+const withToolchain = join(base, 'toolchain-project');
+worktree({ root: withToolchain });
+// A worktree whose entry point copy is damaged: node fails and the notice quotes the lookup.
+const broken = join(base, 'broken-project');
+worktree({ root: broken, entry: 'this is not the entry point\n' });
 const hung = join(base, 'hung-project');
-project({ root: hung });
+worktree({ root: hung, entry: 'setTimeout(() => {}, 600_000);\n' });
 write({ root: outside, relative: 'a.lua', text: 'local value = 1\nprint(value)\n' });
-
-// A fake mise first on PATH that never answers, to see the time limit stop it.
-const fakeBin = join(base, 'fake-bin');
-write({ root: fakeBin, relative: 'mise', text: '#!/bin/sh\nexec sleep 600\n' });
-chmodSync(join(fakeBin, 'mise'), 0o755);
 
 interface PlanStep {
   label: string;
@@ -96,18 +108,18 @@ interface PlanStep {
 }
 const plan = ({ root, steps }: { root: string; steps: PlanStep[] }): { project: string; steps: PlanStep[] } => ({ project: root, steps });
 const bashHover = (at: number): PlanStep => ({ label: 'hover', do: 'request', kind: 'hover', at, until: 'hover', seconds: 60 });
-interface MiseCase {
+interface LookupCase {
   name: string;
   root: string;
   path: string;
   plan: { project: string; steps: PlanStep[] };
 }
-const cases: MiseCase[] = [
+const cases: LookupCase[] = [
   {
-    name: 'mise-project-node-server',
-    root: withMise,
+    name: 'toolchain-project-node-server',
+    root: withToolchain,
     path: sessionPath,
-    plan: plan({ root: withMise, steps: [
+    plan: plan({ root: withToolchain, steps: [
       { label: 'open', do: 'open', file: 'run.sh' },
       { label: 'ready', do: 'ready', seconds: 60 },
       bashHover(offsetOf({ text: script, needle: 'greet "world"', within: 1 })),
@@ -116,10 +128,10 @@ const cases: MiseCase[] = [
     ] }),
   },
   {
-    name: 'mise-project-binary-server',
-    root: withMise,
+    name: 'toolchain-project-binary-server',
+    root: withToolchain,
     path: sessionPath,
-    plan: plan({ root: withMise, steps: [
+    plan: plan({ root: withToolchain, steps: [
       { label: 'open', do: 'open', file: 'data.toml' },
       { label: 'ready', do: 'ready', seconds: 60 },
       { label: 'diagnostics', do: 'diagnostics', minimum: 0, maximum: 0, seconds: 2 },
@@ -127,10 +139,10 @@ const cases: MiseCase[] = [
     ] }),
   },
   {
-    name: 'mise-project-markdown-server',
-    root: withMise,
+    name: 'toolchain-project-markdown-server',
+    root: withToolchain,
     path: sessionPath,
-    plan: plan({ root: withMise, steps: [
+    plan: plan({ root: withToolchain, steps: [
       { label: 'open', do: 'open', file: 'notes.md' },
       { label: 'ready', do: 'ready', seconds: 60 },
       { label: 'hover', do: 'request', kind: 'hover', at: offsetOf({ text: notes, needle: '[[other]]', within: 3 }), until: 'hover', seconds: 60 },
@@ -138,10 +150,10 @@ const cases: MiseCase[] = [
     ] }),
   },
   {
-    name: 'untrusted-project',
-    root: untrusted,
+    name: 'broken-project',
+    root: broken,
     path: sessionPath,
-    plan: plan({ root: untrusted, steps: [
+    plan: plan({ root: broken, steps: [
       { label: 'open', do: 'open', file: 'run.sh' },
       { label: 'sleep', do: 'sleep', milliseconds: 1500 },
       { label: 'notice', do: 'diagnostics', minimum: 1, maximum: 100, seconds: 30 },
@@ -149,7 +161,7 @@ const cases: MiseCase[] = [
     ] }),
   },
   {
-    name: 'folder-without-mise',
+    name: 'folder-without-toolchain',
     root: outside,
     path: sessionPath,
     plan: plan({ root: outside, steps: [
@@ -160,9 +172,9 @@ const cases: MiseCase[] = [
     ] }),
   },
   {
-    name: 'hung-mise',
+    name: 'hung-entry-point',
     root: hung,
-    path: fakeBin + ':' + sessionPath,
+    path: sessionPath,
     plan: plan({ root: hung, steps: [
       { label: 'open', do: 'open', file: 'run.sh' },
       { label: 'sleep', do: 'sleep', milliseconds: 1500 },
@@ -207,17 +219,17 @@ const difference = ({ before, after }: { before: Record<string, SnapshotEntry>; 
 });
 const unchanged = (tree: TreeDifference): boolean => tree.added.length === 0 && tree.removed.length === 0 && tree.changed.length === 0;
 
-// Processes of the fixtures: working directory inside a fixture, or the fake mise's `sleep 600`.
+// Processes of the fixtures: a working directory inside a fixture.
 const leftovers = () => readdirSync('/proc').filter(name => /^\d+$/.test(name)).flatMap(pid => {
   try {
     const cwd = readlinkSync(join('/proc', pid, 'cwd'));
     const command = readFileSync(join('/proc', pid, 'cmdline'), 'utf8').split('\0').join(' ').trim();
     const inside = cwd.startsWith(base) || cwd.startsWith(outside);
-    return inside || command === 'sleep 600' ? [pid + ' ' + cwd + ' ' + command] : [];
+    return inside ? [pid + ' ' + cwd + ' ' + command] : [];
   } catch { return []; }
 });
 
-const summary: { base: string; outside: string; tools: string[]; cases: unknown[] } = { base, outside, tools, cases: [] };
+const summary: { base: string; outside: string; tools: string[]; cases: unknown[] } = { base, outside, tools: wanted, cases: [] };
 let failed = false;
 const report = ({ name, passed }: { name: string; passed: boolean }): void => {
   if (!passed) failed = true;
@@ -226,13 +238,13 @@ const report = ({ name, passed }: { name: string; passed: boolean }): void => {
 // The application's private state goes below the fixture. The launcher-like PATH replaces the shell's.
 const environment = (path: string): NodeJS.ProcessEnv => ({ ...process.env, PATH: path, XDG_CACHE_HOME: join(base, 'app-cache') });
 // The records of the inspection binary's event stream, one JSON object per line; only the fields read here are named.
-interface MiseEvent {
+interface LookupEvent {
   step?: unknown;
   result?: { ready?: boolean; matched?: boolean };
   reply?: { outcome: { text?: string } };
   diagnostics?: { items?: { source?: string; message?: string }[] };
 }
-const noticeText = (events: MiseEvent[]): string => events.flatMap(event => (event.diagnostics ? [event.diagnostics] : [])).flatMap(diagnostics => diagnostics.items ?? [])
+const noticeText = (events: LookupEvent[]): string => events.flatMap(event => (event.diagnostics ? [event.diagnostics] : [])).flatMap(diagnostics => diagnostics.items ?? [])
   .filter(item => item.source === 'language support').map(item => item.message).join('\n');
 
 for (const item of cases) {
@@ -246,7 +258,7 @@ for (const item of cases) {
   writeFileSync(join(results, item.name + '.events.jsonl'), run.stdout ?? '');
   writeFileSync(join(results, item.name + '.stderr.txt'), run.stderr ?? '');
   if (run.error) throw run.error;
-  const events = (run.stdout ?? '').split('\n').filter(Boolean).map((line): MiseEvent => JSON.parse(line));
+  const events = (run.stdout ?? '').split('\n').filter(Boolean).map((line): LookupEvent => JSON.parse(line));
   const steps = events.filter(event => event.step !== undefined);
   const result = (label: string): { ready?: boolean; matched?: boolean } => steps[item.plan.steps.findIndex(step => step.label === label)]?.result ?? {};
   const replies = events.flatMap(event => (event.reply ? [event.reply] : []));
@@ -255,52 +267,51 @@ for (const item of cases) {
   const stderr = (run.stderr ?? '').replace(/\u001b\[[0-9;]*m/g, '');
   const elapsed = [...stderr.matchAll(/elapsed_ms=(\d+)/g)].map(found => Number(found[1]));
   const checks: [string, boolean][] = [['process exited cleanly', run.status === 0], ['every step was recorded', steps.length === item.plan.steps.length]];
-  if (item.name === 'mise-project-node-server') {
-    checks.push(['mise provided tool directories for the project', /mise provides tool directories for the project/.test(stderr)]);
-    checks.push(['the Node server became ready through mise', result('ready').ready === true]);
+  if (item.name === 'toolchain-project-node-server') {
+    checks.push(['the toolchain provides tool directories for the project', /the toolchain provides tool directories for the project/.test(stderr)]);
+    checks.push(['the Node server became ready through the toolchain', result('ready').ready === true]);
     checks.push(['hover names the function', result('hover').matched === true && hover.includes('greet')]);
-    checks.push(['the notice does not mention mise', !/mise/i.test(notice)]);
+    checks.push(['the notice does not mention the toolchain', !/toolchain/i.test(notice)]);
   }
-  if (item.name === 'mise-project-markdown-server') {
-    checks.push(['the Markdown server became ready through mise', result('ready').ready === true]);
+  if (item.name === 'toolchain-project-markdown-server') {
+    checks.push(['the Markdown server became ready through the toolchain', result('ready').ready === true]);
     checks.push(['hover on a wiki link shows the linked note', result('hover').matched === true && hover.includes('Other note')]);
   }
-  if (item.name === 'mise-project-binary-server') {
-    checks.push(['the binary server became ready through mise', result('ready').ready === true]);
-    checks.push(['taplo is not reported missing and mise has nothing to say', !notice.includes('taplo is not available') && !notice.includes('mise said') && !notice.includes('mise reported')]);
+  if (item.name === 'toolchain-project-binary-server') {
+    checks.push(['the binary server became ready through the toolchain', result('ready').ready === true]);
+    checks.push(['taplo is not reported missing and the lookup has nothing to say', !notice.includes('taplo is not available') && !notice.includes('toolchain lookup said') && !notice.includes('toolchain lookup reported')]);
   }
-  if (item.name === 'untrusted-project') {
-    checks.push(['the notice quotes mise on the untrusted file', notice.includes('mise said:') && notice.includes('are not trusted')]);
-    checks.push(['the notice names the configuration file', notice.includes(join(item.root, 'mise.toml'))]);
-    checks.push(['the notice says the user runs mise trust', notice.includes('run `mise trust` on') && notice.includes('(the IDE never does)')]);
+  if (item.name === 'broken-project') {
+    checks.push(['the notice quotes the lookup', notice.includes('the toolchain lookup said:')]);
+    checks.push(['the notice names the entry point the user runs', notice.includes('node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts')]);
     checks.push(['the server falls back to PATH and its shim is not started', /bash-language-server is not available: the program 'bash-language-server' for bash-language-server was not found on PATH/.test(notice)]);
   }
-  if (item.name === 'folder-without-mise') {
+  if (item.name === 'folder-without-toolchain') {
     checks.push(['the notice keeps the PATH message', /lua-language-server is not available: the program 'lua-language-server' for lua-language-server was not found on PATH\./.test(notice)]);
-    checks.push(['mise is not mentioned', !/mise/i.test(notice)]);
-    checks.push(['mise was not asked to provide anything', !/mise provides tool directories/.test(stderr)]);
+    checks.push(['the toolchain is not mentioned', !/toolchain/i.test(notice)]);
+    checks.push(['the lookup was not asked to provide anything', !/the toolchain provides tool directories/.test(stderr)]);
   }
-  if (item.name === 'hung-mise') {
-    checks.push(['the hung mise was stopped at the time limit', notice.includes('did not finish within 10 s and was stopped')]);
+  if (item.name === 'hung-entry-point') {
+    checks.push(['the hung entry point was stopped at the time limit', notice.includes('did not finish within 10 s and was stopped')]);
     checks.push(['the whole run stayed near the limit', seconds < 40]);
   }
   checks.push(['the project tree is unchanged', unchanged(tree)]);
   const left = leftovers();
   checks.push(['no process is left in the fixtures', left.length === 0]);
-  summary.cases.push({ name: item.name, seconds, miseMilliseconds: elapsed, tree, leftovers: left, notice, hover: hover.slice(0, 300), checks: checks.map(([name, passed]) => ({ name, passed })) });
+  summary.cases.push({ name: item.name, seconds, lookupMilliseconds: elapsed, tree, leftovers: left, notice, hover: hover.slice(0, 300), checks: checks.map(([name, passed]) => ({ name, passed })) });
   for (const [name, passed] of checks) report({ name: item.name + ': ' + name, passed });
 }
 
-// Positive control: the comparison sees a `mise.lock`, the file mise writes when it updates a lockfile.
+// Positive control: the comparison sees a created file.
 const control = join(base, 'control-project');
-cpSync(withMise, control, { recursive: true });
+cpSync(withToolchain, control, { recursive: true });
 const controlBefore = snapshot(control);
-write({ root: control, relative: 'mise.lock', text: '# written by the control\n' });
+write({ root: control, relative: 'scratch-note.txt', text: '# written by the control\n' });
 const controlTree = difference({ before: controlBefore, after: snapshot(control) });
-report({ name: 'control: the tree comparison sees a created mise.lock', passed: controlTree.added.includes('mise.lock') });
+report({ name: 'control: the tree comparison sees a created file', passed: controlTree.added.includes('scratch-note.txt') });
 rmSync(control, { recursive: true, force: true });
-report({ name: 'no mise.lock exists in any project', passed: [withMise, untrusted, hung, outside].every(root => !existsSync(join(root, 'mise.lock'))) });
+report({ name: 'no scratch note exists in any project', passed: [withToolchain, broken, hung, outside].every(root => !existsSync(join(root, 'scratch-note.txt'))) });
 
 writeFileSync(join(results, 'results.json'), JSON.stringify(summary, null, 2));
-console.log('Language mise inspection ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
+console.log('Language toolchain inspection ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
 if (failed) process.exitCode = 1;

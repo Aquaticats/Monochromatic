@@ -1,61 +1,56 @@
-//! The outcome of asking mise about a project,
+//! The outcome of asking the repository toolchain about a project,
 //!  and what it means for the lookup and for the reader.
 
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The tool directories mise provides for a project.
+///  The tool directories the toolchain provides for a project.
 /// Why:
 ///  The directories are searched for servers and placed on the servers' `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Provided = { directories: string[]; configs: string[]; warnings: string };
+/// type Provided = { directories: string[]; warnings: string };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Provided {
     /// Existing absolute directories,
-    /// in mise's order.
+    /// in the toolchain's order.
     pub directories: Vec<PathBuf>,
-    /// The project's own mise configuration files.
-    pub configs: Vec<PathBuf>,
-    /// What mise printed while it succeeded,
-    ///  such as `missing: taplo@0.9.0` for a listed tool that is not installed.
+    /// What the lookup printed while it succeeded,
+    ///  such as a warning about the machine state.
     pub warnings: String,
 }
 
 /// What:
-///  Why mise could not serve the project,
-///  with mise's own words.
+///  Why the lookup could not serve the project,
+///  with its own words.
 /// Why:
 ///  The reader is told the message and the remedy,
 ///  and the servers fall back to the plain `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Failed = { message: string; untrusted?: string };
+/// type Failed = { message: string };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Failed {
-    /// Mise's message,
+    /// The lookup's message,
     /// or what the application observed.
     pub message: String,
-    /// The configuration file mise refused as not trusted,
-    /// when that is the cause.
-    pub untrusted: Option<String>,
 }
 
 /// Facts about a failure.
 impl Failed {
     /// What:
     ///  Whether the message is bubblewrap's own,
-    ///  printed before mise ran.
+    ///  printed before the lookup ran.
     /// Why:
     ///  Bubblewrap starts every message with `bwrap:`,
-    ///  and mise starts its own with `mise`,
+    ///  and the lookup's own messages start with `node`,
     ///  so the first word tells whose message it is.
-    ///  The reader is then not sent to `mise doctor` for a fault mise never saw.
+    ///  The reader is then not sent to the toolchain for a fault it never saw.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -67,7 +62,7 @@ impl Failed {
 }
 
 /// What:
-///  The outcome of asking mise about a project.
+///  The outcome of asking the toolchain about a project.
 ///  An `enum` with data is a tagged union.
 /// Why:
 ///  Each outcome changes the lookup differently,
@@ -75,16 +70,16 @@ impl Failed {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MiseState = { kind: 'disabled' } | { kind: 'unused'; reason: string }
-///                | { kind: 'provided'; provided: Provided } | { kind: 'failed'; failed: Failed };
+/// type ToolchainState = { kind: 'disabled' } | { kind: 'unused'; reason: string }
+///                     | { kind: 'provided'; provided: Provided } | { kind: 'failed'; failed: Failed };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MiseState {
-    /// The setup never runs mise.
+pub enum ToolchainState {
+    /// The setup never runs the lookup.
     Disabled,
-    /// Mise does not apply:
-    /// no mise program,
-    /// no configuration for the project,
+    /// The toolchain does not apply:
+    /// no node program to ask with,
+    /// no toolchain entry point for the project,
     /// or no sandbox.
     ///  The plain `PATH` lookup stays as it was.
     Unused(
@@ -92,30 +87,29 @@ pub enum MiseState {
         ///  for the log.
         String,
     ),
-    /// The project's mise configuration was read.
+    /// The project's toolchain was read.
     Provided(
-        /// The directories and configuration files mise provided.
+        /// The directories the toolchain provides.
         Provided,
     ),
-    /// The project has a mise configuration that mise could not use.
+    /// The project has a toolchain the lookup could not use.
     Failed(
-        /// Mise's message,
-        ///  and the file it refused when there is one.
+        /// The lookup's message.
         Failed,
     ),
 }
 
 /// Facts about a state.
-impl MiseState {
-    /// Whether a mise configuration applies to the project,
+impl ToolchainState {
+    /// Whether a toolchain applies to the project,
     ///  working or not.
-    ///  Then a mise shim is never taken for a server.
+    ///  Then a leftover shim of a retired tool manager is never taken for a server.
     pub fn serves_project(&self) -> bool {
         return matches!(self, Self::Provided(_) | Self::Failed(_));
     }
 
     /// The tool directories,
-    ///  empty unless mise provided some.
+    ///  empty unless the toolchain provided some.
     pub fn directories(&self) -> &[PathBuf] {
         return match self {
             Self::Provided(provided) => &provided.directories,
@@ -123,7 +117,7 @@ impl MiseState {
         };
     }
 
-    /// What mise printed while it succeeded.
+    /// What the lookup printed while it succeeded.
     pub fn warnings(&self) -> &str {
         return match self {
             Self::Provided(provided) => &provided.warnings,
@@ -133,17 +127,16 @@ impl MiseState {
 
     /// What:
     ///  The paragraphs of the reader's notice about a failure,
-    ///  or none when mise worked or did not apply.
+    ///  or none when the lookup worked or did not apply.
     /// Why:
-    ///  The notice must name the configuration,
-    /// quote mise,
+    ///  The notice must say what happened,
+    /// quote the lookup,
     /// and say what the user does:
-    ///  the application never trusts a configuration,
-    /// because trusting lets the project's
-    ///  `[env]` commands run.
-    ///  The remedy stands before mise's own words:
+    ///  the application runs the entry point and never repairs the toolchain,
+    ///  so the remedy names the command the user runs.
+    ///  The remedy stands before the lookup's own words:
     ///  the display keeps only the first dozen lines,
-    ///  and mise's message is several long lines.
+    ///  and a failed run prints several long lines.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -156,7 +149,7 @@ impl MiseState {
         if failed.stopped_by_sandbox() {
             return vec![
                 format!(
-                    "The sandbox that runs mise for {} stopped before mise started, so language servers are looked up on PATH only. The project's mise configuration is not the cause.",
+                    "The sandbox that runs the toolchain lookup for {} stopped before the lookup started, so language servers are looked up on PATH only. The project's toolchain is not the cause.",
                     root.display()
                 ),
                 format!(
@@ -166,22 +159,16 @@ impl MiseState {
                 format!("bubblewrap said: {}", failed.message),
             ];
         }
-        let remedy = match &failed.untrusted {
-            Some(file) => format!(
-                "If you trust that mise configuration, run `mise trust` on {file} in a terminal yourself (the IDE never does), then display a file again."
-            ),
-            None => format!(
-                "Fix what mise names (`mise doctor` in {} shows more), then display a file again.",
-                root.display()
-            ),
-        };
         return vec![
             format!(
-                "The mise configuration for {} could not be used, so language servers are looked up on PATH only.",
+                "The toolchain lookup for {} could not be used, so language servers are looked up on PATH only.",
                 root.display()
             ),
-            remedy,
-            format!("mise said: {}", failed.message),
+            format!(
+                "Fix what the lookup reports (run `node {}` at the worktree root in a terminal to see it yourself), then display a file again.",
+                super::ENTRY_POINT
+            ),
+            format!("the toolchain lookup said: {}", failed.message),
         ];
     }
 }

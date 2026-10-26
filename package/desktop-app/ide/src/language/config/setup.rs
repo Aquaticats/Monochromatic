@@ -1,13 +1,13 @@
 //! How the embedding application sets the Language module up:
 //!  the launch policy,
 //!  the private state directory,
-//!  the mise policy,
+//!  the toolchain policy,
 //!  and extra definitions.
 
 /// The launch seam decides what is spawned for each server.
 use crate::language::launch::{LaunchPolicy, launch_directly};
-/// The mise policy decides whether and how a project's mise tools are looked up.
-use crate::language::mise::{MisePolicy, resolve_confined, resolve_disabled};
+/// The toolchain policy decides whether and how a project's tool binaries are found.
+use crate::language::toolchain::{ToolchainPolicy, resolve_confined, resolve_disabled};
 /// What:
 ///  `PathBuf` is an owned filesystem path.
 /// Why:
@@ -30,17 +30,17 @@ use std::path::PathBuf;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LanguageSetup = { launch: LaunchPolicy; mise: MisePolicy; stateRoot?: string; extraLanguages?: string };
+/// type LanguageSetup = { launch: LaunchPolicy; toolchain: ToolchainPolicy; stateRoot?: string; extraLanguages?: string };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LanguageSetup {
     /// Decides what is spawned for every server;
     ///  the default spawns the server itself.
     pub launch: LaunchPolicy,
-    /// Decides how the tools a project's mise configuration provides are found;
-    ///  the default runs mise in the same confinement the servers get,
+    /// Decides how the tools the project's toolchain provides are found;
+    ///  the default runs the lookup in the same confinement the servers get,
     ///  the unconfined setup never runs it.
-    pub mise: MisePolicy,
+    pub toolchain: ToolchainPolicy,
     /// Private application state directory,
     ///  not containing the project;
     ///  needed by confining policies.
@@ -59,23 +59,23 @@ pub struct LanguageSetup {
 /// Why:
 ///  The production setup is "built-in definitions,
 ///  confined launch,
-///  confined mise,
+///  confined lookup,
 ///  private state directory".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const defaultSetup: LanguageSetup = { launch: launchConfined, mise: resolveConfined, stateRoot: defaultStateRoot() };
+/// const defaultSetup: LanguageSetup = { launch: launchConfined, toolchain: resolveConfined, stateRoot: defaultStateRoot() };
 /// ```
 impl Default for LanguageSetup {
     /// Build the production setup:
     ///  every server confined by bubblewrap,
     ///  with private state
     /// below the user's cache directory,
-    ///  and mise run in that confinement too.
+    ///  and the toolchain lookup run in that confinement too.
     fn default() -> Self {
         return Self {
             launch: crate::language::confine::launch_confined,
-            mise: resolve_confined,
+            toolchain: resolve_confined,
             state_root: crate::language::confine::default_state_root(),
             extra_languages: None,
         };
@@ -85,7 +85,7 @@ impl Default for LanguageSetup {
 /// Setups other than the production one.
 impl LanguageSetup {
     /// What:
-    ///  A setup whose servers run without any confinement and that never runs mise.
+    ///  A setup whose servers run without any confinement and that never runs the lookup.
     /// Why:
     ///  Only for tests with the scripted server and for guard controls on disposable
     ///      projects;
@@ -93,12 +93,12 @@ impl LanguageSetup {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// static unconfined(): LanguageSetup { return { launch: launchDirectly, mise: resolveDisabled }; }
+    /// static unconfined(): LanguageSetup { return { launch: launchDirectly, toolchain: resolveDisabled }; }
     /// ```
     pub fn unconfined() -> Self {
         return Self {
             launch: launch_directly,
-            mise: resolve_disabled,
+            toolchain: resolve_disabled,
             state_root: None,
             extra_languages: None,
         };

@@ -1,12 +1,11 @@
-//! Running mise:
+//! Running the toolchain lookup:
 //!  the command line that confines it like a server,
 //!  and a run that cannot outlast its time limit.
 //!
-//! Mise evaluates a trusted project's `[env]` templates on every command,
-//!  including `config ls`,
-//!  and those templates run shell commands.
-//!  So mise never runs on the bare host:
-//!  it runs in the sandbox the servers get,
+//! The lookup runs repository code (`bin-paths.ts`) with node,
+//!  and repository code is project code:
+//!  it never runs on the bare host.
+//!  It runs in the sandbox the servers get,
 //!  without network,
 //!  with the whole file system and the project read-only,
 //!  and with a cleared environment.
@@ -14,6 +13,8 @@
 /// A bounded run,
 /// and what it gives back.
 pub use super::run::{Completed, run_bounded};
+/// The shim test that keeps a retired tool manager's shim from being run.
+use super::search::is_shim;
 /// The same sandbox recipe,
 ///  probe,
 ///  and private state as a server's.
@@ -25,7 +26,7 @@ use crate::language::{
 ///  `Command` describes a child process;
 ///  `Stdio` says where its streams go.
 /// Why:
-///  Mise is started with no input and with both output streams captured.
+///  The lookup is started with no input and with both output streams captured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,63 +34,34 @@ use crate::language::{
 /// ```
 use std::{
     collections::HashMap,
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::Command,
     time::Duration,
 };
 
-/// Variables that stop mise from changing anything or reaching out,
-///  set after the application's environment was cleared.
-///  Verified names of mise's settings (`mise settings`):
-///  `auto_install`,
-///  `exec_auto_install`,
-///  `not_found_auto_install`,
-///  `task.run_auto_install`,
-///  `lockfile`,
-///  `offline`,
-///  `yes`.
-///  A project's own `[settings]` cannot override them:
-/// an environment variable wins over a
-///  configuration file (measured with `mise settings get`).
-pub const SAFE_ENVIRONMENT: &[(&str, &str)] = &[
-    ("MISE_AUTO_INSTALL", "false"),
-    ("MISE_EXEC_AUTO_INSTALL", "false"),
-    ("MISE_NOT_FOUND_AUTO_INSTALL", "false"),
-    ("MISE_TASK_RUN_AUTO_INSTALL", "false"),
-    ("MISE_LOCKFILE", "false"),
-    ("MISE_OFFLINE", "true"),
-    ("MISE_YES", "false"),
-    ("MISE_COLOR", "0"),
-    ("MISE_DISABLE_UPDATE_WARNING", "true"),
-    ("NO_COLOR", "1"),
-];
-
-/// Variables that tell mise where its own directories are,
-///  passed on when the application has them.
-///  They name places,
+/// What:
+///  Variables that name places and nothing else,
+///  passed on when the application has them:
+///  the home directory (the parent of the machine's toolchain root)
+///  and the XDG base directories.
+/// Why:
+///  The lookup derives the machine's toolchain root from these,
+///  and they name places,
 ///  never credentials;
-///  every other variable of the application is cleared.
-pub const LOCATION_VARIABLES: &[&str] = &[
-    "MISE_DATA_DIR",
-    "MISE_CONFIG_DIR",
-    "MISE_STATE_DIR",
-    "MISE_GLOBAL_CONFIG_FILE",
-    "MISE_SYSTEM_CONFIG_DIR",
-    "MISE_SYSTEM_DATA_DIR",
-    "MISE_CEILING_PATHS",
-    "MISE_ENV",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "XDG_STATE_HOME",
-];
+///  every other variable of the application is cleared,
+///  so nothing of it (a `NODE_OPTIONS`,
+///  a token) reaches the run.
+pub const LOCATION_VARIABLES: &[&str] =
+    &["HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"];
 
 /// What:
-///  One mise command:
+///  One lookup run:
 ///  its arguments and the directory it runs in.
 /// Why:
-///  The project is never named in the arguments.
-///  A directory name that starts with a dash would be read as an option,
-///  so mise learns the directory only as its working directory.
+///  The project is named only as the working directory and inside the absolute
+///  entry-point path,
+///  so a directory name that starts with a dash can never be read as an option.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,13 +84,13 @@ pub struct Invocation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunFailure {
     /// The sandbox cannot be set up,
-    ///  so mise is not run;
+    ///  so nothing is run;
     ///  every server is refused for the same reason.
     Refused(
         /// What the confinement reported.
         String,
     ),
-    /// Mise could not be started,
+    /// The lookup could not be started,
     ///  or did not finish in time.
     Failed(
         /// What was observed.
@@ -127,26 +99,37 @@ pub enum RunFailure {
 }
 
 /// What:
-///  Find the mise program:
-///  `mise` in the application's `PATH`,
-///  else `~/.local/bin/mise`,
-///  the place mise's installer uses.
-///  Only an absolute `PATH` entry counts.
+///  Find the node program that runs the toolchain's entry point:
+///  `node` under the machine's toolchain root (`${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain/bin`),
+///  where `mise run toolchain:sync` links the installed binaries,
+///  else `node` in the application's `PATH`.
+///  Only an absolute `PATH` entry counts,
+///  and a shim of a retired tool manager is skipped:
+///  it cannot run inside the sandbox.
 /// Why:
-///  The desktop launcher's `PATH` is a snapshot of the login session and may miss either place,
+///  The desktop launcher's `PATH` is a snapshot of the login session and misses the
+///  toolchain root,
+///  the pinned toolchain node is the one known to read the entry point's TypeScript,
 ///  and no path of any repository is assumed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findMise(): string | undefined
+/// function findNode(): string | undefined
 /// ```
-pub fn find_mise() -> Option<PathBuf> {
+pub fn find_node() -> Option<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
-    return find_mise_in(std::env::var_os("PATH").as_deref(), home.as_deref());
+    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from);
+    return find_node_in(
+        std::env::var_os("PATH").as_deref(),
+        home.as_deref(),
+        data.as_deref(),
+    );
 }
 
 /// What:
-///  `find_mise` with the application's `PATH` and home directory given.
+///  `find_node` with the application's `PATH`,
+///  home directory,
+///  and XDG data directory given.
 ///  `Option<&OsStr>` is a `PATH` value that may be unset.
 /// Why:
 ///  A test passes its own,
@@ -154,38 +137,51 @@ pub fn find_mise() -> Option<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findMiseIn(path: string | undefined, home: string | undefined): string | undefined
+/// function findNodeIn(path: string | undefined, home: string | undefined, dataHome: string | undefined): string | undefined
 /// ```
-pub fn find_mise_in(path: Option<&std::ffi::OsStr>, home: Option<&Path>) -> Option<PathBuf> {
+pub fn find_node_in(
+    path: Option<&OsStr>,
+    home: Option<&Path>,
+    data_home: Option<&Path>,
+) -> Option<PathBuf> {
+    let share = match data_home {
+        Some(data) if data.is_absolute() => Some(data.to_path_buf()),
+        _ => home
+            .filter(|found| return found.is_absolute())
+            .map(|found| return found.join(".local/share")),
+    };
+    if let Some(share_home) = share {
+        let installed = share_home.join("monochromatic-dev/toolchain/bin/node");
+        if is_executable(&installed) {
+            return Some(installed);
+        }
+    }
     for directory in path.map(std::env::split_paths).into_iter().flatten() {
         // A relative entry would depend on the working directory; only absolute ones are trusted.
-        let candidate = directory.join("mise");
-        if directory.is_absolute() && is_executable(&candidate) {
+        if !directory.is_absolute() {
+            continue;
+        }
+        let candidate = directory.join("node");
+        if is_executable(&candidate) && !is_shim(&candidate) {
             return Some(candidate);
         }
     }
-    let found = home?;
-    if !found.is_absolute() {
-        return None;
-    }
-    let installed = found.join(".local/bin/mise");
-    return is_executable(&installed).then_some(installed);
+    return None;
 }
 
 /// What:
-///  The sandbox request for one mise command.
-///  `locations` holds the mise location variables the application has,
+///  The sandbox request for one lookup run.
+///  `locations` holds the location variables the application has,
 ///  as `(name, value)` pairs.
 /// Why:
-///  The request carries only what mise needs:
+///  The request carries only what the lookup needs:
 ///  its program,
-///  the safety variables,
 ///  its own directories,
 ///  and the project to read.
 ///  Directories the sandbox replaced with its own (below `/tmp`,
 ///  `/run`,
 ///  `/dev`) are bound again read-only,
-///  so a mise installed there still works.
+///  so a toolchain installed there still works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,14 +190,11 @@ pub fn find_mise_in(path: Option<&std::ffi::OsStr>, home: Option<&Path>) -> Opti
 pub fn launch_request(
     program: &Path,
     invocation: &Invocation,
-    project: &super::MiseRequest,
+    project: &super::ToolchainRequest,
     locations: &[(String, String)],
 ) -> LaunchRequest {
     let mut environment: HashMap<String, String> = HashMap::new();
     let mut read_only_binds: Vec<PathBuf> = Vec::new();
-    for (name, value) in SAFE_ENVIRONMENT {
-        environment.insert(name.to_string(), value.to_string());
-    }
     for (name, value) in locations {
         environment.insert(name.clone(), value.clone());
         for part in std::env::split_paths(value) {
@@ -211,7 +204,7 @@ pub fn launch_request(
         }
     }
     return LaunchRequest {
-        server: "mise".to_string(),
+        server: "toolchain".to_string(),
         executable: program.to_path_buf(),
         args: invocation.arguments.clone(),
         environment,
@@ -224,7 +217,7 @@ pub fn launch_request(
 }
 
 /// What:
-///  The mise location variables of this process.
+///  The location variables of this process.
 /// Why:
 ///  Read once per resolution,
 ///  so a test can pass its own pairs to `launch_request`.
@@ -244,12 +237,12 @@ pub fn locations_from_environment() -> Vec<(String, String)> {
 }
 
 /// What:
-///  Run a mise command in the servers' sandbox,
+///  Run the lookup in the servers' sandbox,
 ///  with the program found on the host.
 ///  `bubblewrap` is the bubblewrap program.
 /// Why:
 ///  The confinement is the one function every server goes through,
-///  so mise cannot get a weaker sandbox than a server.
+///  so the lookup cannot get a weaker sandbox than a server.
 ///  A refusal is reported apart from a failed run.
 ///
 /// In TS you'd write (pseudocode):
@@ -259,7 +252,7 @@ pub fn locations_from_environment() -> Vec<(String, String)> {
 pub fn run_confined(
     program: &Path,
     invocation: &Invocation,
-    project: &super::MiseRequest,
+    project: &super::ToolchainRequest,
     limit: Duration,
     bubblewrap: &str,
 ) -> Result<Completed, RunFailure> {
@@ -276,7 +269,7 @@ pub fn run_confined(
         .args(&launch.args)
         .env_clear()
         .current_dir(&invocation.directory);
-    tracing::debug!(arguments = ?invocation.arguments, directory = %invocation.directory.display(), "running mise in the sandbox");
+    tracing::debug!(arguments = ?invocation.arguments, directory = %invocation.directory.display(), "running the toolchain lookup in the sandbox");
     return run_bounded(command, limit).map_err(RunFailure::Failed);
 }
 

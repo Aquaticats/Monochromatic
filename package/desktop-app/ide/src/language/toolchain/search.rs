@@ -1,10 +1,11 @@
-//! Looking a server program up in the directories mise provides for a project,
+//! Looking a server program up in the directories the toolchain provides for a project,
 //!  and building the `PATH` the confined server gets.
 //!
-//! Mise's directories come first,
+//! The toolchain's directories come first,
 //!  then the application's own `PATH`.
-//!  A mise shim is never accepted in a project mise serves:
-//!  a shim is mise itself,
+//!  A leftover shim of a retired tool manager is never accepted in a project the
+//!  toolchain serves:
+//!  a shim is the tool manager itself,
 //!  which fails inside the sandbox with "No version is set for shim".
 
 /// A program must be a regular file with an execute bit.
@@ -41,13 +42,13 @@ use std::{
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Missed {
-    /// The first mise shim that carries the program's name,
+    /// The first leftover `mise` shim that carries the program's name,
     ///  skipped because it cannot run inside the sandbox.
     pub shim: Option<PathBuf>,
 }
 
 /// What:
-///  True for a symbolic link that resolves to the mise program itself.
+///  True for a symbolic link that resolves to the `mise` program itself.
 ///  `canonicalize` follows every link and returns the final path.
 /// Why:
 ///  On Linux a shim is a link named like the tool whose target is the `mise` executable;
@@ -75,7 +76,7 @@ pub fn is_shim(path: &Path) -> bool {
 }
 
 /// What:
-///  Find a server program for a project mise serves:
+///  Find a server program for a project the toolchain serves:
 ///  a command with a path separator is taken relative to the project root,
 ///  a bare name is searched in `directories`,
 ///  then in the application's `PATH`.
@@ -131,7 +132,7 @@ pub fn find_program_in(
             continue;
         }
         if is_shim(&candidate) {
-            tracing::debug!(candidate = %candidate.display(), "skipping a mise shim: it cannot run inside the sandbox");
+            tracing::debug!(candidate = %candidate.display(), "skipping a leftover mise shim: it cannot run inside the sandbox");
             missed.shim.get_or_insert(candidate);
             continue;
         }
@@ -142,7 +143,7 @@ pub fn find_program_in(
 
 /// What:
 ///  The `PATH` value a confined server gets:
-///  mise's directories first,
+///  the toolchain's directories first,
 ///  then `inherited`.
 ///  A directory whose name contains the separator `:` cannot stand in a `PATH` and is left out,
 ///  as is one that is not valid Unicode (Helix stores variables as text).
@@ -164,7 +165,7 @@ pub fn search_path(directories: &[PathBuf], inherited: Option<OsString>) -> Opti
         if usable {
             entries.push(directory.clone());
         } else {
-            tracing::warn!(directory = %directory.display(), "a mise directory cannot be part of PATH and is left out");
+            tracing::warn!(directory = %directory.display(), "a toolchain directory cannot be part of PATH and is left out");
         }
     }
     if let Some(application) = inherited {

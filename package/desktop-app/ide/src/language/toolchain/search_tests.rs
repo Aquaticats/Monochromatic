@@ -17,26 +17,26 @@ fn executable(path: &Path) {
 }
 
 #[test]
-fn mise_directories_win_over_the_application_path() {
+fn toolchain_directories_win_over_the_application_path() {
     let root = tempfile::tempdir().expect("directory");
-    let mise = root.path().join("mise/bin");
+    let tools = root.path().join("tools/bin");
     let stale = root.path().join("stale/bin");
-    executable(&mise.join("taplo"));
+    executable(&tools.join("taplo"));
     executable(&stale.join("taplo"));
-    let directories = [mise];
+    let directories = [tools];
     let found = find_program_in("taplo", root.path(), &directories, &[stale]).expect("found");
     assert_eq!(found, directories[0].join("taplo"));
 }
 
 #[test]
-fn the_application_path_is_searched_when_mise_has_no_such_program() {
+fn the_application_path_is_searched_when_the_toolchain_has_no_such_program() {
     let root = tempfile::tempdir().expect("directory");
-    let mise = root.path().join("mise/bin");
+    let tools = root.path().join("tools/bin");
     let stale = root.path().join("stale/bin");
-    fs::create_dir_all(&mise).expect("directory");
+    fs::create_dir_all(&tools).expect("directory");
     executable(&stale.join("marksman"));
     let inherited = [stale];
-    let found = find_program_in("marksman", root.path(), &[mise], &inherited).expect("found");
+    let found = find_program_in("marksman", root.path(), &[tools], &inherited).expect("found");
     assert_eq!(found, inherited[0].join("marksman"));
 }
 
@@ -115,37 +115,37 @@ fn a_shim_is_skipped_and_named_and_a_real_program_after_it_is_found() {
 }
 
 #[test]
-fn the_path_lists_mise_directories_before_the_inherited_ones() {
+fn the_path_lists_toolchain_directories_before_the_inherited_ones() {
     let directories = [
-        PathBuf::from("/mise/node/bin"),
-        PathBuf::from("/mise/taplo"),
+        PathBuf::from("/tools/node/bin"),
+        PathBuf::from("/tools/taplo"),
     ];
     let path = search_path(&directories, Some(OsString::from("/usr/bin:/bin"))).expect("path");
-    assert_eq!(path, "/mise/node/bin:/mise/taplo:/usr/bin:/bin");
+    assert_eq!(path, "/tools/node/bin:/tools/taplo:/usr/bin:/bin");
     assert_eq!(
         search_path(&directories, None).expect("path"),
-        "/mise/node/bin:/mise/taplo"
+        "/tools/node/bin:/tools/taplo"
     );
 }
 
 #[test]
 fn directories_that_cannot_stand_in_a_path_are_left_out_and_the_others_kept_whole() {
     let directories = [
-        PathBuf::from("/mise/with:colon/bin"),
-        PathBuf::from("/mise/with space/bin"),
-        PathBuf::from("/mise/it's \"quoted\"/bin"),
-        PathBuf::from("/mise/-dash/bin"),
-        PathBuf::from("/mise/new\nline/bin"),
+        PathBuf::from("/tools/with:colon/bin"),
+        PathBuf::from("/tools/with space/bin"),
+        PathBuf::from("/tools/it's \"quoted\"/bin"),
+        PathBuf::from("/tools/-dash/bin"),
+        PathBuf::from("/tools/new\nline/bin"),
     ];
     let path = search_path(&directories, Some(OsString::from("/usr/bin"))).expect("path");
     let entries: Vec<&str> = path.split(':').collect();
     assert_eq!(
         entries,
         [
-            "/mise/with space/bin",
-            "/mise/it's \"quoted\"/bin",
-            "/mise/-dash/bin",
-            "/mise/new\nline/bin",
+            "/tools/with space/bin",
+            "/tools/it's \"quoted\"/bin",
+            "/tools/-dash/bin",
+            "/tools/new\nline/bin",
             "/usr/bin"
         ]
     );

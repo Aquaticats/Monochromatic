@@ -1,14 +1,14 @@
-//! How the registry uses mise:
-//!  the request mise is asked with,
-//!  and the environment a server gets when mise provides its tools.
+//! How the registry uses the toolchain:
+//!  the request the lookup is asked with,
+//!  and the environment and reads a server gets from its answer.
 
-/// The setup says which policy resolves mise and where private state lives.
+/// The setup says which policy resolves the toolchain and where private state lives.
 use super::setup::LanguageSetup;
 /// Helix's spelling of the project root,
 ///  which servers are given.
 use crate::language::{
-    mise::{MiseRequest, MiseState, search::search_path},
     root::RootView,
+    toolchain::{ToolchainRequest, ToolchainState, search::search_path},
 };
 /// What:
 ///  `HashMap` is a key-value table;
@@ -51,67 +51,67 @@ pub(super) fn spellings(root: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Ask the setup's mise policy about the project.
+///  Ask the setup's toolchain policy about the project.
 /// Why:
 ///  The answer is kept for the registry:
 ///  its directories are searched for servers and placed on their `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolve(root: string, setup: LanguageSetup): MiseState
+/// function resolve(root: string, setup: LanguageSetup): ToolchainState
 /// ```
-pub(super) fn resolve(root: &Path, setup: &LanguageSetup) -> MiseState {
-    let request = MiseRequest {
+pub(super) fn resolve(root: &Path, setup: &LanguageSetup) -> ToolchainState {
+    let request = ToolchainRequest {
         project_root: root.to_path_buf(),
         project_spellings: spellings(root),
         state_root: setup.state_root.clone(),
     };
-    let state = (setup.mise)(&request);
-    tracing::debug!(root = %root.display(), state = ?state, "asked mise about the project");
+    let state = (setup.toolchain)(&request);
+    tracing::debug!(root = %root.display(), state = ?state, "asked the toolchain about the project");
     return state;
 }
 
 /// What:
 ///  The variables a server gets:
 ///  its definition's own,
-///  with `PATH` set to mise's directories followed by the definition's or the application's `PATH`
-///  when mise provides directories.
+///  with `PATH` set to the toolchain's directories followed by the definition's or the application's `PATH`
+///  when the toolchain provides directories.
 /// Why:
 ///  A Node server's launcher starts with `#!/usr/bin/env node`,
 ///  which needs the project's `node` inside the sandbox.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function serverEnvironment(own: Record<string, string>, mise: MiseState): Record<string, string>
+/// function serverEnvironment(own: Record<string, string>, toolchain: ToolchainState): Record<string, string>
 /// ```
 pub(super) fn server_environment(
     own: &HashMap<String, String>,
-    mise: &MiseState,
+    toolchain: &ToolchainState,
 ) -> HashMap<String, String> {
     let mut environment = own.clone();
-    if mise.directories().is_empty() {
+    if toolchain.directories().is_empty() {
         return environment;
     }
     let mut inherited = own.get("PATH").map(std::ffi::OsString::from);
     if inherited.is_none() {
         inherited = std::env::var_os("PATH");
     }
-    if let Some(path) = search_path(mise.directories(), inherited) {
+    if let Some(path) = search_path(toolchain.directories(), inherited) {
         environment.insert("PATH".to_string(), path);
     }
     return environment;
 }
 
 /// The directories a server may read but not write:
-///  mise's tool directories,
+///  the toolchain's directories,
 ///  shown again read-only when the sandbox replaced their location.
-pub(super) fn read_only_binds(mise: &MiseState) -> Vec<PathBuf> {
-    return mise.directories().to_vec();
+pub(super) fn read_only_binds(toolchain: &ToolchainState) -> Vec<PathBuf> {
+    return toolchain.directories().to_vec();
 }
 
 /// Where servers are found,
 ///  the environment they get,
-///  and when mise is asked again.
+///  and when the toolchain is asked again.
 #[cfg(test)]
-#[path = "toolchain_tests.rs"]
+#[path = "tools_tests.rs"]
 mod tests;
