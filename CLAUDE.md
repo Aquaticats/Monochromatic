@@ -562,7 +562,8 @@ PWT:
  Never wait on a process by name:
  `pgrep --full` in a loop matches the agent's own shell wrapper and never exits.
  Wait on a PID,
- bounded: `timeout 600 tail --pid=<pid> --follow /dev/null`.
+ bounded:
+ `timeout 600 tail --pid=<pid> --follow /dev/null`.
 
 BGL:
  Every background wait or poll loop has a deadline,
@@ -757,6 +758,8 @@ CM7:
  Provision tools with `mise run toolchain:sync`;
  `toolchain.lock.json` pins every version,
  and ad-hoc installs or lock edits bypass the checked-in toolchain.
+ Mise runs tasks;
+ it manages no tools.
 
 ## Before editing code
 
@@ -829,7 +832,8 @@ SCR:
  put task logic inline via `shell = "node --input-type=module-typescript -e"` or in a package bin.
 
 NMJ:
- Write scripts as `.ts`, never `.mjs`:
+ Write scripts as `.ts`,
+ never `.mjs`:
  node runs TypeScript directly by stripping types,
  so `.mjs` has no advantage,
  and autofix runs have corrupted it.
