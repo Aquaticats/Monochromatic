@@ -31,6 +31,8 @@ import {
   installArchive,
   installBinSourced,
   installCargoBinstall,
+  installCargoGit,
+  installGoInstall,
   installMpmPnpm,
   seedBinConfig,
 } from './providers.ts';
@@ -499,6 +501,290 @@ await describe({
     },),
 
     //endregion Manager commands and failures
+
+    //region Scoped installs
+
+    describe({
+      name: 'installCargoGit',
+      children: [
+        it({
+          name: 'installs the pinned git revision into the tool install directory',
+          fn: async () => {
+            /**
+             Fixture whose fake `cargo` records its argv.
+             */
+            const fixture = makeFixture();
+            writeFakeCli({
+              cliPath: join(
+                fixture.paths.toolchainBinDir,
+                'cargo',
+              ),
+              logFile: fixture.logFile,
+              body: 'process.exit(0);',
+            },);
+            /**
+             Install directory the `--root` argument must name.
+             */
+            const installDir = toolInstallDir({
+              toolchainRoot: fixture.paths.toolchainRoot,
+              id: 'cargo:example/demo',
+              version: 'ref:85e3eb7',
+            },);
+            const previousPath = process.env.PATH;
+            process.env.PATH = fixture.paths.toolchainBinDir;
+            try {
+              await installCargoGit({
+                entry: fixtureEntry({
+                  id: 'cargo:example/demo',
+                  request: { pinned: 'ref:85e3eb7', },
+                  version: 'ref:85e3eb7',
+                  route: 'cargo-git',
+                  manager: 'cargo',
+                  packageId: 'demo-lsp',
+                  bins: ['demo-lsp'],
+                  options: {
+                    cargoGit: {
+                      url: 'https://github.com/example/demo',
+                    },
+                  },
+                },),
+                paths: fixture.paths,
+                env: fixture.env,
+                extraDirs: [fixture.paths.toolchainBinDir],
+              },);
+            }
+            finally {
+              process.env.PATH = previousPath;
+            }
+            /**
+             Recorded invocations.
+             */
+            const calls = readCliLog(fixture,);
+            expect(calls.length,)
+              .toBe(1,);
+            expect(calls[0],)
+              .toEqual([
+                'install',
+                '--git',
+                'https://github.com/example/demo',
+                '--rev',
+                '85e3eb7',
+                '--root',
+                installDir,
+                'demo-lsp',
+              ],);
+          },
+        },),
+        it({
+          name: 'throws naming the tool when the git build fails',
+          fn: async () => {
+            /**
+             Fixture whose fake `cargo` fails every build.
+             */
+            const fixture = makeFixture();
+            writeFakeCli({
+              cliPath: join(
+                fixture.paths.toolchainBinDir,
+                'cargo',
+              ),
+              logFile: fixture.logFile,
+              body: "process.stderr.write('build failed\\n');\nprocess.exit(1);",
+            },);
+            const previousPath = process.env.PATH;
+            process.env.PATH = fixture.paths.toolchainBinDir;
+            /**
+             Provider rejection.
+             */
+            let caught: unknown;
+            try {
+              await installCargoGit({
+                entry: fixtureEntry({
+                  id: 'cargo:example/demo',
+                  request: { pinned: 'ref:85e3eb7', },
+                  version: 'ref:85e3eb7',
+                  route: 'cargo-git',
+                  packageId: 'demo-lsp',
+                  bins: ['demo-lsp'],
+                  options: {
+                    cargoGit: {
+                      url: 'https://github.com/example/demo',
+                    },
+                  },
+                },),
+                paths: fixture.paths,
+                env: fixture.env,
+                extraDirs: [fixture.paths.toolchainBinDir],
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            finally {
+              process.env.PATH = previousPath;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message.includes('cargo:example/demo',),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'throws when the entry carries no git source',
+          fn: async () => {
+            /**
+             Fixture needing no CLIs: the provider rejects first.
+             */
+            const fixture = makeFixture();
+            /**
+             Provider rejection.
+             */
+            let caught: unknown;
+            try {
+              await installCargoGit({
+                entry: fixtureEntry({
+                  id: 'cargo:example/demo',
+                  request: { pinned: 'ref:85e3eb7', },
+                  version: 'ref:85e3eb7',
+                  route: 'cargo-git',
+                  packageId: 'demo-lsp',
+                  bins: ['demo-lsp'],
+                },),
+                paths: fixture.paths,
+                env: fixture.env,
+                extraDirs: [fixture.paths.toolchainBinDir],
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message.includes('cargoGit',),)
+              .toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'installGoInstall',
+      children: [
+        it({
+          name: 'builds the module at its locked version into a scoped GOBIN',
+          fn: async () => {
+            /**
+             Fixture whose fake `go` records its argv.
+             */
+            const fixture = makeFixture();
+            /**
+             Staged `go` entry the provider resolves as its sibling.
+             */
+            const goEntry = fixtureEntry({
+              id: 'go',
+              version: '1.27.3',
+              route: 'archive',
+              bins: ['go'],
+            },);
+            writeFakeCli({
+              cliPath: join(
+                toolInstallDir({
+                  toolchainRoot: fixture.paths.toolchainRoot,
+                  id: goEntry.id,
+                  version: goEntry.version,
+                },),
+                'go',
+              ),
+              logFile: fixture.logFile,
+              body: 'process.exit(0);',
+            },);
+            /**
+             Entry being installed.
+             */
+            const entry = fixtureEntry({
+              id: 'go:github.com/example/demo',
+              request: { track: 'latest', },
+              version: '0.98.1',
+              route: 'go-install',
+              packageId: 'github.com/example/demo',
+              bins: ['demo'],
+            },);
+            const previousPath = process.env.PATH;
+            process.env.PATH = fixture.paths.toolchainBinDir;
+            try {
+              await installGoInstall({
+                entry,
+                paths: fixture.paths,
+                env: fixture.env,
+                extraDirs: [fixture.paths.toolchainBinDir],
+                tools: [goEntry, entry,],
+              },);
+            }
+            finally {
+              process.env.PATH = previousPath;
+            }
+            /**
+             Recorded invocations.
+             */
+            const calls = readCliLog(fixture,);
+            expect(calls.length,)
+              .toBe(1,);
+            expect(calls[0],)
+              .toEqual([
+                'install',
+                'github.com/example/demo@v0.98.1',
+              ],);
+            expect(
+              existsSync(join(
+                toolInstallDir({
+                  toolchainRoot: fixture.paths.toolchainRoot,
+                  id: entry.id,
+                  version: entry.version,
+                },),
+                'bin',
+              ),),
+            )
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'throws when go is not staged in the scope plan',
+          fn: async () => {
+            /**
+             Fixture whose scope plan declares no `go`.
+             */
+            const fixture = makeFixture();
+            /**
+             Provider rejection.
+             */
+            let caught: unknown;
+            try {
+              await installGoInstall({
+                entry: fixtureEntry({
+                  id: 'go:github.com/example/demo',
+                  version: '0.98.1',
+                  route: 'go-install',
+                  packageId: 'github.com/example/demo',
+                  bins: ['demo'],
+                },),
+                paths: fixture.paths,
+                env: fixture.env,
+                extraDirs: [fixture.paths.toolchainBinDir],
+                tools: [],
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message.includes('no tool',),)
+              .toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    //endregion Scoped installs
 
     //region bin config seeding
 
