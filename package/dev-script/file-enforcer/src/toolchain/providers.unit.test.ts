@@ -377,6 +377,54 @@ await describe({
               .toBe('9.9.9',);
           },
         },),
+        it({
+          name: 'observes uv tool versions across registry name spelling',
+          fn: async () => {
+            /**
+             Fixture whose `uv tool list` reports the registry-normalized name.
+             */
+            const fixture = makeFixture();
+            /**
+             Staged `uv` entry the probe resolves as its sibling.
+             */
+            const uvEntry = fixtureEntry({
+              id: 'uv',
+              version: '0.13.4',
+              route: 'archive',
+              bins: ['uv'],
+            },);
+            writeFakeCli({
+              cliPath: join(
+                toolInstallDir({
+                  toolchainRoot: fixture.paths.toolchainRoot,
+                  id: uvEntry.id,
+                  version: uvEntry.version,
+                },),
+                'uv',
+              ),
+              logFile: fixture.logFile,
+              body: "process.stdout.write('huggingface-hub v2.2.0\\n');",
+            },);
+            /**
+             Entry spelled with the PyPI underscore form.
+             */
+            const entry = fixtureEntry({
+              id: 'pipx:huggingface_hub',
+              route: 'mpm-uvx',
+              version: '2.2.0',
+              manager: 'uvx',
+              packageId: 'huggingface_hub',
+              bins: ['hf'],
+            },);
+            expect(await observeTool({
+              entry,
+              paths: fixture.paths,
+              env: fixture.env,
+              tools: [uvEntry, entry,],
+            },),)
+              .toBe('2.2.0',);
+          },
+        },),
       ],
     },),
 

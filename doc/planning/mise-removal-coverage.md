@@ -706,6 +706,11 @@ Selection status:
  The `.idea/` path repoints and the Containerfile pin repoints land with the
  consumer migration in `doc/planning/mpm-toolchain-migration.md`,
  section `Consumers`.
+ The user-global `~/.config/mise/config.toml` `[tools]` slice moved to the same
+ system on 2026-10-28
+ (`doc/planning/mpm-global-toolchain-migration.md`);
+ the VM-builder and Containerfile seeding of a global Mise config still needs
+ to follow that shape.
 
 Parity gate:
  editor linting,

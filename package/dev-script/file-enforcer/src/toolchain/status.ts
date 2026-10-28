@@ -268,7 +268,11 @@ export async function observeTool(
          One `name v<version>` row.
          */
         const match = line.match(/^(\S+)\s+v?(\S+)/u);
-        if (match !== null && match[1] === (entry.packageId ?? entry.id))
+        // `uv tool list` prints registry-normalized names (`huggingface-hub`)
+        // where the plan may spell the PyPI form with underscores.
+        if (match !== null
+          && match[1]?.replaceAll('-', '_') === (entry.packageId ?? entry.id)
+            .replaceAll('-', '_'))
           return match[2] ?? null;
       }
       return null;

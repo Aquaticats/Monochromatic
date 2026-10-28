@@ -96,6 +96,16 @@ Add the wrapper to the user's own global mise config, with a `postinstall` that 
 "cargo:monochromatic-git-policy-cli" = { version = "latest", os = ["linux"], postinstall = { run = "mkdir --parents \"$HOME/.local/bin\" && ln --symbolic \"$(dirname \"$MISE_TOOL_INSTALL_PATH\")/latest/bin/cli-git-native\" \"$HOME/.local/bin/.git.$$\" && mv --no-target-directory \"$HOME/.local/bin/.git.$$\" \"$HOME/.local/bin/git\"", when = "always" } }
 ```
 
+Note (moved 2026-10-28):
+the entry above served until the global toolchain migration
+ (`doc/planning/mpm-global-toolchain-migration.md`),
+ which removed `[tools]` from the global Mise config.
+ The same link is now the `postinstall` link of the
+ `cargo:monochromatic-git-policy-cli` row in the machine-local plan under
+ `~/.config/monochromatic-dev/toolchain/plan.tools.ts`,
+ and `mise run toolchain:sync:global` re-links `~/.local/bin/git` to
+ `~/.cargo/bin/cli-git-native` on every converge.
+
 The temporary-name-then-move form copies the atomic relink used by the repository's own entry.
 The link targets mise's `latest` symlink in the tool's install directory, not one version directory.
 Inside this repository the repository's own entry for the same tool wins over the global entry,
@@ -141,10 +151,18 @@ No Claude Code hook is needed, because `~/.local/bin` is already on the `PATH` t
 2. Add the entry to the host's `~/.config/mise/config.toml` and run `mise install`.
 3. Verify at the user boundary: `type -a git` in a clean login shell, and a `claude -p` commit in a scratch clone with
    a bare remote reaches the remote.
-4. Write a short runbook for setting up another machine the user controls, and settle the `AGENTS.md` wording.
+4. Write a short runbook for setting up another machine the user controls,
+   and settle the `AGENTS.md` wording.
 5. Update or close issue 1796 with the evidence.
 
 ## Rollback
 
 Remove the entry from the global mise config and delete `~/.local/bin/git`.
-The repository's per-worktree link is untouched, so this repository keeps working.
+The repository's per-worktree link is untouched,
+so this repository keeps working.
+Since the 2026-10-28 migration
+ (see the note under `Proposal`),
+ rollback means dropping the `cargo:monochromatic-git-policy-cli` row from
+ `~/.config/monochromatic-dev/toolchain/plan.tools.ts`,
+ or deleting `~/.local/bin/git` after a converge,
+ which the next `toolchain:sync:global` restores while the row stands.

@@ -360,3 +360,68 @@ with the Mise installs left in place as rollback:
  so inventory runs carry the scope's `BIN_CONFIG`
  (the sync does;
  `toolchain:status:global` reports the true state regardless).
+
+## Implementation record (2026-10-28)
+
+What the implementation needed beyond the shapes above.
+
+- The lock seeds at the versions the retired Mise installs recorded
+ (58 declarations,
+ plus the `bin` and `mpm` bootstraps),
+ with artifact rows materialized from each upstream at those exact versions
+ (`linux` rows only,
+ as the repository scope keeps).
+- Probe-corrected routing:
+ `tokei` moved to `cargo-binstall`
+ (its GitHub releases publish no assets since `v13.0.0-alpha.1`),
+ `rustup` moved to `archive`
+ (rust-lang/rustup publishes no GitHub release assets;
+ the versioned `static.rust-lang.org` channel archive is the real source),
+ and `tree-sitter` moved to `archive`.
+- The `tree-sitter` incident:
+ its `.gz` asset stores the payload name `bin` in the gzip header,
+ which `bin install` honored as the destination name,
+ renaming the whole toolchain `bin/` directory aside to `.bin.old`
+ and leaving a file where the directory was
+ (first sync,
+ 2026-10-28).
+ The directory was restored from `.bin.old`,
+ the archive route gunzips to the declared name,
+ and `installBinSourced` now fails loudly when an install replaces the bin
+ directory.
+- `uv tool install` passes `--force`,
+ so tools whose executables survive from a retired Mise install
+ (`~/.local/bin`)
+ converge instead of failing
+ (the `pipx:huggingface_hub` case).
+- The `mpm-uvx` status probe matches names across registry spelling
+ (`huggingface-hub` versus `huggingface_hub`).
+- Sync probes no longer crash the run when their own staging prerequisite is
+ missing;
+ the install converges instead.
+- `bin`'s install database moved per scope
+ (`<toolchainRoot>/bin.config.json` through `BIN_CONFIG`),
+ because two scopes sharing one database flip each other's recorded versions
+ (the `pnpm` name collides across scopes at different versions).
+ The repository scope's existing database was copied to its new location,
+ and `toolchain:status` stayed `61 tools in sync`.
+- New update resolvers:
+ `assetPattern` asset selection,
+ npm declared dist-tags,
+ the Go module proxy,
+ go.dev's download index,
+ and the rustup channel archive
+ (`resolveRustup`,
+ since the GitHub family cannot see `static.rust-lang.org` rows).
+- End state on the maintainer's machine:
+ `59 of 60` in sync with the global lock,
+ every declared tool resolving through the farm,
+ `mise self-update` clean,
+ and the `linked-worktree-only` guard still rejecting in main worktrees
+ through the repointed `~/.local/bin/git`.
+ The one drift is `npm:typeslayer`
+ (`0.1.32-aquaticat.0319832`),
+ which the public registry no longer carries
+ (unpublished;
+ `npm view typeslayer versions` lists 33 versions and none of them),
+ awaiting the maintainer's decision.
