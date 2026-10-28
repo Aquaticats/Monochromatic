@@ -49,6 +49,7 @@ import {
   resolveNpm,
   resolvePypi,
   resolveRust,
+  resolveRustup,
   resolveZigLatest,
   type Fetcher,
   type ToolResolution,
@@ -109,6 +110,14 @@ async function resolveEntry(
   }
   if (entry.id === 'java') {
     return resolveJava({
+      entry,
+      fetcher,
+    },);
+  }
+  if (entry.id === 'rustup') {
+    // rustup rides the static.rust-lang.org channel archive, not GitHub
+    // releases (`doc/planning/mpm-global-toolchain-migration.md`).
+    return resolveRustup({
       entry,
       fetcher,
     },);

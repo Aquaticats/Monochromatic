@@ -279,10 +279,10 @@ export async function loadPlanFromDir(
    */
   const seenIds = new Set<string>();
   /**
-   Exposure names already seen, for the uniqueness check (a declared bin or
-   alias name may belong to exactly one entry).
+   Exposure name to the owning entry id (a name may appear both as a bin and
+   as an alias of one entry, but never under two entries).
    */
-  const seenNames = new Set<string>();
+  const seenNames = new Map<string, string>();
   for (const raw of toolsModule.TOOLS as RawEntry[]) {
     /**
      Validated entry for this record.
@@ -300,18 +300,29 @@ export async function loadPlanFromDir(
       },);
     }
     seenIds.add(entry.id,);
-    for (const name of [
+    for (const name of new Set([
       ...entry.bins,
       ...Object.keys(entry.options.binAliases ?? {},),
-    ]) {
-      if (seenNames.has(name,)) {
+    ])) {
+      /**
+       Entry already claiming this exposure name, when any.
+       */
+      const owner = seenNames.get(name,);
+      if (owner !== undefined && owner !== entry.id) {
         planError({
           file: join(dir, 'plan.tools.ts',),
           id: entry.id,
-          problem: `exposure name ${JSON.stringify(name,)} is already declared by another tool`,
+          problem: `exposure name ${
+            JSON.stringify(name,)
+          } is already declared by ${
+            JSON.stringify(owner,)
+          }`,
         },);
       }
-      seenNames.add(name,);
+      seenNames.set(
+        name,
+        entry.id,
+      );
     }
     entries.push(entry,);
   }

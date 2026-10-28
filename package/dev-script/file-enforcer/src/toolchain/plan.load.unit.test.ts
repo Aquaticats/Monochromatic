@@ -168,6 +168,27 @@ await describe({
       },
     },),
     it({
+      name: 'accepts one entry naming the same exposure name as bin and alias',
+      fn: async () => {
+        /**
+         Fixture plan whose entry lists `bunx` as a bin and as its own alias.
+         */
+        const dir = makePlanDir({
+          toolsSource: `export const TOOLS = [${
+            entrySource(`bins: ['bun', 'bunx'], options: { binAliases: { bunx: 'bun' } },`)
+          }];`,
+        },);
+        /**
+         Loaded entries.
+         */
+        const entries = await loadPlanFromDir({ dir, },);
+        expect(entries.length,)
+          .toBe(1,);
+        expect(entries[0]?.bins,)
+          .toEqual(['bun', 'bunx',],);
+      },
+    },),
+    it({
       name: 'reports the tool when two entries share one exposure name',
       fn: async () => {
         /**

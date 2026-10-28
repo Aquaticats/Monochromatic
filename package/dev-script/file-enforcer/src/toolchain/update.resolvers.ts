@@ -177,13 +177,38 @@ export type GithubRelease = {
 };
 
 /**
+ Translates a release-asset glob into a whole-name regular expression:
+ `*` matches any run of characters, every other character matches itself,
+ so `llama-*-ubuntu-rocm-gfx110X-x64.zip` selects assets named in that
+ shape (`options.assetPattern` in the plan).
+ 
+ @param options - Glob to translate
+ 
+ @returns Regular expression anchored to the whole asset name
+ */
+function assetPatternRegex(
+  { pattern, }: { readonly pattern: string; },
+): RegExp {
+  return new RegExp(`^${
+    pattern.split('*',)
+      .map(
+        function escapeLiteral(part,): string {
+          return part.replaceAll(/[\\^$.*+?()[\]{}|]/gu, '\\$&',);
+        },
+      )
+      .join('.*',)
+  }$`, 'u',);
+}
+
+/**
  Maps the recorded artifact rows onto one GitHub release's assets.
  
- @param options - Rows, release payload, and the old/new versions
+ @param options - Rows, release payload, old/new versions, and asset pattern
  
  @returns Rows with the new URLs and SHA-256 digests
  
- @throws Error when an asset name cannot be found in the release
+ @throws Error when no asset matches a row, or when `assetPattern` selects
+ zero or several assets for a row
  */
 export async function mapGithubRows(
   {
@@ -192,12 +217,14 @@ export async function mapGithubRows(
     oldVersion,
     newVersion,
     fetcher,
+    assetPattern,
   }: {
     readonly rows: ToolArtifacts;
     readonly release: GithubRelease;
     readonly oldVersion: string;
     readonly newVersion: string;
     readonly fetcher?: Fetcher | undefined;
+    readonly assetPattern?: string | undefined;
   },
 ): Promise<ToolArtifacts> {
   /**
@@ -235,6 +262,34 @@ export async function mapGithubRows(
       asset = byName.get(candidate,);
       if (asset !== undefined)
         break;
+    }
+    if (asset === undefined && assetPattern !== undefined) {
+      /**
+       Assets whose names the pattern selects and the single selection
+       (undefined while the pattern selects zero or several assets).
+       */
+      const matches = (release.assets ?? [])
+        .filter(
+          function matchesPattern(candidate,): boolean {
+            return assetPatternRegex({ pattern: assetPattern, },)
+              .test(candidate.name ?? '',);
+          },
+        );
+      const [selected] = matches.length === 1
+        ? matches
+        : [];
+      if (selected === undefined) {
+        throw new Error(`asset pattern ${
+          assetPattern
+        } matches ${
+          String(matches.length,)
+        } release assets for ${
+          platform
+        } in ${
+          release.tag_name ?? 'the release'
+        }; expected exactly one`,);
+      }
+      asset = selected;
     }
     if (asset === undefined) {
       throw new Error(`no release asset matches ${
@@ -371,6 +426,7 @@ export async function resolveGithubFamily(
       oldVersion: entry.version,
       newVersion,
       fetcher,
+      assetPattern: entry.options.assetPattern,
     },),
   };
 }
@@ -634,13 +690,15 @@ export async function resolveCargo(
 }
 
 /**
- Resolves an `mpm-pnpm` tool from the npm registry's `latest` dist-tag.
+ Resolves an `mpm-pnpm` tool from the npm registry's dist-tags: the `latest`
+ tag for the floating track (and for pins, whose newer-availability note
+ reads it), the named channel's tag for `{channel}` requests (`next`, ...).
  
  @param options - Plan entry and fetcher
  
- @returns New version with the recorded (empty) rows
+ @returns Bare registry version with the recorded (empty) rows
  
- @throws Error when the package is unknown
+ @throws Error when the registry reports no matching dist-tag
  */
 export async function resolveNpm(
   {
@@ -656,6 +714,12 @@ export async function resolveNpm(
    */
   const name = entry.packageId ?? entry.id.replace(/^npm:/u, '',);
   /**
+   Dist-tag the request tracks (`latest`, `next`, ...).
+   */
+  const tag = 'channel' in entry.request
+    ? entry.request.channel
+    : 'latest';
+  /**
    Packument from the registry.
    */
   const doc = parseJson({
@@ -664,10 +728,15 @@ export async function resolveNpm(
   },);
   const version = stringField({
     doc,
-    path: ['dist-tags', 'latest'],
+    path: ['dist-tags', tag],
   },);
-  if (version === undefined)
-    throw new Error(`registry.npmjs.org reports no latest version for ${name}`,);
+  if (version === undefined) {
+    throw new Error(`registry.npmjs.org reports no ${
+      tag
+    } dist-tag for ${
+      name
+    }`,);
+  }
   return {
     version,
     artifacts: {},
@@ -719,29 +788,221 @@ export async function resolvePypi(
 
 //endregion Version-only registries
 
-//region Channels
+//region Go
 
 /**
- Resolves the `rust` nightly channel stamp from the rustup manifest.
- 
- @param options - Fetcher
- 
- @returns `nightly-<date>` version with no rows
- 
- @throws Error when the manifest carries no date
+ One go.dev download-index release record.
  */
-export async function resolveRust(
+type GoRelease = {
+  readonly version: string;
+  readonly stable: boolean;
+  readonly files: readonly {
+    readonly filename: string;
+    readonly os: string;
+    readonly arch: string;
+    readonly kind: string;
+    readonly sha256: string;
+  }[];
+};
+
+/**
+ Resolves the `go` runtime from go.dev's download index: the release whose
+ `go`-prefixed version equals `entry.version`, else the newest stable
+ release, with rows recorded from that release's linux `archive` files.
+ 
+ @param options - Plan entry and fetcher
+ 
+ @returns Bare `go` version (the `go` prefix stripped) and linux archive rows
+ 
+ @throws Error when the index carries neither the recorded version nor a
+ stable release, or when the chosen release lists no linux archive
+ */
+export async function resolveGoRuntime(
   {
+    entry,
     fetcher,
   }: {
+    readonly entry: ToolPlanEntry;
     readonly fetcher: Fetcher;
   },
 ): Promise<ToolResolution> {
   /**
-   Nightly channel manifest body.
+   Every go.dev release, newest first, and the release to record.
    */
-  const text = (await fetcher('https://static.rust-lang.org/dist/channel-rust-nightly.toml',))
+  const releases = parseJson({
+    response: await fetcher('https://go.dev/dl/?mode=json&include=all',),
+    label: 'go.dev download index',
+  },) as readonly GoRelease[];
+  const chosen = releases.find(
+    function carriesRecordedVersion(release,): boolean {
+      return release.version.replace(/^go/u, '',) === entry.version;
+    },
+  ) ?? releases.find(
+    function isStable(release,): boolean {
+      return release.stable;
+    },
+  );
+  if (chosen === undefined) {
+    throw new Error(`the go.dev download index carries neither ${
+      entry.version
+    } nor a stable release`,);
+  }
+  /**
+   Mapped rows keyed by platform id.
+   */
+  const mapped: Record<string, {
+    url: string;
+    sha256: string;
+  }> = {};
+  for (const file of chosen.files) {
+    if (file.kind !== 'archive' || file.os !== 'linux')
+      continue;
+    /**
+     Platform id of this linux archive (`linux-x64`, `linux-arm64`).
+     */
+    const platform = file.arch === 'amd64'
+      ? 'linux-x64'
+      : file.arch === 'arm64'
+        ? 'linux-arm64'
+        : null;
+    if (platform === null)
+      continue;
+    mapped[platform] = {
+      url: `https://go.dev/dl/${
+        file.filename
+      }`,
+      sha256: file.sha256,
+    };
+  }
+  if (Object.keys(mapped,)
+    .length === 0) {
+    throw new Error(`the go.dev release ${
+      chosen.version
+    } lists no linux archive`,);
+  }
+  return {
+    version: chosen.version.replace(/^go/u, '',),
+    artifacts: mapped,
+  };
+}
+
+/**
+ Resolves a `go-install` tool from the Go module proxy's `@latest` record,
+ keeping the build-from-source semantics `go install <module>@v<version>`.
+ 
+ @param options - Plan entry and fetcher
+ 
+ @returns Bare module version (one leading `v` stripped) with no rows
+ 
+ @throws Error when the proxy rejects the query or reports no version
+ */
+export async function resolveGoModule(
+  {
+    entry,
+    fetcher,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly fetcher: Fetcher;
+  },
+): Promise<ToolResolution> {
+  /**
+   Go module path behind the entry.
+   */
+  const module = entry.packageId ?? entry.id.replace(/^go:/u, '',);
+  /**
+   `@latest` record from the module proxy.
+   */
+  const response = await fetcher(`https://proxy.golang.org/${
+    module
+  }/@latest`,);
+  if (!response.ok) {
+    throw new Error(`proxy.golang.org reports no latest version for ${
+      module
+    }: HTTP ${
+      String(response.status,)
+    }`,);
+  }
+  const doc = parseJson({
+    response,
+    label: `proxy.golang.org/${module}`,
+  },);
+  /**
+   Version tag the proxy reports (`v0.98.1`).
+   */
+  const tag = stringField({
+    doc,
+    path: ['Version'],
+  },);
+  if (tag === undefined) {
+    throw new Error(`proxy.golang.org reports no version for ${
+      module
+    }`,);
+  }
+  return {
+    version: tag.replace(/^v/u, '',),
+    artifacts: {},
+  };
+}
+
+//endregion Go
+
+//region Channels
+
+/**
+ Resolves the `rust` toolchain from its rustup channel manifest, with two
+ behaviors dispatched on the channel name in `entry.request`: `nightly`
+ returns the `nightly-<date>` stamp of the top-level `date` line in
+ `channel-rust-nightly.toml`, while every other channel (`stable`, ...)
+ returns the `[pkg.rust]` section's `version` value in
+ `channel-rust-<channel>.toml`. A request carrying no channel name keeps
+ the nightly behavior.
+ 
+ @param options - Plan entry and fetcher
+ 
+ @returns Channel version with no rows
+ 
+ @throws Error when the manifest carries no date or `[pkg.rust]` version
+ */
+export async function resolveRust(
+  {
+    entry,
+    fetcher,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly fetcher: Fetcher;
+  },
+): Promise<ToolResolution> {
+  /**
+   Channel name the entry requests (`nightly`, `stable`, ...).
+   */
+  const channel = 'channel' in entry.request
+    ? entry.request.channel
+    : 'nightly';
+  /**
+   Channel manifest body.
+   */
+  const text = (await fetcher(`https://static.rust-lang.org/dist/channel-rust-${
+    channel
+  }.toml`,))
     .text;
+  if (channel !== 'nightly') {
+    /**
+     `[pkg.rust]` version field, the first field of the section block that
+     precedes the target subsections.
+     */
+    const match = text.match(
+      /^\[pkg\.rust\][ \t]*\r?\nversion[ \t]*=[ \t]*"([^"]+)"/mu,
+    );
+    if (match === null || match[1] === undefined) {
+      throw new Error(`the rustup ${
+        channel
+      } manifest carries no [pkg.rust] version`,);
+    }
+    return {
+      version: match[1],
+      artifacts: {},
+    };
+  }
   /**
    Manifest date line.
    */
@@ -755,6 +1016,114 @@ export async function resolveRust(
 }
 
 //endregion Channels
+
+//region rustup channel archive
+
+/**
+ Resolves `rustup` from the versioned channel archive on
+ `static.rust-lang.org`
+ (rust-lang/rustup publishes no GitHub release assets),
+ rebuilding each row's URL and reading the published `rustup-init.sha256`
+ beside it.
+ 
+ @param options - Plan entry and fetcher
+ 
+ @returns New version with rebuilt rows
+ 
+ @throws Error when the manifest, a row URL or a checksum is malformed
+ */
+export async function resolveRustup(
+  {
+    entry,
+    fetcher,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly fetcher: Fetcher;
+  },
+): Promise<ToolResolution> {
+  /**
+   Release manifest body.
+   */
+  const text = (await fetcher('https://static.rust-lang.org/rustup/release-stable.toml',))
+    .text;
+  /**
+   Manifest version line (`version = '1.29.2'`).
+   */
+  const match = text.match(/^version\s*=\s*['"]([^'"]+)['"]/mu,);
+  if (match === null || match[1] === undefined)
+    throw new Error('the rustup release manifest carries no version',);
+  /**
+   New channel version.
+   */
+  const newVersion = match[1];
+  if (newVersion === entry.version) {
+    // Nothing moved: keep the recorded rows instead of re-mapping them.
+    return {
+      version: entry.version,
+      artifacts: entry.artifacts,
+    };
+  }
+  /**
+   Rows rebuilt against the new channel archive.
+   */
+  const mapped: Record<string, {
+    url: string;
+    sha256: string;
+  }> = {};
+  for (const [platform, row,] of Object.entries(entry.artifacts,)) {
+    /**
+     Target triple recorded in the row URL.
+     */
+    const targetMatch = row.url.match(
+      /\/rustup\/archive\/[^/]+\/([^/]+)\/rustup-init$/u,
+    );
+    if (targetMatch === null || targetMatch[1] === undefined) {
+      throw new Error(
+        `rustup artifact url ${
+          row.url
+        } carries no target triple`,
+      );
+    }
+    /**
+     Target triple of this row.
+     */
+    const target = targetMatch[1];
+    /**
+     New channel archive URL.
+     */
+    const url = `https://static.rust-lang.org/rustup/archive/${
+      newVersion
+    }/${
+      target
+    }/rustup-init`;
+    /**
+     Published checksum line (`<hex> *./rustup-init`).
+     */
+    const checksum = (await fetcher(`${url}.sha256`,)).text;
+    /**
+     Hex digest from the checksum line.
+     */
+    const digest = checksum.trim()
+      .split(/\s/u)[0];
+    if (digest === undefined || !/^[0-9a-f]{64}$/u.test(digest,)) {
+      throw new Error(
+        `rustup archive checksum for ${
+          target
+        } is not a sha256 line`,
+      );
+    }
+    mapped[platform] = {
+      url,
+      sha256: digest,
+    };
+  }
+  return {
+    version: newVersion,
+    artifacts: mapped,
+  };
+}
+
+//endregion rustup channel archive
 
 //region zig
 
