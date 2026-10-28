@@ -148,8 +148,10 @@ No Claude Code hook is needed, because `~/.local/bin` is already on the `PATH` t
 ## Steps after acceptance
 
 1. In podman, verify the atomic link form and that installing a newer version repoints the link.
-2. Add the entry to the host's `~/.config/mise/config.toml` and run `mise install`.
-3. Verify at the user boundary: `type -a git` in a clean login shell, and a `claude -p` commit in a scratch clone with
+2. Add the entry to the host's `~/.config/mise/config.toml`,
+   and run `mise install`.
+3. Verify at the user boundary: `type -a git` in a clean login shell,
+   and a `claude -p` commit in a scratch clone with
    a bare remote reaches the remote.
 4. Write a short runbook for setting up another machine the user controls,
    and settle the `AGENTS.md` wording.
