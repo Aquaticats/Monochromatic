@@ -700,7 +700,7 @@ export async function installBinSourced(
         entry.id
       } replaced the toolchain bin directory ${
         paths.toolchainBinDir
-      } with a file; restore it from its `.bin.old` sibling`,
+      } with a file; restore it from its '.bin.old' sibling`,
     );
   }
   return result;
