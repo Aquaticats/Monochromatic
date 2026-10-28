@@ -23,8 +23,7 @@ Status:
  into `~/.local/share/monochromatic-dev/toolchain-global/`,
  exposed through `exposure/`
  (142 links).
-- `toolchain:status:global` reports `59 of 60` in sync;
- the one drift is the `npm:typeslayer` pin below.
+- `toolchain:status:global` reports `59 of 59` in sync.
 - `mise self-update --yes` exits clean and `mise plugins ls` is empty
  (the 2026-10-27 incident's user-boundary check,
  now true after the cutover),
@@ -34,16 +33,17 @@ Status:
 
 ## Open items
 
-- `npm:typeslayer` pins `0.1.32-aquaticat.0319832`,
- which the public registry no longer carries
- (unpublished;
- 33 versions listed,
- none of them `aquaticat`).
- The retired Mise install still runs it.
- The maintainer chooses:
- keep the pin and the old install as its only source,
- repin to `0.1.32`,
- or republish the prerelease and re-run `toolchain:sync:global`.
+- `npm:typeslayer` was removed from the global plan at the maintainer's
+ decision ("Remove it entirely",
+ 2026-10-28):
+ the pinned build `0.1.32-aquaticat.0319832` is unpublished
+ (33 registry versions,
+ none of them `aquaticat`),
+ so nothing under the lock can install it.
+ Its retired Mise install stays under the standing
+ "leave the old installs" decision;
+ deleting it would be unrecoverable,
+ which the maintainer may still order.
 - The VM-builder and Containerfiles still seed a global Mise config with
  `[tools]`
  (`doc/planning/mise-removal-coverage.md`,

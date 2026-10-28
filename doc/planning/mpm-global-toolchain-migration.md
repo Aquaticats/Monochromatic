@@ -414,14 +414,16 @@ What the implementation needed beyond the shapes above.
  (`resolveRustup`,
  since the GitHub family cannot see `static.rust-lang.org` rows).
 - End state on the maintainer's machine:
- `59 of 60` in sync with the global lock,
+ `59 of 59` in sync with the global lock,
  every declared tool resolving through the farm,
  `mise self-update` clean,
  and the `linked-worktree-only` guard still rejecting in main worktrees
  through the repointed `~/.local/bin/git`.
- The one drift is `npm:typeslayer`
- (`0.1.32-aquaticat.0319832`),
- which the public registry no longer carries
- (unpublished;
- `npm view typeslayer versions` lists 33 versions and none of them),
- awaiting the maintainer's decision.
+ The seeding-time `npm:typeslayer` pin
+ (`0.1.32-aquaticat.0319832`)
+ was dropped from the plan at the maintainer's decision
+ ("Remove it entirely"),
+ after probes showed the public registry no longer carries that build
+ (`npm view typeslayer versions` lists 33 versions and none of them);
+ its retired Mise install stays under the standing
+ "leave the old installs" decision.
