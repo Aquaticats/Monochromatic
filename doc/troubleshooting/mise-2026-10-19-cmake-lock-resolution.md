@@ -620,15 +620,25 @@ Do not file from this document.
   with direct tool setup,
   as decided in `doc/decision/mise-free-ci.md`.
   There is no pin left to remove.
-- Bare `mise lock` works with the installed 2026.10.19 because commit
-  `7f00576883` restricts the lock targets to the four Linux platforms,
-  a stopgap recorded in
-  `doc/decision/mise-lock-linux-only-stopgap.md` and in the
-  `mise.no-env.toml` comment.
-- The seven-platform lock needs a released mise with jdx/mise#14959.
-  Release pull request #14948 (2026.10.20) was still blocked on
-  2026-10-26T04:32-04:00 with its `release-window` check pending,
-  so its publication is not guaranteed.
-  When it ships,
-  remove the setting and regenerate the lock as the decision
-  document's removal condition describes.
+- The incident closed on 2026-10-28.
+  mise v2026.10.20 (published 2026-10-26T21:21:55Z,
+  with v2026.10.21 following on 2026-10-27) ships the
+  jdx/mise#14959 fix.
+  The released 2026.10.20 binary ran a seven-platform lock to exit 0 in a
+  throwaway worktree at commit `7f00576883` with the stopgap removed and
+  `mise.lock` deleted:
+  413 targets checked,
+  macOS and Windows entries back for `aqua:Kitware/CMake`,
+  and `conda:bubblewrap` still Linux-only.
+  Removing only the setting against the Linux-only lock kept four platforms
+  (358 targets),
+  because an unset `lockfile_platforms` preserves the platforms already in
+  the lockfile.
+- The repository no longer runs `mise lock` at all:
+  commit `a5cdc3158d` removed `[tools]` and the lockfile settings for
+  `doc/decision/mpm-toolchain-adoption.md`,
+  and commit `4cb480344f` deleted `mise.lock`;
+  mise now only runs tasks.
+  The stopgap decision is superseded and
+  `doc/handover/mise-lock-2026-10-20-followup.md` is deleted,
+  so no lock remains to regenerate.
