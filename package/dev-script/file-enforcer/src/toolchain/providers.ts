@@ -683,6 +683,26 @@ export async function installBinSourced(
       );
     }
   }
+  // A payload whose extracted name collides with a directory in the download
+  // directory makes `bin install --force` rename that directory aside (the
+  // tree-sitter `.gz` incident, 2026-10-28): fail loudly instead of leaving
+  // the toolchain without its bin directory.
+  /**
+   State of the download directory after the installs.
+   */
+  const downloadDir = statSync(
+    paths.toolchainBinDir,
+    { throwIfNoEntry: false },
+  );
+  if (downloadDir === undefined || !downloadDir.isDirectory()) {
+    throw new Error(
+      `bin install for ${
+        entry.id
+      } replaced the toolchain bin directory ${
+        paths.toolchainBinDir
+      } with a file; restore it from its `.bin.old` sibling`,
+    );
+  }
   return result;
 }
 
@@ -1094,13 +1114,15 @@ export async function installMpmUvx(
     return wheelInstall;
   }
   /**
-   Registry install run result.
+   Registry install run result; `--force` converges executables an earlier
+   machine install (retired Mise-era `~/.local/bin` links) still holds.
    */
   const installed = await run({
     command: uvBin,
     args: [
       'tool',
       'install',
+      '--force',
       `${entry.packageId ?? entry.id}==${entry.version}`,
     ],
     env: toolchainPathEnv({

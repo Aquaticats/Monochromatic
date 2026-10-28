@@ -128,12 +128,22 @@ export async function observeTool(
       /**
        `bin list` output from the scope's own install database.
        */
-      const listed = await run({
-        command: binCliPath({
+      /**
+       Bootstrap CLI, absent on a fresh machine before the `bin` stage runs;
+       an unprobeable database reads as an absent tool, not a crash.
+       */
+      let cli: string;
+      try {
+        cli = binCliPath({
           paths,
           env,
           tools,
-        },),
+        },);
+      } catch {
+        return null;
+      }
+      const listed = await run({
+        command: cli,
         args: ['list'],
         env: {
           ...process.env,

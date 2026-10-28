@@ -193,13 +193,21 @@ export async function syncToolchain(
 
   for (const entry of entries) {
     /**
-     Observed version before installing.
+     Observed version before installing; a probe that cannot run (its own
+     staging prerequisite missing) reads as absent, and the install below
+     converges it.
      */
-    const observed = await observeTool({
-      entry,
-      paths,
-      env: e,
-    },);
+    let observed: string | null = null;
+    try {
+      observed = await observeTool({
+        entry,
+        paths,
+        env: e,
+        tools,
+      },);
+    } catch {
+      observed = null;
+    }
     if (observed !== null
       && versionMatches({
         observed,
