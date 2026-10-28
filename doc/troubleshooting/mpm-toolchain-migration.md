@@ -174,6 +174,39 @@ Workaround:
  so a future route that needs one must extend `mpm`'s platform map or
  call the manager directly.
 
+### Leftover Mise plugins keep `mise self-update` in the toolchain pass
+
+Surface:
+ `mise self-update` or `mise plugins update` on a machine that still holds
+ pre-cutover Mise plugins after the toolchain cutover
+ (observed 2026-10-27 with the `cmake` vfox plugin set that the removed root
+ `cmake = "latest"` declaration pulled in).
+
+Emitting tool and message:
+ `mise` 2026.10.20,
+ which updates installed plugins unless `--no-plugins`:
+
+```text
+mise ERROR Failed to update plugins: cmake, vfox-cmake, vfox-jdx-vfox-cmake
+```
+
+ The plugin update's forced checkout then collides with the `git` wrapper's
+ `linked-worktree-only` policy
+ (`doc/troubleshooting/mise-plugin-update-linked-worktree-guard.md`).
+
+Workaround:
+ remove the unused plugins
+ (`mise plugins uninstall --yes cmake vfox-cmake vfox-jdx-vfox-cmake`,
+ applied 2026-10-27),
+ or pass `mise self-update --no-plugins`.
+ Tradeoff:
+ the recorded rollback path reinstalls plugins on demand,
+ and a worktree still declaring a plugin-backed tool
+ (the pre-cutover `tr-*` worktrees carry `cmake = "latest"`)
+ resurrects them,
+ which brings the failure back while the exposed `git` wrapper predates
+ `monochromatic-git-policy-cli` 0.2.9.
+
 ## Rollback path
 
 The adoption decision requires the rollback path to be recorded here

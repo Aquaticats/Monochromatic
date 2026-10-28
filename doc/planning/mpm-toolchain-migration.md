@@ -434,3 +434,15 @@ Shape additions and clarifications the implementation needed;
  unprovisioned toolchains print empty `pathDirs` and `bins` and exit 0.
  Entry-point guards compare real paths,
  so symlinked home directories still dispatch.
+- Post-cutover cleanup 2026-10-27:
+ the three Mise plugins the removed `cmake = "latest"` declaration left behind
+ (`cmake`,
+ `vfox-cmake`,
+ `vfox-jdx-vfox-cmake`) were pruned with
+ `mise plugins uninstall`,
+ so `mise self-update` no longer touches toolchain state on this machine.
+ The incident and its wrapper-version gap are recorded in
+ `doc/troubleshooting/mise-plugin-update-linked-worktree-guard.md`:
+ the `cargo:monochromatic-git-policy-cli` row pins `0.2.8`,
+ whose wrapper predates the 0.2.9 mise-plugin exemption,
+ so moving it forward rides the maintainer's `toolchain:update` re-resolution.

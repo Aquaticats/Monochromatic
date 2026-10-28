@@ -2315,6 +2315,33 @@ that is verification, not a decision for the user.
   plugin clone (`git -C ~/.local/share/mise/plugins/cmake checkout --force main`) prints "Already on 'main'" through
   the 0.2.9 wrapper instead of the `linked-worktree-only` rejection (the printed `checkout-exit=0` was the exit of
   `cut` in the pipeline, not of git; `mise plugins update` itself was not rerun).
+  CORRECTION 2026-10-27:
+  the `User-boundary check of the exemption` probe was false-green.
+  It ran the 0.2.9 wrapper explicitly and never reran `mise plugins update`,
+  so it never exercised the wrapper `mise` resolves inside this checkout.
+  There `.cache/cli-git-bin/git` and `.cache/toolchain-bin/cli-git-native` link to `~/.cargo/bin/cli-git-native`
+  (9,517,816 bytes,
+  installed 2026-10-20;
+  `toolchain.lock.json:733` pins `0.2.8`),
+  which predates `197ae38ff5`'s mise data directory exemption and rejects the form.
+  Differential probe on one disposable plugin-shaped clone (`~/temp/agent/guard-probe`):
+  the exposed wrapper prints the `linked-worktree-only/linked-worktree-required` finding and exits 1;
+  `~/.local/bin/git` (0.2.9) exits 0 silently on the same command and also through a symlinked home spelling,
+  so the `/home` -> `/var/home` layout of this host is not the cause.
+  HOST REGRESSION RESOLVED 2026-10-27:
+  the three plugins were pre-migration leftovers of the removed root `cmake = "latest"` declaration (`a5cdc3158d`)
+  and nothing post-migration uses them;
+  `mise plugins uninstall --yes cmake vfox-cmake vfox-jdx-vfox-cmake` removed them,
+  after which `mise plugins update` and `mise self-update --yes` exit 0 in this checkout.
+  Full record:
+  `doc/troubleshooting/mise-plugin-update-linked-worktree-guard.md`.
+  Open from this thread:
+  move the exposed wrapper to 0.2.9 or newer through `toolchain:update` + `toolchain:sync`
+  (the 2026-10-27 `--check` re-resolves 16 tools,
+  so it waits for the maintainer's re-resolution run),
+  repoint or drop the issue-1796 `~/.local/bin/git` link off the old Mise install,
+  and the pre-cutover `tr-*` worktrees that still declare `cmake = "latest"`
+  (they resurrect the plugins and this failure while the exposed wrapper is pre-0.2.9).
   NEW ROOT-CAUSE CLUE for the mise failure (host mise output, not yet tested): "mise WARN cmake is locked to
   vfox:cmake, but the registry now installs it from aqua:Kitware/CMake. Run `mise backends switch cmake` to switch."
   The failing resolution is the vfox cmake plugin for linux-arm64; `mise.lock` pins the vfox backend while mise
