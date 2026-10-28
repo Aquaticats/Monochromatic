@@ -73,23 +73,23 @@ args = ["binstall", "--no-confirm", "--version", "6.2.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-nextest]
-name = "cargo-binstall cargo-nextest 0.9.148"
+name = "cargo-binstall cargo-nextest 0.9.150"
 platforms = ["all_platforms"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-cargo-nextest.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.9.148", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.9.150", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-nextest.operations.remove]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-about]
-name = "cargo-binstall cargo-about 0.9.2"
+name = "cargo-binstall cargo-about 0.9.3"
 platforms = ["all_platforms"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-cargo-about.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.9.2", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.9.3", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-about.operations.remove]
 args = ["uninstall", "{package_id}"]
@@ -106,23 +106,23 @@ args = ["binstall", "--no-confirm", "--version", "0.3.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli]
-name = "cargo-binstall monochromatic-git-policy-cli 0.2.8"
+name = "cargo-binstall monochromatic-git-policy-cli 0.2.9"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.2.8", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.2.9", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.remove]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-nested-wayland-session]
-name = "cargo-binstall monochromatic-nested-wayland-session 0.6.1"
+name = "cargo-binstall monochromatic-nested-wayland-session 0.6.2"
 platforms = ["all_platforms"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-nested-wayland-session.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.6.1", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.6.2", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-nested-wayland-session.operations.remove]
 args = ["uninstall", "{package_id}"]

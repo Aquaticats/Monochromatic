@@ -183,7 +183,7 @@ await describe({
               .toBe(true,);
             expect(text.includes('"@actions/languageserver" = "0.3.61"',),)
               .toBe(true,);
-            expect(text.includes('nightly-2026-10-21 = "nightly-2026-10-21"',),)
+            expect(text.includes('nightly-2026-10-28 = "nightly-2026-10-28"',),)
               .toBe(true,);
             expect(text.includes('slopo = "0.9.0"',),)
               .toBe(true,);

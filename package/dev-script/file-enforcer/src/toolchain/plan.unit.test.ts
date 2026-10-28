@@ -196,10 +196,10 @@ await describe({
           fn: async () => {
             expect(toolById('rust',)
               .env,)
-              .toEqual({ RUSTUP_TOOLCHAIN: 'nightly-2026-10-21' },);
+              .toEqual({ RUSTUP_TOOLCHAIN: 'nightly-2026-10-28' },);
             expect(toolById('java',)
               .env,)
-              .toEqual({ JAVA_HOME: 'java/temurin-21.0.12+8.0.LTS' },);
+              .toEqual({ JAVA_HOME: 'java/temurin-21.0.13+9.0.LTS' },);
             for (const entry of ALL_TOOLS) {
               for (const value of Object.values(entry.env,))
                 expect(value.startsWith('/',),)
@@ -287,7 +287,7 @@ await describe({
               .toBe(ALL_TOOLS.length,);
             expect(TOOLS_BY_ID.get('node',)
               ?.version,)
-              .toBe('26.12.0',);
+              .toBe('26.12.1',);
           },
         },),
         it({

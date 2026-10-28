@@ -35,7 +35,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'pnpm',
     request: { track: 'latest' },
-    version: '12.14.0',
+    version: '12.15.0',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -105,7 +105,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'node',
     request: { track: 'latest' },
-    version: '26.12.0',
+    version: '26.12.1',
     route: 'archive',
     manager: null,
     packageId: null,
@@ -118,7 +118,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'harper-cli',
     request: { track: 'latest' },
-    version: '2.13.0',
+    version: '3.0.0',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -131,7 +131,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'dprint',
     request: { track: 'latest' },
-    version: '0.64.0',
+    version: '0.64.3',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -144,7 +144,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'uv',
     request: { track: 'latest' },
-    version: '0.13.4',
+    version: '0.13.6',
     route: 'archive',
     manager: null,
     packageId: null,
@@ -232,10 +232,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rust',
     request: { channel: 'nightly' },
-    version: 'nightly-2026-10-21',
+    version: 'nightly-2026-10-28',
     route: 'rustup-toolchain',
     manager: 'rustup',
-    packageId: 'nightly-2026-10-21',
+    packageId: 'nightly-2026-10-28',
     bins: [
       'cargo',
       'cargo-clippy',
@@ -254,13 +254,13 @@ export const TOOLS: readonly ToolPlanEntry[] = [
       rustComponents: ['clippy', 'rust-src', 'llvm-tools', 'rustc-dev'],
       rustTargets: ['aarch64-linux-android', 'x86_64-linux-android'],
     },
-    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-21' },
+    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-28' },
     artifacts: {},
   },
   {
     id: 'cargo-binstall',
     request: { track: 'latest' },
-    version: '1.26.0',
+    version: '1.26.1',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -312,7 +312,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:cargo-nextest',
     request: { track: 'latest' },
-    version: '0.9.148',
+    version: '0.9.150',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-nextest',
@@ -325,7 +325,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:cargo-about',
     request: { track: 'latest' },
-    version: '0.9.2',
+    version: '0.9.3',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-about',
@@ -353,7 +353,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.2.8',
+    version: '0.2.9',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -375,7 +375,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-nested-wayland-session',
     request: { track: 'latest' },
-    version: '0.6.1',
+    version: '0.6.2',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-nested-wayland-session',
@@ -388,7 +388,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cmake',
     request: { track: 'latest' },
-    version: '4.4.4',
+    version: '4.4.5',
     route: 'archive',
     manager: null,
     packageId: null,
@@ -487,7 +487,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'tombi',
     request: { track: 'latest' },
-    version: '1.8.9',
+    version: '1.9.6',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -513,7 +513,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rumdl',
     request: { track: 'latest' },
-    version: '0.3.0',
+    version: '0.3.1',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -714,7 +714,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'opentofu',
     request: { track: 'latest' },
-    version: '1.13.1',
+    version: '1.13.2',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -727,7 +727,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'hcloud',
     request: { track: 'latest' },
-    version: '1.70.1',
+    version: '1.70.2',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -766,7 +766,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:socket',
     request: { track: 'latest' },
-    version: '2.1.0',
+    version: '1.11.1',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'socket',
@@ -779,7 +779,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:wrangler',
     request: { track: 'latest' },
-    version: '4.151.3',
+    version: '4.154.0',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'wrangler',
@@ -819,7 +819,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'java',
     request: { channel: 'temurin-21' },
-    version: 'temurin-21.0.12+8.0.LTS',
+    version: 'temurin-21.0.13+9.0.LTS',
     route: 'archive',
     manager: null,
     packageId: null,
@@ -856,7 +856,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     ],
     os: null,
     options: {},
-    env: { JAVA_HOME: 'java/temurin-21.0.12+8.0.LTS' },
+    env: { JAVA_HOME: 'java/temurin-21.0.13+9.0.LTS' },
     artifacts: artifacts('java'),
   },
   // cmdline-tools from the locked archive; the SDK components below are the
