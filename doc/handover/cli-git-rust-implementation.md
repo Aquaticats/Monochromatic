@@ -2342,6 +2342,25 @@ that is verification, not a decision for the user.
   repoint or drop the issue-1796 `~/.local/bin/git` link off the old Mise install,
   and the pre-cutover `tr-*` worktrees that still declare `cmake = "latest"`
   (they resurrect the plugins and this failure while the exposed wrapper is pre-0.2.9).
+  RESOLVED 2026-10-27 (the maintainer chose every follow-up):
+  `toolchain:update` re-resolved 19 tools including `cargo:monochromatic-git-policy-cli`
+  0.2.8 to 0.2.9,
+  `toolchain:sync` installed them
+  (`toolchain status: 61 tools in sync with toolchain.lock.json`),
+  and the control pair confirms the wrapper change:
+  the plugin-shaped fixture passes silently through `.cache/cli-git-bin/git`
+  while `~/temp/agent/guard-probe/home/ordinary` is still rejected,
+  exit 1.
+  `~/.local/bin/git` now points at `~/.cargo/bin/cli-git-native`
+  (the toolchain-provisioned binary,
+  moved 2026-10-27),
+  so the issue-1796 coverage no longer depends on the old Mise install,
+  and it shows the same pair of results.
+  The `tr-*` worktrees stay as they are by maintainer choice.
+  The re-resolution also caught two `toolchain:update` defects
+  (the moved resolution left the `packageId` and `env` pin literals stale,
+  in memory first and then in the plan source),
+  fixed in `517f979b5b` with the regenerated rows in `1ff804a928`.
   NEW ROOT-CAUSE CLUE for the mise failure (host mise output, not yet tested): "mise WARN cmake is locked to
   vfox:cmake, but the registry now installs it from aqua:Kitware/CMake. Run `mise backends switch cmake` to switch."
   The failing resolution is the vfox cmake plugin for linux-arm64; `mise.lock` pins the vfox backend while mise

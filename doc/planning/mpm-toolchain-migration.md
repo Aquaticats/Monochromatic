@@ -443,6 +443,17 @@ Shape additions and clarifications the implementation needed;
  so `mise self-update` no longer touches toolchain state on this machine.
  The incident and its wrapper-version gap are recorded in
  `doc/troubleshooting/mise-plugin-update-linked-worktree-guard.md`:
- the `cargo:monochromatic-git-policy-cli` row pins `0.2.8`,
- whose wrapper predates the 0.2.9 mise-plugin exemption,
- so moving it forward rides the maintainer's `toolchain:update` re-resolution.
+ the `cargo:monochromatic-git-policy-cli` row pinned `0.2.8`,
+ whose wrapper predates the 0.2.9 mise-plugin exemption.
+ The maintainer's `toolchain:update` re-resolution ran the same day
+ (19 tools moved,
+ regenerated rows in `1ff804a928`),
+ and it surfaced two update-flow defects:
+ a moved resolution left the `packageId` and `env` pin literals stale,
+ first in memory (`applyResolutions`)
+ and then in the plan source (`patchPlanVersions`),
+ so sync would install one toolchain while status looked for another.
+ Fixed in `517f979b5b`,
+ covered by unit tests on both paths.
+ `toolchain:status` then reported
+ `61 tools in sync with toolchain.lock.json`.

@@ -201,7 +201,9 @@ HOME="$HOME/temp/agent/guard-probe/home" \
 
 ### Catalog that works
 
-- `~/.local/bin/git` (0.2.9) on the same fixture and command:
+- the 0.2.9 wrapper
+  (`~/.local/bin/git` at the time of the incident)
+  on the same fixture and command:
   silent success,
   exit 0.
 - the 0.2.9 wrapper on the same fixture reached through a symlinked home
@@ -211,6 +213,20 @@ HOME="$HOME/temp/agent/guard-probe/home" \
 - `mise plugins update` and `mise self-update --yes` inside this checkout after the plugin removal
   (2026-10-27):
   `mise is already up to date`,
+  exit 0.
+- the exposed wrapper after `toolchain:sync`
+  (2026-10-27,
+  `.cache/cli-git-bin/git` on the 0.2.9 line):
+  the plugin fixture passes silently,
+  while the ordinary-worktree control
+  (`~/temp/agent/guard-probe/home/ordinary`)
+  is still rejected with the finding line,
+  so the guard's coverage is unchanged.
+- `~/.local/bin/git` after it was repointed at `~/.cargo/bin/cli-git-native`
+  (2026-10-27):
+  the same pair of results as the exposed wrapper.
+- `mise run toolchain:status` after the sync:
+  `61 tools in sync with toolchain.lock.json`,
   exit 0.
 
 ## Verified workarounds
@@ -241,10 +257,20 @@ and a later `mise plugins update` still errors.
 Through the repository tools path
 (`mise run toolchain:update`,
 then `mise run toolchain:sync`).
+Applied 2026-10-27:
+the re-resolution moved 19 tools
+(`cargo:monochromatic-git-policy-cli` 0.2.8 to 0.2.9 among them),
+and afterwards the exposed wrapper passed the plugin fixture
+while the ordinary-worktree control stayed rejected.
 Tradeoff:
-the update flow re-resolves every floating request
-(16 tools at the 2026-10-27 `--check`),
+the update flow re-resolves every floating request,
 so the lock diff carries more than this one row.
+Applying it also surfaced two update-flow defects:
+the resolution moved `version` without the `packageId` and `env` pin literals,
+first in memory and then in the plan source,
+which left sync installing one toolchain while status looked for another.
+Fixed in commit `517f979b5b`,
+covered by unit tests on both paths.
 
 ### Disable the policy per plugin clone
 
