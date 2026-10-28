@@ -11,6 +11,7 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir, } from 'node:os';
@@ -35,9 +36,7 @@ import {
   type ToolchainPaths,
 } from './paths.ts';
 import {
-  BIN_BOOTSTRAP,
-  MPM_BOOTSTRAP,
-  toolById,
+  ALL_TOOLS,
 } from './plan.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
@@ -52,7 +51,48 @@ export type ProviderContext = {
   readonly env: PathEnv;
   /** Extra bin search directories a staged tool contributes. */
   readonly extraDirs: readonly string[];
+  /**
+   * Plan of the scope being synced (sibling lookups for `pnpm`, `uv`, `go`,
+   * `bin` and `mpm`); absent means the repository plan.
+   */
+  readonly tools?: readonly ToolPlanEntry[] | undefined;
 };
+
+/**
+ Looks one sibling tool up in the scope's own plan, so a sync never resolves
+ another scope's install directory for a shared tool id.
+ 
+ @param options - Scope plan (absent means the repository plan) and tool id
+ 
+ @returns Matching plan entry
+ 
+ @throws Error when the plan declares no such tool
+ */
+export function planTool(
+  {
+    tools,
+    id,
+  }: {
+    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly id: string;
+  },
+): ToolPlanEntry {
+  /**
+   Effective plan for this lookup.
+   */
+  const plan = tools ?? ALL_TOOLS;
+  /**
+   Matching entry, or `undefined` when the id is unknown here.
+   */
+  const entry = plan.find(
+    function byId(candidate,): boolean {
+      return candidate.id === id;
+    },
+  );
+  if (entry === undefined)
+    throw new Error(`toolchain plan has no tool ${JSON.stringify(id,)}`,);
+  return entry;
+}
 
 /**
  Absolute artifact URL and SHA-256 for the current host platform.
@@ -148,27 +188,39 @@ export function binCliPath(
   {
     paths,
     env,
+    tools,
   }: {
     readonly paths: ToolchainPaths;
     readonly env?: PathEnv | undefined;
+    readonly tools?: readonly ToolPlanEntry[] | undefined;
   },
 ): string {
   /**
    Resolved CLI from the bootstrap entry's install directory.
    */
   const resolved = findToolBin({
-    entry: BIN_BOOTSTRAP,
+    entry: planTool({
+      tools,
+      id: 'bin',
+    },),
     name: 'bin',
     paths,
     env,
   },);
   if (resolved === null) {
+    /**
+     Bootstrap entry the CLI path was expected under.
+     */
+    const bootstrap = planTool({
+      tools,
+      id: 'bin',
+    },);
     throw new Error(
       `bin CLI is not installed; expected it under ${
         toolInstallDir({
           toolchainRoot: paths.toolchainRoot,
-          id: BIN_BOOTSTRAP.id,
-          version: BIN_BOOTSTRAP.version,
+          id: bootstrap.id,
+          version: bootstrap.version,
         },)
       }`,
     );
@@ -274,6 +326,16 @@ export async function installArchive(
       archive: downloadPath,
       into: installDir,
     },);
+    // Release zips may store every entry as mode 0644 (the llamacpp-rocm
+    // bundles do), which would hide the launchers from `findBinUnder`:
+    // restore the executable bit on the declared names before linking.
+    restoreExecBits({
+      root: installDir,
+      names: [
+        ...entry.bins,
+        ...Object.keys(entry.options.binAliases ?? {}),
+      ],
+    },);
     return installDir;
   }
   // Single-file payload (a standalone binary release asset).
@@ -304,6 +366,90 @@ export async function installArchive(
   }
   makeExecutable(target,);
   return installDir;
+}
+
+/**
+ Restores the executable bit on every file named like a declared bin inside
+ an extracted tree (release zips may store every entry as mode 0644, which
+ would hide the launchers from `findBinUnder`).
+ 
+ @param options - Root directory and the declared names to fix
+ 
+ @returns Names whose file was made executable
+ */
+export function restoreExecBits(
+  {
+    root,
+    names,
+  }: {
+    readonly root: string;
+    readonly names: readonly string[];
+  },
+): readonly string[] {
+  /**
+   Declared names to fix.
+   */
+  const wanted = new Set(names,);
+  /**
+   Names made executable.
+   */
+  const fixed: string[] = [];
+  /**
+   Pending directories, as `[dir, depth]` pairs (bounded like
+   `findBinUnder`).
+   */
+  const pending: { dir: string; depth: number; }[] = [{
+    dir: root,
+    depth: 0,
+  }];
+  while (pending.length > 0) {
+    /**
+     Next directory to inspect.
+     */
+    const current = pending.shift();
+    if (current === undefined)
+      break;
+    let children: string[] = [];
+    try {
+      children = readdirSync(current.dir,)
+        .sort();
+    } catch {
+      continue;
+    }
+    for (const child of children) {
+      /**
+       Absolute child path.
+       */
+      const childPath = join(
+        current.dir,
+        child,
+      );
+      try {
+        /**
+         File kind of the child.
+         */
+        const stat = statSync(childPath,);
+        if (stat.isDirectory()) {
+          if (current.depth < 3) {
+            pending.push(
+              {
+                dir: childPath,
+                depth: current.depth + 1,
+              },
+            );
+          }
+          continue;
+        }
+        if (stat.isFile() && wanted.has(child,)) {
+          makeExecutable(childPath,);
+          fixed.push(child,);
+        }
+      } catch {
+        // Unreadable entries are simply not candidates.
+      }
+    }
+  }
+  return fixed;
 }
 
 //endregion Archive provider
@@ -345,75 +491,27 @@ export function releaseTagUrl(artifactUrl: string,): string | null {
 /**
  Pre-seeds the `bin` CLI configuration so no interactive prompt appears:
  `bin` asks for its download directory until `default_path` is configured.
- The file `bin` actually resolves is seeded
- (`BIN_CONFIG`, else `$HOME/.bin/config.json`, else
- `$XDG_CONFIG_HOME/bin/config.json`, else `$HOME/.config/bin/config.json`),
- and an existing configuration is left alone.
+ The seeded file is the scope's own (`BIN_CONFIG` target,
+ `paths.binConfigFile`), so two scopes never share one `default_path` and one
+ install database.
  
- @param options - Environment and the download directory to record
+ @param options - Download directory to record and the scope's config path
  
- @returns The configuration path `bin` will read
+ @returns The configuration path the scope runs `bin` with
  */
 export function seedBinConfig(
   {
-    env,
     downloadDir,
+    configPath,
   }: {
-    readonly env: PathEnv;
     readonly downloadDir: string;
+    readonly configPath: string;
   },
 ): string {
   /**
-   Effective environment.
+   Scope-local configuration file.
    */
-  const e = env ?? process.env;
-  /**
-   Home directory for the fallback locations.
-   */
-  const home = homeDirFromEnv({ env: e, });
-  /**
-   Candidate configuration paths, in `bin`'s own resolution order.
-   */
-  const candidates = [
-    ...(e.BIN_CONFIG !== undefined && e.BIN_CONFIG !== ''
-      ? [e.BIN_CONFIG]
-      : []),
-    join(
-      home,
-      '.bin',
-      'config.json',
-    ),
-    ...(e.XDG_CONFIG_HOME !== undefined && e.XDG_CONFIG_HOME !== ''
-      ? [join(
-        e.XDG_CONFIG_HOME,
-        'bin',
-        'config.json',
-      )]
-      : []),
-    join(
-      home,
-      '.config',
-      'bin',
-      'config.json',
-    ),
-    join(
-      home,
-      '.bin',
-      'config.json',
-    ),
-  ];
-  /**
-   File `bin` resolves first: the first candidate that exists (an empty
-   `~/.bin/config.json` shadows the later ones), else the first candidate.
-   The seed converges that file instead of leaving a shadowing empty one.
-   */
-  const target = candidates.find(
-    function exists(candidate,): boolean {
-      return existsSync(candidate,);
-    },
-  ) ?? candidates[0];
-  if (target === undefined)
-    throw new Error('no bin configuration path is derivable from the environment',);
+  const target = configPath;
   /**
    Existing settings kept, with `default_path` converged to the toolchain.
    */
@@ -468,7 +566,12 @@ export function seedBinConfig(
 export async function installBinSourced(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+    tools,
+  } = context;
   /**
    Verified artifact for the host platform, whose URL carries the tag.
    */
@@ -496,8 +599,8 @@ export async function installBinSourced(
     },
   );
   seedBinConfig({
-    env,
     downloadDir: paths.toolchainBinDir,
+    configPath: paths.binConfigFile,
   },);
   /**
    Absolute `bin` CLI at the bootstrap's install directory.
@@ -505,6 +608,7 @@ export async function installBinSourced(
   const cli = binCliPath({
     paths,
     env,
+    tools,
   },);
   /**
    Last observed run result.
@@ -555,6 +659,8 @@ export async function installBinSourced(
         env: {
           ...process.env,
           HOME: homeDirFromEnv({ env, }),
+          // The scope's own `bin` database and `default_path`.
+          BIN_CONFIG: paths.binConfigFile,
           ...(token === null
             ? {}
             : { GITHUB_TOKEN: token, }),
@@ -640,6 +746,192 @@ export async function installCargoBinstall(
 
 //endregion cargo-binstall provider
 
+//region cargo-git provider
+
+/**
+ Installs one `cargo-git` route tool: one package built from a git source at
+ the pinned revision (`cargo install --git <url> --rev <rev> --root <dir>`),
+ scoped into the tool's own install directory.
+ 
+ @param context - Provider context
+ 
+ @returns The `cargo install` run result
+ 
+ @throws Error when the entry carries no git source or the build fails
+ */
+export async function installCargoGit(
+  context: ProviderContext,
+): Promise<RunResult> {
+  const { entry, paths, env, } = context;
+  /**
+   Git source recorded for this entry.
+   */
+  const url = entry.options.cargoGit?.url;
+  if (url === undefined) {
+    throw new Error(
+      `toolchain plan entry ${
+        entry.id
+      } carries no cargoGit source url`,
+    );
+  }
+  /**
+   Pinned revision from the request (`ref:<rev>`) or the version literal.
+   */
+  const pinned = 'pinned' in entry.request
+    ? entry.request.pinned
+    : entry.version;
+  /**
+   Bare revision the `--rev` argument takes.
+   */
+  const rev = pinned.startsWith('ref:')
+    ? pinned.slice('ref:'.length,)
+    : pinned;
+  /**
+   Machine install directory of this tool (`cargo install --root` puts its
+   `bin/` level inside).
+   */
+  const installDir = toolInstallDir({
+    toolchainRoot: paths.toolchainRoot,
+    id: entry.id,
+    version: entry.version,
+  },);
+  mkdirSync(
+    installDir,
+    { recursive: true },
+  );
+  /**
+   Install run result through the toolchain's own manager directories.
+   */
+  const result = await run({
+    command: 'cargo',
+    args: [
+      'install',
+      '--git',
+      url,
+      '--rev',
+      rev,
+      '--root',
+      installDir,
+      entry.packageId ?? entry.id,
+    ],
+    env: toolchainPathEnv({
+      paths,
+      env,
+    },),
+  },);
+  if (result.code !== 0) {
+    throw new Error(
+      `cargo install --git failed for ${
+        entry.id
+      }: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+  return result;
+}
+
+//endregion cargo-git provider
+
+//region go-install provider
+
+/**
+ Installs one `go-install` route tool: one Go module built at its locked
+ version into a scoped `GOBIN`
+ (`go install <module>@v<version>`),
+ preserving the build-from-source semantics the declaration names.
+ 
+ @param context - Provider context
+ 
+ @returns The `go install` run result
+ 
+ @throws Error when `go` is unstaged or the build fails
+ */
+export async function installGoInstall(
+  context: ProviderContext,
+): Promise<RunResult> {
+  const {
+    entry,
+    paths,
+    env,
+    extraDirs,
+    tools,
+  } = context;
+  /**
+   Toolchain `go` the build must run through; retired machine shims must
+   never receive the install.
+   */
+  const goBin = findToolBin({
+    entry: planTool({
+      tools,
+      id: 'go',
+    },),
+    name: 'go',
+    paths,
+    env,
+    extraDirs,
+  },);
+  if (goBin === null) {
+    throw new Error(
+      'go is not installed in the toolchain; the go stage must run first',
+    );
+  }
+  /**
+   Machine install directory of this tool; `GOBIN` is its `bin/` level.
+   */
+  const installDir = toolInstallDir({
+    toolchainRoot: paths.toolchainRoot,
+    id: entry.id,
+    version: entry.version,
+  },);
+  /**
+   Scoped `GOBIN` the module's binaries land in.
+   */
+  const gobin = join(
+    installDir,
+    'bin',
+  );
+  mkdirSync(
+    gobin,
+    { recursive: true },
+  );
+  /**
+   Module version the `go install` argument takes (`@v<version>`).
+   */
+  const moduleVersion = entry.version.startsWith('v',)
+    ? entry.version
+    : `v${entry.version}`;
+  /**
+   Build run result.
+   */
+  const result = await run({
+    command: goBin,
+    args: [
+      'install',
+      `${entry.packageId ?? entry.id}@${moduleVersion}`,
+    ],
+    env: {
+      ...toolchainPathEnv({
+        paths,
+        env,
+      },),
+      GOBIN: gobin,
+    },
+  },);
+  if (result.code !== 0) {
+    throw new Error(
+      `go install failed for ${
+        entry.id
+      }: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+  return result;
+}
+
+//endregion go-install provider
+
 //region pnpm and uvx providers
 
 /**
@@ -659,13 +951,17 @@ export async function installMpmPnpm(
     paths,
     env,
     extraDirs,
+    tools,
   } = context;
   /**
    Toolchain `pnpm` the install must run through; retired machine shims
    must never receive the install.
    */
   const pnpmBin = findToolBin({
-    entry: toolById('pnpm',),
+    entry: planTool({
+      tools,
+      id: 'pnpm',
+    },),
     name: 'pnpm',
     paths,
     env,
@@ -677,15 +973,26 @@ export async function installMpmPnpm(
     );
   }
   /**
+   Global install arguments: the pinned spec plus the build-script
+   allowances (`--allow-build`, repeatable).
+   */
+  const args = [
+    'add',
+    '--global',
+  ];
+  for (const allowed of entry.options.allowBuilds ?? []) {
+    args.push(
+      '--allow-build',
+      allowed,
+    );
+  }
+  args.push(`${entry.packageId ?? entry.id}@${entry.version}`,);
+  /**
    Global install run result.
    */
   const result = await run({
     command: pnpmBin,
-    args: [
-      'add',
-      '--global',
-      `${entry.packageId ?? entry.id}@${entry.version}`,
-    ],
+    args,
     env: toolchainPathEnv({
       paths,
       env,
@@ -719,13 +1026,17 @@ export async function installMpmUvx(
     paths,
     env,
     extraDirs,
+    tools,
   } = context;
   /**
    Toolchain `uv` the install must run through; retired machine shims must
    never receive the install.
    */
   const uvBin = findToolBin({
-    entry: toolById('uv',),
+    entry: planTool({
+      tools,
+      id: 'uv',
+    },),
     name: 'uv',
     paths,
     env,
@@ -830,12 +1141,16 @@ export async function installRustToolchain(
     paths,
     env,
     extraDirs,
+    tools,
   } = context;
   /**
    Toolchain `mpm`, when the mpm bootstrap staged it.
    */
   const mpmBin = findToolBin({
-    entry: MPM_BOOTSTRAP,
+    entry: planTool({
+      tools,
+      id: 'mpm',
+    },),
     name: 'mpm',
     paths,
     env,

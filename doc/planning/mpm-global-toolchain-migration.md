@@ -133,6 +133,7 @@ Family mapping (routes and precedents from the repository lock):
  `npm:tweakcc` is npm-family (below),
  `usage`,
  `typst`,
+ `pandoc` (aliases `pandoc-lua` and `pandoc-server` link the one inode),
  `glow`,
  `lsd`,
  `kopia`,
@@ -175,7 +176,7 @@ Family mapping (routes and precedents from the repository lock):
  building the `slint-lsp` package
  (probe-verified against the Mise install's `bin/` listing).
 - `mpm-pnpm`:
- the 24 `npm:` entries
+ the 17 `npm:` entries
  (`npm:@opencode/cli`'s `allow_builds` becomes a pnpm build-script
  allowance,
  probe-verified before cutover).

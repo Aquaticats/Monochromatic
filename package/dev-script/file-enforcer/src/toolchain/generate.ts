@@ -23,9 +23,13 @@ import {
   renderMpmManagersToml,
   renderMpmPackagesToml,
 } from './mpm-manifest.ts';
-import { resolveToolchainPaths,   isMainModule,
+import {
+  globalToolchainPaths,
+  resolveToolchainPaths,
+  isMainModule,
 } from './paths.ts';
 import { ALL_TOOLS, } from './plan.ts';
+import { loadPlanFromDir, } from './plan.load.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Render
@@ -146,15 +150,30 @@ export function writeArtifacts(
 /**
  Entry point: regenerates the root artifacts.
  
+ `--global` regenerates the machine-global scope's records
+ (`doc/planning/mpm-global-toolchain-migration.md`).
+ 
  @returns Promise resolved after the files are written
  */
 export async function main(): Promise<void> {
   /**
+   Whether this run targets the machine-global scope.
+   */
+  const global = process.argv.includes('--global',);
+  /**
+   Resolved scope paths.
+   */
+  const paths = global
+    ? globalToolchainPaths({ env: process.env, },)
+    : resolveToolchainPaths();
+  /**
    Generation report for this run.
    */
   const report = writeArtifacts({
-    tools: ALL_TOOLS,
-    paths: resolveToolchainPaths(),
+    tools: global
+      ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
+      : ALL_TOOLS,
+    paths,
   },);
   for (const name of report.written)
     process.stdout.write(`wrote ${name}\n`,);

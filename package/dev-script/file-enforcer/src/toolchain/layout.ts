@@ -239,6 +239,14 @@ export function binSearchDirs(
           : join(home, '.local', 'bin',),
         ...(extraDirs ?? []),
       ];
+    case 'cargo-git':
+    case 'go-install':
+      // Scoped installs: `cargo install --root <installDir>` and
+      // `GOBIN=<installDir>/bin` both land binaries under the tool's own
+      // install directory (`binSearchDirs` callers walk its `bin/` level).
+      return [
+        installDir,
+      ];
     case 'rustup-toolchain':
       return [
         join(

@@ -460,6 +460,18 @@ run = "node package/dev-script/file-enforcer/src/toolchain/status.ts"
 description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing"
 run = "node package/dev-script/file-enforcer/src/toolchain/update.ts"
 
+[tasks."toolchain:sync:global"]
+description = "Converge the machine-global tools to the versions its toolchain.lock.json records (doc/planning/mpm-global-toolchain-migration.md)"
+run = "node package/dev-script/file-enforcer/src/toolchain/sync.ts --global"
+
+[tasks."toolchain:status:global"]
+description = "Print observed versus locked versions of the machine-global tools and exit non-zero on drift"
+run = "node package/dev-script/file-enforcer/src/toolchain/status.ts --global"
+
+[tasks."toolchain:update:global"]
+description = "Re-resolve the machine-global tools into their toolchain.lock.json; --check reports without writing"
+run = "node package/dev-script/file-enforcer/src/toolchain/update.ts --global"
+
 #endregion Utility Tasks
 
 #region Build Tasks

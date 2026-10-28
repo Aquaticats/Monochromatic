@@ -16,9 +16,11 @@ import {
   binCliPath,
   parseBinList,
   parseCargoBinstallList,
+  planTool,
   toolchainPathEnv,
 } from './providers.ts';
 import {
+  globalToolchainPaths,
   homeDirFromEnv,
   resolveToolchainPaths,
   toolchainRootFromEnv,
@@ -29,8 +31,8 @@ import {
 import { toolInstallDir, } from './paths.ts';
 import {
   ALL_TOOLS,
-  toolById,
 } from './plan.ts';
+import { loadPlanFromDir, } from './plan.load.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Version comparison
@@ -108,10 +110,13 @@ export async function observeTool(
     entry,
     paths,
     env,
+    tools,
   }: {
     readonly entry: ToolPlanEntry;
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
+    /** Plan of the scope being observed; absent means the repository plan. */
+    readonly tools?: readonly ToolPlanEntry[] | undefined;
   },
 ): Promise<string | null> {
   /**
@@ -121,17 +126,19 @@ export async function observeTool(
   switch (entry.route) {
     case 'bin-sourced': {
       /**
-       `bin list` output.
+       `bin list` output from the scope's own install database.
        */
       const listed = await run({
         command: binCliPath({
           paths,
           env,
+          tools,
         },),
         args: ['list'],
         env: {
           ...process.env,
           HOME: home,
+          BIN_CONFIG: paths.binConfigFile,
         },
       },);
       /**
@@ -173,7 +180,10 @@ export async function observeTool(
        Toolchain `pnpm` that owns the global package list.
        */
       const pnpmBin = findToolBin({
-        entry: toolById('pnpm',),
+        entry: planTool({
+          tools,
+          id: 'pnpm',
+        },),
         name: 'pnpm',
         paths,
         env,
@@ -225,7 +235,10 @@ export async function observeTool(
        Toolchain `uv` that owns the tool list.
        */
       const uvBin = findToolBin({
-        entry: toolById('uv',),
+        entry: planTool({
+          tools,
+          id: 'uv',
+        },),
         name: 'uv',
         paths,
         env,
@@ -286,10 +299,15 @@ export async function observeTool(
         : null;
     }
     case 'archive':
+    case 'cargo-git':
+    case 'go-install':
     case 'rustup-components': {
       /**
        Version directories present for this tool.
        */
+      // The scoped install routes (`cargo-git`, `go-install`) observe the
+      // same way: the pinned ref or module version keys the install
+      // directory, so presence at that key is the locked version.
       const toolRoot = join(
         paths.toolchainRoot,
         entry.id.replaceAll(
@@ -331,10 +349,13 @@ export async function observeTool(
 export async function observeTools(
   {
     entries = ALL_TOOLS,
+    tools = entries,
     paths,
     env,
   }: {
     readonly entries?: readonly ToolPlanEntry[];
+    /** Plan sibling lookups resolve against; defaults to `entries`. */
+    readonly tools?: readonly ToolPlanEntry[] | undefined;
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
   },
@@ -351,6 +372,7 @@ export async function observeTools(
       entry,
       paths,
       env,
+      tools,
     },);
     observations.push({
       id: entry.id,
@@ -373,14 +395,30 @@ export async function observeTools(
 /**
  Entry point: prints the drift report on stdout.
  
+ `--global` observes the machine-global scope
+ (`doc/planning/mpm-global-toolchain-migration.md`).
+ 
  @returns Promise resolved after the report is written
  */
 export async function main(): Promise<void> {
   /**
+   Whether this run targets the machine-global scope.
+   */
+  const global = process.argv.includes('--global',);
+  /**
+   Resolved scope paths.
+   */
+  const paths = global
+    ? globalToolchainPaths({ env: process.env, },)
+    : resolveToolchainPaths();
+  /**
    Observed state of every plan entry.
    */
   const observations = await observeTools({
-    paths: resolveToolchainPaths(),
+    entries: global
+      ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
+      : ALL_TOOLS,
+    paths,
     env: process.env,
   },);
   /**

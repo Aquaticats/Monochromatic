@@ -241,22 +241,31 @@ await describe({
       name: 'seedBinConfig',
       children: [
         it({
-          name: 'converges default_path at the location bin resolves',
+          name: 'converges default_path in the scope config',
           fn: async () => {
             /**
-             Disposable home for the fixture.
+             Disposable directory for the scope config.
              */
             const home = mkdtempSync(join(
               tmpdir(),
               'toolchain-bin-config-',
             ),);
             /**
+             Scope-local configuration path.
+             */
+            const configPath = join(
+              home,
+              'bin.config.json',
+            );
+            /**
              Config path seeded by the first call.
              */
             const seeded = seedBinConfig({
-              env: { HOME: home, },
               downloadDir: '/fixture/toolchain/bin',
+              configPath,
             },);
+            expect(seeded,)
+              .toBe(configPath,);
             expect(existsSync(seeded,),)
               .toBe(true,);
             expect(
@@ -271,18 +280,10 @@ await describe({
               },);
             // A second run with the same toolchain bin dir is idempotent.
             expect(seedBinConfig({
-              env: { HOME: home, },
               downloadDir: '/fixture/toolchain/bin',
+              configPath,
             },),)
               .toBe(seeded,);
-            expect(
-              (JSON.parse(readFileSync(
-                seeded,
-                'utf8',
-              ),) as { default_path: string; })
-                .default_path,
-            )
-              .toBe('/fixture/toolchain/bin',);
             // A stale default_path converges back to the toolchain bin dir.
             writeFileSync(
               seeded,
@@ -293,8 +294,8 @@ await describe({
               'utf8',
             );
             seedBinConfig({
-              env: { HOME: home, },
               downloadDir: '/fixture/toolchain/bin',
+              configPath,
             },);
             expect(
               (JSON.parse(readFileSync(
@@ -307,31 +308,51 @@ await describe({
           },
         },),
         it({
-          name: 'honors BIN_CONFIG when it already exists',
+          name: 'keeps recorded installs while converging default_path',
           fn: async () => {
             /**
-             Disposable home and explicit config path.
+             Disposable directory and explicit config path.
              */
             const home = mkdtempSync(join(
               tmpdir(),
               'toolchain-bin-config-',
             ),);
             /**
-             Explicit BIN_CONFIG target.
+             Explicit scope config with one recorded install.
              */
             const explicit = join(
               home,
               'explicit.json',
             );
-            writeFileSync(explicit, '{}\n', 'utf8',);
+            writeFileSync(
+              explicit,
+              `${
+                JSON.stringify({
+                  default_path: '/stale',
+                  bins: {
+                    '/fixture/toolchain/bin/tool': { version: 'v1', },
+                  },
+                },)
+              }\n`,
+              'utf8',
+            );
             expect(seedBinConfig({
-              env: {
-                HOME: home,
-                BIN_CONFIG: explicit,
-              },
               downloadDir: '/fixture/toolchain/bin',
+              configPath: explicit,
             },),)
               .toBe(explicit,);
+            expect(
+              (JSON.parse(readFileSync(
+                explicit,
+                'utf8',
+              ),) as { bins: Record<string, unknown>; default_path: string; }),
+            )
+              .toEqual({
+                default_path: '/fixture/toolchain/bin',
+                bins: {
+                  '/fixture/toolchain/bin/tool': { version: 'v1', },
+                },
+              },);
           },
         },),
       ],

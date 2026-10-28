@@ -21,19 +21,26 @@ export type ToolRequest =
 
 /**
  Install route for one tool
- (doc/planning/mpm-toolchain-migration.md, section `Routing (user-confirmed 2026-10-26)`).
+ (doc/planning/mpm-toolchain-migration.md, section `Routing (user-confirmed 2026-10-26)`;
+ the `cargo-git` and `go-install` routes come from
+ `doc/planning/mpm-global-toolchain-migration.md`).
 
  `bin-sourced` tools install with the `bin` CLI at the repository boundary;
  `archive` is the fallback for sources and payloads `bin` cannot fetch in one
  call. `rustup-toolchain` and `rustup-components` are also the step routes the
  sync algorithm runs for the Rust toolchain and its component/target phase.
+ `cargo-git` installs one package from a git source at a pinned revision, and
+ `go-install` builds one Go module at its locked version into a scoped
+ `GOBIN`.
  */
 export type ToolRoute =
   | 'bin-sourced'
   | 'archive'
   | 'cargo-binstall'
+  | 'cargo-git'
   | 'mpm-pnpm'
   | 'mpm-uvx'
+  | 'go-install'
   | 'rustup-toolchain'
   | 'rustup-components'
   | 'android-sdk';
@@ -45,8 +52,10 @@ export const TOOL_ROUTES: readonly ToolRoute[] = [
   'bin-sourced',
   'archive',
   'cargo-binstall',
+  'cargo-git',
   'mpm-pnpm',
   'mpm-uvx',
+  'go-install',
   'rustup-toolchain',
   'rustup-components',
   'android-sdk',
@@ -66,8 +75,11 @@ export type PostinstallLink = {
   readonly link: {
     readonly sourceBin: string;
     readonly linkName: string;
-    /** Worktree-relative directory holding the link. */
-    readonly linkDir: string;
+    /**
+     * Worktree-relative or absolute directory holding the link; absent means
+     * the scope's own link directory (`paths.cliGitBinDir`).
+     */
+    readonly linkDir?: string;
   };
 };
 
@@ -82,6 +94,25 @@ export type ToolOptions = {
   readonly rustTargets?: readonly string[];
   /** `cargo binstall --features` values (source-build fallback only). */
   readonly cargoFeatures?: readonly string[];
+  /**
+   * Git source of a `cargo-git` tool (`cargo install --git <url>`), with the
+   * pinned revision riding in `request.pinned` as `ref:<rev>` and the package
+   * name in `packageId`.
+   */
+  readonly cargoGit?: {
+    readonly url: string;
+  };
+  /**
+   * Release-asset glob the GitHub resolver matches when it records artifact
+   * rows (`asset_pattern` / `matching` in the retired Mise config), for
+   * releases whose asset names carry no platform marker.
+   */
+  readonly assetPattern?: string;
+  /**
+   * Packages whose install scripts the `mpm-pnpm` provider allows
+   * (`allow_builds` in the retired Mise config).
+   */
+  readonly allowBuilds?: readonly string[];
   /** `sdkmanager` component pins installed after cmdline-tools. */
   readonly androidPackages?: readonly string[];
   /** Postinstall atomic link step. */

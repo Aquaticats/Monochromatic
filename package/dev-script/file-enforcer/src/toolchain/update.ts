@@ -25,10 +25,13 @@ import {
 } from './plan.ts';
 import { resolveGithubToken, } from './providers.ts';
 import {
+  globalToolchainPaths,
   isMainModule,
   resolveToolchainPaths,
+  type ToolchainPaths,
 } from './paths.ts';
 import type { ToolArtifacts, } from './plan.artifacts.ts';
+import { loadPlanFromDir, } from './plan.load.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import {
   patchPlanVersions,
@@ -39,6 +42,8 @@ import {
   resolveCargo,
   resolveConda,
   resolveGithubFamily,
+  resolveGoModule,
+  resolveGoRuntime,
   resolveJava,
   resolveNode,
   resolveNpm,
@@ -86,6 +91,12 @@ async function resolveEntry(
       entry,
       fetcher,
     },);
+  if (entry.id === 'go') {
+    return resolveGoRuntime({
+      entry,
+      fetcher,
+    },);
+  }
   if (entry.id === 'zig') {
     /**
      Newest stable zig, reported against the pin only.
@@ -108,6 +119,14 @@ async function resolveEntry(
       fetcher,
     },);
   }
+  if (entry.route === 'cargo-git') {
+    // A pinned git ref has no upstream resolution to chase; the pin moves
+    // only through a plan edit.
+    return {
+      version: entry.version,
+      artifacts: {},
+    };
+  }
   if (entry.route === 'mpm-pnpm') {
     return resolveNpm({
       entry,
@@ -120,8 +139,17 @@ async function resolveEntry(
       fetcher,
     },);
   }
+  if (entry.route === 'go-install') {
+    return resolveGoModule({
+      entry,
+      fetcher,
+    },);
+  }
   if (entry.route === 'rustup-toolchain') {
-    return resolveRust({ fetcher, },);
+    return resolveRust({
+      entry,
+      fetcher,
+    },);
   }
   if (entry.route === 'android-sdk') {
     return resolveAndroid({
@@ -441,7 +469,8 @@ export function applyResolutions(
 /**
  Writes the plan sources and the generated root artifacts.
  
- @param options - Updated entries, outcomes and the original plan text
+ @param options - Updated entries, outcomes, and optionally the plan source
+ directory and scope paths (the machine-global scope writes its own stack)
  
  @returns File names that changed on disk
  */
@@ -449,16 +478,16 @@ export function writeResolutions(
   {
     tools,
     outcomes,
+    planDir = new URL('.', import.meta.url,)
+      .pathname,
+    paths = resolveToolchainPaths(),
   }: {
     readonly tools: readonly ToolPlanEntry[];
     readonly outcomes: readonly UpdateOutcome[];
+    readonly planDir?: string | undefined;
+    readonly paths?: ToolchainPaths | undefined;
   },
 ): readonly string[] {
-  /**
-   Paths of the plan source files beside this module.
-   */
-  const planDir = new URL('.', import.meta.url,)
-    .pathname;
   /**
    New artifact map keyed by tool id (pins keep their recorded rows).
    */
@@ -522,7 +551,7 @@ export function writeResolutions(
    */
   for (const name of writeArtifacts({
     tools,
-    paths: resolveToolchainPaths(),
+    paths,
   },)
     .written)
     written.push(name,);
@@ -543,6 +572,22 @@ export async function main(): Promise<void> {
    Dry-run flag: report only, never write.
    */
   const check = process.argv.includes('--check',);
+  /**
+   Whether this run targets the machine-global scope.
+   */
+  const global = process.argv.includes('--global',);
+  /**
+   Resolved scope paths.
+   */
+  const paths = global
+    ? globalToolchainPaths({ env: process.env, },)
+    : resolveToolchainPaths();
+  /**
+   Plan entries of the scope being updated.
+   */
+  const tools = global
+    ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
+    : ALL_TOOLS;
   /**
    Token-bound fetcher for the GitHub family.
    */
@@ -583,7 +628,7 @@ export async function main(): Promise<void> {
    Outcomes for every plan entry.
    */
   const outcomes = await resolveAll({
-    tools: ALL_TOOLS,
+    tools,
     fetcher,
   },);
   process.stdout.write(`${
@@ -614,10 +659,16 @@ export async function main(): Promise<void> {
    */
   const written = writeResolutions({
     tools: applyResolutions({
-      tools: ALL_TOOLS,
+      tools,
       outcomes,
     },),
     outcomes,
+    planDir: global
+      ? paths.worktreeRoot
+      : undefined,
+    paths: global
+      ? paths
+      : undefined,
   },);
   process.stdout.write(`toolchain update: wrote ${
     written.join(', ',)

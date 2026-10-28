@@ -10,7 +10,11 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, } from 'node:path';
+import {
+  dirname,
+  isAbsolute,
+  join,
+} from 'node:path';
 import { atomicSymlink, } from './exec.ts';
 import { findToolBin, } from './layout.ts';
 import type { PathEnv, ToolchainPaths, } from './paths.ts';
@@ -215,10 +219,22 @@ export function runPostinstallLinks(
     },);
     if (target === null)
       continue;
+    /**
+     Absolute directory holding the link: an absolute `linkDir` verbatim, a
+     worktree-relative `linkDir` under the worktree root, else the scope's own
+     link directory (`paths.cliGitBinDir`).
+     */
+    const linkDir = postinstall.link.linkDir === undefined
+      ? paths.cliGitBinDir
+      : isAbsolute(postinstall.link.linkDir,)
+        ? postinstall.link.linkDir
+        : join(
+          paths.worktreeRoot,
+          postinstall.link.linkDir,
+        );
     atomicSymlink({
       linkPath: join(
-        paths.worktreeRoot,
-        postinstall.link.linkDir,
+        linkDir,
         postinstall.link.linkName,
       ),
       target,

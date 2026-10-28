@@ -509,37 +509,36 @@ await describe({
           name: 'converges an existing empty config with default_path',
           fn: async () => {
             /**
-             Fixture home with an empty config that shadows every other
-             candidate.
+             Fixture root holding the scope's own config file.
              */
             const fixture = makeFixture();
             /**
-             Shadowing empty configuration path.
+             Scope-local configuration path.
              */
-            const shadow = join(
+            const configPath = join(
               fixture.root,
-              '.bin',
-              'config.json',
+              'toolchain',
+              'bin.config.json',
             );
             mkdirSync(
-              dirname(shadow,),
+              dirname(configPath,),
               { recursive: true },
             );
             writeFileSync(
-              shadow,
+              configPath,
               '',
               'utf8',
             );
             seedBinConfig({
-              env: fixture.env,
               downloadDir: fixture.paths.toolchainBinDir,
+              configPath,
             },);
             /**
              Seeded configuration contents.
              */
             const seeded = JSON.parse(
               readFileSync(
-                shadow,
+                configPath,
                 'utf8',
               ),) as { default_path?: string; };
             expect(seeded.default_path,)

@@ -33,6 +33,7 @@ import { existsSync, } from 'node:fs';
 import { join, } from 'node:path';
 import { ALL_TOOLS, } from './plan.ts';
 import {
+  EXPOSURE_DIR_RELATIVE,
   managerNativeBinDirs,
   resolveToolchainPaths,
   type ToolchainPaths,
@@ -122,7 +123,7 @@ export function buildBinPathsOutput(
     );
 
   return {
-    exposureDir: paths.exposureDirRelative,
+    exposureDir: EXPOSURE_DIR_RELATIVE,
     pathDirs,
     bins,
   };

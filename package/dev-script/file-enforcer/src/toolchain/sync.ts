@@ -23,6 +23,7 @@ import {
   writeToolEnvFile,
 } from './exposure.ts';
 import {
+  globalToolchainPaths,
   homeDirFromEnv,
   resolveToolchainPaths,
   type PathEnv,
@@ -30,12 +31,15 @@ import {
   isMainModule,
 } from './paths.ts';
 import { ALL_TOOLS, } from './plan.ts';
+import { loadPlanFromDir, } from './plan.load.ts';
 import {
   artifactForHost,
   installAndroidSdk,
   installArchive,
   installBinSourced,
   installCargoBinstall,
+  installCargoGit,
+  installGoInstall,
   installMpmPnpm,
   installMpmUvx,
   installRustComponents,
@@ -52,13 +56,17 @@ import type { ToolPlanEntry, } from './types.ts';
 
 /**
  Tool ids staged before the plan-order remainder, in staging order.
+ `rustup` precedes `rust` and `go` precedes any `go-install` tool, which the
+ global-scope plan (`doc/planning/mpm-global-toolchain-migration.md`) needs.
  */
 const STAGING_IDS: readonly string[] = [
   'bin',
   'uv',
   'mpm',
+  'rustup',
   'rust',
   'cargo-binstall',
+  'go',
   'node',
   'pnpm',
 ] as const;
@@ -146,15 +154,17 @@ export type SyncReport = {
 /**
  Runs the full sync algorithm against one worktree.
  
- @param options - Paths and environment overrides
+ @param options - Plan entries, paths and environment overrides
  
  @returns The sync report
  */
 export async function syncToolchain(
   {
+    tools = ALL_TOOLS,
     paths,
     env,
   }: {
+    readonly tools?: readonly ToolPlanEntry[] | undefined;
     readonly paths: ToolchainPaths;
     readonly env?: PathEnv | undefined;
   },
@@ -166,7 +176,7 @@ export async function syncToolchain(
   /**
    Plan entries applying to this host, in sync order.
    */
-  const entries = syncOrder({ entries: ALL_TOOLS, },)
+  const entries = syncOrder({ entries: tools, },)
     .filter(appliesToHost,);
   /**
    Already-converged tool ids.
@@ -206,6 +216,7 @@ export async function syncToolchain(
       paths,
       env: e,
       extraDirs: [paths.toolchainBinDir],
+      tools,
     };
     try {
       switch (entry.route) {
@@ -218,11 +229,17 @@ export async function syncToolchain(
         case 'cargo-binstall':
           await installCargoBinstall(context,);
           break;
+        case 'cargo-git':
+          await installCargoGit(context,);
+          break;
         case 'mpm-pnpm':
           await installMpmPnpm(context,);
           break;
         case 'mpm-uvx':
           await installMpmUvx(context,);
+          break;
+        case 'go-install':
+          await installGoInstall(context,);
           break;
         case 'rustup-toolchain':
           await installRustToolchain(context,);
@@ -283,13 +300,28 @@ export async function syncToolchain(
 /**
  Entry point: prints the drift report on stdout.
  
+ `--global` syncs the machine-global scope
+ (`doc/planning/mpm-global-toolchain-migration.md`).
+ 
  @returns Promise resolved after the sync finishes
  */
 export async function main(): Promise<void> {
   /**
-   Resolved worktree and machine paths.
+   Whether this run targets the machine-global scope.
    */
-  const paths = resolveToolchainPaths();
+  const global = process.argv.includes('--global',);
+  /**
+   Resolved scope paths.
+   */
+  const paths = global
+    ? globalToolchainPaths({ env: process.env, },)
+    : resolveToolchainPaths();
+  /**
+   Plan entries of the scope being synced.
+   */
+  const tools = global
+    ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
+    : ALL_TOOLS;
   process.stdout.write(
     `toolchain sync: platform ${
       hostPlatformId()
@@ -303,6 +335,7 @@ export async function main(): Promise<void> {
    Sync report for this run.
    */
   const report = await syncToolchain({
+    tools,
     paths,
     env: process.env,
   },);
