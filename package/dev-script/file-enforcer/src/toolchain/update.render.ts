@@ -128,11 +128,12 @@ export function artifacts(id: string,): ToolArtifacts {
 //region plan.tools.ts
 
 /**
- Rewrites the `version` field of each named entry in `plan.tools.ts`.
+ Rewrites each named entry's resolution in `plan.tools.ts`, carrying the
+ literals that pin it.
  
  @param options - File text and the new versions keyed by tool id
  
- @returns File text with the version fields updated
+ @returns File text with each resolution and its pin literals updated
  
  @throws Error when an entry's version field cannot be found
  */
@@ -146,13 +147,13 @@ export function patchPlanVersions(
   },
 ): string {
   /**
-   Text with each entry's version replaced.
+   Text with each entry's resolution and pins replaced.
    */
   let patched = source;
   for (const [id, version,] of versions) {
     /**
-     Pattern locating the entry's version field (the field order is
-     `id`, `request`, `version`).
+     Pattern spanning one entry's object literal: its id field through the
+     closing brace at entry depth (nested blocks close deeper indented).
      */
     const pattern = new RegExp(
       `(id: '${
@@ -160,17 +161,44 @@ export function patchPlanVersions(
           /[.*+?^${}()|[\]\\]/gu,
           '\\\\$&',
         )
-      }',[\\s\\S]*?version: ')[^']*(')`,
+      }',[\\s\\S]*?\\n  \\},)`,
       'u',
     );
     /**
-     Replacement carrying the new version.
+     Entry text carrying the resolution.
      */
     const match = patched.match(pattern,);
     if (match === null) {
+      throw new Error(`no entry found for plan entry ${id}`,);
+    }
+    /**
+     Resolved version the entry pins before this update.
+     */
+    const versionMatch = match[0].match(/version: '([^']*)'/u,);
+    if (versionMatch === null) {
       throw new Error(`no version field found for plan entry ${id}`,);
     }
-    patched = patched.replace(pattern, `$1${version}$2`,);
+    const oldVersion = versionMatch[1];
+    if (oldVersion === undefined || oldVersion === '') {
+      throw new Error(`no version field found for plan entry ${id}`,);
+    }
+    /**
+     Entry text with the string literals ending in the old version moved to
+     the new one: `version`, `packageId`, and env values like `java/<version>`.
+     Comment lines keep their prose, so a comment citing the superseded
+     version stays a historical note.
+     */
+    const moved = match[0]
+      .split('\n',)
+      .map((line,) => line.trimStart().startsWith('//',)
+        ? line
+        : line.replaceAll(`${
+          oldVersion
+        }'`, `${
+          version
+        }'`,),)
+      .join('\n',);
+    patched = patched.replace(pattern, () => moved,);
   }
   return patched;
 }

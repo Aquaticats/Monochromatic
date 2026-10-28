@@ -347,6 +347,52 @@ export function formatReport(
 //region Apply
 
 /**
+ Moves one entry to a new resolution, carrying the fields that pin the old
+ version string.
+ 
+ @param options - Entry to move, new resolution and matching artifact rows
+ 
+ @returns Entry whose version-carrying fields name the new version
+ 
+ @remarks
+ The rustup package id is the dated toolchain name the adapter installs,
+ and env values (`RUSTUP_TOOLCHAIN`, `java/<version>`) embed the same string.
+ A resolution moving only `version` leaves sync installing one toolchain
+ while `toolchain:status` and the task environment look for another.
+ */
+function moveVersionPins(
+  {
+    entry,
+    newVersion,
+    artifacts,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly newVersion: string;
+    readonly artifacts: ToolArtifacts;
+  },
+): ToolPlanEntry {
+  /**
+   Version string the entry pinned before this resolution.
+   */
+  const oldVersion = entry.version;
+  /**
+   Env map rebuilt so values pinning the old version move with it.
+   */
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(entry.env,))
+    env[key] = value.replaceAll(oldVersion, newVersion,);
+  return {
+    ...entry,
+    version: newVersion,
+    packageId: entry.packageId === oldVersion
+      ? newVersion
+      : entry.packageId,
+    env,
+    artifacts,
+  };
+}
+
+/**
  Builds the plan entries carrying the re-resolved versions and rows.
  
  @param options - Original entries and the update outcomes
@@ -382,11 +428,11 @@ export function applyResolutions(
       if (outcome === undefined)
         throw new Error(`no update outcome recorded for ${entry.id}`,);
       return outcome.kind === 'updated'
-        ? {
-          ...entry,
-          version: outcome.newVersion,
+        ? moveVersionPins({
+          entry,
+          newVersion: outcome.newVersion,
           artifacts: outcome.artifacts,
-        }
+        },)
         : entry;
     },
   );

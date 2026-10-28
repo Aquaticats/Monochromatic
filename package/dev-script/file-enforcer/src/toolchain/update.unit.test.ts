@@ -808,6 +808,62 @@ await describe({
               .toBe('https://example/moved.tar.gz',);
           },
         },),
+
+        it({
+          name: 'carries packageId and env pins along with a moved resolution',
+          fn: async () => {
+            /**
+             Entry whose package id and env pin the dated toolchain name.
+             */
+            const rustLike = fixtureEntry({
+              id: 'rust-like',
+              request: { channel: 'nightly' },
+              version: 'nightly-2026-10-21',
+              packageId: 'nightly-2026-10-21',
+              env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-21' },
+            },);
+            /**
+             Entry whose env embeds the resolved version in a root-relative path.
+             */
+            const javaLike = fixtureEntry({
+              id: 'java-like',
+              version: 'temurin-21.0.12+8.0.LTS',
+              env: { JAVA_HOME: 'java/temurin-21.0.12+8.0.LTS' },
+            },);
+            /**
+             Entries after applying fixture outcomes.
+             */
+            const applied = applyResolutions({
+              tools: [rustLike, javaLike],
+              outcomes: [
+                {
+                  id: 'rust-like',
+                  kind: 'updated',
+                  oldVersion: 'nightly-2026-10-21',
+                  newVersion: 'nightly-2026-10-28',
+                  artifacts: {},
+                },
+                {
+                  id: 'java-like',
+                  kind: 'updated',
+                  oldVersion: 'temurin-21.0.12+8.0.LTS',
+                  newVersion: 'temurin-21.0.13+9.0.LTS',
+                  artifacts: {},
+                },
+              ],
+            },);
+            expect(applied[0]?.version,)
+              .toBe('nightly-2026-10-28',);
+            expect(applied[0]?.packageId,)
+              .toBe('nightly-2026-10-28',);
+            expect(applied[0]?.env.RUSTUP_TOOLCHAIN,)
+              .toBe('nightly-2026-10-28',);
+            expect(applied[1]?.env.JAVA_HOME,)
+              .toBe('java/temurin-21.0.13+9.0.LTS',);
+            expect(applied[1]?.packageId,)
+              .toBe(null,);
+          },
+        },),
       ],
     },),
 
@@ -906,6 +962,38 @@ await describe({
               .toContain("version: '2.1.0',",);
             expect(patched.includes("version: '2.0.0',",),)
               .toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'carries pin literals with the version and leaves comment prose',
+          fn: async () => {
+            /**
+             Patched plan text for an entry whose package id and env pin the
+             resolved version string, beside a comment citing it.
+             */
+            const patched = patchPlanVersions({
+              source: [
+                '  {',
+                "    id: 'demo',",
+                "    // resolved to '1.0.0' from the channel manifest",
+                "    version: '1.0.0',",
+                "    packageId: '1.0.0',",
+                "    env: { TOOLCHAIN_HOME: 'toolchains/1.0.0' },",
+                '  },',
+              ].join('\n',),
+              versions: new Map([
+                ['demo', '2.0.0',],
+              ],),
+            },);
+            expect(patched,)
+              .toContain("version: '2.0.0',",);
+            expect(patched,)
+              .toContain("packageId: '2.0.0',",);
+            expect(patched,)
+              .toContain("env: { TOOLCHAIN_HOME: 'toolchains/2.0.0' },",);
+            expect(patched,)
+              .toContain("// resolved to '1.0.0' from the channel manifest",);
           },
         },),
       ],
