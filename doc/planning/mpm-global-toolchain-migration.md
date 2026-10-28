@@ -129,7 +129,6 @@ Family mapping (routes and precedents from the repository lock):
  `gh`,
  `git-lfs`,
  `tree-sitter`,
- `tokei`,
  `npm:tweakcc` is npm-family (below),
  `usage`,
  `typst`,
@@ -149,10 +148,7 @@ Family mapping (routes and precedents from the repository lock):
  `bun`,
  `github:openinterpreter/openinterpreter`
  (`matching` is resolver-side asset selection;
- three binaries in one asset),
- `rustup`
- (the rustup-init asset renamed `rustup`,
- which is what `aqua:rust-lang/rustup` shipped).
+ three binaries in one asset).
 - `archive`:
  `node`,
  `go`,
@@ -160,6 +156,12 @@ Family mapping (routes and precedents from the repository lock):
  `age`,
  `neovim` (runtime tree),
  `aws` (`symlink_bins` becomes `bins: ['aws', 'aws_completer']`),
+ `rustup`
+ (rust-lang/rustup publishes no GitHub release assets,
+ probed 2026-10-28;
+ the versioned channel archive on `static.rust-lang.org` is the real source
+ and the `bin` CLI cannot fetch it,
+ so the install copies `rustup-init` as `rustup`),
  `github:lemonade-sdk/llamacpp-rocm`
  (`asset_pattern` is resolver-side asset selection).
 - `cargo-binstall`:
@@ -168,6 +170,10 @@ Family mapping (routes and precedents from the repository lock):
  `cargo:llmfit`,
  `cargo:procs`,
  `cargo:cargo-bloat`,
+ `tokei`
+ (its GitHub releases publish no assets since `v13.0.0-alpha.1`,
+ probed 2026-10-28,
+ and the retired Mise backend installed it from crates.io),
  `cargo:monochromatic-git-policy-cli`
  (postinstall link `git` into `$HOME/.local/bin`).
 - `cargo-git` (new route):

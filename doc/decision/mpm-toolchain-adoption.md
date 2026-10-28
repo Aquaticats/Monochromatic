@@ -251,6 +251,34 @@ The sync entry point is `toolchain:sync`
  `README.md`,
  and the `doc/planning/mise-removal-coverage.md` ownership rows.
 
+## Machine-global scope (2026-10-28)
+
+The maintainer extended this decision to the machine-global toolchain
+ (the `[tools]` slice of `~/.config/mise/config.toml`,
+ 58 declarations):
+ "Migrate my global toolchain management off mise to mpm.run too".
+ The ownership split,
+ version policy,
+ and cutover semantics are unchanged;
+ only the file locations differ
+ (`doc/planning/mpm-global-toolchain-migration.md` carries the shapes):
+
+- The typed plan,
+ `toolchain.lock.json`,
+ and the mpm manifests live machine-locally in
+ `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/`,
+ so no personal inventory is committed here.
+ The repository still owns the tooling:
+ providers,
+ resolvers,
+ and the `toolchain:*:global` entry points.
+- Payloads install under
+ `${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain-global`,
+ exposed through one farm directory on `PATH`
+ (a `_.path` entry in the global Mise config).
+- Old Mise installs stay as the rollback,
+ pruned in a later decision.
+
 ## Exit and rollback
 
 - Every step lands as its own commit series,
