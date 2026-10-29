@@ -11,8 +11,12 @@ Owner follow-ups the same day:
 
 ## In flight (2026-10-29)
 
-- `terminal/app` and `ide/app` are held until the dev/release split lands;
-   monochromatic-ec dry-runs the IDE release on that commit before any real release, so send them the hash.
+- `terminal/app` and `ide/app` split into CachyOS dev images and Ubuntu 24.04 release images:
+   monochromatic-ec's IDE release dry run 40887621364 passed (detect, build arm64, build x64, checksums, release),
+   newest glibc symbol 2.39 on both legs like baseline 40877021793.
+  It needed `cb03f20350` (monochromatic-ec): the arm64 executable now names `ld-linux-aarch64.so.1`,
+   added to the arm64 shared-library allow list in `ide-release.yml`.
+  The compositor release in `cargo-publish.yml` builds on ubuntu-24.04 runners, so the CachyOS image does not touch it.
 - monochromatic-71 wants the `search-shadow/cli` `test:container` result line.
 
 - Subagent: tool and test Containerfiles
