@@ -137,8 +137,10 @@ and the case in `source-shipped-page.unit.test.ts` read an empty page where it e
 Status:
 measured on 2026-10-29 (UTC) in `tr-w374`,
 test `d9fb8cb850`.
-Not fixed.
-The finding is open for the lead.
+Not fixed:
+a stated limit,
+because no real run has shown it
+(the count over real runs closes this entry).
 
 Round w373 saw that a non-empty archive that does not align with two original sections
 (one heading,
@@ -164,10 +166,47 @@ for an original of two heading sections against each of the two archives:
 So the count is 0 only when the roster pairs nothing,
 and the case that matters is the one where the roster pairs a single section:
 a section refused as not anchored is left off the page.
-Whether `beyond-shortfall` is right for it,
-and whether an unanchored section should ship its original under a note when the page is short of it,
-is the owner's to decide;
-this round changes nothing for it.
+
+The count over real runs was taken on 2026-10-29 (UTC),
+read-only,
+over every stored artifact and corpus-pass log under the agent's temp directory
+and the pooled runs directories.
+289 artifacts carry `preparation.alignmentFindings`:
+24 from corpus passes over 4 entries,
+265 from scratch and validation runs over 42 entries.
+`not anchored (` appears in none of them and in no run log.
+The only real roster that paired part of an original is entry XingZ60's,
+13 of 15 sections,
+in 21 artifacts,
+5 of them corpus passes:
+XingZ6015,
+XingZ6017,
+XingZ6020,
+XingZ6021
+and XingZ6022.
+Its two unpaired sections,
+13 and 14,
+read `source-only (roster-unpaired); anchored for insertion at offset 33184` every time,
+so they reached the page.
+No roster paired zero sections.
+The search was proven able to find the refusal:
+the same text matches 32 times in this round's own measurement log
+and in several mutation logs.
+What the count cannot see:
+runs before commit `1fb20af076` (2026-10-23) never logged alignment findings,
+so their artifacts are the only record,
+and runs before 2026-08-18 keep no `preparation` field at all.
+
+The owner's rule of 2026-10-25 lands a round on real impact
+and makes a gap that only invented inputs show into a stated limit and a separate later item.
+This is such a gap,
+so nothing changes for it:
+a section the roster leaves unpaired that cannot be anchored is left off the page,
+and the alignment finding names it.
+Whether `beyond-shortfall` is the right refusal,
+and whether such a section should ship its original under a note,
+is the later item,
+to be taken up if a real run ever shows the refusal.
 
 ## Ids used
 
