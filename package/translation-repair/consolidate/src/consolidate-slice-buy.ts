@@ -5,6 +5,10 @@ import type { ModelClient, } from '@monochromatic-dev/translation-repair-provide
 import type { ConsolidationPolishConfig, } from './consolidation-polish.ts';
 import { produceConsolidations, } from './consolidate-produce.ts';
 import {
+  translateWinnerOf,
+  unseatedFinalRound,
+} from './consolidate-ineligible-standing.ts';
+import {
   type ConsolidationSettlement,
   type ConsolidationSubject,
   settleConsolidation,
@@ -66,6 +70,12 @@ type ConsolidationBuyInput = {
    eligible standing.
    */
   readonly slateReachable?: number;
+  /**
+   Ballots that named the translate lane's text in the lane's own round, absent where the caller did not count. With
+   two or more, and fewer slate judges reachable than a winner needs, that text ships over a refused standing and no
+   slate is bought (owner, 2026-10-29, "Ship the two-ballot text").
+   */
+  readonly translateWinnerBallots?: number;
   readonly signal: AbortSignal;
   readonly perCallTimeoutMs: number;
   readonly l: Logger;
@@ -111,6 +121,10 @@ type ConsolidationBuyInput = {
  @param slateReachable - slate judges a wet provider would serve, which an
  eligible standing keeps itself on, unasked, when they are fewer than the
  ballots a winner needs (XingZ6020: 54 slices, 164 calls)
+
+ @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round; two or more,
+ beside fewer reachable slate judges than a winner needs, ship that text over a refused standing and buy no slate
+ (XingZ6022: 65 calls and 10.679 Wh at sixteen slices that could not decide)
 
  @param signal - caller abort honored by every exchange
 
@@ -160,6 +174,7 @@ async function buyConsolidationAttempt(
     laneTexts = [],
     runoffOverStanding = false,
     slateReachable,
+    translateWinnerBallots = 0,
     signal,
     perCallTimeoutMs,
     l,
@@ -187,6 +202,8 @@ async function buyConsolidationAttempt(
     ...((standingRefusal === undefined) ? {} : { standingRefusal, }),
     laneTexts,
     runoffOverStanding,
+    translateWinnerBallots,
+    ...((slateReachable === undefined) ? {} : { slateReachable, }),
     signal,
     perCallTimeoutMs,
     l,
@@ -242,12 +259,51 @@ async function buyConsolidationAttempt(
     },);
   }
 
+  // A SLATE BENCH BELOW THE FLOOR BUYS NO SLATE OVER A REFUSED STANDING WHEN THE TRANSLATE LANE HOLDS A TWO-BALLOT TEXT.
+  // Fewer reachable judges than the ballots a winner needs can only name a winner alone, which the selection declines
+  // (owner, 2026-10-25, "one judge alone never decides"), so the writers and the judges would be paid for a slate that
+  // cannot decide. The text two judges chose in the lane and the rule admitted ships instead (owner, 2026-10-29,
+  // "Ship the two-ballot text"; XingZ6022: 65 calls and 10.679 Wh at sixteen slices). A refused standing with no such
+  // text is still asked, since its settlement says whether the final round seated two judges after all. Never cached.
+  /**
+   The translate lane's two-ballot text, where the offer holds it.
+   */
+  const translateWinner = translateWinnerOf({
+    laneTexts,
+    ballots: translateWinnerBallots,
+  },);
+  if ((!standingEligible)
+    && (slateReachable !== undefined)
+    && unseatedFinalRound({ heard: slateReachable, },)
+    && (translateWinner.kind === 'offered')) {
+    /**
+     The translate winner shipped on the incumbent-only exit, before the mark.
+     */
+    const shipped = await settleConsolidation({
+      ...question,
+      voices: [],
+      validity: [],
+      producedFindings: [
+        ...standingFindings,
+        benchBelowFloorStageFinding({
+          stage: 'consolidate-slate',
+          reachable: slateReachable,
+          benchSize: judgeModelIds.length,
+          floor: MIN_SELECTION_BALLOTS,
+        },),
+      ],
+    },);
+    return {
+      ...shipped,
+      benchBelowFloor: true,
+    };
+  }
+
   // A SLATE BENCH BELOW THE FLOOR BUYS NO SLATE FOR AN ELIGIBLE STANDING. Fewer reachable judges than the ballots a
   // winner needs can only name a winner alone, which the selection declines, so the writers and the judges would be
-  // paid for a slate that settles on the standing it started from (XingZ6020: 54 slices, 164 calls). An ineligible
-  // standing is still asked, since its slate may be the only wording that ships. The settlement is marked and never
-  // cached, so a later pass asks the slice again, on whatever bench it then has, only while the entry is unsettled (a
-  // pass selects no entry that carries an artifact or a decline record).
+  // paid for a slate that settles on the standing it started from (XingZ6020: 54 slices, 164 calls). The settlement
+  // is marked and never cached, so a later pass asks the slice again, on whatever bench it then has, only while the
+  // entry is unsettled (a pass selects no entry that carries an artifact or a decline record).
   /**
    Whether the slate bench reads below the floor for a standing that may be kept unasked.
    */
@@ -366,7 +422,10 @@ export function standingKeptUnendorsed(
     readonly standingMayShip: boolean;
   },
 ): boolean {
-  return (!standingMayShip) && (settlement.terminal !== 'consolidated');
+  // A SHIPPED TRANSLATE WINNER KEPT NO STANDING: its text replaced the refused one, so no non-endorsement ships.
+  return (!standingMayShip)
+    && (settlement.terminal !== 'consolidated')
+    && (settlement.translateWinnerShipped !== true);
 }
 
 /**

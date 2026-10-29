@@ -95,6 +95,10 @@ export function consolidationWorthResuming(
   // pass on a healthier bench must ask the slice rather than resume a standing nobody judged.
   if (settlement.benchBelowFloor === true)
     return false;
+  // A SHIPPED TRANSLATE WINNER IS THE HOUR TOO (owner, 2026-10-29): the final round could not seat two judges, and a
+  // copy resumed on a healthier bench would ship the winner without asking the slate that bench could seat.
+  if (settlement.translateWinnerShipped === true)
+    return false;
   /**
    Post-consolidation polish, absent before final candidate.
    */

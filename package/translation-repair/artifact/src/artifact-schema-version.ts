@@ -23,6 +23,7 @@ import {
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
   ARTIFACT_SCHEMA_VERSION_V21,
+  ARTIFACT_SCHEMA_VERSION_V22,
 } from './corpus-run/artifact-two-lane-contract.ts';
 
 //region Artifact schema version
@@ -38,7 +39,7 @@ import {
 /**
  First schema generation there has ever been.
 
- NOT WHAT THE PASS WRITES, which is `ARTIFACT_SCHEMA_VERSION_V21`
+ NOT WHAT THE PASS WRITES, which is `ARTIFACT_SCHEMA_VERSION_V22`
  (`corpus-run/artifact-two-lane-contract.ts`, ledger D2) and has been
  a two-lane generation since `settleEntry` moved to one. This was called
  `SETTLED_ARTIFACT_SCHEMA_VERSION` and documented as the generation the pass
@@ -182,6 +183,7 @@ export const KNOWN_ARTIFACT_SCHEMA_VERSIONS: readonly number[] = [
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
   ARTIFACT_SCHEMA_VERSION_V21,
+  ARTIFACT_SCHEMA_VERSION_V22,
 ];
 
 /**

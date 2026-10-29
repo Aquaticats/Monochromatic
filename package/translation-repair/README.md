@@ -492,8 +492,11 @@ and each check names what it found:
 `destinations`,
 `front-matter` and `headings`
 are the publish-time content checks,
-`no-valid-wording` names slices where no wording passed the deterministic rule,
-so the archive's own wording stayed,
+`no-valid-wording` names the slices where the archive's own wording stayed and says why for each:
+no wording passed the deterministic rule,
+the final round could not seat two judges and no wording two judges chose passed it,
+or the slate seated two or more judges and declined every wording
+(a record written before artifact generation 22 says it records no reason),
 and `page-agreement` names a page that does not carry what its artifact says ships,
 which is a defect in page assembly,
 not in the text.

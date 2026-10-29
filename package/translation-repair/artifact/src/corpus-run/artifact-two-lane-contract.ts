@@ -275,6 +275,33 @@ export const ARTIFACT_SCHEMA_VERSION_V20 = 20;
 export const ARTIFACT_SCHEMA_VERSION_V21 = 21;
 
 /**
+ Generation twenty-two, the one the pass writes (`artifact-two-lane-build.ts`, `pass-schema-guard.ts`): a consolidation
+ slice says why the archive keeps it, and says when the translate lane's winner ships because the final round could not
+ seat two judges (owner, 2026-10-29, "Ship the two-ballot text (Recommended)", after the XingZ6022 read).
+
+ WHAT MOVED FROM TWENTY-ONE, in what a record can say and in the shape of `shipped`. A consolidation slice that kept the
+ archive recorded `{ kind: 'archive' }` whether no wording passed the rule, the final round could not seat two judges
+ and no wording two judges chose existed, or the slate seated two or more judges and declined every wording; the
+ publish defect then said "no wording passed" for all three. Under twenty-two the record carries the key `reason`
+ (`no-wording-passed`, `final-round-unseated` or `slate-declined`) on that shipped kind, and a slice whose final round
+ could not seat two judges and whose translate lane held a text two judges chose, passing the rule, records the new
+ shipped kind `translate-winner` with that text.
+
+ WHY A GENERATION AND NOT AN OPTIONAL KEY OF TWENTY-ONE: the reader of `shipped` requires its exact keys
+ (`requireExactKeys`) and a closed set of kinds, so a reader built for twenty-one refuses both, and an absent `reason`
+ means "unknown" under twenty-one and "recorded" under twenty-two. A reader gates both on the generation the file
+ records (`artifactGenerationRecordsTranslateWinner`).
+
+ A BUILD OF THIS GENERATION REFUSES TO RESUME A RUN DIRECTORY STAMPED TWENTY-ONE OR EARLIER
+ (`assertResumableSchemaGeneration`, `pass-schema-guard.ts`), and `readSettledArtifact` still reads those files, each
+ under its own generation's rules.
+
+ Everything else the generation twenty-one record holds is this generation's too, so the key vocabulary is
+ twenty-one's. The cache keys of the passes do not read the generation, and nothing the key records goes into one.
+ */
+export const ARTIFACT_SCHEMA_VERSION_V22 = 22;
+
+/**
  Generation nineteen, the one the pass wrote until generation twenty: the recount of the
  `consistency` section reads containment of the judges' quotes and the inline code of a span as the locator reads them (review of
  2026-10-18), which the readers of generation eighteen and earlier do not apply to files written before.
@@ -458,6 +485,7 @@ export const TWO_LANE_GENERATIONS: readonly number[] = [
   ARTIFACT_SCHEMA_VERSION_V19,
   ARTIFACT_SCHEMA_VERSION_V20,
   ARTIFACT_SCHEMA_VERSION_V21,
+  ARTIFACT_SCHEMA_VERSION_V22,
 ];
 
 /**
@@ -488,7 +516,8 @@ export type TwoLaneArtifactGeneration =
     | typeof ARTIFACT_SCHEMA_VERSION_V18
     | typeof ARTIFACT_SCHEMA_VERSION_V19
     | typeof ARTIFACT_SCHEMA_VERSION_V20
-    | typeof ARTIFACT_SCHEMA_VERSION_V21;
+    | typeof ARTIFACT_SCHEMA_VERSION_V21
+    | typeof ARTIFACT_SCHEMA_VERSION_V22;
 
 /**
  Narrows numeric artifact version to known two-lane generation.
@@ -883,6 +912,22 @@ export function artifactGenerationRecordsBenchFloor(
 }
 
 /**
+ Reports whether generation records, on a consolidation slice, why the archive keeps it (the `reason` of the archive
+ shipped kind) and the shipped kind `translate-winner`; an older record refuses both.
+
+ @param generation - known two-lane artifact generation
+
+ @returns Whether the key and the kind belong to the generation's records
+
+ @example ```ts artifactGenerationRecordsTranslateWinner({ generation: 22, }); ```
+ */
+export function artifactGenerationRecordsTranslateWinner(
+  { generation, }: { readonly generation: TwoLaneArtifactGeneration; },
+): boolean {
+  return generation >= ARTIFACT_SCHEMA_VERSION_V22;
+}
+
+/**
  Generation-specific fields exact reader requires.
 
  @param generation - known two-lane artifact generation
@@ -906,6 +951,7 @@ export function artifactGenerationReadingRequirements(
   readonly lastSeatGrace: boolean;
   readonly tenseRecorded: boolean;
   readonly benchFloorRecorded: boolean;
+  readonly translateWinnerRecorded: boolean;
 } {
   return {
     polishRequired: artifactGenerationRequiresPolish({ generation, }),
@@ -916,6 +962,7 @@ export function artifactGenerationReadingRequirements(
     lastSeatGrace: artifactGenerationLetsGraceOpenOnLastSeat({ generation, }),
     tenseRecorded: artifactGenerationRecordsTense({ generation, }),
     benchFloorRecorded: artifactGenerationRecordsBenchFloor({ generation, }),
+    translateWinnerRecorded: artifactGenerationRecordsTranslateWinner({ generation, }),
   };
 }
 
@@ -1198,7 +1245,7 @@ export type SettledArtifact = {
    Which generation this is, stated rather than inferred from which fields
    happen to be present.
    */
-  readonly artifactSchemaVersion: typeof ARTIFACT_SCHEMA_VERSION_V21;
+  readonly artifactSchemaVersion: typeof ARTIFACT_SCHEMA_VERSION_V22;
 
   /**
    Corpus entry this covers.

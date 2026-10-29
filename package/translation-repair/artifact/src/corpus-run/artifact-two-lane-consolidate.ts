@@ -1,4 +1,5 @@
 import type {
+  ArchiveKeptReason,
   ConsolidationPolishGateOutcome,
   ConsolidationSettlement,
   ConsolidationTerminal,
@@ -110,6 +111,26 @@ export type ArtifactConsolidateShipped =
      with the row.
      */
       readonly kind: 'archive';
+
+    /**
+     Why the archive keeps the slice: no wording passed the rule, the final round could not seat two judges and no
+     wording two judges chose passed it, or the slate seated two or more judges and declined every wording. Recorded
+     from artifact generation twenty-two; absent in a record of twenty-one or earlier, which says nothing about why.
+     */
+      readonly reason?: ArchiveKeptReason;
+    }
+    | {
+    /**
+     The final round could not seat two judges over a standing the rule refused, and the translate lane's winner
+     ships because two judges chose it in the lane and it passes the rule (owner, 2026-10-29, "Ship the two-ballot
+     text"). Recorded from artifact generation twenty-two. The page carries this text, like a consolidation's.
+     */
+      readonly kind: 'translate-winner';
+
+    /**
+     Wording to write, exactly as the translate lane would ship it.
+     */
+      readonly text: string;
     }
     | {
     /**
@@ -552,8 +573,18 @@ function shippedBy(
       kind: 'consolidated',
       text: settlement.text,
     };
-  if (settlement.archiveKept === true)
-    return { kind: 'archive', };
+  if (settlement.translateWinnerShipped === true) {
+    return {
+      kind: 'translate-winner',
+      text: settlement.text,
+    };
+  }
+  if (settlement.archiveKept === true) {
+    return {
+      kind: 'archive',
+      ...((settlement.archiveReason === undefined) ? {} : { reason: settlement.archiveReason, }),
+    };
+  }
   if (incumbentStandsIn)
     return {
       kind: 'incumbent',

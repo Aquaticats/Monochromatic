@@ -83,6 +83,38 @@ await describe({
       },
     },),
     it({
+      name: 'SAYS WHAT THE PATCH LOST ON where the archive won it, so a chunk that served accepted issues all '
+        + 'resolved and still closed unchanged explains itself in the log',
+      fn: async () => {
+        /**
+         Slice and counts of a patch the archive beat.
+         */
+        const lost = {
+          sliceIndex: SLICE_INDEX,
+          changed: false,
+          patchSelected: false,
+          refused: false,
+          ...COUNTS,
+        } as const;
+        expect({
+          integrity: describeChunkSettlement({
+            ...lost,
+            patchLostOn: 'integrity',
+          },),
+          regression: describeChunkSettlement({
+            ...lost,
+            patchLostOn: 'regression',
+          },),
+        },).toEqual({
+          integrity: 'chunk 7: unchanged, the archive won (the patch lost on integrity: the chunk\'s grammar or '
+            + 'footnote findings rose above the archive\'s), 1/2 served accepted issues resolved (3 accepted, 4 '
+            + 'unenveloped)',
+          regression: 'chunk 7: unchanged, the archive won (the patch lost on regressions: it made an accepted issue '
+            + 'worse), 1/2 served accepted issues resolved (3 accepted, 4 unenveloped)',
+        },);
+      },
+    },),
+    it({
       name: 'SAYS THE PATCH WROTE NOTHING where it won and its operations left the archive\'s wording standing',
       fn: async () => {
         expect(describeChunkSettlement({
