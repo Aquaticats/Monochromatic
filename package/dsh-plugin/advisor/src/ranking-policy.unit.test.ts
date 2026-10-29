@@ -165,5 +165,49 @@ await describe({
         expect(decision.ranked[0]?.canonicalSlug,).toBe('p/one',);
       },
     },),
+    it({
+      name: 'keeps losing candidates out of the reason',
+      fn: async () => {
+        const one = scopedModelFixture({
+          slug: 'p/one',
+          name: 'One',
+          contextWindow: 200_000,
+        },);
+        const two = scopedModelFixture({
+          slug: 'p/two',
+          name: 'Two',
+          contextWindow: 32_000,
+        },);
+        const three = scopedModelFixture({
+          slug: 'p/three',
+          name: 'Three',
+          contextWindow: 16_000,
+        },);
+        const decision = dshRankDefaultCandidates({
+          candidates: [
+            candidateFixture(one,),
+            candidateFixture(two,),
+            candidateFixture(three,),
+          ],
+          maxOutputTokens: 8_192,
+        },);
+        expect(decision.reason.includes('p/one',),).toBe(true,);
+        expect(decision.reason.includes('p/two',),).toBe(false,);
+        expect(decision.reason.includes('p/three',),).toBe(false,);
+        expect(decision.reason.includes('32000',),).toBe(false,);
+        expect(decision.reason.includes('16000',),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'states the empty-candidate fallback in the reason',
+      fn: async () => {
+        const decision = dshRankDefaultCandidates({
+          candidates: [],
+          maxOutputTokens: 8_192,
+        },);
+        expect(decision.ranked,).toEqual([],);
+        expect(decision.reason.includes('no eligible candidates',),).toBe(true,);
+      },
+    },),
   ],
 },);

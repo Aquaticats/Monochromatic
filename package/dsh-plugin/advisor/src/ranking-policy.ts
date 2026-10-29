@@ -3,10 +3,12 @@
  largest context window first, then model name, then canonical slug. @module
  */
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   AdvisorDefaultRanking,
   AdvisorRankingCandidate,
 } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
+import { dshAdvisorLogger, } from './logging.ts';
 
 //region Public API
 
@@ -16,15 +18,17 @@ import type {
  The shared core ranks by expected call cost; the DSH variant instead prefers
  the route with the largest advertised context window (then `name`, then
  canonical slug) because DSH routes carry no text pricing and the widest
- context is the most likely to hold the full conversation. Observed windows
- are recorded in the reason so decision logs can reconstruct the order.
+ context is the most likely to hold the full conversation. The reason names
+ only the winning window, because it is rendered into model-visible tool
+ output; the full observed-window roster goes to the debug decision log so a
+ verdict stays reconstructable without flooding any context.
 
  @param candidates - eligible scoped candidates with their estimated input
  tokens
 
  @param maxOutputTokens - request output budget shared by every candidate
 
- @returns candidates ordered best-first with an observed-window reason
+ @returns candidates ordered best-first with a winner-only window reason
 
  @example
  ```ts
@@ -41,6 +45,13 @@ export function dshRankDefaultCandidates(
   },
 ): AdvisorDefaultRanking {
   void maxOutputTokens;
+  /**
+   Logger tagged with the ranking policy name.
+   */
+  const l = tagged({
+    tag: dshRankDefaultCandidates.name,
+    l: dshAdvisorLogger,
+  },);
   /**
    Candidates ordered by largest context window, then name, then slug.
    */
@@ -88,7 +99,8 @@ export function dshRankDefaultCandidates(
       return candidate.scopedModel;
     },);
   /**
-   Observed context windows in ranked order, recorded as decision evidence.
+   Observed context windows in ranked order, recorded as debug decision
+   evidence instead of surfaced text.
    */
   const windowEvidence = ranked
     .map(function toWindowEvidence(entry,) {
@@ -96,9 +108,24 @@ export function dshRankDefaultCandidates(
         .contextWindow,)}`;
     },)
     .join(', ',);
+  l.debug(`observed windows: ${windowEvidence}`,);
+  /**
+   Top-ranked scoped model whose window the surfaced reason reports.
+   */
+  const [topEntry,] = ranked;
+  /**
+   Policy statement plus the winning window only; the roster stays in the
+   debug decision log.
+   */
+  const reason = topEntry === undefined
+    ? 'dsh default ranking: largest context window first, then name, then slug; no eligible candidates'
+    : `dsh default ranking: largest context window first, then name, then slug; widest observed window ${topEntry
+      .canonicalSlug}=${String(topEntry
+        .model
+        .contextWindow,)}`;
   return {
     ranked,
-    reason: `dsh default ranking: largest context window first, then name, then slug; observed windows ${windowEvidence}`,
+    reason,
   };
 }
 
