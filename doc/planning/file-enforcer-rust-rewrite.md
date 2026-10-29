@@ -88,6 +88,65 @@ the user chose "In-repo jsonc-edit" over `jsonc-parser` (dprint) and the `config
   schema,
   and structured-edit crates.
 
+### Config model: rule kinds with structured values
+
+Asked 2026-10-29 how much logic the JSONC config carries;
+the user chose "Rule kinds + structured values"
+over string expressions and over named Rust rules with JSONC toggles.
+
+- Rust implements a fixed set of rule kinds
+  (concatenate,
+  mirror a directory,
+  set TOML keys where a table exists,
+  append a block if absent,
+  fan out over packages,
+  plus named built-ins).
+- JSONC values are literals or tagged objects such as `{"file": ...}`,
+  `{"var": "dir"}`,
+  and `{"concat": [...]}`;
+  no string expression language.
+- Every input and output path is known from the config without running anything,
+  so `check` is exact and a JSON Schema covers the whole file.
+
+### Rust catalog sync: a Rust library in dependency-catalog
+
+Asked 2026-10-29 who renders each crate's `[workspace.dependencies]` from `rust-catalog.toml`;
+the user chose "Rust lib in dependency-catalog".
+
+- A new Rust library crate in `package/dependency-catalog` owns parsing and rendering the catalog.
+- file-enforcer links it behind a `rust-catalog` rule kind,
+  so file-enforcer stays the one writer of every `Cargo.toml`.
+- The TypeScript update,
+  verify,
+  and tighten tools keep their own parser until they move.
+
+### pnpr owns its publishable-package list
+
+Asked 2026-10-29 who produces `package/config/pnpr/config.yaml`;
+the user chose "pnpr owns it, own check".
+
+- `package/config/pnpr` generates the file with its own write and check tasks,
+  reusing its `isTypeScriptSourcePath`;
+  file-enforcer is not involved.
+- CI runs pnpr's check beside file-enforcer's.
+
+### Toolchain: split between file-enforcer and the mpm wrapper
+
+Asked 2026-10-29 where toolchain sync,
+status,
+update,
+and `bin-paths` go.
+The user rejected all three options (own TypeScript package,
+separate Rust tool,
+inside file-enforcer) and wrote:
+"Some needs to be folded into Rust file-enforcer,
+some needs to be folded into our mpm wrapper."
+
+- The mpm wrapper is `package/mpm-shadow/cli` (Rust,
+  clap).
+- Which responsibility goes where is being researched;
+  the proposed split comes back to the user as a question.
+
 ### Adopted from the request and repository rules
 
 - Rust is approved for this tool by the request itself;
