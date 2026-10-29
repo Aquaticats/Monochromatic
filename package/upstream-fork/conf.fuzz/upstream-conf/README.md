@@ -45,7 +45,8 @@ Both files also carry one added first line, a `// @ts-nocheck` comment,
 ## Do not reformat or autofix
 
 These files must stay byte-for-byte upstream (plus the two edits above).
- A repository-wide autofix pass once rewrote the arrow function `set` inside `Conf#set` into a function declaration,
+ A repository-wide autofix pass (commit `3da31bdc3a`, the `no-restricted-syntax/no-arrow-function` fixer)
+ once rewrote the arrow function `set` inside `Conf#set` into a function declaration,
  which loses the lexical `this`,
  so every `appendToArray` and nested `set` call threw
  `Cannot read properties of undefined (reading '#options')`
