@@ -61,6 +61,10 @@ mod runtime_cache;
 /// Registers hybrid exact-literal and restricted-regex runtime matcher.
 mod runtime_matcher;
 
+/// Registers the unit-test fixture root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;
+
 /// Registers the `fuzz_api` child module.
 // What:     `#[cfg(feature = "fuzzing")] pub mod fuzz_api;` registers
 //           the curated re-export module ONLY when the `fuzzing`

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 /// Creates fresh process-scoped test directory.
 fn test_directory(label: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
+    let path = crate::test_scratch::scratch_root().join(format!(
         "forbidden-strings-cache-publish-{label}-{}",
         std::process::id(),
     ));
