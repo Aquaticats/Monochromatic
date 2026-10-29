@@ -210,7 +210,7 @@ await describe({
         expect(RUN_CHECKER_ORDER[0],).not.toBe(QWEN,);
 
         // THE POSITIVE CONTROL: the seats that are not judge seats keep Qwen3.8-27B while Synthetic serves it, so
-        // the absence above is the removal and not a model that left the roster.
+        // the absence on the judge benches is the removal and not a model that left the roster.
         const wet = judgeSeatsFor({ dry: ALL_WET, },);
         expect(wet.roster.includes(QWEN,),).toBe(true,);
         expect(wet.translators.includes(QWEN,),).toBe(true,);

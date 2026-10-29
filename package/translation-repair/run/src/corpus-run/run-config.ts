@@ -405,7 +405,7 @@ export const RUN_SELECT_JUDGES: readonly RosterModelId[] = [
  holds on every bench this order can seat.
 
  QWEN3.8-27B LEFT THE ORDER ON 2026-10-29, where it ranked first, with its wide judge seats: the owner's answer
- "Remove Qwen from wide seats" (ledger B1030). The figures above stay as the record of the benchmark. On the XingZ6022
+ "Remove Qwen from wide seats" (ledger B1030). The benchmark's figures stay as its record. On the XingZ6022
  checker rounds that had a late ballot it was the late voice in 33 of 46, with Mimo v2.6 Flash in 12 and Kimi-K3 in 1.
  The static bench of three is now Mimo v2.6 Flash, Kimi-K3 and Haiku 5.5, the next of the order.
  */
