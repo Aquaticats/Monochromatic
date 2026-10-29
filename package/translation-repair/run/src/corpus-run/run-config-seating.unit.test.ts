@@ -75,22 +75,29 @@ await describe({
     },),
 
     it({
-      name: 'PUTS HAIKU 5.5 FOURTH IN THE CHECKER ORDER, behind the three the benchmark ranks, so it is not on the '
-        + 'static bench of three',
+      name: 'PUTS HAIKU 5.5 THIRD IN THE CHECKER ORDER, behind the two measured seats left once the owner took '
+        + 'Qwen3.8-27B off the order (2026-10-29), so it is on the static bench of three',
       fn: async () => {
-        expect(RUN_CHECKER_ORDER.indexOf('claude-haiku-5-5',),).toBe(3,);
-        expect(RUN_MODELS.checkerModelIds,).not.toContain('claude-haiku-5-5',);
+        expect(RUN_CHECKER_ORDER.includes('hf:Qwen/Qwen3.8-27B',),).toBe(false,);
+        expect(RUN_CHECKER_ORDER.indexOf('claude-haiku-5-5',),).toBe(2,);
+        expect(RUN_MODELS.checkerModelIds,).toContain('claude-haiku-5-5',);
       },
     },),
 
     it({
-      name: 'FILLS A CHECKER PLACE WITH HAIKU WHEN A MEASURED CHECKER\'S PROVIDERS ARE DRY AND CLAUDE IS WET, and '
-        + 'with the next measured seat when Claude is dry too (the positive control for the absence)',
+      name: 'SEATS HAIKU 5.5 ON THE CHECKER BENCH WHILE CLAUDE IS WET, and the next seat of the order a wet provider '
+        + 'serves when Claude is dry (the positive control for the absence)',
       fn: async () => {
-        expect(judgeSeatsFor({ dry: ALL_WET, },).repairModels.checkerModelIds,).not.toContain('claude-haiku-5-5',);
+        expect(judgeSeatsFor({ dry: ALL_WET, },).repairModels.checkerModelIds,).toContain('claude-haiku-5-5',);
         expect(judgeSeatsFor({ dry: MIMO_UNSERVED_CLAUDE_WET, },).repairModels.checkerModelIds,).toContain('claude-haiku-5-5',);
         expect(judgeSeatsFor({ dry: MIMO_UNSERVED_CLAUDE_DRY, },).repairModels.checkerModelIds,)
           .not.toContain('claude-haiku-5-5',);
+        /**
+         Every provider wet except the Claude key.
+         */
+        const claudeDry = judgeSeatsFor({ dry: { ...ALL_WET, anthropic: true, }, },).repairModels.checkerModelIds;
+        expect(claudeDry,).not.toContain('claude-haiku-5-5',);
+        expect(claudeDry,).toContain('google.gemma-4-31b',);
       },
     },),
 
