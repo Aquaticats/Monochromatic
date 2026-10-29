@@ -37,13 +37,13 @@
  does so, by the census of B416), a duration handed through an environment
  variable as text, a sleep inside a child process's script text, and a wait
  reached through a router or a reader built over the budgets, which the
- budget finder below does not follow. Waits a case's work takes, such
+ budget finder of the B995 forms does not follow. Waits a case's work takes, such
  as `baseMs`, are left out on purpose: load only lengthens them,
  and a race against one shows up at the bound or the sleep on its other side.
 
  THE WAITS ON THE REAL CLOCK THAT NO TIMER CALL NAMES (ledger B995): three
  forms the cooldown round of B985 found a test could sleep on with none of the
- reads above in sight. A `pollMs`, the slice a wait on a provider's hold sleeps
+ timer and bound reads of WHAT THE SCAN READS in sight. A `pollMs`, the slice a wait on a provider's hold sleeps
  in, is a bound key, except inside a function that puts a fake clock under the
  case: one that calls `useFakeTimers`, one that calls a function of its own
  file that does (`fakeClockStarted`), or one that calls a name imported from a
@@ -297,7 +297,7 @@ type ListedBound = {
 /**
  Files another change edits first, each with why its bounds wait. Empty from the seven files deferred on 2026-10-06
  (UTC), which took the census's rule once the changes in flight on them merged, until the widening of ledger B995,
- which found the file below and the round did not reach it.
+ which found `provider/budget-hold-wait.unit.test.ts` and the round did not reach it.
  */
 const DEFERRED: Readonly<Record<string, string>> = {
   'provider/budget-hold-wait.unit.test.ts': 'tests of the budget wait over scripted budgets: the cases that wait out a '
