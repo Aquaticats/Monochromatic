@@ -310,7 +310,10 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
-        "the command hit the {TIME_BOUND_SECONDS}-second bound"
+        // Built only on failure: a bound hit under host load must name the command that stalled.
+        "the command hit the {TIME_BOUND_SECONDS}-second bound: {:?} in {:?}",
+        command.get_args().collect::<Vec<&OsStr>>(),
+        command.get_current_dir()
     );
     return Observed {
         code: output.status.code(),
