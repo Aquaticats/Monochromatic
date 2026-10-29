@@ -1,57 +1,106 @@
-# Container base distro: CachyOS, latest
+# Container base distro: CachyOS, latest, by CPU level
 
 ## Decision
 
-Containers this repo builds start from `docker.io/cachyos/cachyos:latest`, unpinned.
-On an architecture CachyOS publishes no image for,
- the container starts from Alpine instead.
+Containers this repo builds start from the newest CachyOS image the building host's CPU can run,
+ always on the `latest` tag:
+ `docker.io/cachyos/cachyos-v4:latest`,
+ else `docker.io/cachyos/cachyos-v3:latest`,
+ else `docker.io/cachyos/cachyos:latest`.
+On a non-x86-64 host the container starts from Alpine instead.
 
-The owner's directive (2026-10-29):
- "Make cachyOS (or arch linux proper) the de-facto distro for this repo from now on.
-Fallback to alpine for architectures arch doesn't support."
+Each Containerfile names its base through a build argument,
+ so the resolver picks the image and the file stays CPU-neutral:
 
-Asked whether to pin a dated image,
- the owner answered:
- "Must be latest, since if an upstream OS update breaks us,
- we are doing something wrong and we'd have to fix it immediately."
-So base images carry no version tag and no digest;
- a build that an upstream update breaks is a bug to fix at once,
- never a reason to pin.
+```dockerfile
+# package/<category>/<project>/Containerfile
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
+```
 
-## Facts relied on (Docker Hub, 2026-10-29)
+The resolver lives in `package/test-harness/core-matrix`
+ (it already owns the mapping from distro name to container image);
+ image builds pass its `--build-arg CACHYOS_IMAGE=<image>`.
+Without the argument the plain image builds,
+ which runs on every x86-64 CPU.
 
-- `cachyos/cachyos` publishes only the `latest` tag, for `amd64`.
-- `cachyos/cachyos-v3` and `cachyos/cachyos-v4` are builds for newer x86-64 CPU levels;
-   `-v3` needs x86-64-v3 (AVX2) and fails on CPUs without it.
-  The repo uses plain `cachyos/cachyos`, which runs on any x86-64 CPU,
-   including CI runners whose CPU level is not guaranteed.
+## Owner directives (2026-10-29)
+
+- "Make cachyOS (or arch linux proper) the de-facto distro for this repo from now on.
+  Fallback to alpine for architectures arch doesn't support."
+- On pinning:
+   "Must be latest, since if an upstream OS update breaks us,
+   we are doing something wrong and we'd have to fix it immediately."
+  Base images carry no version tag and no digest;
+   a build an upstream update breaks is a bug to fix at once,
+   never a reason to pin.
+- On CPU level:
+   "v4, fallback to v3, and plain, and so on."
+- On images that build shipped releases:
+   split them (owner chose "Split dev and release").
+
+## Facts relied on (Docker Hub and this host, 2026-10-29)
+
+- `cachyos/cachyos`, `cachyos/cachyos-v3` and `cachyos/cachyos-v4` publish only the `latest` tag, for `amd64`.
+  There is no `v2` image.
+- `-v3` needs x86-64-v3 (AVX2) and `-v4` needs x86-64-v4 (AVX-512);
+   on a CPU without them the image's programs fail.
+  That is why the level is detected on the host that builds and runs the image.
+- glibc's loader reports the supported levels:
+   `/lib64/ld-linux-x86-64.so.2 --help` prints lines such as `x86-64-v4 (supported, searched)`.
+  This host (AMD Ryzen 9 7950X) reports v4, v3 and v2 as supported.
 - `archlinux` (Arch proper) also publishes `amd64` only,
-   so choosing Arch over CachyOS would not change the fallback.
+   so choosing Arch would not change the fallback.
 - `alpine` publishes `amd64`, `arm64/v8`, `arm/v6`, `arm/v7`, `386`, `ppc64le`, `riscv64` and `s390x`.
   Alpine uses musl:
    official Node.js Linux builds need glibc,
    so an Alpine container installs Node.js from `apk`
    (see the `node` handling in `package/test-harness/core-matrix/src/distro.ts`).
 
+## The Alpine fallback contract
+
+A pacman-based Containerfile cannot become an Alpine one through a build argument;
+ the fallback needs a separate Alpine variant of that image.
+Variants are written only when a non-x86-64 host actually builds that image.
+Until then, resolving a CachyOS-only image on a non-x86-64 host throws an error that names the image
+ and says it has no Alpine variant,
+ instead of building something wrong.
+
 ## Where it applies
 
-- Every Containerfile that builds a tool, test, or build environment.
+- Every Containerfile that builds a tool, test, or development environment.
 - Container images named in code that runs containers (for example `podman run <image>` in tests).
 
-## Exceptions the owner chose to keep
+## Exceptions
 
-- Release binaries (`cargo-publish.yml`, `music-player-release.yml`) keep building on Ubuntu 24.04 runners,
-   because the build host's glibc sets the minimum glibc of every released Linux binary;
-   CachyOS ships the newest glibc,
-   so binaries built there would not start on Ubuntu 24.04 or Debian 12.
-- `package/test-harness/core-matrix` tests across several distros on purpose:
-   CachyOS is added as a target,
+### Shipped release binaries keep their glibc floor
+
+The build host's glibc sets the minimum glibc of every released Linux binary,
+ and CachyOS ships the newest glibc,
+ so binaries built there would not start on older distributions.
+The owner chose to keep each release's current floor:
+
+- Release workflows that build on GitHub runners
+   (`cargo-publish.yml`, `music-player-release.yml`) keep their Ubuntu 24.04 runners.
+- An image that serves both development and a shipped release is split:
+   the development Containerfile moves to CachyOS,
+   and a separate release Containerfile keeps the current base,
+   which every release path builds from.
+  Example:
+   IDE release binaries are compiled in `localhost/monochromatic/ide`,
+   which is built from the terminal image,
+   so `package/terminal/app` gets a CachyOS development image
+   and a release image that keeps its Fedora 41 base.
+
+### Kept on purpose
+
+- `package/test-harness/core-matrix` tests across several distros:
+   CachyOS is added and becomes the default,
    the other distros stay.
 - The root `Dockerfile` (Ubuntu CI canary image) and the `mvm` default VM template (Ubuntu) stay as they are.
 - Images that are not general bases stay:
    `package/vm-builder/cli` boots `ucore-hci`,
    `package/config/pnpr` extends the published `pnpr` image,
-   `package/ide/app` extends the terminal image,
    and `package/music-player/desktop-app/Containerfile.alpine` is the deliberate musl build.
 
 ## Context
