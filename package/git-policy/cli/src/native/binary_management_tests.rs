@@ -73,6 +73,10 @@ fn help_needs_neither_git_nor_a_repository() {
             help.contains("  fix      Apply policy fixes over an explicit scope.\n"),
             "{help}"
         );
+        assert!(
+            help.contains("           1 when any other hook is found, 2 outside a repository.\n"),
+            "{help}"
+        );
     }
     remove(&fixture);
 }
