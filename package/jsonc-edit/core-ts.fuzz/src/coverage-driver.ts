@@ -79,8 +79,24 @@ function asJsonc(source: string,): StringJsonc {
  ```
  */
 function exercise(): void {
-  // Fast-path and value serializer.
+  // Value serializer over a parsed document.
   emitJsoncValue({ value: parseJsonc({ source: asJsonc('{"a":1,"b":[1,2,3]}',), },), },);
+  // The `plainJson` leaf kind: parseJsonc no longer produces it (every document
+  // parses structurally), but it remains in the public value union, so build one
+  // directly to keep its serializer, `emitPlainJson`, reached.
+  emitJsoncValue({
+    value: {
+      kind: 'plainJson',
+      json: {
+        a: 1,
+        b: [
+          1,
+          2,
+          3,
+        ],
+      },
+    },
+  },);
   // Structured path: comments on keys and values, trailing commas, blocks, region.
   /**
    Structured state exercising comments, trailing commas, and nesting.
