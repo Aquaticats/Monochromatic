@@ -693,6 +693,17 @@ Before anyone posts it:
   The issue ranks first because #15569 states the exemption on purpose,
   so the maintainers should decide whether to narrow it before reviewing code,
   and a pull request that overturns a stated decision is the likelier to be closed.
+  Correction,
+  2026-10-29:
+  this ranking was a judgment of the session and no written rule.
+  `CONTRIBUTING.md` in `pnpm/pnpm` has no issue-first rule;
+  it welcomes pull requests,
+  including agent-written ones with a disclosure footer,
+  and asks contributors to check the issue's linked pull requests for a competing fix.
+  The merged pull request #17487 narrowed the same exemption and was approved without an issue discussion.
+  The owner said the same day,
+  "I don't know why we didn't auto open a pr";
+  the skill now opens the pull request together with the issue whenever a verified prototype exists.
   The pull request ranks second because both patches already have tests and a clean baseline,
   so it is ready if the maintainers ask for it,
   and it must then follow `.github/pull_request_template.md` (Summary,

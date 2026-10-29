@@ -656,9 +656,17 @@ Run this whenever the user asks whether a draft is ready,
    the prototype is the plan,
    and an unticked box invites someone else to start the same fix.
     Leave it unticked when there is no prototype.
-    After ticking,
-   write down in a handover how the pull request will be posted,
-   so the claim does not outlive the intent.
+    A prototyped fix also means the pull request is opened together with the issue,
+   once the readiness check recommends filing,
+   with no wait for a maintainer to ask and no question to the user about issue versus pull request.
+    The pull request closes the issue and follows the target's pull request template,
+   changeset rules and disclosure footer.
+    Open only the issue when the target's written contribution policy asks for an issue or approval first
+   (quote the rule),
+   or when no prototype passes its verification.
+    A maintainer's stated decision on the behavior is not such a policy:
+   name it in the pull request body and argue for narrowing it,
+   as item 2 requires.
 4. Read what automation does to a new filing:
     triage bots,
    auto-labelers,
