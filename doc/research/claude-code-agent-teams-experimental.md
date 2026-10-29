@@ -513,7 +513,8 @@ This repository records a finding about adjacent delegation mechanisms.
  in the last test it did not work
 even though it is documented to",
 and that `spawn-claude` result forwarding "is unreliable and needs manual monitoring".
-The generated `CLAUDE.md` preamble repeats the `SendMessage` finding to every session.
+The generated `CLAUDE.md` preamble repeated the `SendMessage` finding to every session until 2026-10-29,
+when the preamble paragraph was removed because Claude Code updates fixed most of the underlying problems.
 
 That document is about general-purpose subagents and `spawn-claude` child sessions,
 not about Agent Teams,
