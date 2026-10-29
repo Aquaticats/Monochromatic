@@ -2893,4 +2893,15 @@ gates run on the integrated result.
 Queued, not in this release: the auto-push merge push runs no push-time policy (pre-existing); gating it could stop merges
 that publish today, so it needs the user's decision.
 Tasks: 63 (change A), 64 (change B).
+Progress 2026-10-29: change A committed (auto-push names the tracked ref via `named_destination_push`; two tests shown
+failing first, 116 auto-push tests pass). Change B committed as `d926d5621a`: `push_stacking.rs`
+(`Action::ForwardPush`, `STACKED_PUSH_MARKER`), the reconcile loop generalized as `integrate_and_push` with
+`Reconcile { explicit }` (auto-push wording and behavior unchanged), `stackable_option_tokens` in `command_push.rs`
+(force, delete, mirror, all, tags, prune, follow-tags, repo, porcelain, set-upstream, dry-run and `+refspec` are never
+stacked). Six unit and four binary tests pass on the first run, so the guard proof is still owed: disable `stack_if_push`,
+rebuild, show the lost-race binary test fail, restore.
+Chain unit `cli-git-chain-1804` (logs `~/temp/agent/b1804-{clippy,host,bin}.log`) is running; do not edit `src/native`
+while it runs. Still owed: command_push unit tests for `stackable_option_tokens`, container gate, podman harness rerun,
+README section, release, mutation campaign (non-blocking).
+Not stacked by design: no single-flight lock for explicit pushes (the remote arbitrates; the loop is bounded at 10).
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
