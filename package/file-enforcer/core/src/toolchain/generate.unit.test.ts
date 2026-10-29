@@ -18,7 +18,7 @@ import {
   tomlString,
 } from './mpm-manifest.ts';
 import { renderArtifacts, } from './generate.ts';
-import { ALL_TOOLS, TOOLS, } from './plan.ts';
+import { ALL_TOOLS, TOOLS, toolById, } from './plan.ts';
 
 await describe({
   name: 'toolchain artifact generators',
@@ -183,7 +183,11 @@ await describe({
               .toBe(true,);
             expect(text.includes('"@actions/languageserver" = "0.3.61"',),)
               .toBe(true,);
-            expect(text.includes('nightly-2026-10-28 = "nightly-2026-10-28"',),)
+            /**
+             Pinned nightly, read from the plan because it moves with every toolchain update.
+             */
+            const rustVersion = toolById('rust',).version;
+            expect(text.includes(`${rustVersion} = "${rustVersion}"`,),)
               .toBe(true,);
             expect(text.includes('slopo = "0.9.0"',),)
               .toBe(true,);
@@ -230,14 +234,14 @@ await describe({
               )
                 .length,
             )
-              .toBe(16,);
+              .toBe(17,);
             expect(
               headers.filter(
                 (line,) => line.includes('.operations.'),
               )
                 .length,
             )
-              .toBe(32,);
+              .toBe(34,);
           },
         },),
         it({

@@ -26,10 +26,10 @@ await describe({
       name: 'TOOLS',
       children: [
         it({
-          name: 'declares 59 tools with unique ids',
+          name: 'declares 60 tools with unique ids',
           fn: async () => {
             expect(TOOLS.length,)
-              .toBe(59,);
+              .toBe(60,);
             /**
              Ids seen once each.
              */
@@ -42,10 +42,10 @@ await describe({
           },
         },),
         it({
-          name: 'keeps 53 floating requests, 4 pins and 2 channels',
+          name: 'keeps 54 floating requests, 4 pins and 2 channels',
           fn: async () => {
             /**
-             Request shapes counted across the 59 tools.
+             Request shapes counted across the 60 tools.
              */
             const counts = {
               track: 0,
@@ -62,7 +62,7 @@ await describe({
             }
             expect(counts,)
               .toEqual({
-                track: 53,
+                track: 54,
                 pinned: 4,
                 channel: 2,
               },);
@@ -138,6 +138,7 @@ await describe({
               .toEqual(
               [
                 'cargo:monochromatic-git-policy-cli',
+                'cargo:monochromatic-search-shadow',
                 'conda:bubblewrap',
               ],
               );
@@ -174,6 +175,16 @@ await describe({
                   linkDir: '.cache/cli-git-bin',
                 },
               },);
+            expect(toolById('cargo:monochromatic-search-shadow',)
+              .options.postinstall,)
+              .toEqual({
+                when: 'always',
+                link: {
+                  sourceBin: 'search-shadow',
+                  linkName: 'rg',
+                  linkDir: '.cache/search-shadow-bin',
+                },
+              },);
           },
         },),
         it({
@@ -196,7 +207,7 @@ await describe({
           fn: async () => {
             expect(toolById('rust',)
               .env,)
-              .toEqual({ RUSTUP_TOOLCHAIN: 'nightly-2026-10-28' },);
+              .toEqual({ RUSTUP_TOOLCHAIN: toolById('rust',).version, },);
             expect(toolById('java',)
               .env,)
               .toEqual({ JAVA_HOME: 'java/temurin-21.0.13+9.0.LTS' },);
@@ -285,9 +296,10 @@ await describe({
           fn: async () => {
             expect(TOOLS_BY_ID.size,)
               .toBe(ALL_TOOLS.length,);
-            expect(TOOLS_BY_ID.get('node',)
-              ?.version,)
-              .toBe('26.12.1',);
+            for (const entry of ALL_TOOLS) {
+              expect(TOOLS_BY_ID.get(entry.id,),)
+                .toBe(entry,);
+            }
           },
         },),
         it({
