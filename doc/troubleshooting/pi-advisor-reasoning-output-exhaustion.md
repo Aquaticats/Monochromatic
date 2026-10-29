@@ -405,3 +405,15 @@ a text-bearing `stopReason: "length"` response.
    trigger.
 
 There is nothing additive to file in the external Pi tracker and no upstream issue draft to retain.
+
+## Recurrence on 2026-10-29 in the DSH variant
+
+The same shape reappeared under `@monochromatic-dev/dsh-plugin-advisor`
+ at a 32,000-token budget and pinned `reasoning=high`:
+ `neuralwatt/deepseek-v4-flash` ended a review at `stopReason: "length"`
+ with a 2,060-character body,
+ while a focused follow-up on the same model, effort, and budget completed fully.
+The advisor still shares the response pool with reasoning
+ and offers no effort or output knob in the tool schema.
+The full cause chain and its probes are recorded in
+ [DSH Advisor 2026-10-29: configured reviewer not tried, first-ranked route 400s, review truncated](dsh-advisor-configured-reviewer-not-tried.md).

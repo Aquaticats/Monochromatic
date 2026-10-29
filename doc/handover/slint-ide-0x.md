@@ -5720,6 +5720,94 @@ Left after these:
 - Two of 210 press events that logged nothing (0 of 30 later).
 - `mise.toml` and `task.ts` of the IDE and terminal packages are two copies of one task list with nothing keeping them in step.
 
+### Later the same day: guards, the stalled map, the 403 and the delegated items
+
+Stalled-launch tall map (verifier agent, installed binary of `8c60a4afb3`, headless on RADV, 1,500-line project, three sessions at a time):
+- Arm A, 300 interleaved sessions:
+  250 normal, 25 with the compositor stopped for 2.2 s at the socket and 25 with the app stopped for 2.2 s after the window is drawn;
+  all 300 ended at 36,024 px.
+  Arm B, 60 interleaved sessions: 30 normal (all 36,024 px) and 30 positive-control stalls (below).
+  The verifier's own total for sessions without the control stall is 0 of 310 not at 36,024 px.
+- Positive control:
+  stopping the app for 2.2 s at the first `row map rebuilt` showed the narrow-width map of 36,456 px at `viewport_width=173` in 30 of 30,
+  and all 30 then recovered to 36,024 once the pass at the real width (`wrap=644`) was applied.
+  So the harness can read a tall map, and 36,456 px is exactly the narrow-width map.
+- What this supports:
+  the three earlier tall sessions are consistent with a read taken before the real-width pass landed.
+  Their logs no longer exist, so this is not shown for those three.
+  No lost or starved request was seen in 360 sessions (a `wrap=644` pass posted and never applied: 0).
+- Not covered:
+  the earlier 229 attempts also used a futex-delaying `strace` of the tile worker; that arm was not repeated.
+
+The ten guard inspections (`~/temp/agent/guards-*-logs`, scratch runner `run-ported-tasks.ts`, `WORKERS` sets the pool size):
+- Passed through `task-run`: `inspect:search-guards`, `inspect:sidebar-guards`, `inspect:find-guards`.
+- Needs a prepared cache: the `<cache>` directory must hold `debug/runtime` and `crate-licenses.json` copied from the package `target`,
+  otherwise the baseline build stops at `build.rs:207` ("manifest.json cannot be read").
+- `inspect:source-guards` is a real finding, not a port defect:
+  five of its 266 mutation anchors no longer occur in the source, so those guards protected nothing since the code moved.
+  `stack-slices-abut` (indentation of `top += held.target.height;` in `src/native/gpu_tile/source.rs` went from 16 to 12 spaces)
+  and `minimap-press-column`, `-centers`, `-caret` and `minimap-shift-anchor`
+  (the press mapping moved from `src/native/minimap/pointer.rs` to `src/native/minimap/aim.rs`, and `x` became `press.x`, `shift` became `press.shift`).
+  The repair is in the scratch tree `~/temp/agent/fix-guards` (branch `fix-guard-anchors`, not landed yet).
+  Nine more anchors occur two or three times (`outcome.apply(window);` in `gpu_tile.rs`, `self.shifted = false;` in `language/pointer.rs`,
+  the `drawn_offset` log line in `pointer_log.rs`); the guard script can pick the nth match (`occurrence`), so these are only suspect until the run shows each guard failing when mutated.
+  The checker is `~/temp/agent/check-guard-anchors.ts <ide dir> bin/<script>`; it does not read `occurrence`.
+- Running when this was written:
+  unit `ide-guards-others` (theme, annotation, ignored, watch, language-lifecycle, language-navigation, language guards, three at a time)
+  and unit `ide-guards-source` (the 267 source guards in six shards, three at a time, from the repaired tree).
+  Next step: land the anchor repair only after every repaired guard has been seen failing when mutated and passing when restored.
+
+Two defects found in the `task-run` usage parser while porting (both fixed on `main`):
+- `d18508ef38`: positional args did not set `usage_<name>`.
+- `0031eb6cc5`: a required `arg "<name>"` was dropped by the name pattern.
+- The ports of `mise.toml` tasks inherit mise's semantics (`usage_*`, `dir`, `depends`);
+  any other task using a feature of `usage` that `parseUsageSpec` does not read (defaults, `choices`, `var`) should be checked the same way.
+
+The 403 at `POST git/refs` (probe branch `probe-403-again`, run logs read through `gh run view --log`):
+- 96 of the 400 newest commits of `main` are refused, in contiguous windows of history (2026-10-25 19:27 to 19:50, and 2026-10-25 20:54 to 2026-10-26 06:48).
+- The result is a function of the commit's `.github/workflows` tree:
+  8 distinct trees, none mixed (3 always accepted, 5 always refused).
+- Not the cause (each measured):
+  files changed under `.github`, author, committer, signing key, trailers, commit time, rulesets (one, branch only),
+  any single file or any single workflow-file version (12 new commits on the accepted tip, each swapping in one refused file version, were all accepted,
+  as were a same-tree commit and a new-blob control),
+  and the count of Actions runs of the commit (mixed in every bucket).
+- Run 40822369704, six more commits, all accepted:
+  the whole tree of a refused commit (`d26ed6d2d8`, `830d02b2cb`) on the current tip,
+  the whole tree of `d26ed6d2d8` on its own original parent (same tree, same parent, only the commit object differs),
+  the tip with the workflow directory of `d26ed6d2d8` or of `4cb480344f`,
+  and the tip tree on the parent of `d26ed6d2d8`.
+  So the refusal is not a property of the tree, the workflow directory, a file, the parent, or the place in history;
+  it belongs to the original commit objects, as GitHub recorded them when they were pushed.
+- Push activity (`gh api repos/.../activity?ref=refs/heads/main`, 100 newest pushes, all by the same actor):
+  every push up to `2d920e407a` in the later window is refused and every push from `ec8c0fda93` (2026-10-26 06:54 EDT) on is accepted;
+  the earlier window is 2026-10-25 19:27 to 19:50 EDT (`3e16deb852` to `d26ed6d2d8`), accepted again from `38cb13b4d1` to 20:48,
+  refused again from `830d02b2cb` at 20:54 EDT.
+  Windows therefore follow the time of the push, not the content.
+- Settings read through the API: the repository requires SHA-pinned actions (`sha_pinning_required: true`),
+  allows `selected` actions (`docker/*`, `jdx/*`, `actions/*`, `changesets/*`, GitHub-owned, verified creators),
+  default workflow token `read`.
+  The organization policy needs `admin:org`, which the CLI lacks (HTTP 403).
+  `doc/troubleshooting/github-actions-organization-policy.md` records the organization policy as `local_only` on 2026-10-15, later widened by the owner.
+- Working hypothesis, NOT shown:
+  GitHub stores a result per commit when it is pushed, and that result depends on a repository or organization setting (the Actions policy, for example)
+  that was different during the refused windows.
+  It fits every measurement above and contradicts none, but no measurement here reads such a setting's history.
+  What would settle it:
+  the organization audit log (an organization owner can read it) for Actions-policy events around 2026-10-25 19:27, 19:50, 20:54 EDT and 2026-10-26 06:54 EDT.
+  Cheaper check for the owner: whether any Actions policy or secret setting was changed at those times.
+  Owner's answer on 2026-10-29: "I don't remember, but I probably did. Leave it and move on."
+  The item is closed as characterised and unexplained: the cause is probably a setting change at those times, with no evidence read.
+  The throwaway probe branches (`probe-403-again`, `probe-403-exp-0` to `-11`, `probe-403-exp2-0` to `-5`) and the worktree `~/temp/agent/probe403` were deleted.
+- Practical rule meanwhile:
+  cut releases from a recent commit of `main`; the probe (`POST git/refs` then `DELETE` at the exact SHA) tells in a minute whether a commit can be tagged.
+  Delete the throwaway branches after the result:
+  `probe-403-again`, `probe-403-exp-0` to `probe-403-exp-11`, `probe-403-exp2-0` to `probe-403-exp2-5`; remove the worktrees `~/temp/agent/probe403` and `~/temp/agent/fix-guards`.
+
+Delegated (Sonnet subagents in worktrees, branch push only; results land only after I read their diffs):
+- Per-process scratch under the shared per-server `/tmp` (two IDE processes on one project).
+- The 2 of 210 press events that logged nothing: dropped press, logging gap, compositor delivery or harness artefact.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md

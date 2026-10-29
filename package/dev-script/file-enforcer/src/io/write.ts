@@ -1,5 +1,9 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
+import {
+  isCheckMode,
+  recordDrift,
+} from '../check-mode.ts';
 import { l, } from '../logger.ts';
 import {
   setWriteTimestamp,
@@ -134,6 +138,17 @@ async function writeIfChanged(
     }
     return;
   }
+  if (isCheckMode()) {
+    // Check mode: record the drift and keep the would-be content in the read
+    // cache, so later generators see what a real run would have written.
+    recordDrift({ dest, },);
+    updateCache({
+      filePath: dest,
+      content,
+    },);
+    rl.warn(`would change: ${sourcePath !== undefined ? `${sourcePath} -> ` : ''}${dest}`,);
+    return;
+  }
   /**
    Actual post-rename destination timestamp used for watch echo suppression.
    */
@@ -262,6 +277,15 @@ export async function overwriteIfNotExists(
     return;
   }
   trackDest(dest,);
+  if (isCheckMode()) {
+    recordDrift({ dest, },);
+    updateCache({
+      filePath: dest,
+      content,
+    },);
+    l.warn(`would create: ${dest}`,);
+    return;
+  }
   /**
    Actual post-create destination timestamp used for watch echo suppression,
    or a sentinel when another directory entry won the final path first.

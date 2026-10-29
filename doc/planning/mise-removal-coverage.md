@@ -540,9 +540,18 @@ Only Poe the Poet,
 projen,
 and Tilt keep the colon task names;
 Tilt fails the failure-tolerance gate outright in batch mode;
-the documented-drift class that culled Nadle reproduces in every candidate,
-so it is recorded per candidate rather than used as a cull.
-The contract question follows with every candidate.
+the documented-drift class that culled Nadle reproduces in every candidate
+and now weighs as a scored deduction
+(unacknowledged upstream acknowledgement deducts points,
+acknowledged drift like Poe's open PR #438 does not),
+never a cull.
+Each candidate carries a trust score from the upstream acknowledgement audit
+in [`task-slice-comparison.md`](task-slice-comparison.md),
+where the Buck2 sandbox footnote is also corrected:
+ probes confirm it,
+ and the contradiction belongs to a third-party write-up.
+The ranking is refrozen with per-pair justifications and flip conditions;
+the contract question follows over every candidate.
 
 Parity gate:
  preserve package namespaces,

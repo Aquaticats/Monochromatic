@@ -1,4 +1,9 @@
 
+export { manageRustCatalog, } from './cargo/catalog/manage-rust-catalog.ts';
+export {
+  RustCatalogSyncError,
+  syncRustCatalog,
+} from './cargo/catalog/sync.ts';
 export { manageCargoManifests, } from './cargo/manage-cargo-manifests.ts';
 export type {
   CanonicalTomlValue,
