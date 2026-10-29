@@ -129,7 +129,7 @@ and the measurement agrees.
 ## Measured results
 
 Two of the three directions got one run each on 2026-10-29;
-the owner has since closed the Luna direction
+the owner has since constrained the Luna direction
 (see `Decisions on record`).
 Limits shared by both runs:
 one bug (`readBinRow` before `58d2bb414d`),
@@ -333,13 +333,12 @@ with the two dismissal blocks as positives and a sample of other blocks as negat
 That sends reasoning text to an external provider,
 which the hook does not do today,
 so it needed the owner's authorization first.
-The owner refused it on 2026-10-29:
-thinking-block text,
+On 2026-10-29 the owner ruled thinking-block text off limits to external providers,
 even mere summaries,
-is off limits to external providers.
-The direction is closed,
-not deferred;
-a future detector would have to read thinking blocks locally.
+which blocks the replay-through-Luna shape as proposed.
+The direction stays open:
+the owner corrected a wider reading that day,
+and any detector it yields must keep thinking text on this machine.
 
 ## Scratch artifacts
 
@@ -379,8 +378,10 @@ and safe to delete:
 - Decided by the owner 2026-10-29:
   thinking-block text,
   even mere summaries,
-  never goes to an external provider;
-  the Luna direction is closed.
+  never goes to an external provider.
+  The Luna direction stays open;
+  only routes that carry thinking text off this machine are ruled out,
+  and the owner corrected a wider reading the same day.
 - Accepted by the owner 2026-10-29:
   `RG2`'s scope widened to any code consuming unbounded input,
   landed in `cf88f54ed8`
@@ -393,12 +394,15 @@ and safe to delete:
 
 ## Next action
 
-The owner reads `Measured results`
-and then picks the gate direction in the open question.
-Ranking on this evidence:
-standards-review gate,
-then ratio-test gate.
-After the pick:
-measure the standards-review gate's recall
-on the eight historical fix commits before trusting it,
-or build the ratio gate with warmup control and a proven exposing shape.
+The owner picked the standards-review gate on 2026-10-29.
+Before trusting it,
+measure its recall on the pre-fix code of the historical fix commits
+whose subjects record a scan made linear
+(the candidate list lives in the scratch `recall.ts`;
+the earlier recall bullet counts 8 qualifying ones
+but never records which 8,
+so the measurement runs the full candidate list and marks each),
+with every reviewer blind to the fix and its message.
+Record catch and miss per commit here.
+The ratio-test gate stays ranked second;
+the Luna direction stays open under the thinking-text constraint.
