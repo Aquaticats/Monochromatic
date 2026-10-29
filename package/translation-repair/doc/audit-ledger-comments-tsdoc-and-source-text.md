@@ -457,3 +457,117 @@ The TSDoc of `containedQuoteWordsOf` already states it as all the usable ballots
 
 Prevention:
 the notes name none for a header whose direction of evidence was written backwards.
+
+## B1000: 4,031 `@returns` and `@param` descriptions opened with an article, and nothing read the rule
+
+Found on 2026-10-29 in the round that took `AGENTS.md` rule TD6 literally.
+The rule says that `@param` and `@returns` descriptions take no articles,
+and that they explain why and not what.
+Fixed in `b3e4d5e`,
+the scan,
+committed red on purpose,
+and in one commit for each of the 36 packages whose comments changed,
+each subject `docs(translation-repair-<package>): open TSDoc @param and @returns descriptions without an article`.
+Ids B1001 to B1004 were reserved for this round and are unused.
+
+The reading adopted:
+TD6 means no leading article,
+the telegraph style the repository already writes:
+"Its child nodes",
+"Whether it is a node".
+The measure behind it was taken by the lead on 2026-10-29 over `origin/main`,
+every `@returns` line and every `@param name -` line outside this package.
+Of about 22,900 such lines,
+670 (2.9 percent) opened with an article,
+about 5,500 held an article somewhere after the first word,
+and the rest held none.
+So the repository practises "no leading article" and leaves an article inside a description alone.
+No lint configuration,
+scan or forbidden-strings rule read TSDoc articles before this round.
+
+What was wrong:
+inside this package 4,031 such lines in 1,159 files opened with one of the six spellings of an article.
+The lead's dry run of the strip script counted 4,029.
+The lead changed its fence test after that dry run,
+since TSDoc fence lines carry a leading `*`,
+and the write run read 4,031.
+The red scan does not use the script,
+and it listed the same 4,031 lines in the same 1,159 files.
+The message of the red commit says 4,030.
+That figure is wrong:
+the run listed 4,031,
+and the body of the `source-scan` fix commit says so.
+
+The fix:
+the strip script (`strip-leading-articles.ts`) removed the article,
+capitalised the first word after `@returns`,
+kept the case of a `@param` description,
+and skipped fenced lines.
+The lead authorized it for this round only.
+It rewrote 4,031 lines in 1,159 files and left none as a possible name.
+It reported 252 rewritten lines for a hand pass.
+Each is a list whose first item lost its article while a later item kept one.
+242 were made even by dropping the later article too,
+so `Baseline, the window and each region` now reads `Baseline, window and each region`.
+10 were kept,
+because the article belongs to a relative clause,
+to an appositive
+or to a noun that reads wrongly without it:
+`the carries`,
+`what the asking and the floors reported`
+and `the very one the critic, panel and editor were shown`.
+A sample read of 270 rewritten lines across the diff changed 2.
+`credential-mask.ts` had lost the article of `the very same string` in the hand pass,
+and got it back.
+`translate-validate.ts` had "Text floor's refusal",
+which reads as a noun phrase,
+and now reads "Refusal of the text floor".
+The tree passes the scan with 0 findings.
+
+The scan:
+`source-scan/src/tsdoc-leading-articles.unit.test.ts`,
+listed in the `source-scans` task.
+It reads every TypeScript file under `src` of a family package.
+It reads only the lines inside a TSDoc block (`/**` to its close)
+and outside a fence of that block.
+It finds a `@returns` description or a `@param name -` description
+that opens with one of the six spellings and a space.
+Its fixture cases come first.
+Positive controls plant each of the six spellings after `@returns` and after `@param cat -`,
+with and without a margin star.
+Negative controls plant:
+a parameter named `a`,
+a parameter named `the`,
+a parameter named `an`,
+a description that opens with `ArtifactParseError`,
+with `Theme`,
+with `Another`
+or with `Ancient`,
+an article elsewhere in the line (`Rows the census reads`),
+a bare tag,
+a tag followed by two spaces,
+a fenced example of backticks,
+a fenced example of tildes,
+an article in a `//` comment,
+an article in a block comment,
+an article in a string,
+and an article in a template outside every block.
+A block that ends inside a fence does not hide the block after it.
+The package-wide case fails with every finding as `file:line`.
+
+Two limits stand.
+The other half of TD6 is "explain why and not what".
+No program can check it,
+and this round does not enforce it:
+a green run of the scan is no proof that a description explains why,
+and no proof of TD6 compliance.
+The 670 leading articles outside this package belong to other packages of the repository,
+and this round does not change them.
+The scan also reads the first line of a description only.
+It reads text and not syntax,
+so a `/**` line inside a template literal opens a block for it.
+It reads no file outside `src`.
+
+Recurrence:
+`mistake-prevention-docs-and-references.md`,
+"TSDoc parameter and return descriptions".

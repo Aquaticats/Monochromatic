@@ -4,6 +4,7 @@ Rules for the docs themselves:
 current-state docs,
 references in code and docs,
 dates and clock times,
+TSDoc parameter and return descriptions,
 how long a doc may grow,
 and the Markdown linter.
 
@@ -209,6 +210,39 @@ the text holds the digits and the label and nothing says which tool printed them
 so a check of the words would pass or refuse every time alike.
 The check that works is on the source,
 the offset the tool printed.
+
+## TSDoc parameter and return descriptions
+
+What happened:
+`AGENTS.md` rule TD6 says that `@param` and `@returns` descriptions take no articles,
+and that they explain why and not what.
+4,031 description lines of this package opened with an article,
+because nothing read the rule (ledger B1000).
+The lead measured how the repository practises it:
+of about 22,900 such lines outside this package,
+670 (2.9 percent) opened with an article.
+
+The rule:
+a `@returns` description and a `@param name -` description open with the thing described,
+not with one of the six spellings of an article:
+"Its child nodes",
+"Whether it is a node".
+An article inside a description is ordinary English and is left alone,
+and a list whose first item lost its article loses the articles of its other items too,
+unless dropping one changes the meaning,
+as in a relative clause ("Winner the ballots give").
+The other half of TD6,
+that a description says why and not what,
+is the writer's reading and the reviewer's.
+
+What enforces it:
+`tsdoc-leading-articles.unit.test.ts` reads every TSDoc block of the family's source and tests,
+outside fences,
+and fails on a description that opens with an article,
+naming each as `file:line`.
+Its green run proves the opening of each description and nothing more:
+no test judges whether a description explains why,
+so a passing scan is no proof of TD6 compliance.
 
 ## Docs that only grow
 

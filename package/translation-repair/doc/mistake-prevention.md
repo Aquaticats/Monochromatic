@@ -79,12 +79,14 @@ named for that subject and listed here.
   current-state docs,
   references in code and docs,
   dates and clock times,
+  TSDoc parameter and return descriptions,
   how long a doc may grow,
   and the Markdown linter.
   Sections:
   - [Current-state docs](mistake-prevention-docs-and-references.md#current-state-docs)
   - [References in code and docs](mistake-prevention-docs-and-references.md#references-in-code-and-docs)
   - [Dates and clock times](mistake-prevention-docs-and-references.md#dates-and-clock-times)
+  - [TSDoc parameter and return descriptions](mistake-prevention-docs-and-references.md#tsdoc-parameter-and-return-descriptions)
   - [Docs that only grow](mistake-prevention-docs-and-references.md#docs-that-only-grow)
   - [The Markdown linter](mistake-prevention-docs-and-references.md#the-markdown-linter)
   - [Names that were replaced](mistake-prevention-docs-and-references.md#names-that-were-replaced)
