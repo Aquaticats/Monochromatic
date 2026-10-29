@@ -49,7 +49,7 @@ import {
 
  @param span - source span of the occurrence
 
- @returns The holding slice's index, or why no slice holds the span whole
+ @returns Holding slice's index, or why no slice holds the span whole
 
  @example
  ```ts

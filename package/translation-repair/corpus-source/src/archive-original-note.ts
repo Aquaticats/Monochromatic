@@ -344,7 +344,7 @@ function spanEnd(
 
  @param document - parsed archive, before any lane ran
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts

@@ -72,7 +72,7 @@ function claimsOf(
 
  @param slices - reading off the paired slices
 
- @returns The widened reading; an ambiguous input reading as it is
+ @returns Widened reading; an ambiguous input reading as it is
 
  @example
  ```ts

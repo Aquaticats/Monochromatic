@@ -198,7 +198,7 @@ export function fragmentBody(
 
  @param fragment - text a lane produced for one slice
 
- @returns The body, which {@link fragmentBody} gives, and the offset in the fragment where it starts, which a reader of the
+ @returns Body, which {@link fragmentBody} gives, and the offset in the fragment where it starts, which a reader of the
  page the fragment lands in needs to find the fragment's words
 
  @example
@@ -261,7 +261,7 @@ export function fragmentCut(
 
  @param eol - line ending this document uses
 
- @returns The text to write, separators included, and where the words of each fragment stand in that text, in the order of
+ @returns Text to write, separators included, and where the words of each fragment stand in that text, in the order of
  the fragments; a fragment that shows a reader nothing writes nothing and has no entry, and the text is empty exactly when
  no fragment said anything
 

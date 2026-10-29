@@ -44,7 +44,7 @@ export type PreparedSheetFacts = {
 
  @param prepared - preparation of the page
 
- @returns The facts, ready to spread into a stage input or a run shape
+ @returns Facts, ready to spread into a stage input or a run shape
 
  @example
  ```ts

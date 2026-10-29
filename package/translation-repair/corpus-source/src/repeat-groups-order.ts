@@ -43,7 +43,7 @@ function firstSpanOf(repeat: FoundRepeat,): FoundSpan {
 
  @param first - one found repeat
 
- @param second - the other found repeat
+ @param second - other found repeat
 
  @returns Negative when the first lists before the second, positive when after,
  zero when they match in every part the order reads

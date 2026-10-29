@@ -159,7 +159,7 @@ export class SliceBlockCountRefusalError extends Error {
   /**
    Builds failure naming the parser's own account.
 
-   @param detail - the grammar's refusal, as `readSliceSkeleton` reports it
+   @param detail - grammar's refusal, as `readSliceSkeleton` reports it
 
    @example
    ```ts

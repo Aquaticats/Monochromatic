@@ -57,7 +57,7 @@ function coverageOf({ repeat, }: { readonly repeat: FoundRepeat; },): number {
 
  @param offset - absolute offset to look past
 
- @returns The index, or the count of kept occurrences when none ends after the offset
+ @returns Index, or the count of kept occurrences when none ends after the offset
 
  @example
  ```ts
@@ -138,7 +138,7 @@ function overlapsKept(
 
  @param first - one found repeat
 
- @param second - the other found repeat
+ @param second - other found repeat
 
  @returns Negative when the first is tried before the second
 
@@ -179,7 +179,7 @@ function compareByCoverage(
 
  @param repeats - found repeats, each with its occurrences apart from one another
 
- @returns The repeats kept, most text first; sort them for the page
+ @returns Repeats kept, most text first; sort them for the page
 
  @throws {@link Error} when a repeat's own occurrences overlap, which both finders keep apart
 

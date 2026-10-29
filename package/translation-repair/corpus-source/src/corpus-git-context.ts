@@ -184,7 +184,7 @@ async function realCloneDir({ cloneDir, }: { readonly cloneDir: string; },): Pro
 
  @param cloneDir - clone directory as the pin names it
 
- @returns The parent of the clone's real path, or of the path as named where
+ @returns Parent of the clone's real path, or of the path as named where
  git cannot enter it
 
  @throws {@link StatedRefusalError} when that parent's path holds a colon,

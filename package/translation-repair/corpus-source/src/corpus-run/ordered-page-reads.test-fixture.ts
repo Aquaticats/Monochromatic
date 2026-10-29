@@ -24,7 +24,7 @@ import { refusalOrder, } from '@monochromatic-dev/translation-repair-test-fixtur
  whether each refusal is a page absent at a held commit or a commit the clone
  lacks
 
- @returns A reader to pass in place of `readCorpusFile`
+ @returns Reader to pass in place of `readCorpusFile`
 
  @example
  ```ts

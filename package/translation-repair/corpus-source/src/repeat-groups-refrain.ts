@@ -28,7 +28,7 @@ import type {
 
  @param wording - wording stream of the page
 
- @param stream - the characters of that stream, as one string per character
+ @param stream - characters of that stream, as one string per character
 
  @returns Clauses in page order
 

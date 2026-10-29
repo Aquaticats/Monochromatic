@@ -119,7 +119,7 @@ function refrainAt(
  Sign of the order of two found repeats.
 
  @param first - one found repeat
- @param second - the other found repeat
+ @param second - other found repeat
 
  @returns Minus one, zero or one
 

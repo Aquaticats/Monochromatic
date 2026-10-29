@@ -83,7 +83,7 @@ export function unclaimedOutsideAlignment(
 
  @param pairIndex - aligned chunk the blocks sit in
 
- @param blocks - the blocks, in document order
+ @param blocks - blocks, in document order
 
  @returns One record per block, located by the chunk
 
@@ -122,7 +122,7 @@ export function unclaimedInAlignedPair(
 
  @param pairIndex - aligned chunk the blocks sit in
 
- @param blocks - the blocks, in document order
+ @param blocks - blocks, in document order
 
  @param reason - why no slice holds them, finishing the count sentence
 

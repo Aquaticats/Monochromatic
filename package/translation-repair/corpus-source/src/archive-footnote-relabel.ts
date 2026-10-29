@@ -157,7 +157,7 @@ export type LabelCorrespondence = {
 
  @param skipped - places that said nothing, carried into the reading
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts
@@ -272,7 +272,7 @@ export function mapLabels(
 
  @param targetText - complete archive backing the prepared ranges
 
- @returns The map, that nothing changes, or why the archive must stand
+ @returns Map, that nothing changes, or why the archive must stand
 
  @throws {@link FootnoteRewriteError} when document syntax or slice scope cannot establish current evidence
 
@@ -380,7 +380,7 @@ export function footnoteRelabelOf(
 
  @param pairs - definition pairs, by label
 
- @returns The map, that nothing changes, or why the archive must stand
+ @returns Map, that nothing changes, or why the archive must stand
 
  @example
  ```ts
