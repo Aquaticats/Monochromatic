@@ -22,6 +22,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
+import type {
+  ChatJsonOutcome,
+  ChatJsonRequest,
+  ModelClient,
+} from '@monochromatic-dev/translation-repair-provider';
 import { isInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { prepareDocumentPairWithRoster, } from '../dist/final/node/index.mjs';
 import { cannedClient, } from '@monochromatic-dev/translation-repair-provider/ts/streaming-reply-client.test-fixture.ts';
@@ -268,6 +273,64 @@ await describe({
                 none: NONE_PAIRED,
               },
             },);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'an archive with no body',
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'CUTS AN ANCHOR FOR EVERY ORIGINAL SECTION WITHOUT ASKING THE ROSTER, since the section round has no '
+            + 'archive section to pair and a block round has no archive block, so no pairing is bought or stored '
+            + 'for it and no cache record of one depends on the alignment (B1045)',
+          fn: async () => {
+            /**
+             Every structured call a voice was asked for.
+             */
+            const asked: string[] = [];
+            /**
+             Client that records any exchange it is made.
+             */
+            const client: ModelClient = {
+              chatText: async () => {
+                throw new Error('chatText not used',);
+              },
+              chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+                asked.push(request.modelId,);
+                throw new Error('an archive with no body bought an exchange',);
+              },
+              quotas: async () => {
+                throw new Error('quotas not used',);
+              },
+            };
+            /**
+             Preparation of the original against an empty archive.
+             */
+            const { prepared, } = await prepareDocumentPairWithRoster({
+              client,
+              modelIds: ROSTER,
+              sourceText: TWO_SECTIONS,
+              targetText: '',
+              signal: new AbortController().signal,
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l,
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+
+            expect(asked,).toEqual([],);
+            expect(prepared.slices.map(function isAnchorAtZero(slice,): readonly [boolean, number,] {
+              return [
+                isInsertionChunk(slice.target,),
+                slice.target.startOffset,
+              ];
+            },),).toEqual([[true, 0,], [true, 0,],],);
+            expect(prepared.slices.map(function toHeading(slice,): string {
+              return slice.source.text
+                .split('\n',)[0] ?? '';
+            },),).toEqual([FIRST_HEADING, SECOND_HEADING,],);
           },
         },),
       ],
