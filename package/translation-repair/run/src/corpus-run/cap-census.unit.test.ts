@@ -34,6 +34,7 @@ import {
 import { STAMPS_NOT_WRITTEN, } from '@monochromatic-dev/translation-repair-markup/ts/iso-stamp-text.test-fixture.ts';
 import {
   SEAT_HYPER_OPENROUTER_UNMEASURED,
+  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_OPENROUTER_ONLY,
   SEAT_OPENROUTER_ONLY_CHECKER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -161,6 +162,7 @@ function flagRow(
       atCapWithContent: 0,
       atCapNoContent: atCap,
       atCapUnpaired: 0,
+      atCapAmbiguous: 0,
     },],
   };
 }
@@ -229,12 +231,14 @@ await describe({
           name: 'LEAVES A SPEND LINE UNPAIRED when no completed stream of its label is in the window: one too early, '
             + 'one cut rather than completed',
           fn: async () => {
+            // THE WINDOW IS THREE SECONDS (cap-census-read.ts, measured gaps), so the completed stream sits 3.010
+            // seconds before the spend line; the cut stream is 10 ms before it and is no completed stream.
             expect(readCapLog({
               lines: [
                 streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 7, },),
-                streamLine({ stamp: '2026-09-28T10:00:01.000Z', label: HYPER_ID, outcome: 'cut', content: 7, },),
+                streamLine({ stamp: '2026-09-28T10:00:03.000Z', label: HYPER_ID, outcome: 'cut', content: 7, },),
                 spendLine({
-                  stamp: '2026-09-28T10:00:01.010Z',
+                  stamp: '2026-09-28T10:00:03.010Z',
                   tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13082`,
                 },),
               ],
@@ -246,8 +250,38 @@ await describe({
           },
         },),
         it({
-          name: 'PAIRS EACH SPEND LINE WITH THE LATEST STREAM STILL WAITING when several of one label wait, and takes '
-            + 'each stream once',
+          name: 'PAIRS A SPEND LINE WITH ITS STREAM 600 MS EARLIER, the gap a call with a body of several million '
+            + 'characters shows (139 to 589 ms measured at about 4.1 million raw characters, 1,107 ms the longest '
+            + 'among capped calls), and again at the window\'s edge of three seconds but not a millisecond past it',
+          fn: async () => {
+            expect(readCapLog({
+              lines: [
+                streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 0, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:00.600Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13082`,
+                },),
+                streamLine({ stamp: '2026-09-28T10:01:00.000Z', label: HYPER_ID, outcome: 'completed', content: 5, },),
+                spendLine({
+                  stamp: '2026-09-28T10:01:03.000Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13082`,
+                },),
+                streamLine({ stamp: '2026-09-28T10:02:00.000Z', label: HYPER_ID, outcome: 'completed', content: 6, },),
+                spendLine({
+                  stamp: '2026-09-28T10:02:03.001Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13082`,
+                },),
+              ],
+            },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),).toEqual([0, 5, 'unpaired',],);
+          },
+        },),
+        it({
+          name: 'READS A SPEND LINE AS AMBIGUOUS when two completed streams of its label wait within the window, '
+            + 'rather than guessing which is its own, and leaves both waiting so the next spend line reads them too',
           fn: async () => {
             expect(readCapLog({
               lines: [
@@ -267,8 +301,80 @@ await describe({
               .map(function contentOf(sample,) {
                 return sample.content;
               },),).toEqual([
-                22,
+                'ambiguous',
+                'ambiguous',
+              ],);
+          },
+        },),
+        it({
+          name: 'READS A SPEND LINE AS AMBIGUOUS only for its own label: a stream of another label waiting beside the '
+            + 'one that pairs makes no second candidate',
+          fn: async () => {
+            expect(readCapLog({
+              lines: [
+                streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: OPENROUTER_ID, outcome: 'completed', content: 11, },),
+                streamLine({ stamp: '2026-09-28T10:00:00.010Z', label: HYPER_ID, outcome: 'completed', content: 22, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:00.020Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
+                },),
+              ],
+            },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),).toEqual([22,],);
+          },
+        },),
+        it({
+          name: 'IGNORES A STREAM OLDER THAN THE WINDOW when counting candidates: one stale stream and one fresh stream '
+            + 'of a label pair with the fresh one and are not ambiguous',
+          fn: async () => {
+            expect(readCapLog({
+              lines: [
+                streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 11, },),
+                streamLine({ stamp: '2026-09-28T10:00:09.990Z', label: HYPER_ID, outcome: 'completed', content: 22, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:10.000Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
+                },),
+              ],
+            },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),).toEqual([22,],);
+          },
+        },),
+        it({
+          name: 'TAKES EACH STREAM ONCE: with a stream, its spend line, a second stream and its spend line in file '
+            + 'order, the second spend line pairs the second stream and not the first again',
+          fn: async () => {
+            expect(readCapLog({
+              lines: [
+                streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 11, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:00.020Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
+                },),
+                streamLine({ stamp: '2026-09-28T10:00:00.030Z', label: HYPER_ID, outcome: 'completed', content: 22, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:00.050Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=14`,
+                },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:00.060Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=15`,
+                },),
+              ],
+            },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),).toEqual([
                 11,
+                22,
+                'unpaired',
               ],);
           },
         },),
@@ -458,7 +564,8 @@ await describe({
           },
         },),
         it({
-          name: 'COUNTS CUTS SINCE THE CAPS ONLY, split by what the stream delivered: an answer, nothing, or no pair',
+          name: 'COUNTS CUTS SINCE THE CAPS ONLY, split by what the stream delivered: an answer, nothing, no pair, or '
+            + 'two streams that could each be the pair, the last two counted apart from the first two',
           fn: async () => {
             /**
              The seat's cap.
@@ -472,19 +579,95 @@ await describe({
               { provider: 'hyper', model: HYPER_ID, completion: cap, at: CAPS_ON_WIRE_AT, content: 3, },
               { provider: 'hyper', model: HYPER_ID, completion: cap, at: CAPS_ON_WIRE_AT, content: 0, },
               { provider: 'hyper', model: HYPER_ID, completion: cap, at: CAPS_ON_WIRE_AT, content: 'unpaired', },
+              { provider: 'hyper', model: HYPER_ID, completion: cap, at: CAPS_ON_WIRE_AT, content: 'ambiguous', },
               { provider: 'hyper', model: HYPER_ID, completion: cap - 1, at: CAPS_ON_WIRE_AT, content: 0, },
               { provider: 'hyper', model: HYPER_ID, completion: cap, at: CAPS_ON_WIRE_AT - 1, content: 0, },
             ];
             expect(capCensus({ samples, },).rows[0]?.providers,).toEqual([{
               provider: 'hyper',
-              calls: 5,
+              calls: 6,
               p99: cap,
-              sinceCaps: 4,
-              atCap: 3,
+              sinceCaps: 5,
+              atCap: 4,
               atCapWithContent: 1,
               atCapNoContent: 1,
               atCapUnpaired: 1,
+              atCapAmbiguous: 1,
             },],);
+          },
+        },),
+        it({
+          name: 'COUNTS A NEURALWATT CALL UNDER ITS SEAT, for both models NeuralWatt serves, rather than as a call on '
+            + 'an id no card names: the card side names the served id',
+          fn: async () => {
+            /**
+             NeuralWatt's served id for the DeepSeek seat.
+             */
+            const deepseekId = MODEL_CARDS[SEAT].neuralwatt?.id ?? 'no neuralwatt block';
+
+            /**
+             NeuralWatt's served id for the GLM seat.
+             */
+            const glmId = MODEL_CARDS[SEAT_HYPER_OPENROUTER_VISION_EDITOR].neuralwatt?.id ?? 'no neuralwatt block';
+            expect(deepseekId,).not.toBe('no neuralwatt block',);
+            expect(glmId,).not.toBe('no neuralwatt block',);
+
+            /**
+             One call of each, with the cap's worth of completion.
+             */
+            const census = capCensus({
+              samples: [
+                ...samplesOf({ provider: 'neuralwatt', model: deepseekId, completions: [COMPLETION_CAP[SEAT],], },),
+                ...samplesOf({
+                  provider: 'neuralwatt',
+                  model: glmId,
+                  completions: [COMPLETION_CAP[SEAT_HYPER_OPENROUTER_VISION_EDITOR],],
+                },),
+              ],
+            },);
+            expect({
+              seats: census.rows.map(function seatOf(row,) {
+                return [row.modelId, row.providers.map(function providerOf(reading,) {
+                  return [reading.provider, reading.calls, reading.atCap,];
+                },),];
+              },),
+              offRoster: census.offRoster,
+            },).toEqual({
+              seats: [
+                [SEAT_HYPER_OPENROUTER_VISION_EDITOR, [['neuralwatt', 1, 1,],],],
+                [SEAT, [['neuralwatt', 1, 1,],],],
+              ],
+              offRoster: 0,
+            },);
+          },
+        },),
+        it({
+          name: 'COUNTS THE DEEPSEEK SEAT\'S RETIRED PRE-1017 IDS UNDER THE SEAT, on Hyper and on OpenRouter, where '
+            + 'the model moved to the 1017 weights on 2026-10-20 and kept its roster name, and still counts the '
+            + 'other DeepSeek models Hyper and OpenRouter listed as calls on ids no card names',
+          fn: async () => {
+            /**
+             The census over one call on each retired id of the seat and one on each model that is not the seat's.
+             */
+            const census = capCensus({
+              samples: [
+                ...samplesOf({ provider: 'hyper', model: 'deepseek-v4.1-flash', completions: [10,], },),
+                ...samplesOf({ provider: 'openrouter', model: 'deepseek/deepseek-v4.1-flash', completions: [10,], },),
+                ...samplesOf({ provider: 'hyper', model: 'deepseek-v4-pro-0813', completions: [10,], },),
+                ...samplesOf({ provider: 'openrouter', model: 'deepseek/deepseek-v4-flash-0731', completions: [10,], },),
+              ],
+            },);
+            expect({
+              seats: census.rows.map(function seatOf(row,) {
+                return [row.modelId, row.providers.map(function providerOf(reading,) {
+                  return [reading.provider, reading.calls,];
+                },),];
+              },),
+              offRoster: census.offRoster,
+            },).toEqual({
+              seats: [[SEAT, [['hyper', 1,], ['openrouter', 1,],],],],
+              offRoster: 2,
+            },);
           },
         },),
         it({
