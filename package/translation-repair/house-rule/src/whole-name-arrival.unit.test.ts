@@ -44,7 +44,7 @@ const ORDINARY_ONLY = excusedNeighboursOf({
 
  @param excused - words allowed beside it
 
- @returns The check's answer
+ @returns Check's answer
 
  @example
  ```ts

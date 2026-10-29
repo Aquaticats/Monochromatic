@@ -114,7 +114,7 @@ export function allocateBandQuota(
 
  @param kind - namespace separating entry keys from issue keys
 
- @param id - the entry or issue id
+ @param id - entry or issue id
 
  @returns Hex sha256 digest to sort by
  */
@@ -181,7 +181,7 @@ type RankedCandidate = {
 
  @param seed - draw seed
 
- @returns The selected candidates in round-robin draw order
+ @returns Selected candidates in round-robin draw order
  */
 function selectFromBand(
   {
@@ -290,13 +290,13 @@ function selectFromBand(
  entries, so the draw is representative across size bands and spread across
  entries within each band. Fully deterministic in the seed.
 
- @param candidates - the full accepted-issue pool
+ @param candidates - full accepted-issue pool
 
  @param size - total sample size desired
 
  @param seed - draw seed
 
- @returns The sampled candidates, small band first
+ @returns Sampled candidates, small band first
 
  @example
  ```ts

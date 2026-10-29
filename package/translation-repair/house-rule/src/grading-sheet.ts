@@ -37,7 +37,7 @@ function quoteLine(quotes: readonly string[],): string {
 /**
  Renders one candidate as a grading-sheet block with an unfilled grade box.
 
- @param candidate - the sampled candidate
+ @param candidate - sampled candidate
 
  @param index - 1-based position in the sheet
 
@@ -74,7 +74,7 @@ function renderCandidate(
  anchoring nothing at all asserts an absence while pointing at nothing, which
  a grader cannot check and should be told about.
 
- @param candidate - the sampled candidate
+ @param candidate - sampled candidate
 
  @returns Display line for the original side
 
@@ -98,9 +98,9 @@ function sourceLine(candidate: GradingCandidate,): string {
  to grade, the per-band sampled counts, then one block per candidate. The
  sheet quotes UNLICENSED corpus text, so callers write it OUTSIDE the repo.
 
- @param sample - the drawn candidates, in draw order
+ @param sample - drawn candidates, in draw order
 
- @param seed - the seed the sample was drawn under, recorded for reproduction
+ @param seed - seed the sample was drawn under, recorded for reproduction
 
  @param bar - precision bar the graded sample must clear
 
@@ -108,7 +108,7 @@ function sourceLine(candidate: GradingCandidate,): string {
 
  @param drawDigest - fingerprint binding this sheet to one exact draw
 
- @returns The grading sheet as markdown text
+ @returns Grading sheet as markdown text
 
  @example
  ```ts

@@ -560,7 +560,7 @@ export function sourceBytesOf(
  @param sourceBytes - UTF-8 BYTE length of the entry's zh source, never a
  character count
 
- @returns The entry's size band
+ @returns Entry's size band
 
  @example
  ```ts
@@ -581,7 +581,7 @@ export function classifyBand(
  Classifies how an issue anchors its source side, distinguishing a correctly
  anchored insertion from a claim that points at nothing in the original.
 
- @param issue - the adjudicated issue whose spans are inspected
+ @param issue - adjudicated issue whose spans are inspected
 
  @returns Which anchor kind the source side has
 
@@ -620,7 +620,7 @@ export function classifySourceAnchor(
  first-seen order. A `Set` collapses the repeats a multi-claim issue anchors
  onto the same text while preserving insertion order.
 
- @param issue - the adjudicated issue whose spans are gathered
+ @param issue - adjudicated issue whose spans are gathered
 
  @param side - which document side to keep quotes from
 
@@ -660,7 +660,7 @@ function sideQuotes(
  severity and summary come from the issue's first member claim in document
  order; source and target quotes gather across every member claim.
 
- @param issue - the accepted adjudicated issue
+ @param issue - accepted adjudicated issue
 
  @param entryId - corpus entry the issue was found in
 
@@ -669,7 +669,7 @@ function sideQuotes(
  @param repair - what became of this issue's repair, omitted for artifacts
  written before repair recording existed
 
- @returns The flattened grading candidate
+ @returns Flattened grading candidate
 
  @example
  ```ts

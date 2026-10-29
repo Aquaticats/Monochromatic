@@ -331,7 +331,7 @@ function declaredFormTexts(
 
  @param forms - declared name forms to check
 
- @param subjectForms - the forms that name the entry's own subject, so one of
+ @param subjectForms - forms that name the entry's own subject, so one of
  them lost can be met by another the base did not carry; absent for the plain
  rule, which every contributor form and every caller without an identity gets
 

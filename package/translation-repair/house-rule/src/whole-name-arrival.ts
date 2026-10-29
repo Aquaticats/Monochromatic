@@ -193,7 +193,7 @@ function isSpaceCharacter(character: string,): boolean {
 
  @param keeps - test a character of the run passes
 
- @returns The offset of the run's first character, `from` when none is kept
+ @returns Offset of the run's first character, `from` when none is kept
 
  @example
  ```ts
@@ -227,7 +227,7 @@ function runStart(
 
  @param keeps - test a character of the run passes
 
- @returns The offset past the run's last character, `from` when none is kept
+ @returns Offset past the run's last character, `from` when none is kept
 
  @example
  ```ts
@@ -260,7 +260,7 @@ function runEnd(
 
  @param at - offset of the occurrence's first character
 
- @returns The word lower-cased, none when the text there is not a capitalised word
+ @returns Word lower-cased, none when the text there is not a capitalised word
 
  @example
  ```ts
@@ -309,7 +309,7 @@ function wordBefore(
 
  @param at - offset just past the occurrence's last character
 
- @returns The word lower-cased, none when the text there is not a capitalised word
+ @returns Word lower-cased, none when the text there is not a capitalised word
 
  @example
  ```ts
@@ -450,7 +450,7 @@ function isNameCharacter(character: string,): boolean {
 
  @param text - form or the stretch of text that holds it
 
- @returns The comparable spelling
+ @returns Comparable spelling
 
  @example
  ```ts
@@ -575,9 +575,9 @@ export function declaredWordsOf(
 
  @param projection - candidate text projected by the name projection
 
- @param form - the declared form as the front matter writes it
+ @param form - declared form as the front matter writes it
 
- @param key - the form projected the same way
+ @param key - form projected the same way
 
  @param excused - words allowed directly beside the form
 
