@@ -87,9 +87,6 @@ import type {
 
  @param endRun - told of the failure that ended this entry when it ends the run, so the pass stops starting entries
 
- @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
- failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
-
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it once the pass has counted
  it: every lifecycle line this settlement prints (OVERLAP, TALLY, DESTINATIONS, DEFECTS, CLEANUP) carries it beside its
  clock time, because the hard cap ends an attempt and the next one begins under a fresh cap (ledger B960)
@@ -126,7 +123,6 @@ export async function settleEntry(
     overlap,
     stageSettings,
     endRun,
-    parked,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -150,7 +146,6 @@ export async function settleEntry(
     readonly overlap: OverlapSetting;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -200,7 +195,6 @@ export async function settleEntry(
     stageSettings,
     ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     ...((endRun === undefined) ? {} : { endRun, }),
-    ...((parked === undefined) ? {} : { parked, }),
     attempt,
     wallClock,
   },);

@@ -119,9 +119,6 @@ import {
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
 
- @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
- failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
-
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
  the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
 
@@ -154,7 +151,6 @@ export async function runEntryPipeline(
     visualEvidenceReader,
     stageSettings,
     endRun,
-    parked,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -178,7 +174,6 @@ export async function runEntryPipeline(
     readonly visualEvidenceReader?: PassVisualEvidenceReader;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**
