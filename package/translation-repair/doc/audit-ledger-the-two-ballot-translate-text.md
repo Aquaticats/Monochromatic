@@ -17,7 +17,15 @@ The corpus pass `XingZ6022` (build `c6185d4086`,
 although the translate lane held a text at each that two judges had chosen
 and that passed the deterministic publication rule.
 On slices 67 to 70 the archive carries an invented Metal Gear Solid 2 quotation.
-This file holds B1020 to B1025.
+This file holds B1020 to B1025,
+B1040,
+B1050 and B1051.
+B1050 and B1051 record how the page of that pass came to tell a life that ended in the present tense at six places
+and to write an ambiguous `their`;
+B1052,
+the heading `Part Nine: __` of the same page,
+is filed in
+[Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
 
 The owner's answer of 2026-10-29 (question tool),
 choice "Ship the two-ballot text (Recommended)":
@@ -457,3 +465,266 @@ the case-differing spelling and the twice-against-thrice case).
 Ids used:
 B1040.
 B1041 to B1044 are unused.
+
+## B1050: the XingZ6022 page told a life that ended in the present at six places, by two paths
+
+Status:
+recorded on 2026-10-29 (UTC),
+read offline from the artifact and the log,
+no code changed.
+Group A is reached by B1020.
+Group B is open as an owner question.
+
+The defect:
+the page shipped by `XingZ6022` tells the life of a person who has died in the present tense
+at page lines 95,
+231 to 232,
+379,
+390,
+392 and 396,
+though the house rule (`house-rule/src/house-policy.ts:90`) tells it in the past.
+Page line 231 as printed is past tense ("complained");
+the present perfect is "and has expressed" on line 232,
+so that defect is one sentence that changes tense across two lines.
+None of the six is quoted words.
+Quoted fragments inside them ("finally judged" and "Anyone can write whatever they want" in 95,
+"take it slow" in 390)
+keep their tense,
+as the rule asks.
+
+Which path shipped each line,
+and why no sheet stopped it.
+The translate select heard two judges at all six slices
+and chose the past-tense text each time
+(log lines 21222,
+22172,
+23558,
+23581,
+23743,
+23828).
+The three later benches heard one judge each,
+because the Synthetic weekly credit ran dry at 10:36:27 UTC on 2026-10-29:
+the lane contest opened no round at any of these slices
+(`1 of 7 seats reachable, below the floor of 2`,
+log lines 25427,
+25478,
+25535,
+25542),
+every slate round heard 1 of 7,
+and the page consistency round heard 1 of 7 (log line 29635).
+Each of those rounds needs a second judge to decide,
+so the sheets that state the tense rule were never read by two judges after the translate select.
+
+Group A,
+the archive kept (slices 14,
+79,
+82;
+page lines 95,
+390,
+396).
+Slice 14's archive failed the deterministic floor for an untranslated `TA` (log line 25983);
+the repair lane's adjudicators disputed the archives of 79 and 82.
+The translate lane held a past-tense text that two judges chose
+(slice 14 at log line 21222,
+weight 2;
+slice 79 at 23581 and slice 82 at 23743,
+weight 1.5)
+and the consolidation offered it on the slate (lines 26023,
+28283,
+28553).
+One slate judge was reachable,
+so the round closed on one ballot and `keepTheArchive` shipped the archive
+(lines 26355,
+28427,
+28674).
+The archive tells these lives in the present ("XingZ60 is somewhat similar",
+"XingZ60 is a very mature person",
+"XingZ60 is more complicated"),
+and the translate text has "was" in each.
+B1020 changes this outcome:
+`a30ac44878` (the winner ships where the final round cannot seat two judges),
+its red cases in `0107ed57ca`,
+and `fdf3201f3f` with its cases in `dd6bb21c6f` (the pass carries the winner's ballots and the archive's reason).
+The conditions of `translateWinnerBallotsOf` hold at all three:
+none of 14,
+79 and 82 is among the 40 slices the assembly guard trimmed,
+so the text the judges saw is the text the ledger carries.
+A replay in which the slate again hears fewer than two judges ships the translate text there;
+a replay that seats two judges decides as the slate decides.
+This is stated from the code and the artifact,
+not from a replay.
+
+Group B,
+a standing the rule passed (slices 43,
+77,
+80;
+page lines 231 to 232,
+379,
+392).
+The standing was the repair stand-in at slice 43 and the archive unchanged at 77 and 80.
+The translate lane again held a text two judges chose (log lines 22172,
+23558 and 23828),
+with "had expressed" at 43,
+"was a rational person" at 77 and "I learned" at 80.
+One slate judge named it alone (`winner named by one judge alone; keeping the incumbent`,
+lines 27008,
+28466, 28490)
+and the standing shipped.
+B1020 does not reach these:
+`shipWinnerBeforeSlate` returns `asks` for an eligible standing,
+and `settleRefusedStanding` runs only over a refused one,
+because the owner's answer of 2026-10-29 was asked about a refused archive.
+The standing was unendorsed,
+no judge had called it flawed,
+and so none of the rulings of 2026-10-25 reaches it either.
+Whether a two-ballot translate text may replace an unendorsed standing when neither the contest nor the slate can seat
+two judges is the owner question at the end of this entry.
+
+Measured on the artifact:
+the standing was eligible and the slate declined at 59 slices (49 archives unchanged,
+10 repair stand-ins),
+and at 51 of them the translate lane's text differs from the shipped text.
+The ballots behind those 51 texts were not counted.
+The tense detector flagged the standing and not the translate text at six of the 51
+(slices 11,
+16,
+42,
+43,
+77 and 80).
+That count measures the aid's hits,
+not defects:
+the owner measured the detector right about two in three (2026-10-11).
+
+A detector limit,
+stated:
+the detector flags a present auxiliary only directly after a subject word,
+so "and has expressed" after a past verb (slice 43,
+page line 232) is not flagged.
+Run offline over the page lines as slices,
+it flags 95,
+379,
+390,
+392 and 396,
+and flags nothing in 231 to 232.
+Run over the whole page it flags only line 379,
+because lines 95,
+390,
+392 and 396 sit inside `<details>` blocks (page lines 80 to 267 and 387 to 406),
+and the reading takes top-level paragraphs only.
+No change was made:
+an extension needs a remeasure against the corpus by the owner's own method,
+and the tense candidates reach every judge sheet,
+so it moves several cache versions.
+
+Still stands:
+the aid is shown to judges and never decides (design commitment,
+2026-10-11),
+so a short bench leaves a present-tense line where no judge reads it.
+A deterministic correction of tense on a kept archive is therefore not a question:
+the owner declined it on 2026-10-11.
+
+Owner question (open),
+with the options as the lead ranks them:
+- Option 1,
+  ship the two-ballot translate text over an unendorsed standing only where the standing carries tense
+  candidates the translate text lacks and neither the contest nor the slate seated two judges (six slices here).
+  It fixes the known lines at the smallest scale.
+  It lets the aid decide,
+  which the ruling of 2026-10-11 forbids,
+  so the owner must lift that for this case.
+- Option 2,
+  keep the standing (today).
+  It breaks no ruling and keeps every repair-lane edit.
+  It leaves the present-tense lines whenever the bench is one judge deep.
+- Option 3,
+  ship the two-ballot translate text over every unendorsed standing on those terms (51 slices here).
+  It follows the words of the owner's 2026-10-29 answer most literally.
+  It re-decides 51 slices on the translate lane's ballots alone,
+  and the repair lane's verified edits lose.
+- Ranking:
+  Option 1 > Option 2 > Option 3.
+  Option 1 beats Option 2 because it removes the defect class this page showed at the scale it showed it.
+  Option 2 beats Option 3 because Option 3 overturns repair work at 45 slices where no tense fault was flagged.
+
+Cache versions:
+none moved,
+because no stage output changed.
+The consolidation,
+translate-stage,
+lane-contest and page-check versions stay.
+
+## B1051: `their` shipped for the person beside a plural subject, as the neutral pronoun rule asks
+
+Status:
+recorded on 2026-10-29 (UTC),
+read offline,
+no code changed,
+open as an owner question.
+
+The defect:
+page line 88 reads "XingZ60's parents dressed up their appearance to match a traditional male gender expression at
+their funeral",
+and line 90 "threw their ashes",
+where `their` means the person who died but the parents are the subject of the same sentence.
+The archive had `her`.
+
+Which path shipped it:
+slice 13,
+the repair stand-in.
+The archive was disputed (two accepted claims,
+log line 25959),
+the repair lane and the translate lane wrote the same `their` in all three places,
+the contest opened no round (1 of 7 seats),
+and the slate's single judge named the translate text alone,
+which differs from the stand-in only in the spelling
+`behaviour` (lines 21067,
+26091).
+So neither lane's text could have mended it.
+
+The cause is not a stage fault.
+The original writes `TA` at each of these places ("在 TA 的葬礼上把 TA 的外貌",
+"把 TA 的骨灰",
+"TA 父母"),
+and the house rule renders `TA` as singular they and calls a pronoun left in the other form a fault
+(`house-rule/src/house-policy.ts:91`;
+the floor that withheld the archive at slice 14 is
+`translate-floor/src/translate-neutral-pronoun.ts`).
+The archive's `her` was the hand translation breaking that rule.
+Both lanes obeyed it,
+and nothing in the rule or in any sheet tells a writer to name the person where singular they sits beside a plural
+noun it could be taken for (`rg 'ambigu' house-rule/src translate-floor/src` finds no such text).
+No deterministic check can decide the ambiguity,
+because it turns on who the sentence is about.
+
+Owner question (open):
+- Option A,
+  keep the rule as it stands.
+  It breaks no ruling,
+  and costs nothing.
+  It leaves sentences like line 88,
+  whose number was not counted (19 page lines hold `their`;
+  how many are ambiguous
+  was not measured).
+- Option B,
+  add one sentence to the pronoun rule in `house-policy.ts`:
+  where singular they sits in a sentence with a plural noun it could be taken for,
+  the sentence repeats the person's name or the word "the deceased" for that pronoun.
+  It mends line 88 for any run that reads the rule.
+  It changes sheet text that every stage showing the house rule carries,
+  so the cache versions of those stages move by the cached-decisions rule,
+  and it cannot be checked without model calls.
+- Ranking:
+  Option A > Option B.
+  Option A leads because the prevalence is unmeasured and Option B moves many caches for one sentence of one page.
+  Measure how many corpus sentences put singular they beside a plural noun first,
+  and the order may change.
+
+Cache versions:
+none moved,
+because no stage output changed.
+
+Ids used:
+B1050 and B1051.
+B1052 is in
+[Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
+B1053 to B1059 are unused.
