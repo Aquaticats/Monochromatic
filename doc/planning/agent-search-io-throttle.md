@@ -117,10 +117,28 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   ([docs.kernel.org dm-crypt](https://docs.kernel.org/admin-guide/device-mapper/dm-crypt.html)),
   so their effect on this drive needs a measurement.
 
+### Measurements on the drive
+
+- APST on versus off could not be run. The probe's `nvme set-feature` call returned "Permission denied", and the auto-mode
+  classifier refused a direct `set-feature` write ("Modify Shared Resources"). The drive's APST table was never changed
+  (the restore check compared identical to the original).
+- First-read latency after an idle gap, APST left as is: single 4 KiB direct reads from a 64 MiB file on `/var/home`,
+  8 rounds per gap, medians 0.03 ms (gap 0), 0.04 ms (50 ms), 0.04 ms (300 ms), 0.05 ms (1500 ms), 0.04 ms (4000 ms),
+  worst single read 0.08 ms.
+  The drive never idled: other sessions completed 1,313 reads during the 50 ms gaps, 7,854 during 300 ms, 32,771 during 1500 ms
+  and 90,430 during 4000 ms (about 2,800 reads per second), so this says nothing about APST wake-up cost.
+- It does show that a single small read inside a hot 64 MiB region costs about 0.04 ms even while other sessions
+  read about 2,800 times per second. The cold small-file reads measured earlier took roughly 10 ms to 50 ms per file.
+  The gap between those two is unexplained. Candidate causes, all unmeasured: reads spread across the whole device
+  rather than one hot region (a DRAM-less drive keeps its logical-to-physical map in flash and a 64 MiB host buffer),
+  btrfs metadata lookups, dm-crypt, queueing behind bursts from other sessions' builds, and the 4-command limit under bursts.
+
 Candidate measurements, none run yet:
 
-- Queue-depth sweep of 4 KiB random reads on the raw device read-only, against the same sweep through the LUKS mapping.
-- First-read latency after an idle gap with APST on, then with APST off (`nvme set-feature -f 0x0c -v 0`, reversible).
+- Single 4 KiB direct reads at random offsets across the whole raw partition (read-only), against the same count inside one hot region.
+- Queue-depth sweep of 4 KiB random reads on the raw device read-only, against the same sweep through the LUKS mapping
+  (synthetic load, which the repository rules ban unless the user waives them).
+- APST on versus off, which needs the user to permit `nvme set-feature` on `/dev/nvme0`.
 
 ## Commits are a second I/O consumer
 
