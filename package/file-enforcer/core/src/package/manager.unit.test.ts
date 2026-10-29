@@ -10,7 +10,7 @@ import {
   NO_PACKAGE_MANAGER,
   resetManagerCache,
   resetRootCache,
-} from './manager.ts';
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

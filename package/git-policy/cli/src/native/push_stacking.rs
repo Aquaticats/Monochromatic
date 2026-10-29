@@ -19,6 +19,8 @@
 use super::auto_push_reconcile::{Destination, Integrated, Reconcile, integrate_and_push};
 /// The coordinator's Git, its read-only query runner and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// The action data of a stacked push.
 use super::action::PushForward;
 /// The environment of a Git child.
@@ -147,7 +149,7 @@ pub fn stack_failed_push(
                 return (name, value);
             }))
             .env(STACKED_PUSH_MARKER, "1")
-            .status()
+            .status_retrying()
             .map_err(SingleFlightError::Io)?;
         return Ok(PushAttempt {
             exit_code: i64::from(status.code().unwrap_or(1)),

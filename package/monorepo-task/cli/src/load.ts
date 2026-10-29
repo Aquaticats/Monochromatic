@@ -94,7 +94,7 @@ export async function resolveDefinition(definition: TaskDefinition,): Promise<Ta
 export function runTaskCli(name: string, args: readonly string[] = []): void {
   execFileSync(
     process.execPath,
-    [join(REPO_ROOT, 'package', 'dev-script', 'task-cli', 'src', 'run.ts'), name, ...args,],
+    [join(REPO_ROOT, 'package', 'monorepo-task', 'cli', 'src', 'run.ts'), name, ...args,],
     { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1', }, },
   );
 }

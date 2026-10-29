@@ -1,0 +1,97 @@
+# Workflow shell line limit
+
+## Status
+
+Grilling in progress; started 2026-10-29.
+Nothing is implemented.
+This records the decisions the repository owner has answered and the questions still open.
+
+## Request
+
+Make `monochromatic-lint` ban long shell in `.github/workflows/*.{yml,yaml}`.
+
+## Evidence
+
+- `package/linter/monochromatic-lint` lints Rust and Markdown (including MDX) only.
+  It has no YAML dependency and no YAML host.
+- `ProcessorLanguage` in `package/linter/monochromatic-lint/src/processors_model.rs` has the variants `Rust`,
+  `Markdown` and `Mdx`.
+  The processor files total about 1100 lines.
+  Fenced Rust in Markdown is already linted as a virtual file such as `guide.md/3.rs`,
+  with `MappedLine` records carrying container prefixes back to host positions.
+- `.github/workflows` holds 19 `.yml` files and no `.yaml` file.
+  They contain 142 `run: |` blocks.
+  Measured by a scratch script on 2026-10-29 (raw lines, blank and comment lines included):
+  114 blocks are longer than 5 lines,
+  77 longer than 10,
+  54 longer than 15,
+  40 longer than 20,
+  32 longer than 30,
+  and 16 longer than 50.
+  The longest is 351 lines at `.github/workflows/music-player-release.yml:2164`.
+- [`bash-usage-boundary.md`](bash-usage-boundary.md) records that `SCR` already prohibits Bash scripts
+  and that `shell: node {0}` is the repository's established alternative.
+  It adopts no exception and no workflow-wide rule.
+
+## Decisions
+
+- **Measure:** line count of the run body, skipping blank and comment-only lines,
+  with a configurable `max`.
+  A control-flow ban was offered and not chosen.
+- **Scope:** a step counts when its effective shell is one of bash, sh, cmd, pwsh, zsh or fish.
+  Steps whose effective shell is `node {0}` or `python` do not count.
+  Effective shell is the step's `shell:`,
+  else `defaults.run.shell` of the job or workflow,
+  else the runner default.
+- **Rollout:** the rule is `error` repository-wide.
+  Each workflow file that already exceeds the default gets a configuration block
+  setting `max` to its current longest block,
+  so no block in it can grow.
+- **Shape:** each shell `run:` body becomes a virtual file in the embedded-source style,
+  such as `ci.yml/42.sh`,
+  and a rule lints it.
+  The Markdown-fence processor is the model.
+
+- **Rule name:** `shell/max-lines`.
+  Virtual files take a per-dialect suffix:
+  `.sh` (bash, sh, zsh), `.fish`, `.ps1` (pwsh) and `.cmd` (cmd).
+- **Default `max`:** 2 lines.
+  The repository owner's reason: any longer and TypeScript should be used.
+- **Banned constructs:** the repository owner also wants these banned, by a string scan,
+  because they are tell-tale signs of too much shell:
+  `|`, `&&`, `||`, `|&`, `;`, `$(...)` and backticks.
+  The owner chose this widest option over pipes and `&&` alone.
+- **Scan precision:** the scan skips `${{ }}` expressions, quoted strings and comments.
+  Adopted consequence, open to veto: inside double quotes Bash and Zsh still execute `$(...)` and backticks,
+  so those two are flagged there, while `|`, `&&` and `;` inside any quotes are not.
+- **Ratchet for the banned constructs:** the rule takes an occurrence `max` per run body, default 0,
+  and a ratchet block sets it to the file's current worst body.
+- **Line counting:** every physical non-blank, non-comment line counts,
+  including `\` continuations and heredoc content.
+- **Unresolvable `shell:`:** a `shell:` value that is an expression, such as `${{ matrix.shell }}`,
+  is a `core/processing-failure` finding at the value.
+- **Host files:** `.github/workflows/*.{yml,yaml}` and composite actions
+  (`.github/actions/**/action.{yml,yaml}`, steps under `runs.steps`).
+  The request named workflows only;
+  the owner widened it to composite actions.
+
+## Measurements
+
+Counting only non-blank, non-comment lines, measured 2026-10-29 with a scratch script:
+
+- 230 `run:` steps in total;
+  133 have more than 2 code lines,
+  across 13 of the 19 workflow files.
+- 68 steps contain a single `|` or `&&` outside `${{ }}`:
+  59 with a pipe and 24 with `&&`,
+  across 11 files.
+- `shell:` values: 56 `bash`, 5 `node {0}`, 1 `pwsh`, none an expression.
+- `.github/actions` holds one file, `task-cli-setup/action.yml`.
+
+## Open
+
+- Rule name and structure for the banned constructs, and whether the construct list is per dialect.
+- Whether directives may suppress the rules.
+- Choice of YAML parser,
+  which must expose byte offsets of block scalar content.
+- Whether inline directives (`#` comments) can suppress the rules in YAML.

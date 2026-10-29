@@ -6,8 +6,8 @@ import {
 import {
   MANAGER_KEYS,
   MANAGERS,
-} from './manager-defs.ts';
-import type { PackageManager, } from './types.ts';
+  type PackageManager,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

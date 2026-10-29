@@ -27,7 +27,7 @@ const MANIFEST_GLOBS = [
 /**
  Name of the lockfile in each crate root.
  */
-const LOCKFILE_NAME = 'Cargo.lock';
+export const LOCKFILE_NAME = 'Cargo.lock';
 
 /**
  Repo-relative directories of every first-party crate root with a `Cargo.lock`, sorted.

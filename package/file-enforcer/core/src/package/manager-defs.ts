@@ -48,6 +48,8 @@ export type ManagerDef = {
  
  After brew, native managers are ordered from most common to least common,
  followed by Windows managers.
+
+ @internal
  */
 export const MANAGERS: ReadonlyMap<PackageManager, ManagerDef> = new Map<PackageManager,
   ManagerDef>([
@@ -223,6 +225,8 @@ export const MANAGERS: ReadonlyMap<PackageManager, ManagerDef> = new Map<Package
  Set of all known {@link PackageManager} names, derived from {@link MANAGERS}.
  Used by {@link p} to separate manager overrides from structural fields when
  destructuring a {@link PackageSpec}.
+
+ @internal
  */
 export const MANAGER_KEYS: ReadonlySet<string> = new Set<PackageManager>(
   MANAGERS.keys(),

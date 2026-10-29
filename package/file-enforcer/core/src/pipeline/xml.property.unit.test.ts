@@ -8,7 +8,7 @@
  the entry findable by key, with its option value surviving the
  parse-and-decode round-trip for arbitrary (escaped) keys and values.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -28,16 +28,16 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
-import { escapeXmlAttribute, } from './xml-coding.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   ABSENT_XML_ENTRY,
+  escapeXmlAttribute,
   findXmlEntryByKey,
   getXmlOptionValue,
   listXmlEntries,
   replaceOrInsertXmlEntry,
   type XmlEntry,
-} from './xml.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

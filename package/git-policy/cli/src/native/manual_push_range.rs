@@ -13,6 +13,8 @@
 /// The Git runner, the probe's update type, and the object name helpers.
 use super::auto_push_single_flight::{PushGit, git_command};
 use super::manual_push_probe::PushUpdate;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Maps from remote names and peeled object names.
 use std::collections::BTreeMap;
 /// Owned OS strings for Git arguments and the stdin of batch queries.
@@ -82,7 +84,7 @@ pub fn run_git_bytes(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|error| {
+    let mut child = command.spawn_retrying().map_err(|error| {
         return range_error(format!("git could not be started: {error}"));
     })?;
     if let (Some(text), Some(mut stdin)) = (input, child.stdin.take()) {

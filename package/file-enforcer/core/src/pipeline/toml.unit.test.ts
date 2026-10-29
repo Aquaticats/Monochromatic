@@ -6,7 +6,7 @@ import {
 import {
   editTomlKey,
   getTomlProperty,
-} from './toml.ts';
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

@@ -13,6 +13,8 @@
 
 /// Import the shared child-command builder.
 use super::forwarding::git_command;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -86,7 +88,7 @@ pub fn run_metadata_git(
     // ```
     let output: std::process::Output = git_command(real_git, arguments, overlay)
         .stdin(Stdio::null())
-        .output()?;
+        .output_retrying()?;
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),

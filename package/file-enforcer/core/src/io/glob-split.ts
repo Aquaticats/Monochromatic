@@ -34,6 +34,8 @@ export type GlobSplit = readonly [
  firstGlobMetaIndex('src/*.ts');
  firstGlobMetaIndex('src/index.ts');
  ```
+
+ @internal
  */
 export function firstGlobMetaIndex(s: string,): number {
   for (let cursorIndex = 0; cursorIndex < s
@@ -59,6 +61,8 @@ export function firstGlobMetaIndex(s: string,): number {
  splitGlob('/tmp/foo/*.ts');
  splitGlob('./src/a/**\/*.md');
  ```
+
+ @internal
  */
 export function splitGlob(pattern: string,): GlobSplit {
   /**

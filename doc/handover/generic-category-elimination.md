@@ -118,13 +118,81 @@ User decisions taken during execution
    until then 0.2.12 still lists the two paths,
    which is harmless.
 
+## Unit tests after the moves
+
+`test:unit` for every moved package
+ (`~/temp/agent/package-category-elimination/verify-tests.summary.txt`):
+ 60 passed,
+ 10 failed on the first run.
+- Stale pre-move `dist/` (tests import built output),
+   passing after a rebuild:
+   `env-local-json/core`,
+   `test-harness/core`,
+   `dependency-catalog/cli-cube`,
+   `monorepo-task/core-exec`,
+   `upstream-fork/matcher.fuzz` (after building `upstream-fork/matcher`).
+- Move-caused,
+   fixed:
+   `fs-path/core` root-discovery suffix,
+   and `test-harness/core-diagnostic` (`96886d4f54`:
+    the frame filter matched installed harness copies by bare old names such as `module-test/dist/`,
+    which carry no npm scope,
+    so the move script missed them).
+- Not from the move,
+   left open:
+   `upstream-fork/{conf,p-map,p-memoize}.fuzz` parity checks fail on the pre-move commit `113633b259^` too
+   (same p-memoize message,
+    "The cache Map can't be cleared");
+   `file-enforcer/core` `generate.unit.test.ts` expects `nightly-2026-10-28`,
+    which the toolchain update replaced.
+
 ## Open follow-ups
 
-- npm:
-   `module-logger` and `module-fs-path` (and the published shims) were renamed;
-   the user first-publishes the new names through `npm-publish.yml`
-   (input is now a package path such as `logger/core`),
-   then `npm deprecate` the old ones.
+- npm rename done 2026-10-29
+   (the user ran `~/temp/agent/npm-first-publish/publish-renamed.sh`,
+    then `finish-renamed.sh` after its stage 3 needed `--allow-publish`):
+   `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published;
+   `module-logger` and `module-fs-path` are deprecated ("Renamed to …", verified on the registry);
+   the npm login was removed (`npm whoami` fails).
+  `npm-publish.yml` is registered as both packages' trusted publisher (`--allow-publish`).
+- First trusted-publisher releases (user:
+   "just do new releases through npm-publish.yml now"):
+   `logger-core` 0.4.6 and `fs-path-core` 0.2.2 (`66e9826bab`, version bump and changelog only).
+  Runs 40863033623 and 40863038503 succeeded (pack and publish);
+   npm printed `+ @monochromatic-dev/logger-core@0.4.6` and `+ @monochromatic-dev/fs-path-core@0.2.2`,
+   a signed provenance statement for each (Sigstore log indexes 3565726298 and 3565721940),
+   and "Your package is being processed".
+  Verified on the registry the same day:
+   `logger-core` latest 0.4.6 and `fs-path-core` latest 0.2.2,
+   each with a provenance attestation.
+  These successful trusted publishes keep npm from expiring the trusted-publisher setup (2-day rule).
+- Three CI breakages surfaced on the way,
+   each fixed and pushed:
+  - `09b320f9c5`:
+     nine files built old paths from separate segments
+     (`join(..., 'package', 'dev-script', 'task-cli', ...)`),
+     which the move script cannot see;
+     the task runner re-invoked itself at the old path,
+     so every CI `task-run` failed with `MODULE_NOT_FOUND`.
+    Search used:
+     an old category name quoted and followed by another quoted segment.
+  - `9b5e5bf46a`:
+     `fs-path/core` had no `task.ts`,
+     which `task-run` requires;
+     it had been unbuildable in CI since the workflows dropped mise (`38cb13b4d1`),
+     not because of the move.
+  - `c5cfe8e3a3`:
+     the root `task.ts` still named `npm:module:pack` and `npm:module:publish`
+     (renamed only in `mise.no-env.toml`),
+     and ran `pnpm pack --recursive` and `pnpm publish --recursive`,
+     which would pack and publish every workspace package.
+    Both now match `mise.no-env.toml`:
+     pack `./package/$NPM_PACKAGE`,
+     publish that one tarball with provenance.
+- `npm-release.yml` (changesets) fails in its `select-mode` step on every run,
+   including before the moves,
+   so it never reaches publishing;
+   `doc/decision/npm-publishing.md` and `doc/runbook/publish-npm-package-first-time.md` still describe it as the release path.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,

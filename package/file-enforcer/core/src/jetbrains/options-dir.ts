@@ -24,6 +24,8 @@ export type JetbrainsOptionsDirectory = {
 
 /**
  Sentinel for a product directory that is not a requested, version-named product.
+
+ @internal
  */
 export const NOT_A_MATCHING_PRODUCT: unique symbol = Symbol('file-enforcer/jetbrains: directory is not a requested versioned product',);
 
@@ -70,6 +72,8 @@ function isDecimalDigits({ value, }: { readonly value: string; },): boolean {
  ```ts
  parseVersionParts({ productName: 'IntelliJIdea2026.2', prefixes: ['IntelliJIdea'] });
  ```
+
+ @internal
  */
 export function parseVersionParts(
   {
@@ -123,6 +127,8 @@ export function parseVersionParts(
  ```ts
  compareVersionParts({ left: [2026, 2], right: [2026, 1] });
  ```
+
+ @internal
  */
 export function compareVersionParts(
   {

@@ -10,7 +10,7 @@
  byte-identically (a round-trip across the TOML string-escaping boundary);
  and re-applying the same edit is idempotent.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -32,13 +32,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { TomlEditError, } from '@monochromatic-dev/toml-edit-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   editTomlKey,
   getTomlProperty,
-} from './toml.ts';
+  TomlEditError,
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

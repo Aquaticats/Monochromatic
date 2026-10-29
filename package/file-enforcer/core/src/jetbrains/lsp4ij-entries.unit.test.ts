@@ -7,13 +7,11 @@ import {
 import {
   ABSENT_XML_ENTRY,
   ABSENT_XML_VALUE,
-  findXmlEntryByKey,
-  getXmlOptionValue,
-} from '../pipeline/xml.ts';
-import {
   buildLanguageSettingsEntry,
   buildUserDefinedEntry,
-} from './lsp4ij-entries.ts';
+  findXmlEntryByKey,
+  getXmlOptionValue,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

@@ -6,7 +6,7 @@ import {
 import {
   dedup,
   getJsonProperty,
-} from './transform.ts';
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

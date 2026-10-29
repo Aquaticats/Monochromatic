@@ -3,7 +3,7 @@
 Recursive no-save update of every first-party `Cargo.lock`,
  the Cargo counterpart of `pnpm --recursive --no-save update`,
  under the release-age and trust policy in the repository's `rust-catalog.toml`.
-It also has a CI mode that re-checks every locked version against the trust policy.
+It also has a CI mode that checks newly locked versions against the trust policy.
 
 Design and decisions:
  [`doc/decision/rust-dependency-catalog.md`](../../../doc/decision/rust-dependency-catalog.md)
@@ -17,8 +17,16 @@ Run from the repository root:
 # package/dependency-catalog/cli-rust-update/README.md
 mise run rust:update              # update and keep the result if every check passes
 mise run rust:update -- --dry-run # report what would change, then restore every Cargo.lock
-mise run rust:verify              # CI: check every locked version against the trust policy
+mise run rust:verify              # check versions no lockfile held at HEAD (uncommitted changes)
+mise run rust:verify -- --base <rev>  # CI: the same against another revision
 ```
+
+`--verify` checks only registry versions that no `Cargo.lock` held at the base revision,
+ the counterpart of pnpm's `trustLockfile: true`:
+ the owner never accepts pull requests that change a lockfile,
+ so committed lockfiles are part of the trusted base.
+CI passes the pushed range's previous commit (or a pull request's base) and fetches only that commit.
+A crate whose lockfile did not exist at the base counts as new in full.
 
 The full update workflow is:
 
@@ -101,8 +109,11 @@ Those crates,
    which made the first real run use stable cargo.
 - An exclude selector that names exact versions (`zbus@5.19.0`) exempts only those versions from the checks;
    it does not move the crate, because the cutoff already chose its version.
-- `--verify` does not re-check release age on committed lockfiles,
-   as pnpm does not re-gate a frozen lockfile on `minimumReleaseAge`.
+- `--verify` does not re-check release age:
+   a newly locked version passed the release-age cutoff when the update resolved it,
+   and its age only grows.
+   (pnpm's default `trustLockfile: false` re-applies both rules to every lockfile entry on install;
+   this repository uses the `trustLockfile: true` counterpart for the reason given in the usage section.)
 
 ## Development
 

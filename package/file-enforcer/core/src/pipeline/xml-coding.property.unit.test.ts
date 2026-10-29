@@ -14,7 +14,7 @@
  which escaping leaves unchanged), so the reverse direction is not a
  property.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -34,12 +34,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   escapeXmlAttribute,
   isDigitCodePoint,
   unescapeXmlAttribute,
-} from './xml-coding.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

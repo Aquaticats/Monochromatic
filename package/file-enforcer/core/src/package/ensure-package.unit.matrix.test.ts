@@ -18,16 +18,14 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  ensurePackage,
-  registerPackages,
-} from './ensure-package.ts';
-import {
   binaryExists,
   detectManager,
+  ensurePackage,
   NO_PACKAGE_MANAGER,
+  p,
+  registerPackages,
   resetManagerCache,
-} from './manager.ts';
-import { p, } from './p.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Test packages
 

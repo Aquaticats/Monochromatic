@@ -8,7 +8,7 @@
  suffix a true suffix of the pattern; `mirrorGlobPath` substitutes
  captured wildcards positionally and rejects mismatched wildcard counts.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -30,12 +30,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   firstGlobMetaIndex,
   mirrorGlobPath,
-} from './glob.ts';
-import { splitGlob, } from './glob-split.ts';
+  splitGlob,
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

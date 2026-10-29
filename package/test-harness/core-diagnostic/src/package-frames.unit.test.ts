@@ -4,9 +4,9 @@ import { formatErrorDeep, } from '@monochromatic-dev/test-harness-core-diagnosti
 
 await describe({
   name: formatErrorDeep.name,
-  children: ['test', 'test-expect', 'test-sandbox', 'test-diagnostic',].flatMap(packageName => [
-    `package/module/${packageName}`,
-    `node_modules/@monochromatic-dev/module-${packageName}`,
+  children: ['core', 'core-expect', 'core-sandbox', 'core-diagnostic',].flatMap(leaf => [
+    `package/test-harness/${leaf}`,
+    `node_modules/@monochromatic-dev/test-harness-${leaf}`,
   ].map(packagePath => it({
     name: `filters implementation but retains tests and similarly named packages for ${packagePath}`,
     fn: async () => {

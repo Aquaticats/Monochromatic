@@ -164,7 +164,7 @@ TODO
     **Repository owner**,
     **Repository name**,
     **Workflow filename** and **Environment**.
-15. Fill **Repository owner** with `Aquaticat`,
+15. Fill **Repository owner** with `Aquaticats`,
     **Repository name** with `Monochromatic`,
     **Workflow filename** with `cargo-publish.yml`,
     and leave **Environment** empty.
@@ -172,10 +172,17 @@ TODO
     the fields hold exactly those values.
     This workflow does not use GitHub environments,
     so an environment name here would never match and every publish would fail.
+    `Aquaticats` is the organization that owns the repository.
+    `Aquaticat` is the maintainer's personal account and a different owner:
+    crates.io records the owner's numeric id (66041952 for `Aquaticat`,
+    343218767 for `Aquaticats`, which `gh api repos/Aquaticats/Monochromatic --jq .owner.id` reports as the repository's owner),
+    so a publisher entered with `Aquaticat` does not describe this repository.
+    Older entries of this runbook and the GitHub URLs under `Aquaticat/Monochromatic` still resolve only
+    because GitHub redirects from the old owner name to `Aquaticats/Monochromatic`.
 16. Click **Save**.
     Expected outcome:
     a GitHub Actions publisher row appears,
-    showing `Aquaticat/Monochromatic`,
+    showing `Aquaticats/Monochromatic`,
     `cargo-publish.yml` and an empty environment.
 17. Open <https://crates.io/settings/tokens> again and click **Revoke** on
     `monochromatic-jsonc-edit-bootstrap`.
@@ -348,6 +355,71 @@ a target that fails leaves no release at all.
 `gh release view monochromatic-lint-v0.1.0` lists the archives,
 and `cargo binstall monochromatic-lint` in a disposable container installs the prebuilt binary,
 which lints a small Markdown and Rust fixture.
+
+## monochromatic-search-shadow 0.1.0
+
+Status:
+0.1.0 published by hand on 2026-10-29; 0.1.1 published by CI through Trusted Publishing on the same day, with release archives;
+owner action remaining: revoke the `trusted-publishing` token.
+
+Crate `monochromatic-search-shadow`,
+version `0.1.0`,
+path `package/search-shadow/cli`,
+license `LGPL-3.0-or-later`.
+Workflow jobs: `ss-detect`, `ss-publish-crate`, `ss-release-state`, `ss-build-binary`, `ss-create-release`
+(added on 2026-10-29; the release jobs run once `Cargo.toml` carries `[package.metadata.binstall]`).
+
+What happened,
+as measured:
+
+- The stored token in `~/.cargo/credentials.toml` (modified 2026-10-18) was tried first by
+  `mise run //package/search-shadow/cli:publish` and answered `403 Forbidden: authentication failed`;
+  the registry still answered 404 for the crate, so nothing was uploaded.
+  This repeats the finding at the top of this runbook, so a stored token should not be assumed to work.
+- The owner created a token named `monochromatic-search-shadow-bootstrap` with the publish-new,
+  publish-update and trusted-publishing scopes, and ran `cargo login`.
+  The publish then succeeded and cargo waited until the crate was available.
+- Registry check: `max_stable_version` `0.1.0`, license `LGPL-3.0-or-later`, 39,464 bytes compressed.
+- Consumer check: `cargo install --version 0.1.0 --root <disposable directory> monochromatic-search-shadow`
+  built from the registry in about 9 seconds, and `search-shadow --version` printed `search-shadow 0.1.0`.
+- Trusted Publishing was created without the dashboard, through the API,
+  using the token's `trusted-publishing` scope:
+  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with a body
+  `{"github_config": {"crate": "monochromatic-search-shadow", "repository_owner": "Aquaticat",
+  "repository_name": "Monochromatic", "workflow_filename": "cargo-publish.yml", "environment": null}}`
+  and the token in the `Authorization` header.
+  The response was HTTP 200 with config id `29471` and `repository_owner_id` 66041952.
+  The script read the token from the credential file in-process and printed only statuses.
+  `GET` on the same path with `?crate=<name>` lists configurations and `DELETE .../{id}` removes one.
+- That entry was wrong, and was replaced the same day. The runbook's own step 15 had told the agent to use `Aquaticat`,
+  but the repository's owner is `Aquaticats` (id 343218767; `gh api repos/Aquaticats/Monochromatic --jq .owner.id`), and
+  the workflow's OIDC identity carries the repository's owner, so the first CI publish would have failed at authentication.
+  The agent found this when the workflow run URL showed `Aquaticats`. The first token then answered
+  `403 authentication failed` on every call (revoked or expired), so the owner created a second token with only the
+  `trusted-publishing` scope and ran `cargo login` again. With it the agent listed the other crates' publishers,
+  deleted config `29471` (HTTP 204) and created config `29473` with owner `Aquaticats`, owner id `343218767` (HTTP 200).
+  The listing showed that every other published crate here carries two rows, one for `Aquaticat` and one for `Aquaticats`;
+  the `Aquaticat` rows are legacy from before the repository moved, and `Aquaticats` is the current one.
+  Step 15 above now names `Aquaticats`.
+
+Release path, as measured the same day:
+
+- A dispatched dry run (run `40863232508`, from `main`) passed `ss-detect`, `ss-publish-crate` (dry), `ss-release-state`
+  and both `ss-build-binary` jobs (x86_64 on `ubuntu-24.04`, aarch64 on `ubuntu-24.04-arm`) including the smoke run and the
+  archive verification, and skipped `ss-create-release`.
+- Commit `7b3d373a07` bumped `version` to `0.1.1` and added `[package.metadata.binstall]` (the table is read from the
+  published manifest, so 0.1.0 could not carry it). The push run `40863841089` concluded `success` in every job:
+  Trusted Publishing authenticated with the corrected owner (`Aquaticats`), crates.io lists `0.1.1` and `0.1.0`,
+  and release `monochromatic-search-shadow-v0.1.1` is immutable with the two archives and
+  `monochromatic-search-shadow-0.1.1-sha256sums.txt`.
+- `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install --version 0.1.1 monochromatic-search-shadow`
+  in a disposable directory logged `has been downloaded from github.com` and would install `search-shadow`,
+  so discovery works without compiling.
+
+Still to do:
+
+1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish, but it can edit publishers),
+   then the agent runs `cargo logout`.
 
 ## monochromatic-nested-wayland-session releases after the first publication
 

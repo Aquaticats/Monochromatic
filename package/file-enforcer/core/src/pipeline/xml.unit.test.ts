@@ -5,19 +5,17 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  escapeXmlAttribute,
-  unescapeXmlAttribute,
-  xmlOptionLine,
-} from './xml-coding.ts';
-import {
   ABSENT_XML_ENTRY,
   ABSENT_XML_VALUE,
+  escapeXmlAttribute,
   findXmlEntryByKey,
   getXmlOptionValue,
   listXmlEntries,
   replaceOrInsertXmlEntry,
+  unescapeXmlAttribute,
   type XmlEntry,
-} from './xml.ts';
+  xmlOptionLine,
+} from '../../dist/final/node/index.mjs';
 
 /**
  JetBrains persistent-state map document with two entries, used across editing tests.

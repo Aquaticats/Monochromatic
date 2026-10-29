@@ -55,6 +55,17 @@ const canaryOverride = {
 } satisfies OxlintOverride;
 
 /**
+ Data modules (`*.data.ts`) hold declarations, not logic, so the code line budget does not apply.
+ Owner decision, 2026-10-29: "the 300 line limit doesn't apply to non-code".
+ */
+const dataOverride = {
+  files: ['**/*.data.ts',],
+  rules: {
+    'eslint/max-lines': 'off',
+  },
+} satisfies OxlintOverride;
+
+/**
  Astro components have implicit module context.
  */
 const astroOverride = {
@@ -328,6 +339,7 @@ export const overrides: OxlintOverride[] = [
   typeFileOverride,
   fixtureOverride,
   canaryOverride,
+  dataOverride,
   astroOverride,
   declarationOverride,
   configOverride,

@@ -15,6 +15,8 @@
 use super::auto_push_single_flight::{PushGit, git_command};
 /// Unguessable names for the private probe directory.
 use super::random_id::random_uuid;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 /// Reading and writing the private hook and its captures.
@@ -292,7 +294,7 @@ pub fn capture_probed_updates(
     command
         .stdin(Stdio::null())
         .env(CAPTURE_DIRECTORY_ENV, &captures);
-    let probe = command.output().map_err(|error| {
+    let probe = command.output_retrying().map_err(|error| {
         return probe_error(format!("probe push could not start: {error}"));
     })?;
     let mut names: Vec<PathBuf> = fs::read_dir(&captures)
@@ -415,7 +417,7 @@ pub fn confirm_group(
     }));
     let output = git_command(git, &arguments)
         .stdin(Stdio::null())
-        .output()
+        .output_retrying()
         .map_err(|error| {
             return probe_error(format!("ls-remote could not start: {error}"));
         })?;

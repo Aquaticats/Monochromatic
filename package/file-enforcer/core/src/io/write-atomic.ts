@@ -31,6 +31,8 @@ const UNSUPPORTED_DIRECTORY_FSYNC_ERROR_CODES = [
 
 /**
  Writes content to same-directory temp file before atomic rename.
+
+ @internal
  */
 export type AtomicTempFileWriter = (
   args: {
@@ -154,6 +156,8 @@ export async function fsyncDirectory(directoryPath: string,): Promise<void> {
  ```ts
  await writeFileAtomically({ filePath: './CLAUDE.md', content: '# Generated' });
  ```
+
+ @internal
  */
 export async function writeFileAtomically(
   {

@@ -6,8 +6,10 @@ import {
 
 import { parseTomlEdit, tomlHas, } from '@monochromatic-dev/toml-edit-core/ts';
 
-import { applyCargoPlan, } from './apply-plan.ts';
-import type { CargoManifestPlan, } from './types.ts';
+import {
+  applyCargoPlan,
+  type CargoManifestPlan,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Canonical lint block text used by the insertion tests.

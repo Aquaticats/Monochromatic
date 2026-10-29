@@ -17,6 +17,8 @@
 use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::{OsStr, OsString};
 /// `File` is the shared anonymous output file; `Read`, `Seek` and `SeekFrom` read it back from its start.
@@ -355,7 +357,7 @@ pub fn run_bounded_push(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
-    let mut child: Child = command.spawn().map_err(SingleFlightError::Start)?;
+    let mut child: Child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
     let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&output], deadline)?;
     if ended.is_err() {

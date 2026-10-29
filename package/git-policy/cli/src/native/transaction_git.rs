@@ -23,6 +23,8 @@
 use super::forwarding::git_command;
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::{RetryStart, START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
 use super::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
@@ -32,6 +34,8 @@ use std::path::{Path, PathBuf};
 /// `Command` builds a child process;
 ///  `Stdio` configures its streams.
 use std::process::{Command, Stdio};
+/// A span of time, for the bounded rerun.
+use std::time::Duration;
 
 /// What:
 ///  The real Git executable and the variables every Git child receives.
@@ -301,6 +305,156 @@ fn build_command(context: &GitContext, request: &GitRequest) -> Command {
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
 pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+    return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); });
+}
+
+/// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
+///  or they set the same value again.
+const RERUNNABLE: [&str; 17] = [
+    "rev-parse",
+    "symbolic-ref",
+    "for-each-ref",
+    "ls-files",
+    "diff",
+    "diff-index",
+    "diff-tree",
+    "cat-file",
+    "show",
+    "hash-object",
+    "write-tree",
+    "ls-remote",
+    "merge-tree",
+    "init",
+    "pack-objects",
+    "index-pack",
+    "version",
+];
+
+/// What:
+///  The subcommand a request runs and where it sits among the arguments,
+///  past the global options (`-c <pair>`, `-C <directory>` and the `--option` forms).
+/// Why:
+///   The rerun allow-list is decided by the subcommand and, for a few, by its options.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const index = args.findIndex(...); // first token that is not a global option or its value
+/// ```
+fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let text: String = arguments[index].to_string_lossy().into_owned();
+        if text == "-c" || text == "-C" {
+            index += 2;
+            continue;
+        }
+        if text.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        return Some((index, text));
+    }
+    return None;
+}
+
+/// What:
+///  Whether running the request a second time after the system refused it is harmless.
+/// Why:
+///   Git reports a refused process or thread as a failure after it started,
+///  so only commands that read, write content-addressed objects, or change a private index the same way twice
+///  may be run again;
+///  reference updates, commits and every other writer are not,
+///  and recovery already completes or rolls those back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// RERUNNABLE.includes(subcommand) || (subcommand === 'config' && reads(args)) || ...
+/// ```
+fn may_be_rerun(request: &GitRequest) -> bool {
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
+    let rest: Vec<String> = request.arguments[position + 1..]
+        .iter()
+        .map(|argument| { return argument.to_string_lossy().into_owned(); })
+        .collect();
+    match name.as_str() {
+        "config" => return rest.iter().any(|option| {
+            return matches!(option.as_str(), "--get" | "--get-all" | "--get-regexp" | "--list" | "-l");
+        }),
+        "remote" => return rest.first().is_some_and(|word| { return word == "get-url"; }),
+        "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
+        other => return RERUNNABLE.contains(&other),
+    }
+}
+
+/// What:
+///  Whether Git failed because the system would not give it a process or a thread.
+/// Why:
+///   Git words these failures with the system's own text (`unable to create thread: Resource temporarily
+///  unavailable`, `cannot fork() for ...`), and no other failure of a rerunnable command carries it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// output.exitCode !== 0 && output.stderr.includes('Resource temporarily unavailable')
+/// ```
+fn refused_by_the_system(output: &GitOutput) -> bool {
+    return output.code != Some(0)
+        && String::from_utf8_lossy(output.stderr.as_slice()).contains("Resource temporarily unavailable");
+}
+
+/// What:
+///  Run one request, running it again within the budget when Git reports a refused process or thread
+///  and the command is harmless to run twice.
+///  After the budget the last output is returned as it was, so the caller reports Git's own words.
+/// Why:
+///   The command is rebuilt for each run, so its input file is fresh.
+///  A start that already waited out its own budget is not waited for again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await retryWhile(() => runGitOnce(request), (output) => refusedBySystem(output) && mayBeRerun(request));
+/// ```
+fn run_git_pausing(
+    context: &GitContext,
+    request: &GitRequest,
+    budget: Duration,
+    pause: &mut dyn FnMut(Duration),
+) -> std::io::Result<GitOutput> {
+    if !may_be_rerun(request) {
+        return run_git_once(context, request);
+    }
+    let what: String = command_text(&request.arguments);
+    let mut refused: Option<GitOutput> = None;
+    let result: std::io::Result<GitOutput> = retry_refused_start_with(what.as_str(), budget, pause, &mut || {
+        let output: GitOutput = match run_git_once(context, request) {
+            Ok(finished) => finished,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Err(std::io::Error::other(error)),
+            Err(error) => return Err(error),
+        };
+        if refused_by_the_system(&output) {
+            refused = Some(output);
+            return Err(std::io::Error::from(std::io::ErrorKind::WouldBlock));
+        }
+        return Ok(output);
+    });
+    match (result, refused.take()) {
+        (Ok(finished), _) => return Ok(finished),
+        (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(last),
+        (Err(error), _) => return Err(error),
+    }
+}
+
+/// What:
+///  Run one request once and capture its output, whatever its exit code.
+/// Why:
+///   The command and its input file are built here, so every run starts from the request alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runTransactionGitOnce({ gitPath, cwd, args })
+/// ```
+fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     let mut command: Command = build_command(context, request);
     match &request.input {
         Some(bytes) => {
@@ -310,7 +464,7 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
             command.stdin(Stdio::null());
         }
     }
-    let output: std::process::Output = command.output()?;
+    let output: std::process::Output = command.output_retrying()?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

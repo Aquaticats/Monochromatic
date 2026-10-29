@@ -51,7 +51,7 @@ for (const file of files) {
     run: {
       shell: 'node --input-type=module-typescript -e',
       run: `
-const root = join(process.env.TASK_REPO_ROOT, 'package', 'module', 'toml-edit.fuzz')
+const root = join(process.env.TASK_REPO_ROOT, 'package', 'toml-edit', 'core.fuzz')
 const mode = (process.env.usage_write === 'true') ? 'write' : 'check'
 const dir = mkdtempSync(join(tmpdir(), 'toml-edit-cov-'))
 try {

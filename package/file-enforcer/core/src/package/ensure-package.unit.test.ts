@@ -5,9 +5,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   ensurePackage,
+  p,
   registerPackages,
-} from './ensure-package.ts';
-import { p, } from './p.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Install-path tests run in containers via the container test matrix.

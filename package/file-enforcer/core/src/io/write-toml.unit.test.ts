@@ -15,12 +15,12 @@ import {
   resolve,
 } from 'node:path';
 import {
+  overwriteTomlKey,
   reset,
   resetWriteTimestamps,
   writes,
   writeTimestamps,
-} from '../tracker.ts';
-import { overwriteTomlKey, } from './write-toml.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Creates a fresh temp directory and resets tracker state */
 async function setup(prefix: string,): Promise<string> {

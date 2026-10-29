@@ -4,7 +4,7 @@
   "description": "POSIX path operations and upward root discovery (findRoot with marker values: mise monorepo, Git repository, pnpm workspace, named package, file, or directory) for Node, Bun, and browsers over the origin private file system, with an in-memory filesystem for tests, plus Node-only directory and file helpers behind the ./node entry. No dynamic imports in either build.",
   "type": "module",
   "sideEffects": false,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "module": "dist/final/neutral/index.mjs",
   "exports": {
     ".": {

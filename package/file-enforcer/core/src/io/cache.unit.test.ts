@@ -18,7 +18,7 @@ import {
   readCache,
   readCached,
   updateCache,
-} from './cache.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Fresh temp directory for each test */
 async function makeTmpDir(): Promise<string> {

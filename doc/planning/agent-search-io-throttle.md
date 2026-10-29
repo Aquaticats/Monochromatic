@@ -218,6 +218,84 @@ The inference is that each commit stats most tracked files on a disk that delive
 the number of files git actually stats during the commit is unmeasured (`GIT_TRACE2_PERF` on a shadow commit would show it).
 Throttling agent search alone leaves this load; the cgroup cap would need to cover the commit gate too.
 
+## Layer one, end-to-end check (inconclusive)
+
+Both halves of layer one are live: the Ghostty terminal scopes carry `IOWeight=10`, and the watcher sets `claude-code-bash`
+to `io.weight` `default 10` (commit `401b01cbe3`). The end-to-end check ran the real `//:lint:oxlint` job from
+the weight-10 cgroup or from a weight-100 unit while a light reader (60 cold 4 KiB files, in a default-weight scope) was timed,
+five reads per arm, in two pairs:
+
+- light alone: median 0.04 s and 0.07 s.
+- lint at weight 10 (this shell): light median 0.16 s (max 0.37 s), then 0.41 s (max 5.23 s).
+- lint in a weight-100 unit: light median 0.16 s (max 1.95 s), then 0.08 s (max 9.76 s).
+
+Maxima favor weight 10 in both pairs; medians do not (equal in the first pair, opposite in the second).
+Other sessions made the lint itself take 130 to 365 s, so the disk was far from the calm case.
+The weight is applied and did no harm, but the check does not show that it protects a light reader.
+
+## The search-shadow package
+
+`package/search-shadow/cli`, crate `monochromatic-search-shadow` 0.1.0, binary `search-shadow` (Rust, `clap` builder API).
+Started as `rg`, `grep` or `find` it lowers its own disk priority with `ioprio_set` (best-effort level 7, the only `unsafe`
+code, in `src/priority.rs`) and replaces itself with the real tool, so it adds no process. Started as `search-shadow` it offers
+`link DIRECTORY`, which creates the three symlinks. For `rg` it refuses, with exit code 2 and an explanation:
+
+- the short `-r` flag anywhere (ripgrep's `--replace`; `rg -rl PATTERN` prints `l` in place of every match). No escape hatch.
+- `--hidden`, `--no-ignore*`, `-u` or `-.` with no search path and no piped input at a git repository root.
+  `SEARCH_SHADOW_ALLOW_WIDE=1` allows one deliberate full walk.
+
+Checks: `cargo clippy --deny warnings` clean; 29 nextest tests pass, including a process-level test in which the real tool
+reports `best-effort: prio 7` under the shadow and does not when run alone, and one that passes a non-UTF-8 argument through byte for byte.
+
+Publication: the dry run passed (20 files, 38.5 KiB compressed). The first real attempt on 2026-10-29 was rejected with
+`403 Forbidden: authentication failed`, because the stored token in `~/.cargo/credentials.toml` no longer authorizes publishing
+(the same finding as `doc/runbook/publish-crate-first-time.md`), and the registry still answered 404 for the crate.
+After the owner created a new token and ran `cargo login`, the publish succeeded: the registry reports `max_stable_version`
+0.1.0, license `LGPL-3.0-or-later`, 39,464 bytes. A disposable `cargo install --version 0.1.0` from the registry built and ran
+(`search-shadow --version` printed `search-shadow 0.1.0`). A GitHub Actions trusted publisher was created through
+`POST /api/v1/trusted_publishing/github_configs` with the token's `trusted-publishing` scope (config id 29471,
+`cargo-publish.yml`, no environment), but with the wrong owner: the runbook said `Aquaticat` (id 66041952) and the repository's
+owner is `Aquaticats` (id 343218767). The error surfaced when the workflow run URL showed `Aquaticats`; the first token had
+meanwhile stopped working (`403` on every call), so the owner made a second token with only the `trusted-publishing` scope,
+and with it the entry was replaced (deleted config 29471, created config 29473 with owner `Aquaticats`).
+The runbook now names `Aquaticats`. One related line is unchecked:
+`.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...` to `gh attestation verify`,
+and a signer-workflow string may not follow a GitHub redirect the way a URL does.
+
+CI: `.github/workflows/cargo-publish.yml` gained `ss-detect`, `ss-publish-crate`, `ss-release-state`, `ss-build-binary` and
+`ss-create-release` (commit `0a53556811`), modeled on the nested-wayland-session jobs: a version bump on `main` publishes through
+Trusted Publishing and, once the crate's `Cargo.toml` carries `[package.metadata.binstall]`, builds two Linux archives and
+creates one immutable release. Version 0.1.1 (commit `7b3d373a07`) carries the metadata and went out through that route:
+run `40863841089` succeeded in every job, crates.io lists 0.1.1, the release has both archives and the checksums, and
+`cargo binstall --dry-run --disable-strategies compile,quick-install` finds the archive. Not done yet: the plan entry
+(installation through `mpm`) and activation.
+The toolchain's `cargo-binstall` provider runs `cargo binstall --no-confirm --version X CRATE` with no compile ban, so a
+source-only crate installs by compiling (about 9 seconds measured). A plan entry needs `postinstall.link` for `rg`
+(the schema allows one link per entry, so `grep` and `find` need an array), and the link directory must precede
+`.cache/toolchain-bin` in the generated PATH. Both live in `file-enforcer` code and `file-enforcer.config.ts`; another session
+had uncommitted edits in `package/file-enforcer/core/src/` when this was written.
+
+## Git wrapper UX review
+
+Probed on 2026-10-29 with read-only and dry-run commands; the owner is improving the wrapper in another session, so these
+are inputs to that work and nothing here was changed.
+
+- Latency: the wrapper adds about 2 to 6 ms per call over `/usr/bin/git` (`status` of one path 12 to 13 ms against 9 to 15 ms;
+  `log` 5 to 7 ms against 3 ms; `commit --dry-run` with a pathspec 104 to 106 ms against 102 to 106 ms). A 5.4 s first `status`
+  followed a page-cache drop and is git's own cold cost. Real commits took minutes under load: the process list showed
+  the shadow-repository `git commit` in uninterruptible disk wait with a `git-lfs filter-process` child, one having read
+  340 MB after 16 seconds.
+- Rejections are one JSON object on stderr (688 bytes for `add -A`, 450 for a pathspec-less commit). The wording is good:
+  cause, remedies, a bypass flag, a hint. Problems: it is machine format for a human or agent reader, with
+  `schemaVersion`, `sequence`, `trigger` and `policyId` ahead of the sentence; the two shapes differ (`type: finding` carries
+  `policyId`, `severity`, `hint` and `fix`, while `type: core-finding` carries `coreId` and none of those, so the commit-only
+  rejection has no hint); the exit code is 1, the same as git's own generic failure; and the commit-only example
+  `git commit -m <msg> <path>` uses short flags and omits `--`, against the repository's long-flag rule.
+- Silence: a commit that takes minutes prints nothing, which looked like a hang and led to two identical `git commit` processes
+  from this session while the first was pending; three shadow commits ran at once, and the wrapper gave no notice that
+  an identical commit was already in progress.
+- Not measured: `git commit --help` took 7.7 s through the wrapper, and was not compared with the real binary.
+
 ## Proposals
 
 Ranking: A > B > C > D.

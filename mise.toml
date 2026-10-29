@@ -1023,7 +1023,7 @@ description = "Update every first-party Cargo.lock under rust-catalog.toml's rel
 run = "node package/dependency-catalog/cli-rust-update/src/cli.ts"
 
 [tasks."rust:verify"]
-description = "Check every locked Rust registry version against rust-catalog.toml's trust policy (CI)"
+description = "Check Rust registry versions locked since a base revision (default HEAD; CI passes --base) against rust-catalog.toml's trust policy"
 run = "node package/dependency-catalog/cli-rust-update/src/cli.ts --verify"
 
 #endregion Rust catalog update

@@ -9,7 +9,7 @@
  function treats as ordinary token characters because it matches only the
  six ASCII `\s` characters.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -28,8 +28,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
-import { firstWhitespaceToken, } from './registry-parse.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
+import {
+  firstWhitespaceToken,
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

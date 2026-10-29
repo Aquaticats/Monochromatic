@@ -74,7 +74,7 @@ export function readProperty({
  
  - Runner, assertion, sandbox, and diagnostic bundles, under workspace
    paths (`package/test-harness/core-expect/dist/`) and installed package paths
-   (`module-test-expect/dist/`). The source-export counterpart lives in
+   (`test-harness-core-expect/dist/`). The source-export counterpart lives in
    {@link HARNESS_SOURCE_FRAGMENTS}, which needs the test-file guard.
  
  - The vendored assertion stack. `expect()` lands in `chai`, which
@@ -96,13 +96,13 @@ export function readProperty({
  */
 export const HARNESS_INTERNAL_FRAGMENTS: readonly string[] = [
   'package/test-harness/core/dist/',
-  'module-test/dist/',
+  'test-harness-core/dist/',
   'package/test-harness/core-expect/dist/',
-  'module-test-expect/dist/',
+  'test-harness-core-expect/dist/',
   'package/test-harness/core-sandbox/dist/',
-  'module-test-sandbox/dist/',
+  'test-harness-core-sandbox/dist/',
   'package/test-harness/core-diagnostic/dist/',
-  'module-test-diagnostic/dist/',
+  'test-harness-core-diagnostic/dist/',
   'node_modules/chai/',
   'node_modules/chai-as-promised/',
   'node_modules/sinon-chai/',
@@ -126,13 +126,13 @@ export const HARNESS_INTERNAL_FRAGMENTS: readonly string[] = [
  */
 export const HARNESS_SOURCE_FRAGMENTS: readonly string[] = [
   'package/test-harness/core/src/',
-  'module-test/src/',
+  'test-harness-core/src/',
   'package/test-harness/core-expect/src/',
-  'module-test-expect/src/',
+  'test-harness-core-expect/src/',
   'package/test-harness/core-sandbox/src/',
-  'module-test-sandbox/src/',
+  'test-harness-core-sandbox/src/',
   'package/test-harness/core-diagnostic/src/',
-  'module-test-diagnostic/src/',
+  'test-harness-core-diagnostic/src/',
 ];
 
 //endregion Harness frame fragments

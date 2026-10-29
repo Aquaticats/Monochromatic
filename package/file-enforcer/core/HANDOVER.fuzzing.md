@@ -41,7 +41,7 @@ the TOML wrappers even though they bottom out in upstream
    the same files become the deep
   campaign when run with a time budget.
    Shared run plan lives in
-  `src/fuzz-budget.ts`.
+  `src/fuzz-budget-fixture.ts`.
 - Seed policy:
    random (broadest coverage).
    A discovered counterexample is
@@ -142,7 +142,7 @@ decision doc,
 
 - fast-check devDependency added (`catalog:`),
    resolves for the package.
-- `src/fuzz-budget.ts` shared run plan (bounded vs campaign via
+- `src/fuzz-budget-fixture.ts` shared run plan (bounded vs campaign via
   `FILE_ENFORCER_FUZZ_BUDGET_MS`).
 - Property tests,
    all green under node:
@@ -204,7 +204,7 @@ each property file directly,
 
 Created:
 
-- `src/fuzz-budget.ts`
+- `src/fuzz-budget-fixture.ts`
 - `src/pipeline/json.property.unit.test.ts`
 - `src/io/glob.property.unit.test.ts`
 - `src/package/registry-parse.property.unit.test.ts`

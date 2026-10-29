@@ -47,8 +47,8 @@ runTaskCli('//package/toml-edit/core:build')
 const runner = ['--yes', 'toml-test']
 const env = { ...process.env, MONOCHROMATIC_WARN: 'false' }
 execFileSync('npx', [...runner, 'version'], { stdio: 'inherit', env })
-const decoder = join(process.env.TASK_REPO_ROOT, 'package', 'module', 'toml-edit', 'src', 'conformance', 'decode.ts')
-const encoder = join(process.env.TASK_REPO_ROOT, 'package', 'module', 'toml-edit', 'src', 'conformance', 'encode.ts')
+const decoder = join(process.env.TASK_REPO_ROOT, 'package', 'toml-edit', 'core', 'src', 'conformance', 'decode.ts')
+const encoder = join(process.env.TASK_REPO_ROOT, 'package', 'toml-edit', 'core', 'src', 'conformance', 'encode.ts')
 for (const version of ['1.0', '1.1']) {
   console.log('toml-test conformance: TOML ' + version)
   execFileSync('npx', [...runner, 'test',

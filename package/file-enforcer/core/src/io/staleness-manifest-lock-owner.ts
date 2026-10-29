@@ -254,6 +254,8 @@ function processAppearsAlive(pid: number,): boolean {
  ```ts
  const state = await lockOwnerState('/tmp/manifest.json.lock');
  ```
+
+ @internal
  */
 export async function lockOwnerState(lockPath: string,): Promise<ManifestLockOwnerState> {
   /**

@@ -15,11 +15,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { lockOwnerState, } from './io/staleness-manifest-lock-owner.ts';
 import {
+  lockOwnerState,
   publishLockOwnerPublication,
   stageLockOwnerPublication,
-} from './io/staleness-manifest-lock-owner-publish.ts';
+} from '../dist/final/node/index.mjs';
 import {
   DEAD_OWNER_PROCESS_ID,
   runConfigExpectingError,

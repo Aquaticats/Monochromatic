@@ -124,6 +124,8 @@ function applyEnforcement(
  ```ts
  const next = applyCargoPlan({ content, plan, });
  ```
+
+ @internal
  */
 export function applyCargoPlan(
   {

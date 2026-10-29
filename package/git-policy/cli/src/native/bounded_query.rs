@@ -14,6 +14,8 @@
 use super::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
 use super::bounded_push::{MAX_PUSH_OUTPUT, StopCause, push_deadline, stop_push, wait_until_done};
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// The anonymous output files and their reading back.
@@ -100,7 +102,7 @@ pub fn run_bounded_query(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
-    let mut child = command.spawn().map_err(SingleFlightError::Start)?;
+    let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
     let ended: Result<ExitStatus, StopCause> =
         wait_until_done(&mut child, &[&stdout, &stderr], deadline)?;

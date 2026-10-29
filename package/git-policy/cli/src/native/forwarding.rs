@@ -25,6 +25,11 @@
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
+/// Starts that ride out a short shortage of processes.
+#[cfg(unix)]
+use super::start_retry::exec_retrying;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// `Command` builds a child process from a program and an argument list,
 ///  with no shell.
 use std::process::Command;
@@ -182,7 +187,7 @@ pub fn run_real_git(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    let status: std::process::ExitStatus = git_command(real_git, arguments, overlay).status()?;
+    let status: std::process::ExitStatus = git_command(real_git, arguments, overlay).status_retrying()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
 }
@@ -218,9 +223,8 @@ pub fn replace_process_with_real_git(
 ) -> std::io::Error {
     #[cfg(unix)]
     {
-        // The trait adds `.exec()` to commands on Unix.
-        use std::os::unix::process::CommandExt;
-        return git_command(real_git, arguments, overlay).exec();
+        // `exec_retrying` replaces this process like `.exec()` and tries again when the start is refused.
+        return exec_retrying(&mut git_command(real_git, arguments, overlay));
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]

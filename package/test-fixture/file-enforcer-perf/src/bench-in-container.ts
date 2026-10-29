@@ -146,8 +146,8 @@ const CLI_PATH = resolve(
   '..',
   '..',
   '..',
-  'dev-script',
   'file-enforcer',
+  'core',
   'src',
   'cli.ts',
 );

@@ -128,6 +128,8 @@ function lockReleaseHandle(lockPath: string,): AsyncDisposable {
  ```ts
  await using lock = await acquireManifestLock('/tmp/manifest.json');
  ```
+
+ @internal
  */
 export async function acquireManifestLock(manifestPath: string,): Promise<AsyncDisposable> {
   await mkdir(
