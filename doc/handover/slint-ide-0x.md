@@ -6023,8 +6023,20 @@ It holds `package/desktop-app/ide`, `package/cli/nested-wayland-session` and `pa
 Send it that message (SendMessage to `monochromatic-db`) when the 0.1.3 release below is done and the scratch worktrees are gone.
 
 Next, in order:
-- Release IDE 0.1.3 (the shipped binary changed with the scratch directories): bump `Cargo.toml`, refresh `Cargo.lock` with `task-run //package/desktop-app/ide:fetch`,
-  dry run, read it, real dispatch, `sha256sum --check` and `gh attestation verify`, then build and install and have the verifier agent check the installed binary.
+- Release IDE 0.1.3 (the shipped binary changed with the scratch directories), BLOCKED:
+  the version bump `1998eda5c5` (`Cargo.toml` and one line of `Cargo.lock`) passed a dry run (run 40832288255, branch `release-ide-0-1-3`:
+  tag `ide-v0.1.3`, four assets, printed `gh release create`),
+  and was pushed to `main` as a merge (`62503cafb3`) on top of another session's `fd0bd03540`
+  "migrate every Rust crate onto rust-catalog.toml (#1800)", which made `package/desktop-app/ide/Cargo.toml` fail to parse:
+  `default-features = false` on a `workspace = true` dependency (`futures-util`, `tree-house`, `vello`, `slint`, `tracing-log`, `clap`, ...) is refused by cargo
+  ("`default-features = false` cannot override workspace's `default-features`").
+  The release run on that push (40835052264) was cancelled before it built; nothing was published, no `ide-v0.1.3` tag or release exists.
+  Seven packages carry `default-features = false` (ide, terminal, nested-wayland-session, truepeak-core, monochromatic-lint, forbidden-regex, forbidden-strings),
+  so the compositor cannot be built either until the catalog or generator is fixed.
+  I messaged the sessions `monochromatic-fb`, `-33` and `-51` (whichever owns #1800) and did not edit `rust-catalog.toml` or the generated `[workspace.dependencies]` tables.
+  When `cargo metadata` in the IDE works again on `origin/main`: rerun the gates that touch dependency resolution (`fetch`, `lint:clippy`, `test`),
+  push a fresh dispatch of `ide-release.yml` with `dry-run=false` (the bump is already on `main`, so a push will not release it),
+  then `sha256sum --check`, `gh attestation verify`, build and install (`task-run //package/desktop-app/ide:bundle` and `:install`), and have the verifier agent check the installed binary.
 - Remove the scratch worktrees (`~/temp/agent/fix-guards`, `~/temp/agent/land-scratch`), the two agent worktrees and branches, `~/temp/agent/guard-cache`, the guard log directories and the `ide-source-guard-*` and `ide-language-confinement-*` artifact directories.
 
 [scope]: ../decision/slint-ide-0x-scope.md
