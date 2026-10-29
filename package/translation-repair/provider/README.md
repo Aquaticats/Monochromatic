@@ -252,10 +252,9 @@ Otherwise the give-up holds.
 The writing roster (`writing`) decides (a),
 and the bench floors the caller hands over (`unmetFloors`,
 the seat reader's own in a run) decide (b).
-Round 3's wording,
-that the give-up holds only while the providers left meet every bench floor,
-was the lead's error and is superseded.
-The record is ledger B965,
+Round 3 worded the rule otherwise,
+and round 4 superseded that wording.
+The record is [ledger B965][b965-entry],
 and the rule is open to the owner's veto.
 
 ## Family dependencies
@@ -480,3 +479,6 @@ A setting that turns thinking off is not one to send,
 and two settings that do not separate cannot size a call.
 Only the ranges reached this record,
 not each repeat's figure.
+
+[b965-entry]:
+  ../doc/audit-ledger-providers-and-seats-a-run-holds-out.md#b965-the-seat-reader-waited-out-the-refusal-cooldown-of-a-provider-that-refused-at-once-after-it-for-every-slice
