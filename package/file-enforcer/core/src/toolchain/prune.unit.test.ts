@@ -15,11 +15,15 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  compareVersions,
   isOwnCrate,
   pruneStaleOwnCrates,
-  versionOfEntry,
+  splitEntryName,
 } from './prune.ts';
-import { toolById, } from './plan.ts';
+import {
+  ALL_TOOLS,
+  toolById,
+} from './plan.ts';
 
 /**
  Registry index directory name the fixture uses.
@@ -125,46 +129,78 @@ await describe({
   name: 'prune',
   children: [
     describe({
-      name: versionOfEntry.name,
+      name: splitEntryName.name,
       children: [
         it({
-          name: 'reads the version after the crate name',
+          name: 'splits a crate name from its version',
           fn: async () => {
-            expect(versionOfEntry({
-              name: 'monochromatic-lint-0.1.0',
-              crate: 'monochromatic-lint',
-            },),)
-              .toBe('0.1.0',);
+            expect(splitEntryName('monochromatic-lint-0.1.0',),)
+              .toEqual({
+                crate: 'monochromatic-lint',
+                version: '0.1.0',
+              },);
           },
         },),
         it({
           name: 'keeps a pre-release suffix in the version',
           fn: async () => {
-            expect(versionOfEntry({
-              name: 'monochromatic-lint-0.5.0-rc.1',
-              crate: 'monochromatic-lint',
-            },),)
-              .toBe('0.5.0-rc.1',);
+            expect(splitEntryName('monochromatic-lint-0.5.0-rc.1',),)
+              .toEqual({
+                crate: 'monochromatic-lint',
+                version: '0.5.0-rc.1',
+              },);
           },
         },),
         it({
-          name: 'rejects a longer crate name sharing the prefix',
+          name: 'keeps a longer crate name whole',
           fn: async () => {
-            expect(versionOfEntry({
-              name: 'monochromatic-lint-closure-0.1.0',
-              crate: 'monochromatic-lint',
-            },),)
-              .toBeNull();
+            expect(splitEntryName('monochromatic-lint-closure-0.1.0',),)
+              .toEqual({
+                crate: 'monochromatic-lint-closure',
+                version: '0.1.0',
+              },);
           },
         },),
         it({
-          name: 'rejects another crate',
+          name: 'returns null when no hyphen is followed by a version',
           fn: async () => {
-            expect(versionOfEntry({
-              name: 'serde-1.0.0',
-              crate: 'monochromatic-lint',
-            },),)
+            expect(splitEntryName('monochromatic-lint',),)
               .toBeNull();
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: compareVersions.name,
+      children: [
+        it({
+          name: 'orders by numeric core, not text',
+          fn: async () => {
+            expect(compareVersions({
+              left: '0.2.13',
+              right: '0.2.8',
+            },),)
+              .toBeGreaterThan(0,);
+          },
+        },),
+        it({
+          name: 'ranks a release above its pre-release',
+          fn: async () => {
+            expect(compareVersions({
+              left: '0.5.0',
+              right: '0.5.0-rc.1',
+            },),)
+              .toBeGreaterThan(0,);
+          },
+        },),
+        it({
+          name: 'reports equal versions as zero',
+          fn: async () => {
+            expect(compareVersions({
+              left: '1.0.0',
+              right: '1.0.0',
+            },),)
+              .toBe(0,);
           },
         },),
       ],
@@ -220,6 +256,7 @@ await describe({
              */
             const deleted = await pruneStaleOwnCrates({
               entry,
+              tools: ALL_TOOLS,
               env: fixture.env,
             },);
             expect(deleted,)
@@ -247,7 +284,7 @@ await describe({
           },
         },),
         it({
-          name: 'leaves other crates, including one sharing the name prefix',
+          name: 'keeps the only version of a crate sharing the name prefix and leaves third-party crates',
           fn: async () => {
             /**
              Fixture holding a stale own version beside unrelated crates.
@@ -261,6 +298,7 @@ await describe({
             },);
             await pruneStaleOwnCrates({
               entry: toolById('cargo:monochromatic-lint',),
+              tools: ALL_TOOLS,
               env: fixture.env,
             },);
             expect(existsSync(join(
@@ -271,6 +309,41 @@ await describe({
             expect(existsSync(join(
               fixture.srcDir,
               'serde-1.0.0',
+            ),),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'keeps the newest cached version of an own crate the plan does not lock',
+          fn: async () => {
+            /**
+             Fixture holding two versions of a library crate and a numerically larger patch number.
+             */
+            const fixture = fixtureCargoHome({
+              versions: [
+                'monochromatic-jsonc-edit-0.1.0',
+                'monochromatic-jsonc-edit-0.1.9',
+                'monochromatic-jsonc-edit-0.1.10',
+              ],
+            },);
+            await pruneStaleOwnCrates({
+              entry: toolById('cargo:monochromatic-lint',),
+              tools: ALL_TOOLS,
+              env: fixture.env,
+            },);
+            expect(existsSync(join(
+              fixture.cacheDir,
+              'monochromatic-jsonc-edit-0.1.0.crate',
+            ),),)
+              .toBe(false,);
+            expect(existsSync(join(
+              fixture.srcDir,
+              'monochromatic-jsonc-edit-0.1.9',
+            ),),)
+              .toBe(false,);
+            expect(existsSync(join(
+              fixture.srcDir,
+              'monochromatic-jsonc-edit-0.1.10',
             ),),)
               .toBe(true,);
           },
@@ -287,6 +360,7 @@ await describe({
              */
             const deleted = await pruneStaleOwnCrates({
               entry: toolById('cargo:cargo-about',),
+              tools: ALL_TOOLS,
               env: fixture.env,
             },);
             expect(deleted,)
@@ -307,6 +381,7 @@ await describe({
             const cargoHome = scratchDir('toolchain-prune-empty-',);
             expect(await pruneStaleOwnCrates({
               entry: toolById('cargo:monochromatic-lint',),
+              tools: ALL_TOOLS,
               env: { CARGO_HOME: cargoHome },
             },),)
               .toEqual([],);

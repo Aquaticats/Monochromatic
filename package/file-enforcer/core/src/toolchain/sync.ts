@@ -380,6 +380,7 @@ export async function syncToolchain(
       // oxlint-disable-next-line no-await-in-loop -- the prune follows its own install, before the next entry starts
       await pruneStaleOwnCrates({
         entry,
+        tools,
         env: e,
       },);
     } catch (error) {

@@ -296,9 +296,19 @@ This settles the "pruning is a later decision" note for those packages only;
 - What is deleted:
  `cargo binstall` replaces the installed binary in place,
  so the stale copies are the earlier `.crate` archives in `registry/cache/<index>/`
- and the extracted trees in `registry/src/<index>/` under the cargo home.
- Every entry of the crate whose version is not the locked one goes;
- an entry of a longer crate name that shares the prefix does not.
+ and the extracted trees in `registry/src/<index>/` under the cargo home
+ (the shipped `cargo` manager's plain `cargo install`, which `mpm.packages.toml` routes these crates to,
+ and local builds fill both).
+ The same pass covers every `monochromatic-*` crate found in the registry,
+ not only the plan crates:
+ a plan crate keeps its locked version,
+ any other own crate (a library dependency such as `monochromatic-jsonc-edit`) keeps its newest cached version.
+ A crate with a longer name that shares the prefix is a different crate and is judged on its own versions.
+- Why the sync owns it:
+ mpm 8.2.0 has no cleanup for `cargo` (its `cleanup` exists for `pnpm` and `uv` only)
+ and removes no previous version on install or upgrade,
+ so a plain `mpm restore` or `mpm upgrade` leaves these copies behind.
+ The repo's manager definitions in `mpm.managers.toml` declare only fixed `install` and `remove` argument lists.
 - When:
  in `toolchain:sync`,
  right after `installEntry` succeeds for that crate.
