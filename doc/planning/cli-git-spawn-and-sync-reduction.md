@@ -101,3 +101,60 @@ acquirer. The sync-site table is in `doc/handover/cli-git-rust-implementation.md
 
 The host and gate suites carry a spawn budget (from `GIT_TRACE2_PERF`) and the host suite a sync budget (from
 `strace`); each slice lowers its budget to the measured count. Starting point: 45 processes, 41 syncs.
+
+## Filesystem identity without `findmnt` (slice S2)
+
+Scope: the three `findmnt` starts of a commit (two on `index.lock`, one on `.git`), all made by
+`package/git-policy/cli/src/native/filesystem_identity.rs`. The `stat --file-system` fallback that follows an empty
+`findmnt` answer is not part of this slice.
+
+### What must stay identical
+
+Read from `filesystem_identity.rs`, `real_index_lock.rs`, `recovery_files.rs` and the incumbent
+`package/fs-id/core/src/platform-resolvers.ts`, `parsers.ts`.
+
+- **The recorded string.** `filesystem_identity(path)` canonicalizes `path`, then on Linux returns
+  `fs-uuid_<payload>` where the payload is the `findmnt --target <canonical> --output=UUID --noheadings` standard
+  output, trimmed with JavaScript `.trim()` semantics, lowercased, and accepted only if it is 1 to 512 characters of
+  `[a-z0-9.-]` and not a lone `-`. Example: a vfat UUID `44C8-C6BA` is recorded as `fs-uuid_44c8-c6ba`.
+- **The empty case.** An empty, multi-line or unsafe payload (`findmnt` prints `\n` for `/`, `/tmp`, `/proc`, `/dev`,
+  fuse mounts and `\n\n` for two mounts stacked on one mount point) is not an identity. The resolver then runs
+  `stat --file-system --format=%i` and records `f-fsid_<hex>`. A string is therefore never empty; `None` only when both
+  commands fail.
+- **Where it is recorded and compared.** `created_identity` (`real_index_lock.rs`) records it for the directory
+  holding the real index into the journal field `fsId`. `owned_lock_mismatch_with` and `release_owned_lock_with`
+  (`recovery_files.rs`) compare it, for the lock file, with the recorded `fsId` together with device and inode.
+- **How a mismatch is treated.** `None` from `filesystem_identity` is an error, never a mismatch: the landing stops
+  ("the filesystem identity of the worktree is unavailable") and recovery returns a `RecoveryError`. A string that
+  differs from the journal is "Index lock identity changed", the lock is reported `Foreign` and is left in place.
+  A wrong string therefore either blocks recovery for good or, worse, would let a foreign lock look owned only if
+  device and inode also matched; the in-process path must never produce a string `findmnt` would not.
+- **Journals outlive binaries.** The record is read by older builds of this wrapper and by the TypeScript incumbent
+  (`fsId` in the journal JSON). The new code must produce the byte-identical text the old code and `fs-id-core`
+  produce for the same filesystem: same prefix, same lowercase, same fallback to `f-fsid_`.
+- **Mount namespaces and containers.** `findmnt` is a child of the wrapper, so it reads the wrapper's own
+  `/proc/self/mountinfo`, root directory and `/run/udev`. The in-process code reads the same files in the same
+  process, so every namespace question has the same answer. A container without `/run/udev` data for the device gets
+  no UUID in-process, and the code spawns `findmnt` exactly as before; a host-recorded `fs-uuid_` and a
+  container-computed `f-fsid_` already differ today, and that does not change.
+
+### How `findmnt` 2.41 gets the text (read from util-linux `misc-utils/findmnt.c`, confirmed by `strace`)
+
+- `--target X` first lists every `/proc/self/mountinfo` line whose mount point equals `X`; if none, it walks `X` up
+  one component at a time (`mnt_table_find_mountpoint`, backward, so the last line wins) and then lists every line
+  whose mount point equals the one found. Stacked mounts therefore print several lines.
+- The UUID column resolves the source field with `mnt_resolve_spec`, canonicalizes it, and asks libudev for the block
+  device by sysfs name (`/sys/class/block/<name>`), which reads `/run/udev/data/b<major>:<minor>` and returns
+  `ID_FS_UUID_ENC` with `\xHH` sequences decoded. Only when that is absent does it call `libblkid`, which probes the
+  device and needs read access. `strace` on this host shows `openat("/run/udev/data/b252:1")` and no access to
+  `/dev/disk/by-uuid`, so `/dev/disk/by-uuid` is not consulted by the oracle (the brief named it; the oracle is the
+  authority, and for a multi-device Btrfs the link names only one member while every member has the record).
+
+### Exactness rules for the in-process path
+
+- Answer only when exactly one mountinfo line has the winning mount point, the mount ID of that line equals the
+  `stx_mnt_id` that `statx` reports for the path, and the source is a `/dev/` block device whose udev record holds
+  `ID_FS_UUID_ENC`. Every other shape spawns `findmnt` unchanged.
+- A source that is not a path (`overlay`, `tmpfs`, `proc`, `composefs`) has no UUID: `findmnt` prints an empty line.
+  That conclusion is drawn without a spawn only if the source also names no existing path and no sysfs block device.
+  The `stat` fallback still runs.
