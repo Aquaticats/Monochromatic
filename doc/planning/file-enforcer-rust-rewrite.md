@@ -188,6 +188,23 @@ ask the user about those that hold,
 then confirm and write `doc/decision/file-enforcer-rust-rewrite.md` for acceptance.
 No code before acceptance.
 
+Update:
+the three second-round reviews returned and are recorded under "Second review round".
+Still open:
+who writes and checks `mpm.packages.toml` and `mpm.managers.toml`,
+and file-enforcer's toolchain role.
+A prototype agent is running real mpm in podman in a linked worktree,
+on the throwaway branch `prototype/fe-mpm-files`,
+testing four candidates (mpm-shadow owns and checks,
+mpm-shadow writes and file-enforcer checks through a shared crate,
+file-enforcer renders,
+or the files should not exist);
+its report goes to `${HOME}/temp/agent/fe-rust/proto-mpm-files.md`.
+After it:
+verify the report,
+ask the user with its evidence,
+then the shared-understanding confirmation and the decision record.
+
 ## Current design (consolidated 2026-10-29)
 
 The live decisions,
