@@ -61,6 +61,11 @@ export type BuildDshAdvisorStatusOptions = {
    Agent model id paired with `mainProvider`.
    */
   readonly mainModel?: string;
+  /**
+   Home directory override forwarded to scope resolution, so tests inject a
+   disposable home instead of reading the user's settings.
+   */
+  readonly home?: string;
 };
 
 //endregion Types
@@ -98,6 +103,9 @@ export async function buildDshAdvisorStatus(
       cwd: options.cwd,
       modelRegistry: options.catalog,
     },
+    ...(options.home === undefined
+      ? {}
+      : { home: options.home, }),
     errorPrefix: 'advisor',
   },);
   /**
