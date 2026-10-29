@@ -21,7 +21,7 @@ FROM ${CACHYOS_IMAGE} AS build
 # --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
 # hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
 RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
-      gcc cmake ninja pkgconf openssl curl zlib \
+      gcc cmake ninja pkgconf openssl curl \
     && rm --recursive --force /var/cache/pacman/pkg/*
 
 # The newest release is resolved at build time, as the always-latest rule asks: the redirect of
