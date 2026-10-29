@@ -30,7 +30,13 @@ fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
     for file in ["u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt"] {
         std::fs::write(repo.join(file), format!("{file} base\n")).expect("file");
     }
-    git(fixture, repo.as_path(), &["add", "--", "u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt"]);
+    std::fs::create_dir(repo.join("sub")).expect("subdirectory");
+    std::fs::write(repo.join("sub/s.txt"), b"s base\n").expect("file");
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", "u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt", "sub/s.txt"],
+    );
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
     git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
@@ -501,6 +507,77 @@ fn a_signing_repository_gets_a_signed_merge() {
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
     assert!(git_text(&fixture, repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "), "signed");
+    remove_settled(&fixture);
+}
+
+/// Global options before `merge` (`-c` settings and `-C` directories) reach every query the isolated merge makes.
+#[test]
+fn global_options_reach_every_query_of_the_merge() {
+    let fixture: Fixture = fixture("merge-global-options");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    std::fs::write(repo.join("sub/s.txt"), b"s staged by another session\n").expect("file");
+    git(&fixture, repo.as_path(), &["add", "--", "sub/s.txt"]);
+    let configured: Observed = run(&fixture, repo.as_path(), &["-c", "merge.stat=false", "merge", "--no-edit", "feature"]);
+    assert_eq!(configured.code, Some(0), "{}", text(&configured.stderr));
+    assert_eq!(text(&configured.stdout), "Merge made by the 'ort' strategy.\n", "merge.stat=false hides the diffstat");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    git(&fixture, repo.as_path(), &["reset", "--hard", "--quiet", "HEAD^"]);
+    stage_unrelated_work(&fixture, repo.as_path());
+    let elsewhere: Observed = run(&fixture, fixture.root.as_path(), &["-C", repo.to_str().expect("UTF-8"), "merge", "--no-edit", "feature"]);
+    assert_eq!(elsewhere.code, Some(0), "{}", text(&elsewhere.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    let reflog: String = git_text(&fixture, repo.as_path(), &["reflog", "show", "--format=%gs", "-1", "HEAD"]);
+    assert_eq!(reflog, "merge feature: Fast-forward\n");
+    remove_settled(&fixture);
+}
+
+/// A commit that starts while a merge holds the landing lock waits for it and lands on top of the merge.
+#[test]
+fn a_commit_waits_for_a_running_merge_and_lands_on_top_of_it() {
+    let fixture: Fixture = fixture("merge-serializes-commit");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    let markers: PathBuf = fixture.root.join("markers-serialize");
+    std::fs::create_dir(&markers).expect("marker directory");
+    let signal: String = format!("merge-intent:pause:{}", markers.display());
+    let merge = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"])
+        .env(PHASE_SIGNAL_VARIABLE, signal)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the merge starts");
+    let reached: PathBuf = markers.join("merge-intent.reached");
+    for _ in 0..600 {
+        if reached.exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(reached.exists(), "the merge reached its pause");
+    std::fs::write(repo.join("extra.txt"), b"extra\n").expect("file");
+    git(&fixture, repo.as_path(), &["add", "--", "extra.txt"]);
+    let commit = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=extra", "--", "extra.txt"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the commit starts");
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]),
+        "3\n",
+        "neither the merge nor the commit has landed while the merge is paused"
+    );
+    std::fs::write(markers.join("merge-intent.release"), b"").expect("release");
+    let merged = merge.wait_with_output().expect("the merge ends");
+    let committed = commit.wait_with_output().expect("the commit ends");
+    assert_eq!(merged.status.code(), Some(0), "{}", text(&merged.stderr));
+    assert_eq!(committed.status.code(), Some(0), "{}", text(&committed.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]), "extra\n");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    let staged: String = git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    assert!(staged.contains("M  u.txt") && staged.contains("A  new.txt") && staged.contains("D  v.txt"), "{staged}");
+    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);
 }
 
