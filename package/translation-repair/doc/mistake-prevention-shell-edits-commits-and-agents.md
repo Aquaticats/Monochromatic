@@ -124,7 +124,9 @@ in a later response than the write,
 under a name no earlier script used.
 A command that reads a file just edited is sent in a later call than the edit,
 since parallel calls may run in either order (M177).
-Edits to one file are sent one per call for the same reason (M189 to M197).
+Edits to one file are sent one per call for the same reason (M189 to M197),
+and the lead sent two Edits to one file in one block again on 2026-10-29 (UTC) (M306):
+an edit that follows another edit of the same file waits for the next call.
 Output that may pass 50 lines goes to a file in the scratch folder
 and is read in ranges of at most 50 lines;
 the limit binds a Read of any file as it binds the terminal,
@@ -138,6 +140,11 @@ M209).
 A listing or a search names the directory it needs
 and never recurses under the shared working root (M191,
 M197).
+A search that may match widely is a count first and a listing second,
+bounded by a directory or a file filter (M311).
+A line number for an edit or a note is the one printed beside the line,
+never an offset counted from the start of a range (M117,
+M311).
 Git runs from the repository root or with `git -C`.
 An agent worktree is created with `--no-worktree-copy` from a shell whose `git` is the wrapper,
 then set up.
@@ -580,6 +587,11 @@ the corrective comment is posted at once and is not held until the branch lands:
 the owner asked on 2026-10-29
 "Why after landing?"
 of a comment that waited (ledger M295).
+A count that a message gives for a constant is read again after the constant changes,
+and the message names the constant the count is for:
+the message of `d599b87fab` said "none at the cap" of a cap it had just replaced,
+which was true of the old cap of 13,082 only,
+and a commit comment corrected it (ledger M312).
 
 What enforces it:
 habit,
@@ -680,6 +692,15 @@ A range is landed only after its base is checked to be an ancestor of the branch
 and every earlier round from the same worktree is found in the branch's `git log`:
 the first round of `w186` stood in the handover as done and was never landed,
 and the second round's conflict on the ledger file the first had created was what showed it (ledger M264).
+Two rounds that both add lines to the ledger indexes (`audit-ledger-entries-by-id.md` and `audit-ledger.md`)
+collide at landing:
+the landing script refused the caps round with "main 716016163e touches paths this branch changed"
+after the real-clock round had landed in `422063bf09` (ledger M310).
+When two rounds run at once,
+one lands first,
+then main is merged into the other,
+every index line is kept in id order,
+and `mise run //package/translation-repair/source-scan:test:unit` runs again before that round lands.
 
 What enforces it:
 nothing in the package;
@@ -719,6 +740,13 @@ The output of a background command is read only after the harness reports that i
 on 2026-10-29 (UTC) a commit's result was read before the commit finished,
 so that the head looked unchanged,
 and a log of comment posts was read after one of three (ledger M301).
+The lead's count for that day was three such reads:
+a comment-post log,
+a commit's output file and a worktree-retire log,
+the last two empty when read (ledger M305).
+An empty output file is the sign of a command still running,
+never of a command that printed nothing,
+and the turn ends until the harness reports that the command finished.
 
 What enforces it:
 the shared facts every brief points to carry the waiting rule and the exact unit form;
@@ -897,6 +925,13 @@ A brief that carries a cause into a doc cites the report that names it with the 
 and cites beside it the later finding that confirmed or refuted it (ledger M236).
 A brief names a path only after the lead has listed it,
 and a question that one listing answers is answered before the brief is sent (ledger M237).
+A brief for a census over run directories names directories that no live pass writes to:
+the brief of the caps round named all of `~/temp/agent` as the root,
+so the census read the logs of the live pass `corpus-pass-XingZ6022`,
+read-only and with nothing touched,
+and the brief,
+not the agent,
+had named that root (ledger M312).
 A hand-back states a read or a check as done only when it was done,
 is written once and then appended to,
 and a round that stops at a precondition names each read that its brief required and it did not finish

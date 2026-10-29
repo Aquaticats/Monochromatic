@@ -253,6 +253,8 @@ A guard that reads a record reads its index and every file that says it is part 
 `wc --lines` is read on every Markdown file a commit touches before the commit:
 the split's handover edits took one file to 1,076 lines,
 and the guard that reads the limit runs in `source-scan:test:unit` and not in the `source-scans` task (ledger M250).
+The caps round placed two ledger entries in a file that then held 1,042 lines,
+and `e8fb13c2a3` moved them to a file of their own (ledger M312).
 
 What enforces it:
 `doc-line-limit.unit.test.ts` reads the package's docs,
@@ -305,6 +307,11 @@ A fix of a class of findings across the docs ships with the guard that reads the
 committed first and shown failing on an unfixed doc,
 because a sweep that gates nothing is undone by the next paragraph.
 A docs-only change that lands without a gate runs `mise run //package/translation-repair/source-scan:test:unit` first.
+So does every other commit that edits Markdown,
+a one-line note of the lead's included:
+the lead committed a note in B965 before the task had run,
+and it failed `semantic-line-breaks` at two lines (fixed in `d4fbf7d6e9`,
+ledger M307).
 The line-limit guard runs only in that task,
 since the `source-scans` task lists the Markdown lint guard and not the line-limit guard,
 so a handover or ledger edit can pass the linter and still cross 1,000 lines

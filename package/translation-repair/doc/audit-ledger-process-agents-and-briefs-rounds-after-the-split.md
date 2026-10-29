@@ -10,6 +10,8 @@ and is filed because it came again.
 
 M304 was added on 2026-10-29 (UTC) from the hand-back of the agent of round 8,
 which listed the rules it broke.
+M312 was added the same day from the lead's notes on the caps round,
+whose brief named a census root that a live pass writes to.
 
 Written on 2026-10-19 (UTC) from the lead's notes after the split (`s245/ledger-notes-after-split.md`).
 M270 was added on the same day from the notes of the seat round (`s245/w191-notes.md`).
@@ -161,3 +163,51 @@ and the lead syncs the tree of an agent that merged main across a change of the 
 Recurrence:
 M116,
 which records that writing a slip down has not stopped it.
+
+## M312: the brief for the caps round named a census root that a live pass writes to, and four more slips followed
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+The round is the caps round (`tr-w360`,
+a Sonnet agent);
+its work is B990 and B991.
+
+- The agent ran the cap census over all of `~/temp/agent`,
+  as the lead's brief said.
+  The census therefore read the logs of the live `corpus-pass-XingZ6022` pass.
+  It only read,
+  and nothing was touched.
+  The brief,
+  and not the agent,
+  named that root.
+- The agent's first placement of the ledger entries took `audit-ledger-runner-reports-and-probes.md` to 1042 lines.
+  B990 and B991 were moved to `audit-ledger-the-cap-census-and-the-xiaomi-cap.md` in `e8fb13c2a3`.
+- A Markdown finding needed `101f3f8c35`,
+  and a pinned test that had gone stale needed `af7d6ddbf8`.
+- The message of `d599b87fab` says "none at the cap".
+  That was true of the old cap of 13,082 only.
+  At the new cap of 5,098,
+  3 of the 293 calls of Xiaomi's own endpoint reach it.
+  Commit comment 207194488 corrected the message,
+  and `5f9a726c61` (the lead's) corrected the comment on the card in `model-cards.ts`.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Briefs and hand-backs",
+for the first:
+a brief for a census names run directories that no live pass writes to.
+"Commit messages" for the last:
+a count that a message gives for a constant is read again after the constant changes,
+and the message names the constant the count is for.
+`mistake-prevention-docs-and-references.md`,
+"Docs that only grow",
+for the second:
+the lines of every Markdown file a commit touches are counted before the commit.
+
+Recurrence:
+M304,
+the slips of the agent of round 8,
+M291,
+where blocks were added to files near a line limit,
+and M300,
+where a Markdown finding reached a gate.
