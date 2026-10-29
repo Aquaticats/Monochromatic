@@ -716,14 +716,12 @@ An info line says a set-aside give-up is back in force.
 
 What the corrected rule costs,
 measured on the roster of 2026-10-25
-(scratch script over `unmetBenchFloors`,
-every set of the other providers beside the given-up one):
-
-```sh
-# [translation-repair] scratch4/classify.ts and classify-all.ts: for each given-up provider and each set of the
-# other providers (Bedrock off), count the sets that meet every floor without it, those it cures, and the rest
-node classify-all.ts
-```
+by a scratch script over `unmetBenchFloors`
+that counted,
+for each given-up provider and each set of the other providers (Bedrock off),
+the sets that meet every floor without it,
+those it cures and the rest.
+The script and its output are not kept in the repository.
 
 With Bedrock off and Synthetic given up,
 48 of the 64 sets of the six other providers meet every floor without it
@@ -761,8 +759,8 @@ rg --only-matching --no-line-number --replace '$1' \
   /var/mnt/encrypted/temp/agent/corpus-pass-XingZ6020.log > waits.txt
 ```
 
-A scratch script (`replay.ts`) builds the real decision (`createGiveUpAside` over `unmetBenchFloors` and
-`RUN_WRITING_PROVIDERS`) with Synthetic given up and no provider held,
+A scratch replay (its script and output are not kept in the repository) builds the real decision
+(`createGiveUpAside` over `unmetBenchFloors` and `RUN_WRITING_PROVIDERS`) with Synthetic given up and no provider held,
 feeds it each of the 518 readings as the last meter reading,
 and asks whether the give-up is set aside.
 It ran twice,
@@ -978,6 +976,13 @@ the set-aside file,
 refuse and tick one step after another over stub meters,
 so no real read lies between a refusal and its hold;
 each ran singly with a 30 ms delay on every file read and passed.
+Two real-clock waits stay in tests,
+open as a later item (read at `c6185d4086`):
+`provider-budget-neuralwatt-return.unit.test.ts` polls every 10 ms (`pollMs: 10`,
+lines 398 and 453)
+against a wall clock that moves with real time,
+and `pass-entry.unit.test.ts` waits 10 ms (`wait(10,)`,
+line 972).
 
 Prevention rule:
 a wait that repeats an ask is judged by what the first wait bought,
