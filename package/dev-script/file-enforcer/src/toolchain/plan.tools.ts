@@ -380,7 +380,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.2.10',
+    version: '0.2.11',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -802,7 +802,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:socket',
     request: { track: 'latest' },
-    version: '1.11.1',
+    version: '1.11.2',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'socket',
