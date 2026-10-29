@@ -5,7 +5,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -39,7 +39,7 @@ const WAIT_POLL_MS = 10;
 /**
  Maximum polls before a child-process coordination fixture fails.
  */
-const WAIT_ATTEMPTS = 200;
+const WAIT_ATTEMPTS = 3000;
 
 /**
  Simultaneous writers needed to exercise lock release and successor acquisition.
@@ -58,7 +58,7 @@ const CONCURRENT_WRITER_COUNT = 8;
  */
 async function setup(): Promise<string> {
   return await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-concurrency-regression-',
   ),);
 }

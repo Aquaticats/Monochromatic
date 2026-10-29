@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { spawnSync, } from 'node:child_process';
 import { join, } from 'node:path';
 
@@ -84,7 +84,7 @@ async function makeWorkspace(): Promise<TempWorkspace> {
    Temporary root path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'claude-statusline-',
   ),);
 

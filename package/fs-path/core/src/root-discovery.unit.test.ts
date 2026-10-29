@@ -14,7 +14,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join as nodeJoin, } from 'node:path';
 
 import {
@@ -126,7 +126,7 @@ async function createTempTree({
    Fixture root.
    */
   const root = await mkdtemp(nodeJoin(
-    parent ?? tmpdir(),
+    parent ?? scratchRoot(),
     prefix,
   ),);
   /**

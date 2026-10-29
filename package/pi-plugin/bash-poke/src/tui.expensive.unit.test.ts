@@ -17,7 +17,7 @@
 import { execFile, } from 'node:child_process';
 import { randomUUID, } from 'node:crypto';
 import { mkdtemp, rm, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { promisify, } from 'node:util';
 
@@ -296,12 +296,12 @@ async function startPiTui(): Promise<TmuxSession> {
   /**
    Disposable working directory the nested Pi treats as its project.
    */
-  const work = await mkdtemp(join(tmpdir(), 'bash-poke-tui-work-', ), );
+  const work = await mkdtemp(join(scratchRoot(), 'bash-poke-tui-work-', ), );
 
   /**
    Disposable agent directory, empty so no global extension or credential loads.
    */
-  const agent = await mkdtemp(join(tmpdir(), 'bash-poke-tui-agent-', ), );
+  const agent = await mkdtemp(join(scratchRoot(), 'bash-poke-tui-agent-', ), );
 
   /**
    Session name, unique so parallel runs cannot capture each other's panes.

@@ -17,7 +17,8 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { homedir, tmpdir, } from 'node:os';
+import { homedir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -104,7 +105,7 @@ async function createFixture(): Promise<{
   /**
    Local value for root.
    */
-  const root = await mkdtemp(join(tmpdir(), 'env-local-json-matrix-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'env-local-json-matrix-',),);
   await chmod(root, 0o700,);
   /**
    Local value for identityPath.

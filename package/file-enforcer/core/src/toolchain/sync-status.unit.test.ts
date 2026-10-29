@@ -8,7 +8,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -253,7 +253,7 @@ await describe({
              Disposable directory for the scope config.
              */
             const home = mkdtempSync(join(
-              tmpdir(),
+              scratchRoot(),
               'toolchain-bin-config-',
             ),);
             /**
@@ -320,7 +320,7 @@ await describe({
              Disposable directory and explicit config path.
              */
             const home = mkdtempSync(join(
-              tmpdir(),
+              scratchRoot(),
               'toolchain-bin-config-',
             ),);
             /**

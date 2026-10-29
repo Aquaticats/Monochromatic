@@ -109,7 +109,7 @@ fn record<'a>(lines: &'a [String], message: &str) -> &'a str {
 /// A reader over a file of `lines` lines,
 ///  `line N` on line N.
 fn numbered(lines: usize) -> (tempfile::TempDir, Reader) {
-    let fixture = tempfile::tempdir().expect("disposable pointer log project");
+    let fixture = crate::test_scratch::scratch().expect("disposable pointer log project");
     let mut text = String::new();
     for number in 1..=lines {
         text.push_str(&format!("line {number}\n"));

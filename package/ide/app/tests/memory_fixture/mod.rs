@@ -38,5 +38,5 @@ pub fn directory(prefix: &str) -> tempfile::TempDir {
     {
         return directory;
     }
-    return tempfile::tempdir().expect("disposable fixture directory");
+    return tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable fixture directory");
 }

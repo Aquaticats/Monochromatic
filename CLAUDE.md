@@ -1226,10 +1226,11 @@ RCI:
  A stopgap for a misbehaving tool is not an owner.
 
 BXD:
- Containers start `FROM docker.io/cachyos/cachyos:latest`,
- unpinned;
- Alpine only where CachyOS lacks the architecture.
-Exceptions:
+ Containers use the newest CachyOS `latest` image the host CPU runs,
+ via `ARG CACHYOS_IMAGE`;
+ Alpine on non-x86-64.
+Resolver,
+ release-floor split:
  `doc/decision/container-base-distro.md`.
 
 ### Adding new packages

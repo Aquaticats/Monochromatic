@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { manageMiseManifests, } from '../../dist/final/node/index.mjs';
@@ -28,7 +28,7 @@ import { manageMiseManifests, } from '../../dist/final/node/index.mjs';
  ```
  */
 async function setup(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'file-enforcer-mise-manifests-',),);
+  return mkdtemp(join(scratchRoot(), 'file-enforcer-mise-manifests-',),);
 }
 
 /**

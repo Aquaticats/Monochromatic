@@ -20,7 +20,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { runWaylandElectronBoundaryTest, } from '@monochromatic-dev/electron-infra-core/ts/wayland-test';
@@ -78,7 +78,7 @@ async function createFixtureTree(): Promise<FixtureTree> {
    Temporary fixture root for this run.
    */
   const rootPath = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-manager-electron-fixture-',
   ),);
 

@@ -32,12 +32,12 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 //region Fixture setup
 /** Root temp directory for all benchmark fixtures. */
-const tempDir = await mkdtemp(join(tmpdir(), 'fe-perf-',),);
+const tempDir = await mkdtemp(join(scratchRoot(), 'fe-perf-',),);
 
 /** Directory with 200 files across 20 directories for glob benchmarks. */
 const globDir = join(tempDir, 'glob-fixture',);

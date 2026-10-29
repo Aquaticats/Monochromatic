@@ -14,6 +14,9 @@
     "./ts": "./src/index.ts",
     "./ts/*": "./src/*"
   },
+  "bin": {
+    "cachyos-image": "dist/final/node/bin.mjs"
+  },
   "files": [
     "dist/final",
     "src",

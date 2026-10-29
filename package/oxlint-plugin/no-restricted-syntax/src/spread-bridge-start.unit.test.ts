@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -66,7 +66,7 @@ function scratchProject(
 ): ScratchProject {
   /** Unique temp directory. */
   const directory = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'oxlint-spread-bridge-start-',
   ),);
   writeFileSync(

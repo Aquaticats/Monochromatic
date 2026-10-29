@@ -3,7 +3,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -109,7 +109,7 @@ await describe({
             /**
              Throwaway config root seeded with several JetBrains product directories.
              */
-            const configRoot = await mkdtemp(join(tmpdir(), 'fe-jb-latest-',),);
+            const configRoot = await mkdtemp(join(scratchRoot(), 'fe-jb-latest-',),);
             await using owned = throwawayDir(configRoot,);
             await Promise.all([
               'IntelliJIdea2025.1',
@@ -141,7 +141,7 @@ await describe({
             /**
              Throwaway root with no JetBrains directory.
              */
-            const configRoot = await mkdtemp(join(tmpdir(), 'fe-jb-empty-',),);
+            const configRoot = await mkdtemp(join(scratchRoot(), 'fe-jb-empty-',),);
             await using owned = throwawayDir(configRoot,);
             using xdg = withXdgConfigHome(configRoot,);
             expect(await latestJetbrainsOptionsDirectory({ productPrefixes: IDEA_PREFIXES, },),)

@@ -1,5 +1,5 @@
 # Cargo work runs on the HOST when the native dev libraries are present, and
-# falls back to the Fedora build container otherwise (see Containerfile).
+# falls back to the CachyOS build container otherwise (see Containerfile).
 # On non-Linux targets (macOS, Windows) every task takes a NATIVE cargo branch
 # first (process.platform !== 'linux'): no pkg-config/PipeWire probe, no podman
 # fallback (a Linux container cannot produce a macOS or Windows binary), and the
@@ -77,11 +77,14 @@ const hostEnv = () => {
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}` }
 }
 const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: [], env: [], program: 'cargo' }
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs, containerOptions = {}) => {
   const container = { ...defaultContainer, ...containerOptions }
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', container.image], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments(container.image.split('/').pop()), '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
   // Forward SLINT_EMIT_DEBUG_INFO into the container ONLY when the caller set it
   // (the test + mcp tasks do). podman does not inherit host env, and the
   // ElementHandle / MCP introspection APIs refuse to run without this debug info.
@@ -114,7 +117,7 @@ const runCargo = (cargoArgs) => {
 # Dispatch for the x86_64-pc-windows-gnu tasks. Interpolated after cargo_dispatch, whose bindings it reuses.
 # - On Windows the build is NATIVE: rustup with the GNU target (or a GNU host) and an MSYS2 MinGW-w64 gcc on PATH
 #   (the cmake crate and rustc then use GNU ld through gcc; no Visual Studio is involved).
-# - On Linux it is a CROSS build inside the Containerfile.windows-gnu image (mingw-w64 from Fedora), capped at 6 GiB and 4
+# - On Linux it is a CROSS build inside the Containerfile.windows-gnu image (mingw-w64 from CachyOS), capped at 6 GiB and 4
 #   CPUs, with its own target directory so the Linux build cache is untouched; tests run under Wine (the image sets
 #   the cargo runner for this target). The image carries the linker and runner variables, so none are passed here.
 # - macOS cannot run either path.
@@ -135,8 +138,15 @@ const runWindowsGnu = (cargoArgs) => {
 """
 
 [tasks.image]
-description = "Build the Fedora build/run container image"
-run = "podman build -t localhost/monochromatic/music-player -f Containerfile ."
+description = "Build the CachyOS build/run container image"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player'), '-t', 'localhost/monochromatic/music-player', '-f', 'Containerfile', '.'], { stdio: 'inherit' })
+"""
 
 [tasks.build]
 description = "Release build (macOS/Windows native, else Linux host if dev libs present, else container)"
@@ -208,8 +218,15 @@ description = "Write target/THIRD-PARTY-LICENSES.txt: the license notices of eve
 run = "node bin/third-party-notices.mjs --product desktop --features alsa-fallback --output target/THIRD-PARTY-LICENSES.txt"
 
 [tasks."image:windows-gnu"]
-description = "Build the Fedora cross-compile + Wine image for x86_64-pc-windows-gnu (Linux only)"
-run = "podman build --memory=4g -t localhost/monochromatic/music-player-windows-gnu -f Containerfile.windows-gnu ."
+description = "Build the CachyOS cross-compile + Wine image for x86_64-pc-windows-gnu (Linux only)"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), '--memory=4g', '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
+"""
 
 [tasks."build:windows-gnu"]
 description = "Release build for x86_64-pc-windows-gnu with MinGW-w64 GNU ld (native on Windows with MSYS2, else cross-compiled in the container)"
@@ -543,7 +560,10 @@ shell = "node --input-type=module-typescript -e"
 run = """
 const { execFileSync } = await import('node:child_process')
 const { mkdirSync } = await import('node:fs')
-execFileSync('podman', ['build', '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
 const img = 'localhost/monochromatic/icon-tools'
 const mount = `${process.cwd()}:/work`
 const inContainer = (toolArgs) => execFileSync('podman', ['run', '--rm', '--security-opt', 'label=disable', '-v', mount, '-w', '/work', img, ...toolArgs], { stdio: 'inherit' })

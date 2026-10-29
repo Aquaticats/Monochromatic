@@ -11,7 +11,7 @@
  killed.
 
  Test matrix:
- - OS: ubuntu (apt), fedora (dnf)
+ - OS: ubuntu (apt), cachyos (pacman); Fedora (dnf) was dropped on 2026-10-29
  - User: root, non-root (uid 1000)
 
  @example
@@ -24,6 +24,8 @@ import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
+  resolveBaseImage,
+  resolveImage,
   type Combination,
   type UserContext,
 } from '@monochromatic-dev/test-harness-core-matrix/ts';
@@ -72,14 +74,23 @@ const CELLS: readonly {
     user: 'user',
   },
   {
-    os: 'container:fedora',
+    os: 'container:cachyos',
     user: 'root',
   },
   {
-    os: 'container:fedora',
+    os: 'container:cachyos',
     user: 'user',
   },
 ] as const;
+
+/**
+ Image for the `cachyos` cells, chosen once for the host CPU level (v4, v3, then plain).
+ A host that is not x86-64 rejects here: the ensurePackage cells are a pacman test.
+ */
+const cachyosImage: string = (await resolveBaseImage({
+  imageName: 'container:cachyos',
+  alpineVariant: false,
+},)).image;
 
 //endregion Matrix definition
 
@@ -122,15 +133,16 @@ async function runCell(cell: (typeof CELLS)[number],): Promise<boolean> {
     monorepoRoot: MONOREPO_ROOT,
   },);
   /**
-   Distro half of the cell's `os` spec, tagged for `podman run`.
+   Distro half of the cell's `os` spec.
    */
-  const {distro} = parseOs(cell.os,);
+  const { distro, } = parseOs(cell.os,);
   /**
-   Fully tagged image reference.
+   Fully tagged image reference for the cell's distro (CachyOS maps to the image chosen for the host CPU level).
    */
-  const image = distro.includes(':',)
-    ? distro
-    : `${distro}:latest`;
+  const image = resolveImage({
+    distro,
+    cachyosImage,
+  },);
   console.log(
     `[ensure-package-matrix] ${cell.os} user=${cell.user}: podman run ${
       PODMAN_BOUNDS.join(' ',)

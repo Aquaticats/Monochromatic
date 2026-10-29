@@ -50,8 +50,11 @@ const packageDirectory = process.cwd()
 const targetDirectory = JSON.parse(execFileSync('cargo', ['metadata', '--format-version', '1', '--no-deps'], { encoding: 'utf8' })).target_directory
 const context = mkdtempSync(join(tmpdir(), 'search-shadow-context-'))
 copyFileSync(join(targetDirectory, 'release', 'search-shadow'), join(context, 'search-shadow'))
-// The build needs the network for dnf; resources are bounded like the repository's other container builds.
-execFileSync('podman', ['build', '--pull=never', '--memory=2g', '--cpu-period=100000', '--cpu-quota=200000', '--tag', IMAGE, '--file', join(packageDirectory, 'Containerfile'), context], { stdio: 'inherit' })
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (docker.io/cachyos/cachyos-v4, -v3 or plain), resolved by the
+// repository's cachyos-image command; it throws on a host that is not x86-64, because this image has no Alpine variant.
+const baseImageArgument = execFileSync('node', [join(packageDirectory, '..', '..', 'test-harness', 'core-matrix', 'src', 'bin', 'cachyos-image.ts'), '--image-name', 'search-shadow-test', '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+// The build needs the network for pacman; resources are bounded like the repository's other container builds.
+execFileSync('podman', ['build', '--build-arg', baseImageArgument, '--pull=never', '--memory=2g', '--cpu-period=100000', '--cpu-quota=200000', '--tag', IMAGE, '--file', join(packageDirectory, 'Containerfile'), context], { stdio: 'inherit' })
 rmSync(context, { recursive: true, force: true })
 
 // Runs one shell snippet in a fresh container with no network, bounded memory, CPU and processes.

@@ -3334,3 +3334,117 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   rest of the `/tmp` audit); cleanup of worktrees, branches (`integrate-slices`, `worktree-agent-*`) and the two e2e images.
 - Rejected requests: a peer asked this session to release monochromatic-lint 0.4.0; it is not this session's work.
 - The GitHub release monochromatic-git-policy-cli-v0.3.0 exists (published 2026-10-29T12:59:01Z, not a draft).
+
+## Update at 2026-10-29 (oxlint cleanup finished, merge pending)
+
+- Agent afe3b1e78082f5280 cleared the package's oxlint findings (30 errors and 53 warnings to 0 and 0, no rule changed, no
+  suppression) on branch `worktree-agent-afe3b1e78082f5280` (`e8e270007a`, `7695ca4cb2`, pushed): four e2e fixtures got
+  readonly tuple annotations; `bin/native-perf.mjs` was rewritten with async APIs and split into
+  `native-perf-statistics.mjs`, `native-perf-git.mjs` and `native-perf-measure.mjs`. Behavior proof: old and new versions
+  agree on a stand-in binary and on four error paths. I also ran the new harness once against the real release binary
+  (5 samples, under host load): forwarded commands add 1.8 to 3.1 ms median, an explicit-path commit adds a median of
+  155 ms (p95 231 ms), under the 2000 ms budget.
+- NOT MERGED into main: `git merge` in the main checkout is refused ("local changes ... would be overwritten") while other
+  sessions hold staged file-enforcer and ide/app changes there, and the landing lock was busy. Merge
+  `worktree-agent-afe3b1e78082f5280` into main when the checkout is clean (the branch touches only
+  `package/git-policy/cli/bin/native-perf*.mjs` and four `e2e/*-fixture.ts` files). Do not touch the other sessions' files.
+
+## Update at 2026-10-29 (user directive: merges must succeed with other sessions' staged changes)
+
+- The user decided: a `git merge` refused by native Git because other sessions have staged changes in the shared main
+  checkout is a problem this wrapper owns and must make succeed. Observed: `error: Your local changes to the following
+  files would be overwritten by merge` listing the other sessions' staged files, although the merge touches none of them.
+  The wrapper classes `merge` as an index writer (`index_writer_commands.rs`) and forwards it, so the refusal reaches the
+  user.
+- Agent afb65bb9babbe8ffa measures what native Git refuses, then implements the isolated merge: reuse the auto-push
+  reconcile machinery (`auto_push_reconcile.rs`: merge in a private context, fast-forward branch and worktree around local
+  changes), land with the commit path's compare-and-swap, update the worktree and index for exactly the merged paths, leave
+  other staged and unstaged work untouched; conflicts and overlaps with others' work refuse with a finding that names the
+  paths and every way forward and change nothing; clean-index and fast-forward merges still forward natively. `git pull`
+  is to be handled if the same mechanism applies. Merge its branch after reading the diff, verify, then release (read the
+  crate version first). Until it lands, the pending merge of `worktree-agent-afe3b1e78082f5280` (oxlint cleanup) into
+  main fails for this very reason.
+- Task list updated: tasks 67, 68, 70, 71 and 72 are completed (released in 0.3.0).
+
+## State at 2026-10-29 (late afternoon): read this block first
+
+- Released: `monochromatic-git-policy-cli` 0.3.0 (`651df035b5`), on crates.io and as GitHub release
+  `monochromatic-git-policy-cli-v0.3.0`. Everything in the earlier blocks of today up to "0.3.0 released" is in it, except
+  what is listed below as not merged.
+- Closed today: issues 1807 (staged additions that an ignore rule matches), 1808 (the not-at-root message now says why), 1809
+  (fixtures leave `/tmp`). Opened: 1810 (audit existing `/tmp` uses, assigned to the user; `monochromatic-80` owns the
+  non-Rust part and the root `clippy.toml` ban; this session owns the crate's Rust uses).
+- New rules and decisions of today: `XTD` in AGENTS.md (never use `/tmp`); traditional Git hooks are unsupported (README,
+  SPEC, warning, `git cli-git doctor`); the two hookdir e2e scenarios stay deleted; the Git version cache stays in the user
+  cache directory; merges must succeed when other sessions have staged changes in the main checkout.
+- Finished on branches, NOT yet on main (the merge into the shared main checkout is refused by native Git while other
+  sessions hold staged changes there; see the merge agent below):
+  - `worktree-agent-afe3b1e78082f5280`: oxlint cleanup, 30 errors and 53 warnings to 0 and 0
+    (`bin/native-perf*.mjs`, four `e2e/*-fixture.ts`); run once against the real release binary, forwarded commands add
+    1.8 to 3.1 ms median, an explicit-path commit 155 ms median (5 samples, under load).
+  - `worktree-agent-ab12997169a0f5b11`: the crate's production scratch off `/tmp` (`scratch_location.rs`; input file in
+    `<git-common-dir>/cli-git-scratch`; linter config, linter streams, push and query output files and the push probe in
+    `<state>/cli-git/scratch` with `<state>` = absolute `XDG_STATE_HOME` or `$HOME/.local/state`; 24-hour sweep; no
+    `temp_dir()` left in the crate, so clippy is clean with the five-method ban too); design note
+    `doc/planning/cli-git-scratch-locations.md`. Host 2183 of 2184, binary 205 of 206 (only the two known linter tests).
+    Container gate not yet run on it. Deviation: probe and linter use the per-user directory, not the repository, to avoid
+    one more `rev-parse` start per push.
+  - After both reach main: tell `monochromatic-80` (peer, `uds:/run/user/1000/cc-socks/2748920.sock`) so it lands the root
+    `clippy.toml` ban; run the gate once on main; release the next version (read the crate version first).
+- Running: agent `afb65bb9babbe8ffa` (isolated merge when foreign staged changes block native `git merge`; reuses the
+  auto-push reconcile machinery; conflicts and overlaps refuse with a finding that names the paths; clean-index and
+  fast-forward merges keep forwarding natively; `git pull` if the same mechanism applies). Mutation wave 1 units
+  `cli-git-mutpar-w1-*` (`start_retry`, `commit_staged_additions`, `filesystem_identity_mount`, `config_snapshot`,
+  `transaction_git`; logs `~/temp/agent/mutpar-w1-*.log.N`; started with
+  `MUT_ROOT=~/temp/agent/merge-slices node ~/temp/agent/mutation-parallel.ts w1 <files>`).
+- Open items, in order: (1) land the merge agent's branch, then the two finished branches; (2) gate and release;
+  (3) mutation wave 2 over `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`,
+  `git_version_cache`, `doctor`, `traditional_hook_warning`, `recovery_snapshot`, `recovery_contradiction`, `content_digest`,
+  `rule_require_root`, `scratch_location`, the 1804 files, then read wave 1; (4) issue 1810 follow-up by
+  `monochromatic-80` (gate runner `bin/test-native-container.mjs` and `bin/native-verification-process.mjs` copy the source
+  snapshot to `/tmp/cli-git-native-test-*`); (5) tasks 65 and 66 (1804 mutation, the 5-second kills and the 90-second
+  hangs), 69 (further journal syncs only after the tearing table allows; the digests made the snapshot syncs unnecessary),
+  23 and 30 (Windows items), and the Windows clippy target nobody has run; (6) cleanup: remove worktrees
+  `.claude/worktrees/agent-*` (not `agent-a563e0c526d53df51`, which is not this session's), `~/temp/agent/merge-slices`,
+  `~/temp/agent/verify-retry`, delete the merged branches (`integrate-slices`, `worktree-agent-*`), remove the two e2e
+  images `localhost/cli-git-concurrent-e2e:cfghooks` and `localhost/cli-git-concurrent-e2e-native:cfghooks`, and stop leftover
+  `cli-git-*` units (`systemctl --user list-units 'cli-git-*'`).
+- Lessons of today: a full per-user `/tmp` quota (13108M) makes every command fail with EDQUOT and empties task output files,
+  so set `TMPDIR=~/temp/agent/tmp` for commands and never rely on `/tmp`; a merge commit made after a failed conflict edit
+  carried markers (`1240234269`, fixed by `e66495826a`): guard the commit with a marker check; the `-- <filter>` argument is
+  ignored by `native:test:container`; the harness normalizes numbers in file names assuming long pids, which broke in the
+  container (`019d433cc9`).
+- Stale text in earlier blocks: the "slice J report" lines about torn snapshots, silent inconsistency and the message UX item
+  are superseded by the recovery agent's block; the `core.hooksPath` removal queue block is done.
+
+## Update at 2026-10-29 (issue 1811: silent waits before the commit lands)
+
+- Issue 1811 (opened by the user): concurrent commits wait for minutes with no output. Comment narrows it: the push-lock
+  wait already announces itself (`auto_push.rs`); the pre-commit waits (index lock, replay reservation, owner lock,
+  worktree copy lock, Markdown check stage) must print the same kind of notice, repeat it at an interval, and end at a bound
+  with a diagnostic. Existing pieces: `live_lock.rs` (`HolderNotice`, one line after `SLOW_WAIT` of 5 s, never repeats),
+  `index_lock_wait.rs` (report effect), `replay_reservation.rs`, `worktree_copy_lock.rs`.
+- Agent `a367b2612f424f68c` (isolated worktree) inventories every wait on the commit path by measurement, fixes them with
+  one shared mechanism, adds permanent tests shown failing, and updates README/SPEC. Parent merges its branch after reading
+  the diff, then verifies (clippy, host, binary) and includes it in the next gate and release.
+- Queue position: this joins the open items after the merge agent's branch and the two finished branches.
+
+## Update at 2026-10-29 (Git LFS: the wrapper handles it directly, or the shims get a carve-out)
+
+- The main checkout's `.git/hooks` held four traditional hooks, all git-lfs shims (`post-checkout`, `post-commit`,
+  `post-merge`, `pre-push`, each `git lfs <hook> "$@"`). The user said to delete them all; they are deleted (the inert
+  `*.sample` files stay). `core.hooksPath` is unset; the 112 linked worktrees share that hooks directory.
+- Consequence while this is open: `pre-push` was what uploaded LFS objects on push, and the crate has no native LFS upload
+  (only `manual_push_probe.rs` mentions LFS). A push that adds or changes an LFS-tracked file publishes the pointer without
+  the object. `git lfs install` restores the shims if that becomes urgent.
+- The user's decision: "I want the wrapper handle all our lfs needs directly. If not possible, keep them, but for our
+  traditional git hooks unsupportiveness, keep a carve-out for lfs."
+- Agent `ab2b64d9df753a15f` (isolated worktree): researches the four hooks from primary sources, decides per hook (native,
+  unnecessary here, or not possible), implements the native step with zero extra syscalls on the common path, fails closed
+  when the upload fails, and for any hook it cannot handle keeps the shim and exempts a byte-exact LFS shim from the warning
+  and from `git cli-git doctor`. Parent merges after reading the diff, verifies, and includes it in the next gate and release.
+
+- Clarification from the user: if the wrapper cannot handle an LFS hook natively, exempting the shim from the warning is not
+  enough; traditional LFS hooks must be explicitly supported (a contract: the byte-exact shim runs on every path where Git
+  would run it, with Git's arguments and stdin, including the wrapper's own plumbing paths, and a failure fails closed;
+  doctor reports supported shims separately; everything else stays unsupported). Sent to agent `ab2b64d9df753a15f`.

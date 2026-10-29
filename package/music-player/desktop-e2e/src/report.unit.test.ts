@@ -9,7 +9,7 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -83,7 +83,7 @@ await describe({
     it({
       name: 'writes the summary file with the counts and the outcomes, and returns the totals',
       fn: async ({ expect, }) => {
-        const out = await mkdtemp(join(tmpdir(), 'e2e-report-',),);
+        const out = await mkdtemp(join(scratchRoot(), 'e2e-report-',),);
         const totals = await writeReport({ outcomes: OUTCOMES, startedAt: 1_000, finishedAt: 3_500, outputRoot: join(out, 'nested',), },);
         expect(totals,).toEqual({ passed: 1, failed: 1, skipped: 1, },);
         const summary: unknown = JSON.parse(await readFile(join(out, 'nested', 'e2e-summary.json',), 'utf8',),);

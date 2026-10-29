@@ -6,7 +6,7 @@
 
 import { createHash, } from 'node:crypto';
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -69,7 +69,7 @@ export async function createBypassFixture(): Promise<BypassFixture> {
    Private runtime directory removed with fixture.
    */
   const stateDirectory = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'wgq-bypass-integration-',
   ),);
   /**

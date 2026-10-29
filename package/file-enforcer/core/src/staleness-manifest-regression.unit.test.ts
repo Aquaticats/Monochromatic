@@ -6,7 +6,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -37,7 +37,7 @@ import {
  */
 async function setup(): Promise<string> {
   return await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-manifest-regression-',
   ),);
 }

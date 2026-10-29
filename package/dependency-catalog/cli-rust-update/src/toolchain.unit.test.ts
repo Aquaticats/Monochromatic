@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -37,7 +37,7 @@ async function tempRoot(): Promise<AsyncDisposable & { readonly root: string; }>
   /**
    Root directory.
    */
-  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-toolchain-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'rust-catalog-update-toolchain-',),);
   return {
     root,
     [Symbol.asyncDispose]: async function removeRoot(): Promise<void> {

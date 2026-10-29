@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, rm, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -60,7 +60,7 @@ await describe({
         it({
           name: 'rejects a path that does not exist',
           fn: async () => {
-            const root = await mkdtemp(join(tmpdir(), 'bash-poke-shell-', ), );
+            const root = await mkdtemp(join(scratchRoot(), 'bash-poke-shell-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(root, { recursive: true, force: true, }, );
@@ -74,7 +74,7 @@ await describe({
         it({
           name: 'rejects a file that exists but is not executable',
           fn: async () => {
-            const root = await mkdtemp(join(tmpdir(), 'bash-poke-shell-', ), );
+            const root = await mkdtemp(join(scratchRoot(), 'bash-poke-shell-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(root, { recursive: true, force: true, }, );

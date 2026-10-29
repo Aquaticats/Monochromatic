@@ -10,7 +10,7 @@ import {
   rm,
   symlink,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { overwriteIfNotExists, } from '../../dist/final/node/index.mjs';
@@ -29,7 +29,7 @@ import { overwriteIfNotExists, } from '../../dist/final/node/index.mjs';
  */
 async function setup(): Promise<string> {
   return mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-overwrite-if-absent-',
   ),);
 }

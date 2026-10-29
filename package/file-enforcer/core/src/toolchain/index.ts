@@ -83,11 +83,13 @@ export {
 } from './generate.ts';
 export {
   replacementWarning,
-  syncOrder,
   syncToolchain,
-  appliesToHost,
   type SyncReport,
 } from './sync.ts';
+export {
+  appliesToHost,
+  syncOrder,
+} from './sync.order.ts';
 export { NOT_INSTALLED, } from './status.observe.ts';
 export {
   normalizeVersion,

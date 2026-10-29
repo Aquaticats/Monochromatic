@@ -421,6 +421,50 @@ Still to do:
 1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish, but it can edit publishers),
    then the agent runs `cargo logout`.
 
+## monochromatic-mpm-shadow 0.1.0
+
+Status:
+0.1.0 published and released on 2026-10-29; Trusted Publishing configured and exercised by CI.
+Owner action remaining: none for the crate; the `cargo login` token the owner created for this publish should be revoked
+at <https://crates.io/settings/tokens> once no further manual publish is planned.
+
+Crate `monochromatic-mpm-shadow`,
+version `0.1.0`,
+path `package/mpm-shadow/cli`,
+license `LGPL-3.0-or-later`.
+Workflow jobs: `ms-detect`, `ms-publish-crate`, `ms-release-state`, `ms-build-binary`, `ms-create-release`.
+
+What happened,
+as measured:
+
+- The owner's `cargo login` token (scopes publish-new, publish-update and trusted-publishing) worked on the first try:
+  `cargo publish --dry-run --no-verify` packaged 24 files (40.5 KiB compressed) and aborted the upload without a 403,
+  then `mise run //package/mpm-shadow/cli:publish` published `0.1.0`.
+  The `cargo publish` run from inside the package directory is refused by the Git wrapper's `require-root` policy
+  when it is chained after a `git status`; run Git from the repository root.
+- Trusted Publishing was created through the API with the token's trusted-publishing scope, as for search-shadow:
+  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with owner `Aquaticats`, repository `Monochromatic`,
+  workflow `cargo-publish.yml` and no environment returned config `29493` with `repository_owner_id` 343218767.
+  `GET` with `?crate=monochromatic-mpm-shadow` lists it.
+- A dispatched dry run (run `40883596611`) passed every `ms-*` job including both `ms-build-binary` targets
+  (smoke run and archive verification) and skipped `ms-create-release`.
+- The dispatch with dry-run off (run `40883917579`) authenticated through Trusted Publishing, skipped the existing upload,
+  built and attested both archives, and created the immutable release `monochromatic-mpm-shadow-v0.1.0` with
+  the two archives and `monochromatic-mpm-shadow-0.1.0-sha256sums.txt`.
+  0.1.0 already carried `[package.metadata.binstall]`, so no 0.1.1 was needed.
+- 0.1.1 followed the same day. Installing 0.1.0 showed that `cargo binstall` updates `~/.cargo/.crates.toml` but not
+  `.crates2.json`, which the shadow read, so the shadow now reads `.crates.toml`. A plain push of the version bump to
+  `main` ran `ms-detect` through `ms-create-release` (run `40886969789`): Trusted Publishing authenticated, crates.io
+  lists 0.1.1 and 0.1.0, and release `monochromatic-mpm-shadow-v0.1.1` is immutable with both archives and the
+  checksums file. Installed through mpm and the extension, the binary's SHA-256 equals the 0.1.1 archive's, and
+  `toolchain:sync` then created `.cache/mpm-shadow-bin/mpm`; `mpm` in the mise environment ran the real mpm 8.2.0
+  and deleted the stale 0.1.0 copies from the cargo registry.
+- Consumer checks: `sha256sum --check` and `gh attestation verify` on the x86_64 archive both passed, and
+  `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
+  in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary, so binstall used the release
+  and did not compile. That command needs `cargo-binstall` on PATH; the repository provisions it into
+  `.cache/toolchain-bin`, and without it cargo answers `no such command: binstall`.
+
 ## monochromatic-nested-wayland-session releases after the first publication
 
 Status:

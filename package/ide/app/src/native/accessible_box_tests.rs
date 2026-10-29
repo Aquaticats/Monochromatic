@@ -254,14 +254,14 @@ fn find_box_and_clear_control_expose_role_label_value_and_actions() {
 /// clears the query and the results and keeps keyboard focus in the box.
 #[test]
 fn search_box_and_clear_control_expose_role_label_value_and_actions() {
-    // What: `tempfile::tempdir()` makes a disposable directory removed when the value is dropped.
+    // What: `crate::test_scratch::scratch()` makes a disposable directory removed when the value is dropped.
     // Why: Search runs over a real project, which must never be the repository.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const fixture = mkdtempSync(join(tmpdir(), 'search-'));
     // ```
-    let fixture = tempfile::tempdir().expect("disposable accessible search project");
+    let fixture = crate::test_scratch::scratch().expect("disposable accessible search project");
     // What: `fixture.path().join(..)` builds a path inside the directory; `fs::write` creates the file.
     // Why: One file whose name and contents match the query.
     //
@@ -386,7 +386,7 @@ fn described(field: &ElementHandle, expected: &str, after: &str) {
 ///  and "No results" when nothing matches.
 #[test]
 fn search_box_description_counts_the_results() {
-    let fixture = tempfile::tempdir().expect("disposable search-count project");
+    let fixture = crate::test_scratch::scratch().expect("disposable search-count project");
     // Two files whose names match, so the selected row can move.
     fs::write(fixture.path().join("needle-one.txt"), "first\n").expect("search fixture");
     fs::write(fixture.path().join("needle-two.txt"), "second\n").expect("search fixture");

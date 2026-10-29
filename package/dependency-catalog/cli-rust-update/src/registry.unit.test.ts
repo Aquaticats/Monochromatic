@@ -9,7 +9,7 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -42,7 +42,7 @@ async function tempRoot(): Promise<AsyncDisposable & { readonly root: string; }>
   /**
    Root directory.
    */
-  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-registry-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'rust-catalog-update-registry-',),);
   return {
     root,
     [Symbol.asyncDispose]: async function removeRoot(): Promise<void> {
@@ -190,7 +190,7 @@ await describe({
          */
         const registry = createRegistry({
           fetchDump: unusedDump,
-          root: tmpdir(),
+          root: scratchRoot(),
           fetchText: async function fakeFetch(url: string,): Promise<string> {
             urls.push(url,);
             return '{"vers":"1.0.18","pubtime":"2026-03-20T00:12:37Z"}\n';

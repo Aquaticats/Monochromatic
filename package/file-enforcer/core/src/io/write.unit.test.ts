@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -29,7 +29,7 @@ import {
 // test execution wipes sibling tests' entries mid-flight, causing false
 // failures. Mirrors the convention documented in ./cache.unit.test.ts.
 async function setup(prefix: string,): Promise<string> {
-  return mkdtemp(join(tmpdir(), prefix,),);
+  return mkdtemp(join(scratchRoot(), prefix,),);
 }
 
 /**

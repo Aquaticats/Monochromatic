@@ -20,7 +20,7 @@ import {
 import { createHash, } from 'node:crypto';
 import { gzipSync, } from 'node:zlib';
 import { createServer as createHttpServer, type Server, } from 'node:http';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 import {
   describe,
@@ -67,7 +67,7 @@ function makeFixture(): Fixture {
    Disposable root doubling as the fixture home.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-converge-',
   ),);
   /**

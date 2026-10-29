@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   classifyEvent,
@@ -130,7 +130,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-classify-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-classify-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -158,7 +158,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-classify-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-classify-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -192,7 +192,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-classify-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-classify-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -219,7 +219,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-classify-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-classify-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -261,7 +261,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-classify-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-classify-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -316,7 +316,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-trigger-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-trigger-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);
@@ -361,7 +361,7 @@ await describe({
           fn: async () => {
             reset();
             resetWriteTimestamps();
-            const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-trigger-',),);
+            const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-trigger-',),);
             await using _cleanup = {
               [Symbol.asyncDispose](): Promise<void> {
                 return rm(tempDir, { recursive: true, force: true, },);

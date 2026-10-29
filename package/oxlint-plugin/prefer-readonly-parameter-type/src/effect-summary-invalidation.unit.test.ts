@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -68,7 +68,7 @@ type DisposableFixtureRoot = {
  @returns project directory removed after test scope.
  */
 function disposableFixtureRoot(): DisposableFixtureRoot {
-  const path = mkdtempSync(join(tmpdir(), 'readonly-incremental-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-incremental-',),);
   return {
     path,
     [Symbol.dispose](): void {

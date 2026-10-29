@@ -64,7 +64,7 @@ fn sorted(list: &[String]) -> Vec<String> {
 
 #[test]
 fn a_folder_of_another_build_unused_for_more_than_30_days_is_removed() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let now = SystemTime::now();
     key_folder(&runtime, CURRENT, Some(now));
@@ -80,7 +80,7 @@ fn a_folder_of_another_build_unused_for_more_than_30_days_is_removed() {
 
 #[test]
 fn a_folder_used_within_30_days_is_kept() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let now = SystemTime::now();
     key_folder(&runtime, "0000000000000001", Some(now - days(1)));
@@ -104,7 +104,7 @@ fn a_folder_used_within_30_days_is_kept() {
 
 #[test]
 fn the_current_key_is_never_removed_however_long_unused() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let now = SystemTime::now();
     key_folder(&runtime, CURRENT, Some(now - days(400)));
@@ -143,7 +143,7 @@ fn file_clock_now(directory: &Path) -> SystemTime {
 
 #[test]
 fn a_marker_renewed_by_a_running_copy_keeps_its_folder() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let older = "00000000000000a1";
     let started = file_clock_now(base.path());
@@ -176,7 +176,7 @@ fn a_marker_renewed_by_a_running_copy_keeps_its_folder() {
 
 #[test]
 fn a_folder_without_a_marker_is_aged_by_its_own_time() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let now = SystemTime::now();
     key_folder(&runtime, "00000000000000b1", None);
@@ -190,7 +190,7 @@ fn a_folder_without_a_marker_is_aged_by_its_own_time() {
 
 #[test]
 fn links_files_and_other_names_are_left_alone_and_never_followed() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let outside = base.path().join("outside");
     let now = SystemTime::now();
@@ -237,7 +237,7 @@ fn links_files_and_other_names_are_left_alone_and_never_followed() {
 
 #[test]
 fn a_runtime_folder_that_is_a_link_is_not_swept() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let real = base.path().join("elsewhere");
     let now = SystemTime::now();
     key_folder(&real, "00000000000000e1", Some(now - days(90)));
@@ -249,7 +249,7 @@ fn a_runtime_folder_that_is_a_link_is_not_swept() {
 
 #[test]
 fn the_rest_of_a_removal_cut_short_is_removed() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let runtime = base.path().join("runtime");
     let now = SystemTime::now();
     let leftover = ".00000000000000f1.removing-4242-0";
@@ -269,7 +269,7 @@ fn the_rest_of_a_removal_cut_short_is_removed() {
 
 #[test]
 fn the_marker_is_private_and_a_link_at_its_name_is_replaced_not_followed() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let folder = base.path().join("runtime").join(CURRENT);
     let target = base.path().join("someone-elses-file");
     fs::write(&target, b"unchanged").expect("target");

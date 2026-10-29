@@ -14,7 +14,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { cwd, } from 'node:process';
 
@@ -75,7 +75,7 @@ export async function runIntegrationCheck(): Promise<void> {
    Report destination for this run.
    */
   const reportFile = join(
-    tmpdir(),
+    scratchRoot(),
     `mutation-integration-${String(Date.now(),)}.json`,
   );
   rl.info(`running CLI against ${FIXTURE_PACKAGE}`,);

@@ -2,17 +2,27 @@
 # bfs, ncdu, cloc, ...) next to the ones it has, plus the release binary, so every shadow can be checked against its real
 # tool without installing anything on the host. The binary is copied in (no mounts) and was built on a Fedora 44 host, so the
 # base image must have the same or a newer glibc; the task checks the image runs it.
-FROM registry.fedoraproject.org/fedora:latest
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md); CACHYOS_IMAGE lets the caller pick the x86-64-v3 or
+# x86-64-v4 build of CachyOS that the host CPU supports.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
-# --skip-unavailable keeps the build going when a package is missing from the repository; the test then reports which shadow
-# links were skipped for lack of a real tool. fdfind is the Debian name of fd and is expected to stay unlinked.
-# The openh264 repository holds none of these tools and answered at about 600 bytes per second, so it is disabled.
-# The cache mount keeps repository metadata and downloaded packages between builds (outside the image, so the image stays
-# small), which turns every build after the first from minutes into seconds on a slow mirror.
-RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
-    dnf install --assumeyes --disablerepo=fedora-cisco-openh264 --setopt=keepcache=1 \
-      --setopt=install_weak_deps=False --skip-unavailable \
-      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux \
-      diffutils procps-ng
+# pacman has no --skip-unavailable: a name missing from the repositories fails the build, which is intended, so no shadow
+# silently loses its real tool. fdfind is the Debian name of fd and is expected to stay unlinked.
+# --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot create, and without it
+# hooks such as the sysusers one fail.
+# The cache mount keeps downloaded packages between builds (outside the image, so the image stays small and
+# /var/cache/pacman/pkg is never part of it), which turns every build after the first from minutes into seconds on a slow
+# mirror.
+# ack is in neither the Arch nor the CachyOS repositories (it is only in the AUR), so cpanminus installs the real App::Ack from
+# CPAN (pure Perl, latest release); make is its build tool. Arch puts cpanm in /usr/bin/vendor_perl and the installed ack in
+# /usr/bin/site_perl, neither on PATH, so ack is linked into /usr/local/bin; the cpanm work directory is removed.
+RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
+    pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+      ripgrep grep findutils fd bfs tree coreutils ncdu tokei cloc the_silver_searcher ugrep util-linux \
+      diffutils procps-ng perl cpanminus make \
+    && /usr/bin/vendor_perl/cpanm --notest App::Ack \
+    && ln --symbolic /usr/bin/site_perl/ack /usr/local/bin/ack \
+    && rm --recursive --force /root/.cpanm
 
 COPY search-shadow /usr/local/bin/search-shadow

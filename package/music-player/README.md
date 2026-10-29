@@ -731,7 +731,7 @@ mise run //package/music-player/desktop-app:run -- path/to/music-folder
 mise run //package/music-player/desktop-app:test
 ```
 
-Linux builds use host development libraries when available and otherwise use the package's Fedora container.
+Linux builds use host development libraries when available and otherwise use the package's CachyOS container.
 The application itself runs on the host session.
  Linux requires Wayland and PipeWire;
  Alpine Linux also runs the player over ALSA

@@ -57,7 +57,7 @@ fn hints_above(reader: &Reader, line: usize) -> usize {
 ///  and the blocks the minimap is built from as the answer for line 0 made them.
 #[test]
 fn an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about() {
-    let fixture = tempfile::tempdir().expect("disposable range project");
+    let fixture = crate::test_scratch::scratch().expect("disposable range project");
     fs::write(fixture.path().join("main.rs"), FIXTURE).expect("range fixture");
     let reader = reader(fixture.path(), "main.rs");
     let stamp = displayed(&reader.source.borrow());

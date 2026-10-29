@@ -6,7 +6,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -50,7 +50,7 @@ type DisposableRoot = {
  */
 function disposableRoot(): DisposableRoot {
   /** Directory created for one case. */
-  const path = mkdtempSync(join(tmpdir(), 'readonly-origin-link-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-origin-link-',),);
   return {
     path,
     [Symbol.dispose](): void {

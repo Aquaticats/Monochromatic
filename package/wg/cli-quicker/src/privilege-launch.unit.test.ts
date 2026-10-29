@@ -7,7 +7,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -34,7 +34,7 @@ await describe({
          Disposable directory containing fake sudo command and invocation record.
          */
         const directory = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'wg-quicker-privilege-',
         ),);
         await using cleanup = {

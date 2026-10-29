@@ -1,6 +1,6 @@
 /** Empty SDK cycle lists must not hide configured model restrictions. @module */
 import { mkdir, mkdtemp, rm, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { resolveEffectiveScope, } from '../dist/final/node/index.mjs';
@@ -23,7 +23,7 @@ await describe({ name: 'SDK empty live scope fallback', children: cases.map(test
   name: testCase.name,
   fn: async (): Promise<void> => {
     /** Private fixture home prevents real user settings from influencing selection. */
-    const root = await mkdtemp(join(tmpdir(), 'sdk-scope-',),);
+    const root = await mkdtemp(join(scratchRoot(), 'sdk-scope-',),);
     await using cleanup = { [Symbol.asyncDispose]: async (): Promise<void> => {
       await rm(root, { recursive: true, force: true, },);
     }, };

@@ -539,6 +539,11 @@ export async function workspaceDependencyDirs(
   },
 ): Promise<readonly string[]> {
   /**
+   Real directory of the monorepo root, so it compares with the real package
+   directories below even when the checkout path runs through a symlink.
+   */
+  const root = await realpath(monorepoRoot,);
+  /**
    Real directory of the tested package.
    */
   const self = await realpath(packageDir,);
@@ -569,7 +574,7 @@ export async function workspaceDependencyDirs(
     const next = await Promise.all(fresh.map(function dependenciesOf(dir,) {
       return linkedWorkspaceDirs({
         dir,
-        monorepoRoot,
+        monorepoRoot: root,
         fields: ['dependencies',],
       },);
     },),);
@@ -577,8 +582,8 @@ export async function workspaceDependencyDirs(
   }
   for (
     let frontier = await linkedWorkspaceDirs({
-      dir: packageDir,
-      monorepoRoot,
+      dir: self,
+      monorepoRoot: root,
       fields: [
         'dependencies',
         'devDependencies',
@@ -591,7 +596,7 @@ export async function workspaceDependencyDirs(
   reached.delete(self,);
   return [...reached,].map(function toRelative(dir,) {
     return relative(
-      monorepoRoot,
+      root,
       dir,
     );
   },);

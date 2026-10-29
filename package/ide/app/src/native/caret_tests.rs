@@ -68,7 +68,7 @@ fn repeat(window: &AppWindow, target: Key, count: usize) {
 ///  and every Shift variant.
 #[test]
 fn horizontal_keys_move_by_grapheme_word_line_and_document_and_extend_with_shift() {
-    let fixture = tempfile::tempdir().expect("disposable caret project");
+    let fixture = crate::test_scratch::scratch().expect("disposable caret project");
     // alpha(0..5) blank beta_2(6..12) blank ==(13..15) blank 猫猫(16..18) LF(18) second(19..25) blank line(26..30) LF.
     let text = "alpha beta_2 == 猫猫\nsecond line\n";
     fs::write(fixture.path().join("keys.txt"), text).expect("caret fixture");
@@ -219,7 +219,7 @@ fn tall(lines: usize) -> String {
 ///  a horizontal move forgets it.
 #[test]
 fn vertical_keys_keep_a_preferred_column_and_extend_with_shift() {
-    let fixture = tempfile::tempdir().expect("disposable caret project");
+    let fixture = crate::test_scratch::scratch().expect("disposable caret project");
     // Line starts: 0 full, 11 "ab", 14 empty, 15 full, 26 full.
     let text = tall(200);
     fs::write(fixture.path().join("tall.txt"), &text).expect("caret fixture");
@@ -274,7 +274,7 @@ fn start_of_line(line: usize) -> usize {
 ///  Shift extends.
 #[test]
 fn page_keys_move_by_the_visible_height_and_keep_the_caret_in_view() {
-    let fixture = tempfile::tempdir().expect("disposable caret project");
+    let fixture = crate::test_scratch::scratch().expect("disposable caret project");
     let text = tall(200);
     fs::write(fixture.path().join("tall.txt"), &text).expect("caret fixture");
     let reader = reader(fixture.path(), "tall.txt");
@@ -351,7 +351,7 @@ pub(super) fn caret_in_view(reader: &Reader) -> bool {
 ///  document keys reach both ends.
 #[test]
 fn view_follows_the_caret_with_the_smallest_scroll() {
-    let fixture = tempfile::tempdir().expect("disposable caret project");
+    let fixture = crate::test_scratch::scratch().expect("disposable caret project");
     let text = format!("a short first line\n{}", tall(200));
     fs::write(fixture.path().join("follow.txt"), &text).expect("caret fixture");
     let reader = reader(fixture.path(), "follow.txt");
@@ -403,7 +403,7 @@ fn view_follows_the_caret_with_the_smallest_scroll() {
 /// not only the line.
 #[test]
 fn view_follows_the_caret_across_the_visual_rows_of_a_wrapped_line() {
-    let fixture = tempfile::tempdir().expect("disposable caret project");
+    let fixture = crate::test_scratch::scratch().expect("disposable caret project");
     // A token without break opportunities breaks at the width, so this line is taller than the view.
     let wide = "x".repeat(6000);
     let text = format!("{}{wide}\nlast\n", "short\n".repeat(3));

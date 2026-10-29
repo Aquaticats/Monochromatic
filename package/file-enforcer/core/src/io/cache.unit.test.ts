@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -22,7 +22,7 @@ import {
 
 /** Fresh temp directory for each test */
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'file-enforcer-cache-',),);
+  return mkdtemp(join(scratchRoot(), 'file-enforcer-cache-',),);
 }
 
 // No afterEach(readCache.clear): each test uses a unique mkdtemp path,

@@ -12,7 +12,7 @@ import {
   createServer,
   type Server,
 } from 'node:net';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -44,7 +44,7 @@ type FakeCompositor = {
  @returns its socket path, the commands it received and a way to close it
  */
 async function startFakeCompositor(answer: string,): Promise<FakeCompositor> {
-  const dir = await mkdtemp(join(tmpdir(), 'e2e-control-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'e2e-control-',),);
   const socket = join(dir, 'c.sock',);
   const commands: string[] = [];
   const server: Server = createServer((client,) => {
@@ -138,7 +138,7 @@ await describe({
       fn: async ({ expect, }) => {
         let caught: unknown;
         try {
-          await sendCommand({ socket: join(tmpdir(), 'e2e-no-such-socket',), line: 'x', },);
+          await sendCommand({ socket: join(scratchRoot(), 'e2e-no-such-socket',), line: 'x', },);
         }
         catch (error: unknown) {
           caught = error;
