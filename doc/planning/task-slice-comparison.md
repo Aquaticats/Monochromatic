@@ -835,6 +835,21 @@ Thresholds used while scoring:
  while naming the naive form's failure mode.
 Where evidence is thin the cell is marked low-signal.
 
+Two of the requirements that stay
+ (partial invocation,
+ paths containing spaces)
+ are shared-pass gates:
+  all eight measured candidates satisfy them,
+ so they separate nobody
+ and carry no cell.
+Groups do separate the field
+ and are read through A
+ (exact edges carry the ordering),
+ since every candidate expresses order
+ as edges or as one body.
+The measurements remain
+ in the Capability measurements section.
+
 ### Ratings
 
 Format is A B C D E F G H I,
@@ -909,7 +924,20 @@ Low-signal cells:
  rather than probed,
  so its total spans 23 to 25;
  Nadle H rests on fixture pilots only;
- projen H and Poe H rest on single-project pilots.
+ projen H and Poe H rest on single-project pilots;
+ Pants H,
+ Please H,
+ Buck2 H,
+ and Tilt H
+ are category judgments
+ (monorepo-grade build systems,
+ flat namespace)
+ rather than probes at 222 packages,
+ since only pnpm and Keep Mise were run at that size;
+ Buck2 B could read 3
+ if the typed `ctx.actions.run` hatch
+ replaces `genrule` bodies,
+ which would break the Buck2 and Please tie upward.
 
 ## Ranking for the task slice
 
@@ -960,37 +988,48 @@ Keep Mise is not in the audit,
  so its deduction is unknown;
  at the field's median trust (1 of 4)
  it lands 21,
- fifth,
+ still fifth,
  and at 3 of 4 it lands 23,
  level with Buck2.
-The deduction alone
- lifts Keep Mise above Nadle and Buck2,
- which is why each adjacent pair below
+So the trust deduction
+ does not move Keep Mise out of fifth
+ unless its upstream acknowledgement
+ turns out better than the field's median,
+ in which case it challenges Buck2
+ and leaves the fourth slot unchanged.
+Each adjacent pair below
  names which axis decides it.
 
 ### Why each adjacent pair
 
-- Pants beats Please because both cover every named duty
-  and Pants covers each one at the higher grade:
-   typed bodies where Please needs `escape_safe`,
-  typed edges in `peek` JSON
-  where Please reports them through `plz query graph`,
-  `--loop` watch without Please's stale-`[cached]` bug,
-  measured cache hits,
-  and `--changed-since`
-  with `--changed-dependents`
-  as affected selection
-  where Please's `--since` only lists the diff.
+- Pants beats Please on the totals (32 to 26)
+  because the gap is in body safety and watch:
+   Pants' typed argv (`adhoc_tool`)
+  has no encoding class at all
+  where Please needs `escape_safe`
+  and rewrites `\$` to `$` silently,
+  and `--loop` watch
+  is clean where Please's `plz watch`
+  serves stale `[cached]` results.
+  The two tie on edge fidelity
+  (typed `peek` JSON against `plz query graph`),
+  on failure semantics (3 each),
+  and on caching (4 each),
+  though the caches differ:
+   Pants' measured hits
+  with `--changed-since`
+  and `--changed-dependents`
+  as affected selection,
+  Please's input-hash skip
+  as the only cross-invocation cache measured.
   Pants' warts are real
   (a dependent of a failure is silently omitted from the summary,
   a named missing address poisons `::`,
   the 30s default timeout),
   but each is a reporting or configuration wart
   on a duty the tool otherwise owns.
-  Please's wins are D and C grade-offs
-  plus the field's best cache.
    Flip condition:
-  weight caching depth
+  weight caching durability
   above body safety and watch cleanliness.
 - Please and Buck2 tie on the totals
   (26 each),
@@ -1266,7 +1305,11 @@ Scoring capability instead of incumbent fidelity
   for the same reason in reverse:
    its old case was shape retention
   and the best trust.
-  Four named duties are absent.
+  Three named duties are absent
+  (watch,
+  caching,
+  listing)
+  and optional-task robustness is the worst measured.
 
 ### Weight sensitivity
 
