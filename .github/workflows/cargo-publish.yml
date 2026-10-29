@@ -90,6 +90,14 @@ jobs:
           publish=true
         elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
           publish=true
+          # A moved Cargo.toml has no `before` at its new path, so a package move reads as a
+          # bump. A crates.io version can be published only once: skip the push when the
+          # index already lists it, so the build, publish, and release jobs stay idle.
+          if curl -sSf -H 'User-Agent: monochromatic-ci' https://index.crates.io/fo/rb/forbidden-strings \
+            | grep -q "\"vers\":\"${after}\""; then
+            echo "::notice::forbidden-strings ${after} is already on crates.io; nothing to publish."
+            publish=false
+          fi
         fi
         if [ "$publish" = 'true' ]; then
           {
