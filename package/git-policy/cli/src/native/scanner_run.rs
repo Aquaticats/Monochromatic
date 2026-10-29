@@ -21,6 +21,8 @@
 use super::candidate_error::CandidateError;
 use super::candidate_store::CandidateStore;
 use super::candidate_version::{Candidate, CandidateVersion};
+/// Import the candidates whose content a parent already holds.
+use super::candidate_known_content::KnownContent;
 /// Import the loaded scanner and its failure.
 use super::scanner_adapter::{CandidateScanner, ScannerError};
 /// Import the eligibility decision.
@@ -155,10 +157,48 @@ pub fn scan_version(
     version: &CandidateVersion,
     rules_path: Option<&[u8]>,
 ) -> Result<Vec<CandidateScan>, ScanRunError> {
+    return scan_version_skipping(scanner, store, version, rules_path, &KnownContent::default());
+}
+
+/// What:
+///  `scan_version`,
+///  except that a candidate whose content a parent already holds is given to the scanner without
+///       bytes.
+///       `&KnownContent` lists those candidates by position.
+/// Why:
+///   The scanner reads the pathname of every candidate it is given,
+///  so a known candidate still has its
+///       new pathname checked,
+///  and its bytes are neither read from the store nor scanned.
+///  The result list
+///       keeps one entry per eligible candidate,
+///  so "scanned" and "skipped" differ only in the bytes behind
+///       the entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function scanVersionSkipping(scanner, store, version, rulesPath, known): Promise<CandidateScan[]>;
+/// ```
+pub fn scan_version_skipping(
+    scanner: &CandidateScanner,
+    store: &mut dyn CandidateBytes,
+    version: &CandidateVersion,
+    rules_path: Option<&[u8]>,
+    known: &KnownContent,
+) -> Result<Vec<CandidateScan>, ScanRunError> {
     // `Vec::new()` is an empty growable list; `mut` lets the loop append to it.
     let mut scans: Vec<CandidateScan> = Vec::new();
     for candidate in version.candidates() {
         if !is_scannable(candidate, rules_path) {
+            continue;
+        }
+        // `.is_some()` is true when the candidate's content is already in a parent's tree.
+        if known.entry(candidate.identity.index).is_some() {
+            // An empty byte slice leaves the scanner only the pathname to check.
+            match scanner.scan(candidate, &[]) {
+                Ok(scan) => scans.push(scan),
+                Err(error) => return Err(ScanRunError::Scanner(error)),
+            }
             continue;
         }
         // `match` on the read's `Result`: `Ok(read)` unwraps the bytes, `Err(error)` ends the pass.
@@ -177,7 +217,6 @@ pub fn scan_version(
     return Ok(scans);
 }
 
-/// Isolation controls stay out of the release executable.
 #[cfg(test)]
 #[path = "scanner_run_tests.rs"]
 mod tests;
