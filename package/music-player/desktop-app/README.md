@@ -627,7 +627,7 @@ The cross build has no icon (the icon is embedded by a build script that runs on
 and six tests fail or hang under Wine that pass on the Windows runners;
 `doc/troubleshooting/music-player-windows-build-and-test.md` lists them with what was and was not found.
 `nextest.windows-gnu.toml` ends a hung test after five minutes.
-To start the program under Wine, use a virtual desktop (`wine64 explorer /desktop=mp,1280x800 music-player.exe`):
+To start the program under Wine, use a virtual desktop (`wine explorer /desktop=mp,1280x800 music-player.exe`):
 on a bare Xvfb screen Slint's frame throttle divides by a refresh rate of 0 and the program exits.
 
 ### Continuous integration

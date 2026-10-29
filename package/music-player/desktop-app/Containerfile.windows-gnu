@@ -60,9 +60,10 @@ RUN curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail \
 
 ENV CARGO_HOME=/cargo
 ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
-# The cross linker and the Wine test runner, read by cargo for this target only.
+# The cross linker and the Wine test runner, read by cargo for this target only. Arch's wine package installs one `wine`
+# binary (new WoW64 mode runs 64-bit programs too) and no `wine64`.
 ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
-ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine64
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine
 # A throwaway Wine prefix in the image's writable layer; WINEDEBUG keeps Wine's own trace quiet.
 ENV WINEPREFIX=/tmp/wineprefix
 ENV WINEDEBUG=-all
