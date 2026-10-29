@@ -174,7 +174,7 @@ const PART_BREAKS: readonly string[] = [
 
  @param text - sentence or whole sheet a judge reads
 
- @returns The parts, in reading order
+ @returns Parts, in reading order
 
  @example
  ```ts
@@ -198,7 +198,7 @@ function partsOf({ text, }: { readonly text: string; },): readonly string[] {
 /**
  Whether some part of the text says the clause.
 
- @param parts - the text as {@link partsOf} cuts it
+ @param parts - text as {@link partsOf} cuts it
 
  @param clause - clause being read
 
@@ -231,11 +231,11 @@ function isSaid(
 
  @param text - sentence or whole sheet a judge reads
 
- @param mode - the round the sentence is told in
+ @param mode - round the sentence is told in
 
- @param shape - the shape of the declined round, when the caller knows it, whose clause the sentence must also say
+ @param shape - shape of the declined round, when the caller knows it, whose clause the sentence must also say
 
- @returns The meanings of the clauses no part says, then `promises: ` and the meaning of each refused clause some part
+ @returns Meanings of the clauses no part says, then `promises: ` and the meaning of each refused clause some part
  says; empty when the sentence is right for its round
 
  @example
@@ -308,7 +308,7 @@ export function unmetClausesOf(
 
  @param text - sentence or whole sheet a judge reads
 
- @returns The failures of {@link unmetClausesOf} in the `ships` round, empty when every clause is read
+ @returns Failures of {@link unmetClausesOf} in the `ships` round, empty when every clause is read
 
  @example
  ```ts

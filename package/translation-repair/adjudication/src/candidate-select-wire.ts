@@ -127,7 +127,7 @@ function isOriginalEntry({ entry, }: { readonly entry: SelectEvidence; },): bool
 
  @param sourceText - original the candidates render, when the caller has it
 
- @returns The same evidence and candidates, each text without the notes
+ @returns Same evidence and candidates, each text without the notes
 
  @example
  ```ts

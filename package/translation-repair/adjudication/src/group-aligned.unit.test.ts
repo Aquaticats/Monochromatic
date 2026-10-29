@@ -346,7 +346,7 @@ function sealedIdsOf({ target, }: { readonly target: ReturnType<typeof parseDocu
 
  @param targetText - whole archive
 
- @returns The runs and the ids of the originals the seal took with it
+ @returns Runs and ids of the originals the seal took with it
 
  @example
  ```ts

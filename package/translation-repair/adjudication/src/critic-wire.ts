@@ -222,7 +222,7 @@ export type CriticIssueResolution =
 
  @param documents - current pair anchors resolve against
 
- @param original - the texts whose comments are the original's own on the sheet
+ @param original - texts whose comments are the original's own on the sheet
  the critic read (`criticOriginalsOf`): the translation quote is located in the
  translation as that sheet showed it, without the notes between translators, and
  comes back as the stored stretches of words either side of each note it

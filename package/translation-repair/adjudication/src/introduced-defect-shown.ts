@@ -75,7 +75,7 @@ export type ProberShown = {
  @param neighbouringSourceText - original next door, absent when the slice
  stands alone
 
- @returns The texts joined by line feeds, for `withoutTranslatorsNotes`
+ @returns Texts joined by line feeds, for `withoutTranslatorsNotes`
 
  @example
  ```ts
@@ -110,7 +110,7 @@ export function proberOriginalOf(
 
  @param regions - replaced regions, in prompt numbering order
 
- @returns The baseline, the window and each region without the notes
+ @returns Baseline, window and each region without the notes
 
  @example
  ```ts

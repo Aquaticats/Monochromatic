@@ -131,7 +131,7 @@ An empty issues array is a valid answer when the translation is faithful.`;
  @param neighbouringSourceText - original next door, absent when the slice
  stands alone
 
- @returns The texts joined by line feeds, for `withoutTranslatorsNotes`
+ @returns Texts joined by line feeds, for `withoutTranslatorsNotes`
 
  @example
  ```ts

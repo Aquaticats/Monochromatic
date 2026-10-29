@@ -225,7 +225,7 @@ function describePanelReasons(issue: AdjudicatedIssue,): readonly string[] {
 
  @param item - packet, named by its cluster
 
- @returns The cluster by its identity
+ @returns Cluster by its identity
 
  @example
  ```ts

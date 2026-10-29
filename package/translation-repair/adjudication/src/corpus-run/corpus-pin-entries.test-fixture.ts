@@ -57,7 +57,7 @@ export type PinReader = {
  Runs each built command that reads the corpus pin with the commit setting unreadable and expects the stated
  refusal at exit 6.
 
- @param readers - the commands to run, with the entry of the package that owns each
+ @param readers - commands to run, with the entry of the package that owns each
 
  @returns Suite of one case per command
 

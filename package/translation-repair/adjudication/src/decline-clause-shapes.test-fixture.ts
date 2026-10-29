@@ -127,9 +127,9 @@ const SHAPE_WORDS: Readonly<Record<Exclude<RunoffShape, 'tied-at-top' | 'leader-
 
  @param shape - what the declined round came to
 
- @param mode - the round the sentence is told in
+ @param mode - round the sentence is told in
 
- @returns The clause the sentence must say for that shape
+ @returns Clause the sentence must say for that shape
 
  @example
  ```ts

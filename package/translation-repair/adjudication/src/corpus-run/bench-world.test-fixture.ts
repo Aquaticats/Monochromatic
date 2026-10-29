@@ -154,7 +154,7 @@ function pagesOf(
  @param originalOnly - original pages of entries that have no English page,
  by entry id, committed with the rest
 
- @returns The places and the environment naming them, removed on scope exit
+ @returns Places and environment naming them, removed on scope exit
 
  @example
  ```ts

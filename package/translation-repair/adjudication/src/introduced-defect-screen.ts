@@ -191,7 +191,7 @@ export type RegionDefectTally = {
  whitespace collapsed, so a prober's quote written with straight marks, or
  rewrapped, still reads as the words it quotes (ledger B24).
 
- @param text - a prober's quote, or a region's text
+ @param text - prober's quote, or a region's text
 
  @returns Folded, collapsed text
 
@@ -208,12 +208,12 @@ function asScreened({ text, }: { readonly text: string; },): string {
  A region's text as the prober read it: without the notes between translators
  when its sheet cut them, as it stands when it cut nothing.
 
- @param text - the region's replaced or replacement text
+ @param text - region's replaced or replacement text
 
- @param original - the texts whose comments are the original's own on the
+ @param original - texts whose comments are the original's own on the
  sheet, absent when the sheet cut nothing
 
- @returns The text the prober's quote was copied out of
+ @returns Text the prober's quote was copied out of
 
  @example
  ```ts
@@ -265,7 +265,7 @@ function shownTextOf(
 
  @param region - region the claim is about
 
- @param original - the texts whose comments are the original's own on the
+ @param original - texts whose comments are the original's own on the
  sheet the prober read (`proberOriginalOf`): both texts the quote is checked
  against are read as that sheet showed them, without the notes between
  translators, since the prober copied the quote out of them so; absent when the
@@ -647,7 +647,7 @@ export function resolveProberChecks(
 
  @param issues - accepted issues the regions serve, whose quotes a prober's may restate
 
- @param original - the texts whose comments are the original's own on the
+ @param original - texts whose comments are the original's own on the
  sheet the probers read (`proberOriginalOf`), so each quote is checked against
  the regions as the sheet showed them; absent when the sheet cut nothing
 

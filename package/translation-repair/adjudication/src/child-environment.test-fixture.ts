@@ -283,7 +283,7 @@ export type StartedBy =
 
  @param startedBy - who the marker says started it
 
- @returns The marker, or no variable at all where nothing started it
+ @returns Marker, or no variable at all where nothing started it
 
  @example
  ```ts
@@ -317,7 +317,7 @@ function markerFor(
  command, as `import.meta.resolve` gives it for that package's name, which the
  command's built file sits beside
 
- @param args - the command's arguments
+ @param args - command's arguments
 
  @param env - variables the case sets for it, such as the runs directory, the
  lookup cache directory or the corpus clone directory

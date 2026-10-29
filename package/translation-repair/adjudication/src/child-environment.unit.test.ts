@@ -106,9 +106,9 @@ function loggingProgram({ marker, }: { readonly marker: string; },): string {
 /**
  What the report program printed, read back.
 
- @param text - the child's whole stdout
+ @param text - child's whole stdout
 
- @returns The report as plain data
+ @returns Report as plain data
 
  @example
  ```ts

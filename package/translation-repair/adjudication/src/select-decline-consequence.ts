@@ -211,7 +211,7 @@ export const SHIPS_A_LEVEL_TIE_ELSE_PRODUCES_AGAIN: string = [
 
  @param shipPastDecline - whether the caller ships past a decline in its challenge; read only for a challenge
 
- @returns The consequence the sheet states
+ @returns Consequence the sheet states
 
  @example
  ```ts

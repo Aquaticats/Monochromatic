@@ -16,7 +16,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 
  @param body - module source run after `built`, the built package's namespace, is bound; it writes its answer with `process.stdout.write`
 
- @returns The child's standard output
+ @returns Child's standard output
 
  @throws SubprocessError when the child never started or exited with a failure
 

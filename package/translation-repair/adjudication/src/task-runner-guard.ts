@@ -165,7 +165,7 @@ function countKeyVariables({ env, }: { readonly env: Readonly<NodeJS.ProcessEnv>
 
  @param marker - value of the marker variable, empty where the environment has none
 
- @returns The sentence with its leading space, or an empty string; the marker's
+ @returns Sentence with its leading space, or an empty string; the marker's
  value is repeated only when it has the shape of a command name
 
  @example
@@ -187,7 +187,7 @@ function anotherMarkerNote({ marker, }: { readonly marker: string; },): string {
  @param env - environment of the process the command runs in, handed in
  because only the entry file holds the real one
 
- @param command - the command's own name, which names its task
+ @param command - command's own name, which names its task
 
  @param owner - directory name, under `package/translation-repair/`, of the package that owns the command, whose
  `mise.toml` holds the task; handed in because only the packages that list the runners know it

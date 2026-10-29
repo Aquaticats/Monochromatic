@@ -83,7 +83,7 @@ async function edgeKindsOf(
  The attempts of a search that went wrong in the parser's refusal: anything but the refusal or the search's own overflow.
 
  @param kinds - what each attempt found
- @returns The attempts that found something else
+ @returns Attempts that found something else
  @example
  ```ts
  const wrong = wrongIn({ kinds: ['refusal', 'a raw RangeError out of the parser',], },); // ['a raw RangeError out of the parser']

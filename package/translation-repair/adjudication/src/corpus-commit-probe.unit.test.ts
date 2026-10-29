@@ -64,7 +64,7 @@ const GIT_DIED_STATUS = 128;
 
  @param commitSha - commit the read was at
 
- @returns The refusal's class and whole message
+ @returns Refusal's class and whole message
 
  @example
  ```ts
@@ -90,7 +90,7 @@ type FakeProbeEnd = 'signal' | 'status' | 'died-then-status';
 
  @param probeEnd - how the probe ends
 
- @returns The program's lines up to the branch that answers a read
+ @returns Program's lines up to the branch that answers a read
 
  @example
  ```ts
