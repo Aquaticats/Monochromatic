@@ -183,8 +183,8 @@ const FORBIDDEN_STRINGS_RUNTIME_RULES_PATH = './.cache/forbidden-strings.rules.t
  ```
  */
 const FORBIDDEN_STRINGS_SCANNER_PATH = process.platform === 'win32'
-  ? './package/cli/forbidden-strings/target/release/forbidden-strings.exe'
-  : './package/cli/forbidden-strings/target/release/forbidden-strings';
+  ? './package/forbidden-strings/cli/target/release/forbidden-strings.exe'
+  : './package/forbidden-strings/cli/target/release/forbidden-strings';
 
 /**
  Canonical repo-relative prefix owned by the agent-skill mirror generator.
@@ -371,7 +371,7 @@ async function packageJsonLicenseExpression(
  
  @example
  ```ts
- await cargoTomlLicenseExpression({ manifestPath: './package/cli/forbidden-strings/Cargo.toml' });
+ await cargoTomlLicenseExpression({ manifestPath: './package/forbidden-strings/cli/Cargo.toml' });
  ```
  */
 async function cargoTomlLicenseExpression(
@@ -403,7 +403,7 @@ async function cargoTomlLicenseExpression(
  
  @example
  ```ts
- packageDirFromManifest({ manifestPath: './package/cli/forbidden-strings/Cargo.toml' });
+ packageDirFromManifest({ manifestPath: './package/forbidden-strings/cli/Cargo.toml' });
  ```
  */
 function packageDirFromManifest(
@@ -890,7 +890,7 @@ async function generateForbiddenStringsRules(): Promise<void> {
 # Do not edit manually. Baseline credential rules are NOT in this file: they
 # ship inside the forbidden-strings binary and repo invocations pass
 # --builtin-rules (regenerate via
-# mise run //package/cli/forbidden-strings:generate:rules). To add shared
+# mise run //package/forbidden-strings/cli:generate:rules). To add shared
 # (non-sensitive) rules, edit forbidden-strings.append.txt. To add sensitive
 # rules, edit forbidden-strings.append.local.txt; section names must stay
 # unique across the concatenation.
@@ -1715,16 +1715,16 @@ const CARGO_PROFILE_FUZZ: CargoProfileSpec = {
  ```
  */
 const CARGO_PROFILE_BY_DIR: Record<string, CargoProfileSpec> = {
-  'package/cli/forbidden-strings': CARGO_PROFILE_SCANNER,
-  'package/rust-module/forbidden-regex': CARGO_PROFILE_SCANNER,
+  'package/forbidden-strings/cli': CARGO_PROFILE_SCANNER,
+  'package/forbidden-strings/core': CARGO_PROFILE_SCANNER,
   'package/cli/nested-wayland-session': CARGO_PROFILE_OVERFLOW,
   'package/linter/monochromatic-lint': CARGO_PROFILE_LINTER,
-  'package/rust-module/forbidden-regex.bench': CARGO_PROFILE_BENCH,
+  'package/forbidden-strings/core.bench': CARGO_PROFILE_BENCH,
   'package/music-player/truepeak-core.bench': CARGO_PROFILE_BENCH,
   'package/music-player/desktop-app': CARGO_PROFILE_MUSIC,
   'package/music-player/android-app/rust': CARGO_PROFILE_MUSIC,
-  'package/rust-module/forbidden-regex.fuzz': CARGO_PROFILE_FUZZ,
-  'package/cli/forbidden-strings.fuzz': CARGO_PROFILE_FUZZ,
+  'package/forbidden-strings/core.fuzz': CARGO_PROFILE_FUZZ,
+  'package/forbidden-strings/cli.fuzz': CARGO_PROFILE_FUZZ,
 };
 
 /**

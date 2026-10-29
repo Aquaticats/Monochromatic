@@ -174,7 +174,7 @@ The retained wrapper journal shows the large native library's test compilation s
 7.423 seconds in the seed and 7.220 and 7.328 seconds in the warm pair.
 Those requests overlap other work and cannot be added to wall-clock totals.
 The scanner also has real build-script execution:
-`package/cli/forbidden-strings/build.rs:98` declares its baseline/parser inputs
+`package/forbidden-strings/cli/build.rs:98` declares its baseline/parser inputs
 and emits serialized rules under Cargo's `OUT_DIR`.
 A compiler cache of the build-script executable and a target archive containing its generated output
 cover different work.

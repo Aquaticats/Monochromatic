@@ -1,5 +1,11 @@
 # Audit: fallow.tools against this monorepo
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Evaluation of [fallow.tools](https://docs.fallow.tools),
  an MIT-licensed
 codebase-intelligence CLI for TypeScript and JavaScript that surfaces unused code,

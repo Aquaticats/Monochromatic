@@ -4,7 +4,7 @@ Date:
  2026-05-10
 
 Investigation into using `forbidden-strings`
-(the resharp-based deny-list scanner at `package/cli/forbidden-strings/`)
+(the resharp-based deny-list scanner at `package/forbidden-strings/cli/`)
 to enforce the `AGENTS.md` ban on em-dashes (`—`),
  en-dashes (`–`),
 and their ASCII substitutes (`-`,
@@ -32,7 +32,7 @@ Bare literal lines for `—` and `–` in the rule file work directly:
 
 The 7-byte boundary check does not fire on multibyte non-word characters,
 so the literal substring-matches anywhere.
-Verified by reading `package/cli/forbidden-strings/src/rule/atom.rs:21`
+Verified by reading `package/forbidden-strings/cli/src/rule/atom.rs:21`
 and the README's "non-ASCII characters ... gate correctly" note.
 
 Empirical test against `/tmp/em-dash-fixture.md` (constructed during investigation):
@@ -61,7 +61,7 @@ since the goal is detection,
 Rule 2 catches `--` between alphabetic words
 on lines that do not contain `npm` or `git`.
 The `&` and `~()` operators route this rule through resharp
-(`package/cli/forbidden-strings/src/rule/engine.rs:204` `requires_resharp`),
+(`package/forbidden-strings/cli/src/rule/engine.rs:204` `requires_resharp`),
 which supports the set-algebra needed for the line-level complements.
 Since commit `67e844df`,
  the same routing predicate also detects
@@ -106,7 +106,7 @@ Top hit files:
 - `package/audit/oph-common-look-and-feel/src/index.html` (33)
 - `package/module/es/src/types/.../simplifiedSchema.behaviorTest.ts` (25)
 - `package/webapp-productivity/done/PLAN.md` (19)
-- `package/cli/forbidden-strings/src/rule.rs` (12)
+- `package/forbidden-strings/cli/src/rule.rs` (12)
 - `mise.toml` (9)
 
 ## What does not work
@@ -199,7 +199,7 @@ Plus `AGENTS.md` (states the rule),
 `TROUBLESHOOTING.*.md` files quoting external output.
 
 The scanner's only path-level exclusion is
-`is_skipped_file` at `package/cli/forbidden-strings/src/main.rs:171-193`,
+`is_skipped_file` at `package/forbidden-strings/cli/src/main.rs:171-193`,
 a hardcoded `matches!` over five exact basenames.
 No glob,
  no path prefix,
@@ -357,7 +357,7 @@ Out of scope for the current investigation.
 Date:
  2026-07-17.
  The engine migration (issues #375 through #389) replaced resharp with the
-in-house `forbidden-regex` engine (`package/rust-module/forbidden-regex`) after this
+in-house `forbidden-regex` engine (`package/forbidden-strings/core`) after this
 investigation was written.
  Two of the blockers documented above have different answers under
 the new dialect.
@@ -379,7 +379,7 @@ carries no such restriction:
  and `\b` as
 ordinary anchors usable anywhere the dialect allows one,
  and its rejected-at-compile-time list
-(`package/rust-module/forbidden-regex/README.md`) does not single out complements.
+(`package/forbidden-strings/core/README.md`) does not single out complements.
  A rule
 ported to the new dialect can use `~(.*\bnpm\b.*)` directly,
  once its quantifiers are bounded
@@ -426,7 +426,7 @@ repetition rather than the resharp-era shapes quoted verbatim.
 - Resharp syntax docs:
    `/tmp/resharp/docs/syntax.md`
 - Forbidden-strings source:
-   `package/cli/forbidden-strings/`
+   `package/forbidden-strings/cli/`
 - Existing audit data:
    `AUDIT.em-dash.md` (untracked at investigation time)
 - `AGENTS.md` em-dash rule:

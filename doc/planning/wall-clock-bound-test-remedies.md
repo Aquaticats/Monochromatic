@@ -316,7 +316,7 @@ and assert only the guaranteed ones.
 ### Item 5: mvm derived ceiling with documented discrimination
 
 File:
-`package/cli/mvm/src/libvirt-tools.unit.test.ts:243`,
+`package/mvm/cli/src/libvirt-tools.unit.test.ts:243`,
 test `returns when the command exits although a process it left behind keeps the output open`.
 
 Change:
@@ -326,7 +326,7 @@ not at stream close),
 but derive it from the scenario instead of a bare `30_000`:
 
 ```ts
-// package/cli/mvm/src/libvirt-tools.unit.test.ts (sketch)
+// package/mvm/cli/src/libvirt-tools.unit.test.ts (sketch)
 /** The lingering process holds the output stream open for this long. */
 const LINGERING_HOLD_MS = 60_000;
 /** Midpoint ceiling: far above any real exit latency, far below the hold. */
@@ -343,7 +343,7 @@ The review questions cover the ceiling choice.
 ### Item 6: wg-quicker documented complexity-guard slack
 
 File:
-`package/cli/wg-quicker/src/config.unit.test.ts:222`.
+`package/wg/cli-quicker/src/config.unit.test.ts:222`.
 
 Change:
 keep the 250 ms bound;

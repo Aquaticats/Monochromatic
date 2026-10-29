@@ -1,5 +1,10 @@
 # Search fetch migration handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/open-code-review-issue` is now `package/open-code-review-issue/cli`.
+
 ## Current goal
 
 Change the current Pi Linkup package into an Exa-first search and fetch extension:

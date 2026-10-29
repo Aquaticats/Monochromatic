@@ -134,7 +134,7 @@
 
 # Rules banning a bare identifier must be written so the pattern does not match
 # its own text, because this scanner has no per-rule path scoping and no per-rule
-# allowlists (package/cli/forbidden-strings/README.md, "When to pick something
+# allowlists (package/forbidden-strings/cli/README.md, "When to pick something
 # else"), so it reads this appendix as ordinary content like any other file. A
 # literal rule body therefore matches itself, and every later edit to this file
 # fails the commit on a line nobody touched. Bracketing one character keeps the

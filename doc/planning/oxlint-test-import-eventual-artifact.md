@@ -114,7 +114,7 @@ Default list,
 ```
 
 The three literal `test-` names are listed individually rather than as a `**/test-*.ts` prefix glob.
-A prefix glob would also match `package/cli/mutation-test/src/container/test-run.ts`,
+A prefix glob would also match `package/mutation-test/cli/src/container/test-run.ts`,
 which is real package behavior imported by `mutant-loop.ts` and `main.ts`,
 and would silently exempt it.
 
@@ -247,7 +247,7 @@ and models it in `package/oxlint-plugin/tsdoc/src/tsdoc-doc-model.ts`.
 so annotated declarations still reach `.d.mts` and type imports in tests keep resolving.
 
 Widening exports does not create false unused-export findings.
-`package/cli/unused-export/src/resolve.ts` defines `DIST_MARKER = '/dist/final/'`
+`package/mutation-test/cli-unused-export/src/resolve.ts` defines `DIST_MARKER = '/dist/final/'`
 and maps built-dist imports back to source precisely so test usage counts.
 That marker is hardcoded to `dist/final`,
 so imports under `dist/app` do not map back;

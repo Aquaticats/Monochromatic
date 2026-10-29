@@ -54,7 +54,7 @@ monochromatic-jsonc-edit = { path = "../../rust-module/jsonc-edit", version = "=
 # The repository's own scanner, linked in-process instead of spawned: `src/native/scanner_adapter.rs`
 # loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
 # Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.
-forbidden-strings = { path = "../../cli/forbidden-strings", version = "=0.5.0" }
+forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.5.0" }
 # Lock and journal records are JSON that the incumbent writes with `JSON.stringify` and reads with `JSON.parse`;
 # both wrappers read each other's records (doc/handover/cli-git-native-transactions.md, "Dependencies").
 # The scanner already links this exact version, so it adds no package to the lockfile.
@@ -90,7 +90,7 @@ overflow-checks = true
 # The scanner's `build.rs` precompiles its embedded baseline through the forbidden-regex
 # build-dependency, which Cargo builds at `opt-level = 0` by default.
 # Profiles are read only from this workspace root, so the scanner manifest's own build-override
-# does not reach this crate; see ../../cli/forbidden-strings/Cargo.toml for the measurement
+# does not reach this crate; see ../../forbidden-strings/cli/Cargo.toml for the measurement
 # (390.8s unoptimized against 98.5s at `opt-level = 3`, identical output).
 [profile.release.build-override]
 opt-level = 3

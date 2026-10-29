@@ -45,7 +45,7 @@ fn ineligible_candidates_are_not_scanned_body(directory: &Path) {
     std::fs::create_dir(repo.join("config")).expect("config directory");
     let rules: PathBuf = repo.join("config/rules.txt");
     std::fs::write(&rules, leak.as_str()).expect("tracked rules file");
-    let sources: PathBuf = repo.join("package/cli/forbidden-strings/data");
+    let sources: PathBuf = repo.join("package/forbidden-strings/cli/data");
     std::fs::create_dir_all(&sources).expect("rule source directory");
     std::fs::write(sources.join("builtin-rules.txt"), leak.as_str()).expect("rule source");
     std::fs::write(repo.join("ordinary.txt"), leak.as_str()).expect("ordinary file");
@@ -79,7 +79,7 @@ fn ineligible_candidates_are_not_scanned_body(directory: &Path) {
     assert!(!was_scanned(
         &version,
         &scans,
-        b"package/cli/forbidden-strings/data/builtin-rules.txt"
+        b"package/forbidden-strings/cli/data/builtin-rules.txt"
     ));
     assert!(!was_scanned(&version, &scans, b"config/rules.txt"));
     // Positive control: without naming the rules file, its candidate is scanned and reported.

@@ -79,7 +79,7 @@ jobs:
           task-run //package/module/logger:build
           task-run //package/module/p-map-fork:build
           task-run //package/module/toml-edit:build
-          task-run //package/cli/forbidden-strings:build
+          task-run //package/forbidden-strings/cli:build
           task-run //package/linter/monochromatic-lint:build
       - name: Node and Rust fast subset unit
         id: fast_unit
@@ -89,7 +89,7 @@ jobs:
           task-run //package/module/logger:test:unit
           task-run //package/module/p-map-fork:test:unit
           task-run //package/module/toml-edit:test:unit
-          task-run //package/cli/forbidden-strings:test
+          task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test
       - name: BuildKit and Bake container producer
         id: buildkit
@@ -120,7 +120,7 @@ jobs:
         env:
           LIBVIRT_DEFAULT_URI: qemu:///session
           VMSYNC_E2E_GUEST: linux
-        run: task-run //package/cli/vmsync:test:e2e
+        run: task-run //package/vmsync/cli:test:e2e
       - name: Write evidence
         if: always()
         shell: bash
@@ -133,7 +133,7 @@ jobs:
             { name: 'Node and Rust test consumers', command: 'fast subset build and unit', outcome: '${{ steps.fast_build.outcome }} / ${{ steps.fast_unit.outcome }}' },
             { name: 'browser and E2E consumers', command: 'none selected', outcome: 'incomplete' },
             { name: 'packaged artifacts and host consumers', command: 'none selected', outcome: 'incomplete' },
-            { name: 'OS, architecture and application consumers', command: 'task-run //package/cli/vmsync:test:e2e', outcome: '${{ steps.vm.outcome }}' },
+            { name: 'OS, architecture and application consumers', command: 'task-run //package/vmsync/cli:test:e2e', outcome: '${{ steps.vm.outcome }}' },
             { name: 'VM, desktop and Android consumers', command: 'Android build and vmsync e2e', outcome: '${{ steps.android.outcome }} / ${{ steps.vm.outcome }}' },
             { name: 'BuildKit and Bake container producers', command: 'task-run //package/desktop-app/ide:runtime', outcome: '${{ steps.buildkit.outcome }}' },
             { name: 'Depot Tests', command: 'none selected', outcome: 'incomplete' },

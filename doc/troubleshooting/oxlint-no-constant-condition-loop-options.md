@@ -191,13 +191,13 @@ The command returned this lint-scoped catalog:
    three occurrences.
 - `package/module/css-edit/src/parse-classify.ts`:
    two occurrences.
-- `package/cli/mvm/src/exec.ts`:
+- `package/mvm/cli/src/exec.ts`:
    one occurrence.
-- `package/cli/mvm/src/virsh-wait.ts`:
+- `package/mvm/cli/src/virsh-wait.ts`:
    two occurrences.
-- `package/cli/mvm/src/template-windows.ts`:
+- `package/mvm/cli/src/template-windows.ts`:
    one occurrence.
-- `package/cli/mvm/src/backend/hetzner/api.ts`:
+- `package/mvm/cli/src/backend/hetzner/api.ts`:
    one occurrence.
 - `package/runtime-error/bun/src/oom.ts`:
    one occurrence.

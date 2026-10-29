@@ -35,9 +35,9 @@ The final lines of its output, verbatim:
 
 ```text
 SubprocessError: Command failed: virsh --connect 'qemu:///session' list --all
-    at getErrorInstance (file:///var/home/user/Monochromatic/package/cli/mvm/dist/final/node/ephemeral-run-B0EZr1RU.mjs:3:15068)
-    at getResultError (file:///var/home/user/Monochromatic/package/cli/mvm/dist/final/node/ephemeral-run-B0EZr1RU.mjs:3:14881)
-    at spawnSubprocess (file:///var/home/user/Monochromatic/package/cli/mvm/dist/final/node/ephemeral-run-B0EZr1RU.mjs:4:704)
+    at getErrorInstance (file:///var/home/user/Monochromatic/package/mvm/cli/dist/final/node/ephemeral-run-B0EZr1RU.mjs:3:15068)
+    at getResultError (file:///var/home/user/Monochromatic/package/mvm/cli/dist/final/node/ephemeral-run-B0EZr1RU.mjs:3:14881)
+    at spawnSubprocess (file:///var/home/user/Monochromatic/package/mvm/cli/dist/final/node/ephemeral-run-B0EZr1RU.mjs:4:704)
 ```
 
 Before those lines Node printed one minified line of the bundled source,
@@ -77,7 +77,7 @@ before the fix.
 ### Host executables by bare name
 
 `mvm` ran host executables by bare name from `PATH`.
-`package/cli/mvm/src/virsh.ts:30`:
+`package/mvm/cli/src/virsh.ts:30`:
 
 ```ts
 export function virsh({ args, }: { readonly args: readonly string[]; },): Promise<string> {
@@ -93,7 +93,7 @@ export function virsh({ args, }: { readonly args: readonly string[]; },): Promis
 ```
 
 Disk images came from bare `qemu-img`,
-`package/cli/mvm/src/create.ts:178`:
+`package/mvm/cli/src/create.ts:178`:
 
 ```ts
   await spawn({
@@ -168,7 +168,7 @@ provided there are neither any client connections nor any running domains."
 ### The virtiofs share needs a `virtiofsd` that libvirt can find
 
 `mvm` always gave a domain a virtiofs share for file transfer,
-`package/cli/mvm/src/domain-xml.ts:221`:
+`package/mvm/cli/src/domain-xml.ts:221`:
 
 ```ts
   // virtiofs shared directory for host-guest file transfer
@@ -181,7 +181,7 @@ provided there are neither any client connections nor any running domains."
 ```
 
 and shared memory backing for it,
-`package/cli/mvm/src/domain-xml.ts:273`:
+`package/mvm/cli/src/domain-xml.ts:273`:
 
 ```ts
   // virtiofs requires shared memory backed by memfd
@@ -251,7 +251,7 @@ see `Fix`.
 
 ### The guest agent got 15 seconds
 
-`package/cli/mvm/src/virsh-wait.ts:35`:
+`package/mvm/cli/src/virsh-wait.ts:35`:
 
 ```ts
 const DEFAULT_AGENT_TIMEOUT_MS = 15_000;
@@ -352,11 +352,11 @@ flatpak run --command=virsh org.virt_manager.virt-manager --connect qemu:///sess
 
 ## Fix
 
-Applied in `package/cli/mvm`.
+Applied in `package/mvm/cli`.
 
 ### Tool commands
 
-`package/cli/mvm/src/libvirt-tools.ts` chooses the command for each tool:
+`package/mvm/cli/src/libvirt-tools.ts` chooses the command for each tool:
 the JSON array in `MVM_VIRSH_COMMAND` or `MVM_QEMU_IMG_COMMAND`,
 else the bare name when `virsh` is on `PATH`,
 else the tool inside the `org.virt_manager.virt-manager` Flatpak when `flatpak info` knows it.
@@ -368,7 +368,7 @@ and the CLI prints that message instead of an uncaught error.
 
 ### Waiting for the exit
 
-`package/cli/mvm/src/spawn.ts` no longer uses `nano-spawn`.
+`package/mvm/cli/src/spawn.ts` no longer uses `nano-spawn`.
 It sends the command's output to two files in a private temporary directory,
 completes on the process's `exit` event,
 then reads the files.
@@ -402,7 +402,7 @@ Stop all three by process ID when done.
 ### Domains without the share
 
 Before defining a domain,
-`package/cli/mvm/src/file-transfer-route.ts` writes a minimal domain holding only the share and its memory backing
+`package/mvm/cli/src/file-transfer-route.ts` writes a minimal domain holding only the share and its memory backing
 and runs `virsh domxml-to-native qemu-argv` on it.
 When that fails with `Unable to find a satisfying virtiofsd`,
 the VM is defined without the `filesystem` device and without `memoryBacking`,
@@ -420,7 +420,7 @@ Whether a domain with the memory backing and without the share starts on this ho
 
 For such a VM,
 `push` and `pull` use the guest agent's file commands
-(`package/cli/mvm/src/guest-file-transfer.ts`).
+(`package/mvm/cli/src/guest-file-transfer.ts`).
 The guest path must be absolute.
 Limits and measured rates are in `doc/handover/mvm-flatpak-libvirt.md`,
 section `File transfer route`.

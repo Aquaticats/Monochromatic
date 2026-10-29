@@ -55,7 +55,7 @@ The engine swap introduces no fail-open regression.
  its output format is `PATH:LINE:COL_START..COL_END rule=N`.
 - New side:
  the live release binary at
- `package/cli/forbidden-strings/target/release/forbidden-strings`
+ `package/forbidden-strings/cli/target/release/forbidden-strings`
  (self-reports `0.2.0`),
  used as-is,
    never rebuilt.
@@ -78,7 +78,7 @@ The gitignored local files were never read,
  every scan invocation ran under `env -u FORBIDDEN_STRINGS_RULES -u FORBIDDEN_STRINGS_LIST`
  to remove it.
 - Old side ruleset:
- the old in-tree baseline `package/cli/forbidden-strings/data/builtin-rules.txt`,
+ the old in-tree baseline `package/forbidden-strings/cli/data/builtin-rules.txt`,
  passed explicitly with `--rules` (highest precedence,
    and `0.1.9` has no built-in flag).
 - New side ruleset:
@@ -156,10 +156,10 @@ A fixed set of rule-source and vendored files self-matches on rule bodies
  (they are rule text,
  not corpus content):
 
-- `package/cli/forbidden-strings/data/builtin-rules.txt`
-- `package/cli/forbidden-strings/data/builtin-rules.ported.txt`
-- `package/cli/forbidden-strings/data/betterleaks-default-config.toml`
-- `package/cli/forbidden-strings/src/port-betterleaks-relaxations.ts`
+- `package/forbidden-strings/cli/data/builtin-rules.txt`
+- `package/forbidden-strings/cli/data/builtin-rules.ported.txt`
+- `package/forbidden-strings/cli/data/betterleaks-default-config.toml`
+- `package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts`
 - `forbidden-strings.append.txt`
 - `forbidden-strings.append.local.txt`
 - `forbidden-strings.local.txt`
@@ -282,7 +282,7 @@ Each gained finding,
 - `doc/planning/forbidden-strings-rule-518-pi-advice.md:24`,
  rule 518,
   `reshape-518-mongodb`.
-- `package/cli/android-exempt-unused/README.md:54`,
+- `package/android-exempt-unused/cli/README.md:54`,
  rule 172,
   `reshape-172-curl`.
 - `doc/troubleshooting/mise-rust-components.md:538`,
@@ -335,7 +335,7 @@ From the repository root,
 ```sh
 # old side: old baseline via --rules, columns present, rule=source-line
 env -u FORBIDDEN_STRINGS_RULES -u FORBIDDEN_STRINGS_LIST \
-  "$OLD" --rules package/cli/forbidden-strings/data/builtin-rules.txt --all
+  "$OLD" --rules package/forbidden-strings/cli/data/builtin-rules.txt --all
 
 # new side: embedded ported baseline, columnless, rule=compiled-index
 env -u FORBIDDEN_STRINGS_RULES -u FORBIDDEN_STRINGS_LIST \

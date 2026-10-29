@@ -11,7 +11,7 @@ Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './bin/tsc' is not define
 ```
 
 After the initial TypeScript 7 compatibility fork bypassed that error and normalized checker shards,
-loading a trace for `package/cli/fy/tsconfig.json` exposed another failure:
+loading a trace for `package/fy/cli/tsconfig.json` exposed another failure:
 
 ```text
 trace.json event[67] error: missing field `args`
@@ -500,7 +500,7 @@ and all 14 JavaScript tests also passed.
 
 The rebuilt globally linked application then loaded the exact trace that had failed at event 67.
 Its log recorded `trace.json` as loaded rather than reporting a schema error.
-A fresh UI generation against `package/cli/fy/tsconfig.json` loaded 341 type entries and 2,601 trace events,
+A fresh UI generation against `package/fy/cli/tsconfig.json` loaded 341 type entries and 2,601 trace events,
 generated analysis and graph artifacts,
 and rendered 340 searchable types with 160 relationships.
 

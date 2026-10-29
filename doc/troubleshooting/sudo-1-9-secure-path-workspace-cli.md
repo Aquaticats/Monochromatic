@@ -31,7 +31,7 @@ That directory is present in interactive user's `PATH` but absent from sudo comm
 ### CLI crossed privilege boundary too late
 
 Before `e43e24afa`,
-`package/cli/wg-quicker/src/index.ts:93-101` at `3b92eb5c8` loaded config directly in original process:
+`package/wg/cli-quicker/src/index.ts:93-101` at `3b92eb5c8` loaded config directly in original process:
 
 ```ts
 /**
@@ -48,7 +48,7 @@ await (subcommand === 'up' ? up({ config, },) : down({ config, },));
 Because `loadConfig()` ran before any privilege transition,
 normal root-only mode on `/etc/wireguard/<interface>.conf` produced `EACCES`.
 
-Current `package/cli/wg-quicker/src/index.ts:94-115` restores caller context,
+Current `package/wg/cli-quicker/src/index.ts:94-115` restores caller context,
 delegates,
 and reads config only in root child:
 
@@ -61,7 +61,7 @@ if (delegated)
 const config = await loadConfig({
 ```
 
-`package/cli/wg-quicker/src/privilege-context.ts:154-186` opens internal context with `O_NOFOLLOW`,
+`package/wg/cli-quicker/src/privilege-context.ts:154-186` opens internal context with `O_NOFOLLOW`,
 then checks regular-file type,
 owner against `SUDO_UID`,
 link count,
@@ -185,7 +185,7 @@ $ fixture_path="$fixture_directory/restricted.conf"
 $ printf '[Interface]\nExemptMark = invalid\n' > "$fixture_path"
 $ chmod 000 "$fixture_path"
 $ node --input-type=module-typescript --eval \
-  "const { loadConfig } = await import('./package/cli/wg-quicker/src/config.ts'); await loadConfig({ arg: process.argv[1], expandAllowedIps: true });" \
+  "const { loadConfig } = await import('./package/wg/cli-quicker/src/config.ts'); await loadConfig({ arg: process.argv[1], expandAllowedIps: true });" \
   "$fixture_path"
 ConfigError: Config file does not exist or is unreadable: .../restricted.conf
 ```
@@ -219,7 +219,7 @@ No command against `mx-que-mx1` was used for verification.
 - Exact paths containing slash bypass sudo path iteration by inspected and tested source path.
 
 The regression test is
-`package/cli/wg-quicker/src/privilege-launch.unit.test.ts`.
+`package/wg/cli-quicker/src/privilege-launch.unit.test.ts`.
 It executes built artifact and confirms fake sudo receives:
 
 ```text
@@ -228,14 +228,14 @@ It executes built artifact and confirms fake sudo receives:
 ```
 
 Fake sudo reads private file while parent retains it and confirms every allowlisted value.
-`package/cli/wg-quicker/src/privilege-context-data.unit.test.ts` checks valid schema plus malformed JSON,
+`package/wg/cli-quicker/src/privilege-context-data.unit.test.ts` checks valid schema plus malformed JSON,
 arrays,
 versions,
 UIDs,
 unknown keys,
 non-string values,
 and invalid home.
-`package/cli/wg-quicker/src/application-exemption-command.unit.test.ts` checks explicit path,
+`package/wg/cli-quicker/src/application-exemption-command.unit.test.ts` checks explicit path,
 missing path,
 captured caller path,
 and paired repository release.
@@ -243,10 +243,10 @@ and paired repository release.
 Verification commands:
 
 ```console
-mise run //package/cli/wg-quicker:buildAndTest
-mise run //package/cli/wg-quicker:lint:types
-mise run //package/cli/wg-quicker:lint:oxlint
-mise run //package/cli/wg-quicker:test:integration:bypass
+mise run //package/wg/cli-quicker:buildAndTest
+mise run //package/wg/cli-quicker:lint:types
+mise run //package/wg/cli-quicker:lint:oxlint
+mise run //package/wg/cli-quicker:test:integration:bypass
 ```
 
 All passed after fix.

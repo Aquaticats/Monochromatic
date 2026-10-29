@@ -405,7 +405,7 @@ The set-internals recheck wrote `/var/home/user/temp/agent/toml-mutation-edit-b-
 The CLI exited nonzero because `rsync` code 24 reported a vanishing
  `deepmerge-ts.fuzz/.cache/typescript/tsconfig.tsbuildinfo` file while copying a shard.
 That is not a TOML mutant verdict.
-`package/cli/mutation-test` now excludes `**/.cache` from shard copies and image context;
+`package/mutation-test/cli` now excludes `**/.cache` from shard copies and image context;
  its unit test was red before this fix,
  then build/tests,
  types,

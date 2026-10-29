@@ -1,8 +1,8 @@
 import { fileURLToPath, } from 'node:url';
 
-import { launchTerminal, } from '@monochromatic-dev/cli-terminal-exec/ts';
-import { resolveTerminal, } from '@monochromatic-dev/cli-terminal-exec/ts/resolve.ts';
-import { NO_TERMINAL, } from '@monochromatic-dev/cli-terminal-exec/ts/validate.ts';
+import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts';
+import { resolveTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts/resolve.ts';
+import { NO_TERMINAL, } from '@monochromatic-dev/terminal-exec-cli/ts/validate.ts';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import { createAnswerChannel, } from './answer-channel.ts';

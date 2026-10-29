@@ -115,7 +115,7 @@ mise-level (realistic, two worktrees, includes ~135 ms mise startup):
   baseline  190.0 ± 2.7 ms
   collapse  173.5 ± 2.1 ms   -> ~16 ms saved, 1.10x faster
 
-context: a real lint:oxlint (cli/fy) runs 466 ± 8 ms
+context: a real lint:oxlint (fy/cli) runs 466 ± 8 ms
   so the saving is ~4% of one dispatch step
 ```
 

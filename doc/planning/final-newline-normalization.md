@@ -24,7 +24,7 @@ deleted,
 symlink,
 and submodule candidates.
 The exact hk exclusion families remain unchanged:
-`package/cli/forbidden-strings.fuzz/corpus/**`,
+`package/forbidden-strings/cli.fuzz/corpus/**`,
 `package/test-fixture/toml-edit/src/**`,
 and `**/dist/final/node/**`.
 Tsdown outputs therefore keep producer-native missing final LF.
@@ -65,7 +65,7 @@ and 1,547 non-empty text-like violations.
 
 The violations split by ownership:
 
-- 1,344 files under `package/cli/forbidden-strings.fuzz/corpus/`.
+- 1,344 files under `package/forbidden-strings/cli.fuzz/corpus/`.
   These are fuzz inputs whose bytes are data,
   not source formatting.
 - 52 TOML inputs under `package/test-fixture/toml-edit/src/`.
@@ -140,7 +140,7 @@ local finalNewline = (Builtins.newlines) {
   batch = true
   exclude = List(
     "**/dist/final/node/**",
-    "package/cli/forbidden-strings.fuzz/corpus/**",
+    "package/forbidden-strings/cli.fuzz/corpus/**",
     "package/test-fixture/toml-edit/src/**",
   )
 }
@@ -281,7 +281,7 @@ The ordinary files identified during planning were:
 - `.idea/modules.xml`
 - `.remarkignore`
 - `package-paused/webapp-content/messages-demo/src/server.ts`
-- `package/cli/mutation-test/src/host/cli-options.ts`
+- `package/mutation-test/cli/src/host/cli-options.ts`
 - `package/linter/kotlin/build.gradle.kts`
 - `package/module/toml-edit/src/fuzz/coverage-v8.ts`
 - `package/module/toml-edit/src/values.ts`

@@ -1,5 +1,15 @@
 # AUDIT.em-dash.md
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/rgffplay` is now `package/rgffplay/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Date:
  2026-05-10 (original audit),
  2026-05-14 (post-sweep counts)

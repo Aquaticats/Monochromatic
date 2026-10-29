@@ -591,11 +591,11 @@ The details and the full candidate list are in "Yikes candidates".
   - containers or other runtimes:
      `module/matrix` (`container.unit.test.ts`, `runtime.unit.test.ts`, `self.unit.test.ts`,
      podman plus bun and deno per its README),
-     `cli/vmsync/src/lifecycle.expensive.unit.test.ts`,
-     `cli/mvm/src/cli.unit.test.ts`;
+     `vmsync/cli/src/lifecycle.expensive.unit.test.ts`,
+     `mvm/cli/src/cli.unit.test.ts`;
   - real home:
      `homedir()` or `process.env.HOME` in `claude-code-plugin/statusline`, `figma/to-penpot`, `git-policy/cli`,
-     `pi-plugin/auto-mode`, `module/wg-allowedips`, `module/fs-path`;
+     `pi-plugin/auto-mode`, `wg/core-allowedips`, `module/fs-path`;
   - repository layout:
      35 files use `findRoot` or `MISE_MONOREPO`,
      including the shared oxlint plugin test root (`package/oxlint-plugin/test-support/src/index.ts:37-40`);

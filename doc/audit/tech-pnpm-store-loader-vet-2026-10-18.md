@@ -1,3 +1,9 @@
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/fy` is now `package/fy/cli`.
+
 <!--
 status: final; recommendation recorded, adoption not authorized
 lifecycle-phase: recommended (retain incumbent); candidate B exited on proven hard-gate failures

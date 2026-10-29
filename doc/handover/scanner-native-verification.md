@@ -1,5 +1,13 @@
 # Native scanner embedding verification
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`;
+> `package/cli/mvm` is now `package/mvm/cli`.
+
 ## Purpose and scope
 
 Complete the delegated Linux verification of the in-process scanner authorized with the Rust cli-git rewrite.

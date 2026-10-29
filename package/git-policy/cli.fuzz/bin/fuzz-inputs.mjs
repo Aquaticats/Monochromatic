@@ -134,8 +134,8 @@ export async function copyInputs({
     },
     // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
     {
-      from: '../../cli/forbidden-strings',
-      to: 'package/cli/forbidden-strings',
+      from: '../../forbidden-strings/cli',
+      to: 'package/forbidden-strings/cli',
       names: [
         'Cargo.toml',
         'Cargo.lock',
@@ -145,8 +145,8 @@ export async function copyInputs({
       ],
     },
     {
-      from: '../../rust-module/forbidden-regex',
-      to: 'package/rust-module/forbidden-regex',
+      from: '../../forbidden-strings/core',
+      to: 'package/forbidden-strings/core',
       names: [
         'Cargo.toml',
         'Cargo.lock',

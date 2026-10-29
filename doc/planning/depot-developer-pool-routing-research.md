@@ -377,8 +377,8 @@ Use an actual device or VM lifecycle,
 not merely a device-file check,
 before adopting it for a required workload.
 
-`package/cli/mvm` already supports Linux-hosted QEMU/KVM guests including Windows evaluation images;
-`package/cli/vmsync` has separate KVM and Hyper-V lifecycle paths.
+`package/mvm/cli` already supports Linux-hosted QEMU/KVM guests including Windows evaluation images;
+`package/vmsync/cli` has separate KVM and Hyper-V lifecycle paths.
 Desired tests should exercise boot,
 guest-agent commands,
 transfer,

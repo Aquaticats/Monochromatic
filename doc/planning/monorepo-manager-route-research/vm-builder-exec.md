@@ -541,7 +541,7 @@ Pros:
 
 - One named owner for a responsibility 63 non-test files currently re-implement.
 - Later consumers could migrate:
-  `package/cli/open-code-review-issue/src/github-process.ts:122`,
+  `package/open-code-review-issue/cli/src/github-process.ts:122`,
   `package/ssg/aquati.cat/src/lib/git-dates.ts:48`,
   and `package/oxlint-plugin/test-support/src/index.ts:275`
   each hand-roll a `nano-spawn` wrapper.
@@ -1013,7 +1013,7 @@ Ledger:
 - Owner after the rewrite:
   a Rust bench package in meow's worktree,
   following the repository's existing convention of a `.bench` sibling with a hand-written bench binary
-  (`package/rust-module/forbidden-regex.bench`,
+  (`package/forbidden-strings/core.bench`,
    whose `mise.toml` exposes `build`,
    `run`,
    `lint`,

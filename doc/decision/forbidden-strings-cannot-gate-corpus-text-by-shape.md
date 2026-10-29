@@ -43,7 +43,7 @@ fires on most of the package's test suite, which is edited constantly.
 Its own README says so under "When to pick something else":
 every rule runs against every non-skipped file,
 and there is no way to say "rule X but skip when it matches in path Y".
-`package/cli/forbidden-strings/src/mise.port-betterleaks.ts` records the same thing
+`package/forbidden-strings/cli/src/mise.port-betterleaks.ts` records the same thing
 from the porting side: upstream `path = '''...'''` scopes are dropped on conversion.
 
 So a rule cannot be told to spare the fixtures.

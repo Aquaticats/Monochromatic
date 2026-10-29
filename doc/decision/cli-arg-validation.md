@@ -18,17 +18,17 @@ decision doc covering value-level validation.
 Current state when this decision was made:
 
 - Three CLIs use Optique:
-  `package/cli/fy/`,
-   `package/cli/mvm/`,
-   `package/cli/vmsync/`.
+  `package/fy/cli/`,
+   `package/mvm/cli/`,
+   `package/vmsync/cli/`.
   <!-- TODO: deprecate Optique --> All three rely on `@optique/core/valueparser`'s built-in primitives
   (`string({metavar})`,
    <!-- TODO: deprecate Optique --> `integer()`) and `@optique/core/constructs`'
   `map()` for shape transforms.
 - Three CLIs are not on Optique:
   `package/git-policy/cli/`,
-   `package/cli/rgffplay/`,
-   `package/cli/terminal-exec/`.
+   `package/rgffplay/cli/`,
+   `package/terminal-exec/cli/`.
   They parse `process.argv` directly.
    The reasons they are not on Optique
   are project-specific and not recorded here;

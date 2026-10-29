@@ -1,6 +1,6 @@
 # @monochromatic-dev/mcp-mvm
 
-MCP server that exposes [mvm](../../cli/mvm/) VM management operations to AI agents over stdio.
+MCP server that exposes [mvm](../../mvm/cli/) VM management operations to AI agents over stdio.
 
 ## Tools
 

@@ -308,10 +308,10 @@ or only on the repository's configuration.
   `--rules`,
   then `FORBIDDEN_STRINGS_RULES`,
   then `forbidden-strings.local.txt` in its working directory
-  (`package/cli/forbidden-strings/src/lib.rs:628-649`).
+  (`package/forbidden-strings/cli/src/lib.rs:628-649`).
   A file that is named and missing is an error;
   a missing default file is tolerated when the built-in rules are on
-  (comment at `package/cli/forbidden-strings/src/lib.rs:619-621`).
+  (comment at `package/forbidden-strings/cli/src/lib.rs:619-621`).
 - The policy declares the variable and the file as inputs (`src/optional/forbidden-strings/index.ts:78-101`).
 - This repository sets the variable in the root `mise.toml:1323-1329`
   to `{{config_root}}/.cache/forbidden-strings.rules.txt`.
@@ -319,7 +319,7 @@ or only on the repository's configuration.
   and no rules file exists at the repository root (`file-enforcer.config.ts:784-805`).
 - The scanner library takes the path from its caller:
   `Scanner::load(runtime_rules_path, builtin_rules, explicit)`
-  (`package/cli/forbidden-strings/src/scanner.rs:64`).
+  (`package/forbidden-strings/cli/src/scanner.rs:64`).
 - Native `main` reads no variable and has no rules option.
   The candidate branch made a provisional choice:
   `rules_source` restates the variable-then-default precedence
@@ -494,7 +494,7 @@ and whether `status` gets another job.
 - Measured:
   `rg --count-matches 'cli-git (trust|untrust|status)'` over the repository,
   outside documentation and the wrapper package,
-  matches `.github/workflows/cli-git-trust.yml` and `package/cli/forbidden-strings/README.md` only.
+  matches `.github/workflows/cli-git-trust.yml` and `package/forbidden-strings/cli/README.md` only.
   The workflow retires with the trust subsystem (ledger,
   "CI workflows").
   No script outside the package depends on the commands' output.
@@ -698,12 +698,12 @@ Measured facts for that pick:
   (versions 0.2.186,
   1.1.4,
   0.61.2,
-  and 0.1.44 in `package/cli/forbidden-strings/Cargo.lock`).
+  and 0.1.44 in `package/forbidden-strings/cli/Cargo.lock`).
   It holds none of `signal-hook`,
   `nix`,
   or `ctrlc`.
 - Manifests in this repository that name such a crate directly:
-  `libc` in `package/cli/wg-quicker-exempt/Cargo.toml:36`
+  `libc` in `package/wg/cli-quicker-exempt/Cargo.toml:36`
   and `package/music-player/desktop-app/Cargo.toml:188`;
   `windows` in `package/music-player/desktop-app/Cargo.toml:203`
   and `package/desktop-app/file-manager/Cargo.toml:41`.
@@ -985,7 +985,7 @@ and how a recovery journal stores such a name.
   bytes that are not UTF-8 become `\xNN`,
   and a backslash becomes `\\`
   (`safe_component`,
-  `package/cli/forbidden-strings/src/path_name_bytes.rs:78-99`).
+  `package/forbidden-strings/cli/src/path_name_bytes.rs:78-99`).
 - Measured:
   of 11,296 tracked paths in this repository,
   0 are not UTF-8
@@ -2413,7 +2413,7 @@ and a variable is inherited by every program a hook starts.
 - The spec:
   "Debug logs must not corrupt the selected JSONL event stream" (`SPEC.md:1586`).
 - Sibling Rust tools here use `tracing` with `RUST_LOG`
-  (`package/cli/forbidden-strings/Cargo.toml:82-87`;
+  (`package/forbidden-strings/cli/Cargo.toml:82-87`;
   `package/cli/nested-wayland-session/Cargo.toml`).
   The scanner the wrapper links brings `tracing` with it.
 - Measured:

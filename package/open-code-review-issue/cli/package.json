@@ -1,0 +1,45 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/open-code-review-issue-cli",
+  "description": "Create GitHub Issues from validated OpenCodeReview structured findings through an explicit interactive or non-interactive disclosure workflow.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "module": "dist/final/node/index.mjs",
+  "bin": {
+    "open-code-review-issue": "dist/final/node/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "dependencies": {
+    "@inquirer/checkbox": "catalog:",
+    "@inquirer/input": "catalog:",
+    "@monochromatic-dev/module-caught-value": "workspace:*",
+    "@monochromatic-dev/module-logger": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/module-test": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/open-code-review-issue/cli"
+  },
+  "sideEffects": true
+}

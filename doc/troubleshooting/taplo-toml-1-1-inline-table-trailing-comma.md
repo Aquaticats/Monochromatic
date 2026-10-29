@@ -247,7 +247,7 @@ though the repository is not archived and a collaborator still merges changes.
   Across tracked `*.toml` files,
    every `,\s*\}` match is inside a string value
    (TypeScript in `mise.toml` task scripts,
-   regex quantifiers such as `{250,}` in `package/cli/forbidden-strings/data/betterleaks-default-config.toml`)
+   regex quantifiers such as `{250,}` in `package/forbidden-strings/cli/data/betterleaks-default-config.toml`)
    or in a TOML 1.1 test fixture under `package/test-fixture/toml-edit/src/valid/`.
   The form enters Cargo manifests only if `module-toml-edit` creates an inline table
    (`toml-set.unit.test.ts:484`)

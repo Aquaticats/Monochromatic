@@ -61,11 +61,11 @@ FORBIDDEN_STRINGS_RULES = "{{config_root}}/.cache/forbidden-strings.rules.txt"
 Fresh worktree creation deliberately did not copy ignored state.
 The development rules file existed and was 10905 bytes;
 the corresponding temporary-worktree path was absent.
-`package/cli/forbidden-strings/src/lib.rs:601`
+`package/forbidden-strings/cli/src/lib.rs:601`
 classifies an environment-selected rules file as explicit:
 
 ```rust
-// package/cli/forbidden-strings/src/lib.rs
+// package/forbidden-strings/cli/src/lib.rs
 let explicit_rules_source =
     cli.rules_path.is_some() || env::var("FORBIDDEN_STRINGS_RULES").is_ok();
 ```
@@ -129,7 +129,7 @@ Do not substitute an environment override or disable the policy.
 For this prototype,
 explicit symlinks supply only the existing development scanner executable and generated rules file:
 
-- `package/cli/forbidden-strings/target/release/forbidden-strings`
+- `package/forbidden-strings/cli/target/release/forbidden-strings`
 - `.cache/forbidden-strings.rules.txt`
 
 Tradeoff:

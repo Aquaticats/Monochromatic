@@ -1,5 +1,14 @@
 # Consistency audit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/rgffplay` is now `package/rgffplay/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Generated 2026-04-05 from automated analysis of all 69 packages (across 19 categories)
 plus root-level documentation files.
 

@@ -59,7 +59,7 @@ description = "Build the audited Git 2.56.0 release in the bounded Rust test ima
 run = "node bin/build-git-test-image.mjs"
 
 [tasks."lint:clippy"]
-description = "Lint the native wrapper with Clippy, warnings denied; matches the sibling Rust CLI package/cli/forbidden-strings"
+description = "Lint the native wrapper with Clippy, warnings denied; matches the sibling Rust CLI package/forbidden-strings/cli"
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
@@ -157,4 +157,4 @@ run = "node bin/e2e-native-container.mjs run"
 
 [tasks."native:lock:scanner"]
 description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
-run = ["cp ../../cli/forbidden-strings/Cargo.lock Cargo.lock", "cargo update --workspace --offline"]
+run = ["cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock", "cargo update --workspace --offline"]

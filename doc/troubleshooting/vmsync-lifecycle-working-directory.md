@@ -4,11 +4,11 @@
 
 At immutable source `ef01490f5e960f8ca0b424c12242caeb3c5a2b5e`,
 Depot run `99tl7zjfgp` built the vmsync bundle successfully,
-then ran `mise run //package/cli/vmsync:test:e2e`.
+then ran `mise run //package/vmsync/cli:test:e2e`.
 Node reported `MODULE_NOT_FOUND` for a path ending in:
 
 ```text
-source/package/cli/vmsync/package/cli/mvm/src/cli.ts
+source/package/vmsync/cli/package/mvm/cli/src/cli.ts
 ```
 
 The failure precedes VM creation and the lifecycle assertions.
@@ -16,21 +16,21 @@ KVM availability cannot repair that relative path.
 
 ## Root cause
 
-`package/cli/vmsync/mise.toml:42` launches the source test from the package's task directory:
+`package/vmsync/cli/mise.toml:42` launches the source test from the package's task directory:
 
 ```toml
-# package/cli/vmsync/mise.toml at ef01490f5e
+# package/vmsync/cli/mise.toml at ef01490f5e
 [tasks.'test:e2e']
 description = "Run vmsync VM lifecycle tests (creates VMs, requires KVM)"
 depends = ["build:js:node"]
 run = "node src/lifecycle.expensive.unit.test.ts"
 ```
 
-`package/cli/vmsync/src/lifecycle.expensive.unit.test.ts:36` defines a root-relative command argument:
+`package/vmsync/cli/src/lifecycle.expensive.unit.test.ts:36` defines a root-relative command argument:
 
 ```typescript
-// package/cli/vmsync/src/lifecycle.expensive.unit.test.ts:36 at ef01490f5e
-const MVM_ARGS = ['package/cli/mvm/src/cli.ts',];
+// package/vmsync/cli/src/lifecycle.expensive.unit.test.ts:36 at ef01490f5e
+const MVM_ARGS = ['package/mvm/cli/src/cli.ts',];
 ```
 
 The `nanoSpawn` call at line 75 passes a timeout and no working directory override.
@@ -59,19 +59,19 @@ The additional command uses the same file and no test arguments:
 
 ```sh
 # Immutable source repository root, in an isolated disposable consumer environment.
-node /absolute/source/package/cli/vmsync/src/lifecycle.expensive.unit.test.ts
+node /absolute/source/package/vmsync/cli/src/lifecycle.expensive.unit.test.ts
 ```
 
 The absolute outer file path and repository-root working directory resolve the helper command
 without changing the original authored task.
 The bundle path also remains bound to the original package:
-`package/cli/vmsync/src/lifecycle.expensive.unit.test.ts:44` to line 51 derives it from the source file.
+`package/vmsync/cli/src/lifecycle.expensive.unit.test.ts:44` to line 51 derives it from the source file.
 
 ```typescript
-// package/cli/vmsync/src/lifecycle.expensive.unit.test.ts:44 at ef01490f5e
+// package/vmsync/cli/src/lifecycle.expensive.unit.test.ts:44 at ef01490f5e
 const PKG_ROOT = await findRootCached({
   cwd: import.meta.dirname,
-  marker: packageNamed('@monochromatic-dev/cli-vmsync',),
+  marker: packageNamed('@monochromatic-dev/vmsync-cli',),
 },);
 const BUNDLE_PATH = join(PKG_ROOT, 'dist', 'final', 'node', 'index.mjs',);
 ```
@@ -84,7 +84,7 @@ Windows creation is unconditional at lines 319 to 327,
 before its own `describe` at line 379:
 
 ```typescript
-// package/cli/vmsync/src/lifecycle.expensive.unit.test.ts:319 at ef01490f5e
+// package/vmsync/cli/src/lifecycle.expensive.unit.test.ts:319 at ef01490f5e
 await safeDestroy(VM,);
 await mvm({
   args: ['create', VM, '--image', 'windows',],
@@ -105,7 +105,7 @@ The owned bounded probe is
 It uses the private exact-source fixture from the cohort controls,
 with a 2 GiB memory limit and two CPUs.
 It does not write either shared historical checkout.
-The natural frozen dependency install and `//package/cli/vmsync:build:js:node` remain source-owned tasks.
+The natural frozen dependency install and `//package/vmsync/cli:build:js:node` remain source-owned tasks.
 No emulator or provider run is dispatched by this probe.
 
 ### Actual natural-build and artifact controls
@@ -142,7 +142,7 @@ the Linux cleanup declaration at line 184 follows its setup commands,
 and the Windows cleanup declaration at line 378 does the same.
 A setup failure can precede both declarations.
 The immutable `mvm` defaults are 8192 MiB and four vCPUs
-in `package/cli/mvm/src/config.ts:38` and line 43;
+in `package/mvm/cli/src/config.ts:38` and line 43;
 the source test does not pass resource overrides to its `create` calls.
 
 A production repair should derive the `mvm` entry point from an owned absolute source location

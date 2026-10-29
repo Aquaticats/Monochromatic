@@ -45,7 +45,7 @@ and print modes receive an unavailable-tool error rather than opening a desktop 
 ## Answer workflow
 
 The extension resolves the preferred terminal through
-`@monochromatic-dev/cli-terminal-exec`.
+`@monochromatic-dev/terminal-exec-cli`.
 It resolves the editor in this order:
 
 1. `editor` in `~/.pi/agent/extensions/pi-ask-user-question.json`

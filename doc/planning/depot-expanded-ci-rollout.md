@@ -78,7 +78,7 @@ The first fast subset is five owning build tasks and their tests:
 `module/logger`,
 `module/p-map-fork`,
 `module/toml-edit`,
-`cli/forbidden-strings` and
+`forbidden-strings/cli` and
 `linter/monochromatic-lint`.
 Desktop,
 Android,

@@ -557,9 +557,9 @@ bearing,
  not stylistic.
 
 Available for the text-predicate half where one is needed:
-`package/rust-module/forbidden-regex`,
+`package/forbidden-strings/core`,
 the in-house linear-time engine with fuzz and bench harnesses,
-already consumed by `package/cli/forbidden-strings` over a path dependency.
+already consumed by `package/forbidden-strings/cli` over a path dependency.
 Using it rather than `regex` satisfies RG2 and the `no-regex` lint rule by construction.
 
 ### D5. Crate layout
@@ -588,8 +588,8 @@ Chosen:
 - Rule plugin crates are their own packages.
 
 Reproduces the shape the repo already uses:
-`package/rust-module/forbidden-regex` is a library package consumed by
-`package/cli/forbidden-strings` over a `../../rust-module/forbidden-regex`
+`package/forbidden-strings/core` is a library package consumed by
+`package/forbidden-strings/cli` over a `../../forbidden-strings/core`
 path dependency.
 No Cargo workspace is introduced,
  so the invariant in

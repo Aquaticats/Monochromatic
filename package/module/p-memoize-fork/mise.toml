@@ -45,5 +45,5 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 const args = (process.env.usage_args ?? '').trim().split(' ').filter(Boolean)
-runWorkspaceNode('package/cli/mutation-test', 'cli', ['--package', 'package/module/p-memoize-fork', '--report', 'package/module/p-memoize-fork/dist/mutation-report.json', ...args])
+runWorkspaceNode('package/mutation-test/cli', 'cli', ['--package', 'package/module/p-memoize-fork', '--report', 'package/module/p-memoize-fork/dist/mutation-report.json', ...args])
 """

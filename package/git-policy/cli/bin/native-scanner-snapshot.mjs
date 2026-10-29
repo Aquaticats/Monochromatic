@@ -72,7 +72,7 @@ export function scannerSnapshotEntries({ context }) {
   return [
     ...crateEntries({
       context,
-      crate: 'cli/forbidden-strings',
+      crate: 'forbidden-strings/cli',
       names: [
         'Cargo.toml',
         'Cargo.lock',
@@ -83,7 +83,7 @@ export function scannerSnapshotEntries({ context }) {
     }),
     ...crateEntries({
       context,
-      crate: 'rust-module/forbidden-regex',
+      crate: 'forbidden-strings/core',
       names: [
         'Cargo.toml',
         'Cargo.lock',

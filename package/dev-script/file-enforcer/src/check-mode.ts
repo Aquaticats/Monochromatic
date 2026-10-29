@@ -60,7 +60,7 @@ export function isCheckMode(): boolean {
 
  @example
  ```ts
- recordDrift({ dest: './package/cli/forbidden-strings/Cargo.toml', });
+ recordDrift({ dest: './package/forbidden-strings/cli/Cargo.toml', });
  ```
  */
 export function recordDrift({ dest, }: { readonly dest: string; },): void {

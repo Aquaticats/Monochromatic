@@ -48,8 +48,8 @@ Four negation lines protected nothing and were deleted outright:
 
 ## Design: fuzz seed corpora move to `seeds/<target>/`
 
-Applies to `package/cli/forbidden-strings.fuzz` (1344 committed seeds)
- and `package/rust-module/forbidden-regex.fuzz` (none yet).
+Applies to `package/forbidden-strings/cli.fuzz` (1344 committed seeds)
+ and `package/forbidden-strings/core.fuzz` (none yet).
 
 Committed seeds move out of `corpus/<target>/` into a sibling `seeds/<target>/` directory
  that is tracked plainly.
@@ -65,7 +65,7 @@ Consequences:
 - The seeder (`src/bin/seed-from-tests.rs`) writes to `seeds/<target>/`.
 - The mise `smoke` and `run` tasks pass both directories explicitly
   (passing explicit corpus args replaces cargo-fuzz's default `corpus/<target>`).
-- `package/cli/forbidden-strings.fuzz/README.md` and `doc/handover/forbidden-strings-fuzzing.md`
+- `package/forbidden-strings/cli.fuzz/README.md` and `doc/handover/forbidden-strings-fuzzing.md`
   update their corpus-layout descriptions.
 
 Rejected alternatives:
@@ -125,10 +125,10 @@ Three coupled changes:
 
 - **The baseline ships inside the binary.**
   `mise.port-betterleaks.ts` regenerates the betterleaks-ported baseline
-  into `package/cli/forbidden-strings/` instead of the repo root;
+  into `package/forbidden-strings/cli/` instead of the repo root;
   `lib.rs` embeds it via `include_str!` and exports it as a public constant,
   so the crates.io binary carries it and
-  `package/rust-module/forbidden-regex.bench` consumes the constant
+  `package/forbidden-strings/core.bench` consumes the constant
   instead of an `include_str!` with a fragile `../../../../` path.
 - **The baseline is pure opt-in.**
   A new flag activates it;
@@ -158,7 +158,7 @@ Implementation cautions:
 - Env-var propagation into git-hook execution contexts must be verified with a real invocation;
   `scan-candidates.ts` in the git-policies packages falls back to the cwd default when the env var is absent.
 - The self-skip path lists
-  (`package/cli/forbidden-strings/src/lib.rs`
+  (`package/forbidden-strings/cli/src/lib.rs`
   and both `scan-candidates.ts` copies)
   reference the root example file and must follow the baseline into the package.
   The package-anchored skip entry for it already exists and currently points at a nonexistent path.

@@ -136,7 +136,7 @@ install,
  and `rust-src` is never added to `1.96.0`.
  nightly,
  declared in
-`package/cli/forbidden-strings.fuzz/mise.toml`,
+`package/forbidden-strings/cli.fuzz/mise.toml`,
  is a rolling channel mise reinstalls
 on upgrade,
  so it did receive `rust-src`.

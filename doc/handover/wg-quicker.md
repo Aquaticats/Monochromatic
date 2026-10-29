@@ -1,5 +1,14 @@
 # `wg-quicker` completion handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/wg-allowedips` is now `package/wg/core-allowedips`;
+> `@monochromatic-dev/module-wg-allowedips` is now `@monochromatic-dev/wg-core-allowedips`;
+> `package/cli/wg-allowedips` is now `package/wg/cli-allowedips`;
+> `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`;
+> `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
+
 ## Goal and safety boundary
 
 The production replacement for `wg-quick up/down` is complete.

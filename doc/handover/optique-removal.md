@@ -1,5 +1,14 @@
 # Optique removal handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/git-clone-size` is now `package/git-clone-size/cli`;
+> `package/cli/mutation-test` is now `package/mutation-test/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 ## Status
 
 Planning and user grilling are in progress.

@@ -145,7 +145,7 @@ panic = "unwind"
 # The subject links the forbidden-strings scanner, whose `build.rs` precompiles its embedded
 # baseline through the forbidden-regex build-dependency. Cargo builds build scripts at
 # `opt-level = 0` by default and reads profiles only from this workspace root; see
-# ../../cli/forbidden-strings/Cargo.toml for the measurement.
+# ../../forbidden-strings/cli/Cargo.toml for the measurement.
 [profile.release.build-override]
 opt-level = 3
 

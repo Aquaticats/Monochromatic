@@ -48,9 +48,9 @@ fn names_match_the_standalone_scanner() {
     assert_eq!(
         SCANNER_SELF_MATCH_PATHS,
         [
-            b"package/cli/forbidden-strings/data/betterleaks-default-config.toml".as_slice(),
-            b"package/cli/forbidden-strings/data/builtin-rules.txt",
-            b"package/cli/forbidden-strings/src/port-betterleaks-relaxations.ts",
+            b"package/forbidden-strings/cli/data/betterleaks-default-config.toml".as_slice(),
+            b"package/forbidden-strings/cli/data/builtin-rules.txt",
+            b"package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts",
         ]
     );
 }
@@ -203,9 +203,9 @@ fn eligibility_excludes_only_deletions_and_rule_sources() {
     for path in [
         b"config/rules.tx".as_slice(),
         b"other/config/rules.txt",
-        b"package/cli/forbidden-strings/data/builtin-rules.txt.orig",
-        b"vendor/package/cli/forbidden-strings/data/builtin-rules.txt",
-        b"package/cli/forbidden-strings/data",
+        b"package/forbidden-strings/cli/data/builtin-rules.txt.orig",
+        b"vendor/package/forbidden-strings/cli/data/builtin-rules.txt",
+        b"package/forbidden-strings/cli/data",
     ] {
         assert!(
             is_scannable(

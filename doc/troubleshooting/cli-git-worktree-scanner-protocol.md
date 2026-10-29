@@ -44,10 +44,10 @@ an exit other than the scanner's success/finding statuses.
 The old artifact's `--help` lists no `--name-path` option,
 and its real invocation exits 2 for that option.
 The current forbidden-strings 0.4.1 artifact's `--help` lists it.
-`package/cli/forbidden-strings/src/cli.rs:251` declares:
+`package/forbidden-strings/cli/src/cli.rs:251` declares:
 
 ```rust
-// package/cli/forbidden-strings/src/cli.rs
+// package/forbidden-strings/cli/src/cli.rs
 #[arg(long = "name-path", value_name = "PATH", allow_hyphen_values = true)]
 pub name_paths: Vec<String>,
 ```

@@ -15,7 +15,7 @@
 //!  redaction and
 //!      the fail-closed findings all stay the scanner's.
 //!
-//! What the linking executable owes the scanner (`package/cli/forbidden-strings/README.md`,
+//! What the linking executable owes the scanner (`package/forbidden-strings/cli/README.md`,
 //! "In-process candidate scans"):
 //!  an unwinding panic strategy,
 //!  which this file checks at

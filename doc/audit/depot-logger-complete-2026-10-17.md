@@ -1,5 +1,10 @@
 # Logger affected CI execution on 2026-10-17
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 ## Purpose and source identity
 
 Execute the complete reviewed logger change surface at

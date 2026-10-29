@@ -5,7 +5,7 @@ Adopted 2026-10-20 while fixing issue `#993`,
  even at the cost of more code,
  and to reject full-tree scans on every push as too expensive.
  Regression tests:
- `package/cli/forbidden-strings/tests/ci_scan_scope.rs`.
+ `package/forbidden-strings/cli/tests/ci_scan_scope.rs`.
 
 ## Problem
 

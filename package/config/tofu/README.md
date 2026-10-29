@@ -22,9 +22,9 @@ Manages firewall rules on Hetzner Cloud,
 
 ## Components
 
-### `@monochromatic-dev/module-wg-allowedips`
+### `@monochromatic-dev/wg-core-allowedips`
 
-Shared IPinfo Lite adapter under `package/module/wg-allowedips` resolves case-insensitive `AS<number>` input to every
+Shared IPinfo Lite adapter under `package/wg/core-allowedips` resolves case-insensitive `AS<number>` input to every
 database network or single address.
 It owns cache freshness,
 streaming database filtering,

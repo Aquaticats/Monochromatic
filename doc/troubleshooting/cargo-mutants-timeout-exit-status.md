@@ -265,7 +265,7 @@ Measured on 2026-10-05:
 - `package/git-policy/cli`, source at `d1c02273a`:
   1,230 and 1,196.
   The 34 removed are 33 `+=` replaced by `*=` and 1 `-=` replaced by `/=`.
-- `package/cli/forbidden-strings` with `--all-features`, source at `fe805727c`:
+- `package/forbidden-strings/cli` with `--all-features`, source at `fe805727c`:
   526 and 521.
   The 5 removed are 2 `+=` replaced by `*=` and 3 `-=` replaced by `/=`.
 
@@ -289,7 +289,7 @@ cargo mutants --exclude-re 'replace \+= with \*=' --exclude-re 'replace -= with 
 All three mutation runners do this:
 `package/linter/monochromatic-lint/bin/mutate-container.mjs`,
 `package/git-policy/cli/bin/mutate-native-container.mjs`
-and `package/cli/forbidden-strings/bin/mutate-container.mjs`.
+and `package/forbidden-strings/cli/bin/mutate-container.mjs`.
 They pass arguments rather than an `exclude_re` config key because they also pass `--no-config`.
 
 Tradeoffs:
