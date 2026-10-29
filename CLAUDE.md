@@ -547,8 +547,10 @@ RT1:
  `rg` for text search,
  not directory navigation;
  `rg --files` for globs;
- `--hidden`/`--no-ignore` only with a named path:
- the rg shadow refuses them at a repo root.
+ `--hidden`,
+ recursive `grep`,
+ unbounded `find` only with a named path:
+ the search shadows refuse them at a repo root.
 
 RT4:
  `gh` for GitHub issues,
