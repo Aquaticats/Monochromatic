@@ -194,6 +194,22 @@ ask the user any question a vet ends with,
 record the probe verdicts in issue #1818,
 then start the first implementation area.
 
+Update (2026-10-29):
+the user halted the four vets for handoff,
+then approved `toml_edit`,
+`browserslist-rs`,
+and `schemars` without vets
+and chose an in-repo XML edit crate,
+and wrote:
+"Yes mark superseded,
+but don't discard any work.
+Even if work is superseded,
+it should still become knowledge."
+So each halted vet draft is committed whole under `doc/audit/`,
+with only a superseded status line added,
+and the XML draft is linked from the decision record as input to the XML crate.
+The live probes keep running.
+
 ## Superseded next action (2026-10-29, after confirmation)
 
 The user confirmed a shared understanding ("Shared understanding"),
