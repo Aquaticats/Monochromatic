@@ -3288,3 +3288,26 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Open: three production uses of `std::env::temp_dir()` remain: `markdown_linter.rs` (temporary linter config),
   `transaction_git.rs` (`cli-git-input-*` file), `manual_push_probe.rs` (scratch). They break the new rule. Decide where
   production scratch goes (the transaction directory under `.git/cli-git`, or `$XDG_RUNTIME_DIR`).
+
+## Update at 2026-10-29 (all agents reported; final integration under verification)
+
+- Branch `integrate-slices` (checked out at `~/temp/agent/merge-slices`) now holds: slices S2, J, S4, S1/S3; the J harness
+  fix; main (including 1807, 1808, 1809, the `XTD` rule and other sessions' work); and the three later agents: recovery
+  (`worktree-agent-a49eb138569c35a3c`: snapshot digests, contradiction detection, messages that name the file), hooks
+  (`worktree-agent-a8b31ddd4ffbe9b0d`: `core.hooksPath` handling removed, `configuration-warning` code
+  `traditional-hooks-unsupported`, `git cli-git doctor`), and budget (`worktree-agent-a25fe20d930cb8679`: exact per-subcommand
+  start and sync budgets). One conflict, in `binary_recovery_tearing_tests.rs` (two independent tests), resolved by keeping both.
+- Recovery agent facts: it chose snapshot digests over fsyncing the snapshots (about 3 ms cheaper per commit, no extra syncs);
+  a torn `post-1.index` now sticks instead of being installed; the two delete-at-`ref-updated` silent-inconsistency cases now
+  stick; recovery stops no longer carry the fetch hint. The handover text under "slice J report" about torn snapshots,
+  silent inconsistency and the message UX item is superseded by this. Not covered: a directory that lost every record, and a
+  branch with reflogs off.
+- Hooks agent facts: the dispatcher's inner run uses `-c core.hooksPath=<tx>/no-hooks` (a path never created); one configured
+  hook costs 4 hook-runner starts; the common path gained no syscalls (strace: statx 117 to 113, the rest equal). SPEC.md
+  reworded: no traditional-hook start on the commit path is an implementation property, not a promise.
+- Open: the e2e container suite installs traditional hooks in many scenarios. Agent a1360b7e02c5cec27 is converting the
+  fixtures to config hooks. The Windows clippy target was not run by anyone.
+- Gate run 4 failed in the gate runner (copying the source snapshot into `/tmp/cli-git-native-test-*` hit the quota). That is
+  one more `/tmp` use for issue 1810. Next: verify the final tree (clippy, host, binary in
+  `~/temp/agent/final-verify.txt`), run the container gate once, merge to main, release (read the crate version first),
+  remove worktrees and branches, run mutation wave 2.
