@@ -43,17 +43,9 @@ Both found:
   the plan ports that bypass instead of asking what mpm should do.
   No question asked which generated files should exist at all,
   or what the user wants that the old tool never did.
-- The one-switch cutover carries the whole program in one commit:
-  two crates,
-  the catalog library,
-  a much larger mpm-shadow,
-  plan conversion,
-  the resolution file,
-  pnpr's generator,
-  four technology vets,
-  the per-user subcommand,
-  vm-builder's runner,
-  and the bootstrap rework.
+- Withdrawn:
+  a point that the program's size and its one-switch cutover were the main risk.
+  The user answered "Massiveness and single switchover are not problems." (2026-10-29)
 - Three toolchain files (plan,
   resolution,
   lock) exist partly to repair a two-writer hazard the plan/lock split created.
