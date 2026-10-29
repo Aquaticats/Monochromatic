@@ -8,6 +8,9 @@ In the Monochromatic repository it replaces `package/linter/rust` and `package/c
 the switch of every repository task and the Git wrapper's Markdown policy is recorded in
 `doc/handover/unified-linter-cutover.md`.
 
+It also lints the shell scripts in the steps of GitHub Actions workflows and composite actions;
+see "Workflow shell rules".
+
 The crate's Rust visibility supports its executable and verification drivers.
 There is no supported public linter library interface.
 

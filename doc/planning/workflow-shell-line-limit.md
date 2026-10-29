@@ -2,10 +2,15 @@
 
 ## Status
 
-Grilling finished and the repository owner confirmed the design on 2026-10-29.
-Nothing is implemented,
-and the owner has not yet asked for implementation.
-This records the decisions the repository owner has answered and the defaults adopted from them.
+Grilling finished and the repository owner confirmed the design on 2026-10-29;
+the owner then asked for the implementation,
+and it landed the same day in `package/linter/monochromatic-lint`.
+The linter side is complete and verified.
+The ban takes effect in the repository's own lint run only once the pinned `cargo:monochromatic-lint` is a
+release that contains these rules (see "Enforcement starts at the next pin").
+This records the decisions the repository owner has answered,
+the defaults adopted from them,
+and what the implementation found.
 
 ## Request
 
@@ -20,7 +25,7 @@ Make `monochromatic-lint` ban long shell in `.github/workflows/*.{yml,yaml}`.
   The processor files total about 1100 lines.
   Fenced Rust in Markdown is already linted as a virtual file such as `guide.md/3.rs`,
   with `MappedLine` records carrying container prefixes back to host positions.
-- `.github/workflows` holds 19 `.yml` files and no `.yaml` file.
+- `.github/workflows` holds 20 `.yml` files and no `.yaml` file.
   They contain 142 `run: |` blocks.
   Measured by a scratch script on 2026-10-29 (raw lines,
   blank and comment lines included):
@@ -141,7 +146,7 @@ measured 2026-10-29 with a scratch script:
 
 - 230 `run:` steps in total;
   133 have more than 2 code lines,
-  across 13 of the 19 workflow files.
+  across 13 of the 20 workflow files.
 - 68 steps contain a single `|` or `&&` outside `${{ }}`:
   59 with a pipe and 24 with `&&`,
   across 11 files.
@@ -223,9 +228,21 @@ These follow from the answers above and stay open to veto.
   `shell:` is required there;
   a step without it is a `core/processing-failure`.
 - **Ratchet location:**
-  blocks in the root `monochromatic-lint.config.jsonc`,
-  generated once from a measurement of each file,
-  then removed as a file is fixed.
+  two nested configurations,
+  `.github/workflows/monochromatic-lint.config.jsonc` and `.github/actions/monochromatic-lint.config.jsonc`,
+  not the root configuration.
+  The nearest configuration governs a file,
+  so the root one does not apply under them,
+  and the pinned binary never plans a `.yml` file,
+  so it never loads them.
+  A root-configuration entry would instead make the pinned binary reject the unknown `shell/` rules
+  and fail every lint run until a release is pinned.
+  Both directories hold only YAML;
+  the one Markdown file,
+  `.github/COPILOT_REVIEW.md`,
+  sits above them.
+  The blocks were generated once from the linter's own findings,
+  and each is removed once its file passes the default budgets.
   Existing offending workflows are not rewritten by this work.
 - **Done means:**
   a `README.md` section,
@@ -312,7 +329,70 @@ and stay open to veto.
   The Measurements numbers stay a sanity bound,
   and each difference is explained when the ratchet is generated.
 
+## Results
+
+Measured on 2026-10-29 with the debug build of the implementation.
+
+- The linter reads all 20 workflows and the one composite action with no processing failure.
+- Steps over 2 code lines: 133.
+  This equals the scratch count by coincidence of two offsetting differences:
+  the 5 steps under `shell: node {0}` (in `kotlin-linter-publish.yml`,
+  `toml-edit-fuzz.yml`
+  and `cache-prune.yml`) are out of scope,
+  and the 5 steps of the composite action are in scope.
+- Files with a step over 2 lines:
+  12,
+  including the composite action.
+  The scratch script counted 13 workflow files,
+  because it counted the node-shell steps.
+- Files with any banned construct: 10.
+  Per-rule file counts:
+  `shell/max-lines` 12,
+  `shell/no-semicolon` 8,
+  `shell/no-pipe` 8,
+  `shell/no-dollar-paren` 9,
+  `shell/no-or-chain` 6,
+  `shell/no-and-chain` 3,
+  `shell/no-ampersand` 1.
+  `shell/no-pipe-stderr` and `shell/no-backtick` have no occurrence.
+- The ratchet is 13 blocks:
+  12 in the workflows configuration and 1 in the actions configuration.
+- The first run refused `music-player-release.yml` at line 306,
+  because the build matrix writes `- { os: linux, … }` flow mappings.
+  The refusal of unread key forms now applies only to a job id,
+  a step key or a structural key,
+  and a test covers the matrix form.
+- Checks run:
+  the whole package suite (693 tests pass),
+  `lint:types` (clippy with warnings denied),
+  `lint:rustfmt`,
+  the linter's own Rust rules over its sources (no finding after two files were split under the line limit),
+  and the pinned binary over `.github` (exit 0,
+  unaffected).
+- Negative controls in a scratch copy:
+  a new workflow with a three-line step containing `&&` is reported for
+  `shell/max-lines` and `shell/no-and-chain`,
+  and a third pipe added to a ratcheted workflow is reported.
+- Guard check:
+  with the path guard in `is_actions_yaml` removed,
+  `other_yaml_is_never_read`,
+  `only_workflows_and_composite_actions_are_yaml_hosts`
+  and a discovery test fail;
+  with it restored they pass.
+
+## Enforcement starts at the next pin
+
+`toolchain.lock.json` pins `cargo:monochromatic-lint` at the published 0.3.0,
+which does not read YAML,
+and `package/linter/monochromatic-lint/Cargo.toml` is still 0.3.0 with these changes unpublished.
+Until a release that contains them is published and pinned (`toolchain:update`,
+whose lock diff is the review),
+the repository's lint run does not check workflows.
+Publishing and pinning are the repository owner's steps and were not done.
+After the pin moves,
+`mise run lint:monochromatic-lint .github` enforces the ban.
+
 ## Open
 
-None.
-The owner confirmed the design is complete.
+None for the design.
+The release and pin above are the remaining steps.
