@@ -79,8 +79,8 @@ export type UserContext = 'root' | 'user';
  JS runtime to install and execute test files with.
  - `'bun'`: installed via `curl -fsSL https://bun.sh/install | bash`
  - `'deno'`: installed via `curl -fsSL https://deno.land/install.sh | sh`
- - `'node'`: bootstrapped through mise and installed from the mounted repo
-   config, so the version comes from `mise.toml`/`mise.lock` at run time
+ - `'node'`: the release `toolchain.lock.json` pins, fetched and SHA-256
+   checked against that lock and extracted under `$HOME/node` at run time
  */
 export type Runtime = 'bun' | 'deno' | 'node';
 

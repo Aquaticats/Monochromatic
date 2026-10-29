@@ -138,15 +138,16 @@ export function prerequisiteCommand({
 //region Runtime system dependencies
 
 /**
- System packages the node runtime links against on glibc distros.
+ System packages the node runtime needs on glibc distros.
  Official Node.js Linux builds need `libatomic.so.1`, which minimal container
- images omit; without it `mise install node` fails while it verifies the
- freshly extracted binary. Bun and deno bundle their dependencies.
+ images omit; without it the locked Node binary fails to start. `jq` reads the
+ pinned Node artifact rows out of `toolchain.lock.json` during the runtime
+ bootstrap. Bun and deno bundle their dependencies.
  */
 const NODE_DEPENDENCY_COMMANDS: Record<Exclude<PackageManager, 'apk'>, string> = {
-  apt: 'apt-get install -y libatomic1',
-  dnf: 'dnf install -y libatomic',
-  pacman: 'pacman -Sy --noconfirm gcc-libs',
+  apt: 'apt-get install -y libatomic1 jq',
+  dnf: 'dnf install -y libatomic jq',
+  pacman: 'pacman -Sy --noconfirm gcc-libs jq',
 };
 
 /**
@@ -166,7 +167,7 @@ const NODE_DEPENDENCY_COMMANDS: Record<Exclude<PackageManager, 'apk'>, string> =
  @example
  ```ts
  runtimeDependencyCommand({ manager: 'apt', runtime: 'node' });
- // 'apt-get install -y libatomic1'
+ // 'apt-get install -y libatomic1 jq'
 
  runtimeDependencyCommand({ manager: 'apt', runtime: 'bun' });
  // ''

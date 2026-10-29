@@ -274,7 +274,7 @@ await describe({
         },),
 
         it({
-          name: 'node root install installs libatomic, bootstraps mise, and cds before install',
+          name: 'node root install installs jq and libatomic, then reads the locked Node from toolchain.lock.json',
           fn: async () => {
             const cmd = buildContainerCommand({
               combination: {
@@ -286,18 +286,18 @@ await describe({
               monorepoRoot: '/repo',
             },);
 
-            expect(cmd,).toContain('apt-get install -y libatomic1',);
-            expect(cmd,).toContain('curl -fsSL https://mise.run | sh',);
-            expect(cmd,).toContain(
-              'MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace mise install node',
-            );
+            expect(cmd,).toContain('apt-get install -y libatomic1 jq',);
+            expect(cmd,).toContain('toolchain.lock.json',);
+            expect(cmd,).toContain('sha256sum --check',);
             expect(cmd.indexOf('cd /workspace',),)
-              .toBeLessThan(cmd.indexOf('mise install node',),);
+              .toBeLessThan(cmd.indexOf('toolchain.lock.json',),);
+            expect(cmd.indexOf('toolchain.lock.json',),)
+              .toBeLessThan(cmd.indexOf('tar --extract',),);
           },
         },),
 
         it({
-          name: 'node root exec runs the workspace file through mise exec',
+          name: 'node root exec runs the workspace file through the locked node binary',
           fn: async () => {
             const cmd = buildContainerCommand({
               combination: {
@@ -310,15 +310,14 @@ await describe({
             },);
 
             expect(cmd,).toContain(
-              'MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace'
-                + ' $HOME/.local/bin/mise exec node -- node'
+              '$HOME/node/bin/node'
                 + ' /workspace/packages/foo/src/bar.ts',
             );
           },
         },),
 
         it({
-          name: 'node non-root installs libatomic as root and cds before install in heredoc',
+          name: 'node non-root installs jq and libatomic as root and cds before install in heredoc',
           fn: async () => {
             const cmd = buildContainerCommand({
               combination: {
@@ -331,11 +330,11 @@ await describe({
             },);
 
             expect(cmd,).toContain('sudo -u testuser',);
-            expect(cmd,).toContain('apt-get install -y libatomic1',);
+            expect(cmd,).toContain('apt-get install -y libatomic1 jq',);
             expect(cmd,).toContain('cd /workspace',);
-            expect(cmd,).toContain('MISE_TRUSTED_CONFIG_PATHS=/workspace mise install node',);
+            expect(cmd,).toContain('toolchain.lock.json',);
             expect(cmd.indexOf('cd /workspace',),)
-              .toBeLessThan(cmd.indexOf('mise install node',),);
+              .toBeLessThan(cmd.indexOf('toolchain.lock.json',),);
           },
         },),
 
@@ -355,10 +354,10 @@ await describe({
             /** The heredoc body runs as testuser, so root-only steps stay outside it. */
             const heredoc = cmd.slice(cmd.indexOf('TESTSCRIPT',),);
 
-            expect(cmd.split('apt-get install -y libatomic1',).length
+            expect(cmd.split('apt-get install -y libatomic1 jq',).length
               - 1,)
               .toBe(1,);
-            expect(cmd.split('mise install node',).length
+            expect(cmd.split('tar --extract',).length
               - 1,)
               .toBe(1,);
             expect(heredoc,).not.toContain('libatomic',);
@@ -385,7 +384,7 @@ await describe({
         },),
 
         it({
-          name: 'node exec uses mise exec inside the non-root heredoc',
+          name: 'node exec runs the locked node binary inside the non-root heredoc',
           fn: async () => {
             const cmd = buildContainerCommand({
               combination: {
@@ -398,8 +397,7 @@ await describe({
             },);
 
             expect(cmd,).toContain(
-              'MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace'
-                + ' $HOME/.local/bin/mise exec node -- node /workspace/test.ts',
+              '$HOME/node/bin/node /workspace/test.ts',
             );
           },
         },),

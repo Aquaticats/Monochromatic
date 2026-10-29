@@ -1,5 +1,16 @@
 # Meta Package Manager 7.6.1 extends through manager definitions but TOML cannot forward restore versions
 
+> Definition path note:
+>  this record is the 7.6.1 investigation and stays historical as written.
+>  In `meta-package-manager` 8.2.0,
+>  the version this repository adopts,
+>  trusted local definitions belong under `[mpm.overrides.<id>]`
+>  (moved 2026-10-26),
+>  so the `[mpm.managers.<id>]` blocks in this record are the historical path
+>  (`package/dev-script/file-enforcer/src/toolchain/mpm-manifest.ts`,
+>  `doc/planning/mpm-toolchain-migration.md`,
+>  section `Implementation record (toolchain-core, 2026-10-26)`).
+
 ## Symptom
 
 A Mise-removal assessment initially treated missing Meta Package Manager adapters as requiring commands outside MPM.

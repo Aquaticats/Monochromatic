@@ -5,10 +5,15 @@
 
  Runs the same task graph CI used to run through `mise run`, but resolves every
  body from `task.ts` files and executes it with the current node, so CI no
- longer installs or invokes mise. Supports plain `run` strings, `run` arrays
- (sequenced, with `{ shell }` items), `depends`, `extends` onto root templates,
- `usage` options mapped to `usage_*` variables like mise, root `build`/`test`/
- `lint` umbrella tasks, root inline tasks, and the `//package/...:task` form.
+ longer installs or invokes mise. Task bodies keep calling workspace tool
+ binaries by bare name because `PATH` carries every `node_modules/.bin` up to
+ the repository root, the way `mise.toml` `_.path` did. Supports plain `run`
+ strings, `run` arrays (sequenced, with `{ shell }` items), `depends`, `extends`
+ onto root templates, `usage` options mapped to `usage_*` variables like mise,
+ root `build`/`test`/`lint` umbrella tasks, root inline tasks, and the
+ `//package/...:task` form. Tasks without a `usage` spec get post-`--`
+ arguments appended to their command as a real argv vector, the way mise did,
+ and `usage_args` round-trips words that contain spaces.
 
  @example
  ```bash
@@ -28,6 +33,7 @@ import {
 } from 'node:fs';
 import { availableParallelism, homedir, } from 'node:os';
 import {
+  delimiter,
   dirname,
   join,
   resolve,
@@ -278,20 +284,26 @@ function findRepoRoot(): string {
 }
 
 /**
+ Manifest files that mark a package directory: the npm, Cargo and Gradle homes
+ this monorepo's packages use.
+ */
+const PACKAGE_MARKERS = ['package.json', 'Cargo.toml', 'build.gradle.kts', 'build.gradle',] as const;
+
+/**
  Resolves the package directory for a `//package/<category>/<name>[:task]` name.
 
  @param root - Monorepo root.
  @param packagePath - Path like `package/module/logger`.
  @returns Absolute package directory.
- @throws When the path is not a `package/` path with two segments below it.
+ @throws When the path is not a `package/` path with two segments below it, or has no manifest.
  */
 function packageDirectory(root: string, packagePath: string): string {
   const segments = packagePath.split('/');
   if (segments[0] !== 'package' || segments.length !== 1 + PACKAGE_SEGMENT_COUNT)
     throw new Error(`task-cli: not a package path: ${packagePath}`);
   const directory = join(root, packagePath);
-  if (!existsSync(join(directory, 'package.json')) && !existsSync(join(directory, 'Cargo.toml')))
-    throw new Error(`task-cli: no package.json or Cargo.toml at ${packagePath}`);
+  if (!PACKAGE_MARKERS.some((marker) => existsSync(join(directory, marker))))
+    throw new Error(`task-cli: no package manifest (${PACKAGE_MARKERS.join(', ')}) at ${packagePath}`);
   return directory;
 }
 
@@ -330,7 +342,9 @@ type UsageOption = {
 };
 
 /**
- Parses a mise-style `usage` spec into flag and arg descriptors.
+ Parses a mise-style `usage` spec into flag and arg descriptors. Flag names
+ drop their leading dashes so they match `--name` tokens and the `usage_name`
+ variable the old mise mapping produced.
 
  @param usage - Raw usage string from a task definition.
  @returns Parsed options in declaration order.
@@ -342,32 +356,62 @@ function parseUsageSpec(usage: string | undefined): readonly UsageOption[] {
   for (const match of usage.matchAll(pattern)) {
     const kind = match[1] === 'flag' ? 'flag' : 'arg';
     const body = match[2];
+    if (body === undefined) { continue; }
     const nameMatch = /^(?<name>[^\s<]+)/u.exec(body);
     if (nameMatch === null) { continue; }
-    const valueMatch = /<(?<value>[^>]+)>/u.exec(body);
-    options.push({
-      kind,
-      name: nameMatch.groups!['name']!,
-      valueName: valueMatch?.groups?.['value'],
-    });
+    const name = nameMatch.groups?.['name']?.replace(/^-+/u, '');
+    if (name === undefined || name === '') { continue; }
+    const valueName = /<(?<value>[^>]+)>/u.exec(body)?.groups?.['value'];
+    options.push(valueName === undefined ? { kind, name, } : { kind, name, valueName, });
   }
   return options;
 }
 
 /**
- Splits CLI arguments at `--` into task options and passthrough arguments.
+ Splits task arguments the way `task-run <task> [-- options] [-- passthrough]`
+ documents: one leading `--` separates them from anything before it, and the
+ next `--` starts raw passthrough.
 
  @param argv - Arguments after the task name.
- @returns Options before `--` and raw arguments after it.
+ @returns Option arguments before the passthrough separator and raw arguments after it.
  */
 function splitPassthrough(argv: readonly string[]): { options: readonly string[]; rest: readonly string[]; } {
-  const index = argv.indexOf('--');
-  if (index === -1) { return { options: argv, rest: [], }; }
-  return { options: argv.slice(0, index), rest: argv.slice(index + 1), };
+  const afterSeparator = argv[0] === '--' ? argv.slice(1) : argv;
+  const index = afterSeparator.indexOf('--');
+  if (index === -1) { return { options: afterSeparator, rest: [], }; }
+  return { options: afterSeparator.slice(0, index), rest: afterSeparator.slice(index + 1), };
+}
+
+/**
+ Quotes one `usage_args` word for the shell-word grammar `parseUsageArgs`
+ reads back: bare when plain, single-quoted with an escaped quote otherwise.
+
+ @param word - Raw argument.
+ @returns Encoded word.
+ */
+function shellQuote(word: string): string {
+  if (word.length > 0 && !/[\s'"\\]/u.test(word)) { return word; }
+  return `'${word.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ Joins arguments into one `usage_args` value that `parseUsageArgs` recovers
+ word for word, so paths keep their spaces the way the old mise var did.
+
+ @param words - Raw arguments.
+ @returns Shell-word encoded string.
+ */
+function shellJoin(words: readonly string[]): string {
+  return words.map(shellQuote).join(' ');
 }
 
 /**
  Builds the `usage_*` environment for a task from its options.
+
+ Tasks without a usage spec take every post-`--` argument as command argv, the
+ way mise appended it, and still see the words in `usage_args`. Tasks with a
+ spec map declared flags to `usage_*` variables and keep positional and
+ passthrough words in `usage_args`.
 
  @param options - Parsed usage descriptors.
  @param argv - Task option arguments.
@@ -377,6 +421,11 @@ function splitPassthrough(argv: readonly string[]): { options: readonly string[]
  */
 function usageEnvironment(options: readonly UsageOption[], argv: readonly string[], rest: readonly string[],): Record<string, string> {
   const env: Record<string, string> = {};
+  if (options.length === 0) {
+    const raw = [...argv, ...rest];
+    if (raw.length > 0) { env['usage_args'] = shellJoin(raw); }
+    return env;
+  }
   const positional: string[] = [];
   let index = 0;
   while (index < argv.length) {
@@ -404,7 +453,7 @@ function usageEnvironment(options: readonly UsageOption[], argv: readonly string
   if (positional.length > 0 && args.length === 0)
     throw new Error(`task-cli: unexpected positional arguments: ${positional.join(' ')}`);
   if (args.length > 0 || rest.length > 0)
-    env['usage_args'] = [...positional, ...rest].join(' ');
+    env['usage_args'] = shellJoin([...positional, ...rest]);
   return env;
 }
 
@@ -424,20 +473,29 @@ function relativePackagePath(root: string, cwd: string): string {
 }
 
 /**
- Runs a shell body step and waits for completion.
+ Runs one body step and waits for completion.
 
- @param step - Shell string or step with its shell.
- @param cwd - Working directory for the step.
- @param env - Environment for the step.
+ Shell steps receive `argv` the way mise appended post-`--` arguments to the
+ command: as a real word vector after the body. Node-inline steps never receive
+ argv because node would read the words as its own flags; their bodies read
+ `usage_args` instead.
+
+ @param call - Step, working directory, environment and body argv.
  @throws When the shell exits non-zero.
  */
-async function runStepAsync(step: TaskStep, cwd: string, env: NodeJS.ProcessEnv,): Promise<void> {
+async function runStepAsync({ step, cwd, env, argv, }: { step: TaskStep; cwd: string; env: NodeJS.ProcessEnv; argv: readonly string[]; },): Promise<void> {
   const [shell, rawBody] = typeof step === 'string' ? ['bash', step,] : [step.shell, step.run,];
-  const [command, ...args] = shell.split(' ');
-  const isNodeInline = command === 'node' && args.includes('--input-type=module-typescript');
-  const script = isNodeInline ? `${BODY_PRELUDE}\n${rawBody}` : rawBody;
-  const argv = isNodeInline ? [...args, script,] : [...args, '-c', script,];
-  const proc = spawn(command!, argv, { cwd, env, stdio: 'inherit', },);
+  const [command, ...shellArgs] = shell.split(' ');
+  const isNodeInline = command === 'node' && shellArgs.includes('--input-type=module-typescript');
+  // The body braces keep its own `const` imports from colliding with the
+  // prelude's helper bindings while the prelude helpers stay visible; the
+  // blank line keeps a trailing `//` comment from swallowing the closing brace.
+  const body = isNodeInline ? `${BODY_PRELUDE}\n{\n${rawBody}\n\n}\n` : rawBody;
+  const script = !isNodeInline && argv.length > 0 ? `${body} "$@"` : body;
+  const commandArgs = isNodeInline
+    ? [...shellArgs, script,]
+    : [...shellArgs, '-c', script, 'task-run', ...argv,];
+  const proc = spawn(command!, commandArgs, { cwd, env, stdio: 'inherit', },);
   const [code] = await once(proc, 'exit',);
   if (code !== 0) { throw new Error(`task-cli: step exited ${code}`); }
 }
@@ -476,6 +534,32 @@ async function runTaskByName(root: string, name: string, argv: readonly string[]
 }
 
 /**
+ Builds the `PATH` fragment every task body step runs with.
+
+ Ported bodies call workspace tool binaries (`rolldown`, `oxlint`) by bare name,
+ the way `mise run` resolved them through the `node_modules/.bin` entries
+ `mise.toml` `_.path` lists. Prepending the task directory and every ancestor up
+ to the repository root keeps those bodies unchanged while `task-run` resolves
+ the same binaries on a runner that never installs mise.
+
+ @param locations - Repository root and task working directory; the walk needs both ends.
+ @returns Environment fragment carrying joined `PATH`, inherited value last so system tools stay reachable.
+ */
+function taskPathEnvironment({ root, cwd, }: { root: string; cwd: string; },): NodeJS.ProcessEnv {
+  const pathKey = Object.keys(process.env,).find((key) => key.toLowerCase() === 'path',) ?? 'PATH';
+  const binDirectories: string[] = [];
+  for (let directory = cwd; ;) {
+    binDirectories.push(join(directory, 'node_modules', '.bin',),);
+    if (directory === root) { break; }
+    const parent = dirname(directory);
+    if (parent === directory) { break; }
+    directory = parent;
+  }
+  binDirectories.push(process.env[pathKey] ?? '',);
+  return { [pathKey]: binDirectories.join(delimiter,), };
+}
+
+/**
  Executes a resolved task: depends first, then its body steps.
 
  @param root - Monorepo root.
@@ -499,14 +583,20 @@ async function executeTask(root: string, cwd: string, definition: TaskDefinition
     ? []
     : Array.isArray(definition.run) ? definition.run : [definition.run,];
   if (steps.length === 0) { return; }
+  // The task's `dir` moves the body into a subdirectory, matching the old
+  // mise tasks; without it the body runs in the package directory.
+  const bodyCwd = definition.dir === undefined ? cwd : resolve(cwd, definition.dir);
+  const usageOptions = parseUsageSpec(definition.usage,);
+  const bodyArgv = usageOptions.length === 0 ? [...optionArgs, ...rest,] : [];
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    ...taskPathEnvironment({ root, cwd: bodyCwd, }),
     ...definition.env,
     TASK_REPO_ROOT: root,
     TASK_PACKAGE_PATH: packagePath,
-    ...usageEnvironment(parseUsageSpec(definition.usage,), optionArgs, rest,),
+    ...usageEnvironment(usageOptions, optionArgs, rest,),
   };
-  for (const step of steps) { await runStepAsync(step, cwd, env,); }
+  for (const step of steps) { await runStepAsync({ step, cwd: bodyCwd, env, argv: bodyArgv, },); }
 }
 
 /**

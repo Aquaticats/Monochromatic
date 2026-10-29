@@ -1,5 +1,12 @@
 # mise 2026.10.0 github: backend installs openinterpreter rust-v0.0.55's wheel as a binary, so no CLI lands
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 Diagnosed 2026-10-02 against `mise 2026.10.0 linux-x64 (2026-10-02)` on Bazzite 44 (glibc 2.43),
  linux-x64.
  Source excerpts come from `jdx/mise` `main` at

@@ -27,334 +27,18 @@ config_roots = [
   "package/*/*",
 ]
 
-[tools]
-# Migration note: task execution has moved from Bun to Node. Pin retained only
-# for tasks still using Bun-specific features that have no Node equivalent:
-# hall-monitor's `bun build --compile --bytecode` standalone binary and the
-# runtime-error/bun error-output fixtures.
-# Pinned to 1.3.14 because the Rust rewrite's robustness invites serious doubts.
-bun = "1.3.14"
-
-# Package manager
-pnpm = "latest"
-
-# aqua:sharkdp/fd broken as of 2026-03-07, falling back to cargo
-"cargo:fd-find" = "latest"
-ripgrep = "latest"
-
-# Replacing strings
-"cargo:fastmod" = "latest"
-
-# Coverage-guided fuzzing for forbidden-strings (see package/cli/forbidden-strings.fuzz/).
-# Pinned to 0.13.2 because the API around `--fuzzing-workspace=true` and
-# the libfuzzer-sys integration has shifted across point releases; this
-# version is what was verified locally for the rollout.
-"cargo:cargo-fuzz" = "0.13.2"
-
-# Primary runtime
-# Runs mise task logic (tasks set shell = "node --input-type=module-typescript -e") and the packages that
-# depend on Node APIs.
-node = "latest"
-
-# Non-JS-based linters and formatters
-harper-cli = "latest"
-dprint = "latest"
-
-# For running Python packages and scripts
-uv = "latest"
-
-# Benchmarking
-hyperfine = "latest"
-
-# Web Server for deployment
-caddy = "latest"
-
-# Required by `mise watch`
-watchexec = "latest"
-
-# Secrets tooling. sops encrypts and edits the age-encrypted .env.local.json;
-# age provides age-keygen for the decryption identity at ~/.config/mise/age.txt.
-# mise decrypts at runtime via its built-in rops, so these binaries are needed
-# only when encrypting or editing secrets, not for normal task runs.
-# https://mise.jdx.dev/environments/secrets/sops.html
-sops = "latest"
-age = "latest"
-
-# For reliable timeout
-# Rust toolchain, managed repo-wide here (no per-package override).
-# Pinned to nightly because cargo-fuzz (coverage-guided fuzzing under
-# package/cli/forbidden-strings.fuzz/) injects `-Cllvm-args=-sanitizer-coverage-*`
-# RUSTFLAGS that only compile on nightly; a single root toolchain keeps every
-# crate on one channel rather than forking stable/nightly per directory.
-# Floating "nightly" tracks the latest; pin to a dated channel
-# (e.g. "nightly-2026-05-23") if reproducible builds matter.
-# mise applies components only when it installs the toolchain, so an
-# already-installed nightly needs a one-time
-# `rustup component add <comp> --toolchain nightly`:
-#   rust-src    -- std sources for IDE code insight (RustRover / IntelliJ Rust).
-#   llvm-tools  -- rustup alias for llvm-tools-preview; provides llvm-cov / llvm-profdata for fuzz coverage.
-#   rustc-dev   -- rustc's own crates (rustc_driver, rustc_middle, ...). A Dylint lint library links them, so
-#                  package/linter/monochromatic-lint-closure cannot compile without it. Rustup lists the component under
-#                  its own name plus the host triple (rustc-dev-x86_64-unknown-linux-gnu) and has no rename for it, so
-#                  Mise's component comparison matches it and starts no reinstall loop.
-# The alias prevents Mise's false missing-component loop; see
-# doc/troubleshooting/mise-rust-preview-component-reinstall.md.
-# ASAN backtrace symbolization uses the system llvm-symbolizer (not a rustup component).
-# The Android ABIs of the music player's native library (package/music-player/android-app/rust, built by cargo-ndk).
-# Without these targets a floating newest nightly cannot build it, and mise forces RUSTUP_TOOLCHAIN to that nightly.
-# mise adds missing targets to an installed toolchain on the next `mise install`.
-rust = { version = "nightly", components = "clippy,rust-src,llvm-tools,rustc-dev", targets = "aarch64-linux-android,x86_64-linux-android" }
-cargo-binstall = "latest"
-"cargo:timeout-cli" = "latest"
-
-# Dylint runs rustc-driver lints from dynamic libraries (package/linter/monochromatic-lint-closure,
-# doc/decision/rust-closure-lint-dylint.md). `cargo-dylint` is the `cargo dylint` subcommand that builds and loads a
-# library into a driver for the toolchain that built it; `dylint-link` is the linker the library's .cargo/config.toml
-# names, which writes the toolchain-qualified library copy Dylint looks for. Not pinned: mise.lock records the resolved
-# versions. Both are lockstep with the package's dylint_linting and dylint_testing crates, so a major Dylint release
-# means bumping those crates and rerunning the package tests. Both publish signed prebuilt Linux archives (checked with
-# `cargo binstall --dry-run` for 6.2.0), which the cargo backend fetches through the cargo-binstall above.
-"cargo:cargo-dylint" = "latest"
-"cargo:dylint-link" = "latest"
-
-# Test runner for every Rust package (replaces `cargo test`). nextest gives a
-# per-test process isolation model, faster parallel scheduling, and clearer
-# output. The `cargo:` backend resolves through cargo-binstall (installed just
-# above) to a prebuilt binary, so no slow source build. Inherited by child
-# config roots (e.g. package/cli/forbidden-strings.fuzz), so the nightly fuzz
-# crate gets the same runner without its own entry. The two podman-built
-# desktop apps install nextest inside their Containerfiles instead, since the
-# container filesystem does not see host mise tools.
-"cargo:cargo-nextest" = "latest"
-
-# Third-party license notices of the music player (package/music-player): its notices tasks run cargo-about over
-# the desktop crate and the Android native crate, and the release workflow ships the result with every binary
-# (doc/decision/music-player-third-party-licenses.md). Not pinned: mise.lock records the resolved version, and the
-# cargo backend resolves through cargo-binstall to the prebuilt release archive. The IDE's build image installs its
-# own copy (package/desktop-app/ide/Containerfile), since the container does not see host mise tools.
-"cargo:cargo-about" = "latest"
-
-# The unified Rust, Markdown and MDX linter behind the root lint:monochromatic-lint
-# and format:monochromatic-lint tasks and the Markdown commit policy. Not pinned, because this
-# repository publishes it: mise.lock records the resolved version. The cargo backend resolves
-# through cargo-binstall to the prebuilt release archive when one exists for the platform.
-"cargo:monochromatic-lint" = "latest"
-
-# The Git policy wrapper (package/git-policy/cli), installed from the published crate. Not pinned, because this
-# repository publishes it: mise.lock records the resolved version. The crate's binary is
-# `cli-git-native`; the postinstall links it as `git` in the gitignored per-worktree directory `.cache/cli-git-bin`,
-# which file-enforcer puts first in `_.path`. The link never lives in the tool's own `bin/`, because mise would then
-# create a global `git` shim. `when = "always"` relinks on every `mise install`, so a new worktree gets its link even
-# when the tool is already installed. The link is made under a temporary name and moved over `git`, so a concurrent
-# `git` never sees a missing file. `os = ["linux"]` because only Linux archives are released and the code was never
-# built elsewhere. Details: doc/planning/cli-git-native-cutover.md, section `Install the published tool`.
-"cargo:monochromatic-git-policy-cli" = { version = "latest", os = ["linux"], postinstall = { run = "mkdir --parents \"$MISE_CONFIG_ROOT/.cache/cli-git-bin\" && ln --symbolic \"$MISE_TOOL_INSTALL_PATH/bin/cli-git-native\" \"$MISE_CONFIG_ROOT/.cache/cli-git-bin/.git.$$\" && mv --no-target-directory \"$MISE_CONFIG_ROOT/.cache/cli-git-bin/.git.$$\" \"$MISE_CONFIG_ROOT/.cache/cli-git-bin/git\"", when = "always" } }
-
-# The nested Wayland compositor that hosts one GUI app for screenshots and synthetic input
-# (package/cli/nested-wayland-session). Not pinned: mise.lock records the resolved version. The crate's
-# cargo-binstall metadata points the cargo backend at the per-crate release archive, so no from-source
-# build runs. Releases carry Linux archives only.
-"cargo:monochromatic-nested-wayland-session" = "latest"
-
-# CMake for building vendored C libraries from Rust -sys crates. music-player's
-# `opus` dependency (pinned to opus-rs git HEAD in
-# package/music-player/desktop-app/Cargo.toml) uses opusic-sys, whose `bundled`
-# feature is on by default and compiles libopus 1.6.1 from source via CMake on
-# every platform. The Linux host carries no system cmake, so mise provides it
-# here; the two podman-built desktop apps install cmake inside their Containerfiles
-# instead, since the container filesystem does not see host mise tools. A CMake
-# generator is also required: the host and macOS fall back to system `make` (Unix
-# Makefiles), Windows uses the Visual Studio generator, and the containers install
-# ninja. See doc/troubleshooting/audiopus-cmake4-libopus-min-version.md.
-cmake = "latest"
-
-# rcodesign (the `apple-codesign` crate) signs, notarizes, and staples the
-# package/music-player/desktop-app macOS .app from Linux (the Mach-O is still
-# built on the Mac; only signing is cross-platform). Installed from crates.io by
-# crate name through the cargo backend, consistent with the other Rust CLIs in
-# this list. The crate's single binary is named `rcodesign` (not after the
-# crate), so the package's sign:macos task still resolves it on PATH, the same
-# way `cargo:timeout-cli` ships a `timeout` binary. The crate ships no
-# cargo-binstall metadata, so cargo-binstall falls back to a from-source build
-# here rather than fetching a prebuilt archive. See
-# doc/decision/desktop-app-code-signing.md and the package's sign:macos task.
-"cargo:apple-codesign" = "latest"
-
-# Zig toolchain for package/desktop-app/terminal: its libghostty-vt-sys
-# build-dependency compiles vendored Ghostty with Zig and requires Zig 0.15.x
-# (Fedora packages an older 0.14). Pinned to 0.15.2 to match the version the
-# terminal Containerfile fetches (ENV ZIG_VERSION=0.15.2) and
-# doc/decision/desktop-app-podman-build.md, so a host-native build links the
-# same Ghostty core as the container build. Bump both together.
-zig = "0.15.2"
-
-# Slint language server (.slint completion, diagnostics, live preview) for the
-# desktop Slint packages. Installed from crates.io now that Slint 1.17.0 includes
-# the Flickable wheel animation that previously required a git pin. Keep this
-# tool on the same Slint release family as the desktop app crates so the LSP's
-# compiler and live preview match the runtime they build against.
-"cargo:slint-lsp" = "latest"
-
-# Slint standalone live previewer (renders a .slint file in a window without an
-# editor). Also installed from crates.io so it matches slint-lsp without using
-# the old cargo-git rev/ref path that made mise.lock oscillate.
-"cargo:slint-viewer" = "latest"
-
-# Bubblewrap (`bwrap`), the unprivileged sandbox that package/cli/nested-wayland-session's inspect:headless-gpu uses to
-# hide /dev/dri and the network from a session. There is no aqua, github or cargo release of it, and the distro copy is
-# not on a mise-only machine; the conda-forge build runs unprivileged on user namespaces and needs no setuid. `os = ["linux"]`
-# because bubblewrap uses Linux namespaces and conda-forge has no Windows build.
-"conda:bubblewrap" = { version = "latest", os = ["linux"] }
-
-# Language servers the read-only Slint IDE (package/desktop-app/ide) looks up by program name on PATH, one block per
-# language family (the IDE's table is Helix's built-in languages.toml at the revision pinned in the IDE's Cargo.toml,
-# plus src/language/config). A language shows hover and inlay hints only when one of its servers is found. The IDE runs
-# every server in a sandbox without network access, so remote schemas and catalogs (for example taplo's and
-# yaml-language-server's schemastore lookups) are not fetched and only local schemas apply. None is pinned:
-# mise.lock records the resolved versions. TypeScript (TypeScript 7 in the project), rust-analyzer, slint-lsp and qmlls
-# are provided elsewhere. The npm servers need node, which this file provides.
-
-# TOML (toml, and mise.toml, Cargo.toml and similar). `taplo` is the aqua release binary, which includes `taplo lsp`
-# (the cargo crate `taplo-cli` needs the `lsp` feature and a source build). `tombi` is the aqua release binary.
-taplo = "latest"
-tombi = "latest"
-
-# Markdown. `marksman` and `rumdl` have aqua release binaries. markdown-oxide is not on crates.io, so its GitHub
-# release binary is used.
-marksman = "latest"
-rumdl = "latest"
-"github:Feel-ix-343/markdown-oxide" = "latest"
-
-# YAML and GitHub Actions workflows. `zizmor` has an aqua release binary. The Actions server is the npm package
-# `@actions/languageserver`; the YAML and Ansible servers are npm packages as well.
-zizmor = "latest"
-"npm:yaml-language-server" = "latest"
-"npm:@actions/languageserver" = "latest"
-"npm:@ansible/ansible-language-server" = "latest"
-
-# JSON, CSS and HTML. `vscode-langservers-extracted` provides vscode-json-language-server, vscode-css-language-server and
-# vscode-html-language-server. `superhtml` is the GitHub release binary (the registry has no aqua entry for it).
-"npm:vscode-langservers-extracted" = "latest"
-superhtml = "latest"
-
-# Shell scripts.
-"npm:bash-language-server" = "latest"
-
-# Dockerfile and Compose. `dockerfile-language-server-nodejs` provides docker-langserver and
-# `@microsoft/compose-language-service` provides docker-compose-langserver. docker-language-server has a GitHub release
-# binary and no registry entry.
-"npm:dockerfile-language-server-nodejs" = "latest"
-"npm:@microsoft/compose-language-service" = "latest"
-"github:docker/docker-language-server" = "latest"
-
-# AI inference server for local development (package/webapp-productivity/done).
-# Pinned (not "latest") because llama.cpp's release pipeline tags before the
-# Linux build finishes uploading, so any "latest" install run during that
-# window fails to find a ubuntu-x64 asset. Bump manually after verifying the
-# target tag has all 28 assets (including llama-bNNNN-bin-ubuntu-x64.tar.gz).
-"llama.cpp" = "b9829"
-
-opentofu = "latest"
-hcloud = "latest"
-"npm:typescript-language-server" = "latest"
-"cargo:coreutils" = { version = "latest", features = "unix" }
-"npm:socket" = "latest"
-
-# Cloudflare Workers CLI. Deploys package/config/lfs-r2-worker, this repo's
-# Git LFS server backed by R2 (anonymous read, token-gated write). Invoked only
-# as a CLI (`wrangler deploy`), so it lives here rather than as a pnpm dependency.
-"npm:wrangler" = "latest"
-
-# Static-site search index generator for package/ssg/aquati.cat (run as
-# `pagefind --site dist` in that package's build:postprocess). A CLI tool, so it
-# lives in the mise tool set rather than as a pnpm dependency.
-"npm:pagefind" = "latest"
-betterleaks = "latest"
-
-# === Android toolchain (package/music-player/android-app) ===
-# Hoisted here so the whole repo provisions from one tool manifest; the package's
-# mise.toml carries only tasks. This replaces the former dependency on a
-# machine-local Android SDK under /var/tmp (a reapable path) referenced from a
-# gitignored local.properties: mise now owns the JDK, the SDK command-line tools,
-# and cargo-ndk, and the run-once `prepare:android` task (below, auto-run by the
-# `prepare` umbrella) installs the SDK components into $ANDROID_HOME.
-
-# JDK for the Gradle / AGP build. AGP 9 / Gradle 9 need a JDK in the 17..21 range
-# (the host's newer JBR is too new), so Temurin 21, the top of that range.
-java = "temurin-21"
-
-# Android SDK command-line tools. The vfox android-sdk plugin installs ONLY
-# cmdline-tools and exports ANDROID_HOME / ANDROID_SDK_ROOT / PATH, which Gradle
-# and cargo-ndk both read (so no machine-local local.properties is needed). The
-# SDK components the build needs (platforms;android-37.0 for compileSdk 37,
-# build-tools;37.0.0, ndk;29.0.13846066, platform-tools) are NOT declarable as
-# mise tools, so the `prepare:android` task installs them via sdkmanager.
-# Left at "latest" deliberately, not pinned: cmdline-tools is just the installer
-# front-end (the components above carry the real versions), and if a newer release
-# ever breaks our build that is ours to fix, not a reason to freeze the installer.
-"android-sdk" = "latest"
-
-# cargo-ndk dispatches `cargo ndk` to cross-compile the music-player native engine
-# .so for both 64-bit ABIs (arm64-v8a for devices, x86_64 for emulators),
-# autodetecting the NDK from $ANDROID_HOME/ndk for its own Rust
-# cross-toolchain. (It does NOT export ANDROID_NDK_HOME to child build scripts, so
-# the build:native task derives and exports that itself for the bundled-C opusic-sys
-# libopus build; see that task.) Installed through the cargo backend, which resolves
-# via cargo-binstall (above) to a prebuilt binary with a from-source fallback,
-# consistent with the other Rust CLIs here. Needs `cargo` on PATH
-# (the rust tool above) to register as a cargo subcommand.
-"cargo:cargo-ndk" = "latest"
-
-# Duplicate code detection github.com/rafal-qa/slopo
-"pipx:slopo" = "latest"
-
 [settings]
-# Generate mise.lock
-lockfile = true
-
 # Disable unused magical behavior
 env_shell_expand = false
 
-# Enable automatic tool installation when entering directory
-auto_install = true
-
 # Experimental features
 experimental = true
-
-disable_backends = [
-  #region Not Cross platform
-  # Doesn't support Windows.
-  "asdf",
-  #endregion
-
-  #region Weak validation
-  "forgejo",
-  # GitHub has to be allowed for llama.cpp
-  # "github",
-  "gitlab",
-  "http",
-  "s3",
-  "ubi",
-  #endregion
-]
 
 # Per task timeout not implemented yet in Mise.
 # task_timeout = "5s"
 
 # Uncomment when debugging
 # verbose = true
-
-status.missing_tools = "always"
-
-# The crates this repository publishes are not held back by mise's minimum release age, so a release
-# is usable at once and needs no pin (user decision 2026-10-14). The age rule stays on for every other tool.
-# Only exact tool names match: a prefix glob such as "cargo:monochromatic-*" was tried and matched nothing,
-# so a newly published crate must be added to this list.
-minimum_release_age_excludes = [
-  "cargo:monochromatic-lint",
-  "cargo:monochromatic-git-policy-cli",
-  "cargo:monochromatic-nested-wayland-session",
-]
 
 # Matches the package/*/* directory depth (e.g. package/module/logger = 3 segments).
 task.monorepo_depth = 3
@@ -370,23 +54,13 @@ task.disable_spec_from_run_scripts = true
 # declare `shell = "node --input-type=module-typescript -e"` per task (node -e strips TS, runs ESM imports, and
 # supports top-level await).
 
-[settings.pipx]
-uvx = true
-
-[settings.npm]
-package_manager = "pnpm"
-
-# Cargo tools install through the cargo-binstall this file declares, never through mise's
-# built-in installer, which mise 2027.7.0 turns on by default when cargo-binstall is absent.
-[settings.cargo]
-binstall_native = false
-
 [hooks]
 # Runs at first `cd` before any tool is installed, so it must be cross-platform
 # and depend only on mise itself (the one guaranteed prerequisite). It delegates
-# to the `bootstrap` task: `mise install` installs missing tools, `mise upgrade`
-# re-resolves "latest" and installs newer versions. Hooks require a string body,
-# so the array `run` (which mise sequences and fails fast on) lives on the task.
+# to the `bootstrap` task, a thin alias of `toolchain:sync`, which installs the
+# versions toolchain.lock.json records (lock-constrained, the `pnpm install`
+# model). Hooks require a string body, so the array `run` (which mise sequences
+# and fails fast on) lives on the task.
 # Commented out to reduce delays in daily development.
 # enter = { task = "bootstrap" }
 
@@ -775,9 +449,29 @@ run = "slopo embed"
 [tasks."slopo:analyze"]
 run = "slopo analyze"
 
-[tasks."lock:mise"]
-description = "Regenerate mise.lock from active tool declarations"
-run = "mise lock"
+[tasks."toolchain:sync"]
+description = "Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)"
+run = "node package/dev-script/file-enforcer/src/toolchain/sync.ts"
+
+[tasks."toolchain:status"]
+description = "Print observed versus locked tool versions and exit non-zero on drift"
+run = "node package/dev-script/file-enforcer/src/toolchain/status.ts"
+
+[tasks."toolchain:update"]
+description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing"
+run = "node package/dev-script/file-enforcer/src/toolchain/update.ts"
+
+[tasks."toolchain:sync:global"]
+description = "Converge the machine-global tools to the versions its toolchain.lock.json records (doc/planning/mpm-global-toolchain-migration.md)"
+run = "node package/dev-script/file-enforcer/src/toolchain/sync.ts --global"
+
+[tasks."toolchain:status:global"]
+description = "Print observed versus locked versions of the machine-global tools and exit non-zero on drift"
+run = "node package/dev-script/file-enforcer/src/toolchain/status.ts --global"
+
+[tasks."toolchain:update:global"]
+description = "Re-resolve the machine-global tools into their toolchain.lock.json; --check reports without writing"
+run = "node package/dev-script/file-enforcer/src/toolchain/update.ts --global"
 
 #endregion Utility Tasks
 
@@ -1163,14 +857,15 @@ run = ["mise run format", "mise run build", "mise run test"]
 
 #region Preparation Tasks
 
-# Invoked by the `enter` hook on first `cd`, before any tool is installed. The
-# array `run` lets mise sequence the two commands and stop on the first failure,
-# with no shell-specific chaining, so it works under both `sh` and `cmd`. mise
-# itself is the only prerequisite, so this runs on a fresh clone with no manual
-# step (replacing the former "run `mise install` manually once" instruction).
+# Thin alias of `toolchain:sync`, kept so existing callers keep working (the
+# commented-out `enter` hook below, docs, and muscle memory). Invoked on a fresh
+# clone with no manual step: it installs the versions toolchain.lock.json records
+# (lock-constrained, the `pnpm install` model), and re-resolving versions is a
+# separate update action. The array `run` sequences and fails fast on the first
+# entry with no shell-specific chaining, so it works under both `sh` and `cmd`.
 [tasks.bootstrap]
-description = "Install and upgrade mise-managed tools (runs on directory entry)"
-run = ["mise install", "mise upgrade"]
+description = "Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)"
+run = ["mise run toolchain:sync"]
 
 [tasks.prepare]
 description = "Prepare environment: pnpm install, then fan out the prepare:* children (file sync, Playwright container, Android SDK, etc.). EXPENSIVE on a fresh clone: it auto-runs prepare:android (~2.9 GB Android SDK + NDK) and prepare:playwright (a podman image build) for every developer regardless of which packages they touch; this cost is intended and tolerated. Each child is idempotent, so reruns are cheap."
@@ -1222,59 +917,19 @@ run = """
 runWorkspaceNode('package/dev-script/task-util', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
 """
 
-# Android SDK components for package/music-player/android-app. The android-sdk
-# tool (in [tools]) installs only the command-line tools; the platform, build-tools,
-# NDK, and platform-tools are not declarable as mise tools, so sdkmanager installs
-# them into $ANDROID_HOME here. A depth-2 `prepare:*` task, so the `prepare` umbrella
-# auto-runs it after a fresh clone; guarded to be a fast no-op once provisioned.
-# Triple-SINGLE-quoted so the `\n` license-acceptance newlines reach node literally
-# (a triple-double-quoted body would have TOML pre-expand them and break the JS).
+# Android SDK components and the rustup Android targets for
+# package/music-player/android-app come from `toolchain:sync` (the `android-sdk`
+# route and the rust tool's `rustTargets` row of toolchain.lock.json). This task
+# stays as a thin alias of `toolchain:sync` so existing callers (the `prepare`
+# umbrella, the release workflow, package error messages) keep working. A depth-2
+# `prepare:*` task, so the `prepare` umbrella auto-runs it after a fresh clone.
+# EXPENSIVE on a fresh machine: ~2.9 GB of Android SDK + NDK (the NDK alone is
+# ~2.4 GB), and the `prepare` umbrella auto-runs it for every developer, not just
+# Android ones; this cost is intended and tolerated. Idempotent: a fast no-op
+# once provisioned.
 [tasks."prepare:android"]
-description = "Install the Android SDK components package/music-player/android-app needs (platforms;android-37.0, build-tools;37.0.0, ndk;29.0.13846066, platform-tools) into $ANDROID_HOME via sdkmanager, accept licenses, and add the aarch64-linux-android (devices) and x86_64-linux-android (emulators) rustup targets. EXPENSIVE: ~2.9 GB on disk (the NDK alone is ~2.4 GB), and the `prepare` umbrella auto-runs it for every developer, not just Android ones; this cost is intended and tolerated. Idempotent: a no-op once provisioned."
-shell = "node --input-type=module-typescript -e"
-run = '''
-const { existsSync, readdirSync } = await import("node:fs");
-const { join } = await import("node:path");
-const { execFileSync } = await import("node:child_process");
-const sdk = process.env.ANDROID_HOME;
-if (!sdk) {
-  throw new Error("ANDROID_HOME is unset; the android-sdk mise tool exports it. Run `mise install` first.");
-}
-const wantPlatform = "android-37.0";
-const wantBuildTools = "37.0.0";
-const wantNdk = "29.0.13846066";
-const have = (sub, name) => existsSync(join(sdk, sub, name));
-let rustReady = false;
-try {
-  // Both 64-bit Android targets must be present: aarch64 for physical devices and
-  // x86_64 for emulators. Checking only aarch64 would let a machine that has aarch64
-  // but not x86_64 short-circuit as "ready", then fail build:native's x86_64 cross.
-  const installed = execFileSync("rustup", ["target", "list", "--installed"], { encoding: "utf8" })
-    .split("\n");
-  rustReady = installed.includes("aarch64-linux-android") && installed.includes("x86_64-linux-android");
-} catch (err) {
-  rustReady = false;
-}
-if (have("platforms", wantPlatform) && have("build-tools", wantBuildTools) && have("ndk", wantNdk) && have("platform-tools", "adb") && rustReady) {
-  console.log("Android SDK components already provisioned; nothing to do.");
-} else {
-  const cmdlineRoot = join(sdk, "cmdline-tools");
-  if (!existsSync(cmdlineRoot)) {
-    throw new Error(`No cmdline-tools under ${cmdlineRoot}; run \`mise install\` first.`);
-  }
-  const versions = readdirSync(cmdlineRoot);
-  const ver = versions.find((v) => v !== "latest") ?? versions[0];
-  const sdkmanager = join(cmdlineRoot, ver, "bin", "sdkmanager");
-  const sdkRootArg = `--sdk_root=${sdk}`;
-  // sdkmanager prompts to accept each license on stdin; feed a stream of "y" + newline.
-  const yes = "y\n".repeat(50);
-  execFileSync(sdkmanager, [sdkRootArg, "--licenses"], { input: yes, stdio: ["pipe", "inherit", "inherit"] });
-  execFileSync(sdkmanager, [sdkRootArg, `platforms;${wantPlatform}`, `build-tools;${wantBuildTools}`, `ndk;${wantNdk}`, "platform-tools"], { input: yes, stdio: ["pipe", "inherit", "inherit"] });
-  // rustup target add is idempotent and accepts several targets at once, so adding
-  // both unconditionally is safe even when one is already installed.
-  execFileSync("rustup", ["target", "add", "aarch64-linux-android", "x86_64-linux-android"], { stdio: "inherit" });
-}
-'''
+description = "Alias of toolchain:sync: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)"
+run = ["mise run toolchain:sync"]
 
 [tasks.prepareAndBuild]
 description = "Complete setup: prepare environment and build all artifacts"
@@ -1477,8 +1132,12 @@ buildPublishPlan();
 # https://mise.jdx.dev/environments/secrets/sops.html
 _.file = [{ path = ".env.local.json", redact = true }]
 
-# The first entry is the gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
-# installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli tool in mise.no-env.toml).
+# The first entry is the gitignored per-worktree toolchain exposure directory
+# .cache/toolchain-bin, one link per tool toolchain.lock.json declares, so tasks
+# resolve the locked tools before any ambient or global one. The second is the
+# gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
+# installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli
+# tool in the toolchain plan).
 # The rest are workspace bin dirs, globbed from what is installed on disk rather than
 # read from workspace metadata. So this list changes with install state: a fresh
 # clone, a pruned package, or a pnpm install that adds a dependency all move it.
@@ -1487,6 +1146,7 @@ _.file = [{ path = ".env.local.json", redact = true }]
 # file-enforcer.config.ts. Issue #335 tracks deriving it from workspace metadata
 # instead, which would make it stable across environments.
 _.path = [
+  ".cache/toolchain-bin",
   ".cache/cli-git-bin",
   "node_modules/.bin",
   "package/agent-harness-shared/advisor/node_modules/.bin",

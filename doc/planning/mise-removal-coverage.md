@@ -264,7 +264,8 @@ backends,
 shims,
 `mise.lock`,
 `mise install`,
-and `mise upgrade`.
+and `mise upgrade` until the cutover in `doc/planning/mpm-toolchain-migration.md` removes them;
+the `Owner, selected 2026-10-26` field describes the owner after cutover.
 
 Evidence:
  `mise.toml:27-211`,
@@ -278,39 +279,84 @@ Rust components,
 JDK and Android tooling,
 and platform-specific binaries.
 
-Proposed owner:
- file-enforcer owns canonical TypeScript toolchain policy,
-provider selection,
+Owner,
+selected 2026-10-26
+ ([`doc/decision/mpm-toolchain-adoption.md`](../decision/mpm-toolchain-adoption.md)):
+ Meta Package Manager owns the restore manifest (`mpm.packages.toml`),
+machine inventory (`mpm installed`),
+outdated detection (`mpm outdated`),
+upgrade coordination (`mpm upgrade`),
+the release-age cooldown,
+and SBOM export (`mpm sbom`).
+file-enforcer's typed tool plan
+(`package/dev-script/file-enforcer/src/toolchain/`) owns policy,
 convergence order,
 and drift reporting.
-pnpm 12.4+ is the primary surface provider candidate for Node,
-Deno,
-and Bun runtimes;
-package-manager pins;
-npm,
-Cargo,
-and Python dependencies;
-and npm-distributed CLIs.
-File-enforcer's existing OS package dispatch remains the provider for system packages.
-Rust toolchains and components,
-JDK,
-Android SDK and NDK,
-Zig,
-and remaining standalone binaries still require focused providers.
-One manually installed bootstrap prerequisite must provision Node before file-enforcer can execute;
-a committed generated manifest must carry that bootstrap state on a fresh clone.
+The maintainer confirmed the install route per tool family
+(`doc/planning/mpm-toolchain-migration.md`,
+section `Routing (user-confirmed 2026-10-26)`):
+single-binary payloads install with the upstream `bin` CLI
+(`bin install <source spec>`,
+GitHub shorthand,
+release-tag URLs,
+host sources),
+and MPM's `bin` manager owns their inventory and upgrades afterwards
+(the manager declares no `install` operation by design);
+multi-binary or whole-tree payloads (`age`,
+`cmake`,
+`llama.cpp`,
+`uv`,
+`taplo`,
+the JDK,
+Node,
+`zig`,
+`bubblewrap`) and sources `bin` cannot fetch
+go through the checksummed `archive` provider.
+npm CLI tools route through MPM's `pnpm` manager id
+and `pipx:slopo` through MPM's `uvx` manager id
+(the one wrapping `uv tool install`).
+`cargo:` tools stay a repository provider over `cargo-binstall`.
+Rust stays MPM's `rustup` manager
+(toolchain ids carry the exact channel)
+plus direct `rustup component add` and `rustup target add` calls.
+Android SDK components stay a repository provider
+running the Android CLI shipped in cmdline-tools
+(`android sdk install <package>[@<version>]...`).
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what `toolchain:sync` installs
+(the `mise install` against `mise.lock` semantics),
+so the explicit pins still install exactly.
+The sync installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`,
+and re-resolving versions is a separate update action
+(the `pnpm update` analogue).
+`mpm.managers.toml` entries are inventory and pin descriptions
+for the `cargo:` family only;
+no install depends on `mpm restore` except the `rustup` slice.
+`toolchain.lock.json` replaces `mise.lock` as the pinned version record.
+The sync entry point is `mise run toolchain:sync`
+(also `node package/dev-script/file-enforcer/src/toolchain/sync.ts`),
+`mise run toolchain:status` reports drift,
+and `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` reports the exposure directory.
+One manually installed bootstrap prerequisite remains:
+Node executes the sync entry and Mise wraps it as a task;
+the sync then stages `bin` (a standalone release binary,
+SHA-256 checked against the release `checksums.txt` values),
+`uv`,
+and `mpm` (the PyPI wheel `meta-package-manager` 8.2.0,
+SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`) before the other tools.
 
 Selection status:
- pnpm's expanded surface is verified from 12.4.1 documentation and source but not adopted or runtime-validated here.
-Meta Package Manager 7.6.1 is a serious orchestration candidate,
-not a selected provisioning owner.
-One restore detects backends before package operations,
-and several relevant default adapters do not preserve recorded versions.
-A staged outer workflow and direct provider commands may cover both constraints,
-but that composition remains unverified.
-Remaining providers are unselected and require a choosing-technology audit.
-Do not assume pnpm's experimental ecosystem support or several native installers already compose into the required
-cross-platform contract.
+ selected 2026-10-26 on the maintainer's direct instruction,
+with the disposable provisioning verification in `doc/planning/mpm-toolchain-migration.md` as the adoption pilot.
+The maintainer confirmed the per-family routes on 2026-10-26
+(`doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`).
+`mpm restore` covers only the managers whose adapters honor the recorded version;
+the sync installs the rest from `toolchain.lock.json`
+(`doc/troubleshooting/mpm-manager-extensibility.md`).
+macOS and Windows provisioning parity stays unverified.
 
 Parity gate:
  a disposable clean home on every supported operating system installs the committed versions,
@@ -321,7 +367,10 @@ and performs explicit updates without unrelated installations.
 
 Intentionally retired behavior:
  none selected.
-Floating `latest` requests require an explicit reproducibility decision.
+Floating `latest` requests keep today's semantics
+(floating requests with committed resolutions),
+confirmed 2026-10-26 in `doc/decision/mpm-toolchain-adoption.md`,
+section `Maintainer confirmations (2026-10-26)`.
 
 ### Task discovery and execution
 
@@ -574,6 +623,17 @@ CI should request only each job's tools.
 Selection status:
  blocked by those selections.
 
+Pin source:
+ `toolchain.lock.json`
+ (generated by file-enforcer from the typed tool plan)
+ replaces `mise.lock` as the pinned-version record every workflow and container build reads.
+ The cutover repoints `.github/actions/task-cli-setup/action.yml`,
+ the `awk` Rust scrapers in `.github/workflows/music-player-release.yml`,
+ `.github/workflows/kotlin-linter-publish.yml`,
+ and `package/music-player/desktop-app/Containerfile.windows-gnu`
+ (`doc/planning/mpm-toolchain-migration.md`,
+ section `Cutover`).
+
 Parity gate:
  all nine workflows preserve cache keys,
 release-age policy,
@@ -639,7 +699,18 @@ Existing Containerfiles and VM-builder code remain machine-setup owners,
 not a new task runner.
 
 Selection status:
- blocked by tool-provider selection.
+ the tool provider is selected:
+ the toolchain system of `doc/decision/mpm-toolchain-adoption.md` (2026-10-26),
+ which installs into manager-native homes plus the toolchain root and exposes
+ executables through `.cache/toolchain-bin`.
+ The `.idea/` path repoints and the Containerfile pin repoints land with the
+ consumer migration in `doc/planning/mpm-toolchain-migration.md`,
+ section `Consumers`.
+ The user-global `~/.config/mise/config.toml` `[tools]` slice moved to the same
+ system on 2026-10-28
+ (`doc/planning/mpm-global-toolchain-migration.md`);
+ the VM-builder and Containerfile seeding of a global Mise config still needs
+ to follow that shape.
 
 Parity gate:
  editor linting,
@@ -692,7 +763,17 @@ required system packages are not filtered out accidentally,
 and no tool is omitted because a retired registry formerly claimed ownership.
 
 Intentionally retired behavior:
- Mise-registry filtering retires only with a replacement classification rule.
+ Mise-registry filtering retires with the `[tools]` cutover.
+ The replacement classification rule is the `route` field of `toolchain.lock.json`
+ (`bin-sourced`,
+ `archive`,
+ `cargo-binstall`,
+ `mpm-pnpm`,
+ `mpm-uvx`,
+ `rustup-toolchain`,
+ `rustup-components`,
+ `android-sdk`),
+ selected in `doc/decision/mpm-toolchain-adoption.md` (2026-10-26).
 
 ### Agent policy, guardrails, filters, tests, and documentation
 

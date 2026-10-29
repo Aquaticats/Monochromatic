@@ -2,6 +2,13 @@
 until `rust@nightly` is installed through mise,
 failing a CI job that has Rust only from rustup
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 ## Symptom
 
 The Android job of `.github/workflows/music-player-release.yml` installed its tools with a single call:
@@ -97,6 +104,16 @@ Rust (the hint's second suggestion),
 which would change the repository's toolchain pin.
 
 ## Verified workarounds
+
+Current toolchain:
+ `mise run toolchain:sync` stages `bin`,
+ `uv`,
+ `mpm`,
+ `rust`,
+ and `cargo-binstall` before the tools that depend on them
+ (`doc/planning/mpm-toolchain-migration.md`,
+ sections `Sync algorithm` and `Implementation record (toolchain-core, 2026-10-26)`),
+ so the ordering this record establishes is now built into the sync.
 
 Install Rust (and `cargo-binstall`) through mise before any `cargo:` tool,
 as shown above.

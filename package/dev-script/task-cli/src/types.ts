@@ -12,11 +12,16 @@ export type TaskStep = string | { readonly shell: string; readonly run: string; 
 
 /**
  One task definition in a root or package `task.ts` file.
+
+ `dir` moves the body's working directory relative to the package directory,
+ matching the `dir` field of the `mise.toml` tasks these replace; without it the
+ body runs in the package directory.
  */
 export type TaskDefinition = {
   readonly description?: string;
   readonly extends?: string;
   readonly depends?: readonly string[];
+  readonly dir?: string;
   readonly run?: TaskStep | readonly TaskStep[];
   readonly usage?: string;
   readonly env?: Readonly<Record<string, string>>;

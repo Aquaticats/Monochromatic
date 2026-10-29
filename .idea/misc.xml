@@ -18,7 +18,7 @@
     version='2'
     languageLevel='JDK_21'
     default='true'
-    project-jdk-name='temurin-21 (mise)'
+    project-jdk-name='temurin-21 (toolchain)'
     project-jdk-type='JavaSDK'
   />
 </project>

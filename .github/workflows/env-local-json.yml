@@ -49,9 +49,6 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Set up node, pnpm and the task CLI
       uses: ./.github/actions/task-cli-setup
-      with:
-        node-version: '26.12.0'
-        pnpm-version: '12.14.0'
     - name: Install sops and age
       shell: bash
       run: |
@@ -83,9 +80,6 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Set up node, pnpm and the task CLI
       uses: ./.github/actions/task-cli-setup
-      with:
-        node-version: '26.12.0'
-        pnpm-version: '12.14.0'
     - name: Build the reader
       run: task-run //package/module/env-local-json:build
     - name: Verify podman

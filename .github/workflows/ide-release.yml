@@ -49,8 +49,6 @@ on:
 
 permissions: {}
 
-env: {}
-
 # Serialize runs so a second version bump landing while a release is still building does not race
 # the first. cancel-in-progress=false keeps the running release alive; the second run queues.
 concurrency:
@@ -264,7 +262,6 @@ jobs:
     - name: Set up node and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
 
     # inspect:bundle writes its scratch below ~/temp/agent and refuses a directory open to group or others.
