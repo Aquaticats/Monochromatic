@@ -68,6 +68,17 @@ Make `monochromatic-lint` ban long shell in `.github/workflows/*.{yml,yaml}`.
   and a ratchet block sets it to the file's current worst body.
 - **Line counting:** every physical non-blank, non-comment line counts,
   including `\` continuations and heredoc content.
+- **Rule structure:** one rule per banned construct, each with an occurrence `max` defaulting to 0.
+  The owner chose this over one combined rule.
+- **Dialects:** a per-dialect table says which constructs apply, so a PowerShell backtick is not flagged
+  as command substitution and cmd is not scanned for `;`.
+  The exact fish and pwsh entries must be checked against their manuals before coding.
+- **Directives:** both families of rule refuse inline directives;
+  the only exemption is a ratchet block in `monochromatic-lint.config.jsonc`.
+- **YAML parsing:** a hand-written minimal extractor, not a crate.
+  The owner chose this over running the `choosing-technology` process.
+  The extractor can miss forms it does not understand,
+  so any `run:` value it cannot read is a `core/processing-failure`, never a skip.
 - **Unresolvable `shell:`:** a `shell:` value that is an expression, such as `${{ matrix.shell }}`,
   is a `core/processing-failure` finding at the value.
 - **Host files:** `.github/workflows/*.{yml,yaml}` and composite actions
@@ -87,11 +98,13 @@ Counting only non-blank, non-comment lines, measured 2026-10-29 with a scratch s
   across 11 files.
 - `shell:` values: 56 `bash`, 5 `node {0}`, 1 `pwsh`, none an expression.
 - `.github/actions` holds one file, `task-cli-setup/action.yml`.
+- `run:` value forms across the workflows and that action, by a scratch script:
+  147 block literal (`|`) and 86 plain single-line.
+  No folded, quoted, multi-line plain, anchor, alias, merge key, tag, flow-style steps or multi-document file.
+  `defaults.run.shell` (a mapping named `run`, not a step) occurs once, at
+  `.github/workflows/music-player-release.yml:1539`, so the extractor must tell a step's `run` from it.
 
 ## Open
 
-- Rule name and structure for the banned constructs, and whether the construct list is per dialect.
-- Whether directives may suppress the rules.
-- Choice of YAML parser,
-  which must expose byte offsets of block scalar content.
-- Whether inline directives (`#` comments) can suppress the rules in YAML.
+- Which `run:` value forms the extractor reads.
+- Which rule owns a single `&` (cmd command separator, POSIX background).
