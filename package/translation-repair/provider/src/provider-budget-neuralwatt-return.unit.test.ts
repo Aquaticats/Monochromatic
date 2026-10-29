@@ -86,7 +86,8 @@ const FRESH_DAY: Reading = {
 
  @param msBeforeReturn - how long before its day starts again the wall clock reads
 
- @param clock - monotonic clock the case advances, absent for the real one
+ @param clock - monotonic clock the case advances, which the budgets judge every hold and the cache window against; a
+ case that waits hands the fake clock its wait sleeps on, so no real time passes
 
  @param reads - counts the energy reads
 
@@ -120,7 +121,7 @@ function budgetsBefore(
     hyperCooldownMs,
   }: {
     readonly msBeforeReturn: number;
-    readonly clock?: { now: number; };
+    readonly clock: { readonly now: number; };
     readonly reads: { count: number; };
     readonly spent?: Reading;
     readonly withXiaomi?: boolean;
@@ -145,8 +146,7 @@ function budgetsBefore(
       dayAnchor: () => ({ known: true, msOfDay: DAY_START_MS_OF_DAY, }),
     },
     freshForMs: FRESH_MS,
-    // Conditional spread keeps the real clock where the case advances none.
-    ...((clock === undefined) ? {} : { now: () => clock.now, }),
+    now: () => clock.now,
     wallNow: () => new Date(Date.UTC(
       2_026,
       9,
@@ -534,16 +534,25 @@ await describe({
       name: 'KEEPS THE DISTANCE ON THE REFUSAL AFTER WAITING OUT ANOTHER HOLD: every provider dry, Hyper held 40 ms '
         + 'and NeuralWatt 600 s from its day start (past the router\'s 300 s), so the call waits out Hyper and the '
         + 'refusal still carries the distance and the time of day, which the pass parks on',
-      fn: async () => {
+      fn: async ctx => {
+        using fake = fakeClockStarted({ sinon: ctx.sinon, },);
+        // THE FAKE CLOCK IS THE MONOTONIC CLOCK, since Hyper's 40 ms hold is judged against it and passes only as the case
+        // ticks it.
         const budgets = budgetsBefore({
           msBeforeReturn: 600_000,
+          clock: fake.clock,
           reads: { count: 0, },
           staysSpent: true,
           hyperCooldownMs: 40,
         },);
         await budgets.read({ signal: SIGNAL, },);
         await budgets.markRefused({ provider: 'hyper', signal: SIGNAL, },);
-        const thrown = await refusalAfterHolds({ budgets, pollMs: 1, },);
+        /**
+         The router's call, sleeping out Hyper's 40 ms hold in slices of a millisecond on the fake clock.
+         */
+        const refusal = refusalAfterHolds({ budgets, pollMs: 1, },);
+        await fake.clock.tickAsync(40 + 1,);
+        const thrown = await refusal;
         expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
         expect((thrown as Error).message,).toContain('after waiting',);
         expect((thrown as EveryProviderDryError).neuralwattReturnsAt,).toBe('19:15:08 UTC',);
