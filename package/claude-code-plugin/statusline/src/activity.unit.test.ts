@@ -3,7 +3,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -83,7 +83,7 @@ async function makeTranscript(lines: readonly string[],): Promise<TempTranscript
    Throwaway directory holding the transcript.
    */
   const directory = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'claude-statusline-activity-',
   ),);
   /**
@@ -232,7 +232,7 @@ await describe({
           name: 'returns empty for a missing transcript',
           fn: async function testMissing(): Promise<void> {
             expect(await readActivityWord({ transcriptPath: join(
-              tmpdir(),
+              scratchRoot(),
               'claude-statusline-activity-does-not-exist.jsonl',
             ), },),).toBe('',);
           },

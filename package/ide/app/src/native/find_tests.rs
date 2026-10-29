@@ -88,7 +88,7 @@ pub(super) fn memory_project(prefix: &str) -> tempfile::TempDir {
     {
         return directory;
     }
-    return tempfile::tempdir().expect("disposable project");
+    return crate::test_scratch::scratch().expect("disposable project");
 }
 
 /// What:
@@ -329,7 +329,7 @@ pub(super) fn selection(reader: &Reader) -> (usize, usize) {
 ///  the reply was still missing after the first layout and the measurement pass in 28 of 160 runs.
 #[test]
 fn a_reader_is_opened_with_its_highlighting_applied() {
-    let fixture = tempfile::tempdir().expect("disposable find project");
+    let fixture = crate::test_scratch::scratch().expect("disposable find project");
     fs::write(fixture.path().join("plain.txt"), "plain text\n").expect("plain fixture");
     let opened = reader(fixture.path(), "plain.txt");
     let current = opened.source.borrow();
@@ -354,7 +354,7 @@ fn a_reader_is_opened_with_its_highlighting_applied() {
 ///  and the remembered query.
 #[test]
 fn native_find_opens_types_steps_wraps_reveals_and_closes() {
-    let fixture = tempfile::tempdir().expect("disposable find project");
+    let fixture = crate::test_scratch::scratch().expect("disposable find project");
     let filler = "ordinary line\n".repeat(80);
     let text = format!("first needle\n{filler}second Needle here\n{filler}third NEEDLE\n");
     fs::write(fixture.path().join("find.txt"), &text).expect("find fixture");
@@ -551,7 +551,7 @@ fn native_find_recomputes_after_external_reload_and_follows_selection_correspond
 ///  and a match on a far continuation row is scrolled into view.
 #[test]
 fn native_find_paints_visible_matches_only_and_reveals_far_rows() {
-    let fixture = tempfile::tempdir().expect("disposable paint project");
+    let fixture = crate::test_scratch::scratch().expect("disposable paint project");
     let wide = format!("{}needle\n", "x".repeat(400));
     let text = format!("{}{wide}", "needle here\n".repeat(300));
     fs::write(fixture.path().join("many.txt"), &text).expect("paint fixture");

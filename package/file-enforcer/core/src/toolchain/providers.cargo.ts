@@ -10,7 +10,11 @@ import {
 } from './exec.ts';
 import { toolInstallDir, } from './paths.ts';
 import type { ProviderContext, } from './providers.context.ts';
-import { toolchainPathEnv, } from './providers.environment.ts';
+import {
+  NO_GITHUB_TOKEN,
+  resolveGithubToken,
+  toolchainPathEnv,
+} from './providers.environment.ts';
 
 //region cargo-binstall provider
 
@@ -58,15 +62,26 @@ export async function installCargoBinstall(
   }
   args.push(entry.packageId ?? entry.id,);
   /**
+   GitHub token so `cargo binstall` release lookups do not hit the unauthenticated API quota.
+   Without it, an exhausted quota stalls resolution past its timeout and binstall silently compiles from source
+   (`doc/troubleshooting/cargo-binstall-compiles-when-github-api-rate-limited.md`).
+   */
+  const token = await resolveGithubToken({ env, },);
+  /**
    Install run result through the toolchain's own manager directories.
    */
   const result = await run({
     command: 'cargo',
     args,
-    env: toolchainPathEnv({
-      paths,
-      env,
-    },),
+    env: {
+      ...toolchainPathEnv({
+        paths,
+        env,
+      },),
+      ...(token === NO_GITHUB_TOKEN
+        ? {}
+        : { GITHUB_TOKEN: token, }),
+    },
   },);
   if (result.code !== 0) {
     throw new Error(

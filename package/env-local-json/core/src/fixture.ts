@@ -18,9 +18,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import {
-  tmpdir,
-} from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
 } from 'node:path';
@@ -297,7 +295,7 @@ export async function createTempRoot({
    Fresh temporary directory.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     prefix ?? FIXTURE_PREFIX,
   ),);
   await chmod(
@@ -481,7 +479,7 @@ export async function createSopsFixture({
    Disposable fixture root.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     FIXTURE_PREFIX,
   ),);
   await chmod(
@@ -612,7 +610,7 @@ export function readerEnvironment({
       .PATH
       ?? '',
     HOME: home,
-    TMPDIR: tmpdir(),
+    TMPDIR: scratchRoot(),
     ...extra,
   };
 }

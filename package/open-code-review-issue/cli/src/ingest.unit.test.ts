@@ -2,7 +2,7 @@ import {
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -240,7 +240,7 @@ await describe({
         /**
          Disposable input directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-input-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-input-',),);
         /**
          Named file carrying forbidden UTF-8 BOM before valid JSON.
          */
@@ -271,7 +271,7 @@ await describe({
         /**
          Disposable input directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-input-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-input-',),);
         /**
          Valid named comment-array file.
          */
@@ -295,7 +295,7 @@ await describe({
         /**
          Disposable input directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-input-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-input-',),);
         /**
          Invalid two-byte UTF-8 sequence fixture.
          */

@@ -14,9 +14,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import {
-  tmpdir,
-} from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
 } from 'node:path';
@@ -64,7 +62,7 @@ async function makeRepo(
    Freshly created throwaway root path.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'catalog-tighten-declared-',
   ),);
   await writeFile(

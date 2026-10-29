@@ -85,7 +85,7 @@ struct Rig {
 //           track has `second_rate`, so a different value forces the "output must be rebuilt" path.
 // Why:      Tests must never touch the user's music or session.
 fn rig(tag: &str, second_rate: u32) -> Rig {
-    let directory = std::env::temp_dir().join(format!("mp-position-{}-{}", std::process::id(), tag));
+    let directory = crate::test_scratch::scratch_root().join(format!("mp-position-{}-{}", std::process::id(), tag));
     std::fs::create_dir_all(&directory).expect("the test directory should be creatable");
     let first = directory.join("t1.wav");
     let second = directory.join("t2.wav");

@@ -374,7 +374,7 @@ pub(crate) fn use_disposable_config_home(test: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("the clock is after the epoch")
         .as_nanos();
-    let home = std::env::temp_dir().join(format!("mp_config_{test}_{nanos}"));
+    let home = crate::test_scratch::scratch_root().join(format!("mp_config_{test}_{nanos}"));
     std::fs::create_dir_all(&home).expect("the disposable config home is created");
     // SAFETY: nextest runs each test in its own process, and the test sets this before it starts any thread of its own,
     // so no other thread reads the environment while it changes.

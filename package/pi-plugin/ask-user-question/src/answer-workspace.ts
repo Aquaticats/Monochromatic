@@ -5,7 +5,6 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { withFileMutationQueue, } from '@earendil-works/pi-coding-agent';
@@ -13,6 +12,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { HelperRequest, } from './helper-request.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Constants
 
 /**
@@ -90,7 +90,7 @@ export async function createAnswerWorkspace(): Promise<AnswerWorkspace> {
    Unique directory hidden from other operating-system users.
    */
   const directory = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     WORKSPACE_PREFIX,
   ),);
   await chmod(

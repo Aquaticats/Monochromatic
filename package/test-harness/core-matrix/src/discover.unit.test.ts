@@ -14,7 +14,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -47,7 +47,7 @@ type TempDir = {
  */
 async function createTempDir(id: string,): Promise<TempDir> {
   const path = await mkdtemp(
-    join(tmpdir(), `${TEST_DIR_PREFIX}-${id}-`,),
+    join(scratchRoot(), `${TEST_DIR_PREFIX}-${id}-`,),
   );
 
   return {

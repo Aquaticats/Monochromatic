@@ -18,8 +18,12 @@ import {
   run,
   type RunResult,
 } from './exec.ts';
-import { findToolBin, } from './layout.ts';
+import {
+  BIN_NOT_FOUND,
+  findToolBin,
+} from './layout.ts';
 import { toolInstallDir, } from './paths.ts';
+import { ALL_TOOLS, } from './plan.ts';
 import {
   artifactForHost,
   planTool,
@@ -57,12 +61,12 @@ export async function installRustToolchain(
     paths,
     env,
     extraDirs,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Toolchain `mpm`, when the mpm bootstrap staged it.
    */
-  const mpmBin = findToolBin({
+  const mpmBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'mpm',
@@ -72,7 +76,7 @@ export async function installRustToolchain(
     env,
     extraDirs,
   },);
-  if (mpmBin !== null) {
+  if (mpmBin !== BIN_NOT_FOUND) {
     /**
      `mpm restore` limited to the rustup manager.
      */

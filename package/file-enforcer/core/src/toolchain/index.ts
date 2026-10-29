@@ -19,10 +19,11 @@ export {
   runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
-  writeToolEnvFile,
   type ExposureReport,
 } from './exposure.ts';
+export { writeToolEnvFile, } from './exposure.env.ts';
 export {
+  BIN_NOT_FOUND,
   hostPlatformId,
   findToolBin,
   type BinSearchContext,
@@ -41,9 +42,13 @@ export {
   EXPOSURE_DIR_RELATIVE,
   resolveToolchainPaths,
   toolchainRootFromEnv,
+  toolInstallDir,
   worktreeRootFromModule,
+  type PathEnv,
   type ToolchainPaths,
 } from './paths.ts';
+export type { ToolArtifacts, } from './plan.artifacts.data.ts';
+export { loadPlanFromDir, } from './plan.load.ts';
 export {
   ALL_TOOLS,
   BIN_BOOTSTRAP,
@@ -58,13 +63,17 @@ export {
   installArchive,
   installBinSourced,
   installCargoBinstall,
+  installCargoGit,
+  installGoInstall,
   installMpmPnpm,
   installMpmUvx,
   installRustComponents,
   installRustToolchain,
   parseBinList,
   parseCargoBinstallList,
+  ReleaseTagUrlError,
   releaseTagUrl,
+  seedBinConfig,
   type ProviderContext,
 } from './providers.ts';
 export {
@@ -73,11 +82,15 @@ export {
   type GenerateReport,
 } from './generate.ts';
 export {
-  syncOrder,
+  replacementWarning,
   syncToolchain,
-  appliesToHost,
   type SyncReport,
 } from './sync.ts';
+export {
+  appliesToHost,
+  syncOrder,
+} from './sync.order.ts';
+export { NOT_INSTALLED, } from './status.observe.ts';
 export {
   normalizeVersion,
   observeTool,
@@ -96,3 +109,25 @@ export {
   type ToolRequest,
   type ToolRoute,
 } from './types.ts';
+export {
+  patchPlanVersions,
+  renderPlanArtifactsTs,
+} from './update.render.ts';
+export {
+  mapGithubRows,
+  parseShasums,
+  resolveGoModule,
+  resolveGoRuntime,
+  resolveNpm,
+  resolveRust,
+  resolveRustup,
+  resolveZigLatest,
+  versionFromTag,
+  type Fetcher,
+} from './update.resolvers.ts';
+export {
+  applyResolutions,
+  formatReport,
+  resolveAll,
+  type UpdateOutcome,
+} from './update.ts';

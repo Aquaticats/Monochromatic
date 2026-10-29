@@ -21,6 +21,7 @@ import {
 } from './exec.ts';
 import { isErrnoException, } from './fs-probe.ts';
 import { homeDirFromEnv, } from './paths.ts';
+import { ALL_TOOLS, } from './plan.ts';
 import {
   artifactForHost,
   type ProviderContext,
@@ -403,7 +404,7 @@ export async function installBinSourced(
     entry,
     paths,
     env,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Verified artifact for the host platform, whose URL carries the tag.
@@ -439,7 +440,7 @@ export async function installBinSourced(
   /**
    Absolute `bin` CLI at the bootstrap's install directory.
    */
-  const cli = binCliPath({
+  const cli = await binCliPath({
     paths,
     env,
     tools,

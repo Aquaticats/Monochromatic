@@ -8,20 +8,20 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { buildBinPathsOutput, } from './bin-paths.ts';
 import {
-  resolveToolchainPaths,
+  buildBinPathsOutput,
   type PathEnv,
+  resolveToolchainPaths,
   type ToolchainPaths,
-} from './paths.ts';
-import { TOOLS, } from './plan.ts';
+  TOOLS,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Disposable worktree fixture with an isolated home.
@@ -51,7 +51,7 @@ function fixtureWorktree(
    Disposable fixture root.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-bin-paths-',
   ),);
   /**
@@ -137,14 +137,14 @@ await describe({
             const fixture = fixtureWorktree({
               links: {
                 taplo: join(
-                  tmpdir(),
+                  scratchRoot(),
                   'toolchain-bin-paths-target-taplo',
                 ),
               },
             },);
             symlinkSync(
               join(
-                tmpdir(),
+                scratchRoot(),
                 'toolchain-bin-paths-missing',
               ),
               join(

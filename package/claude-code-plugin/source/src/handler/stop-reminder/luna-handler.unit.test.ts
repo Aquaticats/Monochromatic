@@ -10,7 +10,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { randomUUID, } from 'node:crypto';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -34,7 +34,7 @@ const KEY = 'fixture-key-7f3a91';
 /**
  Scratch directory holding transcripts and verdict logs, one file per case.
  */
-const SCRATCH = await mkdtemp(join(tmpdir(), 'stop-reminder-luna-',),);
+const SCRATCH = await mkdtemp(join(scratchRoot(), 'stop-reminder-luna-',),);
 
 /**
  Transcript line for a turn the user typed, which closes the counting window.

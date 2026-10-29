@@ -45,6 +45,12 @@ export {
 } from './io/staleness-manifest-lock-owner-publish.ts';
 export { lockOwnerState, } from './io/staleness-manifest-lock-owner.ts';
 export { acquireManifestLock, } from './io/staleness-manifest-lock.ts';
+/**
+ Re-exported so built-artifact tests drive the locked manifest write, including its orphaned temp file removal.
+
+ @internal
+ */
+export { writeMergedManifest, } from './io/staleness-manifest-persist.ts';
 export { freshStalenessManifest, } from './io/staleness-run.ts';
 export { manageMiseManifests, } from './mise/manage-mise-manifests.ts';
 export {
@@ -198,6 +204,85 @@ export type {
   SourceCaptureCallback,
   TrackedGlob,
 } from './tracker.ts';
+/**
+ Re-exported so the toolchain's built-artifact tests reach the toolchain
+ modules through the shipped bundle instead of their source files.
+
+ @internal
+ */
+export {
+  ALL_TOOLS,
+  appliesToHost,
+  applyResolutions,
+  BIN_BOOTSTRAP,
+  buildBinPathsOutput,
+  formatReport,
+  hostPlatformId,
+  installArchive,
+  installBinSourced,
+  installCargoBinstall,
+  installCargoGit,
+  installGoInstall,
+  installMpmPnpm,
+  loadPlanFromDir,
+  mapGithubRows,
+  MPM_BOOTSTRAP,
+  normalizeVersion,
+  NOT_INSTALLED,
+  observeTool,
+  parseBinList,
+  parseCargoBinstallList,
+  parseShasums,
+  patchPlanVersions,
+  rebuildExposure,
+  ReleaseTagUrlError,
+  releaseTagUrl,
+  renderArtifacts,
+  renderMpmManagersToml,
+  renderMpmPackagesToml,
+  renderPlanArtifactsTs,
+  renderToolchainLockJson,
+  replacementWarning,
+  resolveAll,
+  resolveGoModule,
+  resolveGoRuntime,
+  resolveNpm,
+  resolveRust,
+  resolveRustup,
+  resolveToolchainPaths,
+  resolveZigLatest,
+  run,
+  runPostinstallCommands,
+  runPostinstallLinks,
+  seedBinConfig,
+  sha256File,
+  syncOrder,
+  TOOL_ROUTES,
+  toolById,
+  toolchainLockFromTools,
+  toolInstallDir,
+  toolPlanInstallableNames,
+  TOOLS,
+  TOOLS_BY_ID,
+  tomlKey,
+  tomlString,
+  versionFromTag,
+  versionMatches,
+} from './toolchain/index.ts';
+/**
+ Toolchain types the built-artifact tests name.
+
+ @internal
+ */
+export type {
+  Fetcher,
+  PathEnv,
+  ProviderContext,
+  ToolArtifacts,
+  ToolchainPaths,
+  ToolPlanEntry,
+  UpdateOutcome,
+} from './toolchain/index.ts';
 export type { Path, } from './types.ts';
 export { notifyWriteProtection, } from './watch/notify.ts';
 export {

@@ -134,7 +134,7 @@ fn a_scratch_directory_is_named_for_the_process() {
 /// the second one's launch used to empty the directory the first one's running server has as `/tmp`.
 #[test]
 fn a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -167,7 +167,7 @@ fn a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one(
 /// so the next preparation finds the lock it held released.
 #[test]
 fn the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -195,7 +195,7 @@ fn the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation(
 /// a lock taken through another open of the same file conflicts even inside one process.
 #[test]
 fn a_scratch_directory_whose_lock_is_held_is_kept_and_one_without_a_lock_is_removed() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -236,7 +236,7 @@ fn a_scratch_directory_whose_lock_is_held_is_kept_and_one_without_a_lock_is_remo
 /// the shared directory of earlier versions may still be the `/tmp` of a running older process.
 #[test]
 fn entries_that_are_not_scratch_directories_of_a_process_are_left() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -274,7 +274,7 @@ fn entries_that_are_not_scratch_directories_of_a_process_are_left() {
 /// and the process never takes its own directory for one of an ended process.
 #[test]
 fn a_process_empties_its_own_scratch_directory_in_place_and_keeps_it() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");

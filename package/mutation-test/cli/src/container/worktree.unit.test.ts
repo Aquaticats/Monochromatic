@@ -4,7 +4,7 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -142,7 +142,7 @@ await describe({
          Throwaway work tree.
          */
         const dir = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'mutation-test-marker-',
         ),);
         await using _cleanup = {

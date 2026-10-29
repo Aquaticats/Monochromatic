@@ -6,7 +6,7 @@ import {
   mkdtempDisposable,
   symlink,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
@@ -29,7 +29,7 @@ export async function runStartupFixture(scenario: string,): Promise<string> {
    Private fixture also owns copied runtime when testing unlinked executables.
    */
   await using directory = await mkdtempDisposable(join(
-    tmpdir(),
+    scratchRoot(),
     'ask-startup-fixture-',
   ),);
   /**

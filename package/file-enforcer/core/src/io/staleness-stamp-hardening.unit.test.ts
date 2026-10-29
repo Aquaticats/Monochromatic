@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -31,7 +31,7 @@ import { freshStalenessManifest, } from '../../dist/final/node/index.mjs';
  */
 async function setup(): Promise<string> {
   return mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-staleness-stamp-',
   ),);
 }

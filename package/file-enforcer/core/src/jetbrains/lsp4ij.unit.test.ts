@@ -5,7 +5,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -215,7 +215,7 @@ await describe({
             /**
              Throwaway JetBrains config root.
              */
-            const configRoot = await mkdtemp(join(tmpdir(), 'fe-lsp4ij-',),);
+            const configRoot = await mkdtemp(join(scratchRoot(), 'fe-lsp4ij-',),);
             await using owned = throwawayDir(configRoot,);
             /**
              Options directory of a synthetic latest IDEA install.
@@ -235,7 +235,11 @@ await describe({
               writeFile(userDefinedPath, USER_DEFINED_XML,),
             ],);
             using xdg = withXdgConfigHome(configRoot,);
-            await manageLsp4ijServerSettings(SETTINGS,);
+            await manageLsp4ijServerSettings({
+              settings: SETTINGS,
+              // Disposable manifest inside the throwaway root, so the sync never contends for the shared one.
+              manifestPath: join(configRoot, 'staleness-manifest.json',),
+            },);
 
             /**
              Global settings XML after the sync.

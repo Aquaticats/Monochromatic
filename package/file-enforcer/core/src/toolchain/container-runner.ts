@@ -13,8 +13,10 @@ import {
   realpath,
 } from 'node:fs/promises';
 import {
+  isAbsolute,
   join,
   relative,
+  sep,
 } from 'node:path';
 import { promisify, } from 'node:util';
 
@@ -358,29 +360,43 @@ function isMissingPathError(error: unknown,): error is Error & { readonly code: 
 /**
  Resolves one package's workspace dependencies to their real directories.
 
- @param dir - Package directory holding `package.json` and `node_modules`
+ @param dir - Package directory holding `package.json`
+
+ @param monorepoRoot - Highest directory whose `node_modules` is searched
 
  @param fields - Dependency tables to follow
 
- @returns Real directories of the linked workspace packages. A declared
- dependency with no link under `node_modules` (an install older than the
- manifest) is skipped with a warning: the cell resolves imports through the
- same links, so it cannot read that package either.
+ @returns Real directories of the linked workspace packages, each found the
+ way Node resolves a bare import: the nearest `node_modules/<name>` from the
+ package directory up to the monorepo root. pnpm's `dedupeDirectDeps` links a
+ dependency the root also declares only at the root, so the package's own
+ `node_modules` alone misses it. A dependency with no link anywhere on that
+ path is skipped with a warning: the cell resolves imports the same way, so
+ it cannot read that package either.
 
  @example
  ```ts
- await linkedWorkspaceDirs({ dir: '/repo/package/file-enforcer/core', fields: ['dependencies',], },);
+ await linkedWorkspaceDirs({ dir: '/repo/package/file-enforcer/core', monorepoRoot: '/repo', fields: ['dependencies',], },);
  ```
  */
 async function linkedWorkspaceDirs(
   {
     dir,
+    monorepoRoot,
     fields,
   }: {
     readonly dir: string;
+    readonly monorepoRoot: string;
     readonly fields: readonly string[];
   },
 ): Promise<readonly string[]> {
+  /**
+   Directories whose `node_modules` Node would search, nearest first.
+   */
+  const searchDirs = nodeModulesSearchDirs({
+    dir,
+    monorepoRoot,
+  },);
   /**
    Parsed manifest of the package.
    */
@@ -401,26 +417,97 @@ async function linkedWorkspaceDirs(
     },)
       .map(async function resolveLink(name,): Promise<readonly string[]> {
         /**
-         Link pnpm creates for the dependency.
+         Every candidate link on the search path, probed together.
          */
-        const link = join(
-          dir,
-          'node_modules',
-          name,
-        );
-        try {
-          return [await realpath(link,),];
-        } catch (error) {
-          if (!isMissingPathError(error,))
-            throw error;
+        const probes = await Promise.allSettled(searchDirs.map(function probe(searchDir,) {
+          return realpath(join(
+            searchDir,
+            'node_modules',
+            name,
+          ),);
+        },),);
+        /**
+         Nearest probe that resolved or failed for a reason other than absence.
+         */
+        const decisive = probes.find(function isDecisive(outcome,) {
+          return (outcome.status === 'fulfilled') || (!isMissingPathError(outcome.reason,));
+        },);
+        if (decisive === undefined) {
           console.warn(
-            `[container-readability] ${name} is declared in ${dir}/package.json but ${link} does not exist; run pnpm install to link it (skipped: ${error.message})`,
+            `[container-readability] ${name} is declared in ${dir}/package.json but no node_modules/${name} exists from ${dir} up to ${monorepoRoot}; run pnpm install to link it (skipped)`,
           );
           return [];
         }
+        if (decisive.status === 'rejected')
+          throw decisive.reason;
+        return [decisive.value,];
       },),
   );
   return resolved.flat();
+}
+
+/**
+ Lists the directories whose `node_modules` Node searches for a bare import
+ made from one directory, nearest first, stopping at the monorepo root.
+
+ @param dir - Directory the import is made from
+
+ @param monorepoRoot - Highest directory searched
+
+ @returns `dir`, its ancestors, and `monorepoRoot` last; only `dir` when it
+ lies outside the monorepo root. The list length is the path depth, so
+ building it is bounded by the number of path segments.
+
+ @example
+ ```ts
+ nodeModulesSearchDirs({ dir: '/repo/package/a/core', monorepoRoot: '/repo', },);
+ // ['/repo/package/a/core', '/repo/package/a', '/repo/package', '/repo']
+ ```
+ */
+function nodeModulesSearchDirs(
+  {
+    dir,
+    monorepoRoot,
+  }: {
+    readonly dir: string;
+    readonly monorepoRoot: string;
+  },
+): readonly string[] {
+  /**
+   Path from the monorepo root down to the directory.
+   */
+  const below = relative(
+    monorepoRoot,
+    dir,
+  );
+  if (below.startsWith('..',) || isAbsolute(below,))
+    return [dir,];
+  /**
+   Segments from the root down to the directory.
+   */
+  const segments = below === ''
+    ? []
+    : below.split(sep,);
+  /**
+   Each prefix directory, root first.
+   */
+  const prefixes = segments.reduce(
+    function extend(
+      dirs: string[],
+      segment: string,
+    ): string[] {
+      dirs.push(join(
+        dirs.at(-1,) ?? monorepoRoot,
+        segment,
+      ),);
+      return dirs;
+    },
+    [],
+  );
+  return [
+    ...prefixes.toReversed(),
+    monorepoRoot,
+  ];
 }
 
 /**
@@ -452,6 +539,11 @@ export async function workspaceDependencyDirs(
   },
 ): Promise<readonly string[]> {
   /**
+   Real directory of the monorepo root, so it compares with the real package
+   directories below even when the checkout path runs through a symlink.
+   */
+  const root = await realpath(monorepoRoot,);
+  /**
    Real directory of the tested package.
    */
   const self = await realpath(packageDir,);
@@ -482,6 +574,7 @@ export async function workspaceDependencyDirs(
     const next = await Promise.all(fresh.map(function dependenciesOf(dir,) {
       return linkedWorkspaceDirs({
         dir,
+        monorepoRoot: root,
         fields: ['dependencies',],
       },);
     },),);
@@ -489,7 +582,8 @@ export async function workspaceDependencyDirs(
   }
   for (
     let frontier = await linkedWorkspaceDirs({
-      dir: packageDir,
+      dir: self,
+      monorepoRoot: root,
       fields: [
         'dependencies',
         'devDependencies',
@@ -502,7 +596,7 @@ export async function workspaceDependencyDirs(
   reached.delete(self,);
   return [...reached,].map(function toRelative(dir,) {
     return relative(
-      monorepoRoot,
+      root,
       dir,
     );
   },);

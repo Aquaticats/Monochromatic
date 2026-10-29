@@ -18,11 +18,12 @@ export type RepositoryOptions = Readonly<{
   worktree: 'linked' | 'main';
   /**
    Hook source:
-   the hooks directory,
    config-based hooks (Git 2.54.0 or newer),
    or none.
+   Traditional hooks are unsupported by the wrapper,
+   so no scenario installs them.
    */
-  hooks: 'config' | 'hookdir' | 'none';
+  hooks: 'config' | 'none';
   /**
    Installed hook events.
    */

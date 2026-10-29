@@ -732,6 +732,33 @@
       },
       "artifacts": {}
     },
+    "cargo:monochromatic-mpm-shadow": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.1.1",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-mpm-shadow",
+      "bins": [
+        "mpm-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "mpm-shadow",
+            "linkName": "mpm",
+            "linkDir": ".cache/mpm-shadow-bin"
+          }
+        }
+      },
+      "artifacts": {}
+    },
     "cargo:monochromatic-nested-wayland-session": {
       "request": {
         "track": "latest"

@@ -1225,6 +1225,14 @@ RCI:
  extend one that already owns it.
  A stopgap for a misbehaving tool is not an owner.
 
+BXD:
+ Containers use the newest CachyOS `latest` image the host CPU runs,
+ via `ARG CACHYOS_IMAGE`;
+ Alpine on non-x86-64.
+Resolver,
+ release-floor split:
+ `doc/decision/container-base-distro.md`.
+
 ### Adding new packages
 
 AP1:

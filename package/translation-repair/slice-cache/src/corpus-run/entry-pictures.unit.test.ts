@@ -23,10 +23,8 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import {
-  devNull,
-  tmpdir,
-} from 'node:os';
+import { devNull, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -251,7 +249,7 @@ await describe({
          */
         const brokenPin: CorpusPin = {
           cloneDir: join(
-            tmpdir(),
+            scratchRoot(),
             'entry-pictures-no-such-clone',
           ),
           commitSha: 'deadbeef',
@@ -275,7 +273,7 @@ await describe({
          */
         const brokenPin: CorpusPin = {
           cloneDir: join(
-            tmpdir(),
+            scratchRoot(),
             'entry-pictures-no-such-clone',
           ),
           commitSha: 'deadbeef',
@@ -634,7 +632,7 @@ await describe({
          */
         const trappedPin: CorpusPin = {
           cloneDir: join(
-            tmpdir(),
+            scratchRoot(),
             'entry-pictures-never-read',
           ),
           commitSha: 'deadbeef',

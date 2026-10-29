@@ -3,7 +3,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -100,7 +100,7 @@ function throwawayDir(directory: string,): AsyncDisposable {
  */
 async function manageLsp4ijServerSettingsError(): Promise<unknown> {
   try {
-    await manageLsp4ijServerSettings(SETTINGS,);
+    await manageLsp4ijServerSettings({ settings: SETTINGS, },);
   }
   catch (error: unknown) {
     return error;
@@ -124,7 +124,7 @@ await describe({
          Throwaway XDG root whose JetBrains entry is a file, not directory.
          */
         const configRoot = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'fe-lsp4ij-hardening-',
         ),);
         await using owned = throwawayDir(configRoot,);

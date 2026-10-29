@@ -12,7 +12,7 @@ using podman containers or directly on the host.
 import { matrix, } from '@monochromatic-dev/test-harness-core-matrix';
 
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
 },);
 ```
@@ -44,7 +44,7 @@ so concurrency is safe without additional coordination.
    array of OS specifications with protocol prefix.
   - `container:`:
      podman container (e.g. `'container:ubuntu'`,
-     `'container:fedora'`)
+     `'container:cachyos'`)
   - `host:`:
      run directly on the host,
      no container (e.g. `'host:'`)
@@ -96,7 +96,7 @@ For large matrices,
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora', 'container:alpine',],
+  os: ['container:cachyos', 'container:ubuntu', 'container:alpine',],
   user: ['root', 'user',],
   runtime: ['bun', 'deno', 'node',],
   concurrency: 8,
@@ -114,7 +114,7 @@ Handles prerequisite installation,
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['bun',],
 },);
@@ -125,7 +125,7 @@ select the `node` runtime:
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['node',],
 },);
@@ -151,7 +151,8 @@ Node's official Linux builds require glibc and `libatomic`.
 Before installing Node the runner installs the distro's atomic library
 (`libatomic1` on apt,
 `libatomic` on dnf,
-`gcc-libs` on pacman).
+`gcc-libs` on pacman,
+which covers both Arch and CachyOS).
 Alpine is rejected for the node runtime
 because its musl libc cannot load the glibc Node builds.
 
@@ -194,7 +195,7 @@ Container and host entries can coexist in the same matrix:
 
 ```ts
 await matrix({
-  os: ['host:', 'container:ubuntu', 'container:fedora',],
+  os: ['host:', 'container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['bun',],
   exclude: [
@@ -227,7 +228,115 @@ The package manager is detected from the distro name:
 - **apk**:
    alpine
 - **pacman**:
-   arch
+   arch,
+   cachyos
+
+### Container images
+
+A distro name becomes the image reference `<distro>:latest`
+(`ubuntu` runs `ubuntu:latest`,
+ `fedora:39` runs `fedora:39`).
+`cachyos` is the exception:
+it runs the CachyOS image for the host CPU level,
+chosen once when `matrix()` starts (see "CachyOS base image selection").
+`cachyos:<tag>` is an explicit choice:
+it runs `docker.io/cachyos/cachyos:<tag>`,
+the plain image,
+and skips the CPU-level choice.
+
+`cachyos` is the repository's primary matrix target:
+list `'container:cachyos'` first in the `os` array,
+and keep the other distros to test portability.
+
+```ts
+await matrix({
+  os: ['container:cachyos', 'container:ubuntu',],
+  user: ['root', 'user',],
+},);
+```
+
+Fedora was dropped from the repository's own matrices on 2026-10-29 (its package mirrors were too slow to test against).
+The `fedora` and other `dnf` distro mappings stay,
+so an explicit `'container:fedora'` still resolves to `fedora:latest` and `dnf`.
+
+The package picks no default `os`:
+the option is required,
+so each consumer chooses its own list.
+
+A `container:cachyos` cell is a pacman test,
+so on a host that is not x86-64 `matrix()` throws `NoAlpineVariantError` before running anything.
+List `container:alpine` explicitly in the portability rows instead.
+
+## CachyOS base image selection
+
+Per the owner's 2026-10-29 decision (`doc/decision/container-base-distro.md`),
+containers this repository builds start from the most optimized CachyOS image the host CPU runs,
+unpinned.
+`resolveBaseImage` picks it:
+
+- `docker.io/cachyos/cachyos-v4:latest` when the glibc loader reports `x86-64-v4 (supported, searched)`
+- `docker.io/cachyos/cachyos-v3:latest` when it reports `x86-64-v3 (supported, searched)` and not v4
+- `docker.io/cachyos/cachyos:latest` otherwise,
+  including when the loader is missing or prints no levels
+  (the reason is logged at warn level)
+- `docker.io/library/alpine:latest` when `process.arch` is not `x64`
+  and the caller says its image has an Alpine variant;
+  without one,
+  `NoAlpineVariantError` names the image and says no Alpine variant exists
+
+Docker Hub has no v2 image.
+The package writes no Alpine Containerfiles:
+a caller that passes `alpineVariant: true` owns its Alpine build.
+
+```ts
+import {
+  cachyosBuildArguments,
+  resolveBaseImage,
+} from '@monochromatic-dev/test-harness-core-matrix/ts';
+
+// \{ image: 'docker.io/cachyos/cachyos-v4:latest', kind: 'cachyos-v4', reason: '...' \}
+const resolution = await resolveBaseImage({ imageName: 'terminal', alpineVariant: false, },);
+
+// ['--build-arg', 'CACHYOS_IMAGE=docker.io/cachyos/cachyos-v4:latest']
+const args = await cachyosBuildArguments({ imageName: 'terminal', alpineVariant: false, },);
+```
+
+A Containerfile declares `ARG CACHYOS_IMAGE` before its `FROM ${CACHYOS_IMAGE}`.
+`resolveBaseImage`, `detectCachyosLevel` and `readLoaderOutput` take injected architecture, loader output and logger,
+so every branch is testable without depending on the host.
+
+Shell callers use the `cachyos-image` bin:
+
+```sh
+podman build --build-arg "$(cachyos-image --image-name terminal --build-argument)" --tag terminal .
+cachyos-image --image-name terminal --alpine-variant
+```
+
+It prints the image (or `CACHYOS_IMAGE=<image>` with `--build-argument`) on stdout,
+sends the logged reasoning to stderr,
+and exits 1 when no base image exists for the host,
+2 for a usage error.
+
+### How the CPU level is detected
+
+The loader report comes from `/lib64/ld-linux-x86-64.so.2 --help`
+(then `/lib/ld-linux-x86-64.so.2`),
+the method of the [CachyOS repository installer][cachyos-repo-script]
+(`check_supported_isa_level` greps `x86-64-v4 (supported, searched)` in the loader's `--help`),
+which the [CachyOS wiki's optimized repositories page][cachyos-wiki-repos] documents as
+`/lib/ld-linux-x86-64.so.2 --help | grep supported`.
+The installer chooses its v4 repository on that line alone and its v3 repository otherwise.
+
+The wiki page also warns that Intel 12th generation and newer CPUs may report v4 support
+yet "cannot run AVX-512 instructions",
+and says to treat them as v3.
+The installer script does not act on that warning,
+and neither does this package:
+it follows the loader's report and adds no CPU model check,
+so a host whose loader wrongly reports v4 would build and run the v4 image and fail at run time.
+
+[cachyos-repo-script]: https://mirror.cachyos.org/cachyos-repo.tar.xz
+[cachyos-wiki-repos]: https://wiki.cachyos.org/features/optimized_repos/
 
 ## Supported runtimes
 
@@ -254,8 +363,8 @@ The package manager is detected from the distro name:
 
 ### Container combinations
 
-1. Detect package manager from distro name (fedora becomes dnf)
-2. `podman run --rm -v ${monorepoRoot}:/workspace:Z fedora:latest sh -c "..."`
+1. Detect package manager from distro name (cachyos becomes pacman)
+2. `podman run --rm -v ${monorepoRoot}:/workspace:Z ubuntu:latest sh -c "..."`
 3. Inside the container:
    - Install prerequisites (curl,
       unzip,
@@ -310,7 +419,7 @@ After:
 import { matrix, } from '@monochromatic-dev/test-harness-core-matrix';
 
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
 },);
 ```
@@ -321,7 +430,7 @@ await matrix({
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora', 'container:alpine',],
+  os: ['container:cachyos', 'container:ubuntu', 'container:alpine',],
   user: ['root', 'user',],
   exclude: [
     { os: 'container:alpine', user: 'user', },

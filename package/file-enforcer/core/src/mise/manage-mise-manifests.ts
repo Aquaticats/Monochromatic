@@ -35,6 +35,8 @@ import { addWatchedPaths, } from '../tracker.ts';
  
  @param manifestGlobs - bounded discovery globs for hand-authored manifests
  
+ @param manifestPath - optional staleness manifest path override forwarded to every write
+ 
  @example
  ```ts
  await manageMiseManifests({
@@ -43,7 +45,13 @@ import { addWatchedPaths, } from '../tracker.ts';
  ```
  */
 export async function manageMiseManifests(
-  { manifestGlobs, }: { readonly manifestGlobs: readonly string[]; },
+  {
+    manifestGlobs,
+    manifestPath: stalenessManifestPath,
+  }: {
+    readonly manifestGlobs: readonly string[];
+    readonly manifestPath?: string;
+  },
 ): Promise<void> {
   /**
    Matched manifests gathered concurrently across every discovery glob.
@@ -64,9 +72,19 @@ export async function manageMiseManifests(
      */
     const existing = await readExisting(manifestPath,);
     if (existing === ABSENT_FILE_CONTENT) return;
-    await overwrite({
-      dest: manifestPath,
-      content: normalizeTableHeaderKeyQuoting({ source: existing, },),
-    },);
+    /**
+     Normalized manifest text written back when it differs from the current text.
+     */
+    const normalized = normalizeTableHeaderKeyQuoting({ source: existing, },);
+    await overwrite(stalenessManifestPath === undefined
+      ? {
+        dest: manifestPath,
+        content: normalized,
+      }
+      : {
+        dest: manifestPath,
+        content: normalized,
+        manifestPath: stalenessManifestPath,
+      },);
   },),);
 }

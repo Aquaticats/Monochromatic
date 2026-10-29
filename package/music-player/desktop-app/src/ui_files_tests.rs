@@ -29,7 +29,7 @@ fn scratch_dir(tag: &str) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let dir = std::env::temp_dir().join(format!("music-player-files-{}-{nanos}-{tag}", std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!("music-player-files-{}-{nanos}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("the scratch folder is created");
     return dir;
 }

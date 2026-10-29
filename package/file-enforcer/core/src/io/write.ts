@@ -250,6 +250,8 @@ export async function overwrite(
  
  @param content - Content string to write
  
+ @param manifestPath - Optional staleness manifest path override
+ 
  @example
  ```ts
  await overwriteIfNotExists({
@@ -262,9 +264,11 @@ export async function overwriteIfNotExists(
   {
     dest,
     content,
+    manifestPath,
   }: {
     readonly dest: string;
     readonly content: string;
+    readonly manifestPath?: string;
   },
 ): Promise<void> {
   /**
@@ -309,7 +313,9 @@ export async function overwriteIfNotExists(
   await rememberEagerWrite({
     dest,
     content,
-    manifestPath: await resolveManifestPath({},),
+    manifestPath: await resolveManifestPath(manifestPath === undefined
+      ? {}
+      : { manifestPath, },),
   },);
   l.info(`-> ${dest}`,);
 }

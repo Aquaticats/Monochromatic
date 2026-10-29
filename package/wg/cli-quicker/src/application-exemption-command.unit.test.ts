@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -35,7 +35,7 @@ await describe({
          Disposable executable directory.
          */
         const directory = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'wg-quicker-exempt-command-',
         ),);
         await using cleanup = {
@@ -121,7 +121,7 @@ await describe({
          Disposable caller path directory.
          */
         const directory = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'wg-quicker-caller-path-',
         ),);
         await using cleanup = {

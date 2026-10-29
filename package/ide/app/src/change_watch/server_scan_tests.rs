@@ -32,7 +32,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 /// function project(): [TempDir, string]
 /// ```
 fn project() -> (tempfile::TempDir, PathBuf) {
-    let directory = tempfile::tempdir().expect("disposable project");
+    let directory = crate::test_scratch::scratch().expect("disposable project");
     let root = directory.path().canonicalize().expect("canonical root");
     for folder in [
         ".git",
@@ -95,7 +95,7 @@ fn source_folders_follow_the_search_ignore_rules() {
 /// ignore file names them.
 #[test]
 fn pruned_folders_are_left_out_without_an_ignore_file() {
-    let directory = tempfile::tempdir().expect("disposable project");
+    let directory = crate::test_scratch::scratch().expect("disposable project");
     let root = directory.path().canonicalize().expect("canonical root");
     fs::create_dir_all(root.join("lib/node_modules/pkg")).expect("fixture folder");
     fs::create_dir_all(root.join("lib/target")).expect("fixture folder");

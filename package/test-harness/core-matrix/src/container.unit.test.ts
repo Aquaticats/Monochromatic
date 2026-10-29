@@ -13,6 +13,7 @@ import {
 import {
   buildContainerCommand,
   parseOs,
+  resolveImage,
 } from '../dist/final/node/index.mjs';
 
 await describe({
@@ -82,6 +83,73 @@ await describe({
     },),
 
     //endregion parseOs
+
+    //region resolveImage
+
+    describe({
+      name: resolveImage.name,
+      children: [
+        it({
+          name: 'appends latest to a bare distro name',
+          fn: async () => {
+            expect(resolveImage({ distro: 'ubuntu', },),).toBe('ubuntu:latest',);
+          },
+        },),
+
+        it({
+          name: 'keeps an explicit tag on an unmapped distro',
+          fn: async () => {
+            expect(resolveImage({ distro: 'fedora:39', },),).toBe('fedora:39',);
+          },
+        },),
+
+        it({
+          name: 'a bare cachyos uses the image the matrix resolved for the host CPU level',
+          fn: async () => {
+            expect(resolveImage({
+              distro: 'cachyos',
+              cachyosImage: 'docker.io/cachyos/cachyos-v4:latest',
+            },),).toBe('docker.io/cachyos/cachyos-v4:latest',);
+          },
+        },),
+
+        it({
+          name: 'a bare cachyos without a pre-resolved image is refused',
+          fn: async () => {
+            expect(function bareCachyos() {
+              resolveImage({ distro: 'cachyos', },);
+            },).toThrow('pass cachyosImage from resolveBaseImage',);
+          },
+        },),
+
+        it({
+          name: 'cachyos with an explicit tag skips the ladder and keeps the tag on the plain repository',
+          fn: async () => {
+            expect(resolveImage({
+              distro: 'cachyos:latest',
+              cachyosImage: 'docker.io/cachyos/cachyos-v4:latest',
+            },),).toBe('docker.io/cachyos/cachyos:latest',);
+            expect(resolveImage({ distro: 'cachyos:testing', },),).toBe('docker.io/cachyos/cachyos:testing',);
+          },
+        },),
+
+        it({
+          name: 'a name that only starts with cachyos is not remapped',
+          fn: async () => {
+            expect(resolveImage({ distro: 'cachyos-v3', },),).toBe('cachyos-v3:latest',);
+          },
+        },),
+
+        it({
+          name: 'a name inherited from Object.prototype is treated as an ordinary distro',
+          fn: async () => {
+            expect(resolveImage({ distro: 'constructor', },),).toBe('constructor:latest',);
+          },
+        },),
+      ],
+    },),
+
+    //endregion resolveImage
 
     //region buildContainerCommand
 
@@ -183,6 +251,59 @@ await describe({
             },);
 
             expect(cmd,).toContain('dnf install',);
+          },
+        },),
+
+        it({
+          name: 'uses pacman for cachyos',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'root',
+                runtime: 'bun',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip',);
+            expect(cmd,).not.toContain('sudo',);
+          },
+        },),
+
+        it({
+          name: 'cachyos non-root installs sudo with pacman and creates the user',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'user',
+                runtime: 'bun',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip sudo',);
+            expect(cmd,).toContain('useradd -m testuser',);
+          },
+        },),
+
+        it({
+          name: 'node on cachyos installs gcc-libs and jq with pacman',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'root',
+                runtime: 'node',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed gcc-libs jq',);
           },
         },),
 

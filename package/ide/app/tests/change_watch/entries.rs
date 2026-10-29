@@ -53,7 +53,7 @@ fn expect_report(watcher: &mut ChangeWatcher, folder: &Path, name: &str) {
 ///  and remove inside a watched folder each report that folder.
 #[test]
 fn created_renamed_and_removed_entries_invalidate_their_folder() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -86,7 +86,7 @@ fn created_renamed_and_removed_entries_invalidate_their_folder() {
 ///  because it decides whether it can be listed.
 #[test]
 fn a_permission_change_on_a_watched_folder_reports_it() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -110,7 +110,7 @@ fn a_permission_change_on_a_watched_folder_reports_it() {
 /// Moving a file into and out of a watched folder reports both folders.
 #[test]
 fn moves_into_and_out_of_a_watched_folder_report_both_folders() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -147,7 +147,7 @@ fn moves_into_and_out_of_a_watched_folder_report_both_folders() {
 /// The displayed file's directory also reports the displayed file as changed.
 #[test]
 fn a_new_watch_reports_its_folder_and_the_displayed_file_once() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -179,7 +179,7 @@ fn a_new_watch_reports_its_folder_and_the_displayed_file_once() {
 /// a change made to it before the switch reached the watcher was not recorded.
 #[test]
 fn a_newly_displayed_file_in_a_watched_folder_is_reported_once() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let first = root.join("first.txt");
@@ -213,7 +213,7 @@ fn a_newly_displayed_file_in_a_watched_folder_is_reported_once() {
 /// A displayed file whose folder watch succeeds only on a retry is reported when that watch starts.
 #[test]
 fn a_displayed_file_is_reported_when_its_retried_folder_watch_starts() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("later");
@@ -246,7 +246,7 @@ fn a_displayed_file_is_reported_when_its_retried_folder_watch_starts() {
 ///  showing it again adds one back.
 #[test]
 fn collapsing_a_folder_removes_its_kernel_watch() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -295,7 +295,7 @@ fn collapsing_a_folder_removes_its_kernel_watch() {
 ///  an in-place edit of any other file does not.
 #[test]
 fn an_ignore_rule_file_edited_in_place_reports_its_folder_and_other_files_do_not() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let info = root.join(".git").join("info");

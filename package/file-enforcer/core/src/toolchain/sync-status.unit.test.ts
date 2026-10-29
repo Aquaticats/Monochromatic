@@ -8,7 +8,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -16,21 +16,18 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  ALL_TOOLS,
+  appliesToHost,
+  normalizeVersion,
   parseBinList,
   parseCargoBinstallList,
-  ReleaseTagUrlError,
   releaseTagUrl,
+  ReleaseTagUrlError,
   seedBinConfig,
-} from './providers.ts';
-import {
-  normalizeVersion,
-  versionMatches,
-} from './status.ts';
-import {
-  appliesToHost,
   syncOrder,
-} from './sync.ts';
-import { ALL_TOOLS, toolById, } from './plan.ts';
+  toolById,
+  versionMatches,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: 'sync and status helpers',
@@ -256,7 +253,7 @@ await describe({
              Disposable directory for the scope config.
              */
             const home = mkdtempSync(join(
-              tmpdir(),
+              scratchRoot(),
               'toolchain-bin-config-',
             ),);
             /**
@@ -323,7 +320,7 @@ await describe({
              Disposable directory and explicit config path.
              */
             const home = mkdtempSync(join(
-              tmpdir(),
+              scratchRoot(),
               'toolchain-bin-config-',
             ),);
             /**

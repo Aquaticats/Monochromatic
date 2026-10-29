@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -24,10 +24,27 @@ import {
 
 /** Creates a fresh temp directory and resets tracker state */
 async function setup(prefix: string,): Promise<string> {
-  const tempDir = await mkdtemp(join(tmpdir(), prefix,),);
+  const tempDir = await mkdtemp(join(scratchRoot(), prefix,),);
   reset();
   resetWriteTimestamps();
   return tempDir;
+}
+
+/**
+ Builds a disposable staleness manifest path inside a test's own fixture directory,
+ so writes never contend for the workspace's shared manifest and lock.
+
+ @param tempDir - Fixture directory returned by {@link setup}.
+
+ @returns Manifest path under the fixture directory, removed with it by {@link teardown}.
+
+ @example
+ ```ts
+ await overwriteTomlKey({ dest, path, value, manifestPath: manifestPathFor(tempDir,), },);
+ ```
+ */
+function manifestPathFor(tempDir: string,): string {
+  return join(tempDir, 'staleness-manifest.json',);
 }
 
 /** Removes the temp directory */
@@ -50,6 +67,7 @@ await describe({
           dest,
           path: ['name',],
           value: 'new',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         const after = await readFile(dest, 'utf8',);
         expect(after.includes('name = "new"',),).toBe(true,);
@@ -68,6 +86,7 @@ await describe({
           dest,
           path: ['settings', 'theme',],
           value: 'light',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         const after = await readFile(dest, 'utf8',);
         expect(after.includes('theme = "light"',),).toBe(true,);
@@ -85,6 +104,7 @@ await describe({
           dest,
           path: ['added',],
           value: 'value',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         const after = await readFile(dest, 'utf8',);
         expect(after.includes('added = "value"',),).toBe(true,);
@@ -105,6 +125,7 @@ await describe({
           dest,
           path: ['fruits', 0, 'name',],
           value: 'banana',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         const after = await readFile(dest, 'utf8',);
         expect(after.includes('name = "banana"',),).toBe(true,);
@@ -124,6 +145,7 @@ await describe({
           dest,
           path: ['name',],
           value: 'Alice',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         /** writeIfChanged should detect no diff and skip the write */
         expect(
@@ -142,6 +164,7 @@ await describe({
           dest,
           path: ['name',],
           value: 'Alice',
+          manifestPath: manifestPathFor(tempDir,),
         },);
         expect(
           writes.has(resolve(dest,),),
@@ -158,6 +181,7 @@ await describe({
           dest,
           path: ['name',],
           value: 'value',
+          manifestPath: manifestPathFor(tempDir,),
         },),)
           .rejects
           .toThrow();

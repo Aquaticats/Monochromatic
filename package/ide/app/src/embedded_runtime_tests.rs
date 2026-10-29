@@ -106,7 +106,7 @@ fn every_language_on_a_bundled_grammar_compiles_from_the_embedded_table_alone() 
         );
         return;
     }
-    let directory = tempfile::tempdir().expect("disposable cache and configuration homes");
+    let directory = crate::test_scratch::scratch().expect("disposable cache and configuration homes");
     let cache = directory.path().join("cache");
     let queries = directory.path().join("config/helix/runtime/queries/sql");
     fs::create_dir_all(&queries).expect("user Helix query folder");

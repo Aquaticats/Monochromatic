@@ -1145,3 +1145,7 @@ pub mod settings_layout;
 /// export * as rowActivation from "./row_activation";
 /// ```
 pub mod row_activation;
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

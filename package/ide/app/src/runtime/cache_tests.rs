@@ -43,7 +43,7 @@ fn leftovers(directory: &Path) -> Vec<String> {
 
 #[test]
 fn first_use_writes_the_library_privately_and_later_uses_reuse_it() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let directory = base.path().join("runtime/key/grammars");
     let bytes = library();
     let path = unpack(&directory, "sql", &bytes).expect("first use");
@@ -87,7 +87,7 @@ fn first_use_writes_the_library_privately_and_later_uses_reuse_it() {
 
 #[test]
 fn a_damaged_or_shortened_cached_library_is_written_again() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let directory = base.path().join("grammars");
     let bytes = library();
     let path = unpack(&directory, "rust", &bytes).expect("first use");
@@ -129,7 +129,7 @@ fn a_damaged_or_shortened_cached_library_is_written_again() {
 ///  a write into the file in place would fail it.
 #[test]
 fn a_rewrite_replaces_the_file_instead_of_writing_into_it() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let directory = base.path().join("grammars");
     let bytes = library();
     let path = unpack(&directory, "toml", &bytes).expect("first use");
@@ -159,7 +159,7 @@ fn a_rewrite_replaces_the_file_instead_of_writing_into_it() {
 ///  and no partial file stays behind.
 #[test]
 fn concurrent_first_uses_all_get_the_complete_library() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     let directory = Arc::new(base.path().join("grammars"));
     let bytes = Arc::new(library());
     let count = 8;
@@ -192,7 +192,7 @@ fn concurrent_first_uses_all_get_the_complete_library() {
 
 #[test]
 fn an_unwritable_cache_names_the_directory_and_the_remedy() {
-    let base = tempfile::tempdir().expect("disposable cache");
+    let base = crate::test_scratch::scratch().expect("disposable cache");
     // A file where the cache directory should be makes every write fail, whoever runs the test.
     let blocked = base.path().join("blocked");
     fs::write(&blocked, "not a directory").expect("blocking file");

@@ -240,3 +240,7 @@ pub mod font_asset;
 ///  italic,
 ///  and OpenType feature settings.
 pub mod source_typography;
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

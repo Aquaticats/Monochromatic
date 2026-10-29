@@ -31,6 +31,7 @@ const DISTRO_MANAGER_MAP: Record<string, PackageManager> = {
   alma: 'dnf',
   alpine: 'apk',
   arch: 'pacman',
+  cachyos: 'pacman',
 };
 
 /**
@@ -95,9 +96,12 @@ const PREREQUISITE_COMMANDS: Record<PackageManager, {
     base: 'apk add --no-cache curl unzip bash',
     withSudo: 'apk add --no-cache curl unzip bash sudo',
   },
+  // --sysupgrade with --refresh: Arch does not support partial upgrades.
+  // --disable-sandbox: pacman's hook sandbox needs a network namespace that rootless podman cannot give it
+  // (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
   pacman: {
-    base: 'pacman -Sy --noconfirm curl unzip',
-    withSudo: 'pacman -Sy --noconfirm curl unzip sudo',
+    base: 'pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip',
+    withSudo: 'pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip sudo',
   },
 };
 
@@ -147,7 +151,7 @@ export function prerequisiteCommand({
 const NODE_DEPENDENCY_COMMANDS: Record<Exclude<PackageManager, 'apk'>, string> = {
   apt: 'apt-get install -y libatomic1 jq',
   dnf: 'dnf install -y libatomic jq',
-  pacman: 'pacman -Sy --noconfirm gcc-libs jq',
+  pacman: 'pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed gcc-libs jq',
 };
 
 /**

@@ -9,14 +9,16 @@ import {
   mkdtempSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { loadPlanFromDir, } from './plan.load.ts';
+import {
+  loadPlanFromDir,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -33,14 +35,14 @@ function makePlanDir(
     artifactsSource = 'export const ARTIFACTS = {};',
   }: {
     readonly toolsSource: string;
-    readonly artifactsSource?: string | undefined;
+    readonly artifactsSource?: string;
   },
 ): string {
   /**
    Disposable directory holding the two data modules.
    */
   const dir = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-plan-load-',
   ),);
   mkdirSync(
@@ -88,7 +90,7 @@ function entrySource(overrides: string,): string {
 //region Loading
 
 await describe({
-  name: 'loadPlanFromDir',
+  name: loadPlanFromDir.name,
   children: [
     it({
       name: 'merges generated artifact rows into typed entries in declaration order',

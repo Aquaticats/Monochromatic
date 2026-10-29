@@ -397,8 +397,41 @@ and safe to delete:
   the standards-review gate,
   measured at 6 of 8 recall on the reconstructed historical corpus
   (see `Recall measurement results`).
-- Not decided:
-  where the gate runs and what it demands of callers.
+- Decided by the owner 2026-10-29:
+  the gate runs in shadow,
+  observe and record and never block,
+  and no `AGENTS.md` rule backs it in that phase.
+  Built as `doc/runbook/standards-review-gate.md`
+  with `doc/audit/standards-review-gate-shadow.md`
+  (commit `d6c6777974`).
+- Subject named 2026-10-29 at the owner's question "shadowing who":
+  the gate shadows agent landings in this repo,
+  Claude Code first and every harness that lands here,
+  triggered by the landing session on its own diffs while shadowing.
+  An empty log means no run happened,
+  never that there was nothing to catch.
+- Terms defined 2026-10-29 at the owner's "define it":
+  `doc/runbook/standards-review-gate.md` now defines landing
+  (the `cli-git` transaction step that places the commit on the real index and branch),
+  agent (a session editing under `AGENTS.md` and landing through `cli-git`),
+  candidate diff,
+  reviewer,
+  and `May run it`
+  (permitted,
+  required by nothing,
+  checked by nothing).
+- Built 2026-10-29 at the owner's "what are you even doing without a hook":
+  the mechanical trigger,
+  the local git config hook `hook.standards-review-shadow` on `post-commit`
+  starting `mise run shadow-review` in a detached systemd user unit,
+  with the runner living in the `shadow_review` var of `mise.no-env.toml`.
+  Reviewer route pinned to `openai/gpt-6.1-sol` through `pi`
+  after `pi`'s default route answered `402` `billing_error`
+  (`doc/troubleshooting/pi-advisor-provider-billing.md`),
+  and `--no-tools` is the recursion guard.
+  First measured per-diff cost:
+  195.5 s on a 106-line diff replay,
+  and the reviewer demanded linearity proof even on the fix diff.
 
 ## Next action
 
@@ -412,10 +445,22 @@ or git-policy package docs),
 `doc/agent/self-review.md` only obliges delegating to a separate reviewer when asked,
 git-policy owns landing without a review requirement,
 and `project-code-review` is a harness skill invoked on request.
-Where the gate lives is a flagged choice with the owner
-(procedure versus landing check).
-Then measure per-diff cost and run-to-run determinism,
-and wire the two miss shapes into the gate:
+Where the gate lives is decided:
+it runs in shadow,
+built as `doc/runbook/standards-review-gate.md`
+with its log at `doc/audit/standards-review-gate-shadow.md`,
+per the owner's 2026-10-29 ruling
+that everything runs as shadow
+and that no `AGENTS.md` rule backs it in that phase,
+since a mandate would not count as shadow.
+Next:
+the trigger is live,
+so runs accumulate on their own:
+score each `unjudged` entry `yes` or `no` as entries land,
+and watch the wall-clock column for per-diff cost.
+Graduation then goes back to the owner
+(`AGENTS.md` rule versus git-policy landing check).
+Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
 (`RG2` already demands proof for unbounded input).

@@ -41,7 +41,7 @@ fn invoke(root: &Path, args: &[&OsStr]) -> Output {
 ///  and do not create private state or read a missing root.
 #[test]
 fn executable_help_and_version_exit_without_startup() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     let missing = fixture.path().join("missing-project");
     for flag in ["--help", "--version"] {
         let output = invoke(fixture.path(), &[missing.as_os_str(), OsStr::new(flag)]);
@@ -64,7 +64,7 @@ fn executable_help_and_version_exit_without_startup() {
 ///  not an attempted native backend connection.
 #[test]
 fn executable_usage_errors_exit_before_startup() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     for args in [
         vec![OsStr::new("--unknown")],
         vec![OsStr::new("one"), OsStr::new("two")],
@@ -87,7 +87,7 @@ fn executable_usage_errors_exit_before_startup() {
 /// Positive filesystem controls prove valid argument grammar reaches root/source validation before GUI startup.
 #[test]
 fn invalid_project_and_non_regular_source_have_input_specific_errors() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     let project = fixture.path().join("project");
     let missing = fixture.path().join("missing");
     fs::create_dir(&project).expect("project fixture");
@@ -120,7 +120,7 @@ fn invalid_project_and_non_regular_source_have_input_specific_errors() {
 /// the grammar reports a usage error before anything starts.
 #[test]
 fn missing_project_opens_the_home_folder_or_reports_its_absence() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     fs::create_dir(fixture.path().join("home")).expect("disposable home folder");
     let started = invoke(fixture.path(), &[]);
     let started_text = String::from_utf8_lossy(&started.stderr).into_owned();
@@ -250,7 +250,7 @@ fn crate_licenses() -> Vec<serde_json::Value> {
 ///  writing nothing.
 #[test]
 fn licenses_prints_every_embedded_text_without_a_display_or_home() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     let output = invoke(fixture.path(), &[OsStr::new("--licenses")]);
     assert!(
         output.status.success(),
@@ -361,7 +361,7 @@ fn licenses_prints_every_embedded_text_without_a_display_or_home() {
 ///  and the cache is inspected.
 #[test]
 fn a_start_removes_cache_folders_of_other_builds_unused_for_30_days() {
-    let fixture = tempfile::tempdir().expect("disposable CLI environment");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable CLI environment");
     let project = fixture.path().join("project");
     fs::create_dir(&project).expect("project fixture");
     let runtime = fixture.path().join("cache/monochromatic-ide/runtime");

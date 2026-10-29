@@ -1,4 +1,7 @@
-# Extend the established Fedora native build environment with Helix's C++ driver.
+# Extend the established native build environment (CachyOS) with Helix's C++ driver.
+# Shipped binaries are not built in that image: the release workflow sets IDE_RELEASE=1, which makes every task here use
+# localhost/monochromatic/ide-release, built from Containerfile.release on the Ubuntu 24.04 terminal-release image, so
+# the released executable keeps the glibc floor of Ubuntu 24.04 (doc/decision/container-base-distro.md).
 # Cargo jobs are contained in a podman container whose bound bin/container-bounds.ts computes: by default 75 percent of the
 # host's CPUs and memory (owner decision of 2026-10-18, doc/handover/slint-ide-0x.md), 256 processes per CPU with a floor
 # of 512, and 4096 descriptors. The caller may lower or raise it with IDE_CONTAINER_CPUS, IDE_CONTAINER_MEMORY,
@@ -15,10 +18,12 @@ const { execFileSync } = await import('node:child_process')
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -49,6 +54,17 @@ const containerLimits = containerBounds()
 console.error(containerLimits.summary)
 const { execFileSync } = await import('node:child_process')
 execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+"""
+
+[tasks."image:release"]
+description = "Rebuild the Ubuntu 24.04 release image that shipped IDE binaries are compiled in (FROM localhost/monochromatic/terminal-release, built by //package/terminal/app:image:release); the other tasks use it when IDE_RELEASE=1"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
+const containerLimits = containerBounds()
+console.error(containerLimits.summary)
+const { execFileSync } = await import('node:child_process')
+execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
 """
 
 [tasks.fetch]

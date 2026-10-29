@@ -26,33 +26,30 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createServer, type Server, } from 'node:http';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { run, sha256File, } from './exec.ts';
 import {
-  rebuildExposure,
-  runPostinstallCommands,
-  runPostinstallLinks,
-} from './exposure.ts';
-import { hostPlatformId, } from './layout.ts';
-import {
-  resolveToolchainPaths,
-  toolInstallDir,
-  type ToolchainPaths,
-} from './paths.ts';
-import { BIN_BOOTSTRAP, } from './plan.ts';
-import {
+  BIN_BOOTSTRAP,
+  hostPlatformId,
   installArchive,
   installBinSourced,
   installCargoBinstall,
   type ProviderContext,
-} from './providers.ts';
-import type { ToolPlanEntry, } from './types.ts';
+  rebuildExposure,
+  resolveToolchainPaths,
+  run,
+  runPostinstallCommands,
+  runPostinstallLinks,
+  sha256File,
+  type ToolchainPaths,
+  toolInstallDir,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -76,7 +73,7 @@ function makeFixture(): Fixture {
    Disposable fixture root, used as the fixture home.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-provider-',
   ),);
   /**
@@ -706,7 +703,7 @@ await describe({
             /**
              Exposure rebuild report.
              */
-            const report = rebuildExposure({
+            const report = await rebuildExposure({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -753,7 +750,7 @@ await describe({
              Entry declaring a binary that is not installed.
              */
             const entry = fixtureEntry({ bins: ['absent-tool'], },);
-            expect(rebuildExposure({
+            expect(await rebuildExposure({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -819,7 +816,7 @@ await describe({
               '.cache',
               'cli-git-bin',
             );
-            runPostinstallLinks({
+            await runPostinstallLinks({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -841,7 +838,7 @@ await describe({
               .isSymbolicLink(),)
               .toBe(true,);
             // A second run must replace the link in place, leaving one entry.
-            runPostinstallLinks({
+            await runPostinstallLinks({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],

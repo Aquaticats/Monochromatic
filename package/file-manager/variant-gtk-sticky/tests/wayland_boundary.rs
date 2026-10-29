@@ -119,7 +119,7 @@ fn sticky_layout_boundary() {
     assert!(compositor_binary().exists(), "build nested-wayland-session first");
     assert!(app_binary().exists(), "build this package (release) first");
 
-    let run_dir = std::env::temp_dir().join(format!(
+    let run_dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
         "fm-gtk-sticky-boundary-{}-{}",
         std::process::id(),
         Instant::now().elapsed().as_nanos()

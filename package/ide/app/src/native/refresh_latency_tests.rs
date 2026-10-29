@@ -149,7 +149,7 @@ fn report(case: &str, folders: usize, samples: &[Duration]) {
 /// Expand `folders` directories,
 ///  then time file creation in them and rewrites of the displayed file.
 fn measure(folders: usize) {
-    let fixture = tempfile::tempdir().expect("disposable latency project");
+    let fixture = crate::test_scratch::scratch().expect("disposable latency project");
     let displayed = fixture.path().join("view.txt");
     fs::write(&displayed, "revision start\n").expect("displayed source");
     for index in 0..folders {

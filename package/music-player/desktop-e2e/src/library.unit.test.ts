@@ -13,7 +13,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -32,7 +32,7 @@ import {
  @returns its path
  */
 async function scratch(): Promise<string> {
-  return await mkdtemp(join(tmpdir(), 'e2e-library-',),);
+  return await mkdtemp(join(scratchRoot(), 'e2e-library-',),);
 }
 
 await describe({

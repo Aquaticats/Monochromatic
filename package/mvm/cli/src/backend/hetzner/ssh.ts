@@ -16,7 +16,6 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
@@ -35,6 +34,7 @@ import {
 } from './config.ts';
 import { PRIVATE_KEY_PATH, } from './ssh-key.ts';
 
+import { scratchParent, } from '../../scratch-parent.ts';
 /**
  Logger root for mvm after removing the package log shim.
  
@@ -498,7 +498,7 @@ export async function scpPull(
    Throwaway directory holding the downloaded file; removed on scope exit.
    */
   const dir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mvm-pull-',
   ),);
   /**

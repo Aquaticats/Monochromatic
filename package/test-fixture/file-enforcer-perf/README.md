@@ -342,4 +342,4 @@ The 2-55ms warm variance was caused by CFS period boundary stalls,
    parallel container launch,
    and constrained benchmarks
 - `Containerfile`:
-   Fedora 43 with Node and sysbench
+   CachyOS with Node and sysbench

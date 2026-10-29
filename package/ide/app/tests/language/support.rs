@@ -135,7 +135,7 @@ fn test_directory() -> tempfile::TempDir {
     {
         return directory;
     }
-    return tempfile::tempdir().expect("test directory");
+    return tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("test directory");
 }
 
 /// Run the named test again in a child process laid out by `layout`,

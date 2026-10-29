@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
@@ -134,7 +134,7 @@ type DisposableFixtureRoot = {
  @returns directory removed after the test scope.
  */
 function disposableFixtureRoot(): DisposableFixtureRoot {
-  const path = mkdtempSync(join(tmpdir(), 'readonly-shared-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-shared-',),);
   return {
     path,
     [Symbol.dispose](): void {

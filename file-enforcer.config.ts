@@ -725,6 +725,9 @@ ${
         // The search shadow's gitignored link directory, created by the toolchain postinstall,
         // must precede the toolchain exposure links: they hold the locked ripgrep.
         '.cache/search-shadow-bin',
+        // The mpm shadow's gitignored link directory, created by the toolchain postinstall, holds the `mpm`
+        // link that runs the real mpm and then prunes; it must precede the exposure links, which hold the real mpm.
+        '.cache/mpm-shadow-bin',
         // The toolchain exposure links must precede every ambient and global
         // tool so tasks run the locked versions.
         '.cache/toolchain-bin',
@@ -1392,69 +1395,71 @@ function harperLintersDisabled(rules: readonly string[],): Record<string, false>
  */
 async function manageHarperLsp4ij(): Promise<void> {
   await manageLsp4ijServerSettings({
-    productPrefixes: [
-      'IntelliJIdea',
-      'IdeaIC',
-    ],
-    baseServerMatch: {
-      commandLineIncludes: 'harper-ls',
-      serverNameEquals: 'Harper Language Server',
-      templateId: 'harper-ls',
-    },
-    baseConfig: {
-      set: harperLintersDisabled([
-        'UseTitleCase',
-        'SplitWords',
-        'PhrasalVerbAsCompoundNoun',
-      ],),
-      arrayUnion: {
-        'harper-ls.excludePatterns': [
-          '**/AGENTS.md',
-          '**/CLAUDE.md',
-          join(
-            process.cwd(),
+    settings: {
+      productPrefixes: [
+        'IntelliJIdea',
+        'IdeaIC',
+      ],
+      baseServerMatch: {
+        commandLineIncludes: 'harper-ls',
+        serverNameEquals: 'Harper Language Server',
+        templateId: 'harper-ls',
+      },
+      baseConfig: {
+        set: harperLintersDisabled([
+          'UseTitleCase',
+          'SplitWords',
+          'PhrasalVerbAsCompoundNoun',
+        ],),
+        arrayUnion: {
+          'harper-ls.excludePatterns': [
+            '**/AGENTS.md',
+            '**/CLAUDE.md',
+            join(
+              process.cwd(),
+              'AGENTS.md',
+            ),
+            join(
+              process.cwd(),
+              'CLAUDE.md',
+            ),
+          ],
+        },
+      },
+      schemaDefaults: {
+        'harper-ls.linters.UseTitleCase': {
+          type: 'boolean',
+          default: true,
+          description: 'Prompts you to use title case in relevant headings.',
+        },
+      },
+      scopedServers: [
+        {
+          id: 'harper-ls-agents-claude-md',
+          name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
+          fileNames: [
             'AGENTS.md',
-          ),
-          join(
-            process.cwd(),
             'CLAUDE.md',
-          ),
-        ],
-      },
+          ],
+          languageId: 'markdown',
+          copyOptions: [
+            'commandLine',
+            'installAlreadyDone',
+            'installerConfigurationContent',
+            'serverUrl',
+            'templateId',
+            'workingDir',
+            'workspaceFolderStrategyConfiguration',
+          ],
+          configOmitKeys: ['harper-ls.excludePatterns',],
+          config: { set: harperLintersDisabled([
+            'MissingTo',
+            'LongSentences',
+            'OxfordComma',
+          ],), },
+        },
+      ],
     },
-    schemaDefaults: {
-      'harper-ls.linters.UseTitleCase': {
-        type: 'boolean',
-        default: true,
-        description: 'Prompts you to use title case in relevant headings.',
-      },
-    },
-    scopedServers: [
-      {
-        id: 'harper-ls-agents-claude-md',
-        name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
-        fileNames: [
-          'AGENTS.md',
-          'CLAUDE.md',
-        ],
-        languageId: 'markdown',
-        copyOptions: [
-          'commandLine',
-          'installAlreadyDone',
-          'installerConfigurationContent',
-          'serverUrl',
-          'templateId',
-          'workingDir',
-          'workspaceFolderStrategyConfiguration',
-        ],
-        configOmitKeys: ['harper-ls.excludePatterns',],
-        config: { set: harperLintersDisabled([
-          'MissingTo',
-          'LongSentences',
-          'OxfordComma',
-        ],), },
-      },
-    ],
   },);
 }
 
@@ -1553,10 +1558,10 @@ const CARGO_WORKSPACE_BLOCK = `# Standalone crate: its own workspace root, so no
  
  @example
  ```ts
- console.log(CARGO_DYLINT_DIRS.includes('package/ide/app'));
+ console.log(CARGO_DYLINT_DIRS.has('package/ide/app'));
  ```
  */
-const CARGO_DYLINT_DIRS: readonly string[] = new Set([
+const CARGO_DYLINT_DIRS: ReadonlySet<string> = new Set([
   'package/ide/app',
   'package/linter/monochromatic-lint',
 ]);

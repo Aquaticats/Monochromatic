@@ -4,6 +4,7 @@
  */
 
 import {
+  BIN_NOT_FOUND,
   findToolBin,
 } from './layout.ts';
 import { run, } from './exec.ts';
@@ -56,24 +57,21 @@ export async function resolveGithubToken(
   },
 ): Promise<string | typeof NO_GITHUB_TOKEN> {
   /**
-   Earlier lookup result, when this process already resolved a token.
-   */
-  const cached = githubTokenCache.get(GITHUB_TOKEN_CACHE_KEY,);
-  if (cached !== undefined)
-    return cached;
-  /**
-   Token from the environment, which CI and interactive shells set.
+   Token from the environment, which CI and interactive shells set. It is read
+   before the cache and never cached, so a token the caller passes always wins
+   over an earlier `gh` lookup and never leaks into later calls.
    */
   const fromEnv = env.GITHUB_TOKEN
     ?? process.env
       .GITHUB_TOKEN;
-  if ((fromEnv !== undefined) && (fromEnv !== '')) {
-    githubTokenCache.set(
-      GITHUB_TOKEN_CACHE_KEY,
-      fromEnv,
-    );
+  if ((fromEnv !== undefined) && (fromEnv !== ''))
     return fromEnv;
-  }
+  /**
+   Earlier `gh` lookup result, when this process already ran one.
+   */
+  const cached = githubTokenCache.get(GITHUB_TOKEN_CACHE_KEY,);
+  if (cached !== undefined)
+    return cached;
   /**
    Token from the machine's `gh` login, when it has one.
    */
@@ -121,37 +119,41 @@ export async function resolveGithubToken(
 
  @example
  ```ts
- const cli = binCliPath({ paths, },);
+ const cli = await binCliPath({ paths, },);
  ```
  */
-export function binCliPath(
+export async function binCliPath(
   {
     paths,
     env,
     tools,
   }: {
     readonly paths: ToolchainPaths;
-    readonly env?: PathEnv | undefined;
-    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly env?: PathEnv;
+    readonly tools?: readonly ToolPlanEntry[];
   },
-): string {
+): Promise<string> {
   /**
    Bootstrap entry the CLI path is expected under.
    */
   const bootstrap = planTool({
-    tools,
+    ...(tools === undefined
+      ? {}
+      : { tools, }),
     id: 'bin',
   },);
   /**
    Resolved CLI from the bootstrap entry's install directory.
    */
-  const resolved = findToolBin({
+  const resolved = await findToolBin({
     entry: bootstrap,
     name: 'bin',
     paths,
-    env,
+    ...(env === undefined
+      ? {}
+      : { env, }),
   },);
-  if (resolved === null) {
+  if (resolved === BIN_NOT_FOUND) {
     throw new Error(
       `bin CLI is not installed; expected it under ${
         toolInstallDir({
@@ -186,7 +188,7 @@ export function toolchainPathEnv(
     env,
   }: {
     readonly paths: ToolchainPaths;
-    readonly env?: PathEnv | undefined;
+    readonly env?: PathEnv;
   },
 ): Record<string, string> {
   /**

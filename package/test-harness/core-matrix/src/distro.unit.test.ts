@@ -90,6 +90,20 @@ await describe({
         },),
 
         it({
+          name: 'cachyos resolves to pacman',
+          fn: async () => {
+            expect(detectPackageManager('cachyos',),).toBe('pacman',);
+          },
+        },),
+
+        it({
+          name: 'cachyos with a tag resolves to pacman',
+          fn: async () => {
+            expect(detectPackageManager('cachyos:latest',),).toBe('pacman',);
+          },
+        },),
+
+        it({
           name: 'strips tag suffix before lookup',
           fn: async () => {
             expect(detectPackageManager('fedora:39',),).toBe('dnf',);
@@ -163,13 +177,13 @@ await describe({
         },),
 
         it({
-          name: 'pacman root uses pacman -Sy',
+          name: 'pacman root syncs, upgrades and installs without the hook sandbox',
           fn: async () => {
             const cmd = prerequisiteCommand({
               manager: 'pacman',
               user: 'root',
             },);
-            expect(cmd.startsWith('pacman -Sy',),).toBe(true,);
+            expect(cmd.startsWith('pacman --disable-sandbox --sync --refresh --sysupgrade',),).toBe(true,);
           },
         },),
 
@@ -244,7 +258,7 @@ await describe({
               manager: 'pacman',
               runtime: 'node',
             },);
-            expect(cmd,).toBe('pacman -Sy --noconfirm gcc-libs jq',);
+            expect(cmd,).toBe('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed gcc-libs jq',);
           },
         },),
 

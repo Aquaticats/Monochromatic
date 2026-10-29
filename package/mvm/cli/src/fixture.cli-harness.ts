@@ -15,7 +15,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
@@ -93,7 +93,7 @@ export async function createSandbox(
    Root of everything this sandbox creates.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'mvm-cli-test-',
   ),);
   /**

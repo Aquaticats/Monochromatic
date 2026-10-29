@@ -13,7 +13,10 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { l, } from '../logger.ts';
 import { run, } from './exec.ts';
 import { pathExists, } from './fs-probe.ts';
-import { findToolBin, } from './layout.ts';
+import {
+  BIN_NOT_FOUND,
+  findToolBin,
+} from './layout.ts';
 import {
   globalPnpmVersions,
   parseUvToolList,
@@ -79,15 +82,15 @@ export type RouteObserver = (
 
  @returns Path of the `bin` CLI, or {@link NOT_INSTALLED} on a fresh machine before the `bin` stage runs
  */
-function resolveBinCli(
+async function resolveBinCli(
   {
     paths,
     env,
     tools,
   }: Omit<ObserveParams, 'entry'>,
-): string | typeof NOT_INSTALLED {
+): Promise<string | typeof NOT_INSTALLED> {
   try {
-    return binCliPath({
+    return await binCliPath({
       paths,
       env,
       tools,
@@ -129,7 +132,7 @@ async function observeBinSourced(
   /**
    Bootstrap CLI, absent on a fresh machine before the `bin` stage runs.
    */
-  const cli = resolveBinCli({
+  const cli = await resolveBinCli({
     paths,
     env,
     tools,
@@ -224,7 +227,7 @@ async function observeMpmPnpm(
   /**
    Toolchain `pnpm` that owns the global package list.
    */
-  const pnpmBin = findToolBin({
+  const pnpmBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'pnpm',
@@ -233,7 +236,7 @@ async function observeMpmPnpm(
     paths,
     env,
   },);
-  if (pnpmBin === null)
+  if (pnpmBin === BIN_NOT_FOUND)
     return NOT_INSTALLED;
   /**
    `pnpm list --global --depth=0 --json` output.
@@ -292,7 +295,7 @@ async function observeMpmUvx(
   /**
    Toolchain `uv` that owns the tool list.
    */
-  const uvBin = findToolBin({
+  const uvBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'uv',
@@ -301,7 +304,7 @@ async function observeMpmUvx(
     paths,
     env,
   },);
-  if (uvBin === null)
+  if (uvBin === BIN_NOT_FOUND)
     return NOT_INSTALLED;
   /**
    `uv tool list` output.

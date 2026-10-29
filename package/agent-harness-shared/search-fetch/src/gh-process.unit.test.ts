@@ -12,7 +12,7 @@ import {
   realpath,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { setTimeout as delay, } from 'node:timers/promises';
 
@@ -403,7 +403,7 @@ await describe({
              Local value for workingDirectory.
              */
             const workingDirectory = await mkdtemp(join(
-              tmpdir(),
+              scratchRoot(),
               TEMP_WORKING_DIR_PREFIX,
             ),);
 

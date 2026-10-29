@@ -72,7 +72,7 @@ fn an_unspecific_modify_is_a_plain_write_only_where_the_platform_reports_writes_
 //           GitHub Windows runner: `read_dir` of a watched folder alone produced a `Modify(Any)` event for that folder).
 #[test]
 fn a_folder_reported_as_modified_is_no_change_only_on_windows() {
-    let folder = std::env::temp_dir();
+    let folder = crate::test_scratch::scratch_root();
     let modified = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(folder.clone());
     if cfg!(windows) {
         assert_eq!(Change::of_event(&ok(modified)), None, "a folder only touched names nothing");

@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -45,7 +45,7 @@ function createEntryFixture(): EntryFixture {
   /**
    Fresh fixture directory under the system temp root.
    */
-  const path = mkdtempSync(join(tmpdir(), 'checkout-bundler-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'checkout-bundler-',),);
   writeFileSync(join(path, 'entry.ts',), 'export const cat = 1;\n',);
   writeFileSync(join(path, 'package.json',), JSON.stringify({ name: '@x/family-markup', },),);
   return {
