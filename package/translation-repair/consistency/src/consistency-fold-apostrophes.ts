@@ -36,13 +36,13 @@ import type { ReadonlyEntry, } from '@monochromatic-dev/translation-repair-share
  does not read as words (code, the strings of a component, a comment, a link's
  destination) hold no partner, and an English the grammar refuses is read whole.
 
- @param english - the English of a page, or of the slice alone where no more is known
+ @param english - English of a page, or of the slice alone where no more is known
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and the delimiters of its emphasis pair as plain
  text does (n173). An English that is the page itself holds its definitions already and needs none given
 
- @returns The offsets in the English of the proven marks, trailing and leading apart
+ @returns Offsets in the English of the proven marks, trailing and leading apart
 
  @example
  ```ts
@@ -176,13 +176,13 @@ export type ProofReading = {
 
  @internal
 
- @param english - the English of a page, or of the slice alone where no more is known
+ @param english - English of a page, or of the slice alone where no more is known
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and the delimiters of its emphasis pair as plain
  text does (n173). An English that is the page itself holds its definitions already and needs none given
 
- @returns The prose, the proven apostrophes, the marks read as joined and the reading of each apostrophe-like mark
+ @returns Prose, proven apostrophes, marks read as joined and reading of each apostrophe-like mark
 
  @example
  ```ts
@@ -249,7 +249,7 @@ export function readProof(
 
  @param at - offset of the mark in the prose
 
- @param proven - the proven apostrophes of the prose
+ @param proven - proven apostrophes of the prose
 
  @returns Whether the mark is part of a word
 
@@ -288,13 +288,13 @@ export function isPartOfAWord(
 /**
  What the proof reads of an English, shaped into the view the pass remembers.
 
- @param english - the English of a page, or of the slice alone where no more is known
+ @param english - English of a page, or of the slice alone where no more is known
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and the delimiters of its emphasis pair as plain
  text does (n173). An English that is the page itself holds its definitions already and needs none given
 
- @returns The prose, the proven apostrophes, the marks read as joined and the apostrophes that are part of a word
+ @returns Prose, proven apostrophes, marks read as joined and apostrophes that are part of a word
 
  @example
  ```ts
@@ -347,13 +347,13 @@ function readProofView(
  The prose of an English and the apostrophes proven in it, read once for each page: asked again for an equal English, which
  a page with many places does, it gives the same view and neither parses nor proves the page again.
 
- @param english - the English of a page, or of the slice alone where no more is known
+ @param english - English of a page, or of the slice alone where no more is known
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and the delimiters of its emphasis pair as plain
  text does (n173). An English that is the page itself holds its definitions already and needs none given
 
- @returns The prose, the proven apostrophes (trailing and leading apart) and the marks read as joined
+ @returns Prose, proven apostrophes (trailing and leading apart) and marks read as joined
 
  @example
  ```ts
@@ -402,13 +402,13 @@ export function proofViewOf(
  remembered, since it is a text made for one splice and would push the page the pass is working on out of the memory
  (`proofViewOf`).
 
- @param english - the English, as one place holds it or as a page
+ @param english - English, as one place holds it or as a page
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and the delimiters of its emphasis pair as plain
  text does (n173). An English that is the page itself holds its definitions already and needs none given
 
- @returns The reading of each apostrophe-like mark by its offset in the English, in the order the marks stand
+ @returns Reading of each apostrophe-like mark by its offset in the English, in the order the marks stand
 
  @example
  ```ts
@@ -441,21 +441,21 @@ export function markReadingsInEnglish(
  a possible partner anywhere on the page could pair with is not proven, so it
  stays outside.
 
- @param haystack - the English as the place holds it
+ @param haystack - English as the place holds it
 
  @param start - offset where the words start
 
  @param end - exclusive offset where they end
 
- @param page - the English of the whole page and where the haystack starts in it; the haystack alone is the page where absent
+ @param page - English of the whole page and where the haystack starts in it; the haystack alone is the page where absent
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`) the proof reads the English with, for a caller that
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`) the proof reads the English with, for a caller that
  holds the definitions and not the page: a reader of a recorded artifact, which stores the definitions a place was read with (generation
  19). A reference in the English whose definition stands in another slice is plain text without them, and the delimiters of its emphasis
  pair as plain text does, so a mark after closing emphasis reads as a leading mark where the page reads it as a joint of its word (n173);
  an English that is the page itself holds its definitions already and needs none given
 
- @returns The offsets of the span, the words and the proven apostrophes beside them
+ @returns Offsets of the span, words and proven apostrophes beside them
 
  @throws {@link import('./consistency-invariant-error.ts').ConsistencyInvariantError} when the page is too short to hold the haystack at its offset
 

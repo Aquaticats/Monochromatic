@@ -124,9 +124,9 @@ export type PageSlice = {
 /**
  The English with the front matter at its start blanked.
 
- @param english - the English of the first slice of a page
+ @param english - English of the first slice of a page
 
- @returns The English as long as it was, with the fenced block at its start (a mapping, as metadata is) turned into spaces
+ @returns English as long as it was, with the fenced block at its start (a mapping, as metadata is) turned into spaces
  and line breaks, or the English as it stands where it opens with none or its YAML is refused
 
  @example
@@ -171,12 +171,12 @@ function withoutFrontMatter({ english, }: { readonly english: string; },): strin
 /**
  The page a reader of one slice reads: the page it was handed, or the slice alone where it was handed none.
 
- @param english - the English of the slice as its place holds it
+ @param english - English of the slice as its place holds it
 
- @param page - the English of the whole page and where the slice's English starts in it, absent for a caller that holds one
+ @param page - English of the whole page and where the slice's English starts in it, absent for a caller that holds one
  English alone, whose slice is then the page
 
- @returns The page's English and where the slice starts in it
+ @returns Page's English and where the slice starts in it
 
  @throws {@link ConsistencyInvariantError} when the page is too short to hold the slice at its offset, since a span of the
  slice would then name no words of the page
@@ -293,11 +293,11 @@ export type ReadPage = {
  span, the separators it puts around an anchor and the text of a sealed span are the published page's, not a model of it. The
  front matter at the start of the page is blanked as it is for the page read without a layout.
 
- @param slices - the slices that carry English, in page order, with the English each is read with
+ @param slices - slices that carry English, in page order, with the English each is read with
 
  @param layout - what the published page is assembled from
 
- @returns The page, where each slice's English starts in it, and the text around the slices
+ @returns Page, where each slice's English starts in it, and the text around the slices
 
  @throws {@link Error} when the assembler refuses the slices, which means the layout and the slices disagree
 
@@ -449,12 +449,12 @@ function laidOutPage(
 /**
  Joins the English of the slices of a page into the published page's English.
 
- @param slices - the slices of the page that carry English, in page order
+ @param slices - slices of the page that carry English, in page order
 
- @param between - the text the page carries before the first slice, between each two and after the last, one piece more
+ @param between - text the page carries before the first slice, between each two and after the last, one piece more
  than there are slices; absent for a caller that holds the slices alone, whose slices are then a blank line apart
 
- @returns The page's English, and the offset where the English of each slice starts in it, by the slice's index
+ @returns Page's English, and the offset where the English of each slice starts in it, by the slice's index
 
  @throws {@link ConsistencyInvariantError} when the text between the slices does not hold one more piece than there are
  slices, since a slice would then stand where no text says it goes
@@ -606,15 +606,15 @@ export const NO_PLACE: unique symbol = Symbol('answer for a character that publi
  the start and the end they have in common and nothing is said of a position in between: it names a character that is no longer
  the reader's, so it has no place.
 
- @param written - the English the reader holds for the slice
+ @param written - English the reader holds for the slice
 
  @param shipped - what the page holds for the slice; the reader's English itself where the page holds no other
 
  @param offset - where the slice starts in the page
 
- @param at - the position in the reader's English
+ @param at - position in the reader's English
 
- @returns The position on the page, {@link NO_PLACE} where the page's words changed the character the reader names
+ @returns Position on the page, {@link NO_PLACE} where the page's words changed the character the reader names
 
  @example
  ```ts

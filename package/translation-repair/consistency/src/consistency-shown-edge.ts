@@ -67,9 +67,9 @@ function isWordCharacter({ character, }: { readonly character: string; },): bool
 /**
  The shown characters of the units in the order given, the default-ignorable ones stepped over, up to the number the test reads.
 
- @param units - the units from the edge outward, nearest first
+ @param units - units from the edge outward, nearest first
 
- @returns The shown characters, nearest first, stopping at the unit that brings the count to the number the test reads
+ @returns Shown characters, nearest first, stopping at the unit that brings the count to the number the test reads
 
  @example
  ```ts
@@ -96,7 +96,7 @@ function nearestShown({ units, }: { readonly units: readonly EdgeUnit[]; },): re
  Whether the shown characters beside an edge continue a word: the nearest is a word character, or it is a joiner with a word
  character beyond it.
 
- @param shown - the shown characters from the edge outward, nearest first
+ @param shown - shown characters from the edge outward, nearest first
 
  @returns Whether a reader sees a word run on from the edge in that direction
 
@@ -122,11 +122,11 @@ function continuesWord({ shown, }: { readonly shown: readonly string[]; },): boo
 /**
  Whether one edge of a span cuts a word.
 
- @param outward - the units outside the span from the edge outward, nearest first
+ @param outward - units outside the span from the edge outward, nearest first
 
- @param inward - the units inside the span from the edge inward, nearest first
+ @param inward - units inside the span from the edge inward, nearest first
 
- @param quoted - the first or last character of the words the judge quoted, empty for empty words
+ @param quoted - first or last character of the words the judge quoted, empty for empty words
 
  @returns Whether the outside continues a word and the span's edge is a word edge
 
@@ -156,15 +156,15 @@ function edgeCuts(
  shows and a default-ignorable character as nothing; run on the edges the span has once a quote that began inside a unit was
  widened to the whole unit.
 
- @param text - the English as written
+ @param text - English as written
 
  @param start - offset where the span starts
 
  @param end - exclusive offset where the span ends
 
- @param needle - the words the judge quoted, whose first and last characters say whether an edge is a word edge
+ @param needle - words the judge quoted, whose first and last characters say whether an edge is a word edge
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone
 
  @param codePadding - what pads the content of inline code: a space and a line ending as CommonMark reads it, or a literal space alone
  as an artifact written before line endings padded code was read; a space and a line ending where absent

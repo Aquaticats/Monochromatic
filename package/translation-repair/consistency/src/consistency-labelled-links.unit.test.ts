@@ -22,9 +22,9 @@ import {
 /**
  The kinds of answer the locator gives for each pair of texts: one with a link written, and its twin, the text a reader sees of it.
 
- @param rows - the text with the link, the twin, and the words asked for
+ @param rows - text with the link, twin, and words asked for
 
- @returns The kind of answer for the text with the link of each row, and for the twin of each row
+ @returns Kind of answer for the text with the link of each row, and for the twin of each row
 
  @example
  ```ts
@@ -53,13 +53,13 @@ function twinKindsOf(
 /**
  The kind of answer for a text on a page whose other slices define one reference label.
 
- @param haystack - the English of the slice
+ @param haystack - English of the slice
 
- @param words - the words asked for
+ @param words - words asked for
 
- @param defined - the label a definition line of another slice defines
+ @param defined - label a definition line of another slice defines
 
- @returns The kind of answer
+ @returns Kind of answer
 
  @example
  ```ts

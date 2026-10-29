@@ -93,7 +93,7 @@ function shownEnglishOf(
 
  @param places - every place in page order with its slice and English
 
- @returns The block's lines as the other judging sheets print them, empty when
+ @returns Block's lines as the other judging sheets print them, empty when
  the entry records no death or no shown English has a candidate
 
  @example

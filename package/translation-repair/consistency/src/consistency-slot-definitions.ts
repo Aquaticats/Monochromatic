@@ -21,9 +21,9 @@ type SlotReading = ReturnType<typeof slotInSpan>;
 /**
  Whether two readings of a slot are the same: both none, or the same slot at the same offset.
 
- @param left - a reading, a list of zero or one
+ @param left - reading, list of zero or one
 
- @param right - the other reading
+ @param right - other reading
 
  @returns Whether the two agree
 
@@ -58,9 +58,9 @@ function sameSlot(
  Entries of a page's definitions, each starting at a line that opens with a bracket (a definition's label), so a footnote of
  several paragraphs, whose later lines are indented, stays one entry.
 
- @param definitions - the page's definitions in the canonical form
+ @param definitions - page's definitions in the canonical form
 
- @returns The entries in the order of the page
+ @returns Entries in the order of the page
 
  @example
  ```ts
@@ -84,17 +84,17 @@ function entriesOf({ definitions, }: { readonly definitions: string; },): readon
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param words - the folded words the span was agreed by
+ @param words - folded words the span was agreed by
 
- @param span - the English's own words of the span
+ @param span - English's own words of the span
 
- @param quotesByLabel - the quote entries of these ballots by label, read once for the group
+ @param quotesByLabel - quote entries of these ballots by label, read once for the group
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), empty for a place that carries no page
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), empty for a place that carries no page
 
- @returns The definitions to record, or an empty string when they change nothing; a set that does not read back as the page's
+ @returns Definitions to record, or an empty string when they change nothing; a set that does not read back as the page's
  definitions is never returned, the whole set is returned in its place
 
  @example
@@ -131,9 +131,9 @@ export function definitionsMovingSlotOf(
   /**
    The slot read with a set of definitions.
 
-   @param set - the definitions to read with
+   @param set - definitions to read with
 
-   @returns The slot as a list of zero or one
+   @returns Slot as a list of zero or one
    */
   function slotWith({ set, }: { readonly set: string; },): SlotReading {
     return slotInSpan({
@@ -161,11 +161,11 @@ export function definitionsMovingSlotOf(
   /**
    Takes an entry out of the standing ones when the slot stays what the whole set gives.
 
-   @param standing - the entries still needed
+   @param standing - entries still needed
 
-   @param entry - the entry to try to take out
+   @param entry - entry to try to take out
 
-   @returns The entries that stand after the attempt
+   @returns Entries that stand after the attempt
    */
   function without(
     {

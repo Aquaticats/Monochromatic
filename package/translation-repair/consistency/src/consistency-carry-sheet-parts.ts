@@ -65,7 +65,7 @@ export type CarryChosenPlace = CarryReceivingPlace & {
 
  @param count - how many receiving places the block has
 
- @returns The label
+ @returns Label
 
  @example
  ```ts
@@ -89,7 +89,7 @@ export function receivingLabel(
 /**
  The fenced blocks that show one place's ORIGINAL to a model.
 
- @param view - the place
+ @param view - place
 
  @param name - what the blocks call the place, such as `THIS PLACE`
 
@@ -97,7 +97,7 @@ export function receivingLabel(
 
  @param marks - marks the paragraph carries
 
- @returns The blocks of its ORIGINAL and its slot where it has one, each ending in a line break
+ @returns Blocks of its ORIGINAL and its slot where it has one, each ending in a line break
 
  @example
  ```ts
@@ -135,11 +135,11 @@ export function originalBlocksOf(
  carry show them, under the same labels: bare for the only receiving place,
  numbered from one when a block holds several.
 
- @param receiving - the receiving places of the block, in page order
+ @param receiving - receiving places of the block, in page order
 
  @param fence - fence no shown text contains
 
- @returns The blocks, each ending in a line break
+ @returns Blocks, each ending in a line break
 
  @example
  ```ts
@@ -175,13 +175,13 @@ export function replaceBlocksOf(
  The fenced blocks of the original blocks before and after the one that holds
  the receiving places.
 
- @param before - the block before, where the slice has one
+ @param before - block before, where the slice has one
 
- @param after - the block after, where the slice has one
+ @param after - block after, where the slice has one
 
  @param fence - fence no shown text contains
 
- @returns The blocks, each ending in a line break, nothing for a block the slice lacks
+ @returns Blocks, each ending in a line break, nothing for a block the slice lacks
 
  @example
  ```ts
@@ -210,11 +210,11 @@ export function aroundBlocksOf(
  that render the repeated wording there, the paragraph that holds them and, for
  a frame with a located slot, the English slot.
 
- @param chosen - the chosen place
+ @param chosen - chosen place
 
  @param fence - fence no shown text contains
 
- @returns The blocks, each ending in a line break
+ @returns Blocks, each ending in a line break
 
  @example
  ```ts
@@ -265,9 +265,9 @@ export type CarryEdgeWords = {
  The line that says where a stretch of a crossing place's words must stay, in the
  list of words to keep.
 
- @param crossing - the stretch and its edge
+ @param crossing - stretch and its edge
 
- @returns The words followed by what is asked of them, in one entry of the list
+ @returns Words followed by what is asked of them, in one entry of the list
 
  @example
  ```ts
@@ -283,13 +283,13 @@ function crossingEntryOf({ crossing, }: { readonly crossing: CarryEdgeWords; },)
 /**
  The fenced block naming words of other places that must stay as they are.
 
- @param keeping - the words, one entry for each place
+ @param keeping - words, one entry for each place
 
  @param crossing - stretches of places that run over an edge of the paragraph, each of which must stay at that edge
 
  @param fence - fence no shown text contains
 
- @returns The block, nothing when there are no words, ending in a line break
+ @returns Block, nothing when there are no words, ending in a line break
 
  @example
  ```ts

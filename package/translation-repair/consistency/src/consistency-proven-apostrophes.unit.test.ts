@@ -33,9 +33,9 @@ type PastMarkupOffsets = {
 /**
  The marks a caller names as standing past markup, as the reading takes them.
 
- @param past - the offsets, none by default
+ @param past - offsets, none by default
 
- @returns The set of offsets
+ @returns Set of offsets
 
  @example
  ```ts
@@ -52,11 +52,11 @@ function pastMarkupOf(
  A text with each proven apostrophe shown between white square brackets, the
  trailing and the leading kind alike, so a case reads as the text it is about.
 
- @param text - the English
+ @param text - English
 
- @param past - the marks the caller names as standing past markup, none by default
+ @param past - marks the caller names as standing past markup, none by default
 
- @returns The English with the proven marks bracketed
+ @returns English with the proven marks bracketed
 
  @example
  ```ts
@@ -79,9 +79,9 @@ function provenShown(
 /**
  How every apostrophe-like mark of a text reads, as `offset:kind` pairs in the order of the offsets.
 
- @param text - the English
+ @param text - English
 
- @param past - the marks the caller names as standing past markup, none by default
+ @param past - marks the caller names as standing past markup, none by default
 
  @returns One pair for each mark
 
@@ -107,9 +107,9 @@ function readingsShown(
  length and its characters; any other method it asks for is absent and the case
  throws.
 
- @param text - the English the double holds
+ @param text - English the double holds
 
- @returns The double, which the reading takes as the English, and a reader of
+ @returns Double, which the reading takes as the English, and a reader of
  the count of characters read from it so far
 
  @example
@@ -146,9 +146,9 @@ function countedEnglish({ text, }: { readonly text: string; },): {
 /**
  How many characters the reading takes from an English of the given text.
 
- @param text - the English
+ @param text - English
 
- @returns The characters read
+ @returns Characters read
 
  @example
  ```ts

@@ -53,15 +53,15 @@ const CLOSING_STAND_IN = ']';
 /**
  The twin of a folded English: what a reader sees of it, link by link.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
- @param closing - the offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough stretch
+ @param closing - offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough stretch
 
- @param links - the links the parse holds, at the offsets of the fold
+ @param links - links the parse holds, at the offsets of the fold
 
- @returns The twin and the offsets that carry an answer about it back
+ @returns Twin and offsets that carry an answer about it back
 
  @example
  ```ts
@@ -173,11 +173,11 @@ export function linkTwinOf(
 /**
  The offsets of the English that stand for the offsets an answer about the twin names.
 
- @param twin - the twin of the English
+ @param twin - twin of the English
 
  @param found - offsets of the twin
 
- @returns The offset in the English of each unit of the twin named, and the start of each link taken out directly before it
+ @returns Offset in the English of each unit of the twin named, and the start of each link taken out directly before it
 
  @example
  ```ts

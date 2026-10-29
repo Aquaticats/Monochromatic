@@ -96,9 +96,9 @@ const CODE_POINT_LARGEST = 0x10_FF_FF;
 /**
  The character a reference decodes to, when it decodes to a quotation-like one.
 
- @param reference - the reference as written, from its `&` to its `;`
+ @param reference - reference as written, from its `&` to its `;`
 
- @returns The character as a list of one, none when the reference decodes to anything else, names no character or holds more
+ @returns Character as a list of one, none when the reference decodes to anything else, names no character or holds more
  digits than the parser reads
 
  @example
@@ -143,9 +143,9 @@ function quoteCharacterOf({ reference, }: { readonly reference: string; },): rea
  The character references of an English that decode to a quotation-like character and that the page shows as text, in the order
  they stand, as the English writes them. A page that has one shows a reader a mark that no reader of the raw text sees.
 
- @param english - the English of a slice, or the English of a whole page
+ @param english - English of a slice, or the English of a whole page
 
- @returns The references, each from its `&` to its `;`, none for a page that holds none
+ @returns References, each from its `&` to its `;`, none for a page that holds none
 
  @example
  ```ts

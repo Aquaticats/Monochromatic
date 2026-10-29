@@ -145,7 +145,7 @@ function attachesAddress({ character, }: { readonly character: string; },): bool
  Where the address of a run starts, going back from a scheme or an `@` over the
  characters that can belong to it without leaving the run.
 
- @param text - the text read
+ @param text - text read
 
  @param from - offset of the `://` or the `@` the address is anchored on
 
@@ -153,7 +153,7 @@ function attachesAddress({ character, }: { readonly character: string; },): bool
 
  @param belongs - whether a whole character can belong to the stretch before the anchor
 
- @returns The offset of the first character of the stretch
+ @returns Offset of the first character of the stretch
 
  @example
  ```ts
@@ -195,13 +195,13 @@ function addressStartBefore(
 /**
  The address a finished run holds, as a list of zero or one.
 
- @param text - the text read
+ @param text - text read
 
  @param run - what the pass met of the run
 
  @param end - exclusive offset where the run ends
 
- @returns The address of the run, none when the run holds no address
+ @returns Address of the run, none when the run holds no address
 
  @example
  ```ts
@@ -272,9 +272,9 @@ function addressOfRun(
 /**
  Every address of a text, in order.
 
- @param text - the English in the fold
+ @param text - English in the fold
 
- @returns The addresses, each from its start to the end of its run, in ascending order and not overlapping
+ @returns Addresses, each from its start to the end of its run, in ascending order and not overlapping
 
  @example
  ```ts
@@ -354,9 +354,9 @@ export function addressRangesOf({ text, }: { readonly text: string; },): readonl
 
  @param length - length of the needle, the same for every stand
 
- @param addresses - the addresses of the text, in ascending order and not overlapping
+ @param addresses - addresses of the text, in ascending order and not overlapping
 
- @returns The stands that lie outside every address, in the order they were given
+ @returns Stands that lie outside every address, in the order they were given
 
  @example
  ```ts

@@ -96,7 +96,7 @@ function sheetText({ subject, }: { readonly subject: CarryWriterSubject; },): st
 
  @param subject - what the sheet shows
 
- @returns The text of the places
+ @returns Text of the places
 
  @example
  ```ts
@@ -112,7 +112,7 @@ function userText({ subject, }: { readonly subject: CarryWriterSubject; },): str
 /**
  The subject with a second receiving place in the same paragraph.
 
- @returns The subject
+ @returns Subject
 
  @example
  ```ts

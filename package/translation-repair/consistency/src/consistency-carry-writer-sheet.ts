@@ -229,7 +229,7 @@ Rules:
  Builds the exchange asking one writer to carry the chosen rendering to the
  receiving places of one block.
 
- @param subject - the repeated wording, the chosen place and the receiving places
+ @param subject - repeated wording, chosen place and receiving places
 
  @returns Messages for one exchange
 

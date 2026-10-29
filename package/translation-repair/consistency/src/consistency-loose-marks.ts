@@ -224,11 +224,11 @@ export function isCountedSingleMark({ character, }: { readonly character: string
 /**
  The single mark a text holds at an offset.
 
- @param text - the English
+ @param text - English
 
  @param at - offset asked about, which may lie outside the text
 
- @returns The mark as the text holds it, as a list of one, or none when the
+ @returns Mark as the text holds it, as a list of one, or none when the
  offset holds no single mark or lies outside the text
 
  @example
@@ -258,9 +258,9 @@ export function singleMarkAt(
  A single mark in the form two marks are compared in: the straight apostrophe,
  the closing curly single mark and the modifier letter apostrophe are one.
 
- @param mark - a single mark as a text holds it
+ @param mark - single mark as a text holds it
 
- @returns The mark to compare
+ @returns Mark to compare
 
  @example
  ```ts
@@ -277,9 +277,9 @@ function foldedSingleMark({ mark, }: { readonly mark: string; },): string {
  marks are folded to one. The opening curly single mark equals only itself, and
  an absent mark equals only an absent one.
 
- @param left - the mark one place holds, as a list of zero or one
+ @param left - mark one place holds, as a list of zero or one
 
- @param right - the mark the other place holds, as a list of zero or one
+ @param right - mark the other place holds, as a list of zero or one
 
  @returns Whether the two places hold the same mark
 
@@ -332,9 +332,9 @@ type LoosePoint = {
  `](…)`. The words are read by the function the proof reads a page with (`closingRunMarksOf`), so the words and the page cannot
  disagree about a mark past markup; a lone `*`, `_` or `~` is a character of the words and no part of a run.
 
- @param points - the whole characters of the words of a span, the last of them the mark asked about
+ @param points - whole characters of the words of a span, last of them the mark asked about
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
@@ -382,11 +382,11 @@ function endsReadingRun(
  (`*kittens*’`), the way the proof reads a mark past markup (`consistency-marks-past-markup.ts`). A mark at the start has no
  mirror: `’*tis*` holds none.
 
- @param points - the whole characters of the span
+ @param points - whole characters of the span
 
  @param at - position of the character asked about, an edge of the span
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
@@ -425,13 +425,13 @@ function isEdgeApostropheAt(
 /**
  The loose marks among the whole characters of a text, each with its position.
 
- @param points - the whole characters of the words of a span, so a letter beyond the first plane is one neighbour
+ @param points - whole characters of the words of a span, so a letter beyond the first plane is one neighbour
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
- @returns The loose marks in the order they stand
+ @returns Loose marks in the order they stand
 
  @example
  ```ts
@@ -504,13 +504,13 @@ function looseMarkPointsOf(
  to the same by `edgeMarksContradictedBySpan`, which refuses any other single mark
  at an edge.
 
- @param text - the words of a span
+ @param text - words of a span
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
- @returns The loose marks as one text per mark, in the order they stand
+ @returns Loose marks as one text per mark, in the order they stand
 
  @example
  ```ts
@@ -539,11 +539,11 @@ export function looseMarksOf(
  Whether the words of a span hold a proven apostrophe at one edge: an
  apostrophe-like single mark with a letter or a digit directly inside it.
 
- @param text - the words of a span
+ @param text - words of a span
 
  @param side - `start` for the first whole character, `end` for the last
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
@@ -588,7 +588,7 @@ export function holdsEdgeApostrophe(
  apostrophes and never made without a proof. It reads no markup run: the mark that ends a run is the last character of the
  words, as the mark that begins them is the first.
 
- @param text - the words of a span
+ @param text - words of a span
 
  @param side - `start` for the first whole character, `end` for the last
 
@@ -621,13 +621,13 @@ export function holdsEdgeMark(
  sides, and the one at an edge of the words with a letter or a digit directly
  inside it.
 
- @param points - the whole characters of the words of a span
+ @param points - whole characters of the words of a span
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
- @returns The positions, in the order they stand
+ @returns Positions, in the order they stand
 
  @example
  ```ts
@@ -666,13 +666,13 @@ function apostrophePositionsOf(
  order: the marks a letter or a digit attaches on both sides (`dog's`) and the one
  at an edge of the words with a letter or a digit directly inside it (`dogs’`).
 
- @param text - the words of a span
+ @param text - words of a span
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
- @returns The characters of those marks, one text per mark, none for words with no apostrophe of a word
+ @returns Characters of those marks, one text per mark, none for words with no apostrophe of a word
 
  @example
  ```ts
@@ -706,15 +706,15 @@ export function apostropheMarksOf(
  loose mark is never touched: it is written in the form of the place it goes to
  by {@link withLooseMarksOf}.
 
- @param text - the words of a span
+ @param text - words of a span
 
- @param form - the character every apostrophe of a word is written as, one of the three apostrophe-like marks
+ @param form - character every apostrophe of a word is written as, one of the three apostrophe-like marks
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone: a reference in the
  words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a `*` that can pair with an
  outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a reading run
 
- @returns The words with those apostrophes in that form
+ @returns Words with those apostrophes in that form
 
  @example
  ```ts
@@ -762,16 +762,16 @@ export function withApostropheForm(
  changes (a straight quotation mark becomes the curly one the other text wrote
  there). An apostrophe inside a word is no loose mark and stays as written.
 
- @param text - the words whose loose marks are rewritten
+ @param text - words whose loose marks are rewritten
 
- @param like - the words whose loose marks give the characters, with a sequence of loose marks that equals the text's once folded
+ @param like - words whose loose marks give the characters, with a sequence of loose marks that equals the text's once folded
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone; both texts are read
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for words read alone; both texts are read
  with them: a reference in the words whose definition stands elsewhere on the page is then plain text, and an unresolved `[b*]` has a
  `*` that can pair with an outer one, so the words' emphasis pairs another way (n173); read only where the last character may end a
  reading run
 
- @returns The text with its loose marks in the form `like` wrote them
+ @returns Text with its loose marks in the form `like` wrote them
 
  @throws {@link ConsistencyInvariantError} when the two texts hold different numbers of loose marks, since the caller has compared the sequences
 

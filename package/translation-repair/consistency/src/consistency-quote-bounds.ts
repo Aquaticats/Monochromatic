@@ -86,7 +86,7 @@ export function isClosing({ point, }: { readonly point: string; },): boolean {
 
  @param otherwise - position to use then
 
- @returns The index, or the stand-in
+ @returns Index, or the stand-in
 
  @example
  ```ts
@@ -206,7 +206,7 @@ export function quoteBounds(
 
  @param quote - words as a judge quoted them
 
- @returns The quote from its first visible character to its last that is not
+ @returns Quote from its first visible character to its last that is not
  closing punctuation, space or an invisible character
 
  @example

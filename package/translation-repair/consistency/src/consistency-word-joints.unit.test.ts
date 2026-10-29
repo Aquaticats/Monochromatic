@@ -32,9 +32,9 @@ import {
  Whether the one stand of a word in a text is cut out of a longer word, the
  text read as the locator reads an English.
 
- @param text - the text before the fold, of characters in the first plane
+ @param text - text before the fold, of characters in the first plane
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
  @returns Whether an edge of the stand is a joint
 
@@ -78,9 +78,9 @@ function cutIn(
  its length, characters and slices; any other method it asks for is absent and
  the case throws.
 
- @param text - the folded English the double holds
+ @param text - folded English the double holds
 
- @returns The double, which `cutsWord` takes as the folded English, and a
+ @returns Double, which `cutsWord` takes as the folded English, and a
  reader of the count of characters read from it so far
 
  @example
@@ -128,9 +128,9 @@ const LINEAR_READS_PER_CHARACTER = 16;
  `cutsWord` is then asked about a stand of one character at each position of the
  text in turn.
 
- @param text - the text before the fold, of characters in the first plane
+ @param text - text before the fold, of characters in the first plane
 
- @returns The characters read over all the positions
+ @returns Characters read over all the positions
 
  @example
  ```ts
@@ -162,11 +162,11 @@ function readsWhenProbingEveryPosition({ text, }: { readonly text: string; },): 
 /**
  How many characters `cutsWord` reads for the one stand of a word in a text.
 
- @param text - the text before the fold, of characters in the first plane
+ @param text - text before the fold, of characters in the first plane
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
- @returns The characters read
+ @returns Characters read
 
  @example
  ```ts
@@ -701,8 +701,8 @@ await describe({
              Whether the stand of a word in an English with links is cut out of a longer word, the closing joints left out so that only
              the reading beside the stand answers.
 
-             @param english - the English, which folds unit for unit
-             @param word - the word
+             @param english - English, which folds unit for unit
+             @param word - word
              @param which - `first` for the first stand of the word, `last` for the last
              @returns Whether an edge of the stand is a joint
              */

@@ -120,9 +120,9 @@ export const NO_MARKUP_RANGES: MarkupRanges = {
 /**
  The stretch of one node.
 
- @param node - a node of the tree
+ @param node - node of the tree
 
- @returns The stretch from the start of the node to its end
+ @returns Stretch from the start of the node to its end
 
  @throws {@link ConsistencyInvariantError} when the node has no start or no end offset, since the parser places every node it reads
  and a stretch left out would leave its markup in the prose
@@ -161,7 +161,7 @@ function placeOf({ node, }: { readonly node: TreeNode; },): MarkupRange {
 
  @param nodes - nodes of the tree
 
- @returns The stretches of the nodes, in the order the nodes were listed
+ @returns Stretches of the nodes, in the order the nodes were listed
 
  @throws {@link ConsistencyInvariantError} when a node has no start or no end offset
 
@@ -183,7 +183,7 @@ function stretchesOfNodes({ nodes, }: { readonly nodes: readonly TreeNode[]; },)
 
  @param types - node types
 
- @returns The stretches of the nodes, in the order the nodes were listed
+ @returns Stretches of the nodes, in the order the nodes were listed
 
  @throws {@link ConsistencyInvariantError} when a node has no start or no end offset
 
@@ -213,9 +213,9 @@ function stretchesOfTypes(
  to its end (the closing bracket, the destination and the title, or the reference), and for an image the whole of it, since an image
  shows a reader a picture and not its alt text.
 
- @param node - a link, a reference or an image of the tree
+ @param node - link, reference or image of the tree
 
- @returns The stretch of the resource
+ @returns Stretch of the resource
 
  @throws {@link ConsistencyInvariantError} when the link has no start or no end offset, when its label ends in a child with no end
  offset, or when its label ends after it does, since the parser places every link and its label inside it, and a resource left
@@ -279,7 +279,7 @@ function resourceOfLink({ node, }: { readonly node: TreeNode; },): MarkupRange {
 
  @param nodes - every node of the tree
 
- @returns The stretches, in the order the nodes were listed
+ @returns Stretches, in the order the nodes were listed
 
  @throws {@link ConsistencyInvariantError} when a link cannot be placed, as `resourceOfLink` says
 
@@ -312,11 +312,11 @@ const LABELLED_KINDS: ReadonlySet<LinkLabelKind> = new Set<LinkLabelKind>([
  whose label shows closing marks alone as a closing link, so neither is listed; an image is hidden whole, so it is not either. A link
  that does not begin with a square bracket (`<https://u>`) is left out.
 
- @param english - the English the tree was read from, which tells a link written with square brackets from an autolink
+ @param english - English the tree was read from, which tells a link written with square brackets from an autolink
 
  @param nodes - every node of the tree
 
- @returns The links, in the order the nodes were listed
+ @returns Links, in the order the nodes were listed
 
  @throws {@link ConsistencyInvariantError} when a link cannot be placed, as `resourceOfLink` says
 
@@ -371,7 +371,7 @@ function labelledLinksOf(
 
  @param kind - what the label shows
 
- @returns The stretches of the links, in the order the nodes were listed
+ @returns Stretches of the links, in the order the nodes were listed
 
  @throws {@link ConsistencyInvariantError} when a link has no start or no end offset
 
@@ -399,9 +399,9 @@ function stretchesOfLabelsShowing(
 /**
  How many backticks a text opens with.
 
- @param text - the text
+ @param text - text
 
- @returns The count, the length of the text when it is all backticks
+ @returns Count, length of the text when it is all backticks
 
  @example
  ```ts
@@ -442,7 +442,7 @@ const PADDING_CHARACTERS: Readonly<Record<CodePadding, ReadonlySet<string>>> = {
 /**
  How many units of one side of the content of inline code are a single space or line ending, which CommonMark reads as one space.
 
- @param text - the content as written
+ @param text - content as written
 
  @param side - which side to read
 
@@ -494,13 +494,13 @@ function paddingWidthOf(
  or the content is spaces and line endings alone, every one of them is shown. Under the padding of spaces alone (an artifact
  written before line endings padded code), a literal space is all that pads and a line ending is shown.
 
- @param english - the English the tree was read from
+ @param english - English the tree was read from
 
- @param range - the stretch of the whole code node, backticks included
+ @param range - stretch of the whole code node, backticks included
 
  @param codePadding - what pads the content: a literal space alone, or a space and a line ending
 
- @returns The stretch of the content
+ @returns Stretch of the content
 
  @example
  ```ts
@@ -597,14 +597,14 @@ function codeContentOf(
 /**
  The stretches of the images, of the table rows and of the content of inline code a tree holds.
 
- @param english - the English the tree was read from
+ @param english - English the tree was read from
 
  @param nodes - every node of the tree
 
  @param codePadding - what pads the content of inline code: a space and a line ending as CommonMark reads it, or a literal space alone
  as an artifact written before line endings padded code was read; a space and a line ending where absent
 
- @returns The stretches of the three kinds
+ @returns Stretches of the three kinds
 
  @example
  ```ts

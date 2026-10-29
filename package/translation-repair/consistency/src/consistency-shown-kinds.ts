@@ -160,11 +160,11 @@ type TagClosing = {
 /**
  Where a run of letters and digits that starts at an offset ends.
 
- @param english - the English
+ @param english - English
 
  @param from - offset of the first unit of the run
 
- @returns The exclusive offset where the run ends, which is `from` for an empty run
+ @returns Exclusive offset where the run ends, which is `from` for an empty run
 
  @example
  ```ts
@@ -192,13 +192,13 @@ function nameEndOf(
 /**
  Where a tag whose name ended at an offset ends: the first `>` outside a quoted attribute value, within the length a tag is read over.
 
- @param english - the English
+ @param english - English
 
  @param from - offset past the tag's name
 
  @param limit - exclusive offset past which no tag is read
 
- @returns The exclusive offset past the `>`, or the offset it gave up at, with whether a `>` was found
+ @returns Exclusive offset past the `>`, or the offset it gave up at, with whether a `>` was found
 
  @example
  ```ts
@@ -253,11 +253,11 @@ function tagEndOf(
 /**
  The tag that starts at an offset, none when the units after the `<` are no tag within the length a tag is read over.
 
- @param english - the English
+ @param english - English
 
  @param at - offset of the `<`
 
- @returns The tag as a list of zero or one
+ @returns Tag as a list of zero or one
 
  @example
  ```ts
@@ -314,7 +314,7 @@ function tagAt(
 /**
  Marks the units of a stretch that are of a kind as another kind.
 
- @param kinds - the kinds, mutated in place
+ @param kinds - kinds, mutated in place
 
  @param from - offset where the stretch starts
 
@@ -326,7 +326,7 @@ function tagAt(
 
  @param only - characters the unit must be one of, any where absent
 
- @param english - the English, which `only` reads the characters of
+ @param english - English, which `only` reads the characters of
 
  @example
  ```ts
@@ -363,9 +363,9 @@ function retype(
 /**
  Whether a stretch is one of some stretches, start and end alike.
 
- @param range - the stretch asked about
+ @param range - stretch asked about
 
- @param stretches - the stretches it may be one of
+ @param stretches - stretches it may be one of
 
  @returns Whether a stretch of the list starts and ends where the stretch does
 
@@ -394,9 +394,9 @@ function isStretchOf(
 /**
  The kind of every unit of an English at the edge of a span.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone
 
  @param codePadding - what pads the content of inline code: a space and a line ending as CommonMark reads it, or a literal space alone
  as an artifact written before line endings padded code was read; a space and a line ending where absent

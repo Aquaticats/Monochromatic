@@ -73,11 +73,11 @@ type LabelledPlace = {
  The located renderings of a chosen place and a receiving place, counted from three ballots that quote both and choose the
  first, so the planner reads exactly what the pass hands it.
 
- @param chosen - the chosen place's English and quote
+ @param chosen - chosen place's English and quote
 
- @param receiving - the receiving place's English and quote
+ @param receiving - receiving place's English and quote
 
- @returns The two renderings, chosen first
+ @returns Two renderings, chosen first
 
  @throws Error when either place is not located
 

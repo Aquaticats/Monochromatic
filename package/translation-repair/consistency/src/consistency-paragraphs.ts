@@ -123,7 +123,7 @@ const rememberedTextBlocks: RememberedTextBlocks[] = [];
 
  @param depth - how many quotations enclose the block
 
- @returns The block as a list of one, none when an offset is absent
+ @returns Block as a list of one, none when an offset is absent
 
  @example
  ```ts
@@ -168,11 +168,11 @@ function blockBetween(
  The block of running text a node is, none for any other node: a paragraph where the parser put it, a heading from the start
  of its first inline node to the end of its last, since the position of a setext heading holds its underline.
 
- @param node - the node asked about
+ @param node - node asked about
 
  @param depth - how many quotations enclose it
 
- @returns The block as a list of one, none when the node is no such block, has no position or holds no text
+ @returns Block as a list of one, none when the node is no such block, has no position or holds no text
 
  @example
  ```ts
@@ -221,9 +221,9 @@ function textBlockOf(
  The blocks of running text of a tree, walked with a work stack rather than by recursion, since a tree is as deep as the nesting a
  page writes.
 
- @param root - the tree's top node
+ @param root - tree's top node
 
- @returns The paragraphs and the texts of the headings, in ascending order of their start
+ @returns Paragraphs and texts of the headings, in ascending order of their start
 
  @example
  ```ts
@@ -282,9 +282,9 @@ function textBlockRangesOf({ root, }: { readonly root: TreeNode; },): readonly T
  What the parse of an English says of its blocks of running text, parsed once for each of the English texts most recently asked
  about.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
+ @param definitions - page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
  for an English read alone
 
  @returns Whether the grammar refused it, and the blocks otherwise
@@ -354,11 +354,11 @@ function textBlocksOf(
 /**
  The block of running text that holds an offset, found by halving the blocks until one is left to ask.
 
- @param ranges - the blocks, in ascending order of their start
+ @param ranges - blocks, in ascending order of their start
 
- @param index - the offset asked about
+ @param index - offset asked about
 
- @returns The block as a list of one, none when no block holds the offset
+ @returns Block as a list of one, none when no block holds the offset
 
  @example
  ```ts
@@ -409,11 +409,11 @@ function blockHolding(
  Whether an offset of an English lies inside one of its blocks of running text, a paragraph or the text of a setext heading. For
  an English the grammar refuses, which has no blocks to tell, every offset does.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param index - the offset asked about, which is a line break in the one question the pass asks
+ @param index - offset asked about, which is a line break in the one question the pass asks
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
+ @param definitions - page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
  for an English read alone
 
  @returns Whether the offset is at or after the start of a block and before its end
@@ -462,14 +462,14 @@ export function insideParagraphAt(
  another quotation stands between them. An offset no block holds has none; an English the grammar refuses has no blocks to tell
  and is taken for as deep as a quotation can be.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param index - the offset asked about, which is a line break in the one question the pass asks
+ @param index - offset asked about, which is a line break in the one question the pass asks
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
+ @param definitions - page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
  for an English read alone
 
- @returns The number of quotations, `Number.POSITIVE_INFINITY` for an English the grammar refuses
+ @returns Number of quotations, `Number.POSITIVE_INFINITY` for an English the grammar refuses
 
  @example
  ```ts

@@ -76,7 +76,7 @@ const TEXT_NODE_TYPES: ReadonlySet<string> = new Set([
 /**
  Whether a node of the tree is a link, a reference or an image, the nodes whose label a reader sees.
 
- @param node - a node of the tree
+ @param node - node of the tree
 
  @returns Whether the node is one of the four
 
@@ -92,9 +92,9 @@ export function isLinkNode({ node, }: { readonly node: TreeNode; },): boolean {
 /**
  The text a label shows a reader: the text and code inside it, the alt text of an image inside it, and a space for a line break.
 
- @param node - a link, a link reference, an image or an image reference
+ @param node - link, link reference, image or image reference
 
- @returns The shown text, absent when the label holds a node whose shown text the tree does not say (raw markup, an expression)
+ @returns Shown text, absent when the label holds a node whose shown text the tree does not say (raw markup, an expression)
 
  @example
  ```ts
@@ -134,7 +134,7 @@ function labelTextOf({ node, }: { readonly node: TreeNode; },): readonly string[
  label in plain text would be none (`kit!'s`, `Kit.'s`, `kit 's`); a label that ends in a closing mark (`[kit)](u)`) closes as
  the mark does, and one that ends in a letter or a digit makes the apostrophe after it a joint of the word.
 
- @param node - a link, a link reference, an image or an image reference
+ @param node - link, link reference, image or image reference
 
  @returns Whether the label shows something and its last character is an open mark; false for a label that shows nothing and for a
  label whose shown text the tree does not say
@@ -167,7 +167,7 @@ export function linkLabelEndsOpenOf({ node, }: { readonly node: TreeNode; },): b
 /**
  What the label of a link, a reference or an image shows a reader.
 
- @param node - a link, a link reference, an image or an image reference
+ @param node - link, link reference, image or image reference
 
  @returns `empty` for a label that shows nothing, `closing` for one that shows closing round or square brackets and closing curly double
  quotation marks and nothing else, `marks` for one that shows marks and spaces, no Latin letter or digit, and no closing mark last, `other`

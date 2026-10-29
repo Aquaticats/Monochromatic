@@ -41,7 +41,7 @@ type LocatedSpan = {
 
  @param renderings - each place's rendering as located, in the same order
 
- @returns The renderings, a place that overlaps another unlocated
+ @returns Renderings, place that overlaps another unlocated
 
  @example
  ```ts

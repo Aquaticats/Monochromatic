@@ -12,7 +12,7 @@ import { MIN_STAGE_VOICES, } from '@monochromatic-dev/translation-repair-stage/t
 
  @param quorum - voices the gather closed on, one on a seated bench of one or two seats
 
- @returns The quorum the usable ballots must reach
+ @returns Quorum the usable ballots must reach
 
  @example
  ```ts

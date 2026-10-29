@@ -18,8 +18,8 @@ import { proseViewOf, } from '../dist/final/node/index.mjs';
 /**
  The text of each stretch.
 
- @param english - the English the stretches were read from
- @param ranges - the stretches
+ @param english - English the stretches were read from
+ @param ranges - stretches
  @returns What each stretch covers, sorted, since the order of the stretches is not promised
 
  @example

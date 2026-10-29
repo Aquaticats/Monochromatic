@@ -21,9 +21,9 @@ import { longerRuns, } from '@monochromatic-dev/translation-repair-test-fixture/
 /**
  The words left of a text once its edge characters are taken off.
 
- @param text - the quote, already in the fold
+ @param text - quote, already in the fold
 
- @returns The words as one text
+ @returns Words as one text
 
  @example
  ```ts

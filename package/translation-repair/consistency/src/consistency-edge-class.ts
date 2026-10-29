@@ -18,7 +18,7 @@ export type EdgeClass = 'attaches' | 'other' | 'none';
 /**
  The class of the character at one edge of a text.
 
- @param text - the words whose edge is read
+ @param text - words whose edge is read
 
  @param side - `start` for the first whole character, `end` for the last
 
@@ -67,7 +67,7 @@ export function edgeClassOf(
 
  @param left - one text
 
- @param right - the other
+ @param right - other
 
  @param side - `start` to compare the first characters, `end` to compare the last
 

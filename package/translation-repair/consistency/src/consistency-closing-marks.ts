@@ -110,13 +110,13 @@ const CLOSING_DOUBLE_ORIGINALS: ReadonlySet<string> = new Set([
  one, or a double quotation mark that closes (the English held a straight or closing curly mark there, and a character that
  is neither white space nor an opening mark stands before it).
 
- @param mark - the unit asked about, empty past an edge of the text
+ @param mark - unit asked about, empty past an edge of the text
 
- @param previous - the unit before it, empty at the start of the text
+ @param previous - unit before it, empty at the start of the text
 
- @param original - the character the English held before the fold at the unit
+ @param original - character the English held before the fold at the unit
 
- @param previousOriginal - the character the English held before the fold at the unit before it
+ @param previousOriginal - character the English held before the fold at the unit before it
 
  @param isClosingEmphasis - whether the parse makes the unit a closing delimiter of emphasis, strong emphasis or strikethrough
 
@@ -155,13 +155,13 @@ function closesAfter(
  Whether a unit is an apostrophe that a letter or a digit follows: the straight apostrophe or the modifier letter
  apostrophe, never a corner bracket the fold wrote as one.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
  @param at - offset of the unit asked about
 
- @param mark - the unit there, which the caller has read already
+ @param mark - unit there, which the caller has read already
 
  @returns Whether the unit is such an apostrophe
 
@@ -211,14 +211,14 @@ function apostropheBeforeLetter(
  has white space in it (a title), or is never closed, is not read, so the `]` before it starts no run that ends in an
  apostrophe.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
- @param closing - the offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough
+ @param closing - offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough
  stretch by the parse (`consistency-prose-text.ts`); an emphasis character at no such offset closes nothing
 
- @returns The offsets at which a stand may end to lie inside such a word
+ @returns Offsets at which a stand may end to lie inside such a word
 
  @example
  ```ts
@@ -336,15 +336,15 @@ export function closingJointsInText(
  eye (`'*'5 cats`, `dogs’[^1] ’`, `dogs’\*’`). How a mark READS is the reading run's business and asks the parse
  (`closingRunMarksOf`, `consistency-markup-runs.ts`); when a gain is REFUSED is this run's.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
- @param characters - the characters the run is made of on the side read
+ @param characters - characters the run is made of on the side read
 
- @param unread - the offsets of the units no reader reads as words (`unreadUnitsOf`)
+ @param unread - offsets of the units no reader reads as words (`unreadUnitsOf`)
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
  @returns Whether the unit is part of the run
 
@@ -404,15 +404,15 @@ function isRunUnit(
  characters are read by shape, since a mark that stands beside them is a second apostrophe for the eye (`*dogs’*’`,
  `'*'5 cats`, `dogs’[^1] ’`, `dogs’\*’`).
 
- @param text - the English
+ @param text - English
 
  @param at - on the trailing side the offset after the span, on the leading side the offset where the span starts
 
  @param side - `after` to read forward from the span's end, `before` to read backward from its start
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
- @returns The mark as the English writes it, as a list of one; none when the run is empty (the mark beside the span is then
+ @returns Mark as the English writes it, as a list of one; none when the run is empty (the mark beside the span is then
  the caller's `singleMarkAt`), when a character that is no part of a run stands first, or when no single mark ends the run
 
  @example

@@ -75,9 +75,9 @@ const decodedReferences = new Map<string, readonly string[]>();
 /**
  What a reader sees for the text of one reference, by what the Markdown parser makes of it alone.
 
- @param tree - the parse of the reference
+ @param tree - parse of the reference
 
- @returns The text of the one paragraph with the one text node the parse holds, none when the parse holds anything else
+ @returns Text of the one paragraph with the one text node the parse holds, none when the parse holds anything else
  */
 function loneTextOf({ tree, }: { readonly tree: ForeignBorrowed<Root>; },): readonly string[] {
   /**
@@ -98,9 +98,9 @@ function loneTextOf({ tree, }: { readonly tree: ForeignBorrowed<Root>; },): read
 /**
  The text a character reference shows, as the Markdown parser decodes it.
 
- @param reference - the reference as written, from its ampersand to its semicolon
+ @param reference - reference as written, from its ampersand to its semicolon
 
- @returns The shown text as a list of one, none when the parser leaves the text as it is, so it is no reference
+ @returns Shown text as a list of one, none when the parser leaves the text as it is, so it is no reference
 
  @example
  ```ts
@@ -134,11 +134,11 @@ function referenceShownAs({ reference, }: { readonly reference: string; },): rea
 /**
  The unit that starts at an ampersand, when it starts a reference the parser decodes.
 
- @param points - the characters of a text, one whole character each
+ @param points - characters of a text, one whole character each
 
  @param at - index of the ampersand
 
- @returns The unit as a list of one, none when the ampersand starts no such reference
+ @returns Unit as a list of one, none when the ampersand starts no such reference
  */
 function referenceUnitAt(
   {
@@ -189,13 +189,13 @@ function referenceUnitAt(
 /**
  The unit that starts at a character.
 
- @param points - the characters of a text, one whole character each, possibly folded
+ @param points - characters of a text, one whole character each, possibly folded
 
- @param originals - the characters as they were written, one for each of the points
+ @param originals - characters as they were written, one for each of the points
 
  @param at - index of the character the unit starts at
 
- @returns The unit: a backslash with the ASCII punctuation it escapes, a reference the parser decodes, or the one character
+ @returns Unit: a backslash with the ASCII punctuation it escapes, a reference the parser decodes, or the one character
 
  @example
  ```ts
@@ -250,11 +250,11 @@ function edgeUnitAt(
  The units of a text, read from its first character on, so an escaped backslash leaves the character after it alone and an
  escaped ampersand starts no reference.
 
- @param points - the characters of a text, one whole character each, possibly folded
+ @param points - characters of a text, one whole character each, possibly folded
 
- @param originals - the characters as they were written, one for each of the points, the points themselves when not folded
+ @param originals - characters as they were written, one for each of the points, the points themselves when not folded
 
- @returns The units in order, each with the characters it covers and the character a reader sees for it
+ @returns Units in order, each with the characters it covers and the character a reader sees for it
 
  @example
  ```ts
@@ -296,9 +296,9 @@ export function edgeUnitsOf(
 /**
  The units of a text with their offsets in the text, in UTF-16 units.
 
- @param text - the text as written
+ @param text - text as written
 
- @returns The units in order, with offsets in the text instead of indexes among its characters
+ @returns Units in order, with offsets in the text instead of indexes among its characters
 
  @example
  ```ts

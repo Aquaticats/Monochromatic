@@ -32,7 +32,7 @@ const LABELS = ['CANDIDATE 1', 'CANDIDATE 2', 'CANDIDATE 3', 'CANDIDATE 4', 'CAN
 
  @param choices - what each seat wrote, in seat order
 
- @returns The heard choices
+ @returns Heard choices
 
  @example
  ```ts

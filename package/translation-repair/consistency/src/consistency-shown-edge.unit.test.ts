@@ -20,11 +20,11 @@ import { cutsShownWord, } from '../dist/final/node/index.mjs';
 /**
  Whether the span the quote names in a text cuts a word a reader sees.
 
- @param text - the English as written
+ @param text - English as written
 
- @param quote - the written characters of the span, found once in the text
+ @param quote - written characters of the span, found once in the text
 
- @param needle - the words the judge quoted, whose first and last characters say which edges are word edges, the quote itself where absent
+ @param needle - words the judge quoted, whose first and last characters say which edges are word edges, the quote itself where absent
 
  @returns Whether an edge of the span stands inside a shown word
 
@@ -192,8 +192,8 @@ await describe({
         /**
          Whether the first `kit` of a text is cut at its end, with the page's definitions given.
 
-         @param text - the English
-         @param definitions - the definitions of the page
+         @param text - English
+         @param definitions - definitions of the page
          @returns Whether the stand cuts a shown word
          */
         function cutAtFirst(

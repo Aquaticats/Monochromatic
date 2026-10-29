@@ -51,9 +51,9 @@ type TreeNode = DeepReadonlyData<Nodes>;
  Every node of a tree, walked with a work stack rather than by recursion, since a tree is as deep as the nesting a page
  writes.
 
- @param root - the tree's top node
+ @param root - tree's top node
 
- @returns The tree's nodes, in no promised order
+ @returns Tree's nodes, in no promised order
 
  @example
  ```ts
@@ -96,9 +96,9 @@ type ProseRange = {
 /**
  Where a node of the Markdown tree stands in the English it was read from.
 
- @param node - a node of the tree
+ @param node - node of the tree
 
- @returns The stretch as a list of zero or one; none for a node the parser gave no position
+ @returns Stretch as a list of zero or one; none for a node the parser gave no position
 
  @example
  ```ts
@@ -133,11 +133,11 @@ function stretchOf({ node, }: { readonly node: TreeNode; },): readonly ProseRang
 /**
  The stretches of the English that its text nodes cover, in the order they stand.
 
- @param english - the English the tree was read from
+ @param english - English the tree was read from
 
  @param nodes - every node of the tree
 
- @returns The stretches, text inside a link whose source is a bare address left out
+ @returns Stretches, text inside a link whose source is a bare address left out
 
  @example
  ```ts
@@ -193,12 +193,12 @@ function proseRangesOf(
  lines, HTML comments, lone container tags) and then the parse. The engine's stack exhaustion is read as the grammar's
  refusal at the parse call inside `parseSliceBody` and nowhere else, so a failure of a mask, which is no refusal, propagates.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
+ @param definitions - page's definitions (`pageDefinitionsOf`), parsed after the English so a reference in it resolves; empty
  for an English read alone
 
- @returns The root of the tree as a list of one, none when the grammar refuses the English
+ @returns Root of the tree as a list of one, none when the grammar refuses the English
 
  @throws {@link Error} when reading fails for a reason other than the grammar's own refusal
 
@@ -239,7 +239,7 @@ function treeOf(
  A stretch left out of the prose: every unit a space and every line break kept, so the
  lines of the English stay where they were.
 
- @param text - the stretch
+ @param text - stretch
 
  @returns Text as long as the stretch with only spaces and line breaks in it
 
@@ -304,9 +304,9 @@ const DELIMITER_CHARACTERS: ReadonlySet<string> = new Set([
 /**
  How many units one delimiter of a node takes at either end.
 
- @param english - the English the tree was read from
+ @param english - English the tree was read from
 
- @param node - an emphasis, strong or strikethrough node
+ @param node - emphasis, strong or strikethrough node
 
  @param start - offset where the node starts
 
@@ -338,11 +338,11 @@ function delimiterWidthOf(
 /**
  The delimiters of every emphasis, strong and strikethrough node of a tree.
 
- @param english - the English the tree was read from
+ @param english - English the tree was read from
 
  @param nodes - every node of the tree
 
- @returns The offsets of the delimiters, the closing ones apart
+ @returns Offsets of the delimiters, closing ones apart
 
  @example
  ```ts
@@ -484,15 +484,15 @@ export type ProseView = {
 /**
  The prose of an English and the delimiters of its emphasis, read from one parse.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference in the English
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference in the English
  whose definition stands in another slice is then plain text
 
  @param codePadding - what pads the content of inline code: a space and a line ending as CommonMark reads it, or a literal space alone
  as an artifact written before line endings padded code was read; a space and a line ending where absent
 
- @returns The prose (the English itself where the grammar refuses it), the stretches it keeps and the delimiters (none where the
+ @returns Prose (the English itself where the grammar refuses it), the stretches it keeps and the delimiters (none where the
  grammar refuses)
 
  @example
@@ -641,9 +641,9 @@ const rememberedViews: RememberedView[] = [];
 /**
  The prose view of an English, parsed once for each of the English texts most recently asked about.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone
 
  @param codePadding - what pads the content of inline code, which is part of what the view holds and so of what is remembered; a space
  and a line ending where absent
@@ -698,13 +698,13 @@ export function rememberedViewOf(
 /**
  The delimiters of the emphasis of an English, by the parse.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference in the English whose
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference in the English whose
  definition stands in another slice is then plain text, and the brackets of a link that it is not stop its label from holding a
  delimiter of emphasis that the link would hold (n173)
 
- @returns The offsets of the delimiters, the closing ones apart; none where the grammar refuses the English
+ @returns Offsets of the delimiters, closing ones apart; none where the grammar refuses the English
 
  @example
  ```ts

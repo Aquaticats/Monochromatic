@@ -33,9 +33,9 @@ const BLANK_CHARACTERS: ReadonlySet<string> = new Set([
  The blank lines of some words, counted as the breaks of a text no parse is to be had of:
  a run of blank lines between two lines that hold something is one break.
 
- @param text - the words
+ @param text - words
 
- @returns The number of runs of blank lines that stand between two lines of text
+ @returns Number of runs of blank lines that stand between two lines of text
 
  @example
  ```ts
@@ -71,9 +71,9 @@ function blankLineBreaksIn({ text, }: { readonly text: string; },): number {
 /**
  How many block breaks some words hold.
 
- @param text - the words a place's quote names
+ @param text - words a place's quote names
 
- @returns The number of top-level blocks the Markdown grammar finds in the words, less one; the runs of blank lines
+ @returns Number of top-level blocks the Markdown grammar finds in the words, less one; the runs of blank lines
  between lines of text when the grammar refuses the words; none for words on one line
 
  @throws {@link Error} when reading fails for a reason other than the grammar's own refusal

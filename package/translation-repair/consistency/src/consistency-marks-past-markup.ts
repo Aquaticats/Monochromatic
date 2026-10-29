@@ -40,17 +40,17 @@ import type { MarksPastMarkup, } from './consistency-proven-apostrophes.ts';
  One pass reads the text from its end to its start, a constant number of reads for each unit, whatever the length of a run or of
  a destination.
 
- @param english - the English as it was written, where the markup is not blanked yet
+ @param english - English as it was written, where the markup is not blanked yet
 
- @param emphasis - the delimiters of the English's emphasis, strong emphasis and strikethrough by the parse, which the caller may
+ @param emphasis - delimiters of the English's emphasis, strong emphasis and strikethrough by the parse, which the caller may
  hold already (`proseViewOf`); read from the English, with the definitions, where absent. A `*`, `_` or `~` that is none of them
  is a character of the text and no part of a run.
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and an unresolved `[b*]` has a `*` that can pair with
  an outer one (n173)
 
- @returns The offsets of the marks past closing markup
+ @returns Offsets of the marks past closing markup
 
  @example
  ```ts

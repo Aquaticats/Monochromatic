@@ -67,7 +67,7 @@ const QUOTATION_MARKER = '>';
  Whether the unit at an offset is a backslash that escapes the character after it, or ends a line as a hard break: a backslash
  directly before an ASCII punctuation character or a line break.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
@@ -103,11 +103,11 @@ export function startsEscape(
  blank line ends the block, so the breaks around it are outside every block, and a line of an en space or of a line separator,
  which the parse does not call blank, leaves the breaks around it inside.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
  @returns Whether the unit is a line break and a paragraph or the text of a heading holds it; for an English the grammar refuses,
  whether the unit is a line break
@@ -141,13 +141,13 @@ export function isSingleBreakAt(
  How many quotation markers the line after a single line break may start with, which is how many quotations enclose the block
  that holds the break.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
- @returns The number as a list of one, none when the unit is no single line break; `Number.POSITIVE_INFINITY` for an English the
+ @returns Number as a list of one, none when the unit is no single line break; `Number.POSITIVE_INFINITY` for an English the
  grammar refuses
 
  @example
@@ -186,13 +186,13 @@ export function markersAfterBreakOf(
  marker found: the markers and the horizontal white space among them, back to a single line break inside a block that has at
  least as many quotations around it as the run has markers.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about, which is the last marker of the run in reading order
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
- @returns The offset of the last unit of the line break as a list of one, none when the unit is no `>`, the markers do not start a
+ @returns Offset of the last unit of the line break as a list of one, none when the unit is no `>`, the markers do not start a
  line, the line break is not a single one inside a block, or the block has fewer quotations than the run has markers
 
  @example
@@ -356,13 +356,13 @@ function showsNothing({ character, }: { readonly character: string; },): boolean
  point, a C0 or C1 control that is no white space or line break, the Braille blank): the one that starts at the offset when the run is read forward, the one that ends with
  the unit there when it is read backward.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
  @param side - `after` to read the code point that starts at the offset, `before` the one that ends with the unit there
 
- @returns The number of units, zero when the code point shows something or the offset is past an edge of the text
+ @returns Number of units, zero when the code point shows something or the offset is past an edge of the text
 
  @example
  ```ts
@@ -399,7 +399,7 @@ export function ignorableWidthAt(
  Where the run goes on at the marker of a container, and how many markers it may still step over: a quotation marker at the
  start of a line that the break before it allowed, read forward, or the line break that a run of markers follows, read backward.
 
- @param text - the English
+ @param text - English
 
  @param index - offset of the unit asked about
 
@@ -407,9 +407,9 @@ export function ignorableWidthAt(
 
  @param markers - how many quotation markers the line the reading is on may still start with, which only a forward reading uses
 
- @param definitions - the page's definitions, which the parse of the English reads references against; empty for English read alone
+ @param definitions - page's definitions, which the parse of the English reads references against; empty for English read alone
 
- @returns The offset the reading goes on at and the markers still allowed there, as a list of one, none when the unit is no
+ @returns Offset the reading goes on at and markers still allowed there, as a list of one, none when the unit is no
  marker of a container for that reading
 
  @example

@@ -188,9 +188,9 @@ const SEPARATOR_CODES: readonly number[] = [
  `consistency-fold.ts`) is followed by closing marks and an apostrophe that a letter or a digit follows, the text read as
  the locator reads an English.
 
- @param text - the text before the fold, of characters in the first plane
+ @param text - text before the fold, of characters in the first plane
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
  @returns Whether the reading finds the apostrophe
 
@@ -221,11 +221,11 @@ function followedByApostropheIn(
 /**
  The mark past the run that follows a word of a text, as a text.
 
- @param text - the English
+ @param text - English
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
- @returns The mark, empty when none ends the run
+ @returns Mark, empty when none ends the run
 
  @example
  ```ts
@@ -239,11 +239,11 @@ function afterOf({ text, word, }: { readonly text: string; readonly word: string
 /**
  The mark past the run that precedes a word of a text, as a text.
 
- @param text - the English
+ @param text - English
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
- @returns The mark, empty when none ends the run
+ @returns Mark, empty when none ends the run
 
  @example
  ```ts
@@ -257,13 +257,13 @@ function beforeOf({ text, word, }: { readonly text: string; readonly word: strin
 /**
  The mark past the run on one side of a word of a text, as a text.
 
- @param text - the English
+ @param text - English
 
- @param word - the word, which stands once in the text
+ @param word - word, which stands once in the text
 
  @param side - `after` for the run that follows the word, `before` for the run that precedes it
 
- @returns The mark, empty when none ends the run
+ @returns Mark, empty when none ends the run
 
  @example
  ```ts
@@ -291,15 +291,15 @@ function pastOf(
 /**
  The mark past the run that follows or precedes the word `kittens`, for each code point put between a head and a tail.
 
- @param codes - the code points, one text for each
+ @param codes - code points, one text for each
 
- @param head - the text before the character, which holds the word `kittens` once
+ @param head - text before the character, which holds the word `kittens` once
 
- @param tail - the text after the character
+ @param tail - text after the character
 
  @param side - `after` for the run that follows the word, `before` for the run that precedes it
 
- @returns The mark for each code point, empty where none ends the run
+ @returns Mark for each code point, empty where none ends the run
 
  @example
  ```ts
@@ -327,9 +327,9 @@ function marksAround(
 /**
  Every offset of a text that the reading records, in ascending order.
 
- @param text - the text before the fold, of characters in the first plane
+ @param text - text before the fold, of characters in the first plane
 
- @returns The offsets
+ @returns Offsets
 
  @example
  ```ts

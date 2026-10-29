@@ -41,7 +41,7 @@ const LABELS = ['CANDIDATE 1', 'CANDIDATE 2',] as const;
 
  @param reason - reason given
 
- @returns The choice with its seat
+ @returns Choice with its seat
 
  @example
  ```ts

@@ -27,9 +27,9 @@ import { withExhaustionFromParse, } from '@monochromatic-dev/translation-repair-
  The prose of an English: the view of one parse, without its delimiters. Production reads the prose and the delimiters
  together (`proseViewOf`), so this reader exists for the cases that pin the prose alone.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @returns The prose, as long as the English
+ @returns Prose, as long as the English
 
  @example
  ```ts
@@ -66,7 +66,7 @@ function blanks({ length, }: { readonly length: number; },): string {
 
  @param error - what the first read of the English raises
 
- @returns A stand-in for an English, whose every read raises the error
+ @returns Stand-in for an English, whose every read raises the error
  */
 function throwingEnglish({ error, }: { readonly error: Error; },): string {
   return new Proxy(

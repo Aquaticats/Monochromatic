@@ -40,11 +40,11 @@ const REFERENCE_LONGEST = 33;
  Where a character reference that starts at an `&` ends: `&name;`, `&#12;` or `&#x1F;`, by the shape of its characters and not
  by a table of names, so a name no table holds is read as a reference too.
 
- @param english - the English
+ @param english - English
 
  @param at - offset of the `&`
 
- @returns The offset of the `;` that ends the reference as a list of one, none when the units after the `&` are no reference
+ @returns Offset of the `;` that ends the reference as a list of one, none when the units after the `&` are no reference
 
  @example
  ```ts
@@ -116,7 +116,7 @@ export function referenceEndOf(
  escaping it, while an even number are pairs that each escape the next. Only the count is asked, so the unit at the offset is
  read as an ASCII punctuation character; a backslash before any other character is no escape, which the caller knows.
 
- @param text - the text
+ @param text - text
 
  @param at - offset of the unit asked about
 
@@ -148,9 +148,9 @@ export function isEscapedAt(
 /**
  Adds the offsets of a stretch to a set, except the units that are white space.
 
- @param units - the set the offsets are added to
+ @param units - set the offsets are added to
 
- @param english - the English
+ @param english - English
 
  @param from - offset where the stretch starts
 
@@ -188,9 +188,9 @@ function addStretch(
  inside a comment, or the dashes an opener shares with a closer, start none. A comment that never closes names no unit here:
  the prose view blanks the tail it swallows. One pass over the English.
 
- @param english - the English
+ @param english - English
 
- @returns The offsets of those units that are no white space
+ @returns Offsets of those units that are no white space
 
  @example
  ```ts
@@ -219,9 +219,9 @@ export function commentUnitsOf({ english, }: { readonly english: string; },): Re
  The offsets, among those of an English, of the units no reader takes for words although the parse keeps them in a text node: the
  units of an HTML comment and of a character reference.
 
- @param english - the English
+ @param english - English
 
- @returns The offsets of those units that are no white space
+ @returns Offsets of those units that are no white space
 
  @example
  ```ts
@@ -296,12 +296,12 @@ const rememberedUnread: RememberedUnread[] = [];
  and the units of an HTML comment and of a character reference, which the prose keeps as the units of a text node. White space
  is never among them. A page the grammar refuses blanks nothing, so only the comments and the references are named.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone: the label of a footnote
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone: the label of a footnote
  reference or of a reference link is then plain text unless its definition stands in the same English
 
- @returns The offsets of those units
+ @returns Offsets of those units
 
  @example
  ```ts
@@ -373,9 +373,9 @@ const LINE_BREAKS: ReadonlySet<string> = new Set([
  refuses blanks nothing. What separates or annotates (a line break, a block tag, a table cell, an image, a ruby annotation) is
  told apart by `unitKindsOf` (`consistency-shown-kinds.ts`), which starts from these flags.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone
 
  @param codePadding - what pads the content of inline code: a space and a line ending as CommonMark reads it, or a literal space alone
  as an artifact written before line endings padded code was read, which hides no line ending beside code; a space and a line ending

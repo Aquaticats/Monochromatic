@@ -130,7 +130,7 @@ function threeAlike({ over = {}, }: { readonly over?: VoiceOverrides; } = {},): 
 
  @param quotes - what each ballot quotes for the first place, one ballot for each
 
- @returns The ballots, from distinct seats
+ @returns Ballots, from distinct seats
 
  @example
  ```ts
@@ -153,7 +153,7 @@ function ballotsQuoting({ quotes, }: { readonly quotes: readonly string[]; },): 
 
  @param quorum - voices the gather closed on
 
- @returns The count
+ @returns Count
 
  @example
  ```ts
@@ -186,11 +186,11 @@ function countOver(
 /**
  The rendering of the first place when every ballot quotes it as given.
 
- @param english - the first place's English
+ @param english - first place's English
 
  @param quote - what every ballot quotes
 
- @returns The rendering of the first place
+ @returns Rendering of the first place
 
  @example
  ```ts
@@ -287,7 +287,7 @@ const F6_INPUTS: readonly RepeatedStand[] = [
 /**
  The rendering the counter gives the first place when some ballots copied the mark beside the words and the others did not.
 
- @param input - the English and the two ways of quoting it
+ @param input - English and two ways of quoting it
 
  @param copying - how many ballots copied the mark
 
@@ -295,7 +295,7 @@ const F6_INPUTS: readonly RepeatedStand[] = [
 
  @param framed - whether the group is a frame with a slot
 
- @returns The first place's rendering
+ @returns First place's rendering
 
  @example
  ```ts
@@ -560,7 +560,7 @@ await describe({
 
              @param quotes - quotes of the three ballots that agree on the words
 
-             @returns The rendering
+             @returns Rendering
              */
             function renderingOf({ quotes, }: { readonly quotes: readonly string[]; },): unknown {
               return countOver({
@@ -707,11 +707,11 @@ await describe({
             /**
              The first place's rendering when every ballot quotes the words in the English.
 
-             @param text - the English of the place
+             @param text - English of the place
 
              @param quote - what every ballot quotes
 
-             @returns The rendering
+             @returns Rendering
              */
             function renderingFor({ text, quote, }: { readonly text: string; readonly quote: string; },): unknown {
               return countOver({

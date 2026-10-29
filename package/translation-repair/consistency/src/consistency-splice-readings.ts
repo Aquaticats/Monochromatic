@@ -45,11 +45,11 @@ import type { ReadonlyEntry, } from '@monochromatic-dev/translation-repair-share
 
  @internal
 
- @param text - the words that would go in
+ @param text - words that would go in
 
- @param core - the receiving words
+ @param core - receiving words
 
- @param side - the edge asked about
+ @param side - edge asked about
 
  @returns Whether the words hold a single mark at that edge, whatever stands inside it, and the receiving words hold no edge apostrophe there
 
@@ -94,9 +94,9 @@ export function bringsAtEdge(
  it stands, so it keeps its place among the marks of its English, and a mark that goes
  out leaves the others as they were.
 
- @param text - the words that would go in
+ @param text - words that would go in
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @returns Whether the words would put an apostrophe at the start or the end of the span where the receiving words have none
 
@@ -132,9 +132,9 @@ export function bringsEdgeApostrophe(
 
  @internal
 
- @param text - the words
+ @param text - words
 
- @param side - the edge asked about
+ @param side - edge asked about
 
  @returns Whether the two whole characters at that edge are both single marks
 
@@ -179,9 +179,9 @@ export function holdsTwoMarksAtEdge(
 
  @internal
 
- @param text - the words that would go in
+ @param text - words that would go in
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @returns Whether a gain or a doubled pair arrives on a side where a single mark stands outside the span
 
@@ -251,16 +251,16 @@ export function gainsBesideKeptMark(
 /**
  Whether putting words in the place of a span changes how any single mark outside the span is read.
 
- @param english - the English the span stands in, before the splice
+ @param english - English the span stands in, before the splice
 
  @param start - offset where the span starts
 
  @param end - exclusive offset where it ends, counted in UTF-16 units: a span that takes in an emoji ends after both of its units
  (in the example the emoji stands at offsets 13 and 14 and the span ends at 15, right before the `'`, which is the mark outside)
 
- @param written - the words that go in
+ @param written - words that go in
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: the English
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: the English
  is one slice's wording, and a reference in it whose definition stands in another slice is a link, so words that make it an
  undefined reference change how the emphasis around it pairs and how the marks outside the span read (n173). Both readings are
  made with them

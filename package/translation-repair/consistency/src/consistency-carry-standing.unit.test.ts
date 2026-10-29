@@ -23,11 +23,11 @@ import {
 /**
  Where the first stand of a needle in an English stands among its blocks.
 
- @param english - the English to read
+ @param english - English to read
 
- @param needle - the words whose first stand is the span
+ @param needle - words whose first stand is the span
 
- @returns The standing of the span
+ @returns Standing of the span
 
  @example
  ```ts

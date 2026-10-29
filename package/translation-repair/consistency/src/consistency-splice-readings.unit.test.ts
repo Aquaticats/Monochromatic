@@ -29,11 +29,11 @@ import {
  Whether replacing the one stand of some words in an English changes how a mark outside them is read (a stand is a place
  where words lie in an English, defined in `consistency-fold.ts`).
 
- @param english - the English before the splice
+ @param english - English before the splice
 
- @param words - the words replaced, which stand once in it
+ @param words - words replaced, which stand once in it
 
- @param written - the words that go in
+ @param written - words that go in
 
  @returns Whether a mark outside the words is read another way afterwards
 
@@ -74,11 +74,11 @@ type Target = Parameters<typeof gainsBesideKeptMark>[0]['target'];
  A hand-built located rendering for a gain check: the receiving words and the marks the counter would have recorded beside
  and past them.
 
- @param core - the receiving words, `kittens` by default
+ @param core - receiving words, `kittens` by default
 
- @param over - the marks the counter records, none by default
+ @param over - marks the counter records, none by default
 
- @returns The rendering
+ @returns Rendering
 
  @example
  ```ts

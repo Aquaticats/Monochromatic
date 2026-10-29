@@ -153,9 +153,9 @@ const JOINING_MARKS: ReadonlySet<string> = new Set([
 /**
  Whether a letter or a digit stands on each side of a hyphen or an apostrophe.
 
- @param before - the whole character before the mark
+ @param before - whole character before the mark
 
- @param after - the whole character after the mark
+ @param after - whole character after the mark
 
  @returns Whether the mark has a Latin letter or a digit on each side, so a mark
  with a space, an edge of the text or any other character on a side joins nothing
@@ -184,13 +184,13 @@ function besideLettersOrDigits(
  or a slash between two digits. A corner bracket that the fold wrote as the
  apostrophe joins nothing.
 
- @param joiner - the character asked about, one UTF-16 unit, empty past an edge of the text
+ @param joiner - character asked about, one UTF-16 unit, empty past an edge of the text
 
- @param original - the character the English held there before the fold
+ @param original - character the English held there before the fold
 
- @param before - the whole character before it
+ @param before - whole character before it
 
- @param after - the whole character after it
+ @param after - whole character after it
 
  @returns Whether the character is a joint
 
@@ -243,16 +243,16 @@ const NO_EMPHASIS: ReadonlySet<number> = new Set();
 
  @param text - folded English
 
- @param emphasis - the offsets in the fold of the delimiters of emphasis, strong emphasis and strikethrough by the parse; a
+ @param emphasis - offsets in the fold of the delimiters of emphasis, strong emphasis and strikethrough by the parse; a
  lone asterisk or underscore is none
 
- @param links - the links the parse holds, at the offsets of the fold
+ @param links - links the parse holds, at the offsets of the fold
 
  @param from - offset the reading starts at
 
  @param step - `1` to read on, `-1` to read back
 
- @returns The offset, which may lie outside the text when delimiters and links run to its edge
+ @returns Offset, which may lie outside the text when delimiters and links run to its edge
 
  @example
  ```ts
@@ -314,11 +314,11 @@ function pastHiddenUnits(
  Where the run of empty links directly before a unit starts: the offset itself when no empty link ends directly before it.
  Each step moves to the start of one link, so the reading is one pass over the run.
 
- @param links - the links the parse holds, at the offsets of the fold
+ @param links - links the parse holds, at the offsets of the fold
 
  @param at - offset of the unit asked about
 
- @returns The offset of the first unit of the run, `at` for no run
+ @returns Offset of the first unit of the run, `at` for no run
 
  @example
  ```ts
@@ -370,13 +370,13 @@ function startOfEmptyLinksBefore(
  links were not there, so `a [](u)'kit` is no joint and `kit[](u)'kit` is one. A stand that ends before the apostrophe is
  read forward instead, by {@link closingMarksThenApostrophe}.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
- @param emphasis - the offsets in the fold of the delimiters of emphasis by the parse, the only marks read past
+ @param emphasis - offsets in the fold of the delimiters of emphasis by the parse, the only marks read past
 
- @param links - the links the parse holds, at the offsets of the fold
+ @param links - links the parse holds, at the offsets of the fold
 
  @param at - offset of the unit asked about, which may lie outside the text
 
@@ -465,17 +465,17 @@ function apostropheJoinsAt(
  its first or last character is itself a joint, or the character just outside
  either edge is one, read past any emphasis marks that stand between.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
- @param joints - the offsets of the English at which a stand ends inside a word made with an apostrophe after closing
+ @param joints - offsets of the English at which a stand ends inside a word made with an apostrophe after closing
  marks, read once for the whole English by `closingJointsOf` (`consistency-closing-links.ts`)
 
- @param emphasis - the offsets in the fold of every delimiter of emphasis, strong emphasis and strikethrough by the parse
+ @param emphasis - offsets in the fold of every delimiter of emphasis, strong emphasis and strikethrough by the parse
  (`consistency-prose-text.ts`), the only marks the reading steps over beside a joint
 
- @param links - the links the parse holds, at the offsets of the fold (`foldedLinksOf`, `consistency-folded-links.ts`), none where
+ @param links - links the parse holds, at the offsets of the fold (`foldedLinksOf`, `consistency-folded-links.ts`), none where
  the caller read no link
 
  @param at - offset where the stand starts

@@ -95,9 +95,9 @@ type LeafOffsets = {
 /**
  The offsets a parsed node stands at in the text it was parsed from.
 
- @param leaf - a node of the parsed tree
+ @param leaf - node of the parsed tree
 
- @returns The start and the exclusive end as a list of zero or one; none for a
+ @returns Start and exclusive end as a list of zero or one; none for a
  node that the parser gave no position
 
  @example
@@ -239,9 +239,9 @@ const TAG_NAME_DELIMITERS: readonly string[] = [
  the rest); a table written in capitals is far likelier HTML typed in capitals. So both readings take such a name as the
  element, and a paragraph holding it is no paragraph a writer can rewrite.
 
- @param name - the element's name as written, in any case
+ @param name - element's name as written, in any case
 
- @returns The kind as a list of zero or one; none for an element a paragraph rewrite can carry words through
+ @returns Kind as a list of zero or one; none for an element a paragraph rewrite can carry words through
 
  @example
  ```ts
@@ -264,9 +264,9 @@ function spliceOnlyKindOfTag({ name, }: { readonly name: string; },): readonly S
  The name of the HTML element a raw HTML node opens with, read from the first
  characters only.
 
- @param text - the node's text in the English
+ @param text - node's text in the English
 
- @returns The name in lower case, since HTML names are not case sensitive; empty where the opening bracket is followed by no name, as in a comment
+ @returns Name in lower case, since HTML names are not case sensitive; empty where the opening bracket is followed by no name, as in a comment
 
  @throws {@link Error} when the text, leading whitespace aside, does not open with an angle bracket, which no raw HTML node of the parsed tree does
 
@@ -321,9 +321,9 @@ function openingTagNameOf({ text, }: { readonly text: string; },): string {
  The name of the inline HTML element a node of a paragraph opens, in either reading of the text: a JSX element of the
  strict grammar, or a raw HTML node of the plain markdown fallback.
 
- @param node - a node inside a paragraph of the parsed tree
+ @param node - node inside a paragraph of the parsed tree
 
- @returns The name as a list of zero or one, as written for a JSX element and in lower case for a raw HTML node; none
+ @returns Name as a list of zero or one, as written for a JSX element and in lower case for a raw HTML node; none
  for a node that opens no element and for a fragment. A raw HTML node that is a closing tag or a comment gives an empty
  name, which names no kind of block.
 
@@ -348,9 +348,9 @@ function inlineTagNameOf({ node, }: { readonly node: ForeignBorrowed<Nodes>; },)
  the nesting the page writes. The children of each node go onto the stack in reverse, so the names come in the order
  the elements stand in the text, which decides the kind when a paragraph holds a table element and a pre element.
 
- @param leaf - a node of the parsed tree
+ @param leaf - node of the parsed tree
 
- @returns The names, in the order of the text, an empty name standing for a closing tag or a comment; none for a node
+ @returns Names, in the order of the text, an empty name standing for a closing tag or a comment; none for a node
  that is no paragraph, and none for an element without a name
 
  @throws {@link Error} when a raw HTML node inside the paragraph does not open with an angle bracket, which no such node of the parsed tree does
@@ -393,13 +393,13 @@ function inlineTagNamesOf({ leaf, }: { readonly leaf: ForeignBorrowed<Nodes>; },
  emphasis or a link), and a raw HTML block that opens with one, would have a
  rewrite write that markup too.
 
- @param type - the mdast type of the node
+ @param type - mdast type of the node
 
- @param text - the node's text in the English
+ @param text - node's text in the English
 
- @param inlineTags - the names of the inline elements a paragraph holds at any depth
+ @param inlineTags - names of the inline elements a paragraph holds at any depth
 
- @returns The kind as a list of zero or one; none for a node a writer can rewrite or that holds no running text
+ @returns Kind as a list of zero or one; none for a node a writer can rewrite or that holds no running text
 
  @throws {@link Error} when a raw HTML node's text does not open with an angle bracket, which no such node of the parsed tree does
 
@@ -467,9 +467,9 @@ function spliceOnlyKindOf(
  line breaks; the reading again finds the heading on its own, an ATX heading
  being one line of running text, and the writer is to be given it alone.
 
- @param node - the top-level block of the English that holds the span
+ @param node - top-level block of the English that holds the span
 
- @param english - the slice's English
+ @param english - slice's English
 
  @param start - offset where the span starts
 
@@ -633,13 +633,13 @@ function standingIn(
 /**
  Where a span of an English stands among its body blocks.
 
- @param english - the slice's English
+ @param english - slice's English
 
  @param start - offset where the span starts
 
  @param end - exclusive offset where it ends
 
- @returns The innermost block that holds the span whole, the paragraph or the
+ @returns Innermost block that holds the span whole, the paragraph or the
  ATX heading itself, also when a list item or a block quote holds it (the text
  of a multi-line paragraph in a block quote has no `> ` marker on its first
  line, since the paragraph starts after the marker, and keeps the marker of
@@ -701,13 +701,13 @@ export function blockStandingOf(
  The innermost body block of an English that holds a span whole: the paragraph
  or heading itself, also when a list item or a block quote holds it.
 
- @param english - the slice's English
+ @param english - slice's English
 
  @param start - offset where the span starts
 
  @param end - exclusive offset where it ends
 
- @returns The block as a list of zero or one; none where the span lies in no
+ @returns Block as a list of zero or one; none where the span lies in no
  body block, in a footnote definition, in a table, a code block, a setext
  heading or a pre element, across blocks at any depth of nesting, or in a
  container without lying in one paragraph or heading of it

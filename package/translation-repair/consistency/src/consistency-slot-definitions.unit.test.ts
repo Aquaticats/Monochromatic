@@ -24,11 +24,11 @@ import {
 /**
  The definitions that move the slot `slot` of the span `span`, when the ballots all gave it beside the span.
 
- @param span - the span of the first place, as its English holds it
+ @param span - span of the first place, as its English holds it
 
- @param slot - the slot every ballot gave
+ @param slot - slot every ballot gave
 
- @param definitions - the definitions of the page
+ @param definitions - definitions of the page
 
  @returns What `definitionsMovingSlotOf` gives
 

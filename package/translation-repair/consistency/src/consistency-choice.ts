@@ -80,7 +80,7 @@ export type ConsistencyChoiceVoice = ConsistencyChoiceBallot & {
 
  @param labels - labels the sheet showed, the only labels a reply may use
 
- @returns The constraint for this ask
+ @returns Constraint for this ask
 
  @example
  ```ts
@@ -153,7 +153,7 @@ export function isConsistencyChoiceBallot(value: unknown,): value is Consistency
 
  @param wire - reply of the right shape
 
- @returns The choice, its assessment stored as the reason
+ @returns Choice, its assessment stored as the reason
 
  @example
  ```ts
@@ -177,7 +177,7 @@ export function readConsistencyChoiceWire(
 
  @param labels - labels the sheet showed
 
- @returns The choice with the shown label, as a list of zero or one; none when the choice names no shown label or more than one
+ @returns Choice with the shown label, as a list of zero or one; none when the choice names no shown label or more than one
 
  @example
  ```ts
@@ -275,7 +275,7 @@ export function usableChoiceFor(
 
  @param labels - labels the sheet showed
 
- @returns The usable choices
+ @returns Usable choices
 
  @example
  ```ts
@@ -313,7 +313,7 @@ export function usableChoicesOf(
 
  @param labels - labels the sheet showed, in sheet order
 
- @returns The finalists in sheet order, none when a label has a majority or fewer than two labels drew a choice
+ @returns Finalists in sheet order, none when a label has a majority or fewer than two labels drew a choice
 
  @example
  ```ts

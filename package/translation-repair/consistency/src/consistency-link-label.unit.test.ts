@@ -27,9 +27,9 @@ type TreeNode = Parameters<typeof linkLabelKindOf>[0]['node'];
 /**
  A link whose label holds some nodes.
 
- @param children - the nodes of the label
+ @param children - nodes of the label
 
- @returns The link node
+ @returns Link node
 
  @example
  ```ts
@@ -49,7 +49,7 @@ function linkOf({ children, }: { readonly children: Extract<TreeNode, { readonly
 
  @param value - what the text says
 
- @returns The link node
+ @returns Link node
 
  @example
  ```ts
@@ -316,7 +316,7 @@ await describe({
 
          @param values - what the texts say
 
-         @returns The emphasis node
+         @returns Emphasis node
          */
         function emphasisOf({ values, }: { readonly values: readonly string[]; },): Extract<TreeNode, { readonly type: 'emphasis'; }> {
           return {

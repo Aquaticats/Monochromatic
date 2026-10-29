@@ -83,7 +83,7 @@ const SPACE = [' ',] as const;
 
  @param text - text in the original
 
- @returns The folded text and the offsets of the original each folded unit stands for
+ @returns Folded text and offsets of the original each folded unit stands for
 
  @example
  ```ts
@@ -184,9 +184,9 @@ export function foldWithOffsets({ text, }: { readonly text: string; },): OffsetF
  @param offsets - offsets in the original, such as the delimiters of its emphasis, which the fold keeps one unit to one
  (a character that is no white space)
 
- @param folded - the original in the fold
+ @param folded - original in the fold
 
- @returns The offsets of the folded units whose stretch of the original starts at one of them; none where `offsets` holds none
+ @returns Offsets of the folded units whose stretch of the original starts at one of them; none where `offsets` holds none
 
  @example
  ```ts
@@ -228,9 +228,9 @@ export function offsetsInFold(
  for each the character as it was written, which tells a backslash escape from a backslash before a curly mark the fold turned
  straight.
 
- @param folded - the text in the fold, with the character each unit stood for
+ @param folded - text in the fold, with the character each unit stood for
 
- @returns The folded characters and the written ones, a pair of lists of the same length
+ @returns Folded characters and written ones, a pair of lists of the same length
 
  @example
  ```ts

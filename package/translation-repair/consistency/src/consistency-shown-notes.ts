@@ -38,11 +38,11 @@ export function originalOfViews({ views, }: { readonly views: readonly Consisten
 /**
  English as the judges read it, without the notes between translators.
 
- @param english - the place's English as it stands
+ @param english - place's English as it stands
 
  @param original - original whose comments the English may repeat as its own
 
- @returns The same kind of English, its text cut where it carries text
+ @returns Same kind of English, its text cut where it carries text
 
  @example
  ```ts
@@ -75,7 +75,7 @@ export function englishWithoutNotes(
 
  @param views - places the sheet shows
 
- @returns The same places in the same order, each with its English cut
+ @returns Same places in the same order, each with its English cut
 
  @example
  ```ts

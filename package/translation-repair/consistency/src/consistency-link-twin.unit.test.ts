@@ -25,11 +25,11 @@ import {
 /**
  The twin of an English, its links read by the parse.
 
- @param english - the English, which folds unit for unit
+ @param english - English, which folds unit for unit
 
- @param closing - the offsets of the units that close an emphasis
+ @param closing - offsets of the units that close an emphasis
 
- @returns The twin
+ @returns Twin
 
  @example
  ```ts

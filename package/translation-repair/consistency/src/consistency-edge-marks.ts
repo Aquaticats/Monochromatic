@@ -110,11 +110,11 @@ const NO_PARTNER = -1;
  count at a position covers the positions before it, so the count between two
  positions is one subtraction.
 
- @param points - the words, one whole character each
+ @param points - words, one whole character each
 
  @param counts - whether the character at a position is of the kind
 
- @returns The counts, one longer than the words
+ @returns Counts, one longer than the words
 
  @example
  ```ts
@@ -155,11 +155,11 @@ function countsBefore(
  The bracket each bracket of one pair closes or is closed by, read in order with
  the openers on a stack.
 
- @param points - the words, one whole character each
+ @param points - words, one whole character each
 
- @param pair - the bracket pair read
+ @param pair - bracket pair read
 
- @returns The position of each bracket's partner, `-1` where the character is
+ @returns Position of each bracket's partner, `-1` where the character is
  no bracket of the pair or pairs with none
 
  @example
@@ -252,9 +252,9 @@ type EdgeTables = {
 /**
  Reads the words once for everything their edges will ask.
 
- @param points - the words, one whole character each
+ @param points - words, one whole character each
 
- @returns The tables
+ @returns Tables
 
  @example
  ```ts
@@ -302,13 +302,13 @@ function edgeTablesOf({ points, }: { readonly points: readonly string[]; },): Ed
 /**
  How many counted characters stand in a stretch of the words.
 
- @param before - the counts before each position
+ @param before - counts before each position
 
  @param from - first position of the stretch
 
  @param to - exclusive position the stretch stops at
 
- @returns The count, none for an empty stretch
+ @returns Count, none for an empty stretch
 
  @example
  ```ts
@@ -353,7 +353,7 @@ type Stretch = {
  Whether the first and last characters left are one mark and its pair, around
  words that hold that mark in order: the mark encloses all of them.
 
- @param tables - the tables of all the words
+ @param tables - tables of all the words
 
  @param from - first position left
 
@@ -402,7 +402,7 @@ function enclosesAll(
 /**
  Whether the first character left is not one of the words.
 
- @param tables - the tables of all the words
+ @param tables - tables of all the words
 
  @param from - first position left
 
@@ -458,7 +458,7 @@ function dropsAtStart(
 /**
  Whether the last character left is not one of the words.
 
- @param tables - the tables of all the words
+ @param tables - tables of all the words
 
  @param from - first position left
 
@@ -520,12 +520,12 @@ function dropsAtEnd(
  Where the words of a quote stand among its characters once the marks and
  punctuation at its two edges are taken off, read to a fixed point.
 
- @param points - the folded quote, one whole character each
+ @param points - folded quote, one whole character each
 
- @param originals - the characters as the judge wrote them, one for each of the points, which tell an escape from a backslash
+ @param originals - characters as the judge wrote them, one for each of the points, which tell an escape from a backslash
  before a curly mark the fold turned straight; the points themselves where absent
 
- @returns The position of the first character that is one of the words and the
+ @returns Position of the first character that is one of the words and the
  exclusive position after the last, equal when the quote holds none, an escape or a reference never cut in two
 
  @example
@@ -634,11 +634,11 @@ export function edgeFreeRangeOf(
  The words of a quote once the marks and punctuation at its two edges are taken
  off, read to a fixed point.
 
- @param points - the folded quote, one whole character each
+ @param points - folded quote, one whole character each
 
- @param originals - the characters as the judge wrote them, one for each of the points; the points themselves where absent
+ @param originals - characters as the judge wrote them, one for each of the points; the points themselves where absent
 
- @returns The words, empty when the quote holds none
+ @returns Words, empty when the quote holds none
 
  @example
  ```ts

@@ -37,15 +37,15 @@ import type { ConsistencyVoice, } from './consistency-count-types.ts';
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
  @param edges - which joints of a longer word bar a quote from containing another: the locator's test of a joint, or none but the
  letters beside the match, as a recount of an artifact written before the locator's test counted reads it; the locator's where absent
 
- @returns The candidate spans, longest first and by code points among those of one length; none when the ballots quoted nothing
+ @returns Candidate spans, longest first and by code points among those of one length; none when the ballots quoted nothing
  for the place or no quote is contained in the quotes of more than half of the ballots; a blank quote is a candidate only when
  a strict majority of the ballots gave a blank one
 

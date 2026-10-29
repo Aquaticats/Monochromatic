@@ -48,7 +48,7 @@ function digestOf({ text, }: { readonly text: string; },): string {
 
  @param choice - label chosen
 
- @returns The choice with its seat
+ @returns Choice with its seat
 
  @example
  ```ts

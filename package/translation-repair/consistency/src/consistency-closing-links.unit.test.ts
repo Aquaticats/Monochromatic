@@ -26,9 +26,9 @@ import {
 /**
  Whether the closing joints of an English, read with the links the fold holds, include an offset.
 
- @param english - the English, which folds unit for unit
+ @param english - English, which folds unit for unit
 
- @param at - the offset asked about
+ @param at - offset asked about
 
  @returns Whether a stand ending at the offset lies inside a word made with an apostrophe after closing marks
 

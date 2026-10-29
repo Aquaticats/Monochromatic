@@ -23,7 +23,7 @@ import {
 /**
  Whether the first line break of an English lies inside a paragraph.
 
- @param english - the English
+ @param english - English
 
  @returns Whether the paragraph holds the break
 
@@ -39,9 +39,9 @@ function breakInside({ english, }: { readonly english: string; },): boolean {
 /**
  How many quotations enclose the first line break of an English.
 
- @param english - the English
+ @param english - English
 
- @returns The number of quotations around the block that holds the break
+ @returns Number of quotations around the block that holds the break
 
  @example
  ```ts

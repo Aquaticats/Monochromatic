@@ -77,7 +77,7 @@ const QUOTE_NAMES: readonly string[] = [
 
  @param entry - what stands between two words of a sentence
 
- @returns The references the pass names in that sentence
+ @returns References the pass names in that sentence
 
  @example
  ```ts

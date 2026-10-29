@@ -66,16 +66,16 @@ export type CarryOffer = CarryOfferDraft & {
  The order is by a digest of the text, so it is the same on a resume and favours
  neither the current text nor any seat.
 
- @param current - the receiving paragraph as the English has it
+ @param current - receiving paragraph as the English has it
 
- @param splice - the paragraph with the chosen words moved in by code, as a
+ @param splice - paragraph with the chosen words moved in by code, as a
  list of zero or one: none where that is not possible or a floor refused it
 
  @param written - each writer's paragraph that passed the floors, in roster order
 
  @param lineStructured - whether the line-structure rule governs the slice
 
- @returns The distinct candidates, the current text always among them
+ @returns Distinct candidates, current text always among them
 
  @example
  ```ts
@@ -301,7 +301,7 @@ export function carryChoiceOf(
 
  @param quorum - voices the gather closed on, which the usable choices must reach
 
- @returns The finalists in sheet order, none when the choice is not run off
+ @returns Finalists in sheet order, none when the choice is not run off
 
  @example
  ```ts

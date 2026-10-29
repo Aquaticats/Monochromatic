@@ -87,7 +87,7 @@ const LABELS = ['OCCURRENCE 1', 'OCCURRENCE 2', 'OCCURRENCE 3', 'OCCURRENCE 4',]
 
  @param choice - label chosen
 
- @returns The choice with its seat
+ @returns Choice with its seat
 
  @example
  ```ts

@@ -18,7 +18,7 @@ import { isWhitespace, } from '@monochromatic-dev/translation-repair-translate-s
 
  @param text - label or name as written
 
- @returns The comparison form
+ @returns Comparison form
 
  @example
  ```ts
@@ -51,7 +51,7 @@ function comparisonFormOf({ text, }: { readonly text: string; },): string {
 
  @param label - shown label
 
- @returns The digits as a list of one, none when the label does not end in a digit
+ @returns Digits as a list of one, none when the label does not end in a digit
 
  @example
  ```ts
@@ -130,7 +130,7 @@ function appendTo(
 
  @param shown - labels the sheet showed
 
- @returns The lookups, each label listed once under each key it has
+ @returns Lookups, each label listed once under each key it has
 
  @example
  ```ts
@@ -176,7 +176,7 @@ function shownIndexOf({ shown, }: { readonly shown: readonly string[]; },): Show
 
  @param shown - labels the sheet showed, the only labels a reply may use
 
- @returns A function from what the judge wrote as a label to the shown label, as a list of one, none when the name stands for no
+ @returns Function from what the judge wrote as a label to the shown label, as a list of one, none when the name stands for no
  shown label or for more than one
 
  @example
@@ -230,7 +230,7 @@ export function shownLabelReaderOf({ shown, }: { readonly shown: readonly string
 
  @param shown - labels the sheet showed, the only labels a reply may use
 
- @returns The shown label as a list of one, none when the name stands for no shown label or for more than one
+ @returns Shown label as a list of one, none when the name stands for no shown label or for more than one
 
  @example
  ```ts

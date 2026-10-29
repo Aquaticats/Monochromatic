@@ -27,7 +27,7 @@ import {
  @param from - file the resolution starts from
  @param name - package name
 
- @returns The resolved path of the package's entry
+ @returns Resolved path of the package's entry
 
  @example
  ```ts
@@ -41,9 +41,9 @@ function resolvedFrom({ from, name, }: { readonly from: string; readonly name: s
 /**
  The kinds of the units of an English, as a string with one letter per unit: s shown, h hidden, b boundary.
 
- @param english - the English
+ @param english - English
 
- @returns The letters
+ @returns Letters
 
  @example
  ```ts

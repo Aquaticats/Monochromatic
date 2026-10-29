@@ -31,11 +31,11 @@ const SPAN = 'So she was a girl, wasn’t she';
 /**
  Ballots that quote the span for the first place, each beside the slot given in its turn, as a list of zero or one.
 
- @param span - the quoted words
+ @param span - quoted words
 
  @param slots - each ballot's slot as a list of zero or one, in seat order
 
- @returns The ballots
+ @returns Ballots
 
  @example
  ```ts
@@ -69,7 +69,7 @@ function ballotsGiving(
 /**
  The slot of the first place in a span whose ballots gave these slots, the words agreed being the span's own in the fold.
 
- @param span - the span as its English holds it
+ @param span - span as its English holds it
 
  @param slots - each ballot's slot as a list of zero or one, in seat order
 

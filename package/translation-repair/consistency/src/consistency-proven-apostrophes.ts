@@ -214,9 +214,9 @@ const NO_MARKS_PAST_MARKUP: MarksPastMarkup = { trailing: new Set(), };
  a single mark on the other side makes it free. A single mark never parts, so two single marks side by side read free, both
  of them, with a letter on either side of the pair or none.
 
- @param before - the character directly before the mark, a space at the start of the text
+ @param before - character directly before the mark, space at the start of the text
 
- @param after - the character directly after it, empty at the end of the text
+ @param after - character directly after it, empty at the end of the text
 
  @returns `attached`, `trailing`, `leading` or `free`
 
@@ -255,19 +255,19 @@ function kindOf({
  the word and a letter or a digit stands on its far side; a mark before opening markup has no such reading and stays free. A
  mark that a letter or a digit stands directly beside keeps what those letters say.
 
- @param text - the prose of the English, whole
+ @param text - prose of the English, whole
 
  @param at - offset of the mark
 
- @param character - the mark
+ @param character - mark
 
- @param previous - the character just before the mark, a space at the start of the text
+ @param previous - character just before the mark, space at the start of the text
 
  @param attached - offsets of the marks the caller reads as joined to the word after them
 
- @param pastMarkup - the marks the caller reads as standing past markup
+ @param pastMarkup - marks the caller reads as standing past markup
 
- @returns The reading of the mark
+ @returns Reading of the mark
 
  @example
  ```ts
@@ -326,16 +326,16 @@ function markReadingOf(
  could pair with, and the leading marks no later closer could. The opening curly
  single mark is never proven.
 
- @param text - the prose of the English, whole, as a caller reads it
+ @param text - prose of the English, whole, as a caller reads it
 
  @param attached - offsets of marks the caller reads as part of the word after them whatever stands before them (the `'`
  of `**cat**'s`, where the prose has blanked the emphasis), which stand neither for nor against a quotation and are never
  proven; none by default
 
- @param pastMarkup - the marks the caller reads as standing past markup (`*kittens*’`): a free one named reads as a trailing
+ @param pastMarkup - marks the caller reads as standing past markup (`*kittens*’`): a free one named reads as a trailing
  mark, so it can be proven, and a trailing one that is not proven still opens nothing; none by default
 
- @returns The offsets of the proven marks, trailing and leading apart
+ @returns Offsets of the proven marks, trailing and leading apart
 
  @example
  ```ts
@@ -430,14 +430,14 @@ export function provenApostrophesOf(
  the letters directly beside it in the prose and the marks the caller names as joined. The opening curly single mark reads
  as none of them: it is a partner wherever it stands.
 
- @param text - the prose of the English, whole, as a caller reads it
+ @param text - prose of the English, whole, as a caller reads it
 
  @param attached - offsets of the marks the caller reads as joined to the word after them across closing markup; none by default
 
- @param pastMarkup - the marks the caller reads as standing past markup; a free one named reads as a trailing mark; none by
+ @param pastMarkup - marks the caller reads as standing past markup; a free one named reads as a trailing mark; none by
  default
 
- @returns The reading of each apostrophe-like mark by its offset, in the order the marks stand
+ @returns Reading of each apostrophe-like mark by its offset, in the order the marks stand
 
  @example
  ```ts

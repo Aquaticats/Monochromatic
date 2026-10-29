@@ -106,7 +106,7 @@ const WORDS = [
 
  @param seed - what the page is generated from
 
- @returns The translation, its slices, and what the publishing hands the assembler
+ @returns Translation, its slices, and what the publishing hands the assembler
 
  @example
  ```ts

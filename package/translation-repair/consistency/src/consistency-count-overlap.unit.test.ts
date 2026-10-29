@@ -30,7 +30,7 @@ import {
 
  @param length - how many units the words take, at least one
 
- @returns The located rendering
+ @returns Located rendering
 
  @example
  ```ts
@@ -93,11 +93,11 @@ function unlocatedAmong(
 /**
  The places of one slice, as many as the caller says.
 
- @param slice - the slice every place stands in
+ @param slice - slice every place stands in
 
  @param count - how many places
 
- @returns The places
+ @returns Places
 
  @example
  ```ts

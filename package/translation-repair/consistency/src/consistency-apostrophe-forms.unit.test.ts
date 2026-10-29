@@ -27,9 +27,9 @@ import {
 /**
  The span of the last `the family` of an English, the words the form is asked for.
 
- @param english - the English, which holds the words
+ @param english - English, which holds the words
 
- @returns The start and the end of the words
+ @returns Start and end of the words
 
  @example
  ```ts

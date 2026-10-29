@@ -144,17 +144,17 @@ type StandingCandidate = {
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param english - the place's English
+ @param english - place's English
 
- @param page - the English of the whole page the place belongs to and where the place's English starts in it, which the proof of an apostrophe reads; the place's English alone is the page where absent
+ @param page - English of the whole page the place belongs to and where the place's English starts in it, which the proof of an apostrophe reads; the place's English alone is the page where absent
 
  @param framed - whether the group is a frame with a slot
 
- @param quotesByLabel - the quote entries of the usable ballots by label, read once for the group
+ @param quotesByLabel - quote entries of the usable ballots by label, read once for the group
 
- @returns The located rendering, carrying the words the English holds, or why it is not
+ @returns Located rendering, carrying the words the English holds, or why it is not
 
  @example
  ```ts
@@ -496,7 +496,7 @@ export function countConsistency(
 
  @param renderings - each place's rendering, in order
 
- @returns The winner, or why there is none
+ @returns Winner, or why there is none
 
  @throws {@link ConsistencyInvariantError} when the chosen label is none of the
  sheet's labels, which a usable ballot cannot choose

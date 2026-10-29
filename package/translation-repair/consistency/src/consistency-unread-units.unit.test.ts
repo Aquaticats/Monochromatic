@@ -27,9 +27,9 @@ import {
  before it, start no comment of their own. A comment that never closes is the mask's too, and its tail is blanked by the prose
  view, so it is left out here. White space is never one of the units.
 
- @param english - the English
+ @param english - English
 
- @returns The offsets of the units of the stretches that are no white space, in ascending order
+ @returns Offsets of the units of the stretches that are no white space, in ascending order
 
  @example
  ```ts
@@ -55,9 +55,9 @@ function stretchesOf({ english, }: { readonly english: string; },): readonly num
 /**
  The units of the comments of an English as the code names them, in ascending order.
 
- @param english - the English
+ @param english - English
 
- @returns The offsets
+ @returns Offsets
 
  @example
  ```ts
@@ -74,9 +74,9 @@ function commentsOf({ english, }: { readonly english: string; },): readonly numb
  An English with each unit a reader does not read as words shown as a middle dot, so a case reads as the text it is about.
  White space is never shown that way: a line break ends the stretches a run is read over.
 
- @param english - the English of a slice
+ @param english - English of a slice
 
- @returns The English with those units replaced
+ @returns English with those units replaced
 
  @example
  ```ts

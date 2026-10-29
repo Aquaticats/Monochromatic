@@ -22,9 +22,9 @@ import {
 /**
  The links of an English as its fold holds them, as lists of pairs and offsets that print in a test.
 
- @param english - the English, as it was given
+ @param english - English, as it was given
 
- @returns The pairs of last and first unit of the empty links, and the last units of the links of marks, each sorted
+ @returns Pairs of last and first unit of the empty links, and the last units of the links of marks, each sorted
 
  @example
  ```ts
@@ -250,7 +250,7 @@ await describe({
 
          @param changes - for each unit to change, the offset of the English it stands for in place of its own
 
-         @returns The pairs of last and first unit of the empty links, and the last units of the links of marks
+         @returns Pairs of last and first unit of the empty links, and the last units of the links of marks
          */
         function linksWith(
           { changes, }: { readonly changes: ReadonlyMap<number, number>; },
@@ -302,7 +302,7 @@ await describe({
 
          @param changes - for each unit to change, the offset of the English it stands for in place of its own
 
-         @returns The closing links by first unit, and the hidden stretches by last unit and by first unit
+         @returns Closing links by first unit, and the hidden stretches by last unit and by first unit
          */
         function linksWith({ changes, }: { readonly changes: ReadonlyMap<number, number>; },): {
           readonly closing: readonly (readonly [number, number])[];

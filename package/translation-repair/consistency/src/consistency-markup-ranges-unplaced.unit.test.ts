@@ -30,7 +30,7 @@ type TreeNode = Parameters<typeof markupRangesOf>[0]['nodes'][number];
 
  @param end - offset where the node ends, none to leave the end unplaced
 
- @returns The position, for the `position` of a node
+ @returns Position, for the `position` of a node
 
  @example
  ```ts
@@ -59,7 +59,7 @@ function placed(
 
  @param position - where the text stands, none to leave it unplaced
 
- @returns The text node
+ @returns Text node
 
  @example
  ```ts
@@ -79,9 +79,9 @@ function kitOf({ position, }: { readonly position?: TreeNode['position']; },): T
 
  @param position - where the link stands, none to leave it unplaced
 
- @param label - the text of the label
+ @param label - text of the label
 
- @returns The link node
+ @returns Link node
 
  @example
  ```ts
@@ -102,9 +102,9 @@ function linkOf(
 /**
  What reading the markup ranges of some nodes of the English `[kit](u)` throws.
 
- @param nodes - the nodes of the tree
+ @param nodes - nodes of the tree
 
- @returns The error as text
+ @returns Error as text
 
  @example
  ```ts

@@ -31,11 +31,11 @@ export type SlotAgreement = 'containing-quote' | 'exact-quote';
 /**
  The text a strict majority of usable ballots gave, as a list of zero or one.
 
- @param given - the texts the ballots that gave one gave
+ @param given - texts the ballots that gave one gave
 
  @param of - usable ballots, whether or not they gave a text
 
- @returns The text more than half of the usable ballots gave, or no text when
+ @returns Text more than half of the usable ballots gave, or no text when
  no text is given by more than half
 
  @example
@@ -151,11 +151,11 @@ export function keepsByLabelOf({ voices, }: { readonly voices: readonly Consiste
 /**
  What each ballot that quoted a place quoted.
 
- @param quotesByLabel - the quote entries of the group's ballots by label
+ @param quotesByLabel - quote entries of the group's ballots by label
 
- @param label - the place's label
+ @param label - place's label
 
- @returns The place's quote entries, one per ballot that gave one
+ @returns Place's quote entries, one per ballot that gave one
 
  @example
  ```ts
@@ -180,12 +180,12 @@ function quotesOfPlace(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
- @returns The agreed quote, or none
+ @returns Agreed quote, or none
 
  @example
  ```ts
@@ -224,12 +224,12 @@ export function agreedQuoteOf(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
- @returns The folded words more than half of the usable ballots quoted, or none
+ @returns Folded words more than half of the usable ballots quoted, or none
 
  @example
  ```ts
@@ -269,11 +269,11 @@ export function agreedWordsOf(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param words - the folded words the quotes agreed on
+ @param words - folded words the quotes agreed on
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
  @returns Whether the evidence holds for the side before the words and for the side after them
@@ -335,11 +335,11 @@ export function markEvidenceOf(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param words - the folded words the quotes agreed on
+ @param words - folded words the quotes agreed on
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
  @param slotAgreement - which quotes a slot given beside counts: any quote that contains the words at the edges of words, as the
@@ -350,7 +350,7 @@ export function markEvidenceOf(
  joint, or none but the letters beside the match, as a recount of an artifact written before the locator's test counted reads it;
  the locator's where absent
 
- @returns The folded slot words more than half of the usable ballots gave beside them, or none
+ @returns Folded slot words more than half of the usable ballots gave beside them, or none
 
  @example
  ```ts
@@ -407,14 +407,14 @@ export function agreedSlotWordsOf(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
- @param quote - the quote a majority agreed on, when the slot is asked beside it
+ @param quote - quote a majority agreed on, when the slot is asked beside it
 
- @param quotesByLabel - the quote entries of these ballots by label, which a caller that asks many places reads once for the
+ @param quotesByLabel - quote entries of these ballots by label, which a caller that asks many places reads once for the
  group; read from the ballots where absent
 
- @returns The agreed slot, or none
+ @returns Agreed slot, or none
 
  @example
  ```ts
@@ -456,7 +456,7 @@ export function agreedSlotOf(
 
  @param voices - usable ballots
 
- @returns The chosen label, or none
+ @returns Chosen label, or none
 
  @example
  ```ts
@@ -482,7 +482,7 @@ export function majorityChoiceOf(
 
  @param labels - labels the sheet showed, in sheet order
 
- @returns The count of each label in sheet order, the highest count and the labels that have it; none when no label drew a ballot
+ @returns Count of each label in sheet order, highest count and labels that have it; none when no label drew a ballot
  or a label has a strict majority
 
  @example
@@ -544,7 +544,7 @@ function leadersWithoutMajorityOf(
 
  @param labels - labels the sheet showed, in sheet order
 
- @returns The labels with the highest count in sheet order when two or more share it and none has a strict majority, none
+ @returns Labels with the highest count in sheet order when two or more share it and none has a strict majority, none
  otherwise
 
  @example
@@ -587,7 +587,7 @@ export function runOffTiedFinalistsOf(
 
  @param labels - labels the sheet showed, in sheet order
 
- @returns The finalists in sheet order, none when a label has a strict majority or when fewer than two labels drew a ballot
+ @returns Finalists in sheet order, none when a label has a strict majority or when fewer than two labels drew a ballot
 
  @example
  ```ts
@@ -650,7 +650,7 @@ export function runOffFinalistsOf(
 
  @param labels - labels the sheet showed
 
- @returns The usable ballots
+ @returns Usable ballots
 
  @example
  ```ts
@@ -684,7 +684,7 @@ export function usableVoicesOf(
 
  @param voices - usable ballots
 
- @param label - the place's label
+ @param label - place's label
 
  @param keepsByLabel - how many of these ballots keep each place, which a caller that asks many places reads once for the
  group; read from the ballots where absent

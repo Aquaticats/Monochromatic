@@ -28,9 +28,9 @@ import {
 /**
  What a call throws.
 
- @param run - the call
+ @param run - call
 
- @returns The thrown value, none when the call returns
+ @returns Thrown value, none when the call returns
 
  @example
  ```ts

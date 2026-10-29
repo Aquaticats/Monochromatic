@@ -103,7 +103,7 @@ function choosing({ choices, }: { readonly choices: readonly string[]; },): read
 
  @param quotes - what each ballot quotes for the first place, one ballot for each
 
- @param words - the folded words the quotes agreed on
+ @param words - folded words the quotes agreed on
 
  @returns On which sides the evidence holds
 

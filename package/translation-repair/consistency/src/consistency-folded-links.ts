@@ -122,14 +122,14 @@ type UnitEntry = readonly [
 /**
  The links of an English at the offsets of its fold.
 
- @param english - the English as it was given, which the parse reads the links from
+ @param english - English as it was given, which the parse reads the links from
 
- @param folded - the English in the fold, with the offsets of the English each folded unit stands for
+ @param folded - English in the fold, with the offsets of the English each folded unit stands for
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference with an empty label
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference with an empty label
  is a link only where a definition of its label stands in the English or here
 
- @returns The links whose label shows nothing, closing marks only, or marks, none where no closing square bracket stands in the fold
+ @returns Links whose label shows nothing, closing marks only, or marks, none where no closing square bracket stands in the fold
  or the grammar refuses the English
 
  @example
@@ -266,7 +266,7 @@ export function foldedLinksOf(
 
    @param links - links with a label, each with the two stretches that show a reader nothing
 
-   @returns The stretches the fold holds units for, in the order of the links
+   @returns Stretches the fold holds units for, in the order of the links
    */
   function hiddenSpansOf({ links, }: { readonly links: readonly LabelledLink[]; },): readonly HiddenSpan[] {
     return links

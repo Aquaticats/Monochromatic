@@ -29,9 +29,9 @@ import {
  A text with each mark that ends a reading run shown between white square brackets, so a case reads as the text it is about, the
  closing delimiters read by the parse as the proof reads them.
 
- @param text - the English
+ @param text - English
 
- @returns The text with the marks that end a reading run bracketed; the text itself when none ends one
+ @returns Text with the marks that end a reading run bracketed; the text itself when none ends one
 
  @example
  ```ts
@@ -58,9 +58,9 @@ function markedRunEnd({ text, }: { readonly text: string; },): string {
 /**
  Whether a character is in the trailing set of the refusal run and whether it is in the leading set.
 
- @param character - the character asked about
+ @param character - character asked about
 
- @returns The two answers, trailing first
+ @returns Two answers, trailing first
 
  @example
  ```ts

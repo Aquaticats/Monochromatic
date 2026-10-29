@@ -47,7 +47,7 @@ const CANDIDATES = ['CANDIDATE 1', 'CANDIDATE 2', 'CANDIDATE 4',] as const;
  Builds one reply that only chooses.
 
  @param choice - what the judge wrote
- @returns The reply
+ @returns Reply
 
  @example
  ```ts
@@ -66,7 +66,7 @@ function replyOf({ choice, }: { readonly choice: string; },): { readonly reason:
 
  @param choice - what the judge wrote
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts
@@ -85,7 +85,7 @@ function wireReplyOf({ choice, }: { readonly choice: string; },): { readonly ass
 
  @param ballot - ballot as stored
 
- @returns The reply that would have been stored as that ballot
+ @returns Reply that would have been stored as that ballot
 
  @example
  ```ts
@@ -106,7 +106,7 @@ function ballotWireOf({ ballot, }: { readonly ballot: ConsistencyVoice; },): Con
 
  @param seat - seat that answered
  @param choice - what the judge wrote
- @returns The choice with its seat
+ @returns Choice with its seat
 
  @example
  ```ts
@@ -127,7 +127,7 @@ function choiceVoiceOf({ seat, choice, }: { readonly seat: string; readonly choi
  @param choice - what the judge wrote as the chosen place
  @param keep - what the judge wrote as the kept places
  @param labels - what the judge wrote as the label of each quote, in order
- @returns The ballot
+ @returns Ballot
 
  @example
  ```ts

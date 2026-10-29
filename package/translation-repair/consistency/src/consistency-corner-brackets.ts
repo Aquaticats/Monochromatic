@@ -28,7 +28,7 @@ const CORNER_BRACKETS: ReadonlySet<string> = new Set([
  Whether a character that folded to the single mark is a white corner bracket,
  which is never part of a word.
 
- @param original - the character the text held before the fold
+ @param original - character the text held before the fold
 
  @returns Whether it is a corner bracket
 

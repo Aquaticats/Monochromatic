@@ -40,7 +40,7 @@ import {
 
  @param marks - apostrophes as written, in order
 
- @returns The shared form as a list of one, none for an empty list and for marks of more than one form
+ @returns Shared form as a list of one, none for an empty list and for marks of more than one form
 
  @example
  ```ts
@@ -85,18 +85,18 @@ export type PageStretch = {
  (`wordApostrophes` of `proofViewOf`, remembered for an equal English), so asking for each place
  of a page filters that list and neither parses the page nor walks it again.
 
- @param english - the English of the slice as the place holds it
+ @param english - English of the slice as the place holds it
 
  @param start - offset in the slice where the span starts
 
  @param end - exclusive offset in the slice where it ends
 
- @param page - the English of the whole page and where the slice starts in it; the slice alone is the page where absent
+ @param page - English of the whole page and where the slice starts in it; the slice alone is the page where absent
 
  @param apart - stretches of the page, by its own offsets, that are not read: the chosen words that arrive in the span, whose
  apostrophes are the ones being written in the page's form and say nothing of it; none by default
 
- @returns The shared form as a list of one, none where the page holds no apostrophe outside the span or holds more than one form
+ @returns Shared form as a list of one, none where the page holds no apostrophe outside the span or holds more than one form
 
  @throws {@link import('./consistency-invariant-error.ts').ConsistencyInvariantError} when the page is too short to hold the slice at its offset
 
@@ -160,7 +160,7 @@ export function pageApostropheFormOf(
   /**
    Where the span stands on the page.
 
-   @returns The span's own stretch, else the whole slice
+   @returns Span's own stretch, else the whole slice
    */
   function spanOnPage(): PageStretch {
     if (spanStart === NO_PLACE)
@@ -206,13 +206,13 @@ export function pageApostropheFormOf(
 /**
  The words that go in with their apostrophes written in the receiving place's form.
 
- @param text - the words that go in, with their loose marks already written
+ @param text - words that go in, with their loose marks already written
 
- @param receiving - the receiving words
+ @param receiving - receiving words
 
- @param page - the form the page's prose outside the receiving words shares, as a list of zero or one, asked only when the receiving words share no form; absent for a caller that holds no English
+ @param page - form the page's prose outside the receiving words shares, as a list of zero or one, asked only when the receiving words share no form; absent for a caller that holds no English
 
- @returns The words with every apostrophe of a word in the form the receiving words share, else the page's, else as written
+ @returns Words with every apostrophe of a word in the form the receiving words share, else the page's, else as written
 
  @example
  ```ts

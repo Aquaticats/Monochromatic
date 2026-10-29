@@ -229,7 +229,7 @@ const OPENING_MARKS = '"\'“‘„«‹([{*_~`¿¡「『（《〈';
 
  @param text - words whose first letter is wanted
 
- @returns The first character after the opening marks and its offset in UTF-16
+ @returns First character after the opening marks and its offset in UTF-16
  units, as a list of one; empty for a text made of opening marks alone
 
  @example
@@ -268,7 +268,7 @@ function firstLetterOf(
 
  @param like - words whose first letter sets the case
 
- @returns The text with its first letter, whole and past any opening mark, in
+ @returns Text with its first letter, whole and past any opening mark, in
  the case it has in `like`, or the text itself when the two first letters are
  not one letter in two cases
 
@@ -315,11 +315,11 @@ function firstLetterLike(
 /**
  Words a frame's chosen pattern gives a receiving place.
 
- @param chosen - the chosen place's located rendering
+ @param chosen - chosen place's located rendering
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
- @returns The chosen quote's words with its slot words replaced by the
+ @returns Chosen quote's words with its slot words replaced by the
  receiving place's slot words, or the chosen words themselves when the group
  has no slot
 
@@ -356,9 +356,9 @@ function patternFor(
  Whether two places hold the same single marks directly before and after their
  spans.
 
- @param chosen - the chosen place's located rendering
+ @param chosen - chosen place's located rendering
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @returns Whether `markBefore` agrees and `markAfter` agrees, with the three
  apostrophe-like marks one and an absent mark equal only to an absent one
@@ -406,7 +406,7 @@ function sameMarksBeside(
 
  @param left - one text
 
- @param right - the other
+ @param right - other
 
  @returns Whether the sequences of loose marks agree, each compared in its folded form
 
@@ -443,9 +443,9 @@ function sameLooseMarks(
  holds a single mark, the edge character of the words that would go in is of the
  same class as the edge character of the receiving words.
 
- @param text - the words that would go in
+ @param text - words that would go in
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @returns Whether no mark beside the receiving words can change from attached to
  loose or back
@@ -500,9 +500,9 @@ function keepsMarksAttached(
  place's form (`inReceivingForm`). Words that then equal the receiving words are
  the same.
 
- @param chosen - the chosen place's located rendering
+ @param chosen - chosen place's located rendering
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @param framed - whether the group is a frame, whose words move only with both
  places' slots
@@ -521,12 +521,12 @@ function keepsMarksAttached(
  the English of every slice of it, as a list that is empty for a page with none; the splice is unavailable when it is not
  empty; absent for a caller that holds no page, which cannot make the check, so the pass alone decides it
 
- @param english - the English the receiving words stand in (`target.start` addresses it), when the caller holds it: once the
+ @param english - English the receiving words stand in (`target.start` addresses it), when the caller holds it: once the
  splice is built, every single mark of it outside the receiving words is read as the proof reads it, before and after, and a
  splice that changes the reading of any is unavailable; absent for a caller that holds no English (a reader of the record),
  which cannot make the check, so the pass alone decides it
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), read together with `english` and only with it: the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), read together with `english` and only with it: the
  English is one slice's wording, and a reference in it whose definition stands in another slice is a link, so words that make it an
  undefined reference change how the emphasis around it pairs and how the marks outside the span read (n173). Absent for a slice
  read alone and for a caller that holds no English. The words of the places are read without them: the reader of a record plans the
@@ -710,11 +710,11 @@ export type AppliedEdits = {
  located, so the text is cut once, from the start, between the kept edits,
  which overlap none another, and none moves another.
 
- @param english - the place's English before any edit
+ @param english - place's English before any edit
 
  @param edits - edits in priority order
 
- @returns The edited English and which edits were made
+ @returns Edited English and which edits were made
 
  @throws {@link Error} when an edit's span lies outside the English or is
  empty, since offsets located in that English cannot

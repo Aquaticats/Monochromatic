@@ -27,16 +27,16 @@ import {
  (`see [](u)'kit` reads as `see 'kit`, whose apostrophe opens a word) and a link that shows closing marks and nothing else closes
  as those marks do (`[\]](u)'kit` reads as `]'kit`).
 
- @param english - the English as it was written
+ @param english - English as it was written
 
- @param emphasis - the delimiters of the English's emphasis by the parse, which the caller may hold already (`proseViewOf`);
+ @param emphasis - delimiters of the English's emphasis by the parse, which the caller may hold already (`proseViewOf`);
  read from the English, with the definitions, where absent
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English whose definition stands in another slice is then plain text, and its brackets and its `*` pair as plain text do
  (n173). They are read with the English where the delimiters are, and with its links, so the two agree
 
- @returns The offsets of the apostrophes that stand after a run of closing marks and before a letter or a digit
+ @returns Offsets of the apostrophes that stand after a run of closing marks and before a letter or a digit
 
  @example
  ```ts

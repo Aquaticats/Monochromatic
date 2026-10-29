@@ -187,9 +187,9 @@ export type DestinationStop = {
  delimiters of emphasis (the offsets the caller names, from the parse) and the closing `](…)` of a link; it ends at the first
  unit that is none of them. A `](` whose destination holds white space or is never closed is no part of a run.
 
- @param text - the English
+ @param text - English
 
- @param closing - the offsets of the closing delimiters of emphasis, strong emphasis and strikethrough by the parse
+ @param closing - offsets of the closing delimiters of emphasis, strong emphasis and strikethrough by the parse
 
  @returns For each offset and one past the end, the offset where the run that starts there ends (the offset itself when no run
  starts there)
@@ -258,12 +258,12 @@ function runEndsOf(
  which read as the trailing edge of the word before the run. One pass reads the text from its end to its start, a constant
  number of reads for each unit, whatever the length of a run or of a destination.
 
- @param text - the English as it was written, where the markup is not blanked yet
+ @param text - English as it was written, where the markup is not blanked yet
 
- @param closing - the offsets of the closing delimiters of emphasis, strong emphasis and strikethrough by the parse; a `*`, `_`
+ @param closing - offsets of the closing delimiters of emphasis, strong emphasis and strikethrough by the parse; a `*`, `_`
  or `~` at no such offset is a character of the text and no part of a run
 
- @returns The offsets of the marks that end a reading run
+ @returns Offsets of the marks that end a reading run
 
  @example
  ```ts
@@ -312,11 +312,11 @@ export function closingRunMarksOf(
  Where the destination of a link ends, when it does: the offset after the closing round bracket of a `(` at an offset, read
  only for a destination with no white space in it.
 
- @param text - the English
+ @param text - English
 
  @param open - offset of the `(`
 
- @returns The offset after the `)` as a list of one, none for a destination that holds white space or is never closed
+ @returns Offset after the `)` as a list of one, none for a destination that holds white space or is never closed
 
  @example
  ```ts

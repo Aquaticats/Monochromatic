@@ -58,7 +58,7 @@ post();
 
  @param quotes - one quote of the first place for each ballot
 
- @returns The candidates, longest first, or the word `hung` when the worker had not answered by the hang stop
+ @returns Candidates, longest first, or the word `hung` when the worker had not answered by the hang stop
 
  @example
  ```ts
@@ -115,10 +115,10 @@ async function candidatesInWorker({ quotes, }: { readonly quotes: readonly strin
  Builds one ballot that chooses the first place and quotes the given spans.
 
  @param seat - seat that answered
- @param quotes - the quote given for each place, by label
+ @param quotes - quote given for each place, by label
  @param choice - label of the place chosen
 
- @returns The ballot
+ @returns Ballot
 
  @example
  ```ts
@@ -195,12 +195,12 @@ const GROUP_TWO_BALLOTS: readonly ConsistencyVoice[] = [
 /**
  Counts ballots against two places of the given English.
 
- @param voices - the ballots
+ @param voices - ballots
  @param english - English of each place, in order
  @param quorum - quorum the gather closed on
  @param framed - whether the group is a frame with a slot, a plain group by default
 
- @param pageText - the text of the page the first place belongs to, none by default, in which the first place starts at 0
+ @param pageText - text of the page the first place belongs to, none by default, in which the first place starts at 0
 
  @returns What the ballots come to
 
@@ -242,10 +242,10 @@ function countAgainst(
  Builds one ballot of a frame that chooses the first place and quotes one span of it with a slot beside it.
 
  @param seat - seat that answered
- @param quote - the span quoted
- @param slot - the slot words given beside it
+ @param quote - span quoted
+ @param slot - slot words given beside it
 
- @returns The ballot
+ @returns Ballot
 
  @example
  ```ts

@@ -99,7 +99,7 @@ function sheetText({ subject, }: { readonly subject: CarryChoiceSubject; },): st
 
  @param subject - what the sheet shows
 
- @returns The text of the places and candidates
+ @returns Text of the places and candidates
 
  @example
  ```ts
@@ -115,9 +115,9 @@ function userText({ subject, }: { readonly subject: CarryChoiceSubject; },): str
 /**
  The label the rules give the block of the words a candidate replaces, read from the sentence that explains it.
 
- @param rules - the system message of an exchange
+ @param rules - system message of an exchange
 
- @returns The label; empty where the rules have no such sentence
+ @returns Label; empty where the rules have no such sentence
 
  @example
  ```ts
@@ -149,11 +149,11 @@ function labelOfWordsToReplace({ rules, }: { readonly rules: string; },): string
 /**
  The fenced blocks of a user message whose title is a label or the label and a number, with the words each holds.
 
- @param content - the user message of an exchange
+ @param content - user message of an exchange
 
- @param label - the label the rules name
+ @param label - label the rules name
 
- @returns The title and the first line of each such block, in the order the sheet shows them; none for an empty label
+ @returns Title and first line of each such block, in the order the sheet shows them; none for an empty label
 
  @example
  ```ts

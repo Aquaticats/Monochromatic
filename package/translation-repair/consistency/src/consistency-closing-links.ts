@@ -26,17 +26,17 @@ import {
  from the end of the text to its start, a constant number of reads for each unit; where links are given one more pass writes the
  text a reader sees.
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
- @param originals - the character the English held before the fold at each UTF-16 unit of it
+ @param originals - character the English held before the fold at each UTF-16 unit of it
 
- @param closing - the offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough
+ @param closing - offsets in the fold of the units that are the closing delimiter of an emphasis, strong or strikethrough
  stretch by the parse (`consistency-prose-text.ts`); an emphasis character at no such offset closes nothing
 
- @param links - the links the parse holds, at the offsets of the fold (`foldedLinksOf`, `consistency-folded-links.ts`), none where
+ @param links - links the parse holds, at the offsets of the fold (`foldedLinksOf`, `consistency-folded-links.ts`), none where
  the caller read no link
 
- @returns The offsets at which a stand may end to lie inside such a word
+ @returns Offsets at which a stand may end to lie inside such a word
 
  @example
  ```ts

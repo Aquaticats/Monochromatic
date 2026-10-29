@@ -21,9 +21,9 @@ import { marksPastMarkupOf, } from '../dist/final/node/index.mjs';
  An English with each mark `marksPastMarkupOf` names shown between white square brackets, so a case reads as the text it is
  about.
 
- @param english - the English
+ @param english - English
 
- @returns The English with the named marks bracketed; the English itself when none is named
+ @returns English with the named marks bracketed; the English itself when none is named
 
  @example
  ```ts

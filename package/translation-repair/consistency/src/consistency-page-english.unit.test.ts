@@ -32,9 +32,9 @@ import { pairsOver, } from '@monochromatic-dev/translation-repair-slice-reading/
 /**
  The slices of a page from their English, indexed from zero in the order given.
 
- @param englishes - the English of each slice that carries English, in page order
+ @param englishes - English of each slice that carries English, in page order
 
- @returns The slices
+ @returns Slices
 
  @example
  ```ts

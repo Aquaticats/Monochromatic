@@ -248,7 +248,7 @@ export function isConsistencyBallot(value: unknown,): value is ConsistencyBallot
 
  @param wire - reply of the right shape
 
- @returns The ballot, its assessment stored as the reason and its candidate quotes as the quotes
+ @returns Ballot, its assessment stored as the reason and its candidate quotes as the quotes
 
  @example
  ```ts
@@ -272,7 +272,7 @@ export function readConsistencyBallotWire({ wire, }: { readonly wire: Consistenc
 
  @param shown - labels the sheet showed
 
- @returns The shown label of each name, as a list of zero or one
+ @returns Shown label of each name, as a list of zero or one
 
  @example
  ```ts
@@ -314,7 +314,7 @@ function shownOnceLabelsOf(
 
  @param labels - labels the sheet showed
 
- @returns The ballot with the shown labels, as a list of zero or one
+ @returns Ballot with the shown labels, as a list of zero or one
 
  @example
  ```ts
@@ -443,7 +443,7 @@ export function usableConsistencyBallotFor(
 
  @param labels - labels the sheet showed, the only labels a reply may use
 
- @returns The constraint for this ask
+ @returns Constraint for this ask
 
  @example
  ```ts

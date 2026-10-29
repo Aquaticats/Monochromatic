@@ -22,8 +22,8 @@ import { cutsShownWord, } from '../dist/final/node/index.mjs';
 /**
  Whether the span the quote names in a text cuts a word a reader sees.
 
- @param text - the English as written
- @param quote - the written characters of the span, found once in the text
+ @param text - English as written
+ @param quote - written characters of the span, found once in the text
  @returns Whether an edge of the span stands inside a shown word
 
  @example

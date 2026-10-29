@@ -27,11 +27,11 @@ import { longerRuns, } from '@monochromatic-dev/translation-repair-test-fixture/
 /**
  The stretch of an English some words name, as the English holds it.
 
- @param haystack - the English
+ @param haystack - English
 
  @param words - quote that names the span
 
- @returns The stretch between the offsets the locator gives
+ @returns Stretch between the offsets the locator gives
 
  @throws Error when the words do not stand exactly once
 
@@ -58,7 +58,7 @@ function spanIn(
 /**
  The kind of answer the locator gives for some words in an English.
 
- @param haystack - the English
+ @param haystack - English
 
  @param words - quote that names the span
 
@@ -84,9 +84,9 @@ function kindIn(
 /**
  The kinds of answer the locator gives for each pair of texts: one with markup written, and its twin, the text a reader sees of it.
 
- @param rows - the text with the markup, the twin, and the words asked for
+ @param rows - text with the markup, twin, and words asked for
 
- @returns The kind of answer for the text with the markup of each row, and for the twin of each row
+ @returns Kind of answer for the text with the markup of each row, and for the twin of each row
 
  @example
  ```ts
@@ -110,13 +110,13 @@ function twinKindsOf(
  An English with the one span some words name in it replaced, as the splice
  replaces it: by the offsets the locator gives and nothing else.
 
- @param haystack - the English
+ @param haystack - English
 
  @param words - quote that names the span
 
  @param text - what the span becomes
 
- @returns The English after the replacement
+ @returns English after the replacement
 
  @throws Error when the words do not stand exactly once
 

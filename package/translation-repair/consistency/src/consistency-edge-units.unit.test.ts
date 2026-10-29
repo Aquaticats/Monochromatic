@@ -19,9 +19,9 @@ import { edgeUnitsOf, } from '../dist/final/node/index.mjs';
 /**
  The units of a text read as written.
 
- @param text - the text
+ @param text - text
 
- @returns The units as `from-to:shown`, in order
+ @returns Units as `from-to:shown`, in order
 
  @example
  ```ts

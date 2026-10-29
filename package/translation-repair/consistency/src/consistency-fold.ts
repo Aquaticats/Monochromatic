@@ -185,7 +185,7 @@ export type SpanSearch =
 
  @param text - quote as a judge gave it, or the folded words of one
 
- @returns The folded words, empty when the quote shows a reader nothing
+ @returns Folded words, empty when the quote shows a reader nothing
 
  @example
  ```ts
@@ -246,7 +246,7 @@ type ReadQuote = {
 
  @param text - quote as a judge gave it, or the folded words of one
 
- @returns The words and the two sides a single mark stood directly beside
+ @returns Words and two sides a single mark stood directly beside
 
  @example
  ```ts
@@ -334,7 +334,7 @@ export function marksHeldBesideWords({ text, }: { readonly text: string; },): Ma
 /**
  The offsets in an English of the stretch a stand of the needle covers.
 
- @param folded - the English in the fold, with the character each unit stood for
+ @param folded - English in the fold, with the character each unit stood for
 
  @param at - where the stand starts in the folded English
 
@@ -387,17 +387,17 @@ function standSpan(
  each side the quote held one on. A quote that held none on either side keeps
  every stand.
 
- @param haystack - the English as the place holds it
+ @param haystack - English as the place holds it
 
- @param folded - the English in the fold
+ @param folded - English in the fold
 
  @param stands - start offsets of the stands in the folded English
 
- @param needle - the folded words looked for
+ @param needle - folded words looked for
 
- @param quote - the quote the stands were looked for by
+ @param quote - quote the stands were looked for by
 
- @returns The stands that fit, in the order they were given
+ @returns Stands that fit, in the order they were given
 
  @throws {@link ConsistencyInvariantError} when a stand has no offsets in the original
 
@@ -455,13 +455,13 @@ function standsBesideMarks(
  Every start of a needle in a folded English where it stands at the boundaries
  of words and neither of its edges is a joint of a longer word.
 
- @param haystack - the English as it was given, which the delimiters of its emphasis are read from by the parse
+ @param haystack - English as it was given, which the delimiters of its emphasis are read from by the parse
 
- @param folded - the English in the fold, with the character each unit stood for
+ @param folded - English in the fold, with the character each unit stood for
 
  @param needle - folded words looked for
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference with an empty label is
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for an English read alone: a reference with an empty label is
  read as a link where a definition of it stands in the English or here, as the page shows it
 
  @returns Start offsets in the folded English, in ascending order
@@ -583,7 +583,7 @@ as a reader sees it: below), so `so`
  when it gives none, what the quote handed over held directly beside its words by
  itself.
 
- @param haystack - the English as the place holds it
+ @param haystack - English as the place holds it
 
  @param words - quote as a judge gave it, or the folded words of one
 
@@ -591,9 +591,9 @@ as a reader sees it: below), so `so`
 
  @param apostrophes - `proven` to take the proven apostrophes beside the words into the span, `outside` to leave the span at the words alone, as the slot of a frame is found inside a span that already holds its apostrophes
 
- @param page - the English of the whole page the haystack belongs to and where the haystack starts in it, which the proof of an apostrophe reads; the haystack alone is the page where absent
+ @param page - English of the whole page the haystack belongs to and where the haystack starts in it, which the proof of an apostrophe reads; the haystack alone is the page where absent
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`) in place of those read from `page`, for a caller that holds the definitions and not the page: a reader of a recorded artifact, which stores the definitions a place was read with (from generation 18, for a slot); read from `page` where absent, and handed to the proof of the apostrophe beside the words as well as to the word test
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`) in place of those read from `page`, for a caller that holds the definitions and not the page: a reader of a recorded artifact, which stores the definitions a place was read with (from generation 18, for a slot); read from `page` where absent, and handed to the proof of the apostrophe beside the words as well as to the word test
 
  @param codePadding - what pads the content of inline code when the word test reads the text a reader sees: a space and a line ending
  as CommonMark reads it, or a literal space alone as a reader of an artifact written before line endings padded code reads it; a
@@ -727,14 +727,14 @@ export function locateWords(
  {@link locateWords}. It counts every stand, whatever single marks stand beside
  it, and so does not choose among them as {@link locateWords} does.
 
- @param haystack - the English as the place holds it
+ @param haystack - English as the place holds it
 
  @param words - quote as a judge gave it, or the folded words of one
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), none for an English read alone: a reference
  in the English resolves against them, whichever slice holds the definition (n173)
 
- @returns The number of stands; none for a quote that shows a reader nothing
+ @returns Number of stands; none for a quote that shows a reader nothing
 
  @example
  ```ts

@@ -42,13 +42,13 @@ import {
 /**
  Plans a splice the way the pass does, comparing the marks beside the two places' words.
 
- @param chosen - the chosen place's located rendering
+ @param chosen - chosen place's located rendering
 
- @param target - the receiving place's located rendering
+ @param target - receiving place's located rendering
 
  @param framed - whether the group is a frame
 
- @returns The plan
+ @returns Plan
 
  @example
  ```ts
@@ -79,7 +79,7 @@ function planCompared(
  The places of a grid that the counter locates, each beside its located rendering, counted alone from three ballots
  that quote it and choose it.
 
- @param places - the places of the grid
+ @param places - places of the grid
 
  @returns Each place that is located with its rendering, in the order of the grid
 
@@ -113,11 +113,11 @@ function locatedAmong(
 /**
  The plan for moving the chosen place's quoted words over the receiving place's, both counted from their English.
 
- @param chosen - the chosen place's English and quote
+ @param chosen - chosen place's English and quote
 
- @param receiving - the receiving place's English and quote
+ @param receiving - receiving place's English and quote
 
- @returns The plan
+ @returns Plan
 
  @example
  ```ts
@@ -147,7 +147,7 @@ function planFor(
 /**
  A located rendering.
 
- @param core - the words the quote keeps
+ @param core - words the quote keeps
 
  @param start - offset in the English where the quote starts
 
@@ -190,9 +190,9 @@ const SINGLE_MARKS: ReadonlySet<string> = new Set(['\'', '‘', '’', '\u{02BC}
  mark that does not have a letter or a digit directly on both sides and is no proven apostrophe. Read by the fixture,
  written apart from the code under test, for ASCII.
 
- @param text - the text read
+ @param text - text read
 
- @returns The loose marks, one text per mark
+ @returns Loose marks, one text per mark
 
  @example
  ```ts
@@ -208,7 +208,7 @@ function looseMarksIn({ text, }: { readonly text: string; },): readonly string[]
  none there: whether it reads as one on the page depends on the page's other marks, which the pass decides where the page
  is known (`pass-consistency-apply-gains.ts`) and a plan alone does not.
 
- @param text - the words that go in
+ @param text - words that go in
 
  @returns Whether the first or the last character is a single mark
 
@@ -224,11 +224,11 @@ function edgeApostropheIn({ text, }: { readonly text: string; },): boolean {
 /**
  The single mark directly beside an offset, folded, as a list of zero or one.
 
- @param text - the text read
+ @param text - text read
 
- @param at - the offset asked about, which may lie outside the text
+ @param at - offset asked about, which may lie outside the text
 
- @returns The mark, or none
+ @returns Mark, or none
 
  @example
  ```ts

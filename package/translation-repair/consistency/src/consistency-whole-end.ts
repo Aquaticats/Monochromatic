@@ -24,11 +24,11 @@ import {
 /**
  The unit an offset falls strictly inside, which a span edge there would cut in two.
 
- @param units - the units of the text, in order, with offsets in the text
+ @param units - units of the text, in order, with offsets in the text
 
  @param offset - offset of the edge
 
- @returns The unit as a list of one, none when the offset falls between two units or at the text's own edge
+ @returns Unit as a list of one, none when the offset falls between two units or at the text's own edge
 
  @example
  ```ts
@@ -59,7 +59,7 @@ function unitAcross(
 /**
  How long the first characters of a text are in UTF-16 units.
 
- @param points - the characters of a text, one whole character each
+ @param points - characters of a text, one whole character each
 
  @param index - how many characters to count
 
@@ -92,11 +92,11 @@ function lengthBefore(
  when the end falls between two units. A unit counts when the parser decodes the reference or a backslash escapes an ASCII
  punctuation character.
 
- @param text - the English the span stands in
+ @param text - English the span stands in
 
  @param end - offset where the span ends, which is after its last unit
 
- @returns The offset where the span ends, the same when no unit holds it inside
+ @returns Offset where the span ends, same when no unit holds it inside
 
  @example
  ```ts
@@ -126,11 +126,11 @@ export function wholeEndOf(
  Where a located span starts once the reference or the escape its start falls inside is kept whole: the start of that unit, the same
  start when the start falls between two units.
 
- @param text - the English the span stands in
+ @param text - English the span stands in
 
  @param start - offset where the span starts
 
- @returns The offset where the span starts, the same when no unit holds it inside
+ @returns Offset where the span starts, same when no unit holds it inside
 
  @example
  ```ts
@@ -162,13 +162,13 @@ export function wholeStartOf(
  `cats`, the `amp; cats` of `dogs&amp; cats` names `&amp; cats`, and the `39; cats` of `dogs&#39; cats` names `cats`, the single
  mark going like any other.
 
- @param text - the English the span stands in
+ @param text - English the span stands in
 
  @param start - offset where the span starts
 
  @param end - offset where the span ends, which is after its last unit
 
- @returns The offsets of the span: the same ones when no edge falls inside a unit
+ @returns Offsets of the span: the same ones when no edge falls inside a unit
 
  @example
  ```ts
