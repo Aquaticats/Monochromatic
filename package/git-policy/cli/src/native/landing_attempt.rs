@@ -26,6 +26,8 @@
 use super::capture_records::record_landed_capture_or_warn;
 /// The invocation facts, and the baseline revision the post-index reads.
 use super::capture_invocation::{InvocationCapture, base_revision, resolve_ref_commit, resolve_symbolic_head};
+/// Where the worktree's `HEAD` file and branch files live, for the fresh read under the landing lock.
+use super::ref_files::RefFilesLayout;
 /// Native conclusion cleanup after the index is installed.
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 /// The index copy that keeps the timestamps Git reads.
@@ -421,7 +423,14 @@ fn land_locked(
 ) -> Result<LandingOutcome, LandingError> {
     reach(Phase::LandingLocked)?;
     let capture: &InvocationCapture = request.capture;
-    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd).map_err(LandingError::Git)?;
+    // A fresh read of the worktree's `HEAD` under the landing lock, never the recorded one.
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: capture.layout.git_dir.as_path(),
+        common_dir: capture.layout.common_dir.as_path(),
+        ref_format: capture.layout.ref_format,
+        object_format: capture.layout.object_format.as_str(),
+    };
+    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd, &ref_files).map_err(LandingError::Git)?;
     if symbolic_head != capture.layout.symbolic_head {
         debug(TAG, "HEAD names another target than at invocation");
         return Ok(LandingOutcome::BranchSwitched { current: symbolic_head });

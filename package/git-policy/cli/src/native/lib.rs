@@ -708,6 +708,9 @@ pub mod replay_commit;
 /// The empty tree's object name under each known object format.
 pub mod empty_tree;
 
+/// Files-backend ref reads that answer without a Git process or decline.
+pub mod ref_files;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;

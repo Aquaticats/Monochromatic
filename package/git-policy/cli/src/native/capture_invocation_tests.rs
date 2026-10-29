@@ -61,6 +61,76 @@ fn the_empty_tree_of_a_known_format_starts_no_hash_object() {
     }
 }
 
+/// The symbolic `HEAD` of a plain branch or a detached `HEAD` is read from the file:
+///  no `symbolic-ref` start happens, and the answer equals Git's.
+#[test]
+#[cfg(unix)]
+fn a_plain_head_starts_no_symbolic_ref() {
+    let root: PathBuf = fixture("capture-invocation-no-symbolic-ref");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+    let branch: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(branch.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    git(repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    let detached: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(detached.symbolic_head, SymbolicHead::Detached);
+    let starts: Vec<String> = recorded_starts(log.as_path());
+    assert!(!starts.is_empty(), "the recorder must see the layout's other starts");
+    for start in &starts {
+        assert!(!start.starts_with("symbolic-ref"), "unexpected start: {start}");
+    }
+    remove(root.as_path());
+}
+
+/// A `HEAD` the file reader declines is answered by Git with the same semantics as before:
+///  a symbolic branch resolves to the end of its chain, and a reftable repository names its real branch.
+#[test]
+#[cfg(unix)]
+fn a_declined_head_falls_back_to_git() {
+    let root: PathBuf = fixture("capture-invocation-head-fallback");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+    git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/alias"]);
+    let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(layout.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    assert_eq!(recorded_starts(log.as_path()).iter().filter(|start| { return start.starts_with("symbolic-ref"); }).count(), 1);
+
+    let reftable_repo: PathBuf = root.join("reftable");
+    std::fs::create_dir(&reftable_repo).expect("fixture");
+    git(reftable_repo.as_path(), &["init", "--quiet", "--initial-branch=trunk", "--ref-format=reftable"]);
+    let reftable: InvocationLayout =
+        capture_invocation_layout(&git_context(), reftable_repo.as_path(), false).expect("layout");
+    assert_eq!(reftable.ref_format, RefFormat::Reftable);
+    assert_eq!(reftable.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/trunk")));
+    remove(root.as_path());
+}
+
+/// The landing's compare-and-swap protection: a `HEAD` rewritten after the capture is seen by the next call,
+///  because the call reads the file again.
+#[test]
+fn a_head_rewritten_after_the_capture_is_seen_by_the_next_call() {
+    let root: PathBuf = fixture("capture-invocation-head-rewrite");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["update-ref", "refs/heads/other", head.as_str()]);
+    let context = git_context();
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: layout.git_dir.as_path(),
+        common_dir: layout.common_dir.as_path(),
+        ref_format: layout.ref_format,
+        object_format: layout.object_format.as_str(),
+    };
+    assert_eq!(resolve_symbolic_head(&context, repo.as_path(), &ref_files), Ok(layout.symbolic_head.clone()));
+    std::fs::write(layout.git_dir.join("HEAD"), "ref: refs/heads/other\n").expect("fixture");
+    assert_eq!(
+        resolve_symbolic_head(&context, repo.as_path(), &ref_files),
+        Ok(SymbolicHead::Branch(String::from("refs/heads/other")))
+    );
+    remove(root.as_path());
+}
+
 /// A detached `HEAD` makes `HEAD` itself the ref the landing advances.
 #[test]
 fn detached_head_targets_head_itself() {

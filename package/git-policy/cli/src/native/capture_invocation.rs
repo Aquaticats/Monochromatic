@@ -25,6 +25,8 @@
 use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 /// Failure text of one Git start that the layout reports as unusable.
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
+/// The files-backend `HEAD` reader and where one worktree's ref files live.
+use super::ref_files::{RefFilesLayout, read_symbolic_head};
 /// The empty tree's name per object format, known without a Git process.
 use super::empty_tree::empty_tree_name;
 /// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
@@ -247,14 +249,23 @@ pub fn resolve_conclusion_kind(
 /// What:
 ///  Resolves the symbolic `HEAD` target in the owning worktree.
 /// Why:
-///   Exit 1 from `symbolic-ref --quiet` means detached;
-///  any other failure is an error.
+///   The `HEAD` file answers when it is one of the two plain spellings on the files backend,
+///  read afresh on every call so the landing's re-read stays a read at landing time;
+///  anything else asks Git,
+///  where exit 1 from `symbolic-ref --quiet` means detached and any other failure is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await resolveSymbolicHead({ gitPath, cwd });
+/// readHeadFile(refFiles) ?? (await resolveSymbolicHeadWithGit({ gitPath, cwd }));
 /// ```
-pub fn resolve_symbolic_head(context: &GitContext, cwd: &Path) -> Result<SymbolicHead, GitFailure> {
+pub fn resolve_symbolic_head(
+    context: &GitContext,
+    cwd: &Path,
+    ref_files: &RefFilesLayout<'_>,
+) -> Result<SymbolicHead, GitFailure> {
+    if let Some(read) = read_symbolic_head(ref_files) {
+        return Ok(read);
+    }
     let output: GitOutput = probe(context, cwd, &["symbolic-ref", "--quiet", "HEAD"])?;
     if output.code == Some(1) {
         return Ok(SymbolicHead::Detached);
@@ -359,12 +370,22 @@ pub fn capture_invocation_layout(
     )?;
     let text: String = decoded_trimmed(&report)?;
     let lines: Vec<&str> = text.split('\n').collect();
-    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd)?;
+    let git_dir: PathBuf = absolute_reported(cwd, &lines, 1)?;
+    let common_dir: PathBuf = absolute_reported(cwd, &lines, 2)?;
+    let object_format: String = required_line(&lines, 6)?;
+    // The ref storage backend is read first: the `HEAD` file only answers for the files backend.
+    let ref_format: RefFormat = resolve_ref_format(context, cwd)?;
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: git_dir.as_path(),
+        common_dir: common_dir.as_path(),
+        ref_format,
+        object_format: object_format.as_str(),
+    };
+    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd, &ref_files)?;
     let target_ref: String = match &symbolic_head {
         SymbolicHead::Branch(reference) => reference.clone(),
         SymbolicHead::Detached => String::from("HEAD"),
     };
-    let object_format: String = required_line(&lines, 6)?;
     let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
     let repository_root: PathBuf = std::fs::canonicalize(absolute_reported(cwd, &lines, 0)?)
         .map_err(|error| { return GitFailure(format!("repository root is unreadable: {error}")); })?;
@@ -373,12 +394,12 @@ pub fn capture_invocation_layout(
         target_ref,
         conclusion: resolve_conclusion_kind(context, cwd, amend)?,
         repository_root,
-        git_dir: absolute_reported(cwd, &lines, 1)?,
-        common_dir: absolute_reported(cwd, &lines, 2)?,
+        git_dir,
+        common_dir,
         real_index_path: absolute_reported(cwd, &lines, 3)?,
         object_directory: absolute_reported(cwd, &lines, 4)?,
         registry_root: absolute_reported(cwd, &lines, 5)?,
-        ref_format: resolve_ref_format(context, cwd)?,
+        ref_format,
         object_format,
         empty_tree_oid,
         invoked_at,
