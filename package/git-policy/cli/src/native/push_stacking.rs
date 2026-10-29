@@ -143,7 +143,9 @@ pub fn stack_failed_push(
             .arg(&destination.remote)
             .arg(format!("{merge_oid}:{}", destination.merge_ref))
             .env_clear()
-            .envs(git.environment.iter().map(|(name, value)| (name, value)))
+            .envs(git.environment.iter().map(|(name, value)| {
+                return (name, value);
+            }))
             .env(STACKED_PUSH_MARKER, "1")
             .status()
             .map_err(SingleFlightError::Io)?;

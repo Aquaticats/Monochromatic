@@ -228,7 +228,9 @@ fn forced_deleting_and_multi_ref_pushes_are_never_integrated() {
     ] {
         let region: Vec<OsString> = arguments
             .iter()
-            .map(|token| OsString::from(token.replace("{default}", &race.default)))
+            .map(|token| {
+                return OsString::from(token.replace("{default}", &race.default));
+            })
             .collect();
         let (code, err) = stack(&race, &region);
         assert_eq!(code, None, "{arguments:?}: {err}");

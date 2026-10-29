@@ -500,11 +500,11 @@ pub fn reconcile_divergent_push(
         label: "auto-push",
         explicit: false,
     };
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+    let mut push_merge = |target: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
         let arguments = argv(&[
             "push",
-            &destination.remote,
-            &format!("{merge_oid}:{}", destination.merge_ref),
+            &target.remote,
+            &format!("{merge_oid}:{}", target.merge_ref),
         ]);
         let mut command = git_command(git, &arguments);
         apply_low_speed_defaults(&mut command, &git.environment);
@@ -688,7 +688,9 @@ pub fn integrate_and_push(
         if pushed.exit_code == 0 {
             let branch = plan
                 .branch_ref
-                .map(|reference| reference.strip_prefix("refs/heads/").unwrap_or(reference))
+                .map(|reference| {
+                    return reference.strip_prefix("refs/heads/").unwrap_or(reference);
+                })
                 .unwrap_or("HEAD");
             let advanced = match plan.branch_ref {
                 Some(branch_ref) => advance_local_branch(git, branch_ref, &local, &merge_oid)?,

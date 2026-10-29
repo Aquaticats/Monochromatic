@@ -15,7 +15,7 @@
 /// The parser,
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
-use super::{PUSH_TABLE, PushRegion, parse_push_region};
+use super::{PUSH_TABLE, PushRegion, parse_push_region, stackable_option_tokens};
 use crate::command_options::{OptionErrorKind, WrapperOccurrence};
 use crate::command_test_completion::{git_completion, render_completion};
 use crate::command_test_support::{
@@ -182,4 +182,46 @@ fn abbreviation_cluster_and_value_readings_match_git() {
     let ambiguous: Output = git_status(root.as_path(), &["push", "--d", "../remote.git"]);
     assert_eq!(ambiguous.status.code(), Some(129));
     remove(directory.as_path());
+}
+
+/// The option tokens a stacked push repeats, or nothing, for a region written as `values`.
+fn stackable(values: &[&str]) -> Option<Vec<String>> {
+    return stackable_option_tokens(os_arguments(values).as_slice()).map(|tokens| {
+        return tokens
+            .iter()
+            .map(|token| {
+                return token.to_string_lossy().into_owned();
+            })
+            .collect();
+    });
+}
+
+/// A plain update keeps its options and drops the remote and the refspecs the stacked push replaces.
+#[test]
+fn a_plain_push_keeps_its_options_and_drops_its_positionals() {
+    assert_eq!(stackable(&[]), Some(vec![]));
+    assert_eq!(stackable(&["origin", "HEAD:main"]), Some(vec![]));
+    assert_eq!(stackable(&["--no-verify", "origin", "HEAD:main"]), Some(vec![String::from("--no-verify")]));
+    assert_eq!(
+        stackable(&["-o", "ci.skip", "origin", "main"]),
+        Some(vec![String::from("-o"), String::from("ci.skip")])
+    );
+    assert_eq!(stackable(&["--", "origin", "main"]), Some(vec![String::from("--")]));
+    assert_eq!(stackable(&["--no-force", "origin", "main"]), Some(vec![String::from("--no-force")]));
+    assert_eq!(stackable(&["--force", "--no-force", "origin", "main"]).map(|tokens| tokens.len()), Some(2));
+}
+
+/// Every option that rewrites, removes or widens what is sent, or changes what the caller reads back, is never stacked.
+#[test]
+fn forms_that_rewrite_remove_widen_or_redirect_a_push_are_never_stacked() {
+    for option in [
+        "--force", "-f", "--force-with-lease", "--force-with-lease=main:abc", "--force-if-includes", "--mirror", "--delete",
+        "-d", "--all", "--branches", "--tags", "--prune", "--follow-tags", "--repo=origin", "--porcelain", "-u",
+        "--set-upstream", "-n", "--dry-run", "--del", "--mir", "--no-such-option",
+    ] {
+        assert_eq!(stackable(&[option, "origin", "main"]), None, "{option}");
+    }
+    assert_eq!(stackable(&["origin", "+main"]), None);
+    assert_eq!(stackable(&["origin", "+HEAD:main"]), None);
+    assert_eq!(stackable(&["--", "origin", "+main"]), None);
 }

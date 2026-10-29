@@ -230,22 +230,27 @@ const NOT_STACKABLE: &[u16] = &[
 /// ```
 pub fn stackable_option_tokens(region: &[OsString]) -> Option<Vec<OsString>> {
     let parsed: ParsedOptions = parse_options(region, PUSH_TABLE, DEFAULT_MODE, &[]).ok()?;
-    if NOT_STACKABLE.iter().any(|id| is_enabled(&parsed, *id)) {
+    if NOT_STACKABLE.iter().any(|id| {
+        return is_enabled(&parsed, *id);
+    }) {
         return None;
     }
     let positionals: Vec<usize> = positional_tokens(&parsed, region.len());
-    if positionals
-        .iter()
-        .any(|index| region[*index].as_encoded_bytes().first() == Some(&b'+'))
-    {
+    if positionals.iter().any(|index| {
+        return region[*index].as_encoded_bytes().first() == Some(&b'+');
+    }) {
         return None;
     }
     return Some(
         region
             .iter()
             .enumerate()
-            .filter(|(index, _)| !positionals.contains(index))
-            .map(|(_, token)| token.clone())
+            .filter(|(index, _)| {
+                return !positionals.contains(index);
+            })
+            .map(|(_, token)| {
+                return token.clone();
+            })
             .collect(),
     );
 }
