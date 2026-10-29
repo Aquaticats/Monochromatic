@@ -39,6 +39,7 @@ fn plan(lock: &std::path::Path, disabled: &[&str]) -> HookDispatchPlan {
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: false,
+        named_hooks_possible: true,
     };
 }
 
@@ -56,6 +57,7 @@ fn landed(scene: &Scene, records: Vec<AddedPath>) -> LandedTransaction {
         real_index: scene.git_dir.join("index"),
         added_paths: Vec::new(),
         worktree_records: records,
+        config_snapshot: None,
     };
 }
 

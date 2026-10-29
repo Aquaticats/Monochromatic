@@ -12,6 +12,8 @@
 //! const plan: HookDispatchPlan = await computeHookDispatchPlan({ gitPath, cwd, globalArgs, commonDir, ... });
 //! ```
 
+/// The one configuration read, and its lookup answers.
+use super::config_snapshot::{ConfigSnapshot, Lookup};
 /// Config reads and the per-transaction Git context.
 use super::transaction_git::{GitContext, GitRequest, run_git};
 /// Lenient typed readers over the plan's JSON object.
@@ -138,6 +140,10 @@ pub struct HookDispatchPlan {
     pub hook_lock_path: String,
     /// Whether hooks skip the hook lock.
     pub skip_hook_lock: bool,
+    /// Whether the configuration may define hooks by name (`hook.<name>.event` or `.command`), which run for their
+    ///  event whatever the hooks directory holds; `true` when the configuration was not inspected.
+    ///  Not recorded in `plan.json`: the dispatchers never read it, and a plan read back says `true`.
+    pub named_hooks_possible: bool,
 }
 
 /// What:
@@ -170,6 +176,9 @@ pub struct HookPlanInputs<'a> {
     pub inherited_lease_valid: bool,
     /// Caller environment, whose `GIT_CONFIG_PARAMETERS` is inherited.
     pub environment: &'a [(OsString, OsString)],
+    /// The configuration read once with the caller's global options;
+    ///  `None` makes each key start its own `git config`.
+    pub snapshot: Option<&'a ConfigSnapshot>,
 }
 
 /// What:
@@ -479,6 +488,29 @@ fn read_disabled_events(context: &GitContext, cwd: &Path) -> Result<Vec<String>,
 }
 
 /// What:
+///  The silenced events the user disabled with `hook.<event>.enabled`, from the configuration snapshot.
+/// Why:
+///   The snapshot answers exactly what the `--get-regexp` read answers when every entry of the four switches is a
+///  boolean it models; one it does not model (a bad boolean, a unit suffix) is `None`,
+///  and the caller starts Git, which reports the same error it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SILENCED_HOOK_EVENTS.filter((event) => snapshot.boolValue(`hook.${event}.enabled`) === false);
+/// ```
+fn snapshot_disabled_events(snapshot: &ConfigSnapshot) -> Option<Vec<String>> {
+    let mut disabled: Vec<String> = Vec::new();
+    for event in SILENCED_HOOK_EVENTS {
+        match snapshot.bool_value(format!("hook.{event}.enabled").as_str()) {
+            Lookup::Unset | Lookup::Found(true) => {}
+            Lookup::Found(false) => disabled.push(String::from(event)),
+            Lookup::Unhandled => return None,
+        }
+    }
+    return Some(disabled);
+}
+
+/// What:
 ///  Compute the dispatch plan of one transaction from the real repository.
 /// Why:
 ///   The incumbent's `computeHookDispatchPlan`:
@@ -492,17 +524,19 @@ fn read_disabled_events(context: &GitContext, cwd: &Path) -> Result<Vec<String>,
 pub fn compute_hook_dispatch_plan(
     inputs: &HookPlanInputs<'_>,
 ) -> Result<HookDispatchPlan, HookPlanError> {
-    let configured_hooks: Option<String> = read_config(
-        inputs.context,
-        inputs.cwd,
-        "path",
-        "core.hooksPath",
-    )?;
+    let configured_hooks: Option<String> = match inputs.snapshot.map(|snapshot| { return snapshot.path_value("core.hookspath"); }) {
+        Some(Lookup::Found(value)) => Some(value),
+        Some(Lookup::Unset) => None,
+        Some(Lookup::Unhandled) | None => read_config(inputs.context, inputs.cwd, "path", "core.hooksPath")?,
+    };
     let hooks_path: PathBuf = match configured_hooks {
         None => default_hooks_directory(inputs.common_directory),
         Some(value) => resolve_hooks_path(inputs.worktree_root, Path::new(value.as_str())),
     };
-    let disabled_events: Vec<String> = read_disabled_events(inputs.context, inputs.cwd)?;
+    let disabled_events: Vec<String> = match inputs.snapshot.and_then(snapshot_disabled_events) {
+        Some(events) => events,
+        None => read_disabled_events(inputs.context, inputs.cwd)?,
+    };
     let inherited: String = inherited_config_parameters(inputs.environment)?;
     let overrides: Vec<String> = global_config_overrides(inputs.global_arguments)?;
     let config_parameters: ConfigParameters = combine_config_parameters(
@@ -521,6 +555,7 @@ pub fn compute_hook_dispatch_plan(
             "hook lock path",
         )?,
         skip_hook_lock: inputs.concurrent_commits || inputs.inherited_lease_valid,
+        named_hooks_possible: inputs.snapshot.is_none_or(ConfigSnapshot::defines_named_hook),
     };
     return Ok(plan);
 }
@@ -637,6 +672,7 @@ pub fn parse_hook_dispatch_plan(text: &str) -> Option<HookDispatchPlan> {
         lease: String::from(string_field(&object, "lease")?),
         hook_lock_path: String::from(string_field(&object, "hookLockPath")?),
         skip_hook_lock: object.get("skipHookLock")?.as_bool()?,
+        named_hooks_possible: true,
     });
 }
 

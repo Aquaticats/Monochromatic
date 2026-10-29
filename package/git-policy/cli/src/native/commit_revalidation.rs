@@ -23,7 +23,9 @@ use super::commit_worktree_records::{HookChanges, describe_hook_changes};
 use super::diagnostic_log::debug;
 use super::forwarding::{exit_code, git_command};
 use super::signal_relay::SignalGuard;
+use super::hook_dispatch_entries::hook_entry_name;
 use super::hook_dispatch_plan::SILENCED_HOOK_EVENTS;
+use super::hook_presence::hook_entry_may_exist;
 use super::policy_checks::ShippedChecks;
 use super::policy_content::{ContentState, LifecycleContent};
 use super::policy_engine::{StageRequest, pass_exit_code};
@@ -102,6 +104,7 @@ pub struct RevalidationContext<'a> {
 /// Why:
 ///   It runs exactly as native preparation ran it, so the shim takes the hook lock and restores the caller's
 ///  configuration; `prepare-commit-msg` and `commit-msg` do not re-run because the message is fixed.
+///  Without a shim for the event nothing runs, and nothing is started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,6 +118,11 @@ fn rerun_pre_commit(
     hooks_directory: &Path,
     index: &Path,
 ) -> Result<(), TransactionStop> {
+    // An event with no user hook has no dispatcher entry, so `git hook run` would find nothing to start.
+    if !hook_entry_may_exist(hooks_directory, hook_entry_name("pre-commit").as_str()) {
+        debug(TAG, "no pre-commit entry in the transaction hooks; the re-run is skipped");
+        return Ok(());
+    }
     let mut arguments: Vec<OsString> = global_args.iter().map(OsString::from).collect();
     arguments.push(OsString::from(format!("--git-dir={}", shadow.display())));
     arguments.push(OsString::from(format!("--work-tree={}", worktree_root.display())));
