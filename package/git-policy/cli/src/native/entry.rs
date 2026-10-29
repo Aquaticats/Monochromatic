@@ -417,6 +417,8 @@ fn forward_action(
         real_git: real_git.clone(),
         overlay: overlay.clone(),
         global_prefix: Vec::new(),
+        // These queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
     let writes_index: bool = is_index_writer(&command);
@@ -549,6 +551,8 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
         real_git: real_git.clone(),
         overlay: overlay.clone(),
         global_prefix: Vec::new(),
+        // These queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
     if command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {

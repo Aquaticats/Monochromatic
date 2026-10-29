@@ -71,6 +71,7 @@ fn runs_capture_output_and_feed_input() {
         real_git: root.join("no-git"),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let start: GitFailure =
         run_git_checked(&unstartable, &GitRequest::new(repo.as_path(), &["status"]))
@@ -185,13 +186,66 @@ fn error_text_is_trimmed() {
 fn input_files_leave_nothing_behind() {
     use std::io::Read;
     use std::os::unix::fs::MetadataExt;
-    let mut file: std::fs::File = input_file(b"bytes").expect("input file");
+    let root: PathBuf = fixture("transaction-git-input");
+    let mut file: std::fs::File = input_file(b"bytes", Some(root.as_path())).expect("input file");
     let metadata: std::fs::Metadata = file.metadata().expect("metadata");
     assert_eq!(metadata.nlink(), 0);
     assert_eq!(metadata.mode() & 0o777, 0o600);
     let mut read: Vec<u8> = Vec::new();
     file.read_to_end(&mut read).expect("read");
     assert_eq!(read, b"bytes");
+    let left: Vec<std::ffi::OsString> = std::fs::read_dir(root.join("cli-git-scratch"))
+        .expect("the repository scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
+    assert!(left.is_empty(), "nothing is left in the scratch directory: {left:?}");
+    remove(root.as_path());
+}
+
+/// A request that carries input needs a repository: without one the failure names the defect and writes nothing.
+#[test]
+fn input_without_a_repository_is_refused_naming_the_defect() {
+    let error: std::io::Error = input_file(b"bytes", None).expect_err("no repository");
+    assert!(error.to_string().contains("no repository scratch directory"), "{error}");
+}
+
+/// A common directory that does not exist is an error, and the input file is never made elsewhere.
+#[test]
+fn input_in_a_missing_common_directory_fails_without_a_fallback() {
+    let root: PathBuf = fixture("transaction-git-input-missing");
+    let missing: PathBuf = root.join("no-such-common-directory");
+    assert!(input_file(b"bytes", Some(missing.as_path())).is_err());
+    assert!(!missing.exists());
+    remove(root.as_path());
+}
+
+/// A fake Git that prints where its standard input lives, which is the input file's name before it was unlinked.
+#[cfg(target_os = "linux")]
+const FAKE_GIT_STDIN_PATH: &[u8] = b"#!/bin/sh\nreadlink /proc/$$/fd/0\n";
+
+/// The input a command gets is a file in the repository scratch directory of its context, and is gone afterwards.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_command_reads_its_input_from_the_repository_scratch_directory() {
+    let root: PathBuf = fixture("transaction-git-input-location");
+    let program: PathBuf = root.join("fake-git");
+    executable(program.as_path(), FAKE_GIT_STDIN_PATH);
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(&common).expect("common directory");
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(common.clone()),
+    };
+    let mut request: GitRequest = GitRequest::new(root.as_path(), &["hash-object", "--stdin"]);
+    request.input = Some(b"12345".to_vec());
+    let output: GitOutput = run_git(&context, &request).expect("the fake runs");
+    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let expected: String = format!("{}/cli-git-scratch/cli-git-input-", common.display());
+    assert!(named.starts_with(expected.as_str()), "{named} should start with {expected}");
+    assert_eq!(std::fs::read_dir(common.join("cli-git-scratch")).expect("scratch").count(), 0);
+    remove(root.as_path());
 }
 
 /// A fake Git that counts its runs, refuses the first `FAKE_REFUSALS` of them the way a host out of threads does,
@@ -216,7 +270,12 @@ fn fake_run(root: &Path, arguments: &[&str], refusals: u32, other_failure: bool)
     let program: PathBuf = root.join("fake-git");
     executable(program.as_path(), FAKE_GIT);
     let count: PathBuf = root.join("count");
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new() };
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(root.to_path_buf()),
+    };
     let mut request: GitRequest = GitRequest::new(root, arguments);
     request.input = Some(b"12345".to_vec());
     request.environment = vec![

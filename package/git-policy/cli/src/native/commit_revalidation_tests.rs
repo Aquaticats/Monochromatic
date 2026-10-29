@@ -13,6 +13,7 @@ fn context() -> GitContext {
             (OsString::from("GIT_AUTHOR_EMAIL"), OsString::from("fixture@example.invalid")),
         ],
         global_prefix: Vec::new(),
+        common_dir: None,
     };
 }
 

@@ -301,7 +301,7 @@ fn logging_stand_in(root: &Path) -> (GitContext, PathBuf) {
     let content: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexit 99\n", log.display());
     crate::test_support::executable(path.as_path(), content.as_bytes());
     return (
-        GitContext { real_git: path, overlay: Vec::new(), global_prefix: Vec::new() },
+        GitContext { real_git: path, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
         log,
     );
 }

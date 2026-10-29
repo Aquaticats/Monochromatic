@@ -225,6 +225,9 @@ pub(crate) fn git_context() -> crate::transaction_git::GitContext {
         real_git: PathBuf::from(REAL_GIT),
         overlay: isolated_overlay(),
         global_prefix: Vec::new(),
+        // The fixture contexts name no repository, so the input files of their commands are made in the scratch
+        // directory beside the fixtures, under the target directory and never in the system temporary directory.
+        common_dir: Some(fixture_root()),
     };
 }
 

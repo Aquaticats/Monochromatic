@@ -258,6 +258,7 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
         real_git: PathBuf::from(super::support::REAL_GIT),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,
@@ -397,6 +398,7 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
         real_git: PathBuf::from(super::support::REAL_GIT),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,

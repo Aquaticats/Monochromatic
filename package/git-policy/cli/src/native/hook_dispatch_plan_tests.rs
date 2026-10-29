@@ -341,6 +341,7 @@ fn failing_stand_in(root: &Path) -> (GitContext, PathBuf) {
         real_git: path,
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     return (context, log);
 }

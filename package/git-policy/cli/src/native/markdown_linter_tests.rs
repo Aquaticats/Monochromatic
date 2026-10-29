@@ -98,7 +98,8 @@ fn the_executable_linter_uses_the_measured_bounds() {
     );
     let linter: ProcessLinter = executable_linter(&[]);
     assert_eq!(linter.limits, LINTER_LIMITS);
-    assert!(linter.scratch.is_absolute(), "{:?}", linter.scratch);
+    // No directory is given: the per-user one is made from the environment when a candidate needs it.
+    assert_eq!(linter.scratch, None);
     assert_eq!(linter.environment, Vec::<(OsString, OsString)>::new());
 }
 
@@ -198,6 +199,59 @@ fn the_linter_gets_the_contract_arguments() {
         !configuration.exists(),
         "the configuration leaves with the invocation"
     );
+    remove(root.as_path());
+}
+
+/// The executable's linter makes its configuration in the per-user scratch directory of its environment, never in the
+/// system temporary directory (the environment's `TMPDIR` names a path that does not exist), and removes it with the
+/// invocation.
+#[test]
+fn the_executable_linter_makes_its_configuration_in_the_per_user_scratch_directory() {
+    let root: PathBuf = fixture("linter-user-scratch");
+    let bin: PathBuf = stand_in(root.as_path(), RECORDING);
+    let record: PathBuf = root.join("record");
+    let top: PathBuf = root.join("top");
+    let home: PathBuf = root.join("home");
+    for directory in [&record, &top, &home] {
+        std::fs::create_dir(directory).expect("directory");
+    }
+    let unusable: PathBuf = root.join("no-such-tmpdir");
+    let mut linter: ProcessLinter = executable_linter(
+        environment(
+            bin.as_path(),
+            &[("RECORD", record.as_path()), ("HOME", home.as_path()), ("TMPDIR", unusable.as_path())],
+        )
+        .as_slice(),
+    );
+    assert_eq!(
+        lint(&mut linter, top.as_path(), b"a.md", b"source\n"),
+        Ok(LintRun { fixed: b"source\n".to_vec(), remaining: Vec::new() })
+    );
+    let arguments: Vec<u8> = std::fs::read(record.join("arguments")).expect("arguments");
+    let first: &[u8] = arguments.split(is_line_feed).next().expect("first argument");
+    let configuration: PathBuf = PathBuf::from(OsString::from_vec(first["--config=".len()..].to_vec()));
+    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    assert_eq!(configuration.parent(), Some(scratch.as_path()));
+    assert!(configuration.exists());
+    drop(linter);
+    assert!(!configuration.exists(), "the configuration leaves with the invocation");
+    assert_eq!(std::fs::read_dir(&scratch).expect("scratch").count(), 0, "nothing is left in the scratch directory");
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(root.as_path());
+}
+
+/// An environment with no state directory and no home makes the linter fail at the first candidate, naming the
+/// variables, rather than falling back to the system temporary directory; making the linter costs nothing.
+#[test]
+fn the_executable_linter_without_a_home_fails_at_the_first_candidate_naming_the_variables() {
+    let root: PathBuf = fixture("linter-no-home");
+    let bin: PathBuf = stand_in(root.as_path(), "cat");
+    let top: PathBuf = root.join("top");
+    std::fs::create_dir(&top).expect("top");
+    let mut linter: ProcessLinter = executable_linter(environment(bin.as_path(), &[]).as_slice());
+    let reason: String = lint(&mut linter, top.as_path(), b"a.md", b"source\n").expect_err("no scratch directory");
+    assert!(reason.contains("XDG_STATE_HOME") && reason.contains("HOME"), "{reason}");
+    assert!(reason.contains("never in the system temporary directory"), "{reason}");
     remove(root.as_path());
 }
 

@@ -37,6 +37,7 @@ pub(crate) fn recording_context(root: &Path) -> (GitContext, PathBuf) {
         real_git: shim,
         overlay: isolated_overlay(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     return (context, log);
 }

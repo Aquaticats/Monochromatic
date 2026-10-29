@@ -425,11 +425,12 @@ fn with_markdown() -> PolicyConfig {
     return with_severity(PolicyId::MarkdownAutofix, Severity::Warn);
 }
 
-/// A PATH holding `bin` and the system programs.
+/// A PATH holding `bin` and the system programs, and a home beside `bin` for the linter's scratch directory.
 fn path_with(bin: &Path) -> Vec<(OsString, OsString)> {
     let mut path: OsString = bin.as_os_str().to_os_string();
     path.push(":/usr/bin:/bin");
-    return vec![(OsString::from("PATH"), path)];
+    let home: OsString = bin.parent().unwrap_or(bin).join("home").into_os_string();
+    return vec![(OsString::from("PATH"), path), (OsString::from("HOME"), home)];
 }
 
 /// A landed Markdown file is checked by the linter found on the invocation's PATH, not on an empty one.
