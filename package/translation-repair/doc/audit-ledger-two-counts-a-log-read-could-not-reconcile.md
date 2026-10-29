@@ -55,7 +55,8 @@ It merges and does not drop,
 so the survivor carries every claim.
 It is written in `doc/decision/translation-repair-duplicate-issue-emission.md`
 (ratified on 2026-08-13:
-"Deduplication happens at EMISSION, not at scoring").
+"Deduplication happens at EMISSION,
+not at scoring").
 `settled-tally.ts` counts `repair.result.issues`,
 which is after the merge.
 

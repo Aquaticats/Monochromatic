@@ -431,10 +431,10 @@ const LATER_START_NOTE = 'the first reading of the run failed, so this compariso
   + 'plan energy spent before it is not counted';
 
 /**
- Decimals the run's own draw is printed to: one call is a few ten-thousandths of a watt-hour, which the three decimals of
- the plan figure would round away.
+ Scale the run's own draw is rounded at, four decimals of a watt-hour: one call is a few ten-thousandths of one, which the
+ three decimals of the plan figure would round away.
  */
-const DRAWN_WH_DECIMALS = 4;
+const DRAWN_WH_SCALE = 10_000;
 
 /**
  The sentence a run's end prints about plan energy.
@@ -468,14 +468,14 @@ export function describePlanSpend(
   },
 ): string {
   /**
-   The run's own draw to the decimals the sentence prints, without float dust; not a number where none was given.
+   The run's own draw to the decimals the sentence prints, without float dust; zero and unused where none was given.
    */
-  const drawnRounded = Number(drawnWh?.toFixed(DRAWN_WH_DECIMALS,),);
+  const drawnRounded = Math.round((drawnWh ?? 0) * DRAWN_WH_SCALE,) / DRAWN_WH_SCALE;
 
   /**
    The run's own draw as the sentence says it, absent where none was given.
    */
-  const drawn =(drawnWh === undefined) ? undefined : `this run's own meter drew ${String(drawnRounded,)} Wh in that time`;
+  const drawn = (drawnWh === undefined) ? undefined : `this run's own meter drew ${String(drawnRounded,)} Wh in that time`;
   if (spend.kind === 'not-comparable')
     return `NeuralWatt plan energy: no difference to report, because ${spend.reason}${
       (drawn === undefined) ? '' : `; ${drawn}`

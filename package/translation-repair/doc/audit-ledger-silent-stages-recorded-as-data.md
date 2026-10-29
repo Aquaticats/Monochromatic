@@ -148,12 +148,17 @@ recorded on 2026-10-29 (UTC),
 measured from the log of `XingZ6022` (build `c6185d4086`),
 by design (B820),
 no code changed.
-The ranking of three options below is a recommendation for the owner.
+The ranking of the options (a),
+(b) and (c) is a recommendation for the owner.
 
 What the run showed:
 33 repair chunks closed `unchanged, the archive won`.
-Chunk 44 is B1024 (3 of 3 checkers heard, all `fixed`, changed by B1040).
-The other 32 are chunks 52 to 87 except 56, 61, 64 and 83,
+Chunk 44 is B1024 (3 of 3 checkers heard,
+all `fixed`,
+changed by B1040).
+The other 32 are chunks 52 to 87 except 56,
+61,
+64 and 83,
 and each of them follows one shape.
 Its checker round heard 1 of 3 (`no quorum (1 of 2 needed)`),
 its introduced-defect probe heard 1 of 3,
@@ -183,7 +188,8 @@ The settlement is not kept because `silentStagesOfRecord` (`stage/src/stage-sile
 `stage-quorum-unmet` finding and the cache gate refuses a settlement that carries one (B820).
 A settlement bought on a bench under the floor says so on its own record and is never kept as a verdict
 (the rule for next time of B835 in `audit-ledger-short-benches-and-the-last-live-seat.md`).
-The older answer "zero voices is not cached, one voice is" (`doc/decision/translation-repair-question-answers.md`,
+The older answer "zero voices is not cached,
+one voice is" (`doc/decision/translation-repair-question-answers.md`,
 "Thin-roster slices") predates B820 and is not the rule now.
 
 Cost of buying them again,
@@ -208,7 +214,7 @@ so the question the run could not seat (checker and probe) is 24.8 minutes of it
 and 103.2 minutes re-buys work that was heard at quorum.
 The method is in `/var/home/user/temp/agent/tr-fan/w379-accounts/rebuy.ts` and `stagesplit.ts`;
 the figures are ceilings of a rerun,
-for the reason in the next paragraph.
+for the reason given under "What a rerun actually pays".
 
 What a rerun actually pays:
 `promptUniqueClient` (`stage/src/prompt-uniqueness-client.ts`) reads the payload store under the runs directory
@@ -220,7 +226,8 @@ and B834 measured 0 NeuralWatt calls and 0 Wh in the second attempt of 18 slices
 `XingZ6022` and `XingZ6021` each ran in a new runs directory:
 the 62 `PROMPT-REUSE` lines of `XingZ6022` all say `source=memory`,
 and `XingZ6021` has none.
-So the figures above are what a rerun pays in a new runs directory or after a prompt change.
+So the 721 calls,
+2.2399 USD and 49.13 Wh are what a rerun pays in a new runs directory or after a prompt change.
 What a same-directory rerun pays for these chunks was not measured,
 because that takes a run.
 
@@ -274,7 +281,8 @@ The options for the question "should an unseated settlement be remembered":
   which duplicates what the payload store keeps,
   the ground on which the owner removed the memory of skipped slices (B1011),
   and a patch kept against an archive that changed is a stale patch.
-- Remember the whole settlement for the outage, until the named return (c).
+- Remember the whole settlement for the outage,
+  until the named return (c).
   Pros:
   one rule that a reader can state.
   Cons:

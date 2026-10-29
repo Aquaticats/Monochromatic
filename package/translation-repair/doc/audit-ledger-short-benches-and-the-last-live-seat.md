@@ -813,7 +813,7 @@ recorded on 2026-10-29 (UTC),
 measured from the log of `XingZ6022` (build `c6185d4086`),
 no code changed.
 The constant `STRAGGLER_GRACE_MS` (120 s,
-`stage/src/stage-round.ts`) is unchanged by the owner's ruling below.
+`stage/src/stage-round.ts`) is unchanged by the owner's ruling quoted in this entry.
 
 The owner's rulings of 2026-10-29,
 as the lead relayed them:
@@ -858,9 +858,13 @@ and on the time of day to within 1.5 seconds.
   None of the 79 was stalled or silent.
 - Answer characters:
   0 for 75.
-  The four with some were 29 (line 3926, a select round),
-  167 (5775, select),
-  55 (13543, critic) and 156 (13632, panel).
+  The four with some were 29 (line 3926,
+  a select round),
+  167 (5775,
+  select),
+  55 (13543,
+  critic) and 156 (13632,
+  panel).
 - Where:
   critic 23,
   panel 30,
