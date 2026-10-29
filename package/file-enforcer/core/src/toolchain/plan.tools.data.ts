@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.2.13',
+    version: '0.4.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -517,7 +517,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'tombi',
     request: { track: 'latest' },
-    version: '1.9.7',
+    version: '1.9.8',
     route: 'bin-sourced',
     bins: ['tombi'],
     options: {},
@@ -757,7 +757,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:socket',
     request: { track: 'latest' },
-    version: '1.11.2',
+    version: '1.12.1',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'socket',
