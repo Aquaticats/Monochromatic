@@ -156,7 +156,9 @@ const codeFiles = names.filter((name) => /\\.(ts|tsx|rs|js|mjs|cjs)$/.test(name)
 const logPath = process.env.SHADOW_REVIEW_LOG ?? `${repo}/doc/audit/standards-review-gate-shadow.md`
 const entry = (line) => appendFileSync(logPath, `${line}\\n`)
 if (codeFiles.length === 0) {
-  entry(`- Skipped: ${sha.slice(0, 12)} ${subject} (no code files)`)
+  entry('- Skipped:')
+  entry(`  ${sha.slice(0, 12)} (no code files):`)
+  entry(`  \\`${subject}\\``)
   process.exit(0)
 }
 const capLines = 2000
@@ -176,14 +178,22 @@ try {
   outcome = `Reviewer failed: ${error instanceof Error ? error.message : String(error)}`
 }
 const seconds = ((Date.now() - started) / 1000).toFixed(1)
-entry(`- Date: ${new Date().toISOString()}`)
-entry(`  Subject: ${sha.slice(0, 12)} ${subject}`)
-entry(`  Input size: ${codeFiles.length} code files, ${lines.length} diff lines${truncated ? `, capped at ${capLines}` : ''}`)
-entry(`  Reviewer route: ${route}`)
-entry(`  Wall-clock cost: ${seconds} s`)
-entry('  Named superlinear cost: unjudged')
+entry('- Date:')
+entry(`  ${new Date().toISOString()}`)
+entry('  Subject:')
+entry(`  ${sha.slice(0, 12)} \\`${subject}\\``)
+entry('  Input size:')
+entry(`  \\`${codeFiles.length} code files, ${lines.length} diff lines${truncated ? `, capped at ${capLines}` : ''}\\``)
+entry('  Reviewer route:')
+entry(`  \\`${route}\\``)
+entry('  Wall-clock cost:')
+entry(`  ${seconds} s`)
+entry('  Named superlinear cost:')
+entry('  unjudged')
 entry('  Findings kept:')
+entry('    `````text')
 for (const line of outcome.split('\\n')) { entry(`    ${line}`) }
+entry('    `````')
 entry('')
 """
 
