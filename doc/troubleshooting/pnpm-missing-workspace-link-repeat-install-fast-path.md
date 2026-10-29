@@ -38,7 +38,7 @@ a valid symlink to `package/config/typescript`.
 
 ## Root cause
 
-The fast path is `check_optimistic_repeat_install` in `pnpm/crates/package-manager/src/optimistic_repeat_install.rs`.
+The fast path is `check_optimistic_repeat_install` in [`pnpm/crates/package-manager/src/optimistic_repeat_install.rs`][pnpm-fast-path-comment].
 Its module comment (lines 4-9) says what it compares:
 
 ```rust
@@ -55,7 +55,7 @@ Its module comment (lines 4-9) says what it compares:
 
 After the settings,
 catalog and project-structure comparisons,
-`freshness.rs:257-265` runs the two filesystem checks that "prove installed":
+[`freshness.rs:257-265`][pnpm-freshness-checks] runs the two filesystem checks that "prove installed":
 
 ```rust
     if !project_structure_matches(state, project_manifests.as_slice()) {
@@ -72,7 +72,7 @@ catalog and project-structure comparisons,
 
 The first check asks whether a project's modules directory exists at all.
 The second,
-`modules_dirs.rs:164-207`,
+[`modules_dirs.rs:164-168`][pnpm-dangling-doc] (its documentation) and [`modules_dirs.rs:205-207`][pnpm-is-dangling] (`is_dangling_link`),
 asks about links,
 and its documentation excludes the missing case on purpose:
 
@@ -317,7 +317,7 @@ with the default policy of not filing.
 
 1. Is it really upstream's fault?
    Partly.
-   The behavior follows a documented choice (`modules_dirs.rs:167-168`:
+   The behavior follows a documented choice ([`modules_dirs.rs:167-168`][pnpm-dangling-doc]:
    a missing entry is not a broken link because skipped optional and excluded dependencies have none).
    The gap is that a declared non-optional workspace dependency is treated the same,
    so the message `Already up to date` is wrong for that case.
@@ -332,7 +332,7 @@ with the default policy of not filing.
    and `repeat_install.rs` and `relocated_install.rs` under `pnpm/crates/cli/tests/suite/` test repeat-install behavior,
    so a link-repair expectation is plausible but was not confirmed in those tests.
 4. Would the repository welcome our contribution?
-   `CONTRIBUTING.md` (section "AI-assisted contributions",
+   [`CONTRIBUTING.md`][pnpm-contributing-ai] (section "AI-assisted contributions",
    lines 325-345) welcomes agent-assisted contributions with a disclosure footer such as `Written by an agent (Claude Code, claude-opus-4-7).`,
    and warns that unvetted agent output,
    duplicate PRs and PRs that do not compile may be closed.
@@ -393,6 +393,25 @@ Before anyone posts it:
   the block says it is attached.
 - Pick labels from the tracker's own set;
   none were looked up here.
+- Weigh the risk to the poster's account before posting anything.
+  Some repositories run trust or blocklist systems (Vouch is one;
+  others exist and this doc did not survey them) that close or lock issues and pull requests from unvouched users,
+  and a maintainer can denounce a poster,
+  which can follow that person across projects that share lists.
+  Other people may see it,
+  interviewers and employers among them.
+  An agent-written report that a maintainer judges low-effort is the case these systems exist for.
+  At the commit pinned above,
+  pnpm's `.github`,
+  `AGENTS.md` and `CONTRIBUTING.md` mention neither `vouch` nor `denounce`;
+  check the live repository and its contribution policy again on the day of posting.
+  Filing is the poster's decision.
+  This doc makes no recommendation to file,
+  because the conditions for one are not met:
+  no human has re-run the reproduction,
+  the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change),
+  and the trust-system search covers a snapshot,
+  not the live repository.
 - Decide whether to open a pull request instead of an issue.
   `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
@@ -402,9 +421,9 @@ Title: `pnpm install` reports "Already up to date" and leaves a declared `worksp
 When manifests, lockfile and settings still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
 the repeat-install fast path returns before linking.
 Its only link check, `direct_dependency_link_dangling` in
-`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs`,
+[`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168),
 treats a link that exists but points nowhere as stale and an absent entry as healthy
-(`is_dangling_link`: `fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()`).
+([`is_dangling_link`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207): `fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()`).
 The doc comment says a missing entry is not a broken link because skipped optional and excluded dependencies have none,
 but a non-optional `workspace:` dependency under the isolated linker has no such reason.
 
@@ -437,3 +456,9 @@ so the regression evidence for those is limited.
 
 Written by an agent (Claude Code, claude-sonnet-5-5).
 ~~~
+
+[pnpm-fast-path-comment]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install.rs#L4-L9
+[pnpm-freshness-checks]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs#L257-L265
+[pnpm-dangling-doc]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168
+[pnpm-is-dangling]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207
+[pnpm-contributing-ai]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/CONTRIBUTING.md?plain=1#L325-L345
