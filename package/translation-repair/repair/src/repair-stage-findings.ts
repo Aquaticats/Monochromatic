@@ -11,11 +11,11 @@ import type { ChunkCriticPhase, } from './chunk-critic-phase.ts';
 
  @param critic - critic phase outcome
 
- @param screened - the reference screen's findings
+ @param screened - reference screen's findings
 
- @param panel - the panel's findings
+ @param panel - panel's findings
 
- @param deduped - the dedupe's findings
+ @param deduped - dedupe's findings
 
  @returns Findings in stage order, the votes-stand line last
 

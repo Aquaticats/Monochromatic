@@ -63,7 +63,7 @@ export type ObjectionGroup = {
 
  @param groups - objections by the judges they come from
 
- @returns The judges joined with "and"
+ @returns Judges joined with "and"
 
  @example
  ```ts
@@ -152,7 +152,7 @@ const CLAIM_CORRECTION_TASK = ' Where the evidence carries accepted claims again
 
  @param label - heading the note carries on the other sheets
 
- @param note - the note as the archive package writes it, absent or empty for
+ @param note - note as the archive package writes it, absent or empty for
  a slice that has none
 
  @returns One block, or none
@@ -224,13 +224,13 @@ export type RefineSelectionContext = {
  @param identityContext - declared names and handles the refiner was told
  survive exactly, so its judges are told so too (ledger B28)
 
- @param acceptedRepairClaimsNote - the claims the repair panel accepted for the
+ @param acceptedRepairClaimsNote - claims the repair panel accepted for the
  slice, as the block `acceptedRepairClaimsNote` of the archive package writes
  them, which the final polish hands its writers and its gate, so the judges of
  the writers' rewrites read them too (ledger B805); absent or empty for the
  repair lane's own refinement
 
- @param archiveDisputeNote - the note on a disputed archive rendering, as the
+ @param archiveDisputeNote - note on a disputed archive rendering, as the
  archive package writes it, shown to the judges for the same reason (ledger
  B805); absent or empty on an undisputed slice
 

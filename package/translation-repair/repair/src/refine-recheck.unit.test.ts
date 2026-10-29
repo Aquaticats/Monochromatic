@@ -295,7 +295,7 @@ function ballotsCast(
 
  @param modelId - checker that left it
 
- @returns The unanswered finding
+ @returns Unanswered finding
 
  @example
  ```ts
@@ -340,7 +340,7 @@ function missingCheck(
  @param verdictsByCall - verdict on the first issue by order of call, in place of `verdicts`, for a case that must not
  depend on which seats the window asks
 
- @returns The recheck's verdict exactly as it came back: its ballots and its
+ @returns Recheck's verdict exactly as it came back: its ballots and its
  findings in the order the roster seats the checkers, which the stage
  guarantees and the cases assert
 

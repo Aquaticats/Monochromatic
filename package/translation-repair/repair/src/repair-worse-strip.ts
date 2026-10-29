@@ -84,11 +84,11 @@ export type WorseStrip =
 
  @param creditableIssues - accepted issues an applied envelope served
 
- @param tallies - the checkers' verdicts by issue id
+ @param tallies - checkers' verdicts by issue id
 
  @param targetText - archive wording the patch applies to
 
- @returns The patch as it stands, or reduced with the stripped issues named
+ @returns Patch as it stands, or reduced with the stripped issues named
 
  @example
  ```ts
@@ -222,7 +222,7 @@ export type ShedProof = {
  Proves the patch, strips its worse-voted unconfirmed edits, and proves the
  reduced patch once more when any was stripped and any edit remains.
 
- @param request - the proof as the chunk would ask it for the whole patch
+ @param request - proof as the chunk would ask it for the whole patch
 
  @returns Editor result, envelope reading and proof the chunk settles on
 

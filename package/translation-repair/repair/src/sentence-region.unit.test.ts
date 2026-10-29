@@ -29,7 +29,7 @@ const THREE = 'One cat naps. Two cats play here. Three cats eat.';
 
  @param endOffset - end of the span, exclusive
 
- @returns The text of the region
+ @returns Text of the region
 
  @example
  ```ts

@@ -41,7 +41,7 @@ export type ShippedSettlement = SettledChunk & {
 
  @param declaredNames - name forms the patch may not drop
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param targetText - archive wording of the chunk
 
@@ -61,7 +61,7 @@ export type ShippedSettlement = SettledChunk & {
 
  @param l - chunk logger
 
- @returns The settlement and the refusal
+ @returns Settlement and refusal
 
  @example
  ```ts

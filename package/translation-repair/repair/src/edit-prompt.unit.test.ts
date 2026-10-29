@@ -42,7 +42,7 @@ const NEARBY_RULE_OPENING = '====== THE TWO NEARBY BLOCKS';
 
  @param nearby - neighbouring halves, each absent or given
 
- @returns The user turn as text
+ @returns User turn as text
 
  @example
  ```ts
@@ -75,7 +75,7 @@ function sheetWith(
 
  @param content - editor sheet's user turn
 
- @returns The two nearby halves with their fences
+ @returns Two nearby halves with their fences
 
  @example
  ```ts

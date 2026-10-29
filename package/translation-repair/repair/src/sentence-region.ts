@@ -266,7 +266,7 @@ function tailOf(
 
  @param endOffset - end of the span, exclusive
 
- @returns The region, with the blanks around the span's sentences left out; a zero-width span, or one that is blank
+ @returns Region, with the blanks around the span's sentences left out; a zero-width span, or one that is blank
  throughout, comes back unchanged
 
  @example

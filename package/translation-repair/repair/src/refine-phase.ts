@@ -78,7 +78,7 @@ export type RefinePhaseResult = {
 
  @param item - accuracy outcome, named by the slice it settled
 
- @returns The slice by its index
+ @returns Slice by its index
 
  @example
  ```ts
@@ -113,7 +113,7 @@ function outcomeSliceName({ item, }: { readonly item: { readonly sliceIndex: num
 
  @param declaredNames - exact declarations deterministic guard preserves
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param refineCache - naturalness namespace for resume and persistence
 

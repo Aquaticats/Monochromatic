@@ -684,7 +684,7 @@ type CheckingCall = {
 
  @param reseat - reads the seating at the stage
 
- @returns The phase result and the checking calls, in order
+ @returns Phase result and checking calls, in order
 
  @example
  ```ts

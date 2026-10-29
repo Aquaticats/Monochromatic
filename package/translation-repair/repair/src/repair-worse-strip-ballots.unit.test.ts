@@ -116,7 +116,7 @@ const REWRITTEN: EditorStageResult = {
 
  @param envelopeName - which envelope's issue, `first` or `second`
 
- @returns The issue
+ @returns Issue
 
  @example
  ```ts

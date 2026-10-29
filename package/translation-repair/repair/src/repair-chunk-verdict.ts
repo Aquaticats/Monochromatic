@@ -138,7 +138,7 @@ function settlementState(
  @param declaredNames - name forms the archive's front matter declares, which
  the patch may not drop
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @returns Returned wording plus every verdict
 
@@ -276,7 +276,7 @@ export type SettledChunk = ChunkVerdict & {
 
  @param declaredNames - name forms the patch may not drop
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @returns Every verdict plus the resolved ids
 

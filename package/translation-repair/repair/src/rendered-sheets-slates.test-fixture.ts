@@ -167,7 +167,7 @@ function typedDecisionText(): string {
 
  @param declineConsequence - what the round tells its judges a decline does
 
- @returns The slate as its judges read it
+ @returns Slate as its judges read it
 
  @example
  ```ts

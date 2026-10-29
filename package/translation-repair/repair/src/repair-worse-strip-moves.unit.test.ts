@@ -62,7 +62,7 @@ const ENVELOPES = [
 
  @param suffix - which envelope's issue
 
- @returns The issue
+ @returns Issue
 
  @example
  ```ts

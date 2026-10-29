@@ -176,7 +176,7 @@ const REWRITER = SEAT_HYPER_VISION;
 
  @param request - exchange as the stage sent it
 
- @returns The sheet the stage was sent
+ @returns Sheet the stage was sent
 
  @example
  ```ts
@@ -223,7 +223,7 @@ function itemsOnSheet(
  Claims every critic files on the sheet it was sent: the bowl claim on a sheet
  that holds the bowl sentence, none on a sheet that does not.
 
- @param sheet - the sheet the critic was sent
+ @param sheet - sheet the critic was sent
 
  @returns Claims on the sentence the sheet holds
 
@@ -244,7 +244,7 @@ function claimsOn({ sheet, }: { readonly sheet: string; },): readonly object[] {
 
  @param marker - text each item of the sheet begins with
 
- @returns The numbers 1 through the count of items
+ @returns Numbers 1 through the count of items
 
  @example
  ```ts

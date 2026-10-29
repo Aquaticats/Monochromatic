@@ -78,7 +78,7 @@ import type { RepairChunkRequest, } from './repair-chunk-request.ts';
  prose to read, which is a different job: one tells a model what is true, the
  other decides whether a patch may ship
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param neighbouringSourceText - original of the passages either side, shown to
  the critic, panel and editor as CONTEXT they may neither quote against nor

@@ -135,12 +135,12 @@ export type RefineStageResult = {
  @param referenceContext - what the pages the original cites say, with
  their rule, when the original cites any (class forty-one)
 
- @param acceptedRepairClaimsNote - the claims the repair panel accepted for
+ @param acceptedRepairClaimsNote - claims the repair panel accepted for
  the slice, which the final polish passes so its writers and the judges of
  their rewrites meet the evidence its gate judges against (ledger B805);
  absent for the repair lane's own refinement
 
- @param archiveDisputeNote - the note on a disputed archive rendering, which
+ @param archiveDisputeNote - note on a disputed archive rendering, which
  the final polish passes to the writers and the judges for the same reason
  (ledger B805); absent on an undisputed slice and for the repair lane's own
  refinement
@@ -148,7 +148,7 @@ export type RefineStageResult = {
  @param declaredNames - same declarations as strings to compare, since a
  rewrite for naturalness is exactly the edit that drops one
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param mode - comparative improvement or mandatory absolute-quality correction
 

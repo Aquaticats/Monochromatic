@@ -324,7 +324,7 @@ function recordingJudges(
  @param acceptedRepairClaimsNote - claims the repair panel accepted, when a
  case hands any in
 
- @param archiveDisputeNote - the note on a disputed archive rendering, when a
+ @param archiveDisputeNote - note on a disputed archive rendering, when a
  case hands one in
 
  @param mode - why the stage runs, comparative unless a case says otherwise

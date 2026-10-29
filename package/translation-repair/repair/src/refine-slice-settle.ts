@@ -133,7 +133,7 @@ export type RefinedSliceOutcome = RefinedSliceSettlement & {
 
  @param declaredNames - same declarations as strings a guard compares
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param signal - caller abort honored by every exchange
 

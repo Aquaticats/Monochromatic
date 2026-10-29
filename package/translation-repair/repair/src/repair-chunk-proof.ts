@@ -89,7 +89,7 @@ export type ChunkProof = {
 
  @param authorship - who wrote the text answering for each issue
 
- @param neighbours - the auditor's window, the very one the critic, panel and
+ @param neighbours - auditor's window, the very one the critic, panel and
  editor were shown, since a probe without it was measured reporting nothing
  about a duplication whose other half sits in the slice next door, which no
  setting could have fixed

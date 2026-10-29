@@ -112,7 +112,7 @@ export type EditorProposals = {
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
- @returns The sheet, the heard replies, the gate and the gated candidates
+ @returns Sheet, heard replies, gate and gated candidates
 
  @example
  ```ts

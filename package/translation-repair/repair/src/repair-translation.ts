@@ -72,7 +72,7 @@ type SettledSlice = {
 
  @param item - slice pair, named by its placement in the translation
 
- @returns The slice by its index
+ @returns Slice by its index
 
  @example
  ```ts

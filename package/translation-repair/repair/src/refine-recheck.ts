@@ -256,7 +256,7 @@ export async function retainsResolvedIssues(
 
    @param issue - issue among those the round was asked about
 
-   @returns The issue's ballots and tally, present by the checker stage's own
+   @returns Issue's ballots and tally, present by the checker stage's own
    contract: it builds one reading per issue asked and `nonNullishOrThrow`-reads
    each tally for it, and every issue read here is in the checked list
 

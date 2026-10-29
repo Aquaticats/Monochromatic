@@ -129,7 +129,7 @@ const LOSING_MEASUREMENTS = {
 
  @param incumbentText - archive wording of the slice, the fixture's own when absent
 
- @param declaredSubjectForms - the declared forms that name the subject, absent when preparation named none
+ @param declaredSubjectForms - declared forms that name the subject, absent when preparation named none
 
  @returns Verdict the lane settled on
 

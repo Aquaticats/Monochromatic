@@ -88,14 +88,14 @@ export type RefinePromptPlan = {
  text, by the judges it comes from, to correct where the ORIGINAL supports it
  (owner, 2026-09-27); the text still ships unchanged when none is supported
 
- @param acceptedRepairClaimsNote - the claims the repair panel accepted for the
+ @param acceptedRepairClaimsNote - claims the repair panel accepted for the
  slice, as the block `acceptedRepairClaimsNote` of the archive package writes
  them for the judges, to correct where the ORIGINAL supports one; the final
  polish passes it so its writers meet the evidence its gate and the judges of
  their rewrites read (ledger B805). Absent or empty for the repair lane's own
  refinement
 
- @param archiveDisputeNote - the note on a disputed archive rendering, as the
+ @param archiveDisputeNote - note on a disputed archive rendering, as the
  archive package writes it, which the final polish passes for the same reason
  (ledger B805); absent or empty on an undisputed slice and for the repair
  lane's own refinement

@@ -84,7 +84,7 @@ const REGION_CONTEXT_CHARS = 40;
 
  @param names - names in sheet order, at least two, since both halves of the markup kinds hold that many
 
- @returns The list as prose
+ @returns List as prose
 
  @throws {@link Error} when fewer than two names are given, which neither half of `MARKUP_ATOM_SHEET_NAMES`
  produces

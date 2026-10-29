@@ -98,9 +98,9 @@ export type AppliedReply = {
  (`protected atom 2 changed`), and an inspection refusal loses its reason
  (`candidate rejected`); the log line carries both whole.
 
- @param detail - the gate's account of a refusal, or the patch's reason
+ @param detail - gate's account of a refusal, or the patch's reason
 
- @returns The detail's words before its first parenthetical, the whole detail
+ @returns Detail's words before its first parenthetical, the whole detail
  where it has none
 
  @example
@@ -117,9 +117,9 @@ function kindOf({ detail, }: { readonly detail: string; },): string {
  Binds one heard reply to real paragraphs and reads each operation through the
  atom gate.
 
- @param voice - the heard rewriter and its reply
+ @param voice - heard rewriter and its reply
 
- @param envelopes - the sheet's paragraphs in prompt numbering order
+ @param envelopes - sheet's paragraphs in prompt numbering order
 
  @param repairedText - `T1`, whose quote style a rewrite is restored to
 
@@ -128,7 +128,7 @@ function kindOf({ detail, }: { readonly detail: string; },): string {
 
  @param l - stage logger, which carries the gate's detail
 
- @returns The reply's passed operations and the finding for each refusal
+ @returns Reply's passed operations and finding for each refusal
 
  @example
  ```ts
@@ -242,11 +242,11 @@ export function resolveReply(
 
  @param modelId - rewriter whose operation was refused
 
- @param rejection - the patch's refusal
+ @param rejection - patch's refusal
 
- @param envelopes - the sheet's paragraphs in prompt numbering order
+ @param envelopes - sheet's paragraphs in prompt numbering order
 
- @returns The refusal credited to its rewriter, naming the paragraph as the
+ @returns Refusal credited to its rewriter, naming the paragraph as the
  sheet numbers it
 
  @throws {@link Error} when the reason is any other than `unchanged-region`
@@ -311,13 +311,13 @@ function rejectionFinding(
  Applies one rewriter's passed operations to the slice and names each the
  patch refused.
 
- @param reply - the rewriter's reply after the atom gate
+ @param reply - rewriter's reply after the atom gate
 
  @param repairedText - `T1`, the text the operations apply to
 
  @param envelopes - eligible paragraphs of `repairedText`
 
- @returns The rewriter's proposal, when any operation applied, and a finding
+ @returns Rewriter's proposal, when any operation applied, and a finding
  for each refusal
 
  @throws {@link Error} when the patch refuses an operation for a reason this
@@ -399,7 +399,7 @@ export function applyReply(
 
  @param roster - rewriters as seated
 
- @returns The same replies in roster order
+ @returns Same replies in roster order
 
  @example
  ```ts

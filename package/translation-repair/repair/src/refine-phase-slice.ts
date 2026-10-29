@@ -155,7 +155,7 @@ export async function persistRefinePhaseSlice(
 
  @param declaredNames - exact declarations deterministic guard preserves
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param refineCache - prior settlements and persistence boundary
 

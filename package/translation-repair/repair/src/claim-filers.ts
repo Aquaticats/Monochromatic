@@ -38,7 +38,7 @@ const NOBODY_ON_RECORD = 'nobody on record';
 /**
  Folds the attribution record into filers per claim id.
 
- @param attributions - the critic phase's attribution, already sorted
+ @param attributions - critic phase's attribution, already sorted
 
  @returns Filers keyed by claim id, in the attribution's order
 
@@ -277,9 +277,9 @@ export function attachClaimFilers(
 
  @param sliceIndex - chunk position
 
- @param issues - the reference screen's rejections then the panel's issues
+ @param issues - reference screen's rejections then the panel's issues
 
- @param attributions - the critic phase's attribution record
+ @param attributions - critic phase's attribution record
 
  @param l - pipeline logger
 
