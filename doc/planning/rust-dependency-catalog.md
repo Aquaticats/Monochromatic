@@ -1109,13 +1109,13 @@ Remaining:
       (`prune.ts` and `prune.unit.test.ts` from the prune commits `2565250e26`/`71a5a49845`, and one in the
       CachyOS cells being added to `src/package/mise.container-test.ts`).
      Queued (2026-10-29):
-      the owner approved `pnpm prune` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*` links
-      (166 dead into the removed `package/module/`, 15 live but undeclared;
-      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); it runs once no pnpm process
-      and no container matrix run is active, then the dead-link count must read 0;
+      done: the owner ran `pnpm prune && pnpm i` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*`
+      links (166 dead into the removed `package/module/`, 15 live but undeclared;
+      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); afterwards the dead-link count read 0
+      and `package/file-enforcer/core/node_modules/@monochromatic-dev/` holds only declared links;
       a helper agent is fixing the staleness manifest's orphan `.tmp` files (a writer that dies before its rename
       leaves a 1.5 MB temp file; three orphans exist in `package/file-enforcer/core/node_modules/.cache/file-enforcer/`);
-      the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) must finish green.
+      done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
       stale `module-*` links into the removed `package/module`; its write-up goes to `doc/troubleshooting/`.
