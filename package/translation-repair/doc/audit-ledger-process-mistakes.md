@@ -103,7 +103,8 @@ when it passed its 1,000-line bound.
   Two briefs of the lead whose search text was never run against what it searches,
   a proof pattern and a pathspec,
   a report that the tool refused to write,
-  and a report whose premises about a census the log did not bear out (M270).
+  a report whose premises about a census the log did not bear out (M270),
+  and the rule breaches that the agent of round 8 listed in its hand-back (M304).
 - [Audit ledger: process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md):
   The lead's own slips as they were collected at the close of each batch of work,
   and in merging the work of two rounds,

@@ -675,6 +675,7 @@ which lists every file of this record.
 - [M297 to M300, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
 - [M301, process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md)
 - [M302 to M303, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
+- [M304, process mistakes, agents and briefs in the rounds after the split][l34]
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
 - [T8, code no unit test runs, with the areas of the audit][l35]
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
