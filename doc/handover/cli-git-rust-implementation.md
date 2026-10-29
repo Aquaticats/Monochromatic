@@ -3334,3 +3334,17 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   rest of the `/tmp` audit); cleanup of worktrees, branches (`integrate-slices`, `worktree-agent-*`) and the two e2e images.
 - Rejected requests: a peer asked this session to release monochromatic-lint 0.4.0; it is not this session's work.
 - The GitHub release monochromatic-git-policy-cli-v0.3.0 exists (published 2026-10-29T12:59:01Z, not a draft).
+
+## Update at 2026-10-29 (oxlint cleanup finished, merge pending)
+
+- Agent afe3b1e78082f5280 cleared the package's oxlint findings (30 errors and 53 warnings to 0 and 0, no rule changed, no
+  suppression) on branch `worktree-agent-afe3b1e78082f5280` (`e8e270007a`, `7695ca4cb2`, pushed): four e2e fixtures got
+  readonly tuple annotations; `bin/native-perf.mjs` was rewritten with async APIs and split into
+  `native-perf-statistics.mjs`, `native-perf-git.mjs` and `native-perf-measure.mjs`. Behavior proof: old and new versions
+  agree on a stand-in binary and on four error paths. I also ran the new harness once against the real release binary
+  (5 samples, under host load): forwarded commands add 1.8 to 3.1 ms median, an explicit-path commit adds a median of
+  155 ms (p95 231 ms), under the 2000 ms budget.
+- NOT MERGED into main: `git merge` in the main checkout is refused ("local changes ... would be overwritten") while other
+  sessions hold staged file-enforcer and ide/app changes there, and the landing lock was busy. Merge
+  `worktree-agent-afe3b1e78082f5280` into main when the checkout is clean (the branch touches only
+  `package/git-policy/cli/bin/native-perf*.mjs` and four `e2e/*-fixture.ts` files). Do not touch the other sessions' files.
