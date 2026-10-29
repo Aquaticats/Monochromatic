@@ -31,7 +31,7 @@ import {
   shadowLogPath,
   type ThinkingDismissalRecord,
 } from './shadow-record.ts';
-import { readThinkingBlocks, } from './transcript-read.ts';
+import { readTextUnits, } from './transcript-read.ts';
 
 /**
  Module logger for thinking-dismissal shadow records.
@@ -117,24 +117,33 @@ function createThinkingDismissalHandler(
     },);
     try {
       /**
-       Tail scan of the session transcript.
+       Transcript of the session, absent on events that carry none.
        */
-      const scan = await readThinkingBlocks(event.transcript_path,);
+      const transcriptPath = event.transcript_path ?? '';
+      /**
+       Tail scan of the session transcript, empty when the event carries none.
+       */
+      const scan = (transcriptPath === '')
+        ? {
+          units: [],
+          rows: 0,
+        }
+        : await readTextUnits(transcriptPath,);
       /**
        Hits of the whole tail, in block order.
        */
       const hits: ThinkingDismissalHit[] = [];
-      for (const block of scan.blocks) {
-        hits.push(...findSizeDismissal(block,),);
+      for (const unit of scan.units) {
+        hits.push(...findSizeDismissal(unit,),);
       }
       /**
-       Thinking blocks of the tail scan.
+       Assistant text units of the tail scan.
        */
-      const { blocks, } = scan;
+      const { units, } = scan;
       /**
-       Number of thinking blocks scanned.
+       Number of assistant text units scanned.
        */
-      const scannedBlocks = blocks.length;
+      const scannedUnits = units.length;
       /**
        Number of hits found in the tail.
        */
@@ -152,26 +161,26 @@ function createThinkingDismissalHandler(
         ? {
           sessionId: event.session_id,
           time: now,
-          transcriptPath: event.transcript_path,
+          transcriptPath,
           hookEvent: event.hook_event_name,
-          thinkingBlocks: scannedBlocks,
+          textBlocks: scannedUnits,
           hits,
         }
         : {
           sessionId: event.session_id,
           time: now,
-          transcriptPath: event.transcript_path,
+          transcriptPath,
           hookEvent: event.hook_event_name,
           toolName: event.tool_name,
           toolUseId: event.tool_use_id,
-          thinkingBlocks: scannedBlocks,
+          textBlocks: scannedUnits,
           hits,
         };
       await appendShadowRecord({
         record,
         logPath: shadowLogPath(env,),
       },);
-      l.info(`thinking-dismissal shadow recorded ${String(foundHits,)} hits of ${String(scannedBlocks,)} blocks`,);
+      l.info(`thinking-dismissal shadow recorded ${String(foundHits,)} hits of ${String(scannedUnits,)} text units`,);
     } catch (error) {
       l.warn(`thinking-dismissal shadow skipped: ${String(error,)}`,);
     }

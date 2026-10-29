@@ -1,8 +1,9 @@
 /**
  Transcript tail reading for the thinking-dismissal hook.
 
- Reads only the tail so a stop stays fast on transcripts
- that grow without bound.
+ Reads only the tail so a hook call stays fast on transcripts that grow
+ without bound. Supports both transcript dialects:
+ Claude Code message rows and Codex response-item rollouts.
 
  @module
  */
@@ -10,12 +11,16 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { open, } from 'node:fs/promises';
 
-import type {
-  TranscriptContentBlock,
-  TranscriptRecord,
-} from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
+import type { TranscriptContentBlock, } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
+import type { ReadonlyDeep, } from 'type-fest';
 
 import { NOT_PARSED, } from './jsonl.ts';
+
+/**
+ One parsed transcript row,
+ read as the machine wrote it.
+ */
+type TranscriptRow = ReadonlyDeep<Record<string, unknown>>;
 
 /**
  Module logger for rows the reader skips,
@@ -24,20 +29,24 @@ import { NOT_PARSED, } from './jsonl.ts';
 const loggerForRows = tagged({ tag: 'thinking-dismissal-transcript-read', },);
 
 /**
- Bytes of the transcript tail read per stop,
- large enough for the finishing turn's thinking blocks.
+ Bytes of the transcript tail read per hook call,
+ large enough for the finishing turn's text.
  */
 const TAIL_BYTES = 262_144;
 
 /**
- Thinking blocks found in a transcript tail,
+ Assistant text found in a transcript tail,
  with the count of rows the tail scan examined.
+ One unit is one thinking block,
+ one summary entry,
+ or one assistant message text block:
+ whatever prose the agent produced.
  */
-type ThinkingScan = {
+type TextScan = {
   /**
-   Thinking blocks in tail order.
+   Assistant text units in tail order.
    */
-  readonly blocks: readonly string[];
+  readonly units: readonly string[];
 
   /**
    Rows the scan parsed out of the tail.
@@ -75,10 +84,10 @@ function isString(value: unknown,): value is string {
  parseRecord('{"type":"assistant"}');
  ```
  */
-function parseRecord(line: string,): TranscriptRecord | typeof NOT_PARSED {
+function parseRecord(line: string,): TranscriptRow | typeof NOT_PARSED {
   try {
     /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing a machine-written transcript line after its parse succeeds */
-    return JSON.parse(line,) as TranscriptRecord;
+    return JSON.parse(line,) as TranscriptRow;
   } catch (error) {
     loggerForRows.warn(`skipping an unparseable transcript row: ${String(error,)}`,);
     return NOT_PARSED;
@@ -86,26 +95,145 @@ function parseRecord(line: string,): TranscriptRecord | typeof NOT_PARSED {
 }
 
 /**
- Reads thinking blocks from the tail of a transcript.
+ Collects the assistant prose of one Claude Code message row:
+ thinking blocks and visible text blocks.
 
- Reads only the last {@link TAIL_BYTES} bytes so a stop stays fast on
- transcripts that grow without bound; the finishing turn's blocks live there.
- Rows that fail to parse are skipped, since the hook must never fail a stop.
+ @param record - Parsed transcript row
 
- @param transcriptPath - Transcript JSONL to read
-
- @returns Thinking blocks of the tail and the rows examined
+ @returns Text units of the row
 
  @example
  ```ts
- await readThinkingBlocks('/session.jsonl');
+ claudeUnitsOf({ type: 'assistant', message: { content: [] } });
  ```
  */
-async function readThinkingBlocks(transcriptPath: string,): Promise<ThinkingScan> {
+function claudeUnitsOf(record: TranscriptRow,): readonly string[] {
   /**
-   Thinking blocks collected in tail order.
+   Message of the row, absent on attachments and session metadata.
    */
-  const blocks: string[] = [];
+  const { message, } = record as { readonly message?: { readonly content?: unknown, }, };
+  /**
+   Message content of the row, an array of blocks for assistant turns.
+   */
+  const content = message?.content;
+  if (!Array.isArray(content)) return [];
+  /**
+   Text units collected in block order.
+   */
+  const units: string[] = [];
+  for (const item of content as readonly TranscriptContentBlock[]) {
+    if (isString(item.thinking)) units.push(item.thinking,);
+    if (isString(item.text)) units.push(item.text,);
+  }
+  return units;
+}
+
+/**
+ Reads the text of one content or summary entry list.
+
+ @param list - Entry list of a reasoning or message payload
+
+ @returns The entry texts in order, empty when the list carries none
+
+ @example
+ ```ts
+ textsOf([{ text: 'done' }]); // => ['done']
+ ```
+ */
+function textsOf(list: unknown,): readonly string[] {
+  if (!Array.isArray(list)) return [];
+  /**
+   Texts of the entries.
+   */
+  const texts: string[] = [];
+  for (const item of list as readonly Record<string, unknown>[]) {
+    if (isString(item.text)) texts.push(item.text,);
+  }
+  return texts;
+}
+
+/**
+ Collects the assistant prose of one Codex response item:
+ reasoning summary and content entries,
+ and assistant message text.
+
+ @param record - Parsed rollout row
+
+ @returns Text units of the row
+
+ @example
+ ```ts
+ codexUnitsOf({ type: 'response_item', payload: { type: 'reasoning', summary: [] } });
+ ```
+ */
+function codexUnitsOf(record: TranscriptRow,): readonly string[] {
+  if (record.type !== 'response_item') return [];
+  /**
+   Response item payload, the reasoning or message body.
+   */
+  const { payload, } = record as {
+    readonly payload?: {
+      readonly type?: string;
+      readonly role?: string;
+      readonly summary?: unknown;
+      readonly content?: unknown;
+    },
+  };
+  if (payload === undefined) return [];
+  /**
+   Text units collected in entry order.
+   */
+  const units: string[] = [];
+  if (payload.type === 'reasoning') {
+    /**
+     Summary texts of the reasoning item.
+     */
+    const summaryTexts = textsOf(payload.summary,);
+    /**
+     Content texts of the reasoning item.
+     */
+    const contentTexts = textsOf(payload.content,);
+    units.push(
+      ...summaryTexts,
+      ...contentTexts,
+    );
+    return units;
+  }
+  /**
+   True when the item is a visible message at all.
+   */
+  const isMessage = payload.type === 'message';
+  if (!isMessage) return units;
+  /**
+   True when the message is the agent's own.
+   */
+  const isAssistantRole = payload.role === 'assistant';
+  if (!isAssistantRole) return units;
+  units.push(...textsOf(payload.content,),);
+  return units;
+}
+
+/**
+ Reads assistant text from the tail of a transcript.
+
+ Reads only the last {@link TAIL_BYTES} bytes so a hook call stays fast on
+ transcripts that grow without bound; the finishing turn's text lives there.
+ Rows that fail to parse are skipped, since the hook must never fail its event.
+
+ @param transcriptPath - Transcript JSONL to read
+
+ @returns Assistant text of the tail and the rows examined
+
+ @example
+ ```ts
+ await readTextUnits('/session.jsonl');
+ ```
+ */
+async function readTextUnits(transcriptPath: string,): Promise<TextScan> {
+  /**
+   Text units collected in tail order.
+   */
+  const units: string[] = [];
   /**
    Open transcript handle, closed by scope exit even when reading throws.
    */
@@ -161,31 +289,31 @@ async function readThinkingBlocks(transcriptPath: string,): Promise<ThinkingScan
     const record = parseRecord(row,);
     if (record === NOT_PARSED) continue;
     /**
-     Message of the row, absent on attachments and session metadata.
+     Assistant prose of this row, whichever dialect wrote it.
      */
-    const { message, } = record;
+    const claudeUnits = claudeUnitsOf(record,);
     /**
-     Message content of the row, an array of blocks for assistant turns.
+     Codex-dialect prose of this row, empty on Claude Code rows.
      */
-    const content = message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const item of content as readonly TranscriptContentBlock[]) {
-      if (isString(item.thinking)) blocks.push(item.thinking,);
-    }
+    const codexUnits = codexUnitsOf(record,);
+    units.push(
+      ...claudeUnits,
+      ...codexUnits,
+    );
   }
   /**
-   Scan result assembled from the collected blocks and row count.
+   Scan result assembled from the collected units and row count.
    */
-  const scan: ThinkingScan = {
-    blocks,
+  const scan: TextScan = {
+    units,
     rows: examined,
   };
   return scan;
 }
 
-export type { ThinkingScan, };
+export type { TextScan, };
 
 export {
-  readThinkingBlocks,
+  readTextUnits,
   TAIL_BYTES,
 };

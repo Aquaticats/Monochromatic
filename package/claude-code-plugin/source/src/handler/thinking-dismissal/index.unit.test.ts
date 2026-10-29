@@ -123,12 +123,12 @@ await describe({
           lines: [thinkingLine('Quadratic, but the lines are short.')],
         },);
         const record = JSON.parse(raw.trimEnd(),) as {
-          readonly thinkingBlocks: number;
+          readonly textBlocks: number;
           readonly hookEvent: string;
           readonly toolName: string;
           readonly hits: readonly { readonly pattern: string, }[];
         };
-        verify(record.thinkingBlocks,).toBe(1,);
+        verify(record.textBlocks,).toBe(1,);
         verify(record.hookEvent,).toBe('PreToolUse',);
         verify(record.toolName,).toBe('Edit',);
         verify(record.hits.length,).toBe(1,);
@@ -144,10 +144,10 @@ await describe({
           lines: [thinkingLine('One linear pass over the rows.')],
         },);
         const record = JSON.parse(raw.trimEnd(),) as {
-          readonly thinkingBlocks: number;
+          readonly textBlocks: number;
           readonly hits: readonly unknown[];
         };
-        verify(record.thinkingBlocks,).toBe(1,);
+        verify(record.textBlocks,).toBe(1,);
         verify(record.hits.length,).toBe(0,);
       },
     },),
@@ -253,6 +253,47 @@ await describe({
         verify(records[1]?.hits.length,).toBe(1,);
         verify(records[2]?.hits.length,).toBe(1,);
         verify(records[0]?.toolUseId,).toBe('tool-events',);
+      },
+    },),
+    it({
+      name: 'reads Codex rollout rows: reasoning summaries and assistant text',
+      fn: async () => {
+        const raw = await runHandler({
+          id: 'codex',
+          lines: [
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'reasoning',
+                summary: [{ type: 'summary_text', text: 'Quadratic, but the rows are short.', },],
+                content: null,
+              },
+            },),
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'message',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'One linear pass over the rows.', },],
+              },
+            },),
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'message',
+                role: 'user',
+                content: [{ type: 'input_text', text: 'Quadratic, but the rows are short.', },],
+              },
+            },),
+          ],
+        },);
+        const record = JSON.parse(raw.trimEnd(),) as {
+          readonly textBlocks: number;
+          readonly hits: readonly { readonly blockHash: string, }[];
+        };
+        verify(record.textBlocks,).toBe(2,);
+        verify(record.hits.length,).toBe(1,);
+        verify(raw.includes('rows are short'),).toBe(false,);
       },
     },),
     it({

@@ -86,9 +86,11 @@ type ThinkingDismissalRecord = {
   readonly toolUseId?: string;
 
   /**
-   Thinking blocks the tail scan examined.
+   Assistant text units the tail scan examined:
+   thinking blocks, summary entries, and visible message text,
+   whatever the runtime provides.
    */
-  readonly thinkingBlocks: number;
+  readonly textBlocks: number;
 
   /**
    Hits not recorded by an earlier stop of this session.
