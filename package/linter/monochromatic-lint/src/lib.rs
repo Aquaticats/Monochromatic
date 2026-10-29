@@ -273,6 +273,26 @@ mod rust_type_diagnostic;
 #[doc(hidden)]
 pub mod rust_workspace;
 
+/// The shell dialects,
+///  the constructs the workflow rules ban and the reading of a `shell:` value.
+#[doc(hidden)]
+pub mod shell_dialect;
+/// Typed selection of the `shell/` rules from validated merged JSONC.
+#[doc(hidden)]
+pub mod shell_rule_settings;
+/// The `shell/` rules over one extracted run body.
+#[doc(hidden)]
+pub mod shell_rules;
+/// The scan that finds banned constructs in one shell run body.
+#[doc(hidden)]
+pub mod shell_scan;
+/// The `cmd.exe` scanner.
+mod shell_scan_cmd;
+/// The PowerShell scanner.
+mod shell_scan_powershell;
+/// The POSIX-family and fish scanner.
+mod shell_scan_posix;
+
 /// Disposable native filesystem helpers used only by tests.
 #[cfg(test)]
 mod test_fs;

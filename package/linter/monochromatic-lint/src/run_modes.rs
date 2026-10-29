@@ -217,6 +217,60 @@ pub const RULES: &[RuleInfo] = &[
         options: &["exclude"],
         suppressible: true,
     },
+    RuleInfo {
+        id: "shell/max-lines",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-pipe",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-and-chain",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-or-chain",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-pipe-stderr",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-semicolon",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-dollar-paren",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-backtick",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "shell/no-ampersand",
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    },
 ];
 
 /// What:

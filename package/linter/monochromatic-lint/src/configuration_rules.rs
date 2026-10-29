@@ -44,6 +44,15 @@ pub const RULE_IDS: &[&str] = &[
     "markdown/no-pipe-tables",
     "markdown/semantic-line-breaks",
     "markdown/lfs-image-url",
+    "shell/max-lines",
+    "shell/no-pipe",
+    "shell/no-and-chain",
+    "shell/no-or-chain",
+    "shell/no-pipe-stderr",
+    "shell/no-semicolon",
+    "shell/no-dollar-paren",
+    "shell/no-backtick",
+    "shell/no-ampersand",
 ];
 
 /// What:
@@ -60,6 +69,20 @@ pub const RULE_IDS: &[&str] = &[
 /// function lineLimit(value: JsoncValue): number;
 /// ```
 pub(crate) fn line_limit(value: &JsoncValue) -> Result<usize, ConfigError> {
+    return count_limit("rust/max-lines", value);
+}
+
+/// What:
+///  Convert an exact JSON number to an unsigned platform-sized count for the named rule.
+/// Why:
+///  `rust/max-lines` and the `shell/` rules share the number grammar,
+///  and an error must name the rule whose `max` was wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function countLimit(id: string, value: JsoncValue): number;
+/// ```
+pub(crate) fn count_limit(id: &str, value: &JsoncValue) -> Result<usize, ConfigError> {
     // What: Extract the exact-number payload from a borrowed value.
     // Why: A string such as "300" must not be silently accepted as a numeric option.
     //
@@ -69,12 +92,12 @@ pub(crate) fn line_limit(value: &JsoncValue) -> Result<usize, ConfigError> {
     // ```
     let JsoncKind::Number { identity, .. } = &value.kind else {
         return Err(ConfigError::new(
-            "rust/max-lines max must be a nonnegative integer.",
+            format!("{id} max must be a nonnegative integer.").as_str(),
         ));
     };
     if identity.is_negative() {
         return Err(ConfigError::new(
-            "rust/max-lines max must be a nonnegative integer.",
+            format!("{id} max must be a nonnegative integer.").as_str(),
         ));
     }
     // Exact zero accepts every zero spelling, including -0 and 0e100000.
@@ -93,18 +116,19 @@ pub(crate) fn line_limit(value: &JsoncValue) -> Result<usize, ConfigError> {
     // ```
     let (Ok(coefficient), Ok(exponent)) = (coefficient_result, exponent_result) else {
         return Err(ConfigError::new(
-            "rust/max-lines max must be a nonnegative integer that fits this platform's line index.",
+            format!("{id} max must be a nonnegative integer that fits this platform's line index.")
+                .as_str(),
         ));
     };
     // Checked arithmetic returns absence on overflow instead of wrapping the line limit.
     let Some(scale) = 10_usize.checked_pow(exponent) else {
         return Err(ConfigError::new(
-            "rust/max-lines max exceeds this platform's line index.",
+            format!("{id} max exceeds this platform's line index.").as_str(),
         ));
     };
     let Some(result) = coefficient.checked_mul(scale) else {
         return Err(ConfigError::new(
-            "rust/max-lines max exceeds this platform's line index.",
+            format!("{id} max exceeds this platform's line index.").as_str(),
         ));
     };
     return Ok(result);
@@ -143,9 +167,9 @@ pub(crate) fn validate_setting(id: &str, setting: &JsoncValue) -> Result<(), Con
             }
             continue;
         }
-        if id == "rust/max-lines" && name == "max" {
+        if (id == "rust/max-lines" || id.starts_with("shell/")) && name == "max" {
             // Validate the count now; final resolution reuses this conversion after merging.
-            line_limit(&entry.value)?;
+            count_limit(id, &entry.value)?;
             continue;
         }
         if id == "markdown/lfs-image-url" && name == "exclude" {
