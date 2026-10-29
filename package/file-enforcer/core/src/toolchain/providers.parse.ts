@@ -82,6 +82,47 @@ function splitWords(text: string,): readonly string[] {
 }
 
 /**
+ Splits provider output into rows at every line terminator `readBinRow` guards,
+ in one left-to-right pass,
+ so rows separated by a carriage return or a Unicode line terminator
+ survive instead of being swallowed by the row before them.
+
+ @param text - Provider output to split
+
+ @returns Rows in order, empty rows included
+
+ @example
+ ```ts
+ splitRows('a\r\nb',); // ['a', '', 'b']
+ ```
+ */
+function splitRows(text: string,): readonly string[] {
+  /**
+   Rows found so far.
+   */
+  const rows: string[] = [];
+  /**
+   Offset the current row starts at.
+   */
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (LINE_TERMINATORS.has(text.charAt(index,),)) {
+      /**
+       Row between the previous terminator and this one.
+       */
+      const row = text.slice(
+        start,
+        index,
+      );
+      rows.push(row,);
+      start = index + 1;
+    }
+  }
+  rows.push(text.slice(start,),);
+  return rows;
+}
+
+/**
  Removes a leading `v` from a version word when something remains after it.
 
  @param word - Version word as printed
@@ -269,7 +310,7 @@ export function parseBinList(output: string,): ReadonlyMap<string, string> {
    Parsed name to version pairs.
    */
   const versions = new Map<string, string>();
-  for (const line of output.split('\n',)) {
+  for (const line of splitRows(output,)) {
     for (const row of readBinRow(line,)) {
       versions.set(
         basename(row.path,),
@@ -303,7 +344,7 @@ export function parseCargoBinstallList(
    Parsed crate to version pairs.
    */
   const versions = new Map<string, string>();
-  for (const line of output.split('\n',)) {
+  for (const line of splitRows(output,)) {
     /**
      Words of one `Package  Cargo Ver  Binstall Ver  Method` row.
      */
@@ -324,7 +365,7 @@ export function parseCargoBinstallList(
       crate,
       binstallVer === '-'
         ? withoutVersionPrefix(cargoVer,)
-        : binstallVer,
+        : withoutVersionPrefix(binstallVer,),
     );
   }
   return versions;
